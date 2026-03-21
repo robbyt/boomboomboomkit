@@ -1,0 +1,26 @@
+{
+  "": {
+    "swift-dependencies": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/master.swiftdeps"
+  },
+  "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/Sources/BoomBoomBoomKitTestSupport/AudioFixtures.swift": {
+    "dependencies": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/AudioFixtures.d",
+    "object": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/AudioFixtures.swift.o",
+    "swiftmodule": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/AudioFixtures~partial.swiftmodule",
+    "swift-dependencies": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/AudioFixtures.swiftdeps",
+    "diagnostics": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/AudioFixtures.dia"
+  },
+  "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/Sources/BoomBoomBoomKitTestSupport/TestSignalGenerators.swift": {
+    "dependencies": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/TestSignalGenerators.d",
+    "object": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/TestSignalGenerators.swift.o",
+    "swiftmodule": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/TestSignalGenerators~partial.swiftmodule",
+    "swift-dependencies": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/TestSignalGenerators.swiftdeps",
+    "diagnostics": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/TestSignalGenerators.dia"
+  },
+  "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/DerivedSources/resource_bundle_accessor.swift": {
+    "dependencies": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/resource_bundle_accessor.d",
+    "object": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/resource_bundle_accessor.swift.o",
+    "swiftmodule": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/resource_bundle_accessor~partial.swiftmodule",
+    "swift-dependencies": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/resource_bundle_accessor.swiftdeps",
+    "diagnostics": "/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitTestSupport.build/resource_bundle_accessor.dia"
+  }
+}
