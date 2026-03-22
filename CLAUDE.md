@@ -1,0 +1,49 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Build & Test
+
+See @Makefile for all targets (`make help`). Key ones: `make build`, `make test`, `make fmt`, `make lint`.
+
+Run a single test suite: `swift test --filter BPMAnalyzer120BPMTests`
+Run a single test: `swift test --filter BPMAnalyzer120BPMTests/detect120BPM`
+
+## Architecture
+
+BoomBoomBoomKit is a standalone audio analysis library for BPM estimation and LUFS loudness measurement. Pure Swift, zero external dependencies — only Apple system frameworks (Accelerate/vDSP, AVFoundation, Foundation). Swift 6.0 strict concurrency, macOS 15+.
+
+### Pipeline
+
+```
+PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorrelation)
+                           → LUFSAnalyzer  (ITU-R BS.1770-5 K-weighted loudness)
+```
+
+All types are stateless structs/enums with static methods. Shared currency type is `[Float]` mono samples.
+
+### Key Types (Sources/BoomBoomBoomKit/)
+
+- **AudioAnalysisService** — Public facade. Composes PCMBufferReader + analyzers. Implements progressive BPM analysis (retries at 30s/60s/90s windows if confidence < 0.40).
+- **BPMAnalyzer** — 10-step DSP pipeline: energy scan → silence check → mel-spectrogram onset → autocorrelation → Fourier tempogram → periodicity fusion → peak selection → range normalization (60-200 BPM) → sub-band voting octave disambiguation → progressive analysis. Internal type (not public).
+- **MelFilterbank** — Caseless enum namespace for Hz↔mel conversion and triangular filterbank matrix construction. Used by BPMAnalyzer.
+- **LUFSAnalyzer** — ITU-R BS.1770-5 integrated loudness. K-weighting via vDSP.Biquad (Double precision). Pre-computed coefficients for 44.1/48/96kHz only. Internal type.
+- **PCMBufferReader** — Reads any audio format (WAV, MP3, FLAC, M4A, etc.) into mono `[Float]` via AVFoundation. Supports partial reads and downsampling.
+
+### Test Support (Sources/BoomBoomBoomKitTestSupport/)
+
+Separate library target providing shared fixtures for consuming packages:
+- **AudioFixtures** — Resolves bundled audio files from `Resources/AudioFixtures/`
+- **TestSignalGenerators** — `generateClickTrack(bpm:sampleRate:durationSeconds:)` and `SplitMix64` deterministic PRNG
+
+### Test Patterns
+
+Tests use Swift Testing framework (`import Testing`, `@Suite`, `@Test`, `#expect`, `#require`) — not XCTest. Test fixtures include real audio files (MP3, FLAC, M4A) in `Tests/BoomBoomBoomKitTests/Fixtures/` and synthetic click tracks generated at runtime.
+
+## Design Constraints
+
+- All DSP uses Apple's Accelerate (vDSP) — no manual loops for bulk numeric operations
+- K-weighting filters use Double precision throughout (Float causes measurable errors near unit circle poles)
+- `BPMResult` and `LUFSResult` are internal; only `AudioAnalysisResult` is public
+- `@preconcurrency import AVFoundation` is used in PCMBufferReader for Swift 6 concurrency compatibility
+- `nonisolated(unsafe)` in PCMBufferReader.downsample is intentional — AVAudioConverter calls its block synchronously
