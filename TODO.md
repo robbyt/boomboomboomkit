@@ -7,15 +7,25 @@ Enhancement backlog for BPM estimation and LUFS measurement. Items migrated from
 ### Improve BPM Candidate Generation Quality
 **Origin:** MetaMan Epic 34 retro (2026-03-08)
 **Severity:** High
+**Status:** Partially addressed in Phase 1 (2026-03-24)
 
 11/30 OA300 Acc1 failures have the correct BPM absent from the top 3 candidates entirely. The disambiguation layer cannot fix what the candidate generator never surfaces.
 
-**Investigate:**
-- Expand candidate selection from top 3 to top 5
-- Multi-window candidate merging (combine candidates from 30s/60s/90s windows before disambiguation)
-- Spectral flux weighting to improve onset detection sensitivity for breakbeat patterns
+**Phase 1 changes (implemented 2026-03-24):**
+- ✅ Expanded candidate selection from top 3 to top 5 (intensity 5+) — brainstorming #24
+- ✅ Added `AnalysisIntensity` (1-10) API controlling pipeline depth — brainstorming #15/16/17
+- ✅ Added `BPMDiagnosticTrace` for per-step pipeline introspection — brainstorming #47
+- ✅ ACF peak sharpening via `vDSP_vsq` (intensity 3+) — brainstorming #39
+- ✅ Adaptive thresholding on onset envelope (intensity 4+) — brainstorming #60
+- ✅ Per-sub-band max normalization (intensity 3+) — brainstorming #38
+- ✅ OA300 benchmark suite (env-gated, `make benchmark`)
+- Baseline OA300 results at intensity 7: Acc1=61.0%, Acc2=79.3%
 
-**Files:** `BPMAnalyzer.swift` (peak selection step, progressive analysis)
+**Remaining investigation:**
+- Multi-window candidate merging (combine candidates from 30s/60s/90s windows before disambiguation) — brainstorming #25
+- Spectral flux weighting to improve onset detection sensitivity for breakbeat patterns — brainstorming #27
+
+**Files:** `BPMAnalyzer.swift`, `AnalysisIntensity.swift`, `BPMDiagnosticTrace.swift`, `AudioAnalysisService.swift`
 
 ## Medium Priority
 

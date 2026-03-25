@@ -86,7 +86,7 @@ BoomBoomBoomKit is a pure-Swift audio analysis library using Accelerate/vDSP. Cu
 
 ### Theme 1: Public API — Intensity Scale & Configuration
 
-**#15 — Numeric Intensity Scale (1-10)**
+**#15 — Numeric Intensity Scale (1-10)** ✅ *Implemented 2026-03-24 (Phase 1) — `AnalysisIntensity` struct, levels 1-7 DSP, 8-10 reserved for ML*
 Replace named presets with a numeric `AnalysisIntensity` where 1=fastest, 10=most accurate. Like zlib compression level. Universally understood, no BPM-specific jargon.
 
 **#16 — Intensity Mapping Table**
@@ -157,7 +157,7 @@ Tag hints are cleaner as a parameter on analyzeBPM rather than overloading the i
 
 ### Theme 4: Accuracy — Candidate Generation (Core Bottleneck)
 
-**#24 — Expand to Top 5 Candidates** [QUICK WIN]
+**#24 — Expand to Top 5 Candidates** [QUICK WIN] ✅ *Implemented 2026-03-24 (Phase 1, intensity 5+)*
 Change `extractTopCandidates` count from 3 to 5. If even 3-4 of the 11 failures have the correct BPM at position 4-5, this alone moves Acc1 significantly.
 
 **#25 — Multi-Window Candidate Pool Merge**
@@ -177,7 +177,7 @@ L2 norm of positive spectral difference frame-to-frame, without mel compression.
 
 ### Theme 5: Accuracy — Onset Detection for Dense Breakbeat
 
-**#60 — Adaptive Thresholding (Median-Filtered Onset Envelope)** [QUICK WIN]
+**#60 — Adaptive Thresholding (Median-Filtered Onset Envelope)** [QUICK WIN] ✅ *Implemented 2026-03-24 (Phase 1, intensity 4+) — uses running mean via vDSP_vswsum, not median*
 Subtract running median from onset envelope before ACF. Keeps only peaks exceeding local noise floor. Specifically addresses "wall of energy" from dense snare rolls in jungle/DnB. One-line change using vDSP running median.
 
 **#59 — Harmonic/Percussive Source Separation**
@@ -186,10 +186,10 @@ Median filtering on spectrogram (horizontal = harmonic, vertical = percussive). 
 **#37 — High-Pass Onset Envelope** [QUICK WIN]
 High-pass filter the onset envelope before ACF to emphasize hi-hat periodicity over low-frequency snare roll energy.
 
-**#38 — Per-Sub-Band Normalization** [QUICK WIN]
+**#38 — Per-Sub-Band Normalization** [QUICK WIN] ✅ *Implemented 2026-03-24 (Phase 1, intensity 3+) — max normalization with 1% energy threshold*
 Normalize each sub-band onset envelope to [0,1] independently before combining. Prevents loud snare bands from drowning out kick periodicity in the full-band sum.
 
-**#39 — ACF Peak Sharpening** [QUICK WIN]
+**#39 — ACF Peak Sharpening** [QUICK WIN] ✅ *Implemented 2026-03-24 (Phase 1, intensity 3+) — uses acf² via vDSP_vsq*
 Raise ACF to a power (`acf^2` or `acf^3`) before peak picking. Amplifies sharp periodic peaks, suppresses broad noisy humps. Single `vDSP_vsq` call.
 
 **#40 — Comb Filter Resurrection for Dense Percussion**
@@ -237,7 +237,7 @@ Optional resource bundle. `BoomBoomBoomKit` = DSP only (intensity 1-7). `BoomBoo
 
 ### Theme 8: Diagnostics & Instrumentation
 
-**#47 — Pipeline Signal Trace (Internal Debug)** [HIGHEST LEVERAGE]
+**#47 — Pipeline Signal Trace (Internal Debug)** [HIGHEST LEVERAGE] ✅ *Implemented 2026-03-24 (Phase 1) — `BPMDiagnosticTrace` public struct, enabled via `enableTrace: true`*
 `DiagnosticTrace` struct captures intermediate state: onset envelope, sub-band envelopes, ACF peaks, tempogram peaks, fused spectrum, TPS2 output, raw candidates, final candidates, duration hints. Run the 11 failing tracks through it to see exactly where the correct BPM's energy disappears.
 
 **#48 — Visual Diagnostic Export**

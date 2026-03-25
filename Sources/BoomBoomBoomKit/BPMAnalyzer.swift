@@ -24,6 +24,8 @@ struct BPMResult: Sendable {
   let confidence: Double
   /// Top candidates pre-disambiguation (internal use for benchmarking).
   let candidates: [(bpm: Double, score: Float)]
+  /// Diagnostic trace capturing per-step pipeline state. Nil unless `enableTrace` was true.
+  let trace: BPMDiagnosticTrace?
 }
 
 /// Estimates tempo from PCM audio samples using spectral flux onset detection
@@ -105,7 +107,25 @@ struct BPMAnalyzer {
     samples: [Float],
     sampleRate: Double,
     analysisWindowSeconds: Double = defaultAnalysisWindowSeconds,
-    strategy: BPMDisambiguationStrategy = .subBandVoting
+    intensity: AnalysisIntensity = .default,
+    enableTrace: Bool = false
+  ) -> BPMResult? {
+    let config = BPMPipelineConfiguration(intensity: intensity)
+    return estimateBPM(
+      samples: samples, sampleRate: sampleRate,
+      analysisWindowSeconds: analysisWindowSeconds,
+      config: config, intensity: intensity, enableTrace: enableTrace)
+  }
+
+  /// Internal entry point accepting explicit pipeline configuration.
+  /// Used directly by ablation tests to isolate individual techniques.
+  static func estimateBPM(
+    samples: [Float],
+    sampleRate: Double,
+    analysisWindowSeconds: Double = defaultAnalysisWindowSeconds,
+    config: BPMPipelineConfiguration,
+    intensity: AnalysisIntensity = .default,
+    enableTrace: Bool = false
   ) -> BPMResult? {
     guard !samples.isEmpty else { return nil }
 
@@ -125,80 +145,136 @@ struct BPMAnalyzer {
     let windowDuration = Double(analysisWindow.count) / sampleRate
     guard windowDuration >= minimumDurationSeconds else { return nil }
 
+    // Initialize trace if requested
+    var trace: BPMDiagnosticTrace? = enableTrace ? BPMDiagnosticTrace() : nil
+    trace?.energyTransitionOffset = dropOffset
+    trace?.analysisWindowDuration = windowDuration
+    trace?.intensityUsed = intensity
+
     // Adaptive hop: always 10ms regardless of sample rate
     let hopSize = Int(sampleRate / 100)
     let onsetRate = sampleRate / Double(hopSize)
 
-    // Step 3: Mel-spectrogram onset detection with sub-band envelopes (Story 33-6)
+    // Step 3: Mel-spectrogram onset detection with sub-band envelopes
     let onsetResult = computeMelOnsetEnvelopeWithSubBands(
-      samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize)
-    let onsetEnvelope = onsetResult.fullBand
+      samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
+      computeSubBands: config.useSubBandVoting,
+      normalizeSubBands: config.useSubBandNormalization)
+    var onsetEnvelope = onsetResult.fullBand
     guard !onsetEnvelope.isEmpty else { return nil }
 
-    // Step 4: FFT-based autocorrelation (unchanged)
-    let acf = computeAutocorrelation(onsetEnvelope)
+    trace?.onsetEnvelopeLength = onsetEnvelope.count
+    if enableTrace {
+      let bandNames = ["kick", "snare", "crack", "hihat"]
+      var energies: [String: Float] = [:]
+      for (i, band) in onsetResult.subBands.enumerated() where i < bandNames.count {
+        var maxVal: Float = 0
+        vDSP_maxv(band, 1, &maxVal, vDSP_Length(band.count))
+        energies[bandNames[i]] = maxVal
+      }
+      trace?.subBandEnergies = energies
+    }
+
+    // Step 3.5: Adaptive thresholding on full-band onset envelope
+    if config.useAdaptiveThreshold {
+      onsetEnvelope = adaptiveThreshold(envelope: onsetEnvelope, onsetRate: onsetRate)
+    }
+
+    // Step 4: FFT-based autocorrelation
+    var acf = computeAutocorrelation(onsetEnvelope)
     guard !acf.isEmpty else { return nil }
 
-    // Step 4b: Sub-band autocorrelations (Story 33-6, Task 2)
-    let subBandACFs = onsetResult.subBands.map { computeAutocorrelation($0) }
+    // Step 4.1: ACF peak sharpening — element-wise square
+    if config.useACFSharpening {
+      vDSP_vsq(acf, 1, &acf, 1, vDSP_Length(acf.count))
+    }
+
+    if enableTrace {
+      trace?.acfTopLags = extractTopPeaks(from: acf, count: 5)
+        .map { (lag: $0.index, strength: $0.value) }
+    }
+
+    // Step 4b: Sub-band autocorrelations (empty when sub-bands skipped at intensity 1-2)
+    let subBandACFs: [[Float]] = config.useSubBandVoting
+      ? onsetResult.subBands.map { computeAutocorrelation($0) }
+      : []
 
     let bpmMin = Int(minBPM)
     let bpmMax = Int(maxBPM)
 
-    // Step 5: Fourier tempogram (unchanged)
+    // Step 5: Fourier tempogram
     let tempogram = computeFourierTempogram(
       onsetEnvelope: onsetEnvelope, onsetRate: onsetRate,
       bpmMin: bpmMin, bpmMax: bpmMax)
 
-    // Step 6: Periodicity fusion (unchanged)
+    if enableTrace {
+      trace?.tempogramTopBPMs = extractTopPeaks(from: tempogram, count: 5)
+        .map { (bpm: $0.index + bpmMin, magnitude: $0.value) }
+    }
+
+    // Step 6: Periodicity fusion
     let fused = fusePeriodicity(
       autocorrelation: acf, fourierTempogram: tempogram,
       bpmMin: bpmMin, bpmMax: bpmMax, onsetRate: onsetRate)
 
-    // Step 7: TPS2 harmonic enhancement (unchanged)
+    if enableTrace {
+      trace?.fusedTopBPMs = extractTopPeaks(from: fused, count: 5)
+        .map { (bpm: $0.index + bpmMin, score: $0.value) }
+    }
+
+    // Step 7: TPS2 harmonic enhancement
     let enhanced = applyTPS2Enhancement(
       periodicity: fused, bpmMin: bpmMin, bpmMax: bpmMax)
 
+    if enableTrace {
+      trace?.tps2TopBPMs = extractTopPeaks(from: enhanced, count: 5)
+        .map { (bpm: $0.index + bpmMin, score: $0.value) }
+    }
+
     // Step 8-9: Multi-peak extraction + range normalization
     let candidates = extractTopCandidates(
-      enhanced: enhanced, bpmMin: bpmMin, count: 3)
+      enhanced: enhanced, bpmMin: bpmMin, count: config.candidateCount)
     guard !candidates.isEmpty else { return nil }
 
-    // Step 10: Octave disambiguation with sub-band voting (Story 33-6)
+    trace?.rawCandidates = candidates
+
+    // Step 10: Octave disambiguation with sub-band voting
     var winner = resolveOctaveAmbiguity(
       candidates: candidates, fused: fused, bpmMin: bpmMin,
       subBandACFs: subBandACFs, onsetRate: onsetRate)
 
-    // Step 10b: Sub-band periodicity confirmation (Story 33-6)
-    // If the winner is in 80-130 range and hi-hat/snare bands show strong
-    // periodicity at ~1.5x or 2x the winner BPM, promote the faster tempo.
-    if !subBandACFs.isEmpty {
+    // Step 10b: Sub-band periodicity confirmation
+    if config.useSubBandVoting && !subBandACFs.isEmpty {
       winner = confirmWithSubBandPeaks(
         winner: winner, subBandACFs: subBandACFs, onsetRate: onsetRate)
     }
 
-    // Step 10c: Fine-grid tempogram refinement (Epic 34, S1)
-    // Refine the disambiguated winner to 0.1 BPM using ±4 BPM fine scan.
-    // Applied AFTER disambiguation to preserve coarse integer BPMs that
-    // octave/sub-band logic depends on.
-    let refinedCandidates = refineCandidates(
-      candidates: [winner],
-      onsetEnvelope: onsetEnvelope,
-      autocorrelation: acf,
-      onsetRate: onsetRate,
-      bpmMin: bpmMin,
-      bpmMax: bpmMax)
-    if let refinedWinner = refinedCandidates.first {
-      winner = refinedWinner
+    trace?.disambiguationResult = (bpm: winner.bpm, score: winner.score)
+
+    // Step 10c: Fine-grid tempogram refinement
+    if config.useFineGridRefinement {
+      let refinedCandidates = refineCandidates(
+        candidates: [winner],
+        onsetEnvelope: onsetEnvelope,
+        autocorrelation: acf,
+        onsetRate: onsetRate,
+        bpmMin: bpmMin,
+        bpmMax: bpmMax)
+      if let refinedWinner = refinedCandidates.first {
+        winner = refinedWinner
+      }
+      trace?.refinedBPM = winner.bpm
     }
 
     let bpm = winner.bpm
     guard bpm >= minBPM && bpm <= maxBPM else { return nil }
 
-    // Step 11: Confidence (new — Task 7)
+    // Step 11: Confidence
     let confidence = computeConfidence(fused: fused, winnerBPM: bpm, bpmMin: bpmMin)
 
-    return BPMResult(bpm: bpm, confidence: confidence, candidates: candidates)
+    trace?.confidence = confidence
+
+    return BPMResult(bpm: bpm, confidence: confidence, candidates: candidates, trace: trace)
   }
 
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)
@@ -250,7 +326,9 @@ struct BPMAnalyzer {
   static func computeMelOnsetEnvelopeWithSubBands(
     samples: [Float],
     sampleRate: Double,
-    hopSize: Int
+    hopSize: Int,
+    computeSubBands: Bool = true,
+    normalizeSubBands: Bool = false
   ) -> OnsetEnvelopes {
     guard
       let fft = vDSP.FFT(
@@ -373,19 +451,43 @@ struct BPMAnalyzer {
       vDSP_sve(rectified, 1, &sum, n)
       fullBandEnvelope[i - 1] = sum
 
-      // Sub-band sums
-      rectified.withUnsafeBufferPointer { rectPtr in
-        for (bandIdx, range) in bandRanges.enumerated() {
-          var bandSum: Float = 0
-          vDSP_sve(
-            rectPtr.baseAddress! + range.lowerBound, 1,
-            &bandSum, vDSP_Length(range.count))
-          subBandEnvelopes[bandIdx][i - 1] = bandSum
+      // Sub-band sums (skipped when computeSubBands is false)
+      if computeSubBands {
+        rectified.withUnsafeBufferPointer { rectPtr in
+          for (bandIdx, range) in bandRanges.enumerated() {
+            var bandSum: Float = 0
+            vDSP_sve(
+              rectPtr.baseAddress! + range.lowerBound, 1,
+              &bandSum, vDSP_Length(range.count))
+            subBandEnvelopes[bandIdx][i - 1] = bandSum
+          }
         }
       }
     }
 
-    return OnsetEnvelopes(fullBand: fullBandEnvelope, subBands: subBandEnvelopes)
+    // Per-sub-band max normalization: normalize each band to [0,1] before returning.
+    // Skip bands with negligible energy (max < 1% of strongest band) to avoid
+    // amplifying noise in near-silent bands.
+    if computeSubBands && normalizeSubBands {
+      var bandMaxes = [Float](repeating: 0, count: subBandEnvelopes.count)
+      for bandIdx in 0..<subBandEnvelopes.count {
+        vDSP_maxv(subBandEnvelopes[bandIdx], 1, &bandMaxes[bandIdx], vDSP_Length(frameCount))
+      }
+      var overallMax: Float = 0
+      vDSP_maxv(bandMaxes, 1, &overallMax, vDSP_Length(bandMaxes.count))
+      let energyThreshold = overallMax * 0.01  // 1% of strongest band
+
+      for bandIdx in 0..<subBandEnvelopes.count {
+        guard bandMaxes[bandIdx] > energyThreshold else { continue }
+        var maxVal = bandMaxes[bandIdx]
+        vDSP_vsdiv(
+          subBandEnvelopes[bandIdx], 1, &maxVal,
+          &subBandEnvelopes[bandIdx], 1, vDSP_Length(frameCount))
+      }
+    }
+
+    let resultSubBands = computeSubBands ? subBandEnvelopes : []
+    return OnsetEnvelopes(fullBand: fullBandEnvelope, subBands: resultSubBands)
   }
 
   // MARK: - FFT-Based Autocorrelation (Task 4)
@@ -1115,5 +1217,71 @@ struct BPMAnalyzer {
     v |= v >> 32
     v += 1
     return max(v, 1)
+  }
+
+  // MARK: - Adaptive Thresholding (Phase 1, #60)
+
+  /// Removes the local energy floor from an onset envelope using running mean subtraction.
+  ///
+  /// Computes a 500ms running mean, subtracts it from the envelope, and half-wave rectifies.
+  /// This keeps only peaks that exceed the local noise floor, addressing "wall of energy"
+  /// artifacts from dense snare rolls in jungle/DnB.
+  ///
+  /// - Parameters:
+  ///   - envelope: Full-band onset envelope.
+  ///   - onsetRate: Onset envelope frame rate (sampleRate / hopSize).
+  /// - Returns: Adaptively thresholded envelope.
+  private static func adaptiveThreshold(envelope: [Float], onsetRate: Double) -> [Float] {
+    let count = envelope.count
+    guard count > 1 else { return envelope }
+
+    // 500ms window (approximately 2 beats at 120 BPM)
+    let windowSize = max(2, Int(0.5 * onsetRate))
+    guard count > windowSize else { return envelope }
+
+    // Compute global mean for edge padding
+    var globalMean: Float = 0
+    vDSP_meanv(envelope, 1, &globalMean, vDSP_Length(count))
+
+    // Compute running sum via vDSP_vswsum
+    let swsumLength = count - windowSize + 1
+    var runningSum = [Float](repeating: 0, count: swsumLength)
+    envelope.withUnsafeBufferPointer { envPtr in
+      let ws = vDSP_Length(windowSize)
+      vDSP_vswsum(envPtr.baseAddress!, 1, &runningSum, 1, vDSP_Length(swsumLength), ws)
+    }
+
+    // Divide by window size to get running mean
+    var divisor = Float(windowSize)
+    vDSP_vsdiv(runningSum, 1, &divisor, &runningSum, 1, vDSP_Length(swsumLength))
+
+    // Build full-length running mean buffer, center-aligned with edge padding
+    var runningMean = [Float](repeating: globalMean, count: count)
+    let offset = windowSize / 2
+    for i in 0..<swsumLength {
+      runningMean[offset + i] = runningSum[i]
+    }
+
+    // Subtract running mean from envelope
+    var subtracted = [Float](repeating: 0, count: count)
+    vDSP_vsub(runningMean, 1, envelope, 1, &subtracted, 1, vDSP_Length(count))
+
+    // Half-wave rectify (clamp negatives to 0)
+    var zero: Float = 0
+    vDSP_vthres(subtracted, 1, &zero, &subtracted, 1, vDSP_Length(count))
+
+    return subtracted
+  }
+
+  // MARK: - Trace Helpers
+
+  /// Extracts top N peaks from a 1D array by value.
+  private static func extractTopPeaks(
+    from array: [Float], count topN: Int
+  ) -> [(index: Int, value: Float)] {
+    guard !array.isEmpty else { return [] }
+    var indexed = array.enumerated().map { (index: $0.offset, value: $0.element) }
+    indexed.sort { $0.value > $1.value }
+    return Array(indexed.prefix(topN))
   }
 }

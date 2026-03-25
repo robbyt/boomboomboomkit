@@ -17,44 +17,34 @@ public struct AudioAnalysisResult: Sendable {
   public let confidence: Double
   /// Top candidates pre-disambiguation (for benchmark analysis).
   public let candidates: [(bpm: Double, score: Float)]
+  /// Diagnostic trace capturing per-step pipeline state. Nil unless `enableTrace` was true.
+  public let trace: BPMDiagnosticTrace?
 }
 
 /// Stateless service that coordinates PCM reading and BPM estimation.
-///
-/// Story 32-3: Composes `PCMBufferReader` and `BPMAnalyzer` into a single call.
-/// Story 32-8: Added `analyzeLUFS()` below.
 public struct AudioAnalysisService {
-
-  // MARK: - Progressive Analysis Constants (Epic 34, S2)
-
-  /// Confidence threshold below which progressive analysis retries with longer windows.
-  /// Empirically validated against 21-track corpus: catches all low-confidence wrong results
-  /// with zero false positives at this threshold.
-  private static let progressiveConfidenceThreshold: Double = 0.40
-
-  /// Progressive window sizes in seconds. PCMBufferReader reads 120s by default,
-  /// which is enough for energy scan + 90s analysis window.
-  private static let progressiveWindowSizes: [Double] = [30, 60, 90]
 
   /// BPM convergence tolerance: if consecutive windows agree within this range, accept.
   private static let convergenceTolerance: Double = 2.0
 
-  /// Analyzes the BPM of an audio file using progressive analysis.
+  /// Analyzes the BPM of an audio file using intensity-controlled progressive analysis.
   ///
-  /// Starts with a 30s analysis window. If confidence is below threshold,
-  /// retries with 60s and 90s windows. Accepts early if consecutive windows
-  /// converge (agree within ±2 BPM).
+  /// The intensity level controls pipeline depth: which DSP stages run,
+  /// how many candidates are considered, and whether progressive retry is used.
   ///
   /// - Parameters:
   ///   - url: Path to the audio file.
   ///   - maxSeconds: Maximum seconds of audio to read for energy scan (default: 120).
+  ///   - intensity: Analysis intensity level (default: `.default`, which is level 7).
+  ///   - enableTrace: When true, populates `result.trace` with per-step diagnostic data.
   /// - Returns: An `AudioAnalysisResult` with BPM and confidence, or `nil`
   ///   for silence, too-short input, or non-musical content.
   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
   public static func analyzeBPM(
     url: URL,
     maxSeconds: Double = 120,
-    strategy: BPMDisambiguationStrategy = .subBandVoting
+    intensity: AnalysisIntensity = .default,
+    enableTrace: Bool = false
   ) throws -> AudioAnalysisResult? {
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
       from: url, maxSeconds: maxSeconds
@@ -63,41 +53,62 @@ public struct AudioAnalysisService {
     var previousBPM: Double?
     var bestResult: BPMResult?
 
-    for windowSeconds in progressiveWindowSizes {
+    for windowSeconds in intensity.windowSizes {
       guard
         let bpmResult = BPMAnalyzer.estimateBPM(
           samples: samples, sampleRate: sampleRate,
           analysisWindowSeconds: windowSeconds,
-          strategy: strategy
+          intensity: intensity,
+          enableTrace: enableTrace
         )
       else {
         continue
       }
 
       // Keep the highest-confidence result across all windows.
-      // Longer windows may find a different BPM with higher confidence —
-      // e.g., resolving a 2:3 ratio lock to a clean half-time relationship.
       if bestResult == nil || bpmResult.confidence > bestResult!.confidence {
         bestResult = bpmResult
       }
 
-      // Accept if confidence is high enough
-      if bpmResult.confidence >= progressiveConfidenceThreshold {
+      // Accept if confidence exceeds progressive threshold
+      if let threshold = intensity.progressiveThreshold,
+        bpmResult.confidence >= threshold
+      {
         break
       }
 
       // Accept if consecutive windows converge (±2 BPM)
-      if let prev = previousBPM,
-        abs(bpmResult.bpm - prev) <= convergenceTolerance {
+      if intensity.progressiveThreshold != nil,
+        let prev = previousBPM,
+        abs(bpmResult.bpm - prev) <= convergenceTolerance
+      {
         break
       }
 
       previousBPM = bpmResult.bpm
+
+      // Non-progressive intensities: single window, break immediately
+      if intensity.progressiveThreshold == nil {
+        break
+      }
     }
 
     guard let result = bestResult else { return nil }
     return AudioAnalysisResult(
-      bpm: result.bpm, confidence: result.confidence, candidates: result.candidates)
+      bpm: result.bpm, confidence: result.confidence,
+      candidates: result.candidates, trace: result.trace)
+  }
+
+  /// Analyzes the BPM of an audio file using the specified disambiguation strategy.
+  ///
+  /// - Note: Deprecated. Use `analyzeBPM(url:maxSeconds:intensity:enableTrace:)` instead.
+  @available(*, deprecated, renamed: "analyzeBPM(url:maxSeconds:intensity:enableTrace:)")
+  public static func analyzeBPM(
+    url: URL,
+    maxSeconds: Double = 120,
+    strategy: BPMDisambiguationStrategy = .subBandVoting
+  ) throws -> AudioAnalysisResult? {
+    try analyzeBPM(url: url, maxSeconds: maxSeconds, intensity: .default, enableTrace: false)
   }
 
   /// Measures integrated loudness per ITU-R BS.1770-5.
