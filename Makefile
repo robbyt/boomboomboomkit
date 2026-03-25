@@ -42,6 +42,15 @@ lint:
 lint-fix:
 	swiftlint --autocorrect lint .
 
+## benchmark: Run OA300 accuracy benchmark (requires OA300_CORPUS_PATH env var)
+##   Usage: OA300_CORPUS_PATH=/path/to/corpus make benchmark
+.PHONY: benchmark
+benchmark:
+ifndef OA300_CORPUS_PATH
+	$(error OA300_CORPUS_PATH is not set. Usage: OA300_CORPUS_PATH=/path/to/corpus make benchmark)
+endif
+	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter OA300BenchmarkTests
+
 ## clean: Remove build artifacts and SPM caches
 .PHONY: clean
 clean:

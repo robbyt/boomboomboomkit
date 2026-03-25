@@ -140,6 +140,50 @@ struct AudioAnalysisServiceLUFSTests {
   }
 }
 
+// MARK: - Intensity API Tests
+
+@Suite("AudioAnalysisService — Intensity API")
+struct AudioAnalysisServiceIntensityTests {
+
+  @Test("analyzeBPM with intensity parameter returns result")
+  func analyzeWithIntensity() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, intensity: .default),
+      "Expected non-nil result with intensity API")
+    #expect(result.bpm >= 40 && result.bpm <= 220)
+    #expect(result.confidence > 0)
+  }
+
+  @Test("analyzeBPM with enableTrace true returns trace")
+  func analyzeWithTrace() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(
+        url: url, intensity: .default, enableTrace: true))
+    let trace = try #require(result.trace, "Trace should be non-nil when enableTrace is true")
+    #expect(!trace.rawCandidates.isEmpty)
+    #expect(trace.confidence > 0)
+    #expect(trace.intensityUsed == .default)
+  }
+
+  @Test("analyzeBPM with enableTrace false returns nil trace")
+  func analyzeWithoutTrace() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, intensity: .default))
+    #expect(result.trace == nil)
+  }
+
+  @Test("analyzeBPM with fastest intensity returns result")
+  func analyzeWithFastest() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, intensity: .fastest))
+    #expect(result.bpm >= 40 && result.bpm <= 220)
+  }
+}
+
 /// Creates a minimal WAV file with a synthetic click track.
 private func createClickTrackWAV(
   bpm: Double, sampleRate: Double, durationSeconds: Double, url: URL
