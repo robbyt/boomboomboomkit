@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     '/Users/rterhaar/Dropbox/research/swift/mediadiff/BoomBoomBoomKit/.build/arm64-apple-macosx/debug/BoomBoomBoomKitPackageTests.xctest/Contents/MacOS/BoomBoomBoomKitPackageTests'
-relocations:     []
-...
