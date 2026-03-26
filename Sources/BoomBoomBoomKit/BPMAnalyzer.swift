@@ -8,14 +8,6 @@
 import Accelerate
 import Foundation
 
-/// Strategy for resolving octave/ratio ambiguity in BPM detection.
-public enum BPMDisambiguationStrategy: String, Sendable, CaseIterable {
-  /// Sub-band voting + fused periodicity heuristic (Steps 10+10b).
-  case subBandVoting
-  /// Reserved for future disambiguation experiments (see docs/bpm.md appendix).
-  case beatPhase
-}
-
 /// Result of BPM estimation.
 struct BPMResult: Sendable {
   /// Estimated tempo in beats per minute.

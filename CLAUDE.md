@@ -50,7 +50,6 @@ Tests use Swift Testing framework (`import Testing`, `@Suite`, `@Test`, `#expect
 - All DSP uses Apple's Accelerate (vDSP) — no manual loops for bulk numeric operations
 - K-weighting filters use Double precision throughout (Float causes measurable errors near unit circle poles)
 - `BPMResult` and `LUFSResult` are internal; `AudioAnalysisResult`, `AnalysisIntensity`, `DSPTechnique`, `TechniqueSet`, `MLTechnique`, and `BPMDiagnosticTrace` are public
-- `BPMDisambiguationStrategy` is deprecated — use `AnalysisIntensity` instead
 - Default intensity mapping uses `.optimal` preset (sharp+vote+fine) — validated by 64-combo ablation on OA300 corpus (Acc1=67.1%)
 - `@preconcurrency import AVFoundation` is used in PCMBufferReader for Swift 6 concurrency compatibility
 - `nonisolated(unsafe)` in PCMBufferReader.downsample is intentional — AVAudioConverter calls its block synchronously
