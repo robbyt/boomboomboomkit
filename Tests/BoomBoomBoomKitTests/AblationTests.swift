@@ -43,7 +43,8 @@ struct AblationMatrixTests {
   init() throws {
     corpusPath = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"]!
 
-    let jsonURL = Bundle.module.url(forResource: "oa300-ground-truth", withExtension: "json")
+    let jsonURL =
+      Bundle.module.url(forResource: "oa300-ground-truth", withExtension: "json")
       ?? Bundle.module.url(
         forResource: "Fixtures/oa300-ground-truth", withExtension: "json")
     guard let url = jsonURL else { throw AblationError.groundTruthNotFound }
@@ -100,8 +101,8 @@ struct AblationMatrixTests {
     // Run each config against corpus (reads from disk each time)
     print("\n=== Ablation Matrix ===")
     print(
-      String(
-        format: "%-35s %6s %6s %5s %5s", "Configuration", "Acc1", "Acc2", "Corr", "Total"))
+      "Configuration".padding(toLength: 35, withPad: " ", startingAt: 0)
+        + "  Acc1   Acc2  Corr Total")
     print(String(repeating: "-", count: 62))
 
     var baselineAcc1 = 0
@@ -112,33 +113,54 @@ struct AblationMatrixTests {
       let delta = acc1 - baselineAcc1
       let deltaStr = name == "baseline" ? "" : (delta >= 0 ? "+\(delta)" : "\(delta)")
 
+      let acc1Pct = String(format: "%5.1f%%", Double(acc1) / Double(total) * 100)
+      let acc2Pct = String(format: "%5.1f%%", Double(acc2) / Double(total) * 100)
       print(
-        String(
-          format: "%-35s %5.1f%% %5.1f%% %3d   %3d   %s",
-          name,
-          Double(acc1) / Double(total) * 100,
-          Double(acc2) / Double(total) * 100,
-          acc1, total, deltaStr))
+        name.padding(toLength: 35, withPad: " ", startingAt: 0)
+          + " \(acc1Pct) \(acc2Pct) \(String(format: "%3d", acc1))   \(String(format: "%3d", total))   \(deltaStr)"
+      )
 
       if name == "baseline" { baselineAcc1 = acc1 }
     }
   }
 
-  @Test("per-track technique impact — which tracks does each technique change?", .timeLimit(.minutes(10)))
+  @Test(
+    "per-track technique impact — which tracks does each technique change?",
+    .timeLimit(.minutes(10)))
   func perTrackImpact() throws {
     let namedConfigs: [(String, BPMPipelineConfiguration)] = [
-      ("sharp", {
-        var c = BPMPipelineConfiguration.baseline; c.useACFSharpening = true; return c
-      }()),
-      ("thresh", {
-        var c = BPMPipelineConfiguration.baseline; c.useAdaptiveThreshold = true; return c
-      }()),
-      ("norm", {
-        var c = BPMPipelineConfiguration.baseline; c.useSubBandNormalization = true; return c
-      }()),
-      ("top5", {
-        var c = BPMPipelineConfiguration.baseline; c.candidateCount = 5; return c
-      }()),
+      (
+        "sharp",
+        {
+          var c = BPMPipelineConfiguration.baseline
+          c.useACFSharpening = true
+          return c
+        }()
+      ),
+      (
+        "thresh",
+        {
+          var c = BPMPipelineConfiguration.baseline
+          c.useAdaptiveThreshold = true
+          return c
+        }()
+      ),
+      (
+        "norm",
+        {
+          var c = BPMPipelineConfiguration.baseline
+          c.useSubBandNormalization = true
+          return c
+        }()
+      ),
+      (
+        "top5",
+        {
+          var c = BPMPipelineConfiguration.baseline
+          c.candidateCount = 5
+          return c
+        }()
+      ),
       ("all", .full),
     ]
 
@@ -172,7 +194,8 @@ struct AblationMatrixTests {
           )
         }
       }
-      print("  \(name): +\(improved) improved, -\(regressed) regressed, net=\(improved - regressed)")
+      print(
+        "  \(name): +\(improved) improved, -\(regressed) regressed, net=\(improved - regressed)")
       print()
     }
   }
@@ -191,7 +214,9 @@ struct AblationMatrixTests {
   private func runCorpusFromDisk(config: BPMPipelineConfiguration) throws -> (
     acc1: Int, acc2: Int, total: Int
   ) {
-    var acc1 = 0, acc2 = 0, total = 0
+    var acc1 = 0
+    var acc2 = 0
+    var total = 0
 
     for track in groundTruth {
       let url = trackURL(track)
@@ -207,8 +232,12 @@ struct AblationMatrixTests {
       }
 
       total += 1
-      if isAcc1(result.bpm, track.bpm) { acc1 += 1; acc2 += 1 }
-      else if isAcc2(result.bpm, track.bpm) { acc2 += 1 }
+      if isAcc1(result.bpm, track.bpm) {
+        acc1 += 1
+        acc2 += 1
+      } else if isAcc2(result.bpm, track.bpm) {
+        acc2 += 1
+      }
     }
 
     return (acc1, acc2, total)
