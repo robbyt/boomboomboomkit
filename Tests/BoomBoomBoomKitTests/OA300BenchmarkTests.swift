@@ -44,7 +44,8 @@ private func isAcc2Match(_ detected: Double, _ expected: Double) -> Bool {
 
 // MARK: - OA300 Benchmark Suite
 
-@Suite("OA300 Benchmark", .enabled(if: ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"] != nil))
+@Suite(
+  "OA300 Benchmark", .enabled(if: ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"] != nil))
 struct OA300BenchmarkTests {
 
   private let corpusPath: String
@@ -53,7 +54,8 @@ struct OA300BenchmarkTests {
   init() throws {
     corpusPath = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"]!
 
-    let jsonURL = Bundle.module.url(forResource: "oa300-ground-truth", withExtension: "json")
+    let jsonURL =
+      Bundle.module.url(forResource: "oa300-ground-truth", withExtension: "json")
       ?? Bundle.module.url(
         forResource: "Fixtures/oa300-ground-truth", withExtension: "json")
 
@@ -70,8 +72,10 @@ struct OA300BenchmarkTests {
     let metrics = try runBenchmark(intensity: .default)
     print("\n=== OA300 Benchmark — Intensity 7 (default) ===")
     print("Corpus: \(metrics.total) tracks, Rekordbox ground truth")
-    print("Acc1: \(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total))")
-    print("Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
+    print(
+      "Acc1: \(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total))")
+    print(
+      "Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
     if !metrics.failures.isEmpty {
       print("\nAcc1 Failures:")
       print("| Track | Expected | Got | Delta% |")

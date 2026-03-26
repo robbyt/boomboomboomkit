@@ -195,7 +195,8 @@ struct BPMAnalyzer {
     }
 
     // Step 4b: Sub-band autocorrelations (empty when sub-bands skipped at intensity 1-2)
-    let subBandACFs: [[Float]] = config.useSubBandVoting
+    let subBandACFs: [[Float]] =
+      config.useSubBandVoting
       ? onsetResult.subBands.map { computeAutocorrelation($0) }
       : []
 
@@ -1057,7 +1058,8 @@ struct BPMAnalyzer {
         let slowerIdx = Int(slower.bpm) - bpmMin
 
         if fasterIdx >= 0 && fasterIdx < fused.count && slowerIdx >= 0
-          && slowerIdx < fused.count {
+          && slowerIdx < fused.count
+        {
           let fasterEnergy = fused[fasterIdx]
           let slowerEnergy = fused[slowerIdx]
 
