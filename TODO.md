@@ -61,7 +61,7 @@ static func analyzeBPM(
     url: URL,
     existingTagBPM: Double? = nil,  // Skip analysis if provided and trusted
     maxSeconds: Double = 120,
-    strategy: BPMDisambiguationStrategy = .subBandVoting
+    intensity: AnalysisIntensity = .default
 ) throws -> AudioAnalysisResult?
 ```
 

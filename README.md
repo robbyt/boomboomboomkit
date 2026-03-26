@@ -76,7 +76,11 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `AudioAnalysisResult` | BPM + confidence + candidates |
 | `PCMBufferReader` | Audio file → `[Float]` mono samples |
 | `PCMBufferReaderError` | Error cases for file reading |
-| `BPMDisambiguationStrategy` | Strategy enum for octave disambiguation |
+| `AnalysisIntensity` | Controls pipeline depth (1-10 ordinal scale) |
+| `DSPTechnique` | Individual DSP technique enum (6 cases) |
+| `TechniqueSet` | Composable technique set with named presets |
+| `MLTechnique` | Protocol for future ML-based estimation |
+| `BPMDiagnosticTrace` | Per-step pipeline diagnostic state |
 
 ## Test Support
 

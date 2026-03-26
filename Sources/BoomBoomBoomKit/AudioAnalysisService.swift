@@ -99,18 +99,6 @@ public struct AudioAnalysisService {
       candidates: result.candidates, trace: result.trace)
   }
 
-  /// Analyzes the BPM of an audio file using the specified disambiguation strategy.
-  ///
-  /// - Note: Deprecated. Use `analyzeBPM(url:maxSeconds:intensity:enableTrace:)` instead.
-  @available(*, deprecated, renamed: "analyzeBPM(url:maxSeconds:intensity:enableTrace:)")
-  public static func analyzeBPM(
-    url: URL,
-    maxSeconds: Double = 120,
-    strategy: BPMDisambiguationStrategy = .subBandVoting
-  ) throws -> AudioAnalysisResult? {
-    try analyzeBPM(url: url, maxSeconds: maxSeconds, intensity: .default, enableTrace: false)
-  }
-
   /// Measures integrated loudness per ITU-R BS.1770-5.
   /// Returns the integrated loudness in LUFS, or nil for silence/too-short/unsupported sample rate.
   ///
