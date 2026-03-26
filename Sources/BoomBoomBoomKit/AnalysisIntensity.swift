@@ -41,12 +41,21 @@ public struct AnalysisIntensity: Sendable, Hashable, Comparable {
 
   // MARK: - Computed Configuration Properties
 
-  /// Number of top candidates to extract from the periodicity spectrum.
-  public var candidateCount: Int {
+  /// The technique set for this intensity level, based on empirical ablation data.
+  ///
+  /// Mapping (ADR-2, Phase 2):
+  /// - Level 1: empty (minimal pipeline, 1 candidate, no disambiguation)
+  /// - Level 2: voting + fineGrid (baseline, 3 candidates)
+  /// - Level 3-7: sharp + voting + fineGrid (optimal, 3 candidates, Acc1=67.1%)
+  /// - Level 8-10: reserved for ML (same DSP as level 7)
+  public var techniqueSet: TechniqueSet {
     switch rawValue {
-    case 1: return 1
-    case 2...4: return 3
-    default: return 5  // 5+
+    case 1:
+      return TechniqueSet(candidateCount: 1)
+    case 2:
+      return .baseline
+    default:  // 3+
+      return .optimal
     }
   }
 
@@ -59,32 +68,6 @@ public struct AnalysisIntensity: Sendable, Hashable, Comparable {
     case 6: return [30, 60]
     default: return [30, 60, 90]  // 7+
     }
-  }
-
-  /// Whether sub-band onset detection and voting should run.
-  /// When false, only full-band onset envelope is computed.
-  public var useSubBandVoting: Bool {
-    rawValue >= 3
-  }
-
-  /// Whether to apply element-wise squaring to the ACF before fusion.
-  public var useACFSharpening: Bool {
-    rawValue >= 3
-  }
-
-  /// Whether to normalize each sub-band envelope to [0,1] before summing.
-  public var useSubBandNormalization: Bool {
-    rawValue >= 3
-  }
-
-  /// Whether to apply running-mean adaptive thresholding to the onset envelope.
-  public var useAdaptiveThreshold: Bool {
-    rawValue >= 4
-  }
-
-  /// Whether to run fine-grid DFT refinement on the winning candidate.
-  public var useFineGridRefinement: Bool {
-    rawValue >= 5
   }
 
   /// Confidence threshold below which progressive analysis retries with longer windows.

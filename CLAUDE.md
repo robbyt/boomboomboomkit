@@ -25,9 +25,12 @@ All types are stateless structs/enums with static methods. Shared currency type 
 ### Key Types (Sources/BoomBoomBoomKit/)
 
 - **AudioAnalysisService** — Public facade. Composes PCMBufferReader + analyzers. Implements intensity-controlled progressive BPM analysis. Primary API: `analyzeBPM(url:intensity:enableTrace:)`.
-- **AnalysisIntensity** — Public struct (1-10) controlling pipeline depth. Named constants: `.fastest` (1), `.default` (7), `.thorough` (8), `.maximum` (10). Levels 1-7 are DSP-only; 8-10 reserved for future ML. Follows `UILayoutPriority` pattern.
+- **AnalysisIntensity** — Public struct (1-10) controlling pipeline depth via `techniqueSet: TechniqueSet`. Named constants: `.fastest` (1), `.default` (7), `.thorough` (8), `.maximum` (10). Levels 1-7 are DSP-only; 8-10 reserved for future ML. Intensity mapping validated by 64-combination ablation matrix.
+- **DSPTechnique** — Public enum (6 cases): `acfSharpening`, `adaptiveThreshold`, `subBandNormalization`, `expandedCandidates`, `fineGridRefinement`, `subBandVoting`. Closed set, `CaseIterable`.
+- **TechniqueSet** — Public struct composing `Set<DSPTechnique>` with named presets: `.baseline` (vote+fine), `.optimal` (sharp+vote+fine, Acc1=67.1%), `.dnbOptimized` (sharp+norm+vote+fine), `.full` (all 6). `allDSPCombinations()` generates 2^6=64 combos for ablation.
+- **MLTechnique** — Public protocol for future CoreML integration (Phase 3). Evaluates candidates post-pipeline via `BPMDiagnosticTrace`. Definition only, no conformances yet.
 - **BPMDiagnosticTrace** — Public struct capturing per-step pipeline intermediate state. Populated when `enableTrace: true`. Evolving API.
-- **BPMAnalyzer** — 10-step DSP pipeline with intensity-gated stages: energy scan → silence check → mel-spectrogram onset (with optional sub-band normalization) → adaptive thresholding → autocorrelation (with optional ACF sharpening) → Fourier tempogram → periodicity fusion → peak selection → range normalization (60-200 BPM) → sub-band voting octave disambiguation → fine-grid refinement. Internal type (not public).
+- **BPMAnalyzer** — 10-step DSP pipeline with technique-gated stages: energy scan → silence check → mel-spectrogram onset (with optional sub-band normalization) → adaptive thresholding → autocorrelation (with optional ACF sharpening) → Fourier tempogram → periodicity fusion → peak selection → range normalization (60-200 BPM) → sub-band voting octave disambiguation → fine-grid refinement. Internal type (not public).
 - **MelFilterbank** — Caseless enum namespace for Hz↔mel conversion and triangular filterbank matrix construction. Used by BPMAnalyzer.
 - **LUFSAnalyzer** — ITU-R BS.1770-5 integrated loudness. K-weighting via vDSP.Biquad (Double precision). Pre-computed coefficients for 44.1/48/96kHz only. Internal type.
 - **PCMBufferReader** — Reads any audio format (WAV, MP3, FLAC, M4A, etc.) into mono `[Float]` via AVFoundation. Supports partial reads and downsampling.
@@ -46,7 +49,8 @@ Tests use Swift Testing framework (`import Testing`, `@Suite`, `@Test`, `#expect
 
 - All DSP uses Apple's Accelerate (vDSP) — no manual loops for bulk numeric operations
 - K-weighting filters use Double precision throughout (Float causes measurable errors near unit circle poles)
-- `BPMResult` and `LUFSResult` are internal; `AudioAnalysisResult`, `AnalysisIntensity`, and `BPMDiagnosticTrace` are public
+- `BPMResult` and `LUFSResult` are internal; `AudioAnalysisResult`, `AnalysisIntensity`, `DSPTechnique`, `TechniqueSet`, `MLTechnique`, and `BPMDiagnosticTrace` are public
 - `BPMDisambiguationStrategy` is deprecated — use `AnalysisIntensity` instead
+- Default intensity mapping uses `.optimal` preset (sharp+vote+fine) — validated by 64-combo ablation on OA300 corpus (Acc1=67.1%)
 - `@preconcurrency import AVFoundation` is used in PCMBufferReader for Swift 6 concurrency compatibility
 - `nonisolated(unsafe)` in PCMBufferReader.downsample is intentional — AVAudioConverter calls its block synchronously

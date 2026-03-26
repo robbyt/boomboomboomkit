@@ -110,20 +110,24 @@ struct BPMAnalyzer {
     intensity: AnalysisIntensity = .default,
     enableTrace: Bool = false
   ) -> BPMResult? {
-    let config = BPMPipelineConfiguration(intensity: intensity)
     return estimateBPM(
       samples: samples, sampleRate: sampleRate,
       analysisWindowSeconds: analysisWindowSeconds,
-      config: config, intensity: intensity, enableTrace: enableTrace)
+      techniques: intensity.techniqueSet,
+      intensity: intensity, enableTrace: enableTrace)
   }
 
-  /// Internal entry point accepting explicit pipeline configuration.
+  /// Internal entry point accepting explicit technique set.
   /// Used directly by ablation tests to isolate individual techniques.
+  ///
+  /// The `intensity` parameter is recorded in the diagnostic trace only —
+  /// it does not affect pipeline behavior. All pipeline gating is driven
+  /// by `techniques`.
   static func estimateBPM(
     samples: [Float],
     sampleRate: Double,
     analysisWindowSeconds: Double = defaultAnalysisWindowSeconds,
-    config: BPMPipelineConfiguration,
+    techniques: TechniqueSet,
     intensity: AnalysisIntensity = .default,
     enableTrace: Bool = false
   ) -> BPMResult? {
@@ -158,8 +162,8 @@ struct BPMAnalyzer {
     // Step 3: Mel-spectrogram onset detection with sub-band envelopes
     let onsetResult = computeMelOnsetEnvelopeWithSubBands(
       samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
-      computeSubBands: config.useSubBandVoting,
-      normalizeSubBands: config.useSubBandNormalization)
+      computeSubBands: techniques.contains(.subBandVoting),
+      normalizeSubBands: techniques.contains(.subBandNormalization))
     var onsetEnvelope = onsetResult.fullBand
     guard !onsetEnvelope.isEmpty else { return nil }
 
@@ -176,7 +180,7 @@ struct BPMAnalyzer {
     }
 
     // Step 3.5: Adaptive thresholding on full-band onset envelope
-    if config.useAdaptiveThreshold {
+    if techniques.contains(.adaptiveThreshold) {
       onsetEnvelope = adaptiveThreshold(envelope: onsetEnvelope, onsetRate: onsetRate)
     }
 
@@ -185,7 +189,7 @@ struct BPMAnalyzer {
     guard !acf.isEmpty else { return nil }
 
     // Step 4.1: ACF peak sharpening — element-wise square
-    if config.useACFSharpening {
+    if techniques.contains(.acfSharpening) {
       vDSP_vsq(acf, 1, &acf, 1, vDSP_Length(acf.count))
     }
 
@@ -196,7 +200,7 @@ struct BPMAnalyzer {
 
     // Step 4b: Sub-band autocorrelations (empty when sub-bands skipped at intensity 1-2)
     let subBandACFs: [[Float]] =
-      config.useSubBandVoting
+      techniques.contains(.subBandVoting)
       ? onsetResult.subBands.map { computeAutocorrelation($0) }
       : []
 
@@ -234,7 +238,7 @@ struct BPMAnalyzer {
 
     // Step 8-9: Multi-peak extraction + range normalization
     let candidates = extractTopCandidates(
-      enhanced: enhanced, bpmMin: bpmMin, count: config.candidateCount)
+      enhanced: enhanced, bpmMin: bpmMin, count: techniques.candidateCount)
     guard !candidates.isEmpty else { return nil }
 
     trace?.rawCandidates = candidates
@@ -245,7 +249,7 @@ struct BPMAnalyzer {
       subBandACFs: subBandACFs, onsetRate: onsetRate)
 
     // Step 10b: Sub-band periodicity confirmation
-    if config.useSubBandVoting && !subBandACFs.isEmpty {
+    if techniques.contains(.subBandVoting) && !subBandACFs.isEmpty {
       winner = confirmWithSubBandPeaks(
         winner: winner, subBandACFs: subBandACFs, onsetRate: onsetRate)
     }
@@ -253,7 +257,7 @@ struct BPMAnalyzer {
     trace?.disambiguationResult = (bpm: winner.bpm, score: winner.score)
 
     // Step 10c: Fine-grid tempogram refinement
-    if config.useFineGridRefinement {
+    if techniques.contains(.fineGridRefinement) {
       let refinedCandidates = refineCandidates(
         candidates: [winner],
         onsetEnvelope: onsetEnvelope,

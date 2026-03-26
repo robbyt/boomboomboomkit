@@ -19,7 +19,15 @@ Enhancement backlog for BPM estimation and LUFS measurement. Items migrated from
 - ✅ Adaptive thresholding on onset envelope (intensity 4+) — brainstorming #60
 - ✅ Per-sub-band max normalization (intensity 3+) — brainstorming #38
 - ✅ OA300 benchmark suite (env-gated, `make benchmark`)
-- Baseline OA300 results at intensity 7: Acc1=61.0%, Acc2=79.3%
+
+**Phase 2 changes (implemented 2026-03-26):**
+- ✅ Replaced `BPMPipelineConfiguration` with `DSPTechnique` enum + `TechniqueSet` composition
+- ✅ Added `MLTechnique` protocol extension point for future CoreML (definition only)
+- ✅ Revised intensity mapping based on 64-combination ablation matrix
+- ✅ Validated presets: `.optimal` (sharp+vote+fine, Acc1=67.1%), `.dnbOptimized` (sharp+norm+vote+fine, 67.1%)
+- ✅ Removed adaptive threshold and expanded candidates from default path (both hurt accuracy)
+- ✅ Full ablation results committed at `_bmad-output/ablation-results.md`
+- OA300 results: `.optimal` Acc1=67.1%, Acc2=81.7% (was 59.8% with all techniques enabled)
 
 **Remaining investigation:**
 - Multi-window candidate merging (combine candidates from 30s/60s/90s windows before disambiguation) — brainstorming #25
@@ -102,5 +110,7 @@ Investigate a distilled CNN or hybrid DSP+ML approach for BPM disambiguation. Co
 - Must not require network access (on-device only)
 
 **Trigger:** DSP-only improvements plateau below ~80% Acc1 on the OA300 benchmark corpus. Do not pursue until candidate generation quality (High priority item above) is addressed first.
+
+**Integration point:** `MLTechnique` protocol is defined in `DSPTechnique.swift` (Phase 2). Conformances receive `BPMDiagnosticTrace` and evaluate candidates post-pipeline.
 
 **Files:** New module (e.g., `BPMMLTiebreaker.swift`), would add CoreML dependency

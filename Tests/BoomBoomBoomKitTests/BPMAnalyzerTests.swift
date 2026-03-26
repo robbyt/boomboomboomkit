@@ -240,27 +240,29 @@ struct AnalysisIntensityTests {
   @Test("computed properties at key levels")
   func computedProperties() {
     let i1 = AnalysisIntensity(rawValue: 1)
-    #expect(i1.candidateCount == 1)
+    #expect(i1.techniqueSet.dspTechniques.isEmpty)
+    #expect(i1.techniqueSet.candidateCount == 1)
     #expect(i1.windowSizes == [15])
-    #expect(!i1.useSubBandVoting)
-    #expect(!i1.useACFSharpening)
-    #expect(!i1.useAdaptiveThreshold)
-    #expect(!i1.useFineGridRefinement)
     #expect(i1.progressiveThreshold == nil)
 
+    let i2 = AnalysisIntensity(rawValue: 2)
+    #expect(i2.techniqueSet == .baseline)
+    #expect(i2.techniqueSet.contains(.subBandVoting))
+    #expect(i2.techniqueSet.contains(.fineGridRefinement))
+    #expect(!i2.techniqueSet.contains(.acfSharpening))
+
     let i3 = AnalysisIntensity(rawValue: 3)
-    #expect(i3.candidateCount == 3)
-    #expect(i3.useSubBandVoting)
-    #expect(i3.useACFSharpening)
-    #expect(!i3.useAdaptiveThreshold)
+    #expect(i3.techniqueSet == .optimal)
+    #expect(i3.techniqueSet.contains(.acfSharpening))
+    #expect(!i3.techniqueSet.contains(.adaptiveThreshold))
 
     let i5 = AnalysisIntensity(rawValue: 5)
-    #expect(i5.candidateCount == 5)
-    #expect(i5.useAdaptiveThreshold)
-    #expect(i5.useFineGridRefinement)
+    #expect(i5.techniqueSet == .optimal)
+    #expect(i5.techniqueSet.candidateCount == 3)
     #expect(i5.progressiveThreshold == nil)
 
     let i7 = AnalysisIntensity(rawValue: 7)
+    #expect(i7.techniqueSet == .optimal)
     #expect(i7.progressiveThreshold == 0.40)
     #expect(i7.windowSizes == [30, 60, 90])
   }
@@ -270,9 +272,8 @@ struct AnalysisIntensityTests {
     let i7 = AnalysisIntensity(rawValue: 7)
     for level in 8...10 {
       let ix = AnalysisIntensity(rawValue: level)
-      #expect(ix.candidateCount == i7.candidateCount)
+      #expect(ix.techniqueSet == i7.techniqueSet)
       #expect(ix.windowSizes == i7.windowSizes)
-      #expect(ix.useSubBandVoting == i7.useSubBandVoting)
       #expect(ix.progressiveThreshold == i7.progressiveThreshold)
     }
   }
