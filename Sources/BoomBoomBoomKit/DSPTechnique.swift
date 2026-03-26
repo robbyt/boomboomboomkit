@@ -95,12 +95,14 @@ public struct TechniqueSet: Sendable, Hashable {
   public func inserting(_ technique: DSPTechnique) -> TechniqueSet {
     var copy = self
     copy.dspTechniques.insert(technique)
+    copy.candidateCount = copy.dspTechniques.contains(.expandedCandidates) ? 5 : 3
     return copy
   }
 
   public func removing(_ technique: DSPTechnique) -> TechniqueSet {
     var copy = self
     copy.dspTechniques.remove(technique)
+    copy.candidateCount = copy.dspTechniques.contains(.expandedCandidates) ? 5 : 3
     return copy
   }
 

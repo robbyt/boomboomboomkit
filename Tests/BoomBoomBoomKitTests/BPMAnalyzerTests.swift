@@ -718,3 +718,86 @@ struct BPMAnalyzerSubBandVotingTests {
     #expect(winner == 160, "Weighted voting should favor fast tempo (3.5 > 1.5)")
   }
 }
+
+// MARK: - Edge Case Tests (Code Review Fixes)
+
+@Suite("BPMAnalyzer — Review Fix Edge Cases")
+struct BPMAnalyzerReviewFixTests {
+
+  @Test("rangeNormalize handles zero without hanging")
+  func rangeNormalizeZero() {
+    let result = BPMAnalyzer.rangeNormalize(0)
+    #expect(result == 60.0)
+  }
+
+  @Test("rangeNormalize handles negative values")
+  func rangeNormalizeNegative() {
+    let result = BPMAnalyzer.rangeNormalize(-100)
+    #expect(result == 60.0)
+  }
+
+  @Test("rangeNormalize handles NaN")
+  func rangeNormalizeNaN() {
+    let result = BPMAnalyzer.rangeNormalize(Double.nan)
+    #expect(result == 60.0)
+  }
+
+  @Test("rangeNormalize handles infinity")
+  func rangeNormalizeInfinity() {
+    let result = BPMAnalyzer.rangeNormalize(Double.infinity)
+    #expect(result == 60.0)
+  }
+
+  @Test("rangeNormalize handles subnormal (very small positive)")
+  func rangeNormalizeSubnormal() {
+    let result = BPMAnalyzer.rangeNormalize(Double.leastNonzeroMagnitude)
+    // Subnormal gets doubled until >= 60, landing on a power of 2
+    #expect(result >= 60.0 && result <= 200.0)
+  }
+
+  @Test("rangeNormalize handles normal values correctly")
+  func rangeNormalizeNormal() {
+    #expect(BPMAnalyzer.rangeNormalize(120) == 120)
+    #expect(BPMAnalyzer.rangeNormalize(30) == 60)
+    #expect(BPMAnalyzer.rangeNormalize(15) == 60)
+    #expect(BPMAnalyzer.rangeNormalize(300) == 150)
+    #expect(BPMAnalyzer.rangeNormalize(80) == 80)
+    #expect(BPMAnalyzer.rangeNormalize(200) == 200)
+  }
+
+  @Test("TechniqueSet.inserting updates candidateCount")
+  func insertingUpdatesCandidateCount() {
+    let withExpanded = TechniqueSet.baseline.inserting(.expandedCandidates)
+    #expect(withExpanded.candidateCount == 5)
+    #expect(withExpanded.contains(.expandedCandidates))
+    #expect(withExpanded.contains(.subBandVoting))
+  }
+
+  @Test("TechniqueSet.removing updates candidateCount")
+  func removingUpdatesCandidateCount() {
+    let withoutExpanded = TechniqueSet.full.removing(.expandedCandidates)
+    #expect(withoutExpanded.candidateCount == 3)
+    #expect(!withoutExpanded.contains(.expandedCandidates))
+  }
+
+  @Test("silence detection on empty array")
+  func silenceEmptyArray() {
+    let result = BPMAnalyzer.estimateBPM(samples: [], sampleRate: 44100)
+    #expect(result == nil)
+  }
+
+  @Test("trace subBandVoteDetail is populated when voting runs")
+  func traceSubBandVoteDetail() throws {
+    let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
+    let result = try #require(
+      BPMAnalyzer.estimateBPM(
+        samples: samples, sampleRate: 44100,
+        techniques: .optimal, enableTrace: true))
+    let trace = try #require(result.trace)
+    // Sub-band voting runs with .optimal (contains .subBandVoting)
+    #expect(trace.subBandVoteDetail != nil)
+    #expect(trace.subBandVoteDetail?["preVoteBPM"] != nil)
+    #expect(trace.subBandVoteDetail?["postVoteBPM"] != nil)
+    #expect(trace.subBandVoteDetail?["changed"] != nil)
+  }
+}

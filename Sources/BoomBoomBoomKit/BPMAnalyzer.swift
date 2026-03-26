@@ -163,7 +163,8 @@ struct BPMAnalyzer {
     if enableTrace {
       let bandNames = ["kick", "snare", "crack", "hihat"]
       var energies: [String: Float] = [:]
-      for (i, band) in onsetResult.subBands.enumerated() where i < bandNames.count {
+      for (i, band) in onsetResult.subBands.enumerated()
+      where i < bandNames.count && !band.isEmpty {
         var maxVal: Float = 0
         vDSP_maxv(band, 1, &maxVal, vDSP_Length(band.count))
         energies[bandNames[i]] = maxVal
@@ -242,8 +243,18 @@ struct BPMAnalyzer {
 
     // Step 10b: Sub-band periodicity confirmation
     if techniques.contains(.subBandVoting) && !subBandACFs.isEmpty {
+      let preVoteBPM = winner.bpm
       winner = confirmWithSubBandPeaks(
         winner: winner, subBandACFs: subBandACFs, onsetRate: onsetRate)
+
+      if enableTrace {
+        let changed = winner.bpm != preVoteBPM
+        trace?.subBandVoteDetail = [
+          "preVoteBPM": String(format: "%.1f", preVoteBPM),
+          "postVoteBPM": String(format: "%.1f", winner.bpm),
+          "changed": changed ? "true" : "false",
+        ]
+      }
     }
 
     trace?.disambiguationResult = (bpm: winner.bpm, score: winner.score)
@@ -947,7 +958,9 @@ struct BPMAnalyzer {
   }
 
   /// Doubles or halves a BPM value until it falls within 60-200 BPM.
+  /// Returns `perceptualMinBPM` for zero, negative, or subnormal inputs.
   static func rangeNormalize(_ bpm: Double) -> Double {
+    guard bpm > 0, bpm.isFinite else { return perceptualMinBPM }
     var result = bpm
     while result < perceptualMinBPM { result *= 2.0 }
     while result > perceptualMaxBPM { result /= 2.0 }
@@ -1050,8 +1063,8 @@ struct BPMAnalyzer {
         }
 
         // Fallback: original fused-periodicity heuristic
-        let fasterIdx = Int(faster.bpm) - bpmMin
-        let slowerIdx = Int(slower.bpm) - bpmMin
+        let fasterIdx = Int(faster.bpm.rounded()) - bpmMin
+        let slowerIdx = Int(slower.bpm.rounded()) - bpmMin
 
         if fasterIdx >= 0 && fasterIdx < fused.count && slowerIdx >= 0
           && slowerIdx < fused.count
@@ -1200,6 +1213,7 @@ struct BPMAnalyzer {
   // MARK: - Edge Case Helpers (Task 7)
 
   private static func isSilent(_ samples: [Float]) -> Bool {
+    guard !samples.isEmpty else { return true }
     var rms: Float = 0
     vDSP_rmsqv(samples, 1, &rms, vDSP_Length(samples.count))
     return rms < silenceThreshold
