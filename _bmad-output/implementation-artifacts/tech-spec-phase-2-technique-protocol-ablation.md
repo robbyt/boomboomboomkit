@@ -64,12 +64,12 @@ Based on ablation data. Removed `adaptiveThreshold` (hurts -2) and `expandedCand
 | 1 | _(none)_ | 1 | No |
 | 2 | voting, fineGrid | 3 | No |
 | 3 | **sharp**, voting, fineGrid | 3 | No |
-| 4 | sharp, norm, voting, fineGrid | 3 | No |
-| 5 | sharp, norm, voting, fineGrid | 3 | No |
-| 6 | sharp, norm, voting, fineGrid | 3 | 30→60s |
-| 7 (default) | sharp, norm, voting, fineGrid | 3 | 30→60→90s |
+| 4 | sharp, voting, fineGrid | 3 | No |
+| 5 | sharp, voting, fineGrid | 3 | No |
+| 6 | sharp, voting, fineGrid | 3 | 30→60s |
+| 7 (default) | sharp, voting, fineGrid | 3 | 30→60→90s |
 
-Levels 4-5 are identical DSP to 7 (only progressive retry differs at 6+). This follows `UILayoutPriority` pattern — consecutive levels with identical behavior are acceptable when the contract is ordinal.
+Levels 3-7 all use `.optimal` (sharp+voting+fineGrid). Progressive retry differs at 6+. This follows `UILayoutPriority` pattern — consecutive levels with identical behavior are acceptable when the contract is ordinal.
 
 ### ADR-3: Presets Validated by Data
 - **baseline** — voting + fineGrid, count=3. Acc1=64.6%.

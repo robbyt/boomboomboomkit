@@ -134,7 +134,10 @@ struct AblationMatrixTests {
   private let groundTruth: [AblationTrack]
 
   init() throws {
-    corpusPath = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"]!
+    guard let path = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"] else {
+      throw AblationError.corpusPathNotSet
+    }
+    corpusPath = path
 
     let jsonURL =
       Bundle.module.url(forResource: "oa300-ground-truth", withExtension: "json")
@@ -304,4 +307,5 @@ struct AblationMatrixTests {
 
 private enum AblationError: Error {
   case groundTruthNotFound
+  case corpusPathNotSet
 }
