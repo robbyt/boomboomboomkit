@@ -2,12 +2,15 @@
 //  AblationTests.swift
 //  BoomBoomBoomKitTests
 //
-//  Systematic ablation testing: each DSP technique solo, in pairs, and combined.
-//  Measures Acc1/Acc2 for each configuration against the OA300 corpus.
+//  Systematic ablation testing using TechniqueSet combinations.
+//  Quick mode: named presets vs bundled click tracks (always runs, <1s).
+//  Full mode: all 64 DSP combinations vs OA300 corpus (env-gated, ~9 min).
 //
 
 import Foundation
 import Testing
+
+import BoomBoomBoomKitTestSupport
 
 @testable import BoomBoomBoomKit
 
@@ -30,10 +33,100 @@ private func isAcc2(_ detected: Double, _ expected: Double) -> Bool {
     || isAcc1(detected / 2, expected)
 }
 
-// MARK: - Ablation Matrix
+// MARK: - Quick Ablation (always runs)
+
+@Suite("Ablation — Quick (presets vs click tracks)")
+struct AblationQuickTests {
+
+  @Test("TechniqueSet.allDSPCombinations generates 64 combinations")
+  func allCombinationsCount() {
+    let combos = TechniqueSet.allDSPCombinations()
+    #expect(combos.count == 64)
+  }
+
+  @Test("DSPTechnique.allCases has 6 cases")
+  func allCasesCount() {
+    #expect(DSPTechnique.allCases.count == 6)
+  }
+
+  @Test("preset properties")
+  func presetProperties() {
+    #expect(TechniqueSet.optimal.contains(.acfSharpening))
+    #expect(!TechniqueSet.optimal.contains(.adaptiveThreshold))
+    #expect(!TechniqueSet.optimal.contains(.expandedCandidates))
+    #expect(TechniqueSet.baseline.candidateCount == 3)
+    #expect(TechniqueSet.full.candidateCount == 5)
+    #expect(TechniqueSet(dspTechniques: [.expandedCandidates]).candidateCount == 5)
+    #expect(TechniqueSet(candidateCount: 1).candidateCount == 1)
+    #expect(TechniqueSet.dnbOptimized.contains(.subBandNormalization))
+  }
+
+  @Test("TechniqueSet.label produces readable output")
+  func labelOutput() {
+    let empty = TechniqueSet()
+    #expect(empty.label == "minimal")
+    let label = TechniqueSet.optimal.label
+    #expect(label.contains("sharp"))
+    #expect(label.contains("vote"))
+    #expect(label.contains("fine"))
+  }
+
+  @Test("inserting and removing techniques")
+  func builders() {
+    let base = TechniqueSet.baseline
+    let withSharp = base.inserting(.acfSharpening)
+    #expect(withSharp.contains(.acfSharpening))
+    #expect(withSharp.contains(.subBandVoting))
+
+    let withoutVote = withSharp.removing(.subBandVoting)
+    #expect(!withoutVote.contains(.subBandVoting))
+    #expect(withoutVote.contains(.acfSharpening))
+  }
+
+  @Test("named presets produce correct results on 120 BPM click track")
+  func presetsOnClickTrack() throws {
+    let samples = generateClickTrack(
+      bpm: 120, sampleRate: 44100, durationSeconds: 10)
+
+    let presets: [(String, TechniqueSet)] = [
+      ("baseline", .baseline),
+      ("optimal", .optimal),
+      ("full", .full),
+      ("dnbOptimized", .dnbOptimized),
+    ]
+
+    for (name, techniques) in presets {
+      let result = BPMAnalyzer.estimateBPM(
+        samples: samples, sampleRate: 44100, techniques: techniques)
+      let r = try #require(result, "Preset \(name) returned nil")
+      #expect(isAcc1(r.bpm, 120), "Preset \(name) got \(String(format: "%.1f", r.bpm)), expected ~120")
+    }
+  }
+
+  @Test("MLTechnique protocol can be conformed to")
+  func mlTechniqueConformance() {
+    struct NoOpML: MLTechnique {
+      let name = "noop"
+      func evaluate(
+        candidates: [(bpm: Double, score: Float)],
+        trace: BPMDiagnosticTrace
+      ) -> (bpm: Double, confidence: Double)? {
+        return nil
+      }
+    }
+
+    let ml = NoOpML()
+    #expect(ml.name == "noop")
+    let trace = BPMDiagnosticTrace()
+    let result = ml.evaluate(candidates: [(bpm: 120.0, score: 0.9)], trace: trace)
+    #expect(result == nil)
+  }
+}
+
+// MARK: - Full Ablation Matrix (env-gated)
 
 @Suite(
-  "Ablation Matrix",
+  "Ablation — Full Matrix",
   .enabled(if: ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"] != nil))
 struct AblationMatrixTests {
 
@@ -52,125 +145,74 @@ struct AblationMatrixTests {
     groundTruth = try JSONDecoder().decode([AblationTrack].self, from: data)
   }
 
-  @Test("full ablation matrix — individual techniques and combinations", .timeLimit(.minutes(10)))
+  @Test("full 64-combination ablation matrix", .timeLimit(.minutes(15)))
   func fullAblationMatrix() throws {
+    let allCombos = TechniqueSet.allDSPCombinations()
 
-    // Define individual techniques as config toggles
-    let techniques: [(name: String, apply: (inout BPMPipelineConfiguration) -> Void)] = [
-      ("sharp", { $0.useACFSharpening = true }),
-      ("thresh", { $0.useAdaptiveThreshold = true }),
-      ("norm", { $0.useSubBandNormalization = true }),
-      ("top5", { $0.candidateCount = 5 }),
-    ]
+    print("\n=== Full 64-Combination Ablation Matrix ===")
+    print(
+      "Configuration".padding(toLength: 40, withPad: " ", startingAt: 0)
+        + "  Acc1   Acc2  Corr Total  Delta")
+    print(String(repeating: "-", count: 72))
 
-    // Baseline: original pipeline (3 candidates, voting, fine-grid, no quick wins)
-    var configs: [(name: String, config: BPMPipelineConfiguration)] = [
-      ("baseline", .baseline)
-    ]
+    let baselineLabel = TechniqueSet.baseline.label
+    var bestAcc1 = 0
+    var bestLabel = ""
+    var baselineAcc1 = 0
+    var results: [(label: String, acc1: Int, acc2: Int, total: Int)] = []
 
-    // Individual techniques (each added to baseline)
-    for tech in techniques {
-      var config = BPMPipelineConfiguration.baseline
-      tech.apply(&config)
-      configs.append((tech.name, config))
-    }
+    for techniques in allCombos {
+      let (acc1, acc2, total) = try runCorpusFromDisk(techniques: techniques)
+      results.append((label: techniques.label, acc1: acc1, acc2: acc2, total: total))
 
-    // All pairs
-    for i in 0..<techniques.count {
-      for j in (i + 1)..<techniques.count {
-        var config = BPMPipelineConfiguration.baseline
-        techniques[i].apply(&config)
-        techniques[j].apply(&config)
-        configs.append(("\(techniques[i].name)+\(techniques[j].name)", config))
+      if techniques == .baseline {
+        baselineAcc1 = acc1
+      }
+
+      if acc1 > bestAcc1 {
+        bestAcc1 = acc1
+        bestLabel = techniques.label
       }
     }
 
-    // All four combined
-    configs.append(("all", .full))
-
-    // Quick test: just run baseline on first track to verify no crash
-    let firstTrack = groundTruth.first!
-    let firstURL = trackURL(firstTrack)
-    let (testSamples, testRate) = try PCMBufferReader.readMonoSamples(
-      from: firstURL, maxSeconds: 120)
-    print("First track loaded: \(testSamples.count) samples at \(testRate)")
-    let testResult = BPMAnalyzer.estimateBPM(
-      samples: testSamples, sampleRate: testRate, config: .baseline)
-    print("Baseline result: \(testResult?.bpm ?? -1) BPM")
-
-    // Run each config against corpus (reads from disk each time)
-    print("\n=== Ablation Matrix ===")
-    print(
-      "Configuration".padding(toLength: 35, withPad: " ", startingAt: 0)
-        + "  Acc1   Acc2  Corr Total")
-    print(String(repeating: "-", count: 62))
-
-    var baselineAcc1 = 0
-
-    for (name, config) in configs {
-      let (acc1, acc2, total) = try runCorpusFromDisk(config: config)
-
-      let delta = acc1 - baselineAcc1
-      let deltaStr = name == "baseline" ? "" : (delta >= 0 ? "+\(delta)" : "\(delta)")
-
-      let acc1Pct = String(format: "%5.1f%%", Double(acc1) / Double(total) * 100)
-      let acc2Pct = String(format: "%5.1f%%", Double(acc2) / Double(total) * 100)
+    // Sort by Acc1 descending for readable output
+    let sorted = results.sorted { $0.acc1 > $1.acc1 }
+    for r in sorted {
+      let delta = r.acc1 - baselineAcc1
+      let deltaStr = r.label == baselineLabel ? "  --" : (delta >= 0 ? " +\(delta)" : " \(delta)")
+      let acc1Pct = String(format: "%5.1f%%", Double(r.acc1) / Double(r.total) * 100)
+      let acc2Pct = String(format: "%5.1f%%", Double(r.acc2) / Double(r.total) * 100)
       print(
-        name.padding(toLength: 35, withPad: " ", startingAt: 0)
-          + " \(acc1Pct) \(acc2Pct) \(String(format: "%3d", acc1))   \(String(format: "%3d", total))   \(deltaStr)"
+        r.label.padding(toLength: 40, withPad: " ", startingAt: 0)
+          + " \(acc1Pct) \(acc2Pct) \(String(format: "%3d", r.acc1))   \(String(format: "%3d", r.total)) \(deltaStr)"
       )
-
-      if name == "baseline" { baselineAcc1 = acc1 }
     }
+
+    print("\nBest combination: \(bestLabel) (Acc1=\(bestAcc1))")
+    print("Baseline: \(TechniqueSet.baseline.label) (Acc1=\(baselineAcc1))")
   }
 
   @Test(
     "per-track technique impact — which tracks does each technique change?",
     .timeLimit(.minutes(10)))
   func perTrackImpact() throws {
-    let namedConfigs: [(String, BPMPipelineConfiguration)] = [
-      (
-        "sharp",
-        {
-          var c = BPMPipelineConfiguration.baseline
-          c.useACFSharpening = true
-          return c
-        }()
-      ),
-      (
-        "thresh",
-        {
-          var c = BPMPipelineConfiguration.baseline
-          c.useAdaptiveThreshold = true
-          return c
-        }()
-      ),
-      (
-        "norm",
-        {
-          var c = BPMPipelineConfiguration.baseline
-          c.useSubBandNormalization = true
-          return c
-        }()
-      ),
-      (
-        "top5",
-        {
-          var c = BPMPipelineConfiguration.baseline
-          c.candidateCount = 5
-          return c
-        }()
-      ),
-      ("all", .full),
+    let namedSets: [(String, TechniqueSet)] = [
+      ("sharp", TechniqueSet.baseline.inserting(.acfSharpening)),
+      ("thresh", TechniqueSet.baseline.inserting(.adaptiveThreshold)),
+      ("norm", TechniqueSet.baseline.inserting(.subBandNormalization)),
+      ("top5", TechniqueSet.baseline.inserting(.expandedCandidates)),
+      ("optimal", .optimal),
+      ("dnbOptimized", .dnbOptimized),
+      ("full", .full),
     ]
 
-    let baselineResults = try perTrackResultsFromDisk(config: .baseline)
+    let baselineResults = try perTrackResultsFromDisk(techniques: .baseline)
 
     print("\n=== Per-Track Technique Impact ===")
     print("(Shows tracks where technique CHANGED the result vs baseline)\n")
 
-    for (name, config) in namedConfigs {
-      let results = try perTrackResultsFromDisk(config: config)
+    for (name, techniques) in namedSets {
+      let results = try perTrackResultsFromDisk(techniques: techniques)
       var improved = 0
       var regressed = 0
 
@@ -185,12 +227,12 @@ struct AblationMatrixTests {
         if !basCorrect && newCorrect {
           improved += 1
           print(
-            "  [\(name)] IMPROVED: \(track.title.prefix(35)) — \(String(format: "%.1f", baseDetected))→\(String(format: "%.1f", detected)) (expected \(track.bpm))"
+            "  [\(name)] IMPROVED: \(track.title.prefix(35)) — \(String(format: "%.1f", baseDetected))->\(String(format: "%.1f", detected)) (expected \(track.bpm))"
           )
         } else if basCorrect && !newCorrect {
           regressed += 1
           print(
-            "  [\(name)] REGRESSED: \(track.title.prefix(35)) — \(String(format: "%.1f", baseDetected))→\(String(format: "%.1f", detected)) (expected \(track.bpm))"
+            "  [\(name)] REGRESSED: \(track.title.prefix(35)) — \(String(format: "%.1f", baseDetected))->\(String(format: "%.1f", detected)) (expected \(track.bpm))"
           )
         }
       }
@@ -211,7 +253,7 @@ struct AblationMatrixTests {
     return URL(fileURLWithPath: corpusPath).appendingPathComponent(track.filename)
   }
 
-  private func runCorpusFromDisk(config: BPMPipelineConfiguration) throws -> (
+  private func runCorpusFromDisk(techniques: TechniqueSet) throws -> (
     acc1: Int, acc2: Int, total: Int
   ) {
     var acc1 = 0
@@ -225,7 +267,7 @@ struct AblationMatrixTests {
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
       guard
         let result = BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate, config: config)
+          samples: samples, sampleRate: sampleRate, techniques: techniques)
       else {
         total += 1
         continue
@@ -243,8 +285,7 @@ struct AblationMatrixTests {
     return (acc1, acc2, total)
   }
 
-  private func perTrackResultsFromDisk(config: BPMPipelineConfiguration) throws -> [String: Double]
-  {
+  private func perTrackResultsFromDisk(techniques: TechniqueSet) throws -> [String: Double] {
     var results: [String: Double] = [:]
     for track in groundTruth {
       let url = trackURL(track)
@@ -252,7 +293,7 @@ struct AblationMatrixTests {
 
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
       if let result = BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, config: config)
+        samples: samples, sampleRate: sampleRate, techniques: techniques)
       {
         results[track.filename] = result.bpm
       }

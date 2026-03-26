@@ -2,7 +2,7 @@
 title: 'Phase 2 — Protocol-Based Technique System & Ablation Framework'
 slug: 'phase-2-technique-protocol-ablation'
 created: '2026-03-24'
-status: 'ready-for-dev'
+status: 'implementation-complete'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack: [Swift 6.0, Accelerate/vDSP, Swift Testing]
 files_to_modify: [DSPTechnique.swift (new), BPMPipelineConfiguration.swift (delete), BPMAnalyzer.swift, AnalysisIntensity.swift, AblationTests.swift, ablation-results.md (new)]
@@ -81,18 +81,18 @@ Levels 4-5 are identical DSP to 7 (only progressive retry differs at 6+). This f
 
 ### Tasks
 
-- [ ] **Task 1: Create `DSPTechnique.swift`**
+- [x] **Task 1: Create `DSPTechnique.swift`**
   - File: `Sources/BoomBoomBoomKit/DSPTechnique.swift` (new)
   - Action: Create three types in one file:
     1. `DSPTechnique` enum — 6 cases: `acfSharpening`, `adaptiveThreshold`, `subBandNormalization`, `expandedCandidates`, `fineGridRefinement`, `subBandVoting`. Conform to `String`, `CaseIterable`, `Sendable`, `Hashable`.
     2. `TechniqueSet` struct — `var dspTechniques: Set<DSPTechnique>`, `var candidateCount: Int`. Conform to `Sendable`, `Hashable`. Methods: `contains(_:)`, `inserting(_:)`, `removing(_:)`. Static `allDSPCombinations() -> [TechniqueSet]` generating 2^6=64 combinations (power set). `candidateCount` = 5 when set contains `.expandedCandidates`, else 3. Computed `label: String` joining technique short names with "+". Named presets: `.baseline`, `.optimal`, `.full`, `.dnbOptimized`.
     3. `MLTechnique` protocol — `var name: String { get }`, `func evaluate(candidates:trace:) -> (bpm: Double, confidence: Double)?`. Takes `BPMDiagnosticTrace` instead of raw samples to avoid duplicating DSP computation inside the ML model. Pipeline enables trace internally when ML technique is present. Sendable. Definition only.
 
-- [ ] **Task 2: Update `AnalysisIntensity` to use `TechniqueSet`**
+- [x] **Task 2: Update `AnalysisIntensity` to use `TechniqueSet`**
   - File: `Sources/BoomBoomBoomKit/AnalysisIntensity.swift`
   - Action: Add `public var techniqueSet: TechniqueSet` computed property that builds a `TechniqueSet` from `rawValue` thresholds per ADR-2. Remove the 6 individual `use*` Bool computed properties and `candidateCount` — these are now derived from `techniqueSet`. Keep `windowSizes` and `progressiveThreshold` on `AnalysisIntensity` (they control `AudioAnalysisService` loop, not pipeline stages).
 
-- [ ] **Task 3: Refactor `BPMAnalyzer` to use `TechniqueSet`**
+- [x] **Task 3: Refactor `BPMAnalyzer` to use `TechniqueSet`**
   - File: `Sources/BoomBoomBoomKit/BPMAnalyzer.swift`
   - Action:
     1. Replace the `config: BPMPipelineConfiguration` overload (lines ~122-129) with:
@@ -115,11 +115,11 @@ Levels 4-5 are identical DSP to 7 (only progressive retry differs at 6+). This f
     4. Keep `computeSubBands:` parameter gated by `techniques.contains(.subBandVoting)`
     5. Keep `normalizeSubBands:` parameter gated by `techniques.contains(.subBandNormalization)`
 
-- [ ] **Task 4: Delete `BPMPipelineConfiguration.swift`**
+- [x] **Task 4: Delete `BPMPipelineConfiguration.swift`**
   - File: `Sources/BoomBoomBoomKit/BPMPipelineConfiguration.swift`
   - Action: Delete file. All references replaced by `TechniqueSet` in Tasks 2-3.
 
-- [ ] **Task 5: Refactor `AblationTests` to use `TechniqueSet`**
+- [x] **Task 5: Refactor `AblationTests` to use `TechniqueSet`**
   - File: `Tests/BoomBoomBoomKitTests/AblationTests.swift`
   - Action:
     1. Replace `BPMPipelineConfiguration` references with `TechniqueSet`
@@ -131,12 +131,12 @@ Levels 4-5 are identical DSP to 7 (only progressive retry differs at 6+). This f
     7. All string formatting must use Swift interpolation — no `%s` format specifiers
     8. Two ablation modes: **Quick** (always runs, named presets vs bundled click tracks, <1s) and **Full** (env-gated, all 64 combos vs OA300, ~9 min)
 
-- [ ] **Task 6: Run full 64-combination ablation matrix**
+- [x] **Task 6: Run full 64-combination ablation matrix**
   - File: `_bmad-output/ablation-results.md` (new)
   - Action: Run `OA300_CORPUS_PATH=... make benchmark` (which now includes ablation). Capture the full 64-combo results table. Commit as permanent reference. Identify the empirically best combination. Verify it matches the `.optimal` preset assumption (sharp + voting + fineGrid).
   - Notes: ~10 minutes runtime. If the best combo differs from the current `.optimal` preset, update the preset definition and intensity mapping.
 
-- [ ] **Task 7: Update docs**
+- [x] **Task 7: Update docs**
   - File: `CLAUDE.md`, `TODO.md`
   - Action: Update CLAUDE.md key types to reference `DSPTechnique`, `TechniqueSet`, `MLTechnique`. Remove `BPMPipelineConfiguration` mention. Note revised intensity mapping. Update TODO.md with Phase 2 completion status and ablation results summary.
 
@@ -177,3 +177,12 @@ No external deps. Task order: 1 (types) → 2 (intensity) → 3 (analyzer) → 4
 - **Commit existing crash fix** — The `%s` format specifier fix and formatter changes from the investigation agent need to be committed before Phase 2 implementation begins, to keep the diff clean.
 
 **Phase 3:** CoreML/BNNS `MLTechnique` conformances, genre-aware presets, ratio-aware disambiguation, expanded corpus testing.
+
+## Review Notes
+
+- Adversarial review completed (2026-03-26)
+- Findings: 12 total, 6 fixed, 6 skipped (3 noise, 3 acceptable)
+- Resolution approach: auto-fix for real findings, skip noise/acceptable
+- Fixed: F1 (candidateCount regression), F2 (AC-5 spec deviation), F3 (doc comment), F4 (fragile label comparison), F9 (misleading doc), F10 (missing test)
+- Skipped: F5 (CaseIterable ordering, acceptable), F6 (MLTechnique tuple, Phase 3), F7 (coverage, noise), F8 (label sort, noise), F11 (duplicate Acc1, noise), F12 (file organization, acceptable per spec)
+- All 110 tests passing, no warnings
