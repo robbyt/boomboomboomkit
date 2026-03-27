@@ -24,18 +24,18 @@ public struct AudioAnalysisResult: Sendable {
 /// Stateless service that coordinates PCM reading and BPM estimation.
 public struct AudioAnalysisService {
 
-  /// BPM convergence tolerance: if consecutive windows agree within this range, accept.
-  private static let convergenceTolerance: Double = 2.0
-
   /// Analyzes the BPM of an audio file using intensity-controlled progressive analysis.
   ///
   /// The intensity level controls pipeline depth: which DSP stages run,
   /// how many candidates are considered, and whether progressive retry is used.
+  /// For intensity 6+, candidates from multiple windows are merged using the
+  /// specified strategy before selecting the final result.
   ///
   /// - Parameters:
   ///   - url: Path to the audio file.
   ///   - maxSeconds: Maximum seconds of audio to read for energy scan (default: 120).
   ///   - intensity: Analysis intensity level (default: `.default`, which is level 7).
+  ///   - mergeStrategy: Strategy for combining candidates across windows (default: `.maxConfidence`).
   ///   - enableTrace: When true, populates `result.trace` with per-step diagnostic data.
   /// - Returns: An `AudioAnalysisResult` with BPM and confidence, or `nil`
   ///   for silence, too-short input, or non-musical content.
@@ -44,14 +44,15 @@ public struct AudioAnalysisService {
     url: URL,
     maxSeconds: Double = 120,
     intensity: AnalysisIntensity = .default,
+    mergeStrategy: CandidateMergeStrategy = .maxConfidence,
     enableTrace: Bool = false
   ) throws -> AudioAnalysisResult? {
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
       from: url, maxSeconds: maxSeconds
     )
 
-    var previousBPM: Double?
-    var bestResult: BPMResult?
+    // Collect results from all windows.
+    var windowResults: [BPMResult] = []
 
     for windowSeconds in intensity.windowSizes {
       guard
@@ -65,35 +66,23 @@ public struct AudioAnalysisService {
         continue
       }
 
-      // Keep the highest-confidence result across all windows.
-      if bestResult == nil || bpmResult.confidence > bestResult!.confidence {
-        bestResult = bpmResult
-      }
+      windowResults.append(bpmResult)
 
-      // Accept if confidence exceeds progressive threshold
-      if let threshold = intensity.progressiveThreshold,
-        bpmResult.confidence >= threshold
-      {
-        break
-      }
-
-      // Accept if consecutive windows converge (±2 BPM)
-      if intensity.progressiveThreshold != nil,
-        let prev = previousBPM,
-        abs(bpmResult.bpm - prev) <= convergenceTolerance
-      {
-        break
-      }
-
-      previousBPM = bpmResult.bpm
-
-      // Non-progressive intensities: single window, break immediately
+      // Non-progressive intensities (1-5): single window, break immediately.
       if intensity.progressiveThreshold == nil {
         break
       }
     }
 
-    guard let result = bestResult else { return nil }
+    // Merge candidates across windows using the selected strategy.
+    let candidateCount = intensity.techniqueSet.candidateCount
+    guard
+      let result = CandidateMergeStrategy.merge(
+        windowResults: windowResults,
+        candidateCount: candidateCount,
+        strategy: mergeStrategy)
+    else { return nil }
+
     return AudioAnalysisResult(
       bpm: result.bpm, confidence: result.confidence,
       candidates: result.candidates, trace: result.trace)
