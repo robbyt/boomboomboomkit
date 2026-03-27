@@ -7,6 +7,7 @@
 //  Full mode: all 64 DSP combinations vs OA300 corpus (env-gated, ~9 min).
 //
 
+import Dispatch
 import Foundation
 import Testing
 
@@ -158,24 +159,27 @@ struct AblationMatrixTests {
         + "  Acc1   Acc2  Corr Total  Delta")
     print(String(repeating: "-", count: 72))
 
+    // Pre-allocate results array indexed by combination
+    typealias ComboResult = (label: String, acc1: Int, acc2: Int, total: Int)
+    let empty: ComboResult = (label: "", acc1: 0, acc2: 0, total: 0)
+    var results = [ComboResult](repeating: empty, count: allCombos.count)
+
+    // Run all 64 combinations in parallel across available cores
+    DispatchQueue.concurrentPerform(iterations: allCombos.count) { index in
+      let techniques = allCombos[index]
+      guard let (acc1, acc2, total) = try? runCorpusFromDisk(techniques: techniques) else { return }
+      results[index] = (label: techniques.label, acc1: acc1, acc2: acc2, total: total)
+    }
+
+    // Find baseline and best
     let baselineLabel = TechniqueSet.baseline.label
     var bestAcc1 = 0
     var bestLabel = ""
     var baselineAcc1 = 0
-    var results: [(label: String, acc1: Int, acc2: Int, total: Int)] = []
 
-    for techniques in allCombos {
-      let (acc1, acc2, total) = try runCorpusFromDisk(techniques: techniques)
-      results.append((label: techniques.label, acc1: acc1, acc2: acc2, total: total))
-
-      if techniques == .baseline {
-        baselineAcc1 = acc1
-      }
-
-      if acc1 > bestAcc1 {
-        bestAcc1 = acc1
-        bestLabel = techniques.label
-      }
+    for r in results {
+      if r.label == baselineLabel { baselineAcc1 = r.acc1 }
+      if r.acc1 > bestAcc1 { bestAcc1 = r.acc1; bestLabel = r.label }
     }
 
     // Sort by Acc1 descending for readable output
@@ -209,13 +213,22 @@ struct AblationMatrixTests {
       ("full", .full),
     ]
 
-    let baselineResults = try perTrackResultsFromDisk(techniques: .baseline)
+    // Run baseline + all named sets in parallel (8 corpus runs)
+    let allSets = [("baseline", TechniqueSet.baseline)] + namedSets
+    var allResults = [[String: Double]](repeating: [:], count: allSets.count)
+
+    DispatchQueue.concurrentPerform(iterations: allSets.count) { index in
+      guard let results = try? perTrackResultsFromDisk(techniques: allSets[index].1) else { return }
+      allResults[index] = results
+    }
+
+    let baselineResults = allResults[0]
 
     print("\n=== Per-Track Technique Impact ===")
     print("(Shows tracks where technique CHANGED the result vs baseline)\n")
 
-    for (name, techniques) in namedSets {
-      let results = try perTrackResultsFromDisk(techniques: techniques)
+    for (setIndex, (name, _)) in namedSets.enumerated() {
+      let results = allResults[setIndex + 1]  // +1 to skip baseline
       var improved = 0
       var regressed = 0
 
