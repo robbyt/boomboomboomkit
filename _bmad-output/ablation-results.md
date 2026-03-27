@@ -58,6 +58,40 @@
 | norm | 48.8% | -13 |
 | minimal | 48.8% | -13 |
 
+## Multi-Window Merge Strategy Ablation (2026-03-27)
+
+**Date:** 2026-03-27
+**Baseline:** `maxConfidence` at intensity 7 (Acc1=69.5%)
+**Change:** Removed early exit for intensity 6+. All 3 windows (30s, 60s, 90s) now run; candidates merged via configurable strategy.
+
+### Before vs After (early exit removal)
+
+| Metric | Before (early exit) | After (all windows) | Delta |
+|--------|--------------------|--------------------|-------|
+| Acc1 | 68.3% (56/82) | 69.5% (57/82) | **+1** |
+| Acc2 | 85.4% (70/82) | 89.0% (73/82) | **+3** |
+
+Running all windows and picking the highest-confidence one improved accuracy. The early exit was cutting short before finding a better window.
+
+### Strategy Comparison (intensity 7, all windows)
+
+| Strategy | Acc1 | Acc2 | Correct |
+|----------|------|------|---------|
+| **maxConfidence** | **69.5%** | **89.0%** | **57/82** |
+| quorum | 61.0% | 75.6% | 50/82 |
+| dedup | 59.8% | 74.4% | 49/82 |
+| average | 59.8% | 76.8% | 49/82 |
+| median | 59.8% | 76.8% | 49/82 |
+| weightedAverage | 59.8% | 76.8% | 49/82 |
+| union | 59.8% | 74.4% | 49/82 |
+
+### Key Findings
+
+1. **`maxConfidence` wins decisively.** All clustering-based strategies perform worse.
+2. **Why clustering hurts:** `BPMAnalyzer.estimateBPM` runs octave disambiguation per-window. Clustering raw candidates across windows loses this disambiguation. The merged candidates are pre-disambiguation values that haven't been through sub-band voting.
+3. **The real win was removing early exit**, not merging candidates. Running all 3 windows gives the highest-confidence picker more options (+1 Acc1, +3 Acc2).
+4. **Merge strategies need post-disambiguation rethinking.** To improve on `maxConfidence`, strategies would need to merge the *final BPM* from each window (after disambiguation), not the raw candidates (before disambiguation).
+
 ## Limitations
 
 - OA300 is DnB-heavy. Results may differ on other genres.
