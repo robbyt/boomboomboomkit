@@ -29,9 +29,17 @@ Enhancement backlog for BPM estimation and LUFS measurement. Items migrated from
 - ✅ Full ablation results committed at `_bmad-output/ablation-results.md`
 - OA300 results: `.optimal` Acc1=67.1%, Acc2=81.7% (was 59.8% with all techniques enabled)
 
+**Phase 3 changes (implemented 2026-03-27):**
+- ✅ Added `CandidateMergeStrategy` enum with 7 pluggable strategies for multi-window candidate merging
+- ✅ Removed early exit for intensity 6+ (all windows now run); `maxConfidence` picks best
+- ✅ OA300 results: Acc1=69.5% (was 68.3%), Acc2=89.0% (was 85.4%) — +1 Acc1, +3 Acc2
+- ✅ Ablation showed clustering-based strategies all hurt (lose per-window disambiguation)
+- ✅ Key insight: merging raw candidates loses octave disambiguation; future strategies need to merge post-disambiguation results
+- Full ablation results at `_bmad-output/ablation-results.md`
+
 **Remaining investigation:**
-- Multi-window candidate merging (combine candidates from 30s/60s/90s windows before disambiguation) — brainstorming #25
 - Spectral flux weighting to improve onset detection sensitivity for breakbeat patterns — brainstorming #27
+- Post-disambiguation merge strategies (merge final BPMs across windows, not raw candidates) — ablation finding 2026-03-27
 
 **Files:** `BPMAnalyzer.swift`, `AnalysisIntensity.swift`, `BPMDiagnosticTrace.swift`, `AudioAnalysisService.swift`
 
