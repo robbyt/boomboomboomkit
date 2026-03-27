@@ -801,3 +801,220 @@ struct BPMAnalyzerReviewFixTests {
     #expect(trace.subBandVoteDetail?["changed"] != nil)
   }
 }
+
+// MARK: - Candidate Merge Strategy Tests
+
+@Suite("CandidateMergeStrategy")
+struct CandidateMergingTests {
+
+  // MARK: - Helpers
+
+  private func makeBPMResult(
+    bpm: Double, confidence: Double,
+    candidates: [(bpm: Double, score: Float)]
+  ) -> BPMResult {
+    BPMResult(bpm: bpm, confidence: confidence, candidates: candidates, trace: nil)
+  }
+
+  // MARK: - allCases
+
+  @Test("allCases has 7 strategies")
+  func allCasesCount() {
+    #expect(CandidateMergeStrategy.allCases.count == 7)
+  }
+
+  // MARK: - Single window passthrough
+
+  @Test("single window returns same result for all strategies")
+  func singleWindowPassthrough() {
+    let result = makeBPMResult(
+      bpm: 170, confidence: 0.8,
+      candidates: [(170, 0.9), (85, 0.5), (120, 0.3)])
+
+    for strategy in CandidateMergeStrategy.allCases {
+      let merged = CandidateMergeStrategy.merge(
+        windowResults: [result], candidateCount: 3, strategy: strategy)
+      #expect(merged != nil, "Strategy \(strategy) should return non-nil for single window")
+      #expect(merged?.bpm == 170, "Strategy \(strategy) should preserve BPM")
+      #expect(merged?.confidence == 0.8, "Strategy \(strategy) should preserve confidence")
+      #expect(merged?.candidates.count == 3, "Strategy \(strategy) should preserve candidates")
+    }
+  }
+
+  // MARK: - Empty input
+
+  @Test("empty input returns nil for all strategies")
+  func emptyInput() {
+    for strategy in CandidateMergeStrategy.allCases {
+      let merged = CandidateMergeStrategy.merge(
+        windowResults: [], candidateCount: 3, strategy: strategy)
+      #expect(merged == nil, "Strategy \(strategy) should return nil for empty input")
+    }
+  }
+
+  // MARK: - maxConfidence
+
+  @Test("maxConfidence picks highest-confidence window")
+  func maxConfidencePicks() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9)])
+    let r2 = makeBPMResult(bpm: 85, confidence: 0.8, candidates: [(85, 0.7)])
+    let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.95)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2, r3], candidateCount: 3, strategy: .maxConfidence)!
+    #expect(merged.bpm == 85, "Should pick window with highest confidence (0.8)")
+    #expect(merged.confidence == 0.8)
+  }
+
+  // MARK: - dedup
+
+  @Test("dedup merges near-matches keeping highest score")
+  func dedupMergesNearMatches() {
+    // 170.0 and 170.5 are within 2% -- should merge
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9), (85, 0.5)])
+    let r2 = makeBPMResult(bpm: 170.5, confidence: 0.7, candidates: [(170.5, 0.8), (85, 0.6)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2], candidateCount: 3, strategy: .dedup)!
+    // 170 cluster: max score = 0.9 (from r1). 85 cluster: max score = 0.6 (from r2).
+    #expect(merged.candidates.count <= 3)
+    #expect(merged.candidates[0].bpm == 170, "Highest score entry (0.9) should win the cluster BPM")
+    #expect(merged.candidates[0].score == 0.9)
+  }
+
+  @Test("dedup keeps distinct candidates from different windows")
+  func dedupKeepsDistinct() {
+    // 170 and 120 are NOT within 2%
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9)])
+    let r2 = makeBPMResult(bpm: 120, confidence: 0.7, candidates: [(120, 0.8)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2], candidateCount: 3, strategy: .dedup)!
+    #expect(merged.candidates.count == 2)
+  }
+
+  // MARK: - quorum
+
+  @Test("quorum ranks by window count, breaks ties by score")
+  func quorumRanking() {
+    // 170 appears in 3 windows, 85 in 1 window
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.7), (85, 0.8)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.6)])
+    let r3 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.65)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2, r3], candidateCount: 3, strategy: .quorum)!
+    // 170 cluster: 3 windows. 85 cluster: 1 window. 170 should rank first.
+    #expect(merged.candidates[0].bpm == 170, "170 BPM (3 windows) should beat 85 BPM (1 window)")
+  }
+
+  // MARK: - average
+
+  @Test("average computes mean score across windows")
+  func averageScore() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.8)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.6)])
+    let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.7)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2, r3], candidateCount: 3, strategy: .average)!
+    // mean(0.8, 0.6, 0.7) = 0.7
+    let score = merged.candidates[0].score
+    #expect(abs(score - 0.7) < 0.01, "Average score should be ~0.7, got \(score)")
+  }
+
+  // MARK: - median
+
+  @Test("median is resistant to outlier scores")
+  func medianOutlierResistant() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.8)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.1)])  // outlier
+    let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.7)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2, r3], candidateCount: 3, strategy: .median)!
+    // median(0.1, 0.7, 0.8) = 0.7
+    let score = merged.candidates[0].score
+    #expect(abs(score - 0.7) < 0.01, "Median should be ~0.7 (resistant to 0.1 outlier), got \(score)")
+  }
+
+  // MARK: - weightedAverage
+
+  @Test("weightedAverage favors high-confidence windows")
+  func weightedAverageConfidence() {
+    // High confidence (0.9) window has score 0.8
+    // Low confidence (0.1) window has score 0.2
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.9, candidates: [(170, 0.8)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.1, candidates: [(170, 0.2)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2], candidateCount: 3, strategy: .weightedAverage)!
+    // weighted = (0.8*0.9 + 0.2*0.1) / (0.9+0.1) = 0.74
+    let score = merged.candidates[0].score
+    #expect(abs(score - 0.74) < 0.01, "Weighted average should be ~0.74, got \(score)")
+  }
+
+  // MARK: - union
+
+  @Test("union pools all candidates without dedup")
+  func unionPoolsAll() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9), (85, 0.5)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.8), (120, 0.6)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2], candidateCount: 5, strategy: .union)!
+    // 4 total candidates pooled, sorted by score: 0.9, 0.8, 0.6, 0.5
+    #expect(merged.candidates.count == 4)
+    #expect(merged.candidates[0].score == 0.9)
+    #expect(merged.candidates[1].score == 0.8)
+  }
+
+  @Test("union caps at candidateCount")
+  func unionCaps() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9), (85, 0.5)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.8), (120, 0.6)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2], candidateCount: 2, strategy: .union)!
+    #expect(merged.candidates.count == 2)
+  }
+
+  // MARK: - candidateCount capping
+
+  @Test("merging strategies respect candidateCount cap")
+  func candidateCountCapping() {
+    let r1 = makeBPMResult(
+      bpm: 170, confidence: 0.6,
+      candidates: [(170, 0.9), (85, 0.5), (120, 0.4)])
+    let r2 = makeBPMResult(
+      bpm: 170, confidence: 0.7,
+      candidates: [(170, 0.8), (140, 0.6), (100, 0.3)])
+
+    // maxConfidence returns the raw window result (no merging), so skip it here.
+    let mergingStrategies = CandidateMergeStrategy.allCases.filter { $0 != .maxConfidence }
+    for strategy in mergingStrategies {
+      let merged = CandidateMergeStrategy.merge(
+        windowResults: [r1, r2], candidateCount: 2, strategy: strategy)!
+      #expect(
+        merged.candidates.count <= 2,
+        "Strategy \(strategy) should cap at candidateCount=2, got \(merged.candidates.count)")
+    }
+  }
+
+  // MARK: - Confidence propagation
+
+  @Test("all strategies use max confidence across windows")
+  func confidencePropagation() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.3, candidates: [(170, 0.9)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.8, candidates: [(170, 0.7)])
+    let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.6)])
+
+    for strategy in CandidateMergeStrategy.allCases {
+      let merged = CandidateMergeStrategy.merge(
+        windowResults: [r1, r2, r3], candidateCount: 3, strategy: strategy)!
+      #expect(
+        merged.confidence == 0.8,
+        "Strategy \(strategy) should use max confidence (0.8), got \(merged.confidence)")
+    }
+  }
+}

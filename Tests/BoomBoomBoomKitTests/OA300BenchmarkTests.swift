@@ -174,7 +174,85 @@ struct OA300BenchmarkTests {
       .appendingPathComponent(track.filename)
   }
 
-  private func runBenchmark(intensity: AnalysisIntensity) throws -> AccuracyMetrics {
+  @Test("merge strategy comparison (all 7 strategies)")
+  func benchmarkMergeStrategies() throws {
+    let availableTracks = groundTruth.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track).path)
+    }
+    guard !availableTracks.isEmpty else {
+      print("No tracks available")
+      return
+    }
+
+    print("\n=== OA300 Merge Strategy Comparison (Intensity 7) ===")
+    print(
+      "Strategy".padding(toLength: 20, withPad: " ", startingAt: 0)
+        + "  Acc1   Acc2  Correct  Total")
+    print(String(repeating: "-", count: 60))
+
+    // Pre-read all audio files once
+    struct TrackAudio {
+      let track: OA300Track
+      let samples: [Float]
+      let sampleRate: Double
+    }
+    var audioData: [TrackAudio] = []
+    for track in availableTracks {
+      let url = trackURL(track)
+      if let (samples, sampleRate) = try? PCMBufferReader.readMonoSamples(
+        from: url, maxSeconds: 120)
+      {
+        audioData.append(TrackAudio(track: track, samples: samples, sampleRate: sampleRate))
+      }
+    }
+
+    for strategy in CandidateMergeStrategy.allCases {
+      var acc1 = 0
+      var acc2 = 0
+
+      for audio in audioData {
+        // Run all 3 windows and collect results
+        var windowResults: [BPMResult] = []
+        for windowSeconds in AnalysisIntensity.default.windowSizes {
+          if let result = BPMAnalyzer.estimateBPM(
+            samples: audio.samples, sampleRate: audio.sampleRate,
+            analysisWindowSeconds: windowSeconds,
+            intensity: .default)
+          {
+            windowResults.append(result)
+          }
+        }
+
+        guard
+          let merged = CandidateMergeStrategy.merge(
+            windowResults: windowResults,
+            candidateCount: AnalysisIntensity.default.techniqueSet.candidateCount,
+            strategy: strategy)
+        else { continue }
+
+        if isAcc1Match(merged.bpm, audio.track.bpm) {
+          acc1 += 1
+          acc2 += 1
+        } else if isAcc2Match(merged.bpm, audio.track.bpm) {
+          acc2 += 1
+        }
+      }
+
+      let acc1Pct = String(format: "%5.1f%%", Double(acc1) / Double(audioData.count) * 100)
+      let acc2Pct = String(format: "%5.1f%%", Double(acc2) / Double(audioData.count) * 100)
+      print(
+        strategy.rawValue.padding(toLength: 20, withPad: " ", startingAt: 0)
+          + " \(acc1Pct) \(acc2Pct)  \(String(format: "%3d", acc1))      \(String(format: "%3d", audioData.count))"
+      )
+    }
+  }
+
+  // MARK: - Helpers
+
+  private func runBenchmark(
+    intensity: AnalysisIntensity,
+    mergeStrategy: CandidateMergeStrategy = .maxConfidence
+  ) throws -> AccuracyMetrics {
     // Filter to tracks that exist on disk
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
@@ -187,7 +265,9 @@ struct OA300BenchmarkTests {
     DispatchQueue.concurrentPerform(iterations: availableTracks.count) { index in
       let track = availableTracks[index]
       let url = trackURL(track)
-      if let result = try? AudioAnalysisService.analyzeBPM(url: url, intensity: intensity) {
+      if let result = try? AudioAnalysisService.analyzeBPM(
+        url: url, intensity: intensity, mergeStrategy: mergeStrategy)
+      {
         trackBPMs[index] = result.bpm
       }
     }
