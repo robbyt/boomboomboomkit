@@ -6,6 +6,7 @@
 //  Set OA300_CORPUS_PATH to the corpus directory to enable these tests.
 //
 
+import Dispatch
 import Foundation
 import Testing
 
@@ -52,7 +53,10 @@ struct OA300BenchmarkTests {
   private let groundTruth: [OA300Track]
 
   init() throws {
-    corpusPath = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"]!
+    guard let path = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"] else {
+      throw OA300Error.corpusPathNotSet
+    }
+    corpusPath = path
 
     let jsonURL =
       Bundle.module.url(forResource: "oa300-ground-truth", withExtension: "json")
@@ -171,41 +175,52 @@ struct OA300BenchmarkTests {
   }
 
   private func runBenchmark(intensity: AnalysisIntensity) throws -> AccuracyMetrics {
+    // Filter to tracks that exist on disk
+    let availableTracks = groundTruth.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track).path)
+    }
+
+    // Per-track result: (detected BPM or nil for analysis failure)
+    var trackBPMs = [Double?](repeating: nil, count: availableTracks.count)
+
+    // Run analysis in parallel across available cores
+    DispatchQueue.concurrentPerform(iterations: availableTracks.count) { index in
+      let track = availableTracks[index]
+      let url = trackURL(track)
+      if let result = try? AudioAnalysisService.analyzeBPM(url: url, intensity: intensity) {
+        trackBPMs[index] = result.bpm
+      }
+    }
+
+    // Aggregate results
     var acc1Correct = 0
     var acc2Correct = 0
-    var tested = 0
     var failures: [(track: OA300Track, expected: Double, got: Double)] = []
 
-    for track in groundTruth {
-      let url = trackURL(track)
-      guard FileManager.default.fileExists(atPath: url.path) else { continue }
-
-      guard let result = try? AudioAnalysisService.analyzeBPM(url: url, intensity: intensity)
-      else {
+    for (index, track) in availableTracks.enumerated() {
+      guard let detected = trackBPMs[index] else {
         failures.append((track: track, expected: track.bpm, got: 0))
-        tested += 1
         continue
       }
 
-      tested += 1
-
-      if isAcc1Match(result.bpm, track.bpm) {
+      if isAcc1Match(detected, track.bpm) {
         acc1Correct += 1
         acc2Correct += 1
-      } else if isAcc2Match(result.bpm, track.bpm) {
+      } else if isAcc2Match(detected, track.bpm) {
         acc2Correct += 1
-        failures.append((track: track, expected: track.bpm, got: result.bpm))
+        failures.append((track: track, expected: track.bpm, got: detected))
       } else {
-        failures.append((track: track, expected: track.bpm, got: result.bpm))
+        failures.append((track: track, expected: track.bpm, got: detected))
       }
     }
 
     return AccuracyMetrics(
-      total: tested, acc1Correct: acc1Correct,
+      total: availableTracks.count, acc1Correct: acc1Correct,
       acc2Correct: acc2Correct, failures: failures)
   }
 }
 
 private enum OA300Error: Error {
   case groundTruthNotFound
+  case corpusPathNotSet
 }
