@@ -1,6 +1,7 @@
 # BoomBoomBoomKit Makefile
 
 PROJECT := BoomBoomBoomKit
+OA300_CORPUS_PATH ?= /Users/rterhaar/Dropbox/OA300_OnsetAudio300
 
 .PHONY: all
 all: help
@@ -42,23 +43,27 @@ ifndef SUITE
 endif
 	swift test --filter $(SUITE)
 
-## benchmark: Run OA300 accuracy benchmark (requires OA300_CORPUS_PATH env var)
-##   Usage: OA300_CORPUS_PATH=/path/to/corpus make benchmark
+## benchmark: Run OA300 accuracy benchmark
 .PHONY: benchmark
 benchmark:
-ifndef OA300_CORPUS_PATH
-	$(error OA300_CORPUS_PATH is not set. Usage: OA300_CORPUS_PATH=/path/to/corpus make benchmark)
-endif
 	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter OA300BenchmarkTests
 
 ## ablation: Run full ablation matrix against OA300 corpus
-##   Usage: OA300_CORPUS_PATH=/path/to/corpus make ablation
 .PHONY: ablation
 ablation:
-ifndef OA300_CORPUS_PATH
-	$(error OA300_CORPUS_PATH is not set. Usage: OA300_CORPUS_PATH=/path/to/corpus make ablation)
-endif
 	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter AblationMatrixTests
+
+## oracle: Run three-way DAW oracle comparison (ours vs Rekordbox vs DAW-verified)
+.PHONY: oracle
+oracle:
+	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter DAWOracleBenchmarkTests
+
+## oracle-generate: Regenerate daw-oracle.json from the dawproject file
+.PHONY: oracle-generate
+oracle-generate:
+	uv run scripts/dawproject-bpm.py $(OA300_CORPUS_PATH)/corpus/corpus.dawproject \
+		--match Tests/BoomBoomBoomKitTests/Fixtures/oa300-ground-truth.json \
+		> $(OA300_CORPUS_PATH)/daw-oracle.json
 
 ## fmt: Format Swift source code
 .PHONY: fmt
