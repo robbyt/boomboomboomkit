@@ -28,12 +28,19 @@ Then add `"BoomBoomBoomKit"` to your target's dependencies.
 import BoomBoomBoomKit
 
 // BPM Analysis (progressive: retries at 30s/60s/90s windows)
-let bpmResult = try AudioAnalysisService.analyzeBPM(url: audioFileURL)
-print("BPM: \(bpmResult?.bpm ?? 0), Confidence: \(bpmResult?.confidence ?? 0)")
+let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL)
+print("BPM: \(result?.bpm ?? 0), Confidence: \(result?.confidence ?? 0)")
 
-// BPM with explicit disambiguation strategy
+// BPM with custom intensity and merge strategy
 let result = try AudioAnalysisService.analyzeBPM(
-    url: audioFileURL, strategy: .subBandVoting)
+    url: audioFileURL,
+    intensity: .thorough,
+    mergeStrategy: .windowVoting)
+
+// BPM with diagnostic trace enabled
+let traced = try AudioAnalysisService.analyzeBPM(
+    url: audioFileURL, enableTrace: true)
+print("Candidates: \(traced?.candidates ?? [])")
 
 // LUFS Measurement (ITU-R BS.1770-5)
 let lufs = try AudioAnalysisService.analyzeLUFS(url: audioFileURL)
@@ -73,10 +80,11 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | Type | Role |
 |------|------|
 | `AudioAnalysisService` | Public facade composing reader + analyzers |
-| `AudioAnalysisResult` | BPM + confidence + candidates |
+| `AudioAnalysisResult` | BPM + confidence + candidates + optional trace |
 | `PCMBufferReader` | Audio file → `[Float]` mono samples |
 | `PCMBufferReaderError` | Error cases for file reading |
 | `AnalysisIntensity` | Controls pipeline depth (1-10 ordinal scale) |
+| `CandidateMergeStrategy` | How multi-window candidates are combined (8 strategies) |
 | `DSPTechnique` | Individual DSP technique enum (6 cases) |
 | `TechniqueSet` | Composable technique set with named presets |
 | `MLTechnique` | Protocol for future ML-based estimation |
@@ -108,7 +116,7 @@ let clickTrack = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds
 7. **Peak Selection** — Top candidates from fused spectrum
 8. **Range Normalization** — Constrain to 60-200 BPM
 9. **Octave Disambiguation** — Sub-band voting resolves 2:1 ambiguity
-10. **Progressive Analysis** — Retry at 30s/60s/90s windows if confidence < 0.40
+10. **Progressive Analysis** — Multi-window analysis at 30s/60s/90s with configurable merge strategy
 
 ## References
 

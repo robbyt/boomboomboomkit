@@ -174,7 +174,7 @@ struct BPMAnalyzer85BPMTests {
     // that doesn't affect real music (where the fundamental is stronger).
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, intensity: 4))
+        samples: samples, sampleRate: sampleRate, options: .init(intensity: 4)))
     #expect(
       result.bpm >= 83 && result.bpm <= 87,
       "Expected ~85 BPM, got \(result.bpm)")
@@ -188,7 +188,7 @@ struct BPMAnalyzer85BPMTests {
       let intensity = AnalysisIntensity(rawValue: level)
       let result = try #require(
         BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate, intensity: intensity))
+          samples: samples, sampleRate: sampleRate, options: .init(intensity: intensity)))
       let topCandidate = result.candidates.first!.bpm
       #expect(
         topCandidate >= 83 && topCandidate <= 87,
@@ -288,7 +288,7 @@ struct BPMAnalyzerTraceTests {
   func traceNilByDefault() {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = BPMAnalyzer.estimateBPM(
-      samples: samples, sampleRate: 44100, enableTrace: false)
+      samples: samples, sampleRate: 44100)
     #expect(result?.trace == nil)
   }
 
@@ -297,7 +297,7 @@ struct BPMAnalyzerTraceTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, enableTrace: true))
+        samples: samples, sampleRate: 44100, options: .init(enableTrace: true)))
     let trace = try #require(result.trace)
     #expect(trace.onsetEnvelopeLength > 0)
     #expect(!trace.rawCandidates.isEmpty)
@@ -311,7 +311,7 @@ struct BPMAnalyzerTraceTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, intensity: 1, enableTrace: true))
+        samples: samples, sampleRate: 44100, options: .init(intensity: 1, enableTrace: true)))
     let trace = try #require(result.trace)
     #expect(trace.subBandEnergies.isEmpty)
     #expect(trace.refinedBPM == nil)
@@ -329,7 +329,7 @@ struct BPMAnalyzerIntensityTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, intensity: 1))
+        samples: samples, sampleRate: 44100, options: .init(intensity: 1)))
     #expect(
       result.bpm >= 116 && result.bpm <= 124,
       "Expected ~120 BPM at intensity 1, got \(result.bpm)")
@@ -357,7 +357,7 @@ struct BPMAnalyzerIntensityTests {
         let intensity = AnalysisIntensity(rawValue: level)
         let result = try #require(
           BPMAnalyzer.estimateBPM(
-            samples: samples, sampleRate: 44100, intensity: intensity),
+            samples: samples, sampleRate: 44100, options: .init(intensity: intensity)),
           "\(tc.bpm) BPM at intensity \(level) should not be nil")
         #expect(
           abs(result.bpm - tc.bpm) <= tc.tolerance,
@@ -792,7 +792,7 @@ struct BPMAnalyzerReviewFixTests {
     let result = try #require(
       BPMAnalyzer.estimateBPM(
         samples: samples, sampleRate: 44100,
-        techniques: .optimal, enableTrace: true))
+        options: .init(techniques: .optimal, enableTrace: true)))
     let trace = try #require(result.trace)
     // Sub-band voting runs with .optimal (contains .subBandVoting)
     #expect(trace.subBandVoteDetail != nil)

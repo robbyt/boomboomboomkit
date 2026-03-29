@@ -146,7 +146,7 @@ struct OA300BenchmarkTests {
       }
 
       let result = try? AudioAnalysisService.analyzeBPM(
-        url: url, intensity: .default, enableTrace: true)
+        url: url, options: .init(enableTrace: true))
 
       if let r = result {
         let match = isAcc1Match(r.bpm, track.bpm) ? "OK" : "MISS"
@@ -215,8 +215,9 @@ struct OA300BenchmarkTests {
         for windowSeconds in AnalysisIntensity.default.windowSizes {
           if let result = BPMAnalyzer.estimateBPM(
             samples: audio.samples, sampleRate: audio.sampleRate,
-            analysisWindowSeconds: windowSeconds,
-            intensity: .default)
+            options: .init(
+              analysisWindowSeconds: windowSeconds,
+              intensity: .default))
           {
             windowResults.append(result)
           }
@@ -265,7 +266,7 @@ struct OA300BenchmarkTests {
       for (index, url) in urls.enumerated() {
         group.addTask {
           (index, (try? AudioAnalysisService.analyzeBPM(
-            url: url, intensity: intensity, mergeStrategy: mergeStrategy))?.bpm)
+            url: url, options: .init(intensity: intensity, mergeStrategy: mergeStrategy)))?.bpm)
         }
       }
       var results = [Double?](repeating: nil, count: availableTracks.count)

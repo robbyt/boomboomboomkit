@@ -149,7 +149,7 @@ struct AudioAnalysisServiceIntensityTests {
   func analyzeWithIntensity() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
-      try AudioAnalysisService.analyzeBPM(url: url, intensity: .default),
+      try AudioAnalysisService.analyzeBPM(url: url, options: .init(intensity: .default)),
       "Expected non-nil result with intensity API")
     #expect(result.bpm >= 40 && result.bpm <= 220)
     #expect(result.confidence > 0)
@@ -160,7 +160,7 @@ struct AudioAnalysisServiceIntensityTests {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
       try AudioAnalysisService.analyzeBPM(
-        url: url, intensity: .default, enableTrace: true))
+        url: url, options: .init(enableTrace: true)))
     let trace = try #require(result.trace, "Trace should be non-nil when enableTrace is true")
     #expect(!trace.rawCandidates.isEmpty)
     #expect(trace.confidence > 0)
@@ -171,7 +171,7 @@ struct AudioAnalysisServiceIntensityTests {
   func analyzeWithoutTrace() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
-      try AudioAnalysisService.analyzeBPM(url: url, intensity: .default))
+      try AudioAnalysisService.analyzeBPM(url: url))
     #expect(result.trace == nil)
   }
 
@@ -179,7 +179,7 @@ struct AudioAnalysisServiceIntensityTests {
   func analyzeWithFastest() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
-      try AudioAnalysisService.analyzeBPM(url: url, intensity: .fastest))
+      try AudioAnalysisService.analyzeBPM(url: url, options: .init(intensity: .fastest)))
     #expect(result.bpm >= 40 && result.bpm <= 220)
   }
 }

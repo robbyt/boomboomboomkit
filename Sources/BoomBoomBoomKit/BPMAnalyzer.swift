@@ -20,12 +20,17 @@ struct BPMResult: Sendable {
   let trace: BPMDiagnosticTrace?
 }
 
-/// Estimates tempo from PCM audio samples using spectral flux onset detection
-/// and autocorrelation-based beat tracking (Davies & Plumbley 2007).
+/// Estimates tempo from decoded PCM audio samples using spectral flux onset
+/// detection and autocorrelation-based beat tracking (Davies & Plumbley 2007).
 ///
-/// `BPMAnalyzer` is a stateless struct with a static method.
-/// Only imports `Foundation` and `Accelerate` — no external dependencies,
-/// no coupling to MediaDiffCore types.
+/// `BPMAnalyzer` is a pure DSP component — it accepts `[Float]` mono samples,
+/// not encoded audio. Codec decoding (MP3, FLAC, WAV, etc.) is handled upstream
+/// by `PCMBufferReader`, which produces the shared `[Float]` currency type
+/// consumed by both `BPMAnalyzer` and `LUFSAnalyzer`. This separation ensures
+/// the analyzer has no knowledge of audio formats or file I/O.
+///
+/// Stateless struct with static methods. Only imports `Foundation` and
+/// `Accelerate` — no external dependencies.
 struct BPMAnalyzer {
 
   // MARK: - Constants
@@ -81,6 +86,26 @@ struct BPMAnalyzer {
   /// Weights for sub-band voting (kick down-weighted, hi-hat up-weighted)
   private static let bandWeights: [Float] = [0.5, 1.0, 1.5, 2.0]  // kick, snare body, snare crack, hi-hat
 
+  // MARK: - Options
+
+  /// Configuration options for BPM estimation.
+  ///
+  /// All fields have sensible defaults. Most callers can use `.init()`.
+  struct Options: Sendable {
+    /// Duration of analysis window after energy transition (default 30s).
+    var analysisWindowSeconds: Double = defaultAnalysisWindowSeconds
+
+    /// Controls pipeline depth and is recorded in the diagnostic trace.
+    var intensity: AnalysisIntensity = .default
+
+    /// Explicit technique set, overriding `intensity.techniqueSet` for pipeline gating.
+    /// When `nil` (default), techniques are derived from `intensity`.
+    var techniques: TechniqueSet? = nil
+
+    /// When `true`, populates `BPMResult.trace` with per-step diagnostic data.
+    var enableTrace: Bool = false
+  }
+
   // MARK: - Public API
 
   /// Estimates the tempo (BPM) of audio samples using multi-estimator fusion.
@@ -92,37 +117,29 @@ struct BPMAnalyzer {
   /// - Parameters:
   ///   - samples: Mono PCM samples as `[Float]` (up to 120s for energy scan).
   ///   - sampleRate: Sample rate of the audio (e.g., 44100.0).
-  ///   - analysisWindowSeconds: Duration of analysis window after energy transition (default 30s).
+  /// - Returns: A `BPMResult` with BPM and confidence, or `nil` for
+  ///   silence/noise/too-short input.
+  static func estimateBPM(
+    samples: [Float],
+    sampleRate: Double
+  ) -> BPMResult? {
+    estimateBPM(samples: samples, sampleRate: sampleRate, options: .init())
+  }
+
+  /// Estimates the tempo (BPM) of audio samples using multi-estimator fusion.
+  ///
+  /// - Parameters:
+  ///   - samples: Mono PCM samples as `[Float]` (up to 120s for energy scan).
+  ///   - sampleRate: Sample rate of the audio (e.g., 44100.0).
+  ///   - options: Configuration controlling analysis window, intensity, techniques, and tracing.
   /// - Returns: A `BPMResult` with BPM and confidence, or `nil` for
   ///   silence/noise/too-short input.
   static func estimateBPM(
     samples: [Float],
     sampleRate: Double,
-    analysisWindowSeconds: Double = defaultAnalysisWindowSeconds,
-    intensity: AnalysisIntensity = .default,
-    enableTrace: Bool = false
+    options: Options
   ) -> BPMResult? {
-    return estimateBPM(
-      samples: samples, sampleRate: sampleRate,
-      analysisWindowSeconds: analysisWindowSeconds,
-      techniques: intensity.techniqueSet,
-      intensity: intensity, enableTrace: enableTrace)
-  }
-
-  /// Internal entry point accepting explicit technique set.
-  /// Used directly by ablation tests to isolate individual techniques.
-  ///
-  /// The `intensity` parameter is recorded in the diagnostic trace only —
-  /// it does not affect pipeline behavior. All pipeline gating is driven
-  /// by `techniques`.
-  static func estimateBPM(
-    samples: [Float],
-    sampleRate: Double,
-    analysisWindowSeconds: Double = defaultAnalysisWindowSeconds,
-    techniques: TechniqueSet,
-    intensity: AnalysisIntensity = .default,
-    enableTrace: Bool = false
-  ) -> BPMResult? {
+    let techniques = options.techniques ?? options.intensity.techniqueSet
     guard !samples.isEmpty else { return nil }
 
     let duration = Double(samples.count) / sampleRate
@@ -130,7 +147,7 @@ struct BPMAnalyzer {
 
     // Step 1: Energy scan — find the "drop" for analysis window selection
     let dropOffset = findEnergyTransition(samples: samples, sampleRate: sampleRate)
-    let windowSamples = Int(analysisWindowSeconds * sampleRate)  // Uses parameter (default 30s)
+    let windowSamples = Int(options.analysisWindowSeconds * sampleRate)
     let endSample = min(dropOffset + windowSamples, samples.count)
     guard endSample > dropOffset else { return nil }
     let analysisWindow = Array(samples[dropOffset..<endSample])
@@ -142,10 +159,10 @@ struct BPMAnalyzer {
     guard windowDuration >= minimumDurationSeconds else { return nil }
 
     // Initialize trace if requested
-    var trace: BPMDiagnosticTrace? = enableTrace ? BPMDiagnosticTrace() : nil
+    var trace: BPMDiagnosticTrace? = options.enableTrace ? BPMDiagnosticTrace() : nil
     trace?.energyTransitionOffset = dropOffset
     trace?.analysisWindowDuration = windowDuration
-    trace?.intensityUsed = intensity
+    trace?.intensityUsed = options.intensity
 
     // Adaptive hop: always 10ms regardless of sample rate
     let hopSize = Int(sampleRate / 100)
@@ -160,7 +177,7 @@ struct BPMAnalyzer {
     guard !onsetEnvelope.isEmpty else { return nil }
 
     trace?.onsetEnvelopeLength = onsetEnvelope.count
-    if enableTrace {
+    if options.enableTrace {
       let bandNames = ["kick", "snare", "crack", "hihat"]
       var energies: [String: Float] = [:]
       for (i, band) in onsetResult.subBands.enumerated()
@@ -186,7 +203,7 @@ struct BPMAnalyzer {
       vDSP_vsq(acf, 1, &acf, 1, vDSP_Length(acf.count))
     }
 
-    if enableTrace {
+    if options.enableTrace {
       trace?.acfTopLags = extractTopPeaks(from: acf, count: 5)
         .map { (lag: $0.index, strength: $0.value) }
     }
@@ -205,7 +222,7 @@ struct BPMAnalyzer {
       onsetEnvelope: onsetEnvelope, onsetRate: onsetRate,
       bpmMin: bpmMin, bpmMax: bpmMax)
 
-    if enableTrace {
+    if options.enableTrace {
       trace?.tempogramTopBPMs = extractTopPeaks(from: tempogram, count: 5)
         .map { (bpm: $0.index + bpmMin, magnitude: $0.value) }
     }
@@ -215,7 +232,7 @@ struct BPMAnalyzer {
       autocorrelation: acf, fourierTempogram: tempogram,
       bpmMin: bpmMin, bpmMax: bpmMax, onsetRate: onsetRate)
 
-    if enableTrace {
+    if options.enableTrace {
       trace?.fusedTopBPMs = extractTopPeaks(from: fused, count: 5)
         .map { (bpm: $0.index + bpmMin, score: $0.value) }
     }
@@ -224,7 +241,7 @@ struct BPMAnalyzer {
     let enhanced = applyTPS2Enhancement(
       periodicity: fused, bpmMin: bpmMin, bpmMax: bpmMax)
 
-    if enableTrace {
+    if options.enableTrace {
       trace?.tps2TopBPMs = extractTopPeaks(from: enhanced, count: 5)
         .map { (bpm: $0.index + bpmMin, score: $0.value) }
     }
@@ -247,7 +264,7 @@ struct BPMAnalyzer {
       winner = confirmWithSubBandPeaks(
         winner: winner, subBandACFs: subBandACFs, onsetRate: onsetRate)
 
-      if enableTrace {
+      if options.enableTrace {
         let changed = winner.bpm != preVoteBPM
         trace?.subBandVoteDetail = [
           "preVoteBPM": String(format: "%.1f", preVoteBPM),

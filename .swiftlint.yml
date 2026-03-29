@@ -1,0 +1,14 @@
+disabled_rules:
+  - cyclomatic_complexity
+  - file_length
+  - for_where
+  - function_body_length
+  - identifier_name
+  - large_tuple
+  - line_length
+  - opening_brace
+  - trailing_comma
+  - type_body_length
+
+excluded:
+  - .build

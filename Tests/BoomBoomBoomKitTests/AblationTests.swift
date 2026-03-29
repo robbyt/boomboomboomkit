@@ -97,7 +97,7 @@ struct AblationQuickTests {
 
     for (name, techniques) in presets {
       let result = BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, techniques: techniques)
+        samples: samples, sampleRate: 44100, options: .init(techniques: techniques))
       let r = try #require(result, "Preset \(name) returned nil")
       #expect(isAcc1(r.bpm, 120), "Preset \(name) got \(String(format: "%.1f", r.bpm)), expected ~120")
     }
@@ -304,7 +304,7 @@ struct AblationMatrixTests {
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
       guard
         let result = BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate, techniques: techniques)
+          samples: samples, sampleRate: sampleRate, options: .init(techniques: techniques))
       else {
         total += 1
         continue
@@ -334,7 +334,7 @@ struct AblationMatrixTests {
 
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
       if let result = BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, techniques: techniques)
+        samples: samples, sampleRate: sampleRate, options: .init(techniques: techniques))
       {
         results[track.filename] = result.bpm
       }
