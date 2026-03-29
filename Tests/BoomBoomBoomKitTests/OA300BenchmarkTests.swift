@@ -265,8 +265,11 @@ struct OA300BenchmarkTests {
     let trackBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
       for (index, url) in urls.enumerated() {
         group.addTask {
-          (index, (try? AudioAnalysisService.analyzeBPM(
-            url: url, options: .init(intensity: intensity, mergeStrategy: mergeStrategy)))?.bpm)
+          (
+            index,
+            (try? AudioAnalysisService.analyzeBPM(
+              url: url, options: .init(intensity: intensity, mergeStrategy: mergeStrategy)))?.bpm
+          )
         }
       }
       var results = [Double?](repeating: nil, count: availableTracks.count)

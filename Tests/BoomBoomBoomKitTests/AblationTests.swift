@@ -7,10 +7,9 @@
 //  Full mode: all 64 DSP combinations vs OA300 corpus (env-gated, ~9 min).
 //
 
+import BoomBoomBoomKitTestSupport
 import Foundation
 import Testing
-
-import BoomBoomBoomKitTestSupport
 
 @testable import BoomBoomBoomKit
 
@@ -99,7 +98,8 @@ struct AblationQuickTests {
       let result = BPMAnalyzer.estimateBPM(
         samples: samples, sampleRate: 44100, options: .init(techniques: techniques))
       let r = try #require(result, "Preset \(name) returned nil")
-      #expect(isAcc1(r.bpm, 120), "Preset \(name) got \(String(format: "%.1f", r.bpm)), expected ~120")
+      #expect(
+        isAcc1(r.bpm, 120), "Preset \(name) got \(String(format: "%.1f", r.bpm)), expected ~120")
     }
   }
 
@@ -166,8 +166,9 @@ struct AblationMatrixTests {
     let results = await withTaskGroup(of: (Int, ComboResult).self) { group in
       for (index, techniques) in allCombos.enumerated() {
         group.addTask {
-          guard let (acc1, acc2, total) = try? Self.runCorpusFromDisk(
-            techniques: techniques, groundTruth: gt, corpusPath: path)
+          guard
+            let (acc1, acc2, total) = try? Self.runCorpusFromDisk(
+              techniques: techniques, groundTruth: gt, corpusPath: path)
           else { return (index, empty) }
           return (index, (label: techniques.label, acc1: acc1, acc2: acc2, total: total))
         }
@@ -185,7 +186,10 @@ struct AblationMatrixTests {
 
     for r in results {
       if r.label == baselineLabel { baselineAcc1 = r.acc1 }
-      if r.acc1 > bestAcc1 { bestAcc1 = r.acc1; bestLabel = r.label }
+      if r.acc1 > bestAcc1 {
+        bestAcc1 = r.acc1
+        bestLabel = r.label
+      }
     }
 
     // Sort by Acc1 descending for readable output
@@ -226,8 +230,9 @@ struct AblationMatrixTests {
     let allResults = await withTaskGroup(of: (Int, [String: Double]).self) { group in
       for (index, (_, techniques)) in allSets.enumerated() {
         group.addTask {
-          guard let results = try? Self.perTrackResultsFromDisk(
-            techniques: techniques, groundTruth: gt, corpusPath: path)
+          guard
+            let results = try? Self.perTrackResultsFromDisk(
+              techniques: techniques, groundTruth: gt, corpusPath: path)
           else { return (index, [:]) }
           return (index, results)
         }

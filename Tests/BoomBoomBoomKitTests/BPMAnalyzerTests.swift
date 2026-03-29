@@ -935,7 +935,8 @@ struct CandidateMergingTests {
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .median)!
     // median(0.1, 0.7, 0.8) = 0.7
     let score = merged.candidates[0].score
-    #expect(abs(score - 0.7) < 0.01, "Median should be ~0.7 (resistant to 0.1 outlier), got \(score)")
+    #expect(
+      abs(score - 0.7) < 0.01, "Median should be ~0.7 (resistant to 0.1 outlier), got \(score)")
   }
 
   // MARK: - weightedAverage
