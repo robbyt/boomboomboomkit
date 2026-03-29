@@ -34,7 +34,7 @@ All types are stateless structs/enums with static methods. Shared currency type 
 - **BPMAnalyzer** — 10-step DSP pipeline with technique-gated stages: energy scan → silence check → mel-spectrogram onset (with optional sub-band normalization) → adaptive thresholding → autocorrelation (with optional ACF sharpening) → Fourier tempogram → periodicity fusion → peak selection → range normalization (60-200 BPM) → sub-band voting octave disambiguation → fine-grid refinement. Internal type (not public).
 - **MelFilterbank** — Caseless enum namespace for Hz↔mel conversion and triangular filterbank matrix construction. Used by BPMAnalyzer.
 - **LUFSAnalyzer** — ITU-R BS.1770-5 integrated loudness. K-weighting via vDSP.Biquad (Double precision). Pre-computed coefficients for 44.1/48/96kHz only. Internal type.
-- **PCMBufferReader** — Reads any audio format (WAV, MP3, FLAC, M4A, etc.) into mono `[Float]` via AVFoundation. Supports partial reads and downsampling.
+- **PCMBufferReader** — Reads audio files (WAV, AIFF, MP3, FLAC, M4A, CAF) into mono `[Float]` via AVFoundation. OGG/Vorbis is NOT supported (no Core Audio codec). Supports partial reads and downsampling.
 
 ### Test Support (Sources/BoomBoomBoomKitTestSupport/)
 
