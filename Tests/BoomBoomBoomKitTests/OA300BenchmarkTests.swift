@@ -174,7 +174,7 @@ struct OA300BenchmarkTests {
       .appendingPathComponent(track.filename)
   }
 
-  @Test("merge strategy comparison (all 7 strategies)")
+  @Test("merge strategy comparison (all 8 strategies)")
   func benchmarkMergeStrategies() throws {
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
