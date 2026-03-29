@@ -9,7 +9,6 @@
 //  Requires: OA300_CORPUS_PATH env var and daw-oracle.json in the corpus dir.
 //
 
-import Dispatch
 import Foundation
 import Testing
 
@@ -17,14 +16,14 @@ import Testing
 
 // MARK: - Models
 
-private struct OA300Track: Decodable {
+private struct OA300Track: Decodable, Sendable {
   let filename: String
   let bpm: Double
   let subdir: String?
   let title: String
 }
 
-private struct DAWOracleTrack: Decodable {
+private struct DAWOracleTrack: Decodable, Sendable {
   let filename: String
   let dawBpm: Double
   let rekordboxBpm: Double
@@ -119,7 +118,7 @@ struct DAWOracleBenchmarkTests {
   // MARK: - Three-Way Comparison (DAW-verified tracks only)
 
   @Test("three-way: ours vs Rekordbox vs DAW-verified")
-  func threeWayComparison() throws {
+  func threeWayComparison() async throws {
     #expect(dawOracle.count >= 20, "Expected at least 20 DAW oracle entries")
 
     print("\n=== Three-Way BPM Comparison (\(dawOracle.count) DAW-verified tracks) ===\n")
@@ -135,8 +134,7 @@ struct DAWOracleBenchmarkTests {
       let errorVsDaw: ErrorCategory?
     }
 
-    // Run analysis in parallel
-    var detectedBPMs = [Double?](repeating: nil, count: dawOracle.count)
+    // Run analysis in parallel via structured concurrency
     let availableIndices: [(Int, DAWOracleTrack)] = dawOracle.enumerated().compactMap {
       (i, track) in
       let url = trackURL(track.filename, subdir: track.subdir)
@@ -144,12 +142,14 @@ struct DAWOracleBenchmarkTests {
       return (i, track)
     }
 
-    DispatchQueue.concurrentPerform(iterations: availableIndices.count) { idx in
-      let (i, track) = availableIndices[idx]
-      let url = trackURL(track.filename, subdir: track.subdir)
-      if let result = try? AudioAnalysisService.analyzeBPM(url: url) {
-        detectedBPMs[i] = result.bpm
+    let detectedBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
+      for (i, track) in availableIndices {
+        let url = trackURL(track.filename, subdir: track.subdir)
+        group.addTask { (i, (try? AudioAnalysisService.analyzeBPM(url: url))?.bpm) }
       }
+      var results = [Double?](repeating: nil, count: dawOracle.count)
+      for await (i, bpm) in group { results[i] = bpm }
+      return results
     }
 
     // Collect results
@@ -246,20 +246,21 @@ struct DAWOracleBenchmarkTests {
   // MARK: - Full Corpus with DAW Annotations
 
   @Test("full corpus with DAW oracle annotations")
-  func fullCorpusWithDAWAnnotation() throws {
+  func fullCorpusWithDAWAnnotation() async throws {
     let availableTracks = groundTruth.filter { track in
       let url = trackURL(track.filename, subdir: track.subdir)
       return FileManager.default.fileExists(atPath: url.path)
     }
 
-    // Run all tracks in parallel
-    var trackBPMs = [Double?](repeating: nil, count: availableTracks.count)
-    DispatchQueue.concurrentPerform(iterations: availableTracks.count) { index in
-      let track = availableTracks[index]
-      let url = trackURL(track.filename, subdir: track.subdir)
-      if let result = try? AudioAnalysisService.analyzeBPM(url: url) {
-        trackBPMs[index] = result.bpm
+    // Run all tracks in parallel via structured concurrency
+    let urls = availableTracks.map { trackURL($0.filename, subdir: $0.subdir) }
+    let trackBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
+      for (index, url) in urls.enumerated() {
+        group.addTask { (index, (try? AudioAnalysisService.analyzeBPM(url: url))?.bpm) }
       }
+      var results = [Double?](repeating: nil, count: availableTracks.count)
+      for await (i, bpm) in group { results[i] = bpm }
+      return results
     }
 
     var acc1 = 0
