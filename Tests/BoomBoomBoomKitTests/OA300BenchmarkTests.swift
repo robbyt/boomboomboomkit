@@ -6,7 +6,6 @@
 //  Set OA300_CORPUS_PATH to the corpus directory to enable these tests.
 //
 
-import Dispatch
 import Foundation
 import Testing
 
@@ -14,7 +13,7 @@ import Testing
 
 // MARK: - Ground Truth Model
 
-private struct OA300Track: Decodable {
+private struct OA300Track: Decodable, Sendable {
   let filename: String
   let bpm: Double
   let subdir: String?
@@ -72,8 +71,8 @@ struct OA300BenchmarkTests {
   }
 
   @Test("benchmark at default intensity (7)")
-  func benchmarkDefaultIntensity() throws {
-    let metrics = try runBenchmark(intensity: .default)
+  func benchmarkDefaultIntensity() async throws {
+    let metrics = try await runBenchmark(intensity: .default)
     print("\n=== OA300 Benchmark — Intensity 7 (default) ===")
     print("Corpus: \(metrics.total) tracks, Rekordbox ground truth")
     print(
@@ -94,7 +93,7 @@ struct OA300BenchmarkTests {
   }
 
   @Test("multi-intensity comparison (monotonic Acc1)")
-  func benchmarkMultiIntensity() throws {
+  func benchmarkMultiIntensity() async throws {
     let levels = [1, 3, 5, 7]
     var previousAcc1Count = 0
     var perTrackResults: [String: [Int: Double]] = [:]
@@ -103,7 +102,7 @@ struct OA300BenchmarkTests {
 
     for level in levels {
       let intensity = AnalysisIntensity(rawValue: level)
-      let metrics = try runBenchmark(intensity: intensity)
+      let metrics = try await runBenchmark(intensity: intensity)
       print(
         "Intensity \(level): Acc1=\(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total)), Acc2=\(String(format: "%.1f", metrics.acc2))%"
       )
@@ -252,24 +251,26 @@ struct OA300BenchmarkTests {
   private func runBenchmark(
     intensity: AnalysisIntensity,
     mergeStrategy: CandidateMergeStrategy = .maxConfidence
-  ) throws -> AccuracyMetrics {
+  ) async throws -> AccuracyMetrics {
     // Filter to tracks that exist on disk
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
     }
 
-    // Per-track result: (detected BPM or nil for analysis failure)
-    var trackBPMs = [Double?](repeating: nil, count: availableTracks.count)
+    // Build URLs outside the task group to avoid capturing self
+    let urls = availableTracks.map { trackURL($0) }
 
-    // Run analysis in parallel across available cores
-    DispatchQueue.concurrentPerform(iterations: availableTracks.count) { index in
-      let track = availableTracks[index]
-      let url = trackURL(track)
-      if let result = try? AudioAnalysisService.analyzeBPM(
-        url: url, intensity: intensity, mergeStrategy: mergeStrategy)
-      {
-        trackBPMs[index] = result.bpm
+    // Run analysis in parallel via structured concurrency
+    let trackBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
+      for (index, url) in urls.enumerated() {
+        group.addTask {
+          (index, (try? AudioAnalysisService.analyzeBPM(
+            url: url, intensity: intensity, mergeStrategy: mergeStrategy))?.bpm)
+        }
       }
+      var results = [Double?](repeating: nil, count: availableTracks.count)
+      for await (i, bpm) in group { results[i] = bpm }
+      return results
     }
 
     // Aggregate results

@@ -7,7 +7,6 @@
 //  Full mode: all 64 DSP combinations vs OA300 corpus (env-gated, ~9 min).
 //
 
-import Dispatch
 import Foundation
 import Testing
 
@@ -17,7 +16,7 @@ import BoomBoomBoomKitTestSupport
 
 // MARK: - Ablation Ground Truth
 
-private struct AblationTrack: Decodable {
+private struct AblationTrack: Decodable, Sendable {
   let filename: String
   let bpm: Double
   let subdir: String?
@@ -150,7 +149,7 @@ struct AblationMatrixTests {
   }
 
   @Test("full 64-combination ablation matrix", .timeLimit(.minutes(15)))
-  func fullAblationMatrix() throws {
+  func fullAblationMatrix() async throws {
     let allCombos = TechniqueSet.allDSPCombinations()
 
     print("\n=== Full 64-Combination Ablation Matrix ===")
@@ -159,16 +158,23 @@ struct AblationMatrixTests {
         + "  Acc1   Acc2  Corr Total  Delta")
     print(String(repeating: "-", count: 72))
 
-    // Pre-allocate results array indexed by combination
+    // Run all 64 combinations in parallel via structured concurrency
     typealias ComboResult = (label: String, acc1: Int, acc2: Int, total: Int)
     let empty: ComboResult = (label: "", acc1: 0, acc2: 0, total: 0)
-    var results = [ComboResult](repeating: empty, count: allCombos.count)
-
-    // Run all 64 combinations in parallel across available cores
-    DispatchQueue.concurrentPerform(iterations: allCombos.count) { index in
-      let techniques = allCombos[index]
-      guard let (acc1, acc2, total) = try? runCorpusFromDisk(techniques: techniques) else { return }
-      results[index] = (label: techniques.label, acc1: acc1, acc2: acc2, total: total)
+    let gt = groundTruth
+    let path = corpusPath
+    let results = await withTaskGroup(of: (Int, ComboResult).self) { group in
+      for (index, techniques) in allCombos.enumerated() {
+        group.addTask {
+          guard let (acc1, acc2, total) = try? Self.runCorpusFromDisk(
+            techniques: techniques, groundTruth: gt, corpusPath: path)
+          else { return (index, empty) }
+          return (index, (label: techniques.label, acc1: acc1, acc2: acc2, total: total))
+        }
+      }
+      var collected = [ComboResult](repeating: empty, count: allCombos.count)
+      for await (i, result) in group { collected[i] = result }
+      return collected
     }
 
     // Find baseline and best
@@ -202,7 +208,7 @@ struct AblationMatrixTests {
   @Test(
     "per-track technique impact — which tracks does each technique change?",
     .timeLimit(.minutes(10)))
-  func perTrackImpact() throws {
+  func perTrackImpact() async throws {
     let namedSets: [(String, TechniqueSet)] = [
       ("sharp", TechniqueSet.baseline.inserting(.acfSharpening)),
       ("thresh", TechniqueSet.baseline.inserting(.adaptiveThreshold)),
@@ -213,13 +219,22 @@ struct AblationMatrixTests {
       ("full", .full),
     ]
 
-    // Run baseline + all named sets in parallel (8 corpus runs)
+    // Run baseline + all named sets in parallel via structured concurrency
     let allSets = [("baseline", TechniqueSet.baseline)] + namedSets
-    var allResults = [[String: Double]](repeating: [:], count: allSets.count)
-
-    DispatchQueue.concurrentPerform(iterations: allSets.count) { index in
-      guard let results = try? perTrackResultsFromDisk(techniques: allSets[index].1) else { return }
-      allResults[index] = results
+    let gt = groundTruth
+    let path = corpusPath
+    let allResults = await withTaskGroup(of: (Int, [String: Double]).self) { group in
+      for (index, (_, techniques)) in allSets.enumerated() {
+        group.addTask {
+          guard let results = try? Self.perTrackResultsFromDisk(
+            techniques: techniques, groundTruth: gt, corpusPath: path)
+          else { return (index, [:]) }
+          return (index, results)
+        }
+      }
+      var collected = [[String: Double]](repeating: [:], count: allSets.count)
+      for await (i, result) in group { collected[i] = result }
+      return collected
     }
 
     let baselineResults = allResults[0]
@@ -261,6 +276,10 @@ struct AblationMatrixTests {
   // MARK: - Helpers
 
   private func trackURL(_ track: AblationTrack) -> URL {
+    Self.trackURL(track, corpusPath: corpusPath)
+  }
+
+  private static func trackURL(_ track: AblationTrack, corpusPath: String) -> URL {
     if let subdir = track.subdir {
       return URL(fileURLWithPath: corpusPath)
         .appendingPathComponent(subdir)
@@ -269,15 +288,17 @@ struct AblationMatrixTests {
     return URL(fileURLWithPath: corpusPath).appendingPathComponent(track.filename)
   }
 
-  private func runCorpusFromDisk(techniques: TechniqueSet) throws -> (
-    acc1: Int, acc2: Int, total: Int
-  ) {
+  private static func runCorpusFromDisk(
+    techniques: TechniqueSet,
+    groundTruth: [AblationTrack],
+    corpusPath: String
+  ) throws -> (acc1: Int, acc2: Int, total: Int) {
     var acc1 = 0
     var acc2 = 0
     var total = 0
 
     for track in groundTruth {
-      let url = trackURL(track)
+      let url = trackURL(track, corpusPath: corpusPath)
       guard FileManager.default.fileExists(atPath: url.path) else { continue }
 
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
@@ -301,10 +322,14 @@ struct AblationMatrixTests {
     return (acc1, acc2, total)
   }
 
-  private func perTrackResultsFromDisk(techniques: TechniqueSet) throws -> [String: Double] {
+  private static func perTrackResultsFromDisk(
+    techniques: TechniqueSet,
+    groundTruth: [AblationTrack],
+    corpusPath: String
+  ) throws -> [String: Double] {
     var results: [String: Double] = [:]
     for track in groundTruth {
-      let url = trackURL(track)
+      let url = trackURL(track, corpusPath: corpusPath)
       guard FileManager.default.fileExists(atPath: url.path) else { continue }
 
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
