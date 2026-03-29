@@ -211,21 +211,29 @@ struct DAWOracleBenchmarkTests {
     let dawCorrect = results.filter { $0.vsDaw == "OK" }.count
     let disagreeCount = dawOracle.filter { $0.rekordboxDisagrees }.count
     let weMatchDaw = results.filter { r in
-      guard let oracle = oracleByFilename.first(where: {
-        r.name.hasPrefix(String($0.key.prefix(42)))
-      })?.value else { return false }
+      guard
+        let oracle = oracleByFilename.first(where: {
+          r.name.hasPrefix(String($0.key.prefix(42)))
+        })?.value
+      else { return false }
       return oracle.rekordboxDisagrees && r.vsDaw == "OK"
     }.count
     let weMatchRkbx = results.filter { r in
-      guard let oracle = oracleByFilename.first(where: {
-        r.name.hasPrefix(String($0.key.prefix(42)))
-      })?.value else { return false }
+      guard
+        let oracle = oracleByFilename.first(where: {
+          r.name.hasPrefix(String($0.key.prefix(42)))
+        })?.value
+      else { return false }
       return oracle.rekordboxDisagrees && r.vsRkbx == "OK"
     }.count
 
     print()
-    print("  Acc1 vs Rekordbox: \(String(format: "%.1f", Double(rkbxCorrect) / Double(analyzed) * 100))% (\(rkbxCorrect)/\(analyzed))")
-    print("  Acc1 vs DAW:       \(String(format: "%.1f", Double(dawCorrect) / Double(analyzed) * 100))% (\(dawCorrect)/\(analyzed))")
+    print(
+      "  Acc1 vs Rekordbox: \(String(format: "%.1f", Double(rkbxCorrect) / Double(analyzed) * 100))% (\(rkbxCorrect)/\(analyzed))"
+    )
+    print(
+      "  Acc1 vs DAW:       \(String(format: "%.1f", Double(dawCorrect) / Double(analyzed) * 100))% (\(dawCorrect)/\(analyzed))"
+    )
     print("  Rekordbox disagrees with DAW: \(disagreeCount) tracks")
     print("    We match DAW: \(weMatchDaw)/\(disagreeCount)")
     print("    We match Rekordbox: \(weMatchRkbx)/\(disagreeCount)")
@@ -239,8 +247,12 @@ struct DAWOracleBenchmarkTests {
     let otherVsDaw = results.filter { $0.errorVsDaw == .other }.count
 
     print()
-    print("  Error categories vs Rekordbox: octave=\(octaveVsRkbx), triplet=\(tripletVsRkbx), other=\(otherVsRkbx)")
-    print("  Error categories vs DAW:       octave=\(octaveVsDaw), triplet=\(tripletVsDaw), other=\(otherVsDaw)")
+    print(
+      "  Error categories vs Rekordbox: octave=\(octaveVsRkbx), triplet=\(tripletVsRkbx), other=\(otherVsRkbx)"
+    )
+    print(
+      "  Error categories vs DAW:       octave=\(octaveVsDaw), triplet=\(tripletVsDaw), other=\(otherVsDaw)"
+    )
   }
 
   // MARK: - Full Corpus with DAW Annotations
@@ -265,7 +277,8 @@ struct DAWOracleBenchmarkTests {
 
     var acc1 = 0
     var acc2 = 0
-    var failuresWithOracle: [(track: String, expected: Double, got: Double, dawBpm: Double, errType: String)] = []
+    var failuresWithOracle:
+      [(track: String, expected: Double, got: Double, dawBpm: Double, errType: String)] = []
     var failuresWithoutOracle: [(track: String, expected: Double, got: Double)] = []
 
     for (index, track) in availableTracks.enumerated() {
@@ -298,8 +311,10 @@ struct DAWOracleBenchmarkTests {
     let total = availableTracks.count
     print("\n=== Full Corpus with DAW Oracle Annotations ===")
     print("  Corpus: \(total) tracks")
-    print("  Acc1: \(String(format: "%.1f", Double(acc1) / Double(total) * 100))% (\(acc1)/\(total))")
-    print("  Acc2: \(String(format: "%.1f", Double(acc2) / Double(total) * 100))% (\(acc2)/\(total))")
+    print(
+      "  Acc1: \(String(format: "%.1f", Double(acc1) / Double(total) * 100))% (\(acc1)/\(total))")
+    print(
+      "  Acc2: \(String(format: "%.1f", Double(acc2) / Double(total) * 100))% (\(acc2)/\(total))")
     print("  DAW oracle coverage: \(dawOracle.count)/\(total) tracks verified")
 
     if !failuresWithOracle.isEmpty {
@@ -316,8 +331,11 @@ struct DAWOracleBenchmarkTests {
     if !failuresWithoutOracle.isEmpty {
       print("\n  Failures WITHOUT DAW oracle data (\(failuresWithoutOracle.count) tracks):")
       for f in failuresWithoutOracle {
-        let delta = f.got > 0 ? String(format: "%.1f%%", abs(f.got - f.expected) / f.expected * 100) : "N/A"
-        print("    \(f.track.prefix(40)): expected=\(String(format: "%.1f", f.expected)), got=\(String(format: "%.1f", f.got)) [\(delta)]")
+        let delta =
+          f.got > 0 ? String(format: "%.1f%%", abs(f.got - f.expected) / f.expected * 100) : "N/A"
+        print(
+          "    \(f.track.prefix(40)): expected=\(String(format: "%.1f", f.expected)), got=\(String(format: "%.1f", f.got)) [\(delta)]"
+        )
       }
     }
   }

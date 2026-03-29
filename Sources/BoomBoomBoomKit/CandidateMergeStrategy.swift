@@ -84,7 +84,8 @@ extension CandidateMergeStrategy {
     case .median:
       return mergeClustered(windowResults, candidateCount: candidateCount, scoring: .median)
     case .weightedAverage:
-      return mergeClustered(windowResults, candidateCount: candidateCount, scoring: .weightedAverage)
+      return mergeClustered(
+        windowResults, candidateCount: candidateCount, scoring: .weightedAverage)
     case .union:
       return mergeUnion(windowResults, candidateCount: candidateCount)
     case .windowVoting:
@@ -131,7 +132,8 @@ extension CandidateMergeStrategy {
     }
 
     // Find the largest consensus group (2+ windows required).
-    let consensus = groups
+    let consensus =
+      groups
       .filter { $0.indices.count >= 2 }
       .max { $0.indices.count < $1.indices.count }
 
@@ -189,7 +191,8 @@ extension CandidateMergeStrategy {
     let sorted: [(bpm: Double, score: Float, windowIndex: Int)]
     if scoring == .quorum {
       let clusterWindowCounts = zip(scored, clusters).map { ($0.0, $0.1.uniqueWindowCount) }
-      sorted = clusterWindowCounts
+      sorted =
+        clusterWindowCounts
         .sorted { lhs, rhs in
           if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
           return lhs.0.score > rhs.0.score
