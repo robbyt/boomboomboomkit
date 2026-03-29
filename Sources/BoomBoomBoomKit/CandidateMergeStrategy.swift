@@ -43,6 +43,11 @@ public enum CandidateMergeStrategy: String, CaseIterable, Sendable, Hashable {
   /// Pool all candidates from all windows without deduplication.
   /// Sort by raw score, cap at candidateCount.
   case union
+
+  /// Vote on each window's final disambiguated BPM (not raw candidates).
+  /// If 2+ windows agree within 2%, use the consensus BPM; otherwise
+  /// fall back to maxConfidence.
+  case windowVoting
 }
 
 // MARK: - Merge Logic
@@ -82,6 +87,8 @@ extension CandidateMergeStrategy {
       return mergeClustered(windowResults, candidateCount: candidateCount, scoring: .weightedAverage)
     case .union:
       return mergeUnion(windowResults, candidateCount: candidateCount)
+    case .windowVoting:
+      return mergeByWindowVoting(windowResults)
     }
   }
 
@@ -108,6 +115,34 @@ extension CandidateMergeStrategy {
       confidence: bestConfidence,
       candidates: capped.map { (bpm: $0.bpm, score: $0.score) },
       trace: results[winnerWindowIndex].trace)
+  }
+
+  // MARK: - Window Voting (post-disambiguation)
+
+  private static func mergeByWindowVoting(_ results: [BPMResult]) -> BPMResult {
+    // Group windows by their final disambiguated BPM (within 2% tolerance).
+    var groups: [(bpm: Double, indices: [Int])] = []
+    for (i, result) in results.enumerated() {
+      if let g = groups.firstIndex(where: { isNearMatch(result.bpm, $0.bpm) }) {
+        groups[g].indices.append(i)
+      } else {
+        groups.append((bpm: result.bpm, indices: [i]))
+      }
+    }
+
+    // Find the largest consensus group (2+ windows required).
+    let consensus = groups
+      .filter { $0.indices.count >= 2 }
+      .max { $0.indices.count < $1.indices.count }
+
+    if let consensus {
+      // Pick the highest-confidence window within the consensus group.
+      let bestIndex = consensus.indices.max { results[$0].confidence < results[$1].confidence }!
+      return results[bestIndex]
+    }
+
+    // No consensus: fall back to maxConfidence.
+    return mergeMaxConfidence(results)
   }
 
   // MARK: - Clustered Merge (dedup, quorum, average, median, weightedAverage)

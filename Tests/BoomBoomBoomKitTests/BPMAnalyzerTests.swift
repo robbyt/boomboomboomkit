@@ -818,9 +818,9 @@ struct CandidateMergingTests {
 
   // MARK: - allCases
 
-  @Test("allCases has 7 strategies")
+  @Test("allCases has 8 strategies")
   func allCasesCount() {
-    #expect(CandidateMergeStrategy.allCases.count == 7)
+    #expect(CandidateMergeStrategy.allCases.count == 8)
   }
 
   // MARK: - Single window passthrough
@@ -990,8 +990,10 @@ struct CandidateMergingTests {
       bpm: 170, confidence: 0.7,
       candidates: [(170, 0.8), (140, 0.6), (100, 0.3)])
 
-    // maxConfidence returns the raw window result (no merging), so skip it here.
-    let mergingStrategies = CandidateMergeStrategy.allCases.filter { $0 != .maxConfidence }
+    // maxConfidence and windowVoting return raw window results (no merging), so skip them.
+    let mergingStrategies = CandidateMergeStrategy.allCases.filter {
+      $0 != .maxConfidence && $0 != .windowVoting
+    }
     for strategy in mergingStrategies {
       let merged = CandidateMergeStrategy.merge(
         windowResults: [r1, r2], candidateCount: 2, strategy: strategy)!
@@ -999,6 +1001,75 @@ struct CandidateMergingTests {
         merged.candidates.count <= 2,
         "Strategy \(strategy) should cap at candidateCount=2, got \(merged.candidates.count)")
     }
+  }
+
+  // MARK: - windowVoting
+
+  @Test("windowVoting picks consensus when 2/3 windows agree")
+  func windowVotingConsensus() {
+    // Windows 1 and 3 agree on 170, window 2 says 85.
+    // Window 2 has highest confidence, but consensus should win.
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9), (85, 0.5)])
+    let r2 = makeBPMResult(bpm: 85, confidence: 0.9, candidates: [(85, 0.8), (170, 0.4)])
+    let r3 = makeBPMResult(bpm: 170.2, confidence: 0.7, candidates: [(170.2, 0.85)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2, r3], candidateCount: 3, strategy: .windowVoting)!
+    // Consensus is 170 (windows 0 and 2). Best confidence in group is 0.7 (window 2).
+    #expect(
+      abs(merged.bpm - 170.2) < 0.5,
+      "Should pick consensus BPM (~170), got \(merged.bpm)")
+    #expect(merged.confidence == 0.7, "Should use confidence from best window in consensus group")
+  }
+
+  @Test("windowVoting picks best confidence within unanimous consensus")
+  func windowVotingUnanimous() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.9)])
+    let r2 = makeBPMResult(bpm: 170.3, confidence: 0.8, candidates: [(170.3, 0.7)])
+    let r3 = makeBPMResult(bpm: 169.8, confidence: 0.6, candidates: [(169.8, 0.85)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2, r3], candidateCount: 3, strategy: .windowVoting)!
+    // All 3 agree. Best confidence = 0.8 (window 2).
+    #expect(merged.bpm == 170.3, "Should pick BPM from highest-confidence window (0.8)")
+    #expect(merged.confidence == 0.8)
+  }
+
+  @Test("windowVoting falls back to maxConfidence when no consensus")
+  func windowVotingNoConsensus() {
+    // All 3 windows disagree -- no pair within 2%.
+    let r1 = makeBPMResult(bpm: 120, confidence: 0.6, candidates: [(120, 0.9)])
+    let r2 = makeBPMResult(bpm: 85, confidence: 0.8, candidates: [(85, 0.7)])
+    let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.85)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2, r3], candidateCount: 3, strategy: .windowVoting)!
+    // Fallback to maxConfidence: window 2 has confidence 0.8.
+    #expect(merged.bpm == 85, "Should fall back to maxConfidence (window 2, conf=0.8)")
+    #expect(merged.confidence == 0.8)
+  }
+
+  @Test("windowVoting falls back when only 2 windows disagree")
+  func windowVotingTwoWindowsDisagree() {
+    let r1 = makeBPMResult(bpm: 85, confidence: 0.6, candidates: [(85, 0.9)])
+    let r2 = makeBPMResult(bpm: 170, confidence: 0.8, candidates: [(170, 0.7)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2], candidateCount: 3, strategy: .windowVoting)!
+    // No pair agrees. Fallback to maxConfidence.
+    #expect(merged.bpm == 170, "Should fall back to maxConfidence (window 2, conf=0.8)")
+  }
+
+  @Test("windowVoting two windows agree")
+  func windowVotingTwoWindowsAgree() {
+    let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9)])
+    let r2 = makeBPMResult(bpm: 170.5, confidence: 0.8, candidates: [(170.5, 0.7)])
+
+    let merged = CandidateMergeStrategy.merge(
+      windowResults: [r1, r2], candidateCount: 3, strategy: .windowVoting)!
+    // Both agree within 2%. Best confidence = 0.8 (window 2).
+    #expect(merged.bpm == 170.5, "Should pick BPM from higher-confidence window")
+    #expect(merged.confidence == 0.8)
   }
 
   // MARK: - Confidence propagation
