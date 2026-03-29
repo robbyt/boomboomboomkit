@@ -100,7 +100,7 @@ struct BPMAnalyzer {
 
     /// Explicit technique set, overriding `intensity.techniqueSet` for pipeline gating.
     /// When `nil` (default), techniques are derived from `intensity`.
-    var techniques: TechniqueSet? = nil
+    var techniques: TechniqueSet?
 
     /// When `true`, populates `BPMResult.trace` with per-step diagnostic data.
     var enableTrace: Bool = false
@@ -283,8 +283,7 @@ struct BPMAnalyzer {
         onsetEnvelope: onsetEnvelope,
         autocorrelation: acf,
         onsetRate: onsetRate,
-        bpmMin: bpmMin,
-        bpmMax: bpmMax)
+        bpmRange: bpmMin...bpmMax)
       if let refinedWinner = refinedCandidates.first {
         winner = refinedWinner
       }
@@ -733,30 +732,48 @@ struct BPMAnalyzer {
 
   // MARK: - Fine-Grid Tempogram Refinement (Epic 34, S1)
 
+  /// Pre-allocated buffers reused across tempogram magnitude evaluations.
+  private struct TempogramBuffers {
+    let cos: UnsafeMutablePointer<Float>
+    let sin: UnsafeMutablePointer<Float>
+    let phase: UnsafeMutablePointer<Float>
+
+    static func allocate(capacity: Int) -> TempogramBuffers {
+      TempogramBuffers(
+        cos: .allocate(capacity: capacity),
+        sin: .allocate(capacity: capacity),
+        phase: .allocate(capacity: capacity))
+    }
+
+    func deallocate() {
+      cos.deallocate()
+      sin.deallocate()
+      phase.deallocate()
+    }
+  }
+
   /// Computes tempogram magnitude at a single fractional BPM using a pre-windowed onset envelope.
   /// Reuses pre-allocated cos/sin/phase buffers to avoid per-call allocations.
   private static func tempogramMagnitude(
     bpm: Double,
     windowed: [Float],
     onsetRate: Double,
-    cosBuffer: UnsafeMutablePointer<Float>,
-    sinBuffer: UnsafeMutablePointer<Float>,
-    phaseInput: UnsafeMutablePointer<Float>
+    buffers: TempogramBuffers
   ) -> Float {
     let windowLength = windowed.count
     let freq = bpm / 60.0
     let phaseStep = Float(2.0 * .pi * freq / onsetRate)
     for k in 0..<windowLength {
-      phaseInput[k] = phaseStep * Float(k)
+      buffers.phase[k] = phaseStep * Float(k)
     }
     var count = Int32(windowLength)
-    vvcosf(cosBuffer, phaseInput, &count)
-    vvsinf(sinBuffer, phaseInput, &count)
+    vvcosf(buffers.cos, buffers.phase, &count)
+    vvsinf(buffers.sin, buffers.phase, &count)
 
     var realSum: Float = 0
     var imagSum: Float = 0
-    vDSP_dotpr(windowed, 1, cosBuffer, 1, &realSum, vDSP_Length(windowLength))
-    vDSP_dotpr(windowed, 1, sinBuffer, 1, &imagSum, vDSP_Length(windowLength))
+    vDSP_dotpr(windowed, 1, buffers.cos, 1, &realSum, vDSP_Length(windowLength))
+    vDSP_dotpr(windowed, 1, buffers.sin, 1, &imagSum, vDSP_Length(windowLength))
 
     return sqrtf(realSum * realSum + imagSum * imagSum)
   }
@@ -769,8 +786,7 @@ struct BPMAnalyzer {
     onsetEnvelope: [Float],
     autocorrelation: [Float],
     onsetRate: Double,
-    bpmMin: Int,
-    bpmMax: Int
+    bpmRange: ClosedRange<Int>
   ) -> [(bpm: Double, score: Float)] {
     guard !candidates.isEmpty else { return candidates }
 
@@ -784,21 +800,15 @@ struct BPMAnalyzer {
     vDSP_vmul(onsetEnvelope, 1, hannWindow, 1, &windowed, 1, vDSP_Length(windowLength))
 
     // Pre-allocate buffers once, reuse for all ~240 evaluations
-    let cosBuffer = UnsafeMutablePointer<Float>.allocate(capacity: windowLength)
-    let sinBuffer = UnsafeMutablePointer<Float>.allocate(capacity: windowLength)
-    let phaseInput = UnsafeMutablePointer<Float>.allocate(capacity: windowLength)
-    defer {
-      cosBuffer.deallocate()
-      sinBuffer.deallocate()
-      phaseInput.deallocate()
-    }
+    let buffers = TempogramBuffers.allocate(capacity: windowLength)
+    defer { buffers.deallocate() }
 
     var refined: [(bpm: Double, score: Float)] = []
 
     for candidate in candidates {
       let centerBPM = candidate.bpm
-      let scanMin = max(Double(bpmMin), centerBPM - 4.0)
-      let scanMax = min(Double(bpmMax), centerBPM + 4.0)
+      let scanMin = max(Double(bpmRange.lowerBound), centerBPM - 4.0)
+      let scanMax = min(Double(bpmRange.upperBound), centerBPM + 4.0)
 
       // Two-pass: first collect tempogram magnitudes, then normalize and fuse
       // Use integer step counter to avoid floating-point accumulation drift
@@ -807,8 +817,7 @@ struct BPMAnalyzer {
       for step in 0..<stepCount {
         let scanBPM = scanMin + Double(step) * 0.1
         let tMag = tempogramMagnitude(
-          bpm: scanBPM, windowed: windowed, onsetRate: onsetRate,
-          cosBuffer: cosBuffer, sinBuffer: sinBuffer, phaseInput: phaseInput)
+          bpm: scanBPM, windowed: windowed, onsetRate: onsetRate, buffers: buffers)
         let lag = 60.0 * onsetRate / scanBPM
         let acfVal = parabolicInterpolateACF(autocorrelation, at: lag)
         scanPoints.append((bpm: scanBPM, tMag: tMag, acfVal: acfVal))
