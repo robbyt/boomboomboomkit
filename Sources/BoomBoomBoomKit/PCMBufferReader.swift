@@ -30,7 +30,7 @@ public struct PCMBufferReader {
   /// Reads an audio file and returns mono samples normalized to [-1.0, 1.0].
   ///
   /// - Parameters:
-  ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, OGG, etc.)
+  ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
   ///   - maxSeconds: If provided, only read the first N seconds of audio.
   ///   - targetSampleRate: If provided, downsample output to this rate using AVAudioConverter.
   /// - Returns: A tuple of mono samples and the output sample rate.
