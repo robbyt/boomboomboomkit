@@ -1,0 +1,86 @@
+# generated: 2026-03-31
+# last_updated: 2026-03-31
+# project: BoomBoomBoomKit
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog -> in-progress: Automatically when first story is created (via create-story)
+#   - in-progress -> done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-31
+last_updated: 2026-03-31
+project: BoomBoomBoomKit
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: Pipeline Performance and Cooperative Analysis
+  epic-1: backlog
+  1-1-internal-buffer-reuse-in-bpm-pipeline: backlog
+  1-2-cooperative-cancellation-and-progress-reporting: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Measurement and Validation Infrastructure
+  epic-2: backlog
+  2-1-giantsteps-tempo-dataset-integration: backlog
+  2-2-dual-tolerance-accuracy-reporting: backlog
+  2-3-performance-benchmark-infrastructure: backlog
+  2-4-oa300-corpus-expansion-with-genre-diversity: backlog
+  2-5-genre-stratified-accuracy-reporting: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: DSP Accuracy Improvement
+  epic-3: backlog
+  3-1-harmonic-ratio-detection: backlog
+  3-2-fine-grid-precision-fix: backlog
+  3-3-click-track-cross-correlation: backlog
+  3-4-duration-derived-bpm-hint: backlog
+  3-5-configurable-window-voting-policy: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: ML-Augmented Detection
+  epic-4: backlog
+  4-1-boomboomboomitml-package-structure: backlog
+  4-2-effective-intensity-and-graceful-ml-degradation: backlog
+  4-3-ml-technique-parameter-injection-and-trace-population: backlog
+  4-4-configurable-ml-ensemble-voting-policy: backlog
+  4-5-bnns-mltechnique-conformance: backlog
+  4-6-coreml-mltechnique-conformance: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Developer Experience (Demo App + Documentation)
+  epic-5: backlog
+  5-1-demo-app-project-scaffold: backlog
+  5-2-core-analysis-flow: backlog
+  5-3-parameter-controls: backlog
+  5-4-diagnostic-trace-visualization-and-export: backlog
+  5-5-public-api-documentation-and-readme: backlog
+  epic-5-retrospective: optional
