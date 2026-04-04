@@ -39,3 +39,9 @@ This is a fundamentally different approach from the current candidate-level merg
 
 **Files:** `CandidateMergeStrategy.swift`, `AudioAnalysisService.swift`
 **Validation:** OA300 benchmark, targeting Acc1 > 69.5%
+
+## Deferred from: code review of 1-1-internal-buffer-reuse-in-bpm-pipeline (2026-04-03)
+
+- **F4: Unnecessary Array copy from PipelineBuffers.windowed** — Both `computeFourierTempogram` and `refineCandidates` copy `pb.windowed` into a new `[Float]` via `Array(UnsafeBufferPointer(...))`. The `vDSP_dotpr` calls could use the pointer directly, avoiding the heap allocation. Optimization for a future performance pass.
+- **F5: Integer underflow in reserveCapacity** — `(samples.count - fftSize) / hopSize + 1` yields negative intermediate when `samples.count < fftSize`. No crash (reserveCapacity treats negative as 0), but intent unclear. Pre-existing.
+- **F6: Windowed onset truncation** — Windowing always uses only the first `windowLength` elements of the onset envelope. Pre-existing behavior, not caused by buffer reuse changes.
