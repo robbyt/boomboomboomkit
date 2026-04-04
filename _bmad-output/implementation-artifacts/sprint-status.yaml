@@ -1,5 +1,5 @@
 # generated: 2026-03-31
-# last_updated: 2026-03-31
+# last_updated: 2026-04-03
 # project: BoomBoomBoomKit
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-03-31
+last_updated: 2026-04-03
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -43,14 +43,14 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Pipeline Performance and Cooperative Analysis
-  epic-1: backlog
-  1-1-internal-buffer-reuse-in-bpm-pipeline: backlog
+  epic-1: in-progress
+  1-1-internal-buffer-reuse-in-bpm-pipeline: done
   1-2-cooperative-cancellation-and-progress-reporting: backlog
   epic-1-retrospective: optional
 
   # Epic 2: Measurement and Validation Infrastructure
   epic-2: backlog
-  2-1-giantsteps-tempo-dataset-integration: backlog
+  2-1-giantsteps-tempo-dataset-integration: backlog  # partially complete: ground truth JSON, benchmark test, Makefile target, genre breakdown done during Epic 1
   2-2-dual-tolerance-accuracy-reporting: backlog
   2-3-performance-benchmark-infrastructure: backlog
   2-4-oa300-corpus-expansion-with-genre-diversity: backlog

@@ -194,8 +194,14 @@ struct BPMAnalyzer {
       onsetEnvelope = adaptiveThreshold(envelope: onsetEnvelope, onsetRate: onsetRate)
     }
 
+    // Allocate shared ACF buffers (reused across full-band + sub-band calls)
+    let acfPaddedLength = nextPowerOf2(onsetEnvelope.count * 2)
+    let acfHalfPadded = acfPaddedLength / 2
+    let acfBufs = ACFBuffers.allocate(capacity: acfHalfPadded)
+    defer { acfBufs.deallocate() }
+
     // Step 4: FFT-based autocorrelation
-    var acf = computeAutocorrelation(onsetEnvelope)
+    var acf = computeAutocorrelation(onsetEnvelope, acfBuffers: acfBufs)
     guard !acf.isEmpty else { return nil }
 
     // Step 4.1: ACF peak sharpening — element-wise square
@@ -211,16 +217,33 @@ struct BPMAnalyzer {
     // Step 4b: Sub-band autocorrelations (empty when sub-bands skipped at intensity 1-2)
     let subBandACFs: [[Float]] =
       techniques.contains(.subBandVoting)
-      ? onsetResult.subBands.map { computeAutocorrelation($0) }
+      ? onsetResult.subBands.map { computeAutocorrelation($0, acfBuffers: acfBufs) }
       : []
 
     let bpmMin = Int(minBPM)
     let bpmMax = Int(maxBPM)
 
+    // Allocate shared pipeline buffers (Hann window + windowed onset envelope)
+    let windowLength = min(onsetEnvelope.count, Int(tempogramWindowSeconds * onsetRate))
+    let pipelineBuffers = PipelineBuffers.allocate(onsetLength: windowLength)
+    defer { pipelineBuffers.deallocate() }
+
+    // Pre-compute windowed onset envelope once (reused by tempogram + refinement)
+    if windowLength > 0 {
+      onsetEnvelope.withUnsafeBufferPointer { envPtr in
+        vDSP_vmul(
+          envPtr.baseAddress!, 1,
+          pipelineBuffers.hannWindow, 1,
+          pipelineBuffers.windowed, 1,
+          vDSP_Length(windowLength))
+      }
+    }
+
     // Step 5: Fourier tempogram
     let tempogram = computeFourierTempogram(
       onsetEnvelope: onsetEnvelope, onsetRate: onsetRate,
-      bpmMin: bpmMin, bpmMax: bpmMax)
+      bpmMin: bpmMin, bpmMax: bpmMax,
+      pipelineBuffers: pipelineBuffers)
 
     if options.enableTrace {
       trace?.tempogramTopBPMs = extractTopPeaks(from: tempogram, count: 5)
@@ -283,7 +306,8 @@ struct BPMAnalyzer {
         onsetEnvelope: onsetEnvelope,
         autocorrelation: acf,
         onsetRate: onsetRate,
-        bpmRange: bpmMin...bpmMax)
+        bpmRange: bpmMin...bpmMax,
+        pipelineBuffers: pipelineBuffers)
       if let refinedWinner = refinedCandidates.first {
         winner = refinedWinner
       }
@@ -396,6 +420,8 @@ struct BPMAnalyzer {
     var scaled = [Float](repeating: 0, count: melBands)
     var logOutput = [Float](repeating: 0, count: melBands)
     var logMelFrames: [[Float]] = []
+    let expectedFrameCount = max(0, (samples.count - fftSize) / hopSize + 1)
+    logMelFrames.reserveCapacity(expectedFrameCount)
 
     var position = 0
     while position + fftSize <= samples.count {
@@ -421,7 +447,7 @@ struct BPMAnalyzer {
 
       vDSP_zvmags(&output, 1, &powerSpectrum, 1, vDSP_Length(halfN))
 
-      melEnergies = [Float](repeating: 0, count: melBands)
+      vDSP.clear(&melEnergies)
       filterbank.withUnsafeBufferPointer { fbPtr in
         powerSpectrum.withUnsafeBufferPointer { psPtr in
           vDSP_mmul(
@@ -514,9 +540,64 @@ struct BPMAnalyzer {
     return OnsetEnvelopes(fullBand: fullBandEnvelope, subBands: resultSubBands)
   }
 
+  // MARK: - ACF Buffers (Story 1.1)
+
+  /// Pre-allocated buffers for FFT-based autocorrelation, reused across full-band and sub-band calls.
+  private struct ACFBuffers {
+    let fwdRealp: UnsafeMutablePointer<Float>
+    let fwdImagp: UnsafeMutablePointer<Float>
+    let freqRealp: UnsafeMutablePointer<Float>
+    let freqImagp: UnsafeMutablePointer<Float>
+    let invRealp: UnsafeMutablePointer<Float>
+    let invImagp: UnsafeMutablePointer<Float>
+    let acfRealp: UnsafeMutablePointer<Float>
+    let acfImagp: UnsafeMutablePointer<Float>
+    let capacity: Int
+
+    static func allocate(capacity: Int) -> ACFBuffers {
+      ACFBuffers(
+        fwdRealp: .allocate(capacity: capacity),
+        fwdImagp: .allocate(capacity: capacity),
+        freqRealp: .allocate(capacity: capacity),
+        freqImagp: .allocate(capacity: capacity),
+        invRealp: .allocate(capacity: capacity),
+        invImagp: .allocate(capacity: capacity),
+        acfRealp: .allocate(capacity: capacity),
+        acfImagp: .allocate(capacity: capacity),
+        capacity: capacity)
+    }
+
+    /// Zero the working range before each use. Must be called before every computeAutocorrelation invocation.
+    func zeroBuffers(count: Int) {
+      vDSP_vclr(fwdRealp, 1, vDSP_Length(count))
+      vDSP_vclr(fwdImagp, 1, vDSP_Length(count))
+      vDSP_vclr(freqRealp, 1, vDSP_Length(count))
+      vDSP_vclr(freqImagp, 1, vDSP_Length(count))
+      vDSP_vclr(invRealp, 1, vDSP_Length(count))
+      vDSP_vclr(invImagp, 1, vDSP_Length(count))
+      vDSP_vclr(acfRealp, 1, vDSP_Length(count))
+      vDSP_vclr(acfImagp, 1, vDSP_Length(count))
+    }
+
+    func deallocate() {
+      fwdRealp.deallocate()
+      fwdImagp.deallocate()
+      freqRealp.deallocate()
+      freqImagp.deallocate()
+      invRealp.deallocate()
+      invImagp.deallocate()
+      acfRealp.deallocate()
+      acfImagp.deallocate()
+    }
+  }
+
   // MARK: - FFT-Based Autocorrelation (Task 4)
 
-  static func computeAutocorrelation(_ signal: [Float]) -> [Float] {
+  /// FFT-based autocorrelation of a signal. When `acfBuffers` is provided, reuses pre-allocated
+  /// split-complex buffers to avoid per-call heap allocations.
+  private static func computeAutocorrelation(_ signal: [Float], acfBuffers: ACFBuffers? = nil)
+    -> [Float]
+  {
     // Zero-pad to next power of 2 (at least double length)
     let paddedLength = nextPowerOf2(signal.count * 2)
     let log2Padded = vDSP_Length(log2(Double(paddedLength)))
@@ -529,33 +610,43 @@ struct BPMAnalyzer {
       return []
     }
 
-    // Allocate stable pointer buffers for all split-complex operations
-    let fwdRealp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    let fwdImagp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    let freqRealp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    let freqImagp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    let invRealp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    let invImagp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    let acfRealp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    let acfImagp = UnsafeMutablePointer<Float>.allocate(capacity: halfPadded)
-    defer {
-      fwdRealp.deallocate()
-      fwdImagp.deallocate()
-      freqRealp.deallocate()
-      freqImagp.deallocate()
-      invRealp.deallocate()
-      invImagp.deallocate()
-      acfRealp.deallocate()
-      acfImagp.deallocate()
+    // Use shared ACFBuffers when provided, otherwise allocate locally
+    let localBuffers: ACFBuffers?
+    let fwdRealp: UnsafeMutablePointer<Float>
+    let fwdImagp: UnsafeMutablePointer<Float>
+    let freqRealp: UnsafeMutablePointer<Float>
+    let freqImagp: UnsafeMutablePointer<Float>
+    let invRealp: UnsafeMutablePointer<Float>
+    let invImagp: UnsafeMutablePointer<Float>
+    let acfRealp: UnsafeMutablePointer<Float>
+    let acfImagp: UnsafeMutablePointer<Float>
+
+    if let shared = acfBuffers {
+      precondition(shared.capacity >= halfPadded)
+      shared.zeroBuffers(count: halfPadded)
+      localBuffers = nil
+      fwdRealp = shared.fwdRealp
+      fwdImagp = shared.fwdImagp
+      freqRealp = shared.freqRealp
+      freqImagp = shared.freqImagp
+      invRealp = shared.invRealp
+      invImagp = shared.invImagp
+      acfRealp = shared.acfRealp
+      acfImagp = shared.acfImagp
+    } else {
+      let buf = ACFBuffers.allocate(capacity: halfPadded)
+      buf.zeroBuffers(count: halfPadded)
+      localBuffers = buf
+      fwdRealp = buf.fwdRealp
+      fwdImagp = buf.fwdImagp
+      freqRealp = buf.freqRealp
+      freqImagp = buf.freqImagp
+      invRealp = buf.invRealp
+      invImagp = buf.invImagp
+      acfRealp = buf.acfRealp
+      acfImagp = buf.acfImagp
     }
-    fwdRealp.initialize(repeating: 0, count: halfPadded)
-    fwdImagp.initialize(repeating: 0, count: halfPadded)
-    freqRealp.initialize(repeating: 0, count: halfPadded)
-    freqImagp.initialize(repeating: 0, count: halfPadded)
-    invRealp.initialize(repeating: 0, count: halfPadded)
-    invImagp.initialize(repeating: 0, count: halfPadded)
-    acfRealp.initialize(repeating: 0, count: halfPadded)
-    acfImagp.initialize(repeating: 0, count: halfPadded)
+    defer { localBuffers?.deallocate() }
 
     // Zero-pad the signal
     var padded = [Float](repeating: 0, count: paddedLength)
@@ -652,12 +743,14 @@ struct BPMAnalyzer {
   // MARK: - Fourier Tempogram (Story 33-5, Task 2)
 
   /// Computes a Fourier tempogram: non-uniform DFT magnitude at each integer BPM
-  /// from bpmMin to bpmMax over the windowed onset envelope.
+  /// from bpmMin to bpmMax over the windowed onset envelope. When `pipelineBuffers` is provided,
+  /// reuses pre-computed Hann-windowed onset to avoid redundant allocation.
   static func computeFourierTempogram(
     onsetEnvelope: [Float],
     onsetRate: Double,
     bpmMin: Int,
-    bpmMax: Int
+    bpmMax: Int,
+    pipelineBuffers: PipelineBuffers? = nil
   ) -> [Float] {
     let candidateCount = bpmMax - bpmMin + 1
 
@@ -665,22 +758,27 @@ struct BPMAnalyzer {
     let windowLength = min(onsetEnvelope.count, Int(tempogramWindowSeconds * onsetRate))
     guard windowLength > 0 else { return [Float](repeating: 0, count: candidateCount) }
 
-    var hannWindow = [Float](repeating: 0, count: windowLength)
-    vDSP_hann_window(&hannWindow, vDSP_Length(windowLength), Int32(vDSP_HANN_DENORM))
-
-    // Apply window to onset envelope
-    var windowed = [Float](repeating: 0, count: windowLength)
-    vDSP_vmul(onsetEnvelope, 1, hannWindow, 1, &windowed, 1, vDSP_Length(windowLength))
-
-    // Allocate cos/sin buffers once, reuse across all candidates
-    let cosBuffer = UnsafeMutablePointer<Float>.allocate(capacity: windowLength)
-    let sinBuffer = UnsafeMutablePointer<Float>.allocate(capacity: windowLength)
-    let phaseInput = UnsafeMutablePointer<Float>.allocate(capacity: windowLength)
-    defer {
-      cosBuffer.deallocate()
-      sinBuffer.deallocate()
-      phaseInput.deallocate()
+    // Use pre-computed windowed onset pointer directly (no Array copy)
+    let localBufs: PipelineBuffers?
+    let windowedPtr: UnsafeMutablePointer<Float>
+    if let pb = pipelineBuffers {
+      precondition(pb.capacity >= windowLength)
+      localBufs = nil
+      windowedPtr = pb.windowed
+    } else {
+      let lb = PipelineBuffers.allocate(onsetLength: windowLength)
+      onsetEnvelope.withUnsafeBufferPointer { envPtr in
+        vDSP_vmul(
+          envPtr.baseAddress!, 1, lb.hannWindow, 1, lb.windowed, 1, vDSP_Length(windowLength))
+      }
+      localBufs = lb
+      windowedPtr = lb.windowed
     }
+    defer { localBufs?.deallocate() }
+
+    // Allocate cos/sin/phase buffers using TempogramBuffers pattern
+    let tempBufs = TempogramBuffers.allocate(capacity: windowLength)
+    defer { tempBufs.deallocate() }
 
     var magnitudes = [Float](repeating: 0, count: candidateCount)
 
@@ -691,19 +789,19 @@ struct BPMAnalyzer {
       // Compute phase vector: 2*pi*freq*k/onsetRate for k = 0..<windowLength
       let phaseStep = Float(2.0 * .pi * freq / onsetRate)
       for k in 0..<windowLength {
-        phaseInput[k] = phaseStep * Float(k)
+        tempBufs.phase[k] = phaseStep * Float(k)
       }
 
       // Compute cos and sin via vForce (separate in/out arrays required)
       var count = Int32(windowLength)
-      vvcosf(cosBuffer, phaseInput, &count)
-      vvsinf(sinBuffer, phaseInput, &count)
+      vvcosf(tempBufs.cos, tempBufs.phase, &count)
+      vvsinf(tempBufs.sin, tempBufs.phase, &count)
 
       // Dot products for real and imaginary sums
       var realSum: Float = 0
       var imagSum: Float = 0
-      vDSP_dotpr(windowed, 1, cosBuffer, 1, &realSum, vDSP_Length(windowLength))
-      vDSP_dotpr(windowed, 1, sinBuffer, 1, &imagSum, vDSP_Length(windowLength))
+      vDSP_dotpr(windowedPtr, 1, tempBufs.cos, 1, &realSum, vDSP_Length(windowLength))
+      vDSP_dotpr(windowedPtr, 1, tempBufs.sin, 1, &imagSum, vDSP_Length(windowLength))
 
       magnitudes[i] = sqrtf(realSum * realSum + imagSum * imagSum)
     }
@@ -730,6 +828,33 @@ struct BPMAnalyzer {
     return y1 + 0.5 * t * (y2 - y0) + 0.5 * t * t * (y0 - 2.0 * y1 + y2)
   }
 
+  // MARK: - Pipeline Buffers (Story 1.1)
+
+  /// Pre-allocated buffers shared across computeFourierTempogram and refineCandidates.
+  /// Hann window is computed once and reused; windowed onset envelope is computed once and shared.
+  ///
+  /// Internal (not private) because computeFourierTempogram is test-accessible
+  /// and its signature includes PipelineBuffers?.
+  struct PipelineBuffers {
+    let hannWindow: UnsafeMutablePointer<Float>
+    let windowed: UnsafeMutablePointer<Float>
+    let capacity: Int
+
+    static func allocate(onsetLength: Int) -> PipelineBuffers {
+      let buf = PipelineBuffers(
+        hannWindow: .allocate(capacity: onsetLength),
+        windowed: .allocate(capacity: onsetLength),
+        capacity: onsetLength)
+      vDSP_hann_window(buf.hannWindow, vDSP_Length(onsetLength), Int32(vDSP_HANN_DENORM))
+      return buf
+    }
+
+    func deallocate() {
+      hannWindow.deallocate()
+      windowed.deallocate()
+    }
+  }
+
   // MARK: - Fine-Grid Tempogram Refinement (Epic 34, S1)
 
   /// Pre-allocated buffers reused across tempogram magnitude evaluations.
@@ -752,15 +877,15 @@ struct BPMAnalyzer {
     }
   }
 
-  /// Computes tempogram magnitude at a single fractional BPM using a pre-windowed onset envelope.
+  /// Computes tempogram magnitude at a single fractional BPM using a pre-windowed onset envelope pointer.
   /// Reuses pre-allocated cos/sin/phase buffers to avoid per-call allocations.
   private static func tempogramMagnitude(
     bpm: Double,
-    windowed: [Float],
+    windowed: UnsafePointer<Float>,
+    windowLength: Int,
     onsetRate: Double,
     buffers: TempogramBuffers
   ) -> Float {
-    let windowLength = windowed.count
     let freq = bpm / 60.0
     let phaseStep = Float(2.0 * .pi * freq / onsetRate)
     for k in 0..<windowLength {
@@ -781,23 +906,37 @@ struct BPMAnalyzer {
   /// Refines coarse integer-BPM candidates to 0.1 BPM resolution using a two-pass approach.
   /// For each candidate, evaluates the tempogram at 0.1 BPM steps in a ±4 BPM window,
   /// fuses with ACF, and returns the refined BPM with the highest fused score.
+  /// When `pipelineBuffers` is provided, reuses pre-computed Hann-windowed onset.
   private static func refineCandidates(
     candidates: [(bpm: Double, score: Float)],
     onsetEnvelope: [Float],
     autocorrelation: [Float],
     onsetRate: Double,
-    bpmRange: ClosedRange<Int>
+    bpmRange: ClosedRange<Int>,
+    pipelineBuffers: PipelineBuffers? = nil
   ) -> [(bpm: Double, score: Float)] {
     guard !candidates.isEmpty else { return candidates }
 
     let windowLength = min(onsetEnvelope.count, Int(tempogramWindowSeconds * onsetRate))
     guard windowLength > 0 else { return candidates }
 
-    // Prepare windowed onset envelope (same as computeFourierTempogram)
-    var hannWindow = [Float](repeating: 0, count: windowLength)
-    vDSP_hann_window(&hannWindow, vDSP_Length(windowLength), Int32(vDSP_HANN_DENORM))
-    var windowed = [Float](repeating: 0, count: windowLength)
-    vDSP_vmul(onsetEnvelope, 1, hannWindow, 1, &windowed, 1, vDSP_Length(windowLength))
+    // Use pre-computed windowed onset pointer directly (no Array copy)
+    let localBufs: PipelineBuffers?
+    let windowedPtr: UnsafeMutablePointer<Float>
+    if let pb = pipelineBuffers {
+      precondition(pb.capacity >= windowLength)
+      localBufs = nil
+      windowedPtr = pb.windowed
+    } else {
+      let lb = PipelineBuffers.allocate(onsetLength: windowLength)
+      onsetEnvelope.withUnsafeBufferPointer { envPtr in
+        vDSP_vmul(
+          envPtr.baseAddress!, 1, lb.hannWindow, 1, lb.windowed, 1, vDSP_Length(windowLength))
+      }
+      localBufs = lb
+      windowedPtr = lb.windowed
+    }
+    defer { localBufs?.deallocate() }
 
     // Pre-allocate buffers once, reuse for all ~240 evaluations
     let buffers = TempogramBuffers.allocate(capacity: windowLength)
@@ -817,7 +956,8 @@ struct BPMAnalyzer {
       for step in 0..<stepCount {
         let scanBPM = scanMin + Double(step) * 0.1
         let tMag = tempogramMagnitude(
-          bpm: scanBPM, windowed: windowed, onsetRate: onsetRate, buffers: buffers)
+          bpm: scanBPM, windowed: windowedPtr, windowLength: windowLength,
+          onsetRate: onsetRate, buffers: buffers)
         let lag = 60.0 * onsetRate / scanBPM
         let acfVal = parabolicInterpolateACF(autocorrelation, at: lag)
         scanPoints.append((bpm: scanBPM, tMag: tMag, acfVal: acfVal))
@@ -860,34 +1000,39 @@ struct BPMAnalyzer {
   ) -> [Float] {
     let candidateCount = bpmMax - bpmMin + 1
 
-    // Map autocorrelation from lag-domain to BPM-domain with parabolic interpolation
-    // (Epic 34, C1: eliminates picket fence effect at 0.5 fractional lag positions)
-    var acfBPM = [Float](repeating: 0, count: candidateCount)
-    for i in 0..<candidateCount {
-      let bpm = Double(bpmMin + i)
-      let lag = 60.0 * onsetRate / bpm
-      acfBPM[i] = parabolicInterpolateACF(autocorrelation, at: lag)
+    return withUnsafeTemporaryAllocation(of: Float.self, capacity: candidateCount) { acfBPM in
+      // Zero the buffer (contents are uninitialized)
+      vDSP_vclr(acfBPM.baseAddress!, 1, vDSP_Length(candidateCount))
+
+      // Map autocorrelation from lag-domain to BPM-domain with parabolic interpolation
+      // (Epic 34, C1: eliminates picket fence effect at 0.5 fractional lag positions)
+      for i in 0..<candidateCount {
+        let bpm = Double(bpmMin + i)
+        let lag = 60.0 * onsetRate / bpm
+        acfBPM[i] = parabolicInterpolateACF(autocorrelation, at: lag)
+      }
+
+      // Normalize both to [0, 1]
+      var acfMax: Float = 0
+      vDSP_maxv(acfBPM.baseAddress!, 1, &acfMax, vDSP_Length(candidateCount))
+      if acfMax > 0 {
+        vDSP_vsdiv(
+          acfBPM.baseAddress!, 1, &acfMax, acfBPM.baseAddress!, 1, vDSP_Length(candidateCount))
+      }
+
+      var tempogramNorm = fourierTempogram
+      var tMax: Float = 0
+      vDSP_maxv(tempogramNorm, 1, &tMax, vDSP_Length(candidateCount))
+      if tMax > 0 {
+        vDSP_vsdiv(tempogramNorm, 1, &tMax, &tempogramNorm, 1, vDSP_Length(candidateCount))
+      }
+
+      // Element-wise multiply: peaks strong in BOTH survive
+      var fused = [Float](repeating: 0, count: candidateCount)
+      vDSP_vmul(acfBPM.baseAddress!, 1, tempogramNorm, 1, &fused, 1, vDSP_Length(candidateCount))
+
+      return fused
     }
-
-    // Normalize both to [0, 1]
-    var acfMax: Float = 0
-    vDSP_maxv(acfBPM, 1, &acfMax, vDSP_Length(candidateCount))
-    if acfMax > 0 {
-      vDSP_vsdiv(acfBPM, 1, &acfMax, &acfBPM, 1, vDSP_Length(candidateCount))
-    }
-
-    var tempogramNorm = fourierTempogram
-    var tMax: Float = 0
-    vDSP_maxv(tempogramNorm, 1, &tMax, vDSP_Length(candidateCount))
-    if tMax > 0 {
-      vDSP_vsdiv(tempogramNorm, 1, &tMax, &tempogramNorm, 1, vDSP_Length(candidateCount))
-    }
-
-    // Element-wise multiply: peaks strong in BOTH survive
-    var fused = [Float](repeating: 0, count: candidateCount)
-    vDSP_vmul(acfBPM, 1, tempogramNorm, 1, &fused, 1, vDSP_Length(candidateCount))
-
-    return fused
   }
 
   // MARK: - TPS2 Harmonic Enhancement (Story 33-5, Task 4)

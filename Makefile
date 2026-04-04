@@ -2,6 +2,7 @@
 
 PROJECT := BoomBoomBoomKit
 OA300_CORPUS_PATH ?= /Users/rterhaar/Dropbox/OA300_OnsetAudio300
+GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset
 
 .PHONY: all
 all: help
@@ -47,6 +48,11 @@ endif
 .PHONY: benchmark
 benchmark:
 	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter OA300BenchmarkTests
+
+## benchmark-giantsteps: Run GiantSteps Tempo Dataset accuracy benchmark
+.PHONY: benchmark-giantsteps
+benchmark-giantsteps:
+	GIANTSTEPS_CORPUS_PATH=$(GIANTSTEPS_CORPUS_PATH) swift test --filter GiantStepsBenchmarkTests
 
 ## ablation: Run full ablation matrix against OA300 corpus
 .PHONY: ablation
