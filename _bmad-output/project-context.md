@@ -1,10 +1,10 @@
 ---
 project_name: 'BoomBoomBoomKit'
 user_name: 'robbyt'
-date: '2026-03-29'
+date: '2026-04-05'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
 status: 'complete'
-rule_count: 52
+rule_count: 60
 optimized_for_llm: true
 validated_with: ['apple-docs-mcp', 'axiom-swift-concurrency-ref', 'axiom-swift-modern', 'axiom-swift-testing', 'axiom-swift-performance', 'axiom-avfoundation-ref']
 ---
@@ -31,9 +31,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - **All types are value types** — structs and enums only, zero classes. Analyzers are stateless structs with `static` methods — no instantiation, no lifecycle, no dependency injection. Call methods directly (e.g., `BPMAnalyzer.estimateBPM(samples:sampleRate:options:)`)
 - **Implicit nil** — never write `var x: T? = nil`. Swift optionals default to nil. The explicit `= nil` is redundant
-- **Options struct pattern** — group related parameters into structs with defaulted fields. Do not grow function parameter lists. Recent example: `TempogramBuffers` groups 3 pointer params; `bpmMin`/`bpmMax` became `bpmRange: ClosedRange<Int>`
-- **Error handling: one error enum** — `PCMBufferReaderError` is the only error type. Analyzers (BPM, LUFS) return `nil` for no-result cases (silence, too-short, unsupported rate) — they do NOT throw. `throws` is reserved for file I/O failures in PCMBufferReader
-- **Access control boundaries** — public: `AudioAnalysisService`, `AnalysisIntensity`, `CandidateMergeStrategy`, `DSPTechnique`, `TechniqueSet`, `PCMBufferReader`, `BPMDiagnosticTrace`. Internal: `BPMAnalyzer`, `BPMResult`, `LUFSAnalyzer`, `LUFSResult`, `MelFilterbank`. Do not promote internal types without explicit design decision
+- **Options struct pattern** — group related parameters into structs with defaulted fields. Do not grow function parameter lists. Recent example: `AudioAnalysisService.Options` groups intensity, merge strategy, cancellation, and progress parameters; `bpmMin`/`bpmMax` became `bpmRange: ClosedRange<Int>`
+- **Options init: `public init() {}`** — `AudioAnalysisService.Options` uses empty public init with property-level defaults. `.init(intensity: .fastest)` will not compile -- customize via mutation: `var opts = Options(); opts.intensity = .fastest`. New consumer-facing parameters go here, not on `BPMAnalyzer.Options` (internal pass-through, retains memberwise init)
+- **`nonisolated(unsafe)` in test closures** — `@Sendable` closures capturing mutable state in synchronous-only contexts (e.g., `isCancelled`, `onProgress` in tests) require `nonisolated(unsafe)` on the captured variable. Safe because `analyzeBPM` calls these synchronously. Same pattern as PCMBufferReader.downsample
+- **Error handling** — `BPMAnalyzer` and `LUFSAnalyzer` (internal) return nil for no-result, never throw. `AudioAnalysisService` (public facade) throws for two reasons: `PCMBufferReaderError` (file I/O) and `CancellationError` (user cancelled). Do not add new error types without explicit design decision
+- **Access control boundaries** — public: `AudioAnalysisService`, `AnalysisIntensity`, `CandidateMergeStrategy`, `DSPTechnique`, `TechniqueSet`, `PCMBufferReader`, `BPMDiagnosticTrace`, `ProgressUpdate`. Internal: `BPMAnalyzer`, `BPMResult`, `LUFSAnalyzer`, `LUFSResult`, `MelFilterbank`. Public types used as AudioAnalysisService callback parameters (e.g., `ProgressUpdate`) are top-level, not nested. Do not promote internal types without explicit design decision
 - **`nonisolated(unsafe)` in PCMBufferReader** — `AVAudioConverterInputBlock` is `@Sendable`, so Swift 6 forbids the closure from capturing mutable local variables. Since the converter calls the block synchronously (not concurrently), the capture of `var inputConsumed` is safe in practice. `nonisolated(unsafe)` on the variable suppresses this false-positive. Do NOT refactor to `withCheckedContinuation` or wrap in a `Task` — that introduces real concurrency where none exists
 - **vDSP_Length wrapping** — all count parameters to vDSP functions require `vDSP_Length` (UInt, not Int). Always wrap: `vDSP_Length(count)`. Forgetting this causes compiler errors or silent truncation
 - **CaseIterable** — `DSPTechnique` and `CandidateMergeStrategy` conform for ablation/enumeration. Maintain when adding new cases. `Hashable` on `AnalysisIntensity`, `DSPTechnique`, `TechniqueSet`, `CandidateMergeStrategy` (used as dictionary keys/Set members)
@@ -47,6 +49,10 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Mel filterbank** — row-major dense matrix applied via `vDSP_mmul`. Constructed by `MelFilterbank` (enum namespace, no cases). Hz-to-mel uses O'Shaughnessy (1987)
 - **K-weighting (LUFSAnalyzer)** — two cascaded biquad sections (high-shelf + high-pass) via `vDSP.Biquad<Double>`. Input samples converted Float-to-Double via `vDSP_vspdp` (vectorized, not per-element cast). Pre-computed coefficients for 44.1/48/96kHz ONLY — unsupported rates return nil, do not interpolate
 - **BPM pipeline order** — 10 steps in sequence: (1) energy scan, (2) silence check, (3) mel-spectrogram onset, (4) adaptive thresholding, (5) autocorrelation, (6) Fourier tempogram, (7) periodicity fusion, (8) peak selection, (9) range normalization 60-200 BPM, (10) sub-band voting + fine-grid refinement. Steps 3/4/5/10 are technique-gated via `TechniqueSet`. New DSP stages must identify where they fit and whether they should be gated
+- **AudioAnalysisService window loop** — PCM read once, then loop iterates `intensity.windowSizes` calling `BPMAnalyzer.estimateBPM()` per window. Cancellation/progress hook into loop iteration. Results merged via `CandidateMergeStrategy` post-loop. Never re-read PCM per window
+- **Cancellation (AudioAnalysisService)** — injectable `isCancelled: @Sendable () -> Bool` (defaults to `{ Task.isCancelled }`). Checked before PCM read and before each window. Throws `CancellationError` -- nil means "no BPM detected," CancellationError means "user cancelled" (`try?` callers get nil for both). Between-windows only (ADR-1), never mid-window
+- **Progress (AudioAnalysisService)** — `onProgress: (@Sendable (ProgressUpdate) -> Void)?` fires BEFORE each window with `(windowsCompleted, windowsTotal)`. No completion callback -- function return signals completion. Tracks windows attempted, not windows producing results
+- **Buffer structs (BPMAnalyzer)** — `PipelineBuffers`, `ACFBuffers`, `TempogramBuffers`: `static func allocate(...)` factory + `func deallocate()` cleanup + `defer { buffers.deallocate() }`. Lifetime: single `estimateBPM()` call. Allocate unconditionally (not per-technique). Allocate at highest owning scope, pass to helpers as parameters
 
 ### Testing Rules
 
@@ -60,6 +66,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Merge strategy testing pattern** — `benchmarkMergeStrategies` pre-reads all audio once into `[TrackAudio]`, then iterates all 8 `CandidateMergeStrategy.allCases`. Follow this pattern when adding new strategies — do not re-read audio per strategy
 - **Ablation testing** — `AblationTests` exhaustively tests all 2^6=64 DSP technique combinations via `TechniqueSet.allDSPCombinations()`. New techniques must be added to the ablation matrix
 - **DAW oracle** — `daw-oracle.json` in OA300 corpus (not committed). Three-way comparison: ours vs Rekordbox (benchmark target) vs DAW-verified (diagnostic truth). Uses `convertFromSnakeCase` key decoding. Generated by `uv run scripts/dawproject-bpm.py`
+- **Async cancellation tests** — use `withThrowingTaskGroup` + `cancelAll()` for deterministic cancellation, NOT `Task` + delay (racy). Pattern: `group.addTask { try analyze() }; group.cancelAll(); try await group.next()`. Injectable closure tests are the primary deterministic ground truth; async tests are smoke tests
+- **GiantSteps benchmark** — `GIANTSTEPS_CORPUS_PATH` env var, `make benchmark-giantsteps`. 664 EDM tracks, crowdsourced ground truth v2. Genre-stratified reporting included. Same env-gating pattern as OA300
 
 ### Code Quality & Style Rules
 
@@ -91,11 +99,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **In-place signal mutation** — pipeline steps should mutate `[Float]` arrays in-place where possible (vDSP supports overlapping input/output). Do not copy signal buffers between steps — 120s of audio at 44.1kHz is ~10MB per copy
 
 **Memory safety:**
-- **UnsafeMutablePointer discipline** — every `.allocate(capacity:)` MUST have a corresponding `.deallocate()` in a defer block or explicit cleanup. See `TempogramBuffers` for the pattern (struct with `allocate()` factory and `deallocate()` method)
+- **UnsafeMutablePointer discipline** — every `.allocate(capacity:)` MUST have a corresponding `.deallocate()` in a defer block or explicit cleanup. See `PipelineBuffers`, `ACFBuffers`, `TempogramBuffers` for the pattern (struct with `allocate()` factory and `deallocate()` method)
+- **Buffer zeroing** — `[Float]`: `vDSP.clear(&array)`. `UnsafeMutablePointer<Float>`: `vDSP_vclr(pointer, 1, vDSP_Length(count))`. Never `pointer.initialize(repeating:count:)` on reused buffers (UB on second use)
 - **OGG is NOT supported** — `AVAudioFile` supports WAV, AIFF, CAF, MP3, AAC/M4A, FLAC. OGG/Vorbis has no native Core Audio codec on macOS. CLAUDE.md reference to OGG is incorrect
 
 **API contract violations:**
-- **Never add `throws` to analyzers** — BPM/LUFS analyzers return nil for no-result. Only PCMBufferReader throws
+- **Never add `throws` to analyzers** — BPM/LUFS analyzers return nil for no-result, never throw. `AudioAnalysisService` throws `PCMBufferReaderError` and `CancellationError` only
 - **Never promote internal types to public** — `BPMAnalyzer`, `BPMResult`, `LUFSAnalyzer`, `LUFSResult`, `MelFilterbank` are internal by design. Public facade is `AudioAnalysisService`
 
 **Release process:**
@@ -121,4 +130,4 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Remove rules that become obvious over time
 - Accuracy baselines live in CLAUDE.md, not here
 
-Last Updated: 2026-03-29
+Last Updated: 2026-04-05

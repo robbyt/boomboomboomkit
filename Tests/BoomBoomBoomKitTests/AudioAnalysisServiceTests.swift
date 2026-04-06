@@ -149,7 +149,13 @@ struct AudioAnalysisServiceIntensityTests {
   func analyzeWithIntensity() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
-      try AudioAnalysisService.analyzeBPM(url: url, options: .init(intensity: .default)),
+      try AudioAnalysisService.analyzeBPM(
+        url: url,
+        options: {
+          var o = AudioAnalysisService.Options()
+          o.intensity = .default
+          return o
+        }()),
       "Expected non-nil result with intensity API")
     #expect(result.bpm >= 40 && result.bpm <= 220)
     #expect(result.confidence > 0)
@@ -160,7 +166,12 @@ struct AudioAnalysisServiceIntensityTests {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
       try AudioAnalysisService.analyzeBPM(
-        url: url, options: .init(enableTrace: true)))
+        url: url,
+        options: {
+          var o = AudioAnalysisService.Options()
+          o.enableTrace = true
+          return o
+        }()))
     let trace = try #require(result.trace, "Trace should be non-nil when enableTrace is true")
     #expect(!trace.rawCandidates.isEmpty)
     #expect(trace.confidence > 0)
@@ -179,8 +190,138 @@ struct AudioAnalysisServiceIntensityTests {
   func analyzeWithFastest() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
-      try AudioAnalysisService.analyzeBPM(url: url, options: .init(intensity: .fastest)))
+      try AudioAnalysisService.analyzeBPM(
+        url: url,
+        options: {
+          var o = AudioAnalysisService.Options()
+          o.intensity = .fastest
+          return o
+        }()))
     #expect(result.bpm >= 40 && result.bpm <= 220)
+  }
+}
+
+// MARK: - Cancellation Tests
+
+@Suite("AudioAnalysisService -- Cancellation")
+struct AudioAnalysisServiceCancellationTests {
+
+  @Test("isCancelled before first window throws CancellationError")
+  func cancelledBeforeFirstWindow() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.isCancelled = { true }
+    #expect(throws: CancellationError.self) {
+      try AudioAnalysisService.analyzeBPM(url: url, options: opts)
+    }
+  }
+
+  @Test("isCancelled after first window throws CancellationError")
+  func cancelledAfterFirstWindow() throws {
+    // nonisolated(unsafe) required: @Sendable closure captures mutable var,
+    // but analyzeBPM calls it synchronously (no actual concurrency).
+    // Same pattern as PCMBufferReader.downsample (project-context.md).
+    nonisolated(unsafe) var callCount = 0
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = .default  // 3 windows, ensures loop iterates
+    opts.isCancelled = {
+      callCount += 1
+      return callCount > 2  // call 1=pre-PCM, 2=pre-window-1, 3=pre-window-2 (cancel here)
+    }
+    #expect(throws: CancellationError.self) {
+      try AudioAnalysisService.analyzeBPM(url: url, options: opts)
+    }
+  }
+
+  @Test("isCancelled never true completes normally")
+  func neverCancelledCompletesNormally() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.isCancelled = { false }
+    let result = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
+    #expect(result != nil)
+  }
+
+  @Test("Task cancellation throws CancellationError")
+  func taskCancellation() async throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    // Use withThrowingTaskGroup + cancelAll to guarantee Task.isCancelled is true
+    // before analyzeBPM's pre-PCM check. This is deterministic -- the injectable
+    // closure tests above cover mid-analysis cancellation scenarios.
+    do {
+      try await withThrowingTaskGroup(of: AudioAnalysisResult?.self) { group in
+        group.addTask {
+          try AudioAnalysisService.analyzeBPM(url: url)
+        }
+        group.cancelAll()
+        try await group.next()
+      }
+      Issue.record("Expected CancellationError")
+    } catch is CancellationError {
+      // expected
+    }
+  }
+
+  @Test("try? with cancellation returns nil")
+  func cancelledWithTryOptional() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.isCancelled = { true }
+    let result = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
+    #expect(result == nil)
+  }
+}
+
+// MARK: - Progress Tests
+
+@Suite("AudioAnalysisService -- Progress")
+struct AudioAnalysisServiceProgressTests {
+
+  @Test("default intensity reports progress for each window")
+  func progressDefaultIntensity() throws {
+    nonisolated(unsafe) var updates: [ProgressUpdate] = []
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let expectedWindows = AnalysisIntensity.default.windowSizes.count
+    var opts = AudioAnalysisService.Options()
+    opts.onProgress = { updates.append($0) }
+    _ = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
+    #expect(updates.count == expectedWindows)
+    for (i, update) in updates.enumerated() {
+      #expect(update.windowsCompleted == i)
+      #expect(update.windowsTotal == expectedWindows)
+    }
+  }
+
+  @Test("intensity 1 (single window) reports progress (0/1)")
+  func progressSingleWindow() throws {
+    nonisolated(unsafe) var updates: [ProgressUpdate] = []
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = .fastest
+    opts.onProgress = { updates.append($0) }
+    _ = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
+    #expect(updates.count == 1)
+    #expect(updates[0].windowsCompleted == 0)
+    #expect(updates[0].windowsTotal == 1)
+  }
+
+  @Test("no onProgress callback works identically to current behavior")
+  func noProgressCallback() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let result = try AudioAnalysisService.analyzeBPM(url: url)
+    #expect(result != nil)
+  }
+
+  @Test("cancelled analysis never calls progress callback")
+  func cancelledNeverCallsProgress() throws {
+    nonisolated(unsafe) var progressCalled = false
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.isCancelled = { true }
+    opts.onProgress = { _ in progressCalled = true }
+    _ = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
+    #expect(!progressCalled)
   }
 }
 

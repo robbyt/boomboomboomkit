@@ -26,7 +26,11 @@ public struct AudioAnalysisService {
 
   /// Configuration options for BPM analysis.
   ///
-  /// All fields have sensible defaults. Most callers can use `.init()`.
+  /// All fields have sensible defaults. Use `Options()` and mutate as needed:
+  /// ```swift
+  /// var opts = AudioAnalysisService.Options()
+  /// opts.intensity = .fastest
+  /// ```
   public struct Options: Sendable {
     /// Maximum seconds of audio to read from the file (default: 120).
     /// This caps the PCM buffer size, not the analysis window. The pipeline
@@ -47,26 +51,32 @@ public struct AudioAnalysisService {
     /// When `true`, populates `result.trace` with per-step diagnostic data.
     public var enableTrace: Bool = false
 
-    public init(
-      maxSeconds: Double = 120,
-      intensity: AnalysisIntensity = .default,
-      mergeStrategy: CandidateMergeStrategy = .maxConfidence,
-      enableTrace: Bool = false
-    ) {
-      self.maxSeconds = maxSeconds
-      self.intensity = intensity
-      self.mergeStrategy = mergeStrategy
-      self.enableTrace = enableTrace
-    }
+    /// Closure checked before each analysis window. When it returns `true`,
+    /// the analysis throws `CancellationError`. Defaults to `Task.isCancelled`,
+    /// giving automatic structured-concurrency support.
+    /// Inject a custom closure for deterministic testing.
+    public var isCancelled: @Sendable () -> Bool = { Task.isCancelled }
+
+    /// Called before each window begins analysis. Receives a ``ProgressUpdate``
+    /// with `windowsCompleted` (0-based) and `windowsTotal`. `nil` by default
+    /// (no overhead when unused).
+    public var onProgress: (@Sendable (ProgressUpdate) -> Void)?
+
+    public init() {}
   }
 
   /// Analyzes the BPM of an audio file with default options.
+  ///
+  /// Cancellation is supported automatically via `Task.isCancelled` (the default
+  /// in ``Options/isCancelled``). When the parent task is cancelled, the analysis
+  /// throws `CancellationError` between window iterations.
   ///
   /// - Parameters:
   ///   - url: Path to the audio file.
   /// - Returns: An `AudioAnalysisResult` with BPM and confidence, or `nil`
   ///   for silence, too-short input, or non-musical content.
   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
+  ///   `CancellationError` if the task is cancelled.
   public static func analyzeBPM(
     url: URL
   ) throws -> AudioAnalysisResult? {
@@ -75,24 +85,42 @@ public struct AudioAnalysisService {
 
   /// Analyzes the BPM of an audio file using intensity-controlled progressive analysis.
   ///
+  /// Checks ``Options/isCancelled`` before the PCM read and before each analysis
+  /// window. If cancellation is detected, throws `CancellationError` — previously
+  /// completed window results are discarded (no partial results).
+  ///
+  /// When ``Options/onProgress`` is non-nil, it is called before each window with
+  /// a ``ProgressUpdate`` reporting `windowsCompleted` (0-based) and `windowsTotal`.
+  ///
   /// - Parameters:
   ///   - url: Path to the audio file.
-  ///   - options: Configuration controlling read length, intensity, merge strategy, and tracing.
+  ///   - options: Configuration controlling read length, intensity, merge strategy,
+  ///     cancellation, progress, and tracing.
   /// - Returns: An `AudioAnalysisResult` with BPM and confidence, or `nil`
   ///   for silence, too-short input, or non-musical content.
   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
+  ///   `CancellationError` if cancelled via `options.isCancelled`.
   public static func analyzeBPM(
     url: URL,
     options: Options
   ) throws -> AudioAnalysisResult? {
+    // Early cancellation check — avoid ~10MB PCM read on pre-cancelled calls.
+    if options.isCancelled() { throw CancellationError() }
+
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
       from: url, maxSeconds: options.maxSeconds
     )
 
     // Collect results from all windows.
     var windowResults: [BPMResult] = []
+    let windowSizes = options.intensity.windowSizes
+    let total = windowSizes.count
+    var completed = 0
 
-    for windowSeconds in options.intensity.windowSizes {
+    for windowSeconds in windowSizes {
+      if options.isCancelled() { throw CancellationError() }
+      options.onProgress?(ProgressUpdate(windowsCompleted: completed, windowsTotal: total))
+
       guard
         let bpmResult = BPMAnalyzer.estimateBPM(
           samples: samples, sampleRate: sampleRate,
@@ -102,10 +130,12 @@ public struct AudioAnalysisService {
             enableTrace: options.enableTrace)
         )
       else {
+        completed += 1
         continue
       }
 
       windowResults.append(bpmResult)
+      completed += 1
 
       // Non-progressive intensities (1-5): single window, break immediately.
       if options.intensity.progressiveThreshold == nil {

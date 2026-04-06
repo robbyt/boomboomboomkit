@@ -163,7 +163,13 @@ struct GiantStepsBenchmarkTests {
           (
             index,
             (try? AudioAnalysisService.analyzeBPM(
-              url: url, options: .init(intensity: intensity, mergeStrategy: mergeStrategy)))?.bpm
+              url: url,
+              options: {
+                var o = AudioAnalysisService.Options()
+                o.intensity = intensity
+                o.mergeStrategy = mergeStrategy
+                return o
+              }()))?.bpm
           )
         }
       }
@@ -212,7 +218,12 @@ struct GiantStepsBenchmarkTests {
           (
             index,
             (try? AudioAnalysisService.analyzeBPM(
-              url: url, options: .init(intensity: intensity)))?.bpm
+              url: url,
+              options: {
+                var o = AudioAnalysisService.Options()
+                o.intensity = intensity
+                return o
+              }()))?.bpm
           )
         }
       }

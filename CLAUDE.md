@@ -24,7 +24,8 @@ All types are stateless structs/enums with static methods. Shared currency type 
 
 ### Key Types (Sources/BoomBoomBoomKit/)
 
-- **AudioAnalysisService** — Public facade. Composes PCMBufferReader + analyzers. Implements intensity-controlled progressive BPM analysis with configurable merge strategy. Primary API: `analyzeBPM(url:intensity:mergeStrategy:enableTrace:)`.
+- **AudioAnalysisService** — Public facade. Composes PCMBufferReader + analyzers. Implements intensity-controlled progressive BPM analysis with configurable merge strategy. Supports cooperative cancellation (via injectable `isCancelled` closure, default `Task.isCancelled`) and per-window progress reporting (via `onProgress` callback). Primary API: `analyzeBPM(url:options:)`.
+- **ProgressUpdate** — Public struct (`Sendable`) with `windowsCompleted: Int` and `windowsTotal: Int`. Emitted before each analysis window begins.
 - **CandidateMergeStrategy** — Public enum (8 cases): `maxConfidence` (default), `dedup`, `quorum`, `average`, `median`, `weightedAverage`, `union`, `windowVoting`. Controls how candidates from multiple analysis windows are combined. `windowVoting` votes on each window's final disambiguated BPM (post-disambiguation) instead of raw candidates; falls back to `maxConfidence` when no consensus. `CaseIterable` for ablation.
 - **AnalysisIntensity** — Public struct (1-10) controlling pipeline depth via `techniqueSet: TechniqueSet`. Named constants: `.fastest` (1), `.default` (7), `.thorough` (8), `.maximum` (10). Levels 1-7 are DSP-only; 8-10 reserved for future ML. Intensity mapping validated by 64-combination ablation matrix.
 - **DSPTechnique** — Public enum (6 cases): `acfSharpening`, `adaptiveThreshold`, `subBandNormalization`, `expandedCandidates`, `fineGridRefinement`, `subBandVoting`. Closed set, `CaseIterable`.
@@ -50,7 +51,7 @@ Tests use Swift Testing framework (`import Testing`, `@Suite`, `@Test`, `#expect
 
 - All DSP uses Apple's Accelerate (vDSP) — no manual loops for bulk numeric operations
 - K-weighting filters use Double precision throughout (Float causes measurable errors near unit circle poles)
-- `BPMResult` and `LUFSResult` are internal; `AudioAnalysisResult`, `AnalysisIntensity`, `DSPTechnique`, `TechniqueSet`, `MLTechnique`, and `BPMDiagnosticTrace` are public
+- `BPMResult` and `LUFSResult` are internal; `AudioAnalysisResult`, `AnalysisIntensity`, `DSPTechnique`, `TechniqueSet`, `MLTechnique`, `BPMDiagnosticTrace`, and `ProgressUpdate` are public
 - Default intensity mapping uses `.optimal` preset (sharp+vote+fine) with `maxConfidence` merge — validated by ablation on OA300 corpus (Acc1=69.5%, Acc2=89.0%)
 - `@preconcurrency import AVFoundation` is used in PCMBufferReader for Swift 6 concurrency compatibility
 - `nonisolated(unsafe)` in PCMBufferReader.downsample is intentional — AVAudioConverter calls its block synchronously

@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "axiom@axiom-marketplace": true
+    "axiom@axiom-marketplace": true,
+    "swift@robbyt-claude-skills": true
   }
 }
