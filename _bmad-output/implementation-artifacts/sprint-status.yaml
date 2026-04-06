@@ -1,5 +1,5 @@
 # generated: 2026-03-31
-# last_updated: 2026-04-03
+# last_updated: 2026-04-05
 # project: BoomBoomBoomKit
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-04-03
+last_updated: 2026-04-05
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -45,8 +45,8 @@ development_status:
   # Epic 1: Pipeline Performance and Cooperative Analysis
   epic-1: in-progress
   1-1-internal-buffer-reuse-in-bpm-pipeline: done
-  1-2-cooperative-cancellation-and-progress-reporting: backlog
-  epic-1-retrospective: optional
+  1-2-cooperative-cancellation-and-progress-reporting: done
+  epic-1-retrospective: done
 
   # Epic 2: Measurement and Validation Infrastructure
   epic-2: backlog

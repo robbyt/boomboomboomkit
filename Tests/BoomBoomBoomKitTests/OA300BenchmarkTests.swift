@@ -146,7 +146,12 @@ struct OA300BenchmarkTests {
       }
 
       let result = try? AudioAnalysisService.analyzeBPM(
-        url: url, options: .init(enableTrace: true))
+        url: url,
+        options: {
+          var o = AudioAnalysisService.Options()
+          o.enableTrace = true
+          return o
+        }())
 
       if let r = result {
         let match = isAcc1Match(r.bpm, track.bpm) ? "OK" : "MISS"
@@ -268,7 +273,13 @@ struct OA300BenchmarkTests {
           (
             index,
             (try? AudioAnalysisService.analyzeBPM(
-              url: url, options: .init(intensity: intensity, mergeStrategy: mergeStrategy)))?.bpm
+              url: url,
+              options: {
+                var o = AudioAnalysisService.Options()
+                o.intensity = intensity
+                o.mergeStrategy = mergeStrategy
+                return o
+              }()))?.bpm
           )
         }
       }
