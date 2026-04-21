@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-04-05
+last_updated: 2026-04-20 (epic-2 retrospective)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -43,27 +43,29 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Pipeline Performance and Cooperative Analysis
-  epic-1: in-progress
+  epic-1: done
   1-1-internal-buffer-reuse-in-bpm-pipeline: done
   1-2-cooperative-cancellation-and-progress-reporting: done
   epic-1-retrospective: done
 
   # Epic 2: Measurement and Validation Infrastructure
-  epic-2: backlog
-  2-1-giantsteps-tempo-dataset-integration: backlog  # partially complete: ground truth JSON, benchmark test, Makefile target, genre breakdown done during Epic 1
-  2-2-dual-tolerance-accuracy-reporting: backlog
-  2-3-performance-benchmark-infrastructure: backlog
-  2-4-oa300-corpus-expansion-with-genre-diversity: backlog
-  2-5-genre-stratified-accuracy-reporting: backlog
-  epic-2-retrospective: optional
+  epic-2: done
+  2-1-giantsteps-tempo-dataset-integration: done
+  2-2-dual-tolerance-accuracy-reporting: done
+  2-3-performance-benchmark-infrastructure: done
+  2-4-oa300-corpus-expansion-with-genre-diversity: done
+  2-5-genre-stratified-accuracy-reporting: done
+  2-6-perf-baselines-file-per-run-redesign: done
+  epic-2-retrospective: done
 
   # Epic 3: DSP Accuracy Improvement
-  epic-3: backlog
+  epic-3: in-progress
   3-1-harmonic-ratio-detection: backlog
   3-2-fine-grid-precision-fix: backlog
   3-3-click-track-cross-correlation: backlog
   3-4-duration-derived-bpm-hint: backlog
   3-5-configurable-window-voting-policy: backlog
+  3-6-bpm-metadata-corroboration-signal: ready-for-dev
   epic-3-retrospective: optional
 
   # Epic 4: ML-Augmented Detection

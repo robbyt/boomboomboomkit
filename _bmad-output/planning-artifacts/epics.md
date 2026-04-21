@@ -192,6 +192,7 @@ N/A -- BoomBoomBoomKit is a DSP library with no UI. The demo app (FR34-41) is an
 | FR43 | Epic 5 | New | Nil-return condition documentation |
 | FR44 | Epic 5 | New | Batch workflow pattern guidance |
 | FR45 | Epic 5 | New | Inline /// documentation on all public API |
+| FR46 | Epic 3 | New | File-embedded BPM metadata (iTunes `tmpo`, ID3 `TBPM`, Vorbis `BPM`) as corroboration signal — default-on, `.disabled` opt-out, direct container parsing |
 
 **Standard acceptance criteria (all stories in Epics 1-4):**
 - `make fmt` + `make lint` pass before and after implementation
@@ -399,28 +400,45 @@ So that I can measure performance improvements and detect regressions across pip
 **When** reported
 **Then** per-track timing and aggregate statistics (mean, median, p95) are printed
 
-### Story 2.4: OA300 Corpus Expansion with Genre Diversity
+### Story 2.4: OA300 Genre Labeling (Shrunken Scope)
 
 As a library author,
-I want to expand the OA300 corpus with tracks from underrepresented genres (house, hip-hop, pop, rock, ambient),
-So that accuracy claims are credible beyond the current DnB-heavy corpus.
+I want every OA300 ground-truth entry to carry a non-optional `genre` label (sourced from the subdir for 74 tracks and from explicit per-track tags for 8 "Bad BPM" tracks, using the GiantSteps taxonomy plus an OA300-only `footwork` extension),
+So that Story 2.5 (Genre-Stratified Accuracy Reporting) can bucket OA300 results per-genre without further schema work, and cross-corpus reports (OA300 + GiantSteps) share a vocabulary.
+
+**Scope Notes:**
+- **No corpus expansion.** Original ≥20-new-track scope cut — GiantSteps (661 electronic-genre-labeled tracks) already provides cross-genre diversity.
+- **No manual listening.** All 82 entries tagged via deterministic subdir heuristic + 8 user-supplied Bad BPM tags.
+- **Backwards-compat is not a goal.** `OA300Track.genre` flips from `String?` to `String`; malformed rows fail loudly at decode.
 
 **Acceptance Criteria:**
 
-**Given** the expanded corpus
-**When** counted by genre
-**Then** at least 20 new tracks are added covering 4+ genres beyond the current DnB/breakbeat/footwork cluster
+**Given** the ground-truth fixture
+**When** this story lands
+**Then** all 82 entries carry a non-empty `genre: String` field appended at the end of each JSON object
 
-**Given** new tracks added to the corpus
-**When** ground truth is established
-**Then** each track has a verified BPM (DAW-verified preferred, Rekordbox as fallback)
-**And** `oa300-ground-truth.json` is updated with the new entries including genre tags
+**Given** the genre taxonomy
+**When** defined
+**Then** it is the 23 GiantSteps labels (`drum-and-bass, breaks, techno, tech-house, house, deep-house, electro-house, progressive-house, dubstep, trance, psy-trance, electronica, glitch-hop, chill-out, hardcore-hard-techno, indie-dance-nu-disco, hard-dance, dj-tools, minimal, pop-rock, reggae-dub, hip-hop, funk-r-and-b`) plus one OA300-only extension: `footwork` — 24 labels total
 
-**Given** genre tags in ground truth
-**When** `FR33` (genre-stratified reporting) is implemented
-**Then** the data structure supports per-genre Acc1/Acc2 breakdown
+**Given** the 82 existing entries
+**When** genre is assigned
+**Then** subdir heuristic applies to 74 (T Tunes/null → `drum-and-bass`; R Tunes → `breaks`) and 8 Bad BPM tracks get explicit per-track tags (`03 TVR` → tech-house; `Icicle - Condense`, `Nautical Divine - Makara` → techno; `Echtoo - The Mummy` → footwork; rest → breaks)
+**And** final distribution: `drum-and-bass=69, breaks=9, techno=2, tech-house=1, footwork=1`
 
-**Note:** This is a non-code story -- the work is manual (selecting tracks, verifying BPMs, updating JSON). No library code changes.
+**Given** the shared `OA300Track` struct
+**When** this story lands
+**Then** `genre: String?` flips to `genre: String` (non-optional) at `Sources/BoomBoomBoomKitTestSupport/CorpusTracks.swift:18`
+
+**Given** `Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py`
+**When** this story lands
+**Then** the hardcoded output path is removed, replaced with stdout-by-default + `--output PATH` flag, `ALLOWED_GENRES` is added as a module constant, and a "do not re-run" warning block is added to the docstring
+
+**Given** `make benchmark`, `make oracle`, `make ablation`, `make perf-benchmark`, `make benchmark-giantsteps`
+**When** run after this story lands
+**Then** all five pass with no Acc1/Acc2 regression (Acc1 = 57/82 baseline)
+
+**Note:** Replaces the original Story 2.4 (corpus expansion + genre backfill). Scope shrunk 2026-04-18 after validation uncovered that (a) file paths in the original story were wrong (test target reorganized after epic draft), (b) `OA300Track` is shared public not per-suite private, (c) `genre: String?` already existed, (d) GiantSteps already delivers cross-genre electronic diversity. Labeling half kept, expansion half cut.
 
 ### Story 2.5: Genre-Stratified Accuracy Reporting
 
@@ -438,6 +456,40 @@ So that I can identify genre-specific weaknesses and tune technique presets acco
 **Given** genre-stratified results
 **When** a genre shows significantly lower Acc1 than aggregate
 **Then** the report highlights it as a candidate for technique tuning
+
+### Story 2.6: Perf-Baselines File-Per-Run Redesign
+
+As a library author,
+I want each `make perf-benchmark` run to write an immutable per-run JSON file instead of appending to a single shared array file,
+so that concurrent/repeated runs can't race or corrupt baselines, merge conflicts on a shared history file disappear, and regression comparisons become a trivial glob-and-sort at read time.
+
+**Acceptance Criteria:**
+
+**Given** the current append-only `Apple_M5_Max-26.json` array
+**When** this story lands
+**Then** `PerformanceBenchmarkTests.swift` is redesigned so each run writes one new single-object JSON file to `_bmad-output/perf-baselines/` via atomic temp-then-rename, and the read-modify-write `append(_:to:)` helper is removed
+
+**Given** a per-run write
+**When** the filename is constructed
+**Then** it follows the template `{fingerprint}--{buildConfiguration}--{recordedAt-compact}--{gitSHA}--{shortUUID}.json` (double-hyphen separators, UTC ISO-8601 basic form, 8-char UUID suffix for collision-free construction)
+
+**Given** the reader inside the Swift suite
+**When** it computes `Δ vs last baseline:`
+**Then** it globs the baseline dir, filters to the current `{fingerprint}--{buildConfiguration}--` prefix, decodes each, sorts by the JSON `recordedAt` field, and compares against the most recent record that is not the just-written one; temp files, dotfiles, and a single malformed file are warn+skipped without aborting the test
+
+**Given** the legacy staging/mutex flow
+**When** this story lands
+**Then** `scripts/perf-commit.sh` is deleted outright (not archived), the `Makefile` `perf-benchmark` target runs `swift test` directly against `_bmad-output/perf-baselines/` with no tempdir, and no other file in the repo references the retired script
+
+**Given** the existing `Apple_M5_Max-26.json` with 6 records
+**When** migration runs
+**Then** a one-shot `scripts/migrate-perf-baselines.py` emits 6 per-run files using each record's existing `recordedAt` + `gitSHA` + chip + osMajor, then the source array file and the migration script are both deleted in the same commit
+
+**Given** `.claude/skills/running-benchmarks/SKILL.md`
+**When** this story lands
+**Then** it is rewritten to reflect the new design: the "never rewrite" invariant is replaced with per-run-file immutability, staging/mutex discussion is removed, `jq` recipes are rewritten for globbed multi-file input (`jq -s`), and a "Common mistakes" row is added for the concurrent-run CPU-contention timing caveat
+
+**Note:** Replaces the Story 2.3 append-only+mutex+staging design. Codex-reviewed; atomic temp-then-rename is mandatory (not optional) — plain writes are not atomic at JSON-document level. User directive: delete retired scripts, do not archive.
 
 ---
 
@@ -584,6 +636,120 @@ So that I can compile once and sweep through different voting strategies during 
 **Given** `make benchmark`
 **When** comparing voting policies
 **Then** the best-performing policy's Acc1 >= current `windowVoting` Acc1
+
+### Story 3.6: BPM Metadata Corroboration Signal
+
+As a DJ-tool developer consuming BoomBoomBoomKit,
+I want embedded file-tag BPM metadata (iTunes `tmpo`, ID3 `TBPM`, Vorbis `BPM`) to corroborate the DSP estimate when present and trustworthy,
+So that well-tagged library files converge faster and more accurately without sacrificing the library's DSP-first honesty on mistagged or untagged audio.
+
+**Acceptance Criteria:**
+
+**Given** a consumer importing `BoomBoomBoomKit`
+**When** they inspect the public API
+**Then** `MetadataPolicy` exists as a public `Sendable, Hashable` struct in `Sources/BoomBoomBoomKit/MetadataPolicy.swift`
+**And** `MetadataSource` exists as a public `String, CaseIterable, Sendable, Hashable` enum with exactly `.iTunesTmpo`, `.id3TBPM`, `.vorbisBPM`
+**And** `MetadataPolicy` exposes at least `.default` and `.disabled` named presets
+**And** `MetadataPolicy.default.valueRange == 30.0...300.0`
+
+**Given** `AudioAnalysisService.Options`
+**When** a consumer creates a default `Options` instance
+**Then** `options.metadataPolicy == .default` (metadata corroboration is ON by default)
+**And** setting `options.metadataPolicy = .disabled` disables all metadata I/O and merge-stage boosting
+
+**Given** `AudioAnalysisResult`
+**When** `analyzeBPM` returns
+**Then** the result exposes a public `metadataEvidence: [MetadataBPMEvidence]` array
+**And** each element carries `source`, `rawValue`, `parsedBPM`, `corroboratedWith`, `ratioMatched`, `boostApplied`, `rejectionReason`
+
+**Given** an M4A file containing a valid `moov/udta/meta/ilst/tmpo` atom (e.g., OA300 fixture `03 TVR.m4a` in the "Bad BPM" subfolder)
+**When** `FileMetadataReader` reads the file
+**Then** the `tmpo` int16 is parsed via direct container parsing (not `AVAsset.commonMetadata`)
+**And** `source == .iTunesTmpo`
+**And** `tmpo == 0` is treated as absent
+
+**Given** an MP3 file with ID3v2 `TBPM` frames
+**When** `FileMetadataReader` reads the file
+**Then** the ID3v2 header is parsed directly and the `TBPM` text frame is located
+**And** two or more `TBPM` frames with conflicting parsed values are treated as an intra-file conflict
+
+**Given** a FLAC file with a Vorbis comment `BPM=` entry (case-insensitive key)
+**When** `FileMetadataReader` reads the file
+**Then** the Vorbis comment block is parsed directly from FLAC metadata blocks
+**And** `source == .vorbisBPM`
+
+**Given** parsed raw tag strings under `MetadataPolicy.default`
+**When** hygiene rules apply
+**Then** whitespace/BOM is stripped; locale decimal comma accepted (`"128,5"` → `128.5`); range midpoint accepted (`"120-125"` → `122.5`); non-numeric rejected with `rejectionReason`; values outside `valueRange` rejected with `rejectionReason == "out-of-range"`
+
+**Given** two or more enabled sources present in a file that agree within ±0.5 BPM absolute
+**When** consensus is computed
+**Then** the tags are treated as "unanimous consensus"
+**And** the consensus value is the arithmetic mean
+
+**Given** two or more enabled sources where at least one pair disagrees by more than ±0.5 BPM
+**When** consensus is computed
+**Then** ALL tags are rejected for decision purposes (no boost)
+**And** each is recorded in `metadataEvidence` with `rejectionReason == "intra-file-conflict"`
+
+**Given** a tag (single source or unanimous) with parsed BPM `T`
+**When** a DSP candidate `C` satisfies `|C - T| / T <= 0.03`
+**Then** the tag is corroborated at same-tempo
+**And** `ratioMatched == nil`, `corroboratedWith == C`
+
+**Given** a tag with parsed BPM `T` that does not match any DSP candidate at same-tempo
+**When** existing `resolveOctaveAmbiguity` (2:1) or Story 3.1 (3:2, 3:1) resolves `T` and some DSP candidate to the same underlying tempo
+**Then** the tag is corroborated at ratio
+**And** `ratioMatched` is populated with the matched `HarmonicRatio`
+**And** triplet (3:2) corroboration is gated OFF until Story 3.1 ships
+
+**Given** a corroborated tag (single-source or unanimous, same-tempo or ratio-matched)
+**When** `CandidateMergeStrategy.merge` runs across windows
+**Then** the corresponding candidate's confidence is multiplied by `1.25` and clamped to `0.95` (never reaches `1.0`)
+**And** `boostApplied` records the multiplier
+**And** the boost is applied inside `merge` (cross-window), NOT solely inside BPMAnalyzer step 10
+
+**Given** a unanimous-consensus tag set that does NOT corroborate any DSP candidate
+**When** `analyzeBPM` returns
+**Then** the DSP-chosen BPM is returned (tag value does NOT override DSP)
+**And** the winning candidate's confidence is multiplied by `0.85` (skepticism penalty)
+**And** each evidence entry carries `rejectionReason == "dsp-disagreement"`
+
+**Given** `options.intensity = .fastest`
+**When** `analyzeBPM` runs on a tagged file
+**Then** `FileMetadataReader` is still invoked and evidence is populated
+**And** metadata reading is NOT gated by `AnalysisIntensity` or `DSPTechnique`
+
+**Given** `metadataPolicy = .disabled`
+**When** `analyzeBPM` runs
+**Then** `FileMetadataReader` is NOT invoked (no file I/O for metadata)
+**And** `result.metadataEvidence.isEmpty == true`
+**And** returned BPM, confidence, and candidate set are byte-identical to the pre-Story-3.6 pipeline (regression guard on OA300/GiantSteps)
+
+**Given** the `DSPTechnique` enum and `TechniqueSet` API
+**When** this story lands
+**Then** `DSPTechnique.allCases.count == 6` (unchanged)
+**And** `TechniqueSet.allDSPCombinations().count == 64` (2^6 regression guard)
+**And** no new case is added to `DSPTechnique` for metadata
+
+**Given** `enableTrace: true` and a file producing metadata evidence
+**When** `analyzeBPM` returns
+**Then** `BPMDiagnosticTrace` includes per-source raw strings, parsed values, consensus outcome, corroboration outcome, and applied boost/penalty
+
+**Given** the OA300 benchmark run under `make benchmark`
+**When** Story 3.6 lands with default policy ON
+**Then** Acc1 does not regress below the pre-story baseline; Acc2 does not regress below the pre-story baseline
+**And** the benchmark report includes a "tagged-subset" breakdown: count of OA300 tracks where metadata was found, corroborated the DSP winner, was rejected intra-file, or disagreed with DSP
+
+**Given** the OA300 fixture `03 TVR.m4a`
+**When** the test suite runs with `metadataPolicy = .default`
+**Then** an explicit test asserts the `tmpo` atom is read and `MetadataBPMEvidence` is emitted with `source == .iTunesTmpo`
+
+**Note:** Metadata is deliberately NOT a `DSPTechnique` — it is a file-level corroboration signal orthogonal to DSP. Lives in `AudioAnalysisService` wiring, standalone `FileMetadataReader`, and a boost hook inside `CandidateMergeStrategy.merge` (not in BPMAnalyzer step 10). The confidence boost is intentionally multiplicative (`1.25×` clamped at `0.95`) and cannot reach `1.0` because third-party taggers may share failure modes with our DSP (correlated false positives). Ratio corroboration reuses existing `resolveOctaveAmbiguity` (2:1) plus Story 3.1's `HarmonicRatio` path (3:2, 3:1) — no new ratio math in this story. Direct container parsing (not `AVAsset.commonMetadata`) avoids AVFoundation deprecation risk and Vorbis unreliability. No stable public API yet — breaking changes to `Options` and `AudioAnalysisResult` acceptable.
+
+**Files:** `MetadataPolicy.swift` (new), `FileMetadataReader.swift` (new, ~150 LOC across MP4/ID3/Vorbis parsers), `AudioAnalysisService.swift` (wire read-once before window loop), `CandidateMergeStrategy.swift` (boost hook), `BPMDiagnosticTrace.swift` (trace fields). Tests: `FileMetadataReaderTests.swift`, `MetadataCorroborationTests.swift`. Benchmark: `OA300BenchmarkTests.swift` (tagged-subset breakdown).
+
+**Reference:** ISO/IEC 14496-12 (`moov/udta/meta/ilst/tmpo`). ID3v2.4 §4.2 text frames (`TBPM`). Xiph.org Vorbis comment spec. Depends on Story 3.1 (`HarmonicRatio`) for triplet corroboration.
 
 ---
 

@@ -6,7 +6,7 @@ let package = Package(
   platforms: [.macOS(.v15)],
   products: [
     .library(name: "BoomBoomBoomKit", targets: ["BoomBoomBoomKit"]),
-    .library(name: "BoomBoomBoomKitTestSupport", targets: ["BoomBoomBoomKitTestSupport"])
+    .library(name: "BoomBoomBoomKitTestSupport", targets: ["BoomBoomBoomKitTestSupport"]),
   ],
   targets: [
     .target(
@@ -22,6 +22,11 @@ let package = Package(
       name: "BoomBoomBoomKitTests",
       dependencies: ["BoomBoomBoomKit", "BoomBoomBoomKitTestSupport"],
       resources: [.copy("Fixtures")]
-    )
+    ),
+    .testTarget(
+      name: "BoomBoomBoomKitBenchmarkTests",
+      dependencies: ["BoomBoomBoomKit", "BoomBoomBoomKitTestSupport"],
+      resources: [.copy("Fixtures")]
+    ),
   ]
 )
