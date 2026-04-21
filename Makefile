@@ -26,15 +26,15 @@ build:
 build-release:
 	swift build -c release
 
-## test: Run all tests (concise output)
+## test: Run unit tests only (excludes benchmark target; no corpus env required)
 .PHONY: test
 test:
-	swift test --parallel
+	swift test --parallel --filter BoomBoomBoomKitTests
 
-## test-verbose: Run tests with full streaming output
+## test-verbose: Run unit tests with full streaming output
 .PHONY: test-verbose
 test-verbose:
-	swift test
+	swift test --filter BoomBoomBoomKitTests
 
 ## test-filter: Run a specific test suite (usage: make test-filter SUITE=BPMAnalyzer120BPMTests)
 .PHONY: test-filter
@@ -44,32 +44,46 @@ ifndef SUITE
 endif
 	swift test --filter $(SUITE)
 
-## benchmark: Run OA300 accuracy benchmark
+## benchmark: Run OA300 accuracy benchmark (fails loudly if OA300_CORPUS_PATH unset)
 .PHONY: benchmark
 benchmark:
-	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter OA300BenchmarkTests
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.OA300BenchmarkTests
 
 ## benchmark-giantsteps: Run GiantSteps Tempo Dataset accuracy benchmark
 .PHONY: benchmark-giantsteps
 benchmark-giantsteps:
-	GIANTSTEPS_CORPUS_PATH=$(GIANTSTEPS_CORPUS_PATH) swift test --filter GiantStepsBenchmarkTests
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.GiantStepsBenchmarkTests
+
+## perf-benchmark: Run wall-clock perf + accuracy snapshot with per-run baseline files
+.PHONY: perf-benchmark
+perf-benchmark:
+	@mkdir -p "$(CURDIR)/_bmad-output/perf-baselines"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	PERF_BASELINE_DIR="$(CURDIR)/_bmad-output/perf-baselines" \
+	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.PerformanceBenchmarkTests
 
 ## ablation: Run full ablation matrix against OA300 corpus
 .PHONY: ablation
 ablation:
-	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter AblationMatrixTests
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests
 
 ## oracle: Run three-way DAW oracle comparison (ours vs Rekordbox vs DAW-verified)
 .PHONY: oracle
 oracle:
-	OA300_CORPUS_PATH=$(OA300_CORPUS_PATH) swift test --filter DAWOracleBenchmarkTests
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.DAWOracleBenchmarkTests
 
 ## oracle-generate: Regenerate daw-oracle.json from the dawproject file
 .PHONY: oracle-generate
 oracle-generate:
-	uv run scripts/dawproject-bpm.py $(OA300_CORPUS_PATH)/corpus/corpus.dawproject \
-		--match Tests/BoomBoomBoomKitTests/Fixtures/oa300-ground-truth.json \
-		> $(OA300_CORPUS_PATH)/daw-oracle.json
+	uv run scripts/dawproject-bpm.py "$(OA300_CORPUS_PATH)/corpus/corpus.dawproject" \
+		--match Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
+		> "$(OA300_CORPUS_PATH)/daw-oracle.json"
 
 ## fmt: Format Swift source code
 .PHONY: fmt

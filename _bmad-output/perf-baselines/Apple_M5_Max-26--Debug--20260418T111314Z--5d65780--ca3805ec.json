@@ -1,0 +1,40 @@
+{
+  "accuracy": {
+    "giantsteps": {
+      "acc1Correct": 536,
+      "acc2Correct": 545,
+      "tolerance": 0.02,
+      "total": 661
+    },
+    "oa300": {
+      "acc1Correct": 57,
+      "acc2Correct": 73,
+      "tolerance": 0.02,
+      "total": 82
+    }
+  },
+  "buildConfiguration": "Debug",
+  "gitSHA": "5d65780",
+  "hardware": {
+    "chip": "Apple M5 Max",
+    "cores": 18,
+    "osVersion": "Version 26.5 (Build 25F5053d)",
+    "physicalMemoryGiB": 128
+  },
+  "recordedAt": "2026-04-18T11:13:14Z",
+  "schemaVersion": 2,
+  "swiftPackageVersion": "BoomBoomBoomKit (workspace HEAD)",
+  "wallClock": {
+    "corpus": "OA300",
+    "failedCount": 0,
+    "intensity": 7,
+    "maxSeconds": 0.330480417,
+    "meanSeconds": 0.2127550195308642,
+    "medianSeconds": 0.178999292,
+    "minSeconds": 0.136126166,
+    "p95Seconds": 0.279112333,
+    "totalSeconds": 17.233156582,
+    "trackCount": 82,
+    "warmupExcluded": 1
+  }
+}

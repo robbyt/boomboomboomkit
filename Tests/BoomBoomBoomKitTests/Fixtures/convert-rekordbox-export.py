@@ -3,15 +3,68 @@
 Convert a Rekordbox UTF-16 TSV export to oa300-ground-truth.json.
 
 Usage:
-    python3 convert-rekordbox-export.py /path/to/OA300_OnsetAudio300
+    uv run convert-rekordbox-export.py <corpus_dir>                 # JSON to stdout
+    uv run convert-rekordbox-export.py <corpus_dir> -o <path>       # JSON to file
 
-Reads OA300_OnsetAudio300.txt (Rekordbox export) from the corpus directory,
-matches track titles to audio files on disk, and writes oa300-ground-truth.json
-to the same directory as this script.
+Example (writes the canonical fixture location):
+    uv run Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py \\
+        "$OA300_CORPUS_PATH" \\
+        -o Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json
+
+Reads the Rekordbox TSV export (`.txt`) from the corpus directory, matches
+track titles to audio files on disk, and emits JSON (`{filename, bpm, subdir,
+title}` per row; no `genre` — see warning below). With `-o/--output`, writes
+to that path; otherwise writes to stdout. Informational logs go to stderr.
 
 Supported audio formats: .wav, .mp3, .flac, .m4a, .aiff
+
+WARNING — this script does NOT preserve the `genre` column.
+    Rekordbox TSV has no genre field, so a naive re-run against an existing
+    `oa300-ground-truth.json` will overwrite and destroy any genre tags that
+    live in the fixture. After Story 2-4 landed, genre is a required
+    (non-optional) field on `OA300Track` — re-running this script without
+    merging genres back in will break the benchmark suites.
+
+    Safe options:
+    (a) Edit `oa300-ground-truth.json` by hand for small changes.
+    (b) Extend this script to read/merge a genre side-file (future work).
+    Either way, `ALLOWED_GENRES` below is the canonical (extensible) list.
 """
 
+# Canonical genre taxonomy for OA300 (and cross-corpus reports with GiantSteps).
+# Seeded by Story 2-4: 23 GiantSteps labels + OA300 extensions (`footwork`, `half-time-dnb`).
+# EXTENSIBLE: to add a genre, append it below, then tag the relevant rows in
+# `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json`, and log the
+# addition in the Change Log of the story proposing the new label.
+ALLOWED_GENRES = [
+    "breaks",
+    "chill-out",
+    "deep-house",
+    "dj-tools",
+    "drum-and-bass",
+    "dubstep",
+    "electro-house",
+    "electronica",
+    "footwork",
+    "funk-r-and-b",
+    "glitch-hop",
+    "half-time-dnb",
+    "hard-dance",
+    "hardcore-hard-techno",
+    "hip-hop",
+    "house",
+    "indie-dance-nu-disco",
+    "minimal",
+    "pop-rock",
+    "progressive-house",
+    "psy-trance",
+    "reggae-dub",
+    "tech-house",
+    "techno",
+    "trance",
+]
+
+import argparse
 import json
 import os
 import sys
@@ -27,36 +80,45 @@ def parse_rekordbox_tsv(tsv_path: str) -> list[dict]:
     lines = text.strip().split("\n")
 
     if len(lines) < 2:
-        print(f"Error: TSV file has only {len(lines)} lines (expected header + data)")
+        print(
+            f"Error: TSV file has only {len(lines)} lines (expected header + data)",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     header = [h.strip() for h in lines[0].split("\t")]
-    print(f"Header columns: {header}")
+    print(f"Header columns: {header}", file=sys.stderr)
 
     # Find column indices
     try:
         title_idx = header.index("Track Title")
         bpm_idx = header.index("BPM")
     except ValueError as e:
-        print(f"Error: Required column not found: {e}")
-        print(f"Available columns: {header}")
+        print(f"Error: Required column not found: {e}", file=sys.stderr)
+        print(f"Available columns: {header}", file=sys.stderr)
         sys.exit(1)
 
     entries = []
     for i, line in enumerate(lines[1:], start=2):
         fields = line.split("\t")
         if len(fields) <= max(title_idx, bpm_idx):
-            print(f"  Warning: Line {i} has only {len(fields)} fields, skipping")
+            print(
+                f"  Warning: Line {i} has only {len(fields)} fields, skipping",
+                file=sys.stderr,
+            )
             continue
         title = fields[title_idx].strip()
         bpm_str = fields[bpm_idx].strip()
         if not bpm_str:
-            print(f"  Warning: Line {i} '{title}' has no BPM, skipping")
+            print(f"  Warning: Line {i} '{title}' has no BPM, skipping", file=sys.stderr)
             continue
         try:
             bpm = float(bpm_str)
         except ValueError:
-            print(f"  Warning: Line {i} '{title}' has invalid BPM '{bpm_str}', skipping")
+            print(
+                f"  Warning: Line {i} '{title}' has invalid BPM '{bpm_str}', skipping",
+                file=sys.stderr,
+            )
             continue
         entries.append({"title": title, "bpm": bpm})
 
@@ -110,35 +172,51 @@ def match_title_to_file(title: str, files: list[dict]) -> dict | None:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} /path/to/corpus_directory")
-        print(f"  The directory must contain a Rekordbox TSV export file.")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Convert a Rekordbox UTF-16 TSV export to oa300-ground-truth.json.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Writes JSON to stdout by default. Use -o/--output to write to a file.\n"
+            "NOTE: this script does not emit a `genre` column — see the module "
+            "docstring's warning block before re-running against a tagged fixture."
+        ),
+    )
+    parser.add_argument(
+        "corpus_dir",
+        help="Path to the OA300 corpus directory containing the Rekordbox .txt export.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Output path for the JSON (default: stdout).",
+    )
+    args = parser.parse_args()
 
-    corpus_dir = sys.argv[1]
+    corpus_dir = args.corpus_dir
 
     if not os.path.isdir(corpus_dir):
-        print(f"Error: '{corpus_dir}' is not a directory")
+        print(f"Error: '{corpus_dir}' is not a directory", file=sys.stderr)
         sys.exit(1)
 
     # Find the TSV file
     tsv_candidates = [f for f in os.listdir(corpus_dir) if f.endswith(".txt")]
     if not tsv_candidates:
-        print(f"Error: No .txt files found in '{corpus_dir}'")
+        print(f"Error: No .txt files found in '{corpus_dir}'", file=sys.stderr)
         sys.exit(1)
 
     if len(tsv_candidates) > 1:
-        print(f"Multiple .txt files found: {tsv_candidates}")
-        print(f"Using: {tsv_candidates[0]}")
+        print(f"Multiple .txt files found: {tsv_candidates}", file=sys.stderr)
+        print(f"Using: {tsv_candidates[0]}", file=sys.stderr)
 
     tsv_path = os.path.join(corpus_dir, tsv_candidates[0])
-    print(f"Parsing: {tsv_path}")
+    print(f"Parsing: {tsv_path}", file=sys.stderr)
 
     entries = parse_rekordbox_tsv(tsv_path)
-    print(f"Parsed {len(entries)} entries from TSV")
+    print(f"Parsed {len(entries)} entries from TSV", file=sys.stderr)
 
     audio_files = scan_audio_files(corpus_dir)
-    print(f"Found {len(audio_files)} audio files on disk")
+    print(f"Found {len(audio_files)} audio files on disk", file=sys.stderr)
 
     # Match entries to files
     result = []
@@ -174,34 +252,36 @@ def main():
             seen.add(key)
             deduped.append(entry)
 
-    # Report
-    print(f"\nMatched: {len(deduped)}/{len(entries)}")
+    # Report to stderr so stdout can carry only JSON in the default-stdout mode.
+    print(f"\nMatched: {len(deduped)}/{len(entries)}", file=sys.stderr)
 
     if unmatched:
-        print(f"\nUnmatched ({len(unmatched)}):")
+        print(f"\nUnmatched ({len(unmatched)}):", file=sys.stderr)
         for t in unmatched:
-            print(f"  - {t}")
+            print(f"  - {t}", file=sys.stderr)
 
     # Stats
     by_subdir = defaultdict(int)
     for r in deduped:
         by_subdir[r["subdir"] or "root"] += 1
-    print("\nBy subdirectory:")
+    print("\nBy subdirectory:", file=sys.stderr)
     for sd, count in sorted(by_subdir.items()):
-        print(f"  {sd}: {count}")
+        print(f"  {sd}: {count}", file=sys.stderr)
 
     bpms = [r["bpm"] for r in deduped]
     if bpms:
-        print(f"\nBPM range: {min(bpms)} - {max(bpms)}")
-        print(f"Unique BPMs: {len(set(bpms))}")
+        print(f"\nBPM range: {min(bpms)} - {max(bpms)}", file=sys.stderr)
+        print(f"Unique BPMs: {len(set(bpms))}", file=sys.stderr)
 
-    # Write output
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    output_path = os.path.join(script_dir, "oa300-ground-truth.json")
-    with open(output_path, "w") as f:
-        json.dump(deduped, f, indent=2, ensure_ascii=False)
-
-    print(f"\nWrote {len(deduped)} entries to {output_path}")
+    # Write output — stdout by default, -o/--output to a file.
+    if args.output:
+        with open(args.output, "w") as f:
+            json.dump(deduped, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print(f"\nWrote {len(deduped)} entries to {args.output}", file=sys.stderr)
+    else:
+        json.dump(deduped, sys.stdout, indent=2, ensure_ascii=False)
+        sys.stdout.write("\n")
 
 
 if __name__ == "__main__":
