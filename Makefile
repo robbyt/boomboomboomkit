@@ -3,6 +3,8 @@
 PROJECT := BoomBoomBoomKit
 OA300_CORPUS_PATH ?= /Users/rterhaar/Dropbox/OA300_OnsetAudio300
 GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset
+ML_MODEL_INPUT ?= _bmad-output/ml-models/tempo_classifier.mlmodel
+ML_MODEL_OUT_DIR ?= Sources/BoomBoomBoomKitML/Resources
 
 .PHONY: all
 all: help
@@ -112,6 +114,17 @@ duration-impact-report:
 	DURATION_IMPACT=1 \
 	DURATION_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/durationImpactReport
+
+## compile-model: Compile $(ML_MODEL_INPUT) (.mlmodel) into $(ML_MODEL_OUT_DIR)/<name>.mlmodelc via xcrun coremlc; override path with ML_MODEL_INPUT=...
+.PHONY: compile-model
+compile-model:
+	@if [ ! -f "$(ML_MODEL_INPUT)" ]; then \
+		echo "Error: ML_MODEL_INPUT not found at $(ML_MODEL_INPUT)."; \
+		echo "Override with: make compile-model ML_MODEL_INPUT=path/to/model.mlmodel"; \
+		exit 1; \
+	fi
+	@mkdir -p "$(ML_MODEL_OUT_DIR)"
+	xcrun coremlc compile "$(ML_MODEL_INPUT)" "$(ML_MODEL_OUT_DIR)"
 
 ## oracle: Run three-way DAW oracle comparison (ours vs Rekordbox vs DAW-verified)
 .PHONY: oracle

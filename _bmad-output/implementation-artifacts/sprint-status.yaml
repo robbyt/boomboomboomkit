@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-04 (Epic 4 pre-planning session: spec edits to 4.1-4.6, new Story 4.7 added, 4.1 promoted to ready-for-dev)
+last_updated: 2026-05-04 (Story 4.1 code-review close-out: status review -> done; 2 patches applied for docstring filename + AC #6 Change Log symmetry)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -74,7 +74,7 @@ development_status:
 
   # Epic 4: ML-Augmented Detection — see _bmad-output/planning-artifacts/epics.md Epic 4 preamble for sequencing, definitions, and pre-promotion gates.
   epic-4: in-progress
-  4-1-boomboomboomitml-package-structure: ready-for-dev
+  4-1-boomboomboomkitml-package-structure: done
   4-2-effective-intensity-and-graceful-ml-degradation: backlog
   4-3-ml-technique-slot-wiring-and-tuple-to-struct-migration: backlog
   4-4-configurable-ml-ensemble-voting-policy: backlog
