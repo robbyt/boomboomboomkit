@@ -19,7 +19,7 @@
 
 ## Deferred from: code review of 3-3a-public-api-harmonization (2026-04-27)
 
-- **MLTechnique tuple-typed return/parameter bypasses Sendable enforcement** — `MLTechnique.evaluate(candidates: [(bpm: Double, score: Float)], trace: BPMDiagnosticTrace) -> (bpm: Double, confidence: Double)?` uses labeled tuples for both the input candidate list and the optional return. Labeled tuples are not nominal types and so do not participate in Swift's `Sendable` checking; crossing actor boundaries with these tuples sidesteps `Sendable` enforcement. Latent — NOT introduced by Story 3-3a. Track for post-Story-4.3 follow-up; consider promoting to a `MLEvaluation` struct (`Sendable`) with `bpm` and `confidence` fields, plus a `MLCandidate` struct mirroring the input list. `Sources/BoomBoomBoomKit/DSPTechnique.swift:197-200`.
+- ~~**MLTechnique tuple-typed return/parameter bypasses Sendable enforcement**~~ **ACTIVELY FOLDED INTO STORY 4.3** (Epic 4 planning session 2026-05-04). Original entry: `MLTechnique.evaluate(candidates: [(bpm: Double, score: Float)], trace: BPMDiagnosticTrace) -> (bpm: Double, confidence: Double)?` uses labeled tuples that bypass `Sendable` checking. Story 4.3 acceptance criteria now require replacing this with a minimal `MLEvaluation` Sendable struct (just `bpm: Double, confidence: Double`) and a protocol that takes only `BPMDiagnosticTrace` as input (DSP candidates are already in the trace via `BarCandidate`). Pre-1.0 / no-BC framing means we drop the `MLCandidate` struct from the original recommendation — added per-story when needed. `Sources/BoomBoomBoomKit/DSPTechnique.swift:197-200`.
 
 ## Deferred from: code review of 3-3-click-track-cross-correlation (2026-04-26)
 
@@ -33,27 +33,34 @@
 
 3:2 and 3:1 ratio detection added to `resolveOctaveAmbiguity` as trace-only (populates `harmonicRatioDetail` in `BPMDiagnosticTrace`). Behavioral resolution (modifying winner BPM for triplet pairs) deferred to Story 3-6 (metadata corroboration) because sub-band voting was calibrated for 2:1 octave pairs and causes regressions on DnB tracks when applied to 3:2/3:1 pairs. Zero regression: OA300 Acc1=69.5%, Acc2=89.0%; GiantSteps Acc1=81.1%, Acc2=82.5%.
 
-## Story 3-1b: Harmonic Ratio Behavioral Resolution
+## Story 3-1b: Harmonic Ratio Behavioral Resolution — RE-SCOPED INTO Epic 4 (resolution conditional on Story 4.5 outcome)
+
+**Re-scoped by:** Epic 4 planning session 2026-05-04. The 4 named DnB triplet tracks (Charly, Faraday_Bunker, Yin Yang Audio, HEFT_Anagram 6) are folded into Story 4.5 as named regression targets with quantified T2 gates (≥2 of 4 resolved within ±0.5 BPM strict Acc1, no per-track regression, asserted floors hold). The DSP-only resolution strategies that previously failed (comfort-zone override, sub-band vote for 3:2/3:1 pairs, hybrid) confirmed the Epic 3 retro finding that DSP single-window Acc1 ceiling on OA300 is 55/82 — these 4 tracks are not recoverable by additional DSP-only technique tuning at default intensity. ML is the architecturally-correct lever.
+
+**Conditional resolution by Story 4.6 branch outcome:**
+- **Branch A (BNNS resolves ≥3 of 4)** or **Branch B (exactly 2)** → 3-1b is effectively resolved by 4.5/4.6 work; this entry can be moved to RESOLVED at Epic 4 close-out.
+- **Branch C (BNNS resolves <2)** → 3-1b returns to active deferred status pending the Story 4.5b research-spike outcome (model architecture / training-data / feature-engineering investigation). This entry stays in the open list under that scenario until the spike's findings re-define the path forward.
+
+Story 4.7 (spectral-flux DSP variant) is an additional upstream lever that may help these 4 tracks even before BNNS — track that story's named-DnB outcomes alongside this entry.
+
+**Note for future stories:** the internal `HarmonicRatioEvidence` struct (Story 3-3b promoted to public) provides typed data (ratio, fastBPM, slowBPM, winnerBPM) that Story 4.5 BNNS feature engineering can consume directly via `BPMDiagnosticTrace`. The public `harmonicRatioDetail` trace field also surfaces this for diagnostic purposes.
+
+**Original deferral rationale (preserved for context):**
+
+**Original deferral rationale (preserved for context):**
 
 **Deferred from:** Story 3-1 code review (2026-04-22)
 **Reason:** Three resolution strategies attempted; all caused Acc1 regression (69.5% -> 63-66%)
 
-### Strategies Tried
+### Strategies Tried (all regressed)
 - Comfort-zone override (80-160 BPM preference): Acc1 dropped to ~66%
 - Sub-band vote for 3:2/3:1 pairs: Acc1 dropped to ~63%
 - Hybrid (vote + comfort fallback): Acc1 dropped to ~65%
 
-### Validation Targets
+### Validation Targets (now Story 4.5 named-track regression set)
 - **Primary:** Charly (expected=160.0, detected=106.2, ratio=1.507)
 - **Secondary:** Faraday_Bunker (113.5/170.0), Yin Yang Audio (113.2/170.0), HEFT_Anagram 6 (113.4/170.0)
 - All are DnB tracks with 3:2 triplet patterns
-
-### Coordination
-- Story 3-6 (metadata corroboration) can use `HarmonicRatioEvidence` (internal typed return from `resolveOctaveAmbiguity`) to inform resolution
-- The internal `HarmonicRatioEvidence` struct provides typed data (ratio, fastBPM, slowBPM, winnerBPM) -- Story 3-6 should consume this, not the public `harmonicRatioDetail` trace field
-
-### Recommended AC Approach
-ACs should be corpus-based ("improves or preserves OA300/GiantSteps Acc1 while fixing named DnB failures"), not algorithm-based ("apply sub-band voting to resolve them"). This avoids locking the story to a specific resolution strategy that may not work.
 
 ## Confidence Semantics for Merge Strategies
 

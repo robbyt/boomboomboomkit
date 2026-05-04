@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-03 (epic-3-retrospective done)
+last_updated: 2026-05-04 (Epic 4 pre-planning session: spec edits to 4.1-4.6, new Story 4.7 added, 4.1 promoted to ready-for-dev)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -72,14 +72,15 @@ development_status:
   3-6b-metadata-parser-hardening: done
   epic-3-retrospective: done
 
-  # Epic 4: ML-Augmented Detection
-  epic-4: backlog
-  4-1-boomboomboomitml-package-structure: backlog
+  # Epic 4: ML-Augmented Detection — see _bmad-output/planning-artifacts/epics.md Epic 4 preamble for sequencing, definitions, and pre-promotion gates.
+  epic-4: in-progress
+  4-1-boomboomboomitml-package-structure: ready-for-dev
   4-2-effective-intensity-and-graceful-ml-degradation: backlog
-  4-3-ml-technique-slot-wiring-and-trace-population: backlog
+  4-3-ml-technique-slot-wiring-and-tuple-to-struct-migration: backlog
   4-4-configurable-ml-ensemble-voting-policy: backlog
   4-5-bnns-mltechnique-conformance: backlog
   4-6-coreml-mltechnique-conformance: backlog
+  4-7-spectral-flux-onset-dsp-variant: backlog
   epic-4-retrospective: optional
 
   # Epic 5: Developer Experience (Demo App + Documentation)
