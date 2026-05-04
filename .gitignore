@@ -33,3 +33,4 @@ Icon?
 
 # Claude Code
 .claude/projects/
+.claude/scheduled_tasks.lock
