@@ -1,43 +1,39 @@
 installation:
-  version: 6.3.0
-  installDate: 2026-03-21T23:38:56.349Z
-  lastUpdated: 2026-04-18T04:35:26.697Z
+  version: 6.6.0
+  installDate: 2026-03-21 23:38:56.349000000 Z
+  lastUpdated: 2026-04-30T03:58:56.434Z
 modules:
   - name: core
-    version: 6.3.0
-    installDate: 2026-03-21T23:38:56.019Z
-    lastUpdated: 2026-04-18T04:35:26.667Z
+    version: 6.6.0
+    installDate: 2026-03-21 23:38:56.019000000 Z
+    lastUpdated: 2026-04-30T03:58:56.374Z
     source: built-in
     npmPackage: null
     repoUrl: null
-  - name: bmb
-    version: 1.5.0
-    installDate: 2026-03-21T23:38:55.187Z
-    lastUpdated: 2026-04-18T04:35:26.675Z
-    source: external
-    npmPackage: bmad-builder
-    repoUrl: https://github.com/bmad-code-org/bmad-builder
   - name: bmm
-    version: 6.3.0
-    installDate: 2026-03-23T04:48:54.652Z
-    lastUpdated: 2026-04-18T04:35:26.675Z
+    version: 6.6.0
+    installDate: 2026-04-27T04:20:19.653Z
+    lastUpdated: 2026-04-30T03:58:56.374Z
     source: built-in
     npmPackage: null
     repoUrl: null
-  - name: apple-expert
-    version: null
-    installDate: 2026-03-21T23:38:55.205Z
-    lastUpdated: 2026-04-18T04:35:26.686Z
-    source: unknown
+  - name: gloria
+    version: 1.0.0
+    installDate: 2026-04-27 04:09:57.236000000 Z
+    lastUpdated: 2026-04-30T03:58:56.404Z
+    source: custom
     npmPackage: null
     repoUrl: null
-  - name: git-historian
-    version: null
-    installDate: 2026-03-21T23:38:55.223Z
-    lastUpdated: 2026-04-18T04:35:26.697Z
-    source: unknown
+    localPath: /Users/rterhaar/Dropbox/research/ai/bmad-agents/skills/gloria
+  - name: siri
+    version: 1.0.0
+    installDate: 2026-04-27 04:09:57.274000000 Z
+    lastUpdated: 2026-04-30T03:58:56.434Z
+    source: custom
     npmPackage: null
     repoUrl: null
+    localPath: /Users/rterhaar/Dropbox/research/ai/bmad-agents/skills/siri
 ides:
   - claude-code
+  - codex
   - gemini

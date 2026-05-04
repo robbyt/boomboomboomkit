@@ -71,8 +71,8 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 1. **Cancellation propagation:** Injectable `() -> Bool` closure (defaulting to `{ Task.isCancelled }`) checked between window iterations in `AudioAnalysisService`. BPMAnalyzer remains stateless -- no state, no cancellation awareness. Injectable closure enables deterministic testing without timing-dependent flakiness
 2. **Downsampling is deferred:** Not part of initial Phase 3A. Accuracy work in 3B establishes the baseline at native sample rate first. Downsampling explored later as a `DSPTechnique` case with ablation validation. When explored, read-time downsampling via `PCMBufferReader.targetSampleRate` is preferred over post-read. LUFS path must never be downsampled (K-weighting coefficients are sample-rate-specific). `AVAudioConverter` quality setting must be documented
-3. **ML/DSP interface boundary:** Parameter injection (`mlTechnique: (any MLTechnique)? = nil` on `analyzeBPM`) -- not runtime discovery or registration. Value-type constraint rules out stored registration. Graceful degradation: no parameter = DSP only, effective intensity capped at 7. `MLTechnique` receives `BPMDiagnosticTrace` (Float32), not raw audio. Trace must be populated internally when ML technique is present
-4. **Package split:** `BoomBoomBoomKitML` depends on `BoomBoomBoomKit`. The core library must not import or reference the ML package. The ML package provides `MLTechnique` conformances that consumers pass via parameter injection
+3. **ML/DSP interface boundary:** Options-first injection (`mlTechnique: (any MLTechnique)?` on `AudioAnalysisService.Options`, per ADR-11) -- not runtime discovery or registration. Value-type constraint rules out stored registration. Graceful degradation: no conformance = DSP only, effective intensity capped at 7. `MLTechnique` receives `BPMDiagnosticTrace` (Float32), not raw audio. Trace must be populated internally when ML technique is present
+4. **Package split:** `BoomBoomBoomKitML` depends on `BoomBoomBoomKit`. The core library must not import or reference the ML package. The ML package provides `MLTechnique` conformances that consumers pass via `Options.mlTechnique` (per ADR-11)
 5. **Buffer pool without retained state:** `withUnsafeTemporaryAllocation` for small buffers (<16KB). `TempogramBuffers`-pattern struct (allocate/deallocate) for large buffers. No state retained between analysis calls -- caller creates, passes in, caller cleans up
 6. **Demo app as strict public-API consumer:** Imports only `BoomBoomBoomKit` (and optionally `BoomBoomBoomKitML`). Zero `@testable import`, zero internal type access. If the demo needs something the public API can't provide, that's a signal to expand the API, not backdoor the demo
 
@@ -156,7 +156,7 @@ Sources/
 
 - **BNNS** lives inside Accelerate -- zero new framework dependencies. Validates the `MLTechnique` protocol and DSP+ML ensemble architecture. CPU-only inference
 - **CoreML** enables Neural Engine acceleration (~10x throughput for supported ops). Production path. Adds CoreML framework dependency (to ML target only)
-- Both conformances live in `BoomBoomBoomKitML`. Consumer passes `(any MLTechnique)` -- doesn't care which implementation runs
+- Both conformances live in `BoomBoomBoomKitML`. Consumer supplies either via `AudioAnalysisService.Options.mlTechnique`; the call site does not care which implementation runs
 
 #### Demo App Structure
 
@@ -199,6 +199,7 @@ Demo/
 | ADR-8 | Click-track cross-correlation | New `DSPTechnique` case | 3B |
 | ADR-9 | GiantSteps integration | Separate test suite | 3A |
 | ADR-10 | Dual tolerance reporting | Separate test methods | 3A |
+| ADR-11 | Public configuration surface | Options-first; new fields go on `AudioAnalysisService.Options` | 3B |
 
 ### Pipeline Architecture
 
@@ -240,6 +241,21 @@ Extends `resolveOctaveAmbiguity` with non-octave ratio checks (3:2 tolerance 1.4
 
 **ADR-8: Click-track cross-correlation as new `DSPTechnique` case.**
 Full ablation coverage. Matrix grows from 2^6=64 to 2^7=128 combinations. Ablation runtime may increase to 25-30 min (each combination now includes an optional `vDSP_conv` per candidate). Consistent with all other techniques -- gated by `TechniqueSet`, enumerable via `allDSPCombinations()`, validated by ablation before shipping. `CaseIterable` on `DSPTechnique` automatically includes the new case.
+
+### Public Configuration Surface
+
+**ADR-11: Options-first public configuration.**
+All optional or defaulted configuration for public service methods MUST be passed via a single `Options` struct parameter. Required arguments (input URL, mandatory data) remain method parameters. New configuration knobs added post-Story-3-3 extend `AudioAnalysisService.Options` additively (new fields with defaults) rather than introducing new method overloads or method parameters.
+
+Two field shapes coexist on `Options`:
+- **Non-optional `T = .default`** -- always-present configuration with a sensible default. Examples: `intensity: AnalysisIntensity = .default`, `mergeStrategy: CandidateMergeStrategy = .maxConfidence`, `maxSeconds: Double = 120`, `enableTrace: Bool = false`. Apple's house style for behavioral configuration (compare `JSONEncoder.outputFormatting`, `URLSessionConfiguration.timeoutIntervalForRequest`).
+- **Optional `T?`** -- opt-in dependencies, protocol slots, and overrides. `nil` carries semantic weight: "use the existing default behavior" or "feature inactive." Examples: `onProgress: (...)? = nil`, `techniqueSet: TechniqueSet? = nil`, future `mlTechnique: (any MLTechnique)? = nil`.
+
+Naming uses the field's domain role. Mirror the type name when the role IS exactly the type identity (`intensity: AnalysisIntensity`, `techniqueSet: TechniqueSet?`). Use clear role names for scalar, closure, and aggregate fields (`maxSeconds`, `enableTrace`, `isCancelled`, `onProgress`).
+
+**Implications for Epic 4 (ML).** Story 4.3's `mlTechnique: (any MLTechnique)?` lands on `AudioAnalysisService.Options`, NOT as a parameter on `analyzeBPM(url:options:)`. Stories 4.2 and 4.4 follow the same rule for any new ML configuration knobs (effective intensity reporting via `Options`, ensemble voting policy via `Options.ensemblePolicy`). ADR-4 (ML model loading at conformance init) is unchanged; ADR-11 governs only API placement. Stories 4.2/4.4/4.6 spec text is reconciled to ADR-11 when each story moves from `backlog` to `ready-for-dev` (single source of truth here in the architecture; per-story spec edits happen at promotion time to avoid stale doc drift).
+
+**Internal/public symmetry.** The internal `BPMAnalyzer.Options` struct mirrors the public layer's optional-override pattern (`techniqueSet: TechniqueSet?` at both layers). Internal callers do not need to share field names with the public API, but the existing rename (Story 3-3 close-out, 2026-04-26) brought them in sync to reduce reviewer cognitive load.
 
 ### Measurement Infrastructure
 
@@ -335,11 +351,10 @@ public struct ProgressUpdate: Sendable {
 
 ```swift
 let ml = try? CoreMLTechnique()  // nil if model resource missing
-let result = await service.analyzeBPM(
-    url: url,
-    intensity: .thorough,
-    mlTechnique: ml
-)
+var opts = AudioAnalysisService.Options()
+opts.intensity = .thorough
+opts.mlTechnique = ml
+let result = await service.analyzeBPM(url: url, options: opts)
 ```
 
 **`effectiveIntensity` (to be added to `AudioAnalysisResult`):** New field reporting the actual intensity used. When `mlTechnique` is nil and requested intensity is 8+, `effectiveIntensity` shows 7 (capped at DSP-only max).
@@ -464,7 +479,7 @@ BoomBoomBoomKit/
 - Depends on `BoomBoomBoomKit` (one-way dependency)
 - Core library NEVER imports ML package
 - Exports `MLTechnique` conformances (`BNNSTechnique`, `CoreMLTechnique`)
-- Consumer passes conformance via parameter injection
+- Consumer passes conformance via `Options.mlTechnique` (per ADR-11)
 
 **Demo app boundary** (`Demo/`):
 - Separate Xcode project, references parent `Package.swift` as local dependency

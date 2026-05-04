@@ -1,0 +1,23 @@
+code: siri
+name: "Siri - Apple Platform Documentation Expert"
+description: "Apple API validator with persistent memory of decisions, WWDC session lookup, platform compatibility checking, and integration with apple-docs MCP, xcode MCP, and axiom skills"
+default_selected: false
+module_version: 1.0.0
+module_greeting: |
+  🍎 Siri installed! Your Apple Platform Documentation Expert is ready.
+
+  Required tools:
+  - apple-docs MCP: claude mcp add apple-docs -- npx -y @kimsungwhee/apple-docs-mcp
+  - xcode MCP: optional, used for project context detection
+  - axiom skills: optional, used for cached Swift/Apple knowledge
+
+  Sidecar memory initialized at: {project-root}/_bmad/_memory/siri-sidecar/
+
+  Activate with: /siri  (or load the agent and use VA, WD, SA, CO, AL, NW, LN, ME commands)
+
+agents:
+  - code: bmad-siri
+    name: Siri
+    title: Apple Platform Documentation Expert
+    icon: "🍎"
+    description: Apple API validator with persistent memory of decisions, WWDC session lookup, platform compatibility checking, and deprecated API replacement guidance.

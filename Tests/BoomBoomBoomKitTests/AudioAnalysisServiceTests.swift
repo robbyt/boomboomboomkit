@@ -201,6 +201,58 @@ struct AudioAnalysisServiceIntensityTests {
   }
 }
 
+// MARK: - TechniqueSet Override (Story 3-3)
+
+@Suite("AudioAnalysisService — TechniqueSet Override")
+struct TechniqueSetOverrideTests {
+
+  /// Baseline: when `techniqueSet == nil`, the pipeline derives the technique set
+  /// from `intensity` (default `.optimal`), so `clickCorrelationDetail` is unpopulated.
+  @Test("techniqueSet nil derives from intensity — clickCorrelationDetail is nil")
+  func techniqueSetNilDerivesFromIntensity() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.enableTrace = true
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    let trace = try #require(result.trace)
+    #expect(trace.clickCorrelationDetail == nil)
+  }
+
+  /// Override with `.clickAugmented` flows through to the BPM pipeline, activating
+  /// click-track cross-correlation and populating `clickCorrelationDetail`.
+  @Test("techniqueSet .clickAugmented activates click correlation in the pipeline")
+  func techniqueSetClickAugmentedFlowsThrough() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.techniqueSet = .clickAugmented
+    opts.enableTrace = true
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    let trace = try #require(result.trace)
+    let detail = try #require(
+      trace.clickCorrelationDetail,
+      "Expected clickCorrelationDetail populated when techniqueSet = .clickAugmented")
+    #expect(!detail.isEmpty)
+  }
+
+  /// Override beats intensity: a `TechniqueSet` with `candidateCount: 1` produces
+  /// 1 raw candidate even though `intensity = .default` (intensity 7) would have
+  /// resolved to `.optimal` (3 candidates).
+  @Test("techniqueSet override candidateCount overrides intensity-derived count")
+  func techniqueSetOverrideCandidateCount() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = .default
+    opts.techniqueSet = TechniqueSet(
+      dspTechniques: [.subBandVoting, .fineGridRefinement], candidateCount: 1)
+    opts.enableTrace = true
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    let trace = try #require(result.trace)
+    #expect(trace.rawCandidates.count == 1)
+    // Sanity: intensity is still .default, so progressive windows are still in play.
+    #expect(trace.intensityUsed == .default)
+  }
+}
+
 // MARK: - Cancellation Tests
 
 @Suite("AudioAnalysisService -- Cancellation")
@@ -323,6 +375,313 @@ struct AudioAnalysisServiceProgressTests {
     _ = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
     #expect(!progressCalled)
   }
+}
+
+// MARK: - MLTechnique Slot (Story 3-3a / ADR-11)
+
+/// Test-target-only mock conformance for ``MLTechnique``. Lives in the test target
+/// per architecture.md:482 — the public package ships no MLTechnique conformances.
+private struct MockMLTechnique: MLTechnique {
+  let name: String
+  init(name: String = "Mock") { self.name = name }
+
+  func evaluate(
+    candidates: [(bpm: Double, score: Float)],
+    trace: BPMDiagnosticTrace
+  ) -> (bpm: Double, confidence: Double)? {
+    // Sentinel: 999 BPM is outside the public 60-200 output range, so a future
+    // wired-but-not-Story-4.3 read of `options.mlTechnique` that surfaced this
+    // value would break `mlTechniqueNonNilIsIgnoredPreStory43`'s identity assertion.
+    (bpm: 999.0, confidence: 1.0)
+  }
+}
+
+@Suite("AudioAnalysisService — MLTechnique Slot")
+struct MLTechniqueSlotTests {
+
+  /// AC#2: `Options` accepts a real `MLTechnique` conformance and round-trips it.
+  @Test("mlTechnique slot accepts conformance and round-trips")
+  func mlTechniqueSlotAcceptsConformance() {
+    var opts = AudioAnalysisService.Options()
+    opts.mlTechnique = MockMLTechnique(name: "Probe")
+    #expect(opts.mlTechnique?.name == "Probe")
+  }
+
+  /// AC#2: A fresh `Options()` defaults `mlTechnique` to nil per the implicit-nil rule.
+  @Test("mlTechnique defaults to nil")
+  func mlTechniqueDefaultsToNil() {
+    let opts = AudioAnalysisService.Options()
+    #expect(opts.mlTechnique == nil)
+  }
+
+  /// AC#2: With Story 4.3 not yet landed, setting `mlTechnique` to a non-nil mock
+  /// MUST produce results identical to the baseline (proves the field is inert).
+  /// When Story 4.3 wires the evaluation path, this test will fail and must be
+  /// updated to reflect the new ML-influenced behavior.
+  @Test("mlTechnique non-nil produces results identical to baseline (slot is inert pre-Story-4.3)")
+  func mlTechniqueNonNilIsIgnoredPreStory43() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+
+    var baseline = AudioAnalysisService.Options()
+    baseline.intensity = .fastest  // single window — deterministic + fast
+    let baselineResult = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, options: baseline))
+
+    var withMock = AudioAnalysisService.Options()
+    withMock.intensity = .fastest
+    withMock.mlTechnique = MockMLTechnique()
+    let mockResult = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, options: withMock))
+
+    #expect(baselineResult.bpm == mockResult.bpm)
+    #expect(baselineResult.confidence == mockResult.confidence)
+  }
+}
+
+// MARK: - Duration Hint Tests (Story 3-4)
+
+@Suite("AudioAnalysisService — Duration Hint")
+struct AudioAnalysisServiceDurationHintTests {
+
+  @Test("durationHint defaults to true on a fresh Options instance")
+  func durationHintDefaultsToTrue() {
+    let opts = AudioAnalysisService.Options()
+    #expect(opts.durationHint == true)
+  }
+
+  @Test("durationHint=true populates trace.durationHintDetail with expected keys")
+  func durationHintTrueProducesBoostedTrace() throws {
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("aas_duration_hint_on_240s.wav")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    try createClickTrackWAV(bpm: 128, sampleRate: 44100, durationSeconds: 240, url: tempURL)
+
+    var opts = AudioAnalysisService.Options()
+    opts.enableTrace = true
+    opts.maxSeconds = 60  // 30s analysis window from a 240s file is plenty.
+
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: tempURL, options: opts))
+
+    #expect(abs(result.bpm - 128.0) / 128.0 < 0.02)
+    let detail = try #require(result.trace?.durationHintDetail)
+    #expect(detail.fileDurationSeconds == 240.0)
+    #expect(detail.barCandidates.contains(where: { $0.bars == 128 && $0.bpm == 128.0 }))
+    // Typed `[Double]` membership replaces the prior CSV substring check; tighter than
+    // the legacy "128.0" substring (which could match noise like "1280" or "128X").
+    #expect(detail.boostedCandidates.contains(128.0))
+  }
+
+  @Test("durationHint=false leaves trace.durationHintDetail nil and still detects BPM")
+  func durationHintFalseSkipsTrace() throws {
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("aas_duration_hint_off_240s.wav")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    try createClickTrackWAV(bpm: 128, sampleRate: 44100, durationSeconds: 240, url: tempURL)
+
+    var opts = AudioAnalysisService.Options()
+    opts.enableTrace = true
+    opts.durationHint = false
+    opts.maxSeconds = 60
+
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: tempURL, options: opts))
+
+    #expect(abs(result.bpm - 128.0) / 128.0 < 0.02)
+    #expect(result.trace?.durationHintDetail == nil)
+  }
+}
+
+// MARK: - Voting Policy (Story 3-5)
+
+@Suite("AudioAnalysisService — Voting Policy")
+struct AudioAnalysisServiceVotingPolicyTests {
+
+  // Task 6.2 — defaults
+  @Test("Options() defaults: votingPolicy == .simpleMajority, votingThreshold == 0.0")
+  func defaultsAreSimpleMajorityAndZero() {
+    let opts = AudioAnalysisService.Options()
+    #expect(opts.votingPolicy == .simpleMajority)
+    #expect(opts.votingThreshold == 0.0)
+  }
+
+  // Task 6.3 — smoke (non-crashing on universal-fallback gate)
+  @Test(
+    "analyzeBPM with .windowVoting + .thresholdGated/threshold=1.0 still detects clean click track")
+  func votingPolicyFlowsThroughOptionsToMergeLayer() throws {
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("aas_voting_smoke_\(UUID().uuidString).wav")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try createClickTrackWAV(bpm: 128, sampleRate: 44100, durationSeconds: 240, url: tempURL)
+
+    var opts = AudioAnalysisService.Options()
+    opts.mergeStrategy = .windowVoting
+    opts.votingPolicy = .thresholdGated
+    opts.votingThreshold = 1.0  // forces universal fallback to maxConfidence
+
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: tempURL, options: opts))
+    #expect(
+      abs(result.bpm - 128.0) / 128.0 < 0.02,
+      "Click track should detect 128 BPM, got \(result.bpm)")
+  }
+
+  // Task 6.4 — non-finite thresholds tolerated (silent normalization per DD#9)
+  @Test("votingThreshold non-finite values are tolerated (no crash, valid result)")
+  func votingThresholdNonFiniteIsTolerated() throws {
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("aas_voting_nonfinite_\(UUID().uuidString).wav")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try createClickTrackWAV(bpm: 128, sampleRate: 44100, durationSeconds: 240, url: tempURL)
+
+    var opts = AudioAnalysisService.Options()
+    opts.mergeStrategy = .windowVoting
+    opts.votingPolicy = .thresholdGated
+
+    let pathological: [Double] = [.nan, .infinity, -.infinity, .signalingNaN]
+    for threshold in pathological {
+      opts.votingThreshold = threshold
+      let result = try #require(
+        try AudioAnalysisService.analyzeBPM(url: tempURL, options: opts),
+        "non-finite threshold \(threshold) should not break analyzeBPM")
+      #expect(
+        abs(result.bpm - 128.0) / 128.0 < 0.02,
+        "non-finite threshold \(threshold) should still detect 128 BPM, got \(result.bpm)")
+    }
+  }
+
+  // Task 6.5 — divergent integration test (Strategy B: deterministic synthetic
+  // seam). Proves Options.votingPolicy + Options.votingThreshold actually plumb
+  // through analyzeBPM to the merge layer.
+  //
+  // Construction: 30s @ 100 BPM, then 60s @ 144 BPM (non-octave-related so the
+  // pipeline's autocorrelation distinguishes them cleanly). Empirically the
+  // 30s window locks to 100 BPM at conf ~0.95; the 60s and 90s windows lock to
+  // ~142 BPM at conf ~0.92. The consensus cluster {window1, window2} has BPM
+  // ~142, but the SINGLETON window 0 has the higher confidence (0.95 > 0.92).
+  //
+  // Therefore:
+  //   - .simpleMajority returns the consensus pick (142 BPM @ 0.92).
+  //   - .thresholdGated@0.99 forces universal fallback to maxConfidence over
+  //     ALL windows → returns window 0 (100 BPM @ 0.95) since its confidence
+  //     beats the consensus cluster's max.
+  //
+  // If the policy/threshold fields are silently ignored, both calls return the
+  // SAME result and this test fails. The assertion checks (bpm, confidence)
+  // both differ between the two policies — proves end-to-end plumbing.
+  @Test("Options.votingPolicy actually changes analyzeBPM result (plumbing proof)")
+  func votingPolicyOptionsFieldActuallyChangesResult() throws {
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("aas_voting_divergent_\(UUID().uuidString).wav")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try createTwoSegmentClickTrackWAV(
+      segment1: ClickSegment(bpm: 100, amplitude: 0.5, durationSeconds: 30),
+      segment2: ClickSegment(bpm: 144, amplitude: 0.5, durationSeconds: 60),
+      sampleRate: 44100, url: tempURL)
+
+    var opts = AudioAnalysisService.Options()
+    opts.mergeStrategy = .windowVoting
+
+    opts.votingPolicy = .simpleMajority
+    opts.votingThreshold = 0.0
+    let simpleResult = try #require(
+      try AudioAnalysisService.analyzeBPM(url: tempURL, options: opts))
+
+    opts.votingPolicy = .thresholdGated
+    opts.votingThreshold = 0.99  // forces fallback (real confidences << 0.99)
+    let gatedResult = try #require(
+      try AudioAnalysisService.analyzeBPM(url: tempURL, options: opts))
+
+    let bpmsDiffer = simpleResult.bpm != gatedResult.bpm
+    let confidencesDiffer = simpleResult.confidence != gatedResult.confidence
+    // At least one of (bpm, confidence) must differ to prove plumbing. Requiring
+    // BOTH (`&&`) is over-strict: a future DSP tweak could shift confidences such
+    // that the two policies coincidentally produce equal `confidence` while BPMs
+    // still differ — that would still prove plumbing works, but the && would fail.
+    // The concrete BPM sanity assertions below independently catch genuine
+    // plumbing breakage, so the relaxed `||` does not reduce safety.
+    #expect(
+      bpmsDiffer || confidencesDiffer,
+      """
+      simpleMajority vs thresholdGated@0.99 produced indistinguishable results \
+      (at least one of bpm/confidence must differ between policies). Either \
+      Options.votingPolicy / Options.votingThreshold are silently ignored by \
+      analyzeBPM (plumbing bug — AC #3 violation), or the seam audio failed to \
+      produce divergent windows on this build. \
+      simple=(\(simpleResult.bpm), \(simpleResult.confidence)) \
+      gated=(\(gatedResult.bpm), \(gatedResult.confidence))
+      """)
+
+    // Concrete sanity: the consensus pick should be near 144 BPM (windows 1+2),
+    // and the fallback pick should be near 100 BPM (window 0, highest conf).
+    #expect(abs(simpleResult.bpm - 144.0) / 144.0 < 0.05)
+    #expect(abs(gatedResult.bpm - 100.0) / 100.0 < 0.05)
+  }
+}
+
+/// Single click-track segment for `createTwoSegmentClickTrackWAV`.
+private struct ClickSegment {
+  let bpm: Double
+  let amplitude: Float
+  let durationSeconds: Double
+}
+
+/// Creates a WAV file by concatenating two click-track segments at distinct
+/// BPMs and amplitudes. Used by the Story 3-5 voting-policy integration test
+/// (Task 6.5) to produce divergent per-window BPM estimates.
+private func createTwoSegmentClickTrackWAV(
+  segment1: ClickSegment, segment2: ClickSegment,
+  sampleRate: Double, url: URL
+) throws {
+  let totalDuration = segment1.durationSeconds + segment2.durationSeconds
+  let totalSamples = Int(sampleRate * totalDuration)
+  let segment1Samples = Int(sampleRate * segment1.durationSeconds)
+  var samples = [Float](repeating: 0, count: totalSamples)
+
+  let samplesPerBeat1 = Int(sampleRate * 60.0 / segment1.bpm)
+  for beatStart in stride(from: 0, to: segment1Samples, by: samplesPerBeat1) {
+    let impulseEnd = min(beatStart + 64, segment1Samples)
+    for i in beatStart..<impulseEnd {
+      let decay = Float(exp(-Double(i - beatStart) / 10.0)) * segment1.amplitude
+      samples[i] = decay
+    }
+  }
+
+  let samplesPerBeat2 = Int(sampleRate * 60.0 / segment2.bpm)
+  for beatStart in stride(from: 0, to: totalSamples - segment1Samples, by: samplesPerBeat2) {
+    let absStart = segment1Samples + beatStart
+    let impulseEnd = min(absStart + 64, totalSamples)
+    for i in absStart..<impulseEnd {
+      let decay = Float(exp(-Double(i - absStart) / 10.0)) * segment2.amplitude
+      samples[i] = decay
+    }
+  }
+
+  guard
+    let format = AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: sampleRate,
+      channels: 1,
+      interleaved: false)
+  else {
+    throw NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bad format"])
+  }
+
+  let file = try AVAudioFile(forWriting: url, settings: format.settings)
+  guard
+    let buffer = AVAudioPCMBuffer(
+      pcmFormat: format, frameCapacity: AVAudioFrameCount(totalSamples))
+  else {
+    throw NSError(domain: "test", code: 2, userInfo: [NSLocalizedDescriptionKey: "Buffer failed"])
+  }
+
+  buffer.frameLength = AVAudioFrameCount(totalSamples)
+  samples.withUnsafeBufferPointer { srcPtr in
+    guard let baseAddress = srcPtr.baseAddress else { return }
+    buffer.floatChannelData![0].update(from: baseAddress, count: totalSamples)
+  }
+
+  try file.write(from: buffer)
 }
 
 /// Creates a minimal WAV file with a synthetic click track.

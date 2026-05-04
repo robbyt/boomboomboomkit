@@ -1,5 +1,5 @@
 # generated: 2026-03-31
-# last_updated: 2026-04-05
+# last_updated: 2026-04-27
 # project: BoomBoomBoomKit
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-04-20 (epic-2 retrospective)
+last_updated: 2026-05-03 (epic-3-retrospective done)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -59,20 +59,24 @@ development_status:
   epic-2-retrospective: done
 
   # Epic 3: DSP Accuracy Improvement
-  epic-3: in-progress
-  3-1-harmonic-ratio-detection: backlog
-  3-2-fine-grid-precision-fix: backlog
-  3-3-click-track-cross-correlation: backlog
-  3-4-duration-derived-bpm-hint: backlog
-  3-5-configurable-window-voting-policy: backlog
-  3-6-bpm-metadata-corroboration-signal: ready-for-dev
-  epic-3-retrospective: optional
+  epic-3: done
+  3-1-harmonic-ratio-detection: done
+  3-2-fine-grid-precision-fix: done
+  3-3-click-track-cross-correlation: done
+  3-3a-public-api-harmonization: done
+  3-3b-trace-key-namespacing: done
+  benchmark-infra-ablation-parallelism: done
+  3-4-duration-derived-bpm-hint: done
+  3-5-configurable-window-voting-policy: done
+  3-6-bpm-metadata-corroboration-signal: done
+  3-6b-metadata-parser-hardening: done
+  epic-3-retrospective: done
 
   # Epic 4: ML-Augmented Detection
   epic-4: backlog
   4-1-boomboomboomitml-package-structure: backlog
   4-2-effective-intensity-and-graceful-ml-degradation: backlog
-  4-3-ml-technique-parameter-injection-and-trace-population: backlog
+  4-3-ml-technique-slot-wiring-and-trace-population: backlog
   4-4-configurable-ml-ensemble-voting-policy: backlog
   4-5-bnns-mltechnique-conformance: backlog
   4-6-coreml-mltechnique-conformance: backlog

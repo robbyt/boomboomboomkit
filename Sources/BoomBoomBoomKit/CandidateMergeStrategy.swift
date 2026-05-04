@@ -59,11 +59,21 @@ extension CandidateMergeStrategy {
   /// - Parameters:
   ///   - windowResults: Per-window `BPMResult` values (from successful windows only).
   ///   - candidateCount: Maximum number of candidates to return.
+  ///   - strategy: Strategy for combining window candidates.
+  ///   - votingPolicy: Resolution policy for ``CandidateMergeStrategy/windowVoting``.
+  ///     Ignored by all other strategies. Default ``VotingPolicy/simpleMajority``
+  ///     reproduces the post-Story-3-3a baseline byte-for-byte.
+  ///   - votingThreshold: Acceptance threshold for ``VotingPolicy/thresholdGated``
+  ///     (range `[0.0, 1.0]`; out-of-range / non-finite values silently normalize
+  ///     to a permissive default per DD#9). Ignored by all other strategies and by
+  ///     the other two policies.
   /// - Returns: A merged `BPMResult`, or `nil` if `windowResults` is empty.
   static func merge(
     windowResults: [BPMResult],
     candidateCount: Int,
-    strategy: CandidateMergeStrategy
+    strategy: CandidateMergeStrategy,
+    votingPolicy: VotingPolicy = .simpleMajority,
+    votingThreshold: Double = 0.0
   ) -> BPMResult? {
     guard !windowResults.isEmpty else { return nil }
 
@@ -89,7 +99,8 @@ extension CandidateMergeStrategy {
     case .union:
       return mergeUnion(windowResults, candidateCount: candidateCount)
     case .windowVoting:
-      return mergeByWindowVoting(windowResults)
+      return mergeByWindowVoting(
+        windowResults, policy: votingPolicy, threshold: votingThreshold)
     }
   }
 
@@ -120,8 +131,35 @@ extension CandidateMergeStrategy {
 
   // MARK: - Window Voting (post-disambiguation)
 
-  private static func mergeByWindowVoting(_ results: [BPMResult]) -> BPMResult {
+  /// Window voting (post-disambiguation): cluster windows by 2% BPM tolerance,
+  /// then dispatch to a per-policy resolver. Clustering is shared across all
+  /// three policies; resolvers differ in how they pick the winning cluster
+  /// and (for ``VotingPolicy/thresholdGated``) how they gate it.
+  ///
+  /// Group insertion order is the original window enumeration order, so
+  /// "lowest original index" tiebreakers (DD#16) reduce to comparing
+  /// `groups[i].indices.first!` — distinct across groups since each window
+  /// joins exactly one cluster.
+  ///
+  /// - Parameters:
+  ///   - results: Per-window results (count >= 2 — single-window short-circuited
+  ///     at the dispatcher).
+  ///   - policy: Resolution policy. See ``VotingPolicy`` for per-case semantics.
+  ///   - threshold: Acceptance threshold for ``VotingPolicy/thresholdGated`` (range
+  ///     `[0.0, 1.0]`). Out-of-range / non-finite values silently normalize inside
+  ///     the resolver per DD#9. Ignored by ``VotingPolicy/simpleMajority`` and
+  ///     ``VotingPolicy/confidenceWeighted``.
+  private static func mergeByWindowVoting(
+    _ results: [BPMResult],
+    policy: VotingPolicy,
+    threshold: Double
+  ) -> BPMResult {
+    assert(
+      results.count >= 2,
+      "mergeByWindowVoting requires count >= 2; dispatcher must short-circuit count==1")
     // Group windows by their final disambiguated BPM (within 2% tolerance).
+    // Insertion order = original window enumeration order — preserved for the
+    // "lowest original index" tiebreakers per DD#16.
     var groups: [(bpm: Double, indices: [Int])] = []
     for (i, result) in results.enumerated() {
       if let g = groups.firstIndex(where: { isNearMatch(result.bpm, $0.bpm) }) {
@@ -131,20 +169,132 @@ extension CandidateMergeStrategy {
       }
     }
 
-    // Find the largest consensus group (2+ windows required).
-    let consensus =
-      groups
-      .filter { $0.indices.count >= 2 }
-      .max { $0.indices.count < $1.indices.count }
+    switch policy {
+    case .simpleMajority:
+      return resolveSimpleMajority(results: results, groups: groups)
+    case .confidenceWeighted:
+      return resolveConfidenceWeighted(results: results, groups: groups)
+    case .thresholdGated:
+      return resolveThresholdGated(
+        results: results, groups: groups, threshold: threshold)
+    }
+  }
 
-    if let consensus {
-      // Pick the highest-confidence window within the consensus group.
-      let bestIndex = consensus.indices.max { results[$0].confidence < results[$1].confidence }!
-      return results[bestIndex]
+  // MARK: - Window-Voting Resolvers (per VotingPolicy)
+
+  /// Picks the group with the most windows (`indices.count >= 2`). Ties on
+  /// size break by (a) max single-window confidence within the group, then
+  /// (b) the group's lowest original window index. Returns the highest-
+  /// confidence window in the chosen group (breaking ties by lowest original
+  /// index per DD#16). Falls back to `mergeMaxConfidence(results)` when no
+  /// group has at least two members.
+  private static func resolveSimpleMajority(
+    results: [BPMResult],
+    groups: [(bpm: Double, indices: [Int])]
+  ) -> BPMResult {
+    guard let consensus = pickLargestCluster(results: results, groups: groups) else {
+      return mergeMaxConfidence(results)
+    }
+    return bestWindow(in: consensus.indices, results: results)
+  }
+
+  /// Picks the group with the highest summed confidence across all its
+  /// windows (singletons included). Ties on summed confidence break by
+  /// (a) max single-window confidence within the group, then (b) the group's
+  /// lowest original window index. If the chosen group is a singleton the
+  /// policy falls back to `mergeMaxConfidence(results)` per DD#3 (a singleton's
+  /// summed confidence equals its lone window's confidence — no consensus
+  /// benefit). Otherwise returns the highest-confidence window in the chosen
+  /// group (breaking ties by lowest original index per DD#16).
+  private static func resolveConfidenceWeighted(
+    results: [BPMResult],
+    groups: [(bpm: Double, indices: [Int])]
+  ) -> BPMResult {
+    let scored = groups.map {
+      group -> (group: (bpm: Double, indices: [Int]), summed: Double, maxConf: Double) in
+      let summed = group.indices.reduce(0.0) { $0 + results[$1].confidence }
+      let maxConf = group.indices.map { results[$0].confidence }.max() ?? 0
+      return (group: group, summed: summed, maxConf: maxConf)
     }
 
-    // No consensus: fall back to maxConfidence.
-    return mergeMaxConfidence(results)
+    guard
+      let winner = scored.min(by: { lhs, rhs in
+        if lhs.summed != rhs.summed { return lhs.summed > rhs.summed }
+        if lhs.maxConf != rhs.maxConf { return lhs.maxConf > rhs.maxConf }
+        return (lhs.group.indices.first ?? 0) < (rhs.group.indices.first ?? 0)
+      })
+    else {
+      return mergeMaxConfidence(results)
+    }
+
+    // Post-pick singleton fallback per DD#3.
+    if winner.group.indices.count == 1 {
+      return mergeMaxConfidence(results)
+    }
+    return bestWindow(in: winner.group.indices, results: results)
+  }
+
+  /// Like ``resolveSimpleMajority`` but the chosen cluster's max single-window
+  /// confidence must be `>= effectiveThreshold`, where `effectiveThreshold`
+  /// silently clamps `threshold` to `[0.0, 1.0]` and normalizes non-finite
+  /// values (NaN, ±Infinity, signaling NaN) to `0.0` per DD#9. Falls back to
+  /// `mergeMaxConfidence(results)` when no cluster qualifies under the gate.
+  private static func resolveThresholdGated(
+    results: [BPMResult],
+    groups: [(bpm: Double, indices: [Int])],
+    threshold: Double
+  ) -> BPMResult {
+    // DD#9: silent-clamp the threshold inside the helper so the function is
+    // self-contained for any caller (current or future).
+    let effectiveThreshold: Double =
+      threshold.isFinite ? min(max(threshold, 0.0), 1.0) : 0.0
+
+    guard let consensus = pickLargestCluster(results: results, groups: groups) else {
+      return mergeMaxConfidence(results)
+    }
+
+    let maxConf = consensus.indices.map { results[$0].confidence }.max() ?? 0
+    guard maxConf >= effectiveThreshold else {
+      return mergeMaxConfidence(results)
+    }
+    return bestWindow(in: consensus.indices, results: results)
+  }
+
+  /// Shared cluster-selection logic for ``resolveSimpleMajority`` and
+  /// ``resolveThresholdGated``. Picks the group with the most windows
+  /// (`indices.count >= 2` required); ties break by (a) max single-window
+  /// confidence within the group, then (b) the group's lowest original
+  /// window index (DD#16). Returns nil when no group has two or more members.
+  private static func pickLargestCluster(
+    results: [BPMResult],
+    groups: [(bpm: Double, indices: [Int])]
+  ) -> (bpm: Double, indices: [Int])? {
+    groups
+      .filter { $0.indices.count >= 2 }
+      .min { lhs, rhs in
+        if lhs.indices.count != rhs.indices.count {
+          return lhs.indices.count > rhs.indices.count
+        }
+        let lMaxConf = lhs.indices.map { results[$0].confidence }.max() ?? 0
+        let rMaxConf = rhs.indices.map { results[$0].confidence }.max() ?? 0
+        if lMaxConf != rMaxConf { return lMaxConf > rMaxConf }
+        return (lhs.indices.first ?? 0) < (rhs.indices.first ?? 0)
+      }
+  }
+
+  /// Picks the highest-confidence window from a cluster, breaking ties by
+  /// lowest original window index (DD#16 explicit chain).
+  private static func bestWindow(
+    in indices: [Int],
+    results: [BPMResult]
+  ) -> BPMResult {
+    let bestIndex = indices.min { lhs, rhs in
+      let lConf = results[lhs].confidence
+      let rConf = results[rhs].confidence
+      if lConf != rConf { return lConf > rConf }
+      return lhs < rhs
+    }!
+    return results[bestIndex]
   }
 
   // MARK: - Clustered Merge (dedup, quorum, average, median, weightedAverage)

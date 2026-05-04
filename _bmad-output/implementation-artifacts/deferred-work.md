@@ -1,18 +1,59 @@
 # Deferred Work
 
-## Non-Octave BPM Disambiguation (3:2, 3:1 ratios)
+## Deferred from: code review of 3-5-configurable-window-voting-policy (2026-04-29)
+
+- **2% BPM tolerance clustering is non-transitive** — `Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift:394-398`. Pre-existing in original `windowVoting`; 100/102/104 BPM windows split into separate clusters depending on insertion order. Revisit if drifting-tempo tracks become a corpus blind spot.
+- **Hardcoded baseline numbers brittle across non-Apple-Silicon platforms** — `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift:422-424` and `GiantStepsBenchmarkTests.swift:121-123`. AC #4 design decision; per-platform IEEE 754 stable on current Apple targets only.
+- **FP equality on summed confidences short-circuits DD#16 tiebreaker chain at 1-ulp boundaries** — `Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift:218-222`. `lhs.summed != rhs.summed` only fires the tiebreaker chain on EXACT equality; near-ties pick the larger sum. Per-platform deterministic; consistent with DD#17.
+- **Threshold-gate `>=` boundary at exact `maxConf == effectiveThreshold == 1.0` untested** — `Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift:254`. Code uses `>=` (accept), but no test exercises the exact-equality boundary.
+- **`benchmarkVotingPolicies` Acc1 denominator counts all `audioData` even when a track produces 0 windows** — `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift:405`. Same pattern as `benchmarkMergeStrategies`; pre-existing.
+- **`windowVotingDefaultPolicyMatchesBaseline` silently treats `nil` analyzeBPM result as a 0 hit** — `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift:453`. A transient AVFoundation nil could fail "Acc1 must equal 57/82" without surfacing the actual cause; consider asserting `trackBPMs` has no nil entries before the Acc tally.
+- **AC #10 API-surface check uses typed `let` references that don't actively fail on third overload** — `Tests/BoomBoomBoomKitTests/BPMAnalyzerTests.swift:1469-1471`. Author acknowledges in code comment; spec wording demanded a stronger reflection-based or symbolgraph-extract approach.
+- **`-0.0` threshold not normalized to canonical `+0.0` inside `resolveThresholdGated`** — `Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift:247`. `min(max(-0.0, 0.0), 1.0)` yields `-0.0` per IEEE 754 `max` semantics. Behaviorally equivalent (`-0.0 == 0.0` numerically); only matters for code that prints/hashes the internal `effectiveThreshold`.
+- **`mergeByWindowVoting` lacks `precondition(results.count >= 2)`** — `Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift:152`. Doc-comment claims the invariant but no runtime assertion. Currently safe because the dispatcher short-circuits count==1 before reaching the helper.
+
+## Deferred from: code review of 3-4-duration-derived-bpm-hint (2026-04-28)
+
+- **TOCTOU race between `fileDuration` and `readMonoSamples`** — `Sources/BoomBoomBoomKit/AudioAnalysisService.swift:179` opens `AVAudioFile(forReading:)` once for duration, then again for PCM read inside `PCMBufferReader.readMonoSamples`. If the file is replaced between the two opens, the duration-derived hint is computed against a different file than the DSP candidates. Accepted by Story 3-4 DD #9 (two opens are acceptable). Race window sub-millisecond on local files. Revisit if a future story consolidates the reader API to return `(samples, sampleRate, fileDuration)` atomically.
+- **Bar-count candidates recomputed per window** — `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:363` (step 9.7 invocation) calls `applyDurationHint` once per analysis window, which recomputes `applyDurationHintBarCounts` even though the inputs (`fileDurationSeconds`, `durationHintMinFileSeconds`) are identical across windows. ≤ 6 divisions per window — sub-1% perf impact today. Hoist into `AudioAnalysisService` (precompute once and pass into each window) when intensity 6+ multi-window paths get heavier or when bar-count math grows.
+
+## Deferred from: code review of 3-3a-public-api-harmonization (2026-04-27)
+
+- **MLTechnique tuple-typed return/parameter bypasses Sendable enforcement** — `MLTechnique.evaluate(candidates: [(bpm: Double, score: Float)], trace: BPMDiagnosticTrace) -> (bpm: Double, confidence: Double)?` uses labeled tuples for both the input candidate list and the optional return. Labeled tuples are not nominal types and so do not participate in Swift's `Sendable` checking; crossing actor boundaries with these tuples sidesteps `Sendable` enforcement. Latent — NOT introduced by Story 3-3a. Track for post-Story-4.3 follow-up; consider promoting to a `MLEvaluation` struct (`Sendable`) with `bpm` and `confidence` fields, plus a `MLCandidate` struct mirroring the input list. `Sources/BoomBoomBoomKit/DSPTechnique.swift:197-200`.
+
+## Deferred from: code review of 3-3-click-track-cross-correlation (2026-04-26)
+
+- Trace-key collision on `%.1f` BPM rounding in `BPMDiagnosticTrace` dictionaries. `BPMAnalyzer.swift:1970` writes `clickCorrelationDetail[String(format: "%.1f", cand.bpm)] = bestNCC`; two candidates rounding to the same one-decimal label collapse into one entry. Same pattern in `harmonicRatioDetail` (`BPMAnalyzer.swift:309-314`) and `subBandVoteDetail` (`BPMAnalyzer.swift:325-329`). Address as a cross-cutting trace-API change (e.g., key by candidate index plus formatted BPM, or switch to `[(bpm: Double, score: Float)]`), not in this story.
+- Ablation matrix runs all 128 combos concurrently in a single `withTaskGroup` without batching (`AblationFullMatrixTests.swift:73`). Runs in 77.5 s on M5 Max in practice; revisit when the matrix grows further or runs on resource-constrained CI.
+
+## ~~Non-Octave BPM Disambiguation (3:2, 3:1 ratios)~~ RESOLVED
 
 **Deferred from:** Phase 3 batch planning (2026-03-26)
-**Reason:** Split from multi-window candidate merging to keep specs single-goal
+**Resolved by:** Story 3-1 (2026-04-22)
 
-Add 3:2 and 3:1 ratio detection to `resolveOctaveAmbiguity` in `BPMAnalyzer.swift`. Currently only handles 2:1 octave pairs (ratio 1.92-2.08). Need to add:
-- 3:2 ratio check (1.45-1.55 tolerance)
-- 3:1 ratio check (2.85-3.15 tolerance)
+3:2 and 3:1 ratio detection added to `resolveOctaveAmbiguity` as trace-only (populates `harmonicRatioDetail` in `BPMDiagnosticTrace`). Behavioral resolution (modifying winner BPM for triplet pairs) deferred to Story 3-6 (metadata corroboration) because sub-band voting was calibrated for 2:1 octave pairs and causes regressions on DnB tracks when applied to 3:2/3:1 pairs. Zero regression: OA300 Acc1=69.5%, Acc2=89.0%; GiantSteps Acc1=81.1%, Acc2=82.5%.
 
-Two known failing Prodigy tracks at triplet/2-3 time lock serve as validation targets. Sub-band voting mechanism already exists and can be reused for these ratios.
+## Story 3-1b: Harmonic Ratio Behavioral Resolution
 
-**Files:** `BPMAnalyzer.swift` (resolveOctaveAmbiguity, confirmWithSubBandPeaks)
-**Validation:** Two Prodigy tracks + full OA300 benchmark regression check
+**Deferred from:** Story 3-1 code review (2026-04-22)
+**Reason:** Three resolution strategies attempted; all caused Acc1 regression (69.5% -> 63-66%)
+
+### Strategies Tried
+- Comfort-zone override (80-160 BPM preference): Acc1 dropped to ~66%
+- Sub-band vote for 3:2/3:1 pairs: Acc1 dropped to ~63%
+- Hybrid (vote + comfort fallback): Acc1 dropped to ~65%
+
+### Validation Targets
+- **Primary:** Charly (expected=160.0, detected=106.2, ratio=1.507)
+- **Secondary:** Faraday_Bunker (113.5/170.0), Yin Yang Audio (113.2/170.0), HEFT_Anagram 6 (113.4/170.0)
+- All are DnB tracks with 3:2 triplet patterns
+
+### Coordination
+- Story 3-6 (metadata corroboration) can use `HarmonicRatioEvidence` (internal typed return from `resolveOctaveAmbiguity`) to inform resolution
+- The internal `HarmonicRatioEvidence` struct provides typed data (ratio, fastBPM, slowBPM, winnerBPM) -- Story 3-6 should consume this, not the public `harmonicRatioDetail` trace field
+
+### Recommended AC Approach
+ACs should be corpus-based ("improves or preserves OA300/GiantSteps Acc1 while fixing named DnB failures"), not algorithm-based ("apply sub-band voting to resolve them"). This avoids locking the story to a specific resolution strategy that may not work.
 
 ## Confidence Semantics for Merge Strategies
 
@@ -124,3 +165,27 @@ This is a fundamentally different approach from the current candidate-level merg
 - **jq "Noise floor" median uses floor-index for even N** — `.[length/2|floor]` returns the lower-middle element rather than the average of two middle elements. Pre-existing methodology choice; not introduced by this story. `.claude/skills/running-benchmarks/SKILL.md` — "Noise floor" recipe.
 - **Same-second `recordedAt` sort: `history.last` nondeterministic for rapid runs** — Two writes within the same UTC second produce identical `recordedAt` strings; Swift's stable sort preserves filesystem-enumeration order for equal keys, which is not meaningful. Cosmetic: the delta line reports a slightly off comparison. Spec explicitly uses read-before-write as the load-bearing correctness invariant, not sub-second ordering. `PerformanceBenchmarkTests.swift` — `readHistory` return sort.
 - **Temp `.json.tmp` file lives in Dropbox-synced directory** — The old staging design kept temp files outside Dropbox. New design places the `.tmp` sibling directly in `_bmad-output/perf-baselines/`. Sub-millisecond lifetime on APFS means the risk of Dropbox racing with the rename is very low; `readHistory` ignores `.tmp` files; dev notes acknowledge this trade-off. Monitor if Dropbox conflict copies appear in the future. `PerformanceBenchmarkTests.swift` — `write` function.
+
+## Deferred from: code review of 3-2-fine-grid-precision-fix (2026-04-25, Codex gpt-5.5 round)
+
+Replaces an earlier same-day defer list; supersedes items now reclassified as `patch` (clamp gap, floor/ceil constants, `actualBPM` assertion, AC #2 body alignment).
+
+### High-priority follow-up
+
+- **Story 3-7: 96 kHz × 126 BPM candidate selection (HIGH)** — `refineCandidates` is called only on `[winner]` (`Sources/BoomBoomBoomKit/BPMAnalyzer.swift:314`), so when upstream candidate selection picks 125 BPM at 96 kHz × 126, refinement cannot recover the correct candidate. User-visible output ≈ 125.35 BPM. The test exclusion at `Tests/BoomBoomBoomKitTests/BPMAnalyzerTests.swift:430` masks this real wrong-BPM result. Fix candidates: refine top-K candidates and let downstream selection re-score, or add a tie-break in coarse candidate ranking specific to 96 kHz onset characteristics. Out of scope for Story 3-2 (fine-grid step only); tracked here pending the next epic-3 story.
+
+- **Story 3-2: Icicle 0.3 BPM (PARTIAL on AC #3)** — Story 3-2 self-marked AC #3 as PARTIAL and ships with Icicle's absolute error at 0.3 BPM (vs the 0.05 BPM target). Corpus accuracy holds (OA300/GiantSteps unchanged). Future investigation: ACF interpolation has inherent peak-location bias; cubic Lagrange and tempogram-only approaches each regress either synthetic precision or real corpus. Either accept the 2% Acc1 user-visible bound or design a fundamentally different ACF interpolant.
+
+### Lower-priority residual items
+
+- **Tie-run handler treats broad shoulders as plateaus** — `1e-6` absolute eps on Float-normalized fused scores (max ~1) is ~8 ULPs; broad valid peaks with near-equal neighbors get classified as a tie-run and skip the quadratic fit. Heuristic; corpus accuracy holds today. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1084-1088`.
+- **All-zero fused plateau bypasses tie-run handler** — when every fused score is exactly 0, `bestFused = 0` and strict `>` never sets `winnerIdx`; the full-window plateau returns `centerBPM` instead of the midpoint. Requires complete signal absence. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1061, 1070, 1079`.
+- **Empty/negative scan window returns unclamped center** — when `centerBPM` is far enough outside `bpmRange` that `scanMax < scanMin`, the guard appends `centerBPM` unchanged instead of clamping or rejecting. Current callers always pass valid ranges. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1030, 1035`.
+- **`centerIdx` not clamped to `[0, stepCount-1]` before distance comparisons** — used only in subtraction (no array index) so no out-of-bounds risk. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1121`.
+- **NaN/Inf propagation: silent center/discrete fallback rather than rejection** — NaN comparisons fail, causing center fallback through normalization, fused product, and `denom < -epsD`. Defensive concern; not observed. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1055, 1064, 1173`.
+- **Quadratic fit accepts very weak (low-signal) peaks** — `bestFused > 0` only requires a positive product after normalization; tiny tempogram/ACF products from noisy windows can be quadratically refined into precise-looking BPMs with false confidence. No minimum-score guard; corpus accuracy holds. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1048-1057, 1133-1158`.
+- **`epsD = max(1e-6, 1e-6 * magnitudeMax)` floor rejects valid shallow peaks at fused-score scale** — at fused-score scale (~1) the floor dominates and the relative term is dead code; at very small magnitudes the floor could reject well-conditioned fits. Heuristic; corpus accuracy holds. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1166-1168`.
+- **`tempogramSearchSteps` / override constants not validated against `stepCount`** — when `bpmRange` is narrower than 0.4 BPM the override search range collapses silently. Not exposed by current callers. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1021-1023, 1107-1118`.
+- **Override gate constants (0.4/0.3/0.3 BPM) hard-coded to the diagnosed synthetic case** — by design and documented; OA300+GiantSteps validate the choice. Latent risk if onset rate, hop size, or window duration ever change. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1007-1014`.
+- **Quadratic refinement changes output contract from 0.1 BPM grid to arbitrary BPM** — by design (the refinement IS the sub-BPM precision goal); doc comment updated to "sub-BPM resolution". Downstream callers must not assume grid alignment. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:913, 1146`.
+- **Tempogram override can return outside its documented ±0.4 BPM search radius** — quadratic offset on a peak at exactly 4 grid steps from fused winner can push output to ~0.5 BPM. Single-step overshoot is well within the ±4 BPM scan window. `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:1107, 1178, 1182`.

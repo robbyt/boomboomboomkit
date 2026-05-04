@@ -1,0 +1,9 @@
+module,skill,display-name,menu-code,description,action,args,phase,after,before,required,output-location,outputs
+Siri,bmad-siri,Validate API,VA,"Validate an Apple API choice against documentation with sidecar, axiom, xcode, and apple-docs resolution.",validate_api,[api|symbol|topic],anytime,,,false,_bmad/_memory/siri-sidecar/api-decisions.md,verdict
+Siri,bmad-siri,Find WWDC,WD,"Find relevant WWDC sessions for a topic with transcript citations.",find_wwdc,[topic],anytime,,,false,_bmad/_memory/siri-sidecar/wwdc-references.md,sessions
+Siri,bmad-siri,Sample Code,SA,"Find Apple sample code and implementation patterns for a framework or API.",get_sample_code,[api|framework|topic],anytime,,,false,_bmad/_memory/siri-sidecar/project-patterns.md,patterns
+Siri,bmad-siri,Check Compatibility,CO,"Check API platform availability and deployment-target compatibility, using xcode MCP when available.",check_compatibility,[api|symbol],anytime,,,false,_bmad/_memory/siri-sidecar/api-decisions.md,verdict
+Siri,bmad-siri,Find Alternatives,AL,"Find modern replacements for deprecated Apple APIs with migration guidance.",find_alternatives,[deprecated-api|pattern],anytime,,,false,_bmad/_memory/siri-sidecar/api-decisions.md,verdict
+Siri,bmad-siri,What's New,NW,"Summarize recent framework or technology updates filtered by project context when available.",whats_new,[framework|technology],anytime,,,false,_bmad/_memory/siri-sidecar/wwdc-references.md,updates
+Siri,bmad-siri,Learn Framework,LN,"Create onboarding guidance and a WWDC learning path for a new Apple framework.",learn_framework,[framework],anytime,,,false,_bmad/_memory/siri-sidecar/wwdc-references.md,learning-path
+Siri,bmad-siri,Recall Memory,ME,"Recall what Siri knows about Apple APIs in this project as a zero-tool standards checkpoint.",recall_memory,,anytime,,,false,_bmad/_memory/siri-sidecar,summary

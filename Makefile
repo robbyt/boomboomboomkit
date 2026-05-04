@@ -66,11 +66,52 @@ perf-benchmark:
 	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.PerformanceBenchmarkTests
 
-## ablation: Run full ablation matrix against OA300 corpus
+## ablation: Run full 128-combination ablation matrix against OA300 corpus (ABLATION_PARALLELISM override range [1, 128]; default auto-detected)
 .PHONY: ablation
 ablation:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+ifdef ABLATION_PARALLELISM
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
-	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests
+	ABLATION_RESULTS_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	ABLATION_PARALLELISM="$(ABLATION_PARALLELISM)" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/fullAblationMatrix
+else
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	ABLATION_RESULTS_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/fullAblationMatrix
+endif
+
+## ablation-smoke: Run 16 curated combos for fast cadence (honors ABLATION_PARALLELISM override; default auto-detected)
+.PHONY: ablation-smoke
+ablation-smoke:
+ifdef ABLATION_PARALLELISM
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	ABLATION_SMOKE=1 \
+	ABLATION_PARALLELISM="$(ABLATION_PARALLELISM)" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/smokeAblation
+else
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	ABLATION_SMOKE=1 \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/smokeAblation
+endif
+
+## click-impact-report: Generate per-track click-impact JSON to _bmad-output/implementation-artifacts/3-3-click-impact-report.json
+.PHONY: click-impact-report
+click-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	CLICK_IMPACT=1 \
+	CLICK_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/clickImpactReport
+
+## duration-impact-report: Generate per-track duration-impact JSON to _bmad-output/implementation-artifacts/3-4-duration-impact-report.json
+.PHONY: duration-impact-report
+duration-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	DURATION_IMPACT=1 \
+	DURATION_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/durationImpactReport
 
 ## oracle: Run three-way DAW oracle comparison (ours vs Rekordbox vs DAW-verified)
 .PHONY: oracle

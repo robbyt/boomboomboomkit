@@ -94,6 +94,45 @@ struct OA300BenchmarkTests {
         )
       }
     }
+
+    // AC #4 (Story 3-2 + Story 3-4): OA300 Acc1 must hold ≥ 69.5% (57/82) and Acc2 ≥ 89.0%
+    // (73/82). See `_bmad-output/implementation-artifacts/3-2-fine-grid-precision-fix.md`
+    // (acceptance criteria #4) and Story 3-4 AC #4 (duration-derived BPM hint default-on
+    // must not regress these floors). Asserted unconditionally so wiring bugs surface
+    // at the test layer regardless of whether the hint actually changed any track outcomes.
+    #expect(
+      metrics.acc1Correct >= 57,
+      "AC #4 OA300 Acc1 regression: expected >= 57/82 (69.5%), got \(metrics.acc1Correct)/\(metrics.total)"
+    )
+    #expect(
+      metrics.acc2Correct >= 73,
+      "AC #4 OA300 Acc2 regression: expected >= 73/82 (89.0%), got \(metrics.acc2Correct)/\(metrics.total)"
+    )
+  }
+
+  // Story 3-4 AC #5: opt-out regression-safety control. With `durationHint: false`,
+  // OA300 must match the pre-Story-3-4 baseline EXACTLY (57/82 Acc1, 73/82 Acc2 under
+  // the maxConfidence merge). Any drift means duration-related state is leaking into
+  // the no-hint path. Story 3.6 AC #4: `metadataPolicy = .disabled` is required to
+  // hold the same exact baseline once metadata corroboration ships default-on (the
+  // metadata path has its own exact-baseline test below).
+  @Test("AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY")
+  func benchmarkDurationHintOptOut() async throws {
+    let (metrics, _) = try await runBenchmark(
+      intensity: .default, tolerance: 0.02,
+      durationHint: false, metadataPolicy: .disabled)
+    print("\n=== OA300 Benchmark — durationHint=false (AC #5 control) ===")
+    print(
+      "Acc1: \(metrics.acc1Correct)/\(metrics.total), Acc2: \(metrics.acc2Correct)/\(metrics.total)"
+    )
+    #expect(
+      metrics.acc1Correct == 57,
+      "AC #5 OA300 Acc1 (durationHint=false) must equal 57/82 EXACTLY, got \(metrics.acc1Correct)/\(metrics.total)"
+    )
+    #expect(
+      metrics.acc2Correct == 73,
+      "AC #5 OA300 Acc2 (durationHint=false) must equal 73/82 EXACTLY, got \(metrics.acc2Correct)/\(metrics.total)"
+    )
   }
 
   @Test("benchmark Acc1 MIREX (4% tolerance)")
@@ -278,6 +317,358 @@ struct OA300BenchmarkTests {
     }
   }
 
+  // Story 3-5 Task 7 — voting-policy sweep over the windowVoting strategy.
+  // Pre-reads audio once, analyzes 3 windows per track once, then iterates the
+  // 6 (policy, threshold) pairs over the cached [BPMResult] (DD#18). The merge
+  // step is sub-microsecond, so wall-clock is bounded by the DSP cost
+  // (≈ 1/8 of benchmarkMergeStrategies's wall-clock per AC #9).
+  @Test("voting policy comparison (3 policies × threshold sweep)")
+  func benchmarkVotingPolicies() throws {
+    let availableTracks = groundTruth.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track).path)
+    }
+    guard !availableTracks.isEmpty else {
+      print("No tracks available")
+      return
+    }
+
+    print("\n=== OA300 Voting Policy Comparison (Intensity 7, .windowVoting) ===")
+    print(
+      "Policy".padding(toLength: 28, withPad: " ", startingAt: 0)
+        + "  Acc1   Acc2  Correct  Total")
+    print(String(repeating: "-", count: 60))
+
+    // Pre-read all audio files once.
+    struct TrackAudio {
+      let track: OA300Track
+      let samples: [Float]
+      let sampleRate: Double
+    }
+    var audioData: [TrackAudio] = []
+    for track in availableTracks {
+      let url = trackURL(track)
+      if let (samples, sampleRate) = try? PCMBufferReader.readMonoSamples(
+        from: url, maxSeconds: 120)
+      {
+        audioData.append(TrackAudio(track: track, samples: samples, sampleRate: sampleRate))
+      }
+    }
+
+    // Pre-compute per-track [BPMResult] ONCE outside the policy loop (DD#18).
+    var cachedWindows: [(track: OA300Track, results: [BPMResult])] = []
+    cachedWindows.reserveCapacity(audioData.count)
+    for audio in audioData {
+      var windowResults: [BPMResult] = []
+      for windowSeconds in AnalysisIntensity.default.windowSizes {
+        if let result = BPMAnalyzer.estimateBPM(
+          samples: audio.samples, sampleRate: audio.sampleRate,
+          options: .init(
+            analysisWindowSeconds: windowSeconds,
+            intensity: .default))
+        {
+          windowResults.append(result)
+        }
+      }
+      cachedWindows.append((track: audio.track, results: windowResults))
+    }
+
+    let pairs: [(policy: VotingPolicy, threshold: Double, label: String)] = [
+      (.simpleMajority, 0.0, "simpleMajority"),
+      (.confidenceWeighted, 0.0, "confidenceWeighted"),
+      (.thresholdGated, 0.0, "thresholdGated@0.00"),
+      (.thresholdGated, 0.25, "thresholdGated@0.25"),
+      (.thresholdGated, 0.50, "thresholdGated@0.50"),
+      (.thresholdGated, 0.75, "thresholdGated@0.75"),
+    ]
+
+    let candidateCount = AnalysisIntensity.default.techniqueSet.candidateCount
+
+    for pair in pairs {
+      var acc1 = 0
+      var acc2 = 0
+
+      for entry in cachedWindows {
+        guard
+          let merged = CandidateMergeStrategy.merge(
+            windowResults: entry.results,
+            candidateCount: candidateCount,
+            strategy: .windowVoting,
+            votingPolicy: pair.policy,
+            votingThreshold: pair.threshold)
+        else { continue }
+
+        if isAcc1Match(merged.bpm, entry.track.bpm, tolerance: 0.02) {
+          acc1 += 1
+          acc2 += 1
+        } else if isAcc2Match(merged.bpm, entry.track.bpm, tolerance: 0.02) {
+          acc2 += 1
+        }
+      }
+
+      let acc1Pct = String(format: "%5.1f%%", Double(acc1) / Double(audioData.count) * 100)
+      let acc2Pct = String(format: "%5.1f%%", Double(acc2) / Double(audioData.count) * 100)
+      print(
+        pair.label.padding(toLength: 28, withPad: " ", startingAt: 0)
+          + " \(acc1Pct) \(acc2Pct)  \(String(format: "%3d", acc1))      \(String(format: "%3d", audioData.count))"
+      )
+    }
+  }
+
+  // Story 3-5 Task 8.2 — corpus regression `#expect` for AC #4.
+  // Baseline captured at git SHA `ba6ba523990aecef872c0bdff96b758918609eee`
+  // (post-Story-3-4 close-out, pre-Story-3-5) via the `windowVoting` row of
+  // `benchmarkMergeStrategies`. Drift in either Acc1 or Acc2 indicates the
+  // Story 3-5 wiring leaked state into the default windowVoting code path.
+  @Test("AC #4: windowVoting + .simpleMajority matches pre-Story-3-5 baseline EXACTLY")
+  func windowVotingDefaultPolicyMatchesBaseline() async throws {
+    // Hardcoded from Task 0 baseline capture (see story Debug Log References).
+    let oa300Acc1Baseline = 57
+    let oa300Acc2Baseline = 72
+    let total = 82
+
+    let availableTracks = groundTruth.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track).path)
+    }
+
+    let urls = availableTracks.map { trackURL($0) }
+    let trackBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
+      for (index, url) in urls.enumerated() {
+        group.addTask {
+          var opts = AudioAnalysisService.Options()
+          opts.intensity = .default
+          opts.mergeStrategy = .windowVoting
+          opts.votingPolicy = .simpleMajority
+          opts.votingThreshold = 0.0
+          // Story 3.6 AC #4: this exact-baseline test predates metadata
+          // corroboration. Setting `.disabled` preserves the pre-Story-3.6
+          // pipeline so the byte-equality contract still holds.
+          opts.metadataPolicy = .disabled
+          return (
+            index,
+            (try? AudioAnalysisService.analyzeBPM(url: url, options: opts))?.bpm
+          )
+        }
+      }
+      var results = [Double?](repeating: nil, count: availableTracks.count)
+      for await (i, bpm) in group { results[i] = bpm }
+      return results
+    }
+
+    // Surface analyzeBPM nils explicitly — without this guard, a transient
+    // AVFoundation failure would silently lower Acc1 and fail the unconditional
+    // baseline check below with a misleading "Acc1 must equal 57/82" message.
+    let nilTracks = zip(availableTracks, trackBPMs).filter { $0.1 == nil }
+      .map { $0.0.filename }
+    #expect(
+      nilTracks.isEmpty,
+      "AC #4 baseline: \(nilTracks.count) tracks returned nil from analyzeBPM (failure precedes Acc1/Acc2 drift): \(nilTracks.prefix(5))"
+    )
+
+    var acc1 = 0
+    var acc2 = 0
+    for (index, track) in availableTracks.enumerated() {
+      guard let detected = trackBPMs[index] else { continue }
+      if isAcc1Match(detected, track.bpm, tolerance: 0.02) {
+        acc1 += 1
+        acc2 += 1
+      } else if isAcc2Match(detected, track.bpm, tolerance: 0.02) {
+        acc2 += 1
+      }
+    }
+
+    #expect(
+      availableTracks.count == total,
+      "Expected \(total) OA300 tracks at baseline; got \(availableTracks.count)")
+    #expect(
+      acc1 == oa300Acc1Baseline,
+      "AC #4: OA300 windowVoting+.simpleMajority Acc1 must equal \(oa300Acc1Baseline)/\(total) EXACTLY, got \(acc1)/\(availableTracks.count)"
+    )
+    #expect(
+      acc2 == oa300Acc2Baseline,
+      "AC #4: OA300 windowVoting+.simpleMajority Acc2 must equal \(oa300Acc2Baseline)/\(total) EXACTLY, got \(acc2)/\(availableTracks.count)"
+    )
+  }
+
+  // Story 3.6 AC #19: tagged-subset breakdown reporting. Observability, not a gate.
+  @Test("Story 3.6: tagged-subset metadata breakdown")
+  func taggedSubsetBreakdown() async throws {
+    let availableTracks = groundTruth.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track).path)
+    }
+    let urls = availableTracks.map { trackURL($0) }
+
+    struct TrackEvidence: Sendable {
+      let filename: String
+      let evidence: [MetadataBPMEvidence]
+    }
+
+    let perTrack = await withTaskGroup(of: (Int, [MetadataBPMEvidence]).self) { group in
+      for (index, url) in urls.enumerated() {
+        group.addTask {
+          var opts = AudioAnalysisService.Options()
+          opts.intensity = .default
+          // Use default merge to avoid windowVoting interaction with metadata.
+          let result = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
+          return (index, result?.metadataEvidence ?? [])
+        }
+      }
+      var results: [[MetadataBPMEvidence]] =
+        Array(repeating: [], count: availableTracks.count)
+      for await (i, ev) in group { results[i] = ev }
+      return results
+    }
+
+    var tracksWithMetadata = 0
+    var corroboratedSameTempo = 0
+    var corroboratedOctave = 0
+    var corroboratedTriplet = 0
+    var intraFileConflict = 0
+    var dspDisagreement = 0
+    var uncorroborated = 0
+    let total = availableTracks.count
+
+    for evidence in perTrack {
+      if evidence.isEmpty { continue }
+      tracksWithMetadata += 1
+
+      // Track-level classification: pick the strongest signal across this
+      // track's evidence entries (corroboration > conflict > disagreement >
+      // uncorroborated). Parse-phase rejections (sentinel-zero, out-of-range,
+      // non-numeric) don't count as a metadata "outcome" for this breakdown.
+      let valid = evidence.filter {
+        $0.rejectionReason != "sentinel-zero"
+          && $0.rejectionReason != "out-of-range"
+          && $0.rejectionReason != "non-numeric"
+      }
+      if valid.contains(where: { $0.corroboratedWith != nil && $0.ratioMatched == nil }) {
+        corroboratedSameTempo += 1
+      } else if valid.contains(where: {
+        $0.corroboratedWith != nil
+          && ($0.ratioMatched == .double || $0.ratioMatched == .half)
+      }) {
+        corroboratedOctave += 1
+      } else if valid.contains(where: {
+        $0.corroboratedWith != nil
+          && ($0.ratioMatched == .threeHalf || $0.ratioMatched == .twoThird)
+      }) {
+        corroboratedTriplet += 1
+      } else if valid.contains(where: { $0.rejectionReason == "intra-file-conflict" }) {
+        intraFileConflict += 1
+      } else if valid.contains(where: { $0.rejectionReason == "dsp-disagreement" }) {
+        dspDisagreement += 1
+      } else if !valid.isEmpty {
+        uncorroborated += 1
+      }
+    }
+
+    print("\n=== Tagged-subset breakdown ===")
+    print("Tracks with metadata read:       \(tracksWithMetadata) / \(total)")
+    print("  Corroborated (same-tempo):     \(corroboratedSameTempo)")
+    print("  Corroborated (octave ratio):   \(corroboratedOctave)")
+    print("  Corroborated (triplet ratio):  \(corroboratedTriplet)")
+    print("  Intra-file conflict:           \(intraFileConflict)")
+    print("  DSP disagreement (unanimous):  \(dspDisagreement)")
+    print("  Uncorroborated (single tag):   \(uncorroborated)")
+  }
+
+  // Story 3.6 Task 0.5 — corroboration tolerance sweep (observability, not a gate).
+  // Runs the OA300 benchmark with `corroborationTolerance` ∈ {0.01, 0.02, 0.03}
+  // and reports tagged-subset bucket counts for each. Env-gated to avoid wall-clock
+  // overhead in the routine `make benchmark` run.
+  @Test(
+    "Story 3.6: corroboration tolerance sweep (CORROBORATION_SWEEP=1)",
+    .enabled(if: ProcessInfo.processInfo.environment["CORROBORATION_SWEEP"] == "1")
+  )
+  func corroborationToleranceSweep() async throws {
+    print("\n=== OA300 corroboration tolerance sweep ===")
+    print("Tolerance  Acc1   Acc2   SameTempo  Octave  Uncorrob  DSPDis")
+
+    for tol in [0.01, 0.02, 0.03] {
+      var policy = MetadataPolicy.default
+      policy.corroborationTolerance = tol
+      let (metrics, perTrackEvidence) = try await runWithPolicy(policy: policy)
+
+      var corrSame = 0
+      var corrOctave = 0
+      var uncorr = 0
+      var dspDis = 0
+      for evidence in perTrackEvidence {
+        let valid = evidence.filter {
+          $0.rejectionReason != "sentinel-zero"
+            && $0.rejectionReason != "out-of-range"
+            && $0.rejectionReason != "non-numeric"
+        }
+        if valid.contains(where: { $0.corroboratedWith != nil && $0.ratioMatched == nil }) {
+          corrSame += 1
+        } else if valid.contains(where: {
+          $0.corroboratedWith != nil
+            && ($0.ratioMatched == .double || $0.ratioMatched == .half)
+        }) {
+          corrOctave += 1
+        } else if valid.contains(where: { $0.rejectionReason == "dsp-disagreement" }) {
+          dspDis += 1
+        } else if !valid.isEmpty {
+          uncorr += 1
+        }
+      }
+
+      print(
+        String(
+          format: "%.2f       %2d/%2d  %2d/%2d  %2d         %2d      %2d        %2d",
+          tol, metrics.acc1Correct, metrics.total,
+          metrics.acc2Correct, metrics.total,
+          corrSame, corrOctave, uncorr, dspDis))
+    }
+  }
+
+  /// Runs analyzeBPM at default intensity with the given metadata policy, returning
+  /// per-track BPM hits AND per-track evidence for the sweep.
+  private func runWithPolicy(policy: MetadataPolicy) async throws -> (
+    metrics: AccuracyMetrics, perTrackEvidence: [[MetadataBPMEvidence]]
+  ) {
+    let availableTracks = groundTruth.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track).path)
+    }
+    let urls = availableTracks.map { trackURL($0) }
+
+    let perTrack = await withTaskGroup(of: (Int, Double?, [MetadataBPMEvidence]).self) {
+      group in
+      for (index, url) in urls.enumerated() {
+        let p = policy
+        group.addTask {
+          var opts = AudioAnalysisService.Options()
+          opts.intensity = .default
+          opts.metadataPolicy = p
+          let r = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
+          return (index, r?.bpm, r?.metadataEvidence ?? [])
+        }
+      }
+      var bpms = [Double?](repeating: nil, count: availableTracks.count)
+      var ev: [[MetadataBPMEvidence]] = Array(repeating: [], count: availableTracks.count)
+      for await (i, b, e) in group {
+        bpms[i] = b
+        ev[i] = e
+      }
+      return (bpms, ev)
+    }
+
+    var acc1Correct = 0
+    var acc2Correct = 0
+    for (index, track) in availableTracks.enumerated() {
+      guard let detected = perTrack.0[index] else { continue }
+      if isAcc1Match(detected, track.bpm, tolerance: 0.02) {
+        acc1Correct += 1
+        acc2Correct += 1
+      } else if isAcc2Match(detected, track.bpm, tolerance: 0.02) {
+        acc2Correct += 1
+      }
+    }
+    let metrics = AccuracyMetrics(
+      total: availableTracks.count, acc1Correct: acc1Correct,
+      acc2Correct: acc2Correct, failures: [])
+    return (metrics, perTrack.1)
+  }
+
   @Test("genre-stratified accuracy")
   func benchmarkByGenre() async throws {
     let (metrics, perTrack) = try await runBenchmark(intensity: .default, tolerance: 0.02)
@@ -317,7 +708,9 @@ struct OA300BenchmarkTests {
   private func runBenchmark(
     intensity: AnalysisIntensity,
     mergeStrategy: CandidateMergeStrategy = .maxConfidence,
-    tolerance: Double
+    tolerance: Double,
+    durationHint: Bool = true,
+    metadataPolicy: MetadataPolicy = .default
   ) async throws -> (metrics: AccuracyMetrics, perTrack: [(track: OA300Track, detected: Double?)]) {
     // Filter to tracks that exist on disk
     let availableTracks = groundTruth.filter { track in
@@ -339,6 +732,8 @@ struct OA300BenchmarkTests {
                 var o = AudioAnalysisService.Options()
                 o.intensity = intensity
                 o.mergeStrategy = mergeStrategy
+                o.durationHint = durationHint
+                o.metadataPolicy = metadataPolicy
                 return o
               }()))?.bpm
           )
