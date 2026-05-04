@@ -1,0 +1,6 @@
+module,skill,display-name,menu-code,description,action,args,phase,after,before,required,output-location,outputs
+Gloria,bmad-gloria,Bootstrap Scan,SC,"Detect commit conventions, tag scheme, merge strategy, ID namespace, and convention drift; populate sidecar memory with confidence-scored meta-knowledge.",scan_repo,,anytime,,,false,_bmad/_memory/gloria-sidecar,conventions
+Gloria,bmad-gloria,Recall History,RC,"Narrate an epic or story as an inflection-point arc with anchored ID disambiguation and cross-artifact correlation.",recall_history,[id|query] [--mode=tabular],anytime,,,false,,narrative
+Gloria,bmad-gloria,Struggle Analysis,SA,"Synthesize pattern and future-work implication from reverts, fix cycles, repeated edits, and late-night clusters.",struggle_analysis,[id|query],anytime,,,false,_bmad/_memory/gloria-sidecar/patterns.md,lesson
+Gloria,bmad-gloria,Context Expand,CT,"Expand the most recently discussed epic, story, or file with relevant sidecar insights when confidence is high.",context_expand,[topic],anytime,,,false,,context
+Gloria,bmad-gloria,Memory Recall,ME,"Recall what Gloria has learned about this repository from sidecar memory, with freshness and staleness flags.",memory_recall,,anytime,,,false,_bmad/_memory/gloria-sidecar,summary

@@ -113,10 +113,17 @@ struct DAWOracleBenchmarkTests {
       return (i, track)
     }
 
+    // Story 3-5 AC #11: explicit windowVoting + simpleMajority so the new
+    // policy code path is exercised (default Options uses .maxConfidence).
     let detectedBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
       for (i, track) in availableIndices {
         let url = trackURL(track.filename, subdir: track.subdir)
-        group.addTask { (i, (try? AudioAnalysisService.analyzeBPM(url: url))?.bpm) }
+        group.addTask {
+          var opts = AudioAnalysisService.Options()
+          opts.mergeStrategy = .windowVoting
+          opts.votingPolicy = .simpleMajority
+          return (i, (try? AudioAnalysisService.analyzeBPM(url: url, options: opts))?.bpm)
+        }
       }
       var results = [Double?](repeating: nil, count: dawOracle.count)
       for await (i, bpm) in group { results[i] = bpm }
@@ -235,11 +242,17 @@ struct DAWOracleBenchmarkTests {
       return FileManager.default.fileExists(atPath: url.path)
     }
 
-    // Run all tracks in parallel via structured concurrency
+    // Story 3-5 AC #11: explicit windowVoting + simpleMajority so the new
+    // policy code path is exercised (default Options uses .maxConfidence).
     let urls = availableTracks.map { trackURL($0.filename, subdir: $0.subdir) }
     let trackBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
       for (index, url) in urls.enumerated() {
-        group.addTask { (index, (try? AudioAnalysisService.analyzeBPM(url: url))?.bpm) }
+        group.addTask {
+          var opts = AudioAnalysisService.Options()
+          opts.mergeStrategy = .windowVoting
+          opts.votingPolicy = .simpleMajority
+          return (index, (try? AudioAnalysisService.analyzeBPM(url: url, options: opts))?.bpm)
+        }
       }
       var results = [Double?](repeating: nil, count: availableTracks.count)
       for await (i, bpm) in group { results[i] = bpm }

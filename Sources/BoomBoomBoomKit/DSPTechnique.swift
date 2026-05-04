@@ -52,6 +52,13 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
   /// Impact: part of baseline. Essential for octave resolution.
   case subBandVoting
 
+  /// Per-candidate cross-correlation between a synthetic click pattern at the candidate BPM
+  /// and the onset envelope. Rescoring runs at step 9.5, between candidate extraction and
+  /// octave disambiguation, so candidates with strong rhythmic alignment are preferred.
+  /// Cost: low (sparse normalized beat-search per candidate, ~3 candidates).
+  /// Impact: TBD (validated by ablation in Story 3-3, Task 3).
+  case clickTrackCorrelation
+
   /// Short label used in ablation output (e.g., "sharp", "vote").
   var shortName: String {
     switch self {
@@ -61,6 +68,7 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
     case .expandedCandidates: return "top5"
     case .fineGridRefinement: return "fine"
     case .subBandVoting: return "vote"
+    case .clickTrackCorrelation: return "click"
     }
   }
 }
@@ -128,7 +136,7 @@ public struct TechniqueSet: Sendable, Hashable {
     dspTechniques: [.acfSharpening, .subBandVoting, .fineGridRefinement]
   )
 
-  /// All 6 techniques enabled, 5 candidates. Acc1=59.8%. NOT recommended as default.
+  /// All 7 techniques enabled, 5 candidates. NOT recommended as default.
   public static let full = TechniqueSet(
     dspTechniques: Set(DSPTechnique.allCases)
   )
@@ -138,9 +146,20 @@ public struct TechniqueSet: Sendable, Hashable {
     dspTechniques: [.acfSharpening, .subBandNormalization, .subBandVoting, .fineGridRefinement]
   )
 
+  /// Click-augmented: optimal + clickTrackCorrelation, 3 candidates.
+  /// Story 3-3 ablation at α=0.7 default: ties `.optimal` Acc1 (55/82) on OA300, +1 Acc2 (68/82
+  /// vs 67/82). Useful for callers who want rhythmic-alignment rescoring on top of the
+  /// optimal pipeline. Default `.optimal` was kept unchanged because the +2-track margin
+  /// gate (Task 3.4) was not met.
+  public static let clickAugmented = TechniqueSet(
+    dspTechniques: [
+      .acfSharpening, .subBandVoting, .fineGridRefinement, .clickTrackCorrelation,
+    ]
+  )
+
   // MARK: - Ablation
 
-  /// Generates all 2^6 = 64 DSP technique combinations (power set).
+  /// Generates all 2^7 = 128 DSP technique combinations (power set).
   public static func allDSPCombinations() -> [TechniqueSet] {
     let allCases = DSPTechnique.allCases
     let count = allCases.count

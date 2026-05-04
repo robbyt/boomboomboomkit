@@ -240,3 +240,112 @@ struct PCMBufferReaderErrorTests {
     }
   }
 }
+
+// MARK: - File Duration Tests (Story 3-4)
+
+@Suite("PCMBufferReader — File Duration")
+struct PCMBufferReaderFileDurationTests {
+
+  @Test("fileDuration returns expected seconds within one-sample tolerance")
+  func fileDurationReturnsExpectedSeconds() throws {
+    let sampleRate: Double = 44100
+    let durationSeconds: Double = 30
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("pcm_reader_duration_30s.wav")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+
+    try createClickTrackWAVFixture(
+      bpm: 120, sampleRate: sampleRate, durationSeconds: durationSeconds, url: tempURL)
+
+    let actual = try PCMBufferReader.fileDuration(url: tempURL)
+    // One-sample tolerance accounts for WAV header frame-count rounding (AC #8).
+    #expect(abs(actual - durationSeconds) < 1.0 / sampleRate)
+  }
+
+  @Test("fileDuration throws PCMBufferReaderError for unreadable file")
+  func fileDurationThrowsForUnreadableFile() {
+    let url = URL(fileURLWithPath: "/nonexistent/duration_test_no_file_3_4.wav")
+    #expect(throws: PCMBufferReaderError.self) {
+      _ = try PCMBufferReader.fileDuration(url: url)
+    }
+  }
+
+  // Code-review Patch #5 (Story 3-4): a malformed WAV with sampleRate=0 must throw,
+  // not return `inf`. Either AVAudioFile rejects the file (existing
+  // `.fileNotReadable` path) or it opens with sampleRate==0 (Patch #5 guard fires).
+  // The contract is the same: throw — never return a non-finite duration.
+  @Test("fileDuration throws when sampleRate is zero (Patch #5)")
+  func fileDurationThrowsOnZeroSampleRate() throws {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("pcm_reader_zero_samplerate.wav")
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    // Minimal 44-byte WAV header with the sampleRate field (offset 24-27, little-endian)
+    // zeroed. Other fields are valid PCM mono 16-bit.
+    var bytes: [UInt8] = []
+    bytes += Array("RIFF".utf8)
+    bytes += [36, 0, 0, 0]  // ChunkSize - 8 (header only, zero body)
+    bytes += Array("WAVE".utf8)
+    bytes += Array("fmt ".utf8)
+    bytes += [16, 0, 0, 0]  // Subchunk1Size = 16 (PCM)
+    bytes += [1, 0]  // AudioFormat = 1 (PCM)
+    bytes += [1, 0]  // NumChannels = 1
+    bytes += [0, 0, 0, 0]  // SampleRate = 0  <- malformed
+    bytes += [0, 0, 0, 0]  // ByteRate
+    bytes += [2, 0]  // BlockAlign
+    bytes += [16, 0]  // BitsPerSample
+    bytes += Array("data".utf8)
+    bytes += [0, 0, 0, 0]  // Subchunk2Size = 0
+    try Data(bytes).write(to: url)
+
+    #expect(throws: PCMBufferReaderError.self) {
+      _ = try PCMBufferReader.fileDuration(url: url)
+    }
+  }
+}
+
+// MARK: - Test fixture helper (duplicated from AudioAnalysisServiceTests.swift per Story 3-4
+// Dev Notes "Test fixture access" Option A — promote to TestSupport in a follow-up hygiene story).
+
+/// Creates a minimal WAV file with a synthetic click track.
+private func createClickTrackWAVFixture(
+  bpm: Double, sampleRate: Double, durationSeconds: Double, url: URL
+) throws {
+  let sampleCount = Int(sampleRate * durationSeconds)
+  var samples = [Float](repeating: 0, count: sampleCount)
+  let samplesPerBeat = Int(sampleRate * 60.0 / bpm)
+
+  for beatStart in stride(from: 0, to: sampleCount, by: samplesPerBeat) {
+    let impulseEnd = min(beatStart + 64, sampleCount)
+    for i in beatStart..<impulseEnd {
+      let decay = Float(exp(-Double(i - beatStart) / 10.0))
+      samples[i] = decay
+    }
+  }
+
+  guard
+    let format = AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: sampleRate,
+      channels: 1,
+      interleaved: false)
+  else {
+    throw NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bad format"])
+  }
+
+  let file = try AVAudioFile(forWriting: url, settings: format.settings)
+  guard
+    let buffer = AVAudioPCMBuffer(
+      pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleCount))
+  else {
+    throw NSError(domain: "test", code: 2, userInfo: [NSLocalizedDescriptionKey: "Buffer failed"])
+  }
+
+  buffer.frameLength = AVAudioFrameCount(sampleCount)
+  samples.withUnsafeBufferPointer { srcPtr in
+    guard let baseAddress = srcPtr.baseAddress else { return }
+    buffer.floatChannelData![0].update(from: baseAddress, count: sampleCount)
+  }
+
+  try file.write(from: buffer)
+}

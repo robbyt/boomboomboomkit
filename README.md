@@ -6,9 +6,9 @@ Standalone audio analysis package for BPM estimation and LUFS loudness measureme
 
 ## Features
 
-- **BPM Estimation** — 12-step mel-spectrogram onset detection + autocorrelation-based beat tracking with progressive analysis and sub-band voting disambiguation
+- **BPM Estimation** — 10-step mel-spectrogram onset detection + autocorrelation-based beat tracking with progressive analysis, sub-band voting disambiguation, and optional click-track cross-correlation rescoring
 - **LUFS Measurement** — ITU-R BS.1770-5 integrated loudness with K-weighting filter and dual gating
-- **PCM Reading** — Universal audio file reader producing mono `[Float]` samples (WAV, AIFF, MP3, FLAC, M4A, AAC, OGG)
+- **PCM Reading** — Universal audio file reader producing mono `[Float]` samples (WAV, AIFF, MP3, FLAC, M4A, CAF)
 
 ## Installation
 
@@ -27,19 +27,20 @@ Then add `"BoomBoomBoomKit"` to your target's dependencies.
 ```swift
 import BoomBoomBoomKit
 
-// BPM Analysis (progressive: retries at 30s/60s/90s windows)
+// BPM Analysis (default: progressive at 30s/60s/90s windows, .optimal pipeline)
 let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL)
 print("BPM: \(result?.bpm ?? 0), Confidence: \(result?.confidence ?? 0)")
 
-// BPM with custom intensity and merge strategy
-let result = try AudioAnalysisService.analyzeBPM(
-    url: audioFileURL,
-    intensity: .thorough,
-    mergeStrategy: .windowVoting)
+// BPM with custom options (intensity + merge strategy)
+var opts = AudioAnalysisService.Options()
+opts.intensity = .thorough
+opts.mergeStrategy = .windowVoting
+let tunedResult = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: opts)
 
 // BPM with diagnostic trace enabled
-let traced = try AudioAnalysisService.analyzeBPM(
-    url: audioFileURL, enableTrace: true)
+var tracedOpts = AudioAnalysisService.Options()
+tracedOpts.enableTrace = true
+let traced = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: tracedOpts)
 print("Candidates: \(traced?.candidates ?? [])")
 
 // LUFS Measurement (ITU-R BS.1770-5)
@@ -53,6 +54,21 @@ let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: audioFileU
 let (partial, rate) = try PCMBufferReader.readMonoSamples(
     from: audioFileURL, maxSeconds: 30, targetSampleRate: 22050)
 ```
+
+### Customizing techniques
+
+`AudioAnalysisService.Options.techniqueSet` overrides the technique set derived from
+`intensity`, letting callers opt into public presets such as `.clickAugmented` (the
+optimal pipeline plus click-track cross-correlation rescoring):
+
+```swift
+var opts = AudioAnalysisService.Options()
+opts.techniqueSet = .clickAugmented   // sharp + vote + fine + click-correlation
+let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: opts)
+```
+
+`intensity` is still consulted for window sizes and progressive-retry threshold, so
+window behavior remains intensity-driven even when an explicit technique set is set.
 
 ## Commands
 
@@ -85,10 +101,11 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `PCMBufferReaderError` | Error cases for file reading |
 | `AnalysisIntensity` | Controls pipeline depth (1-10 ordinal scale) |
 | `CandidateMergeStrategy` | How multi-window candidates are combined (8 strategies) |
-| `DSPTechnique` | Individual DSP technique enum (6 cases) |
-| `TechniqueSet` | Composable technique set with named presets |
-| `MLTechnique` | Protocol for future ML-based estimation |
+| `DSPTechnique` | Individual DSP technique enum (closed set, `CaseIterable`) |
+| `TechniqueSet` | Composable technique set with named presets (`.optimal`, `.clickAugmented`, `.full`, …) |
+| `MLTechnique` | Protocol for future ML-based estimation (slot reserved on `Options.mlTechnique`) |
 | `BPMDiagnosticTrace` | Per-step pipeline diagnostic state |
+| `ProgressUpdate` | Per-window progress payload for the `Options.onProgress` callback |
 
 ## Test Support
 

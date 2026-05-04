@@ -75,6 +75,42 @@ struct BPMAnalyzer {
   /// Octave disambiguation: minimum score ratio vs current best to accept faster tempo
   private static let octaveScoreThreshold: Float = 0.5
 
+  // MARK: - Duration-Derived BPM Hint Constants (Story 3-4)
+
+  /// Bar counts probed by the duration-derived BPM hint at step 9.7.
+  ///
+  /// For a file of duration `D`, each bar count `B` yields a structurally plausible BPM
+  /// of `B * 4 * 60 / D`. Only those falling within `perceptualMinBPM ... perceptualMaxBPM`
+  /// participate in the boost.
+  ///
+  /// Source: brainstorming-session-2026-03-21-2345.md (#35 — Splice.com duration heuristic);
+  /// Story 3.4 epic AC (epics.md:586-612).
+  private static let durationHintBarCounts: [Int] = [32, 64, 96, 128, 192, 256]
+
+  /// Multiplicative boost applied to DSP candidates whose BPM lies within the relative
+  /// tolerance of any in-range bar-count-derived BPM (corroborative-not-authoritative —
+  /// never damps unmatched candidates).
+  private static let durationHintBoostWeight: Float = 0.1
+
+  /// Relative tolerance for matching a DSP candidate to a bar-count-derived BPM.
+  /// Match condition: `abs(cand.bpm - barBPM) / barBPM <= durationHintTolerance`.
+  /// 2% mirrors the shared accuracy matcher in BoomBoomBoomKitTestSupport/AccuracyMatchers.swift.
+  private static let durationHintTolerance: Double = 0.02
+
+  /// Default minimum file duration (seconds) below which the duration-derived BPM hint
+  /// is suppressed.
+  ///
+  /// Bar-count math assumes the file IS a full song — `B * 4 * 60 / D` is only musically
+  /// meaningful when `D` is the song's true duration, not a clip. Short clips (loops,
+  /// previews, partial tracks like the GiantSteps Tempo Dataset's 30-120s segments)
+  /// produce structurally-implausible bar candidates that often reinforce octave errors.
+  ///
+  /// The 180-second default reflects "very few dance songs are shorter than 3 minutes"
+  /// and was added in response to a measured AC #4 GiantSteps regression at the
+  /// pre-threshold values. Configurable per call via
+  /// `AudioAnalysisService.Options.durationHintMinFileSeconds`.
+  private static let durationHintMinFileSecondsDefault: Double = 180.0
+
   // MARK: - Sub-Band Constants (Story 33-6)
 
   /// Mel bin ranges for 4 frequency sub-bands (matching docs/bpm.md Step 3)
@@ -99,11 +135,23 @@ struct BPMAnalyzer {
     var intensity: AnalysisIntensity = .default
 
     /// Explicit technique set, overriding `intensity.techniqueSet` for pipeline gating.
-    /// When `nil` (default), techniques are derived from `intensity`.
-    var techniques: TechniqueSet?
+    /// When `nil` (default), the technique set is derived from `intensity`.
+    var techniqueSet: TechniqueSet?
 
     /// When `true`, populates `BPMResult.trace` with per-step diagnostic data.
     var enableTrace: Bool = false
+
+    /// Full file duration in seconds, used by the duration-derived BPM hint at step 9.7.
+    /// When nil (default), no hint is applied. `AudioAnalysisService` passes the value
+    /// from `PCMBufferReader.fileDuration(url:)` when `AudioAnalysisService.Options.durationHint`
+    /// is true.
+    var fileDurationSeconds: Double?
+
+    /// Below this duration (seconds), the duration-derived BPM hint is suppressed.
+    /// Bar-count math assumes the file IS a full song; below the threshold the file
+    /// is more likely a clip/loop where `bars * 4 * 60 / D` is structurally implausible.
+    /// Default 180s (3 min) — see `durationHintMinFileSecondsDefault`.
+    var durationHintMinFileSeconds: Double = durationHintMinFileSecondsDefault
   }
 
   // MARK: - Public API
@@ -131,7 +179,7 @@ struct BPMAnalyzer {
   /// - Parameters:
   ///   - samples: Mono PCM samples as `[Float]` (up to 120s for energy scan).
   ///   - sampleRate: Sample rate of the audio (e.g., 44100.0).
-  ///   - options: Configuration controlling analysis window, intensity, techniques, and tracing.
+  ///   - options: Configuration controlling analysis window, intensity, technique set, and tracing.
   /// - Returns: A `BPMResult` with BPM and confidence, or `nil` for
   ///   silence/noise/too-short input.
   static func estimateBPM(
@@ -139,7 +187,7 @@ struct BPMAnalyzer {
     sampleRate: Double,
     options: Options
   ) -> BPMResult? {
-    let techniques = options.techniques ?? options.intensity.techniqueSet
+    let techniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
     guard !samples.isEmpty else { return nil }
 
     let duration = Double(samples.count) / sampleRate
@@ -171,8 +219,8 @@ struct BPMAnalyzer {
     // Step 3: Mel-spectrogram onset detection with sub-band envelopes
     let onsetResult = computeMelOnsetEnvelopeWithSubBands(
       samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
-      computeSubBands: techniques.contains(.subBandVoting),
-      normalizeSubBands: techniques.contains(.subBandNormalization))
+      computeSubBands: techniqueSet.contains(.subBandVoting),
+      normalizeSubBands: techniqueSet.contains(.subBandNormalization))
     var onsetEnvelope = onsetResult.fullBand
     guard !onsetEnvelope.isEmpty else { return nil }
 
@@ -190,7 +238,7 @@ struct BPMAnalyzer {
     }
 
     // Step 3.5: Adaptive thresholding on full-band onset envelope
-    if techniques.contains(.adaptiveThreshold) {
+    if techniqueSet.contains(.adaptiveThreshold) {
       onsetEnvelope = adaptiveThreshold(envelope: onsetEnvelope, onsetRate: onsetRate)
     }
 
@@ -205,7 +253,7 @@ struct BPMAnalyzer {
     guard !acf.isEmpty else { return nil }
 
     // Step 4.1: ACF peak sharpening — element-wise square
-    if techniques.contains(.acfSharpening) {
+    if techniqueSet.contains(.acfSharpening) {
       vDSP_vsq(acf, 1, &acf, 1, vDSP_Length(acf.count))
     }
 
@@ -216,7 +264,7 @@ struct BPMAnalyzer {
 
     // Step 4b: Sub-band autocorrelations (empty when sub-bands skipped at intensity 1-2)
     let subBandACFs: [[Float]] =
-      techniques.contains(.subBandVoting)
+      techniqueSet.contains(.subBandVoting)
       ? onsetResult.subBands.map { computeAutocorrelation($0, acfBuffers: acfBufs) }
       : []
 
@@ -271,36 +319,85 @@ struct BPMAnalyzer {
 
     // Step 8-9: Multi-peak extraction + range normalization
     let candidates = extractTopCandidates(
-      enhanced: enhanced, bpmMin: bpmMin, count: techniques.candidateCount)
+      enhanced: enhanced, bpmMin: bpmMin, count: techniqueSet.candidateCount)
     guard !candidates.isEmpty else { return nil }
 
+    // Trace's rawCandidates always carries the pre-rescore array (DD#11) — this is
+    // the upstream signal before the optional click-track rescoring at step 9.5.
     trace?.rawCandidates = candidates
 
+    // Step 9.5: Click-track cross-correlation rescoring (per Story 3-3, DD#3, DD#4).
+    // When .clickTrackCorrelation is active, each candidate's score is multiplied by
+    // (alpha + (1 - alpha) * normalizedClickScore). The rescored array flows into both
+    // step 10 disambiguation AND back out via BPMResult.candidates so multi-window
+    // CandidateMergeStrategy stays consistent with disambiguation (DD#11).
+    //
+    // The default α=0.7 is corroborative-not-authoritative (DD#4); the value was
+    // finalized by Story 3-3 Task 3.3 — the α-sweep over `.optimal`-family combos on
+    // OA300 showed α=0.7 outperforms α=0.3 by +2 Acc1 tracks on `.optimal+click`,
+    // meeting the margin gate. The `CLICK_RESCORE_ALPHA_OVERRIDE` env var lets future
+    // sweeps probe alternative defaults without exposing α across the public API.
+    //
+    // Step 9.7 (duration hint) runs immediately after click rescore and feeds into the
+    // same disambiguation. The two compose in series: click damps unmatched candidates
+    // toward `alpha * oldScore`; duration boosts structurally-plausible candidates by
+    // `1 + durationHintBoostWeight`. Duration is corroborative-only — it never damps.
+    let rescoredCandidates: [(bpm: Double, score: Float)] =
+      techniqueSet.contains(.clickTrackCorrelation)
+      ? clickRescore(
+        candidates: candidates,
+        onsetEnvelope: onsetEnvelope,
+        onsetRate: onsetRate,
+        alpha: alphaOverride() ?? 0.7,
+        trace: &trace)
+      : candidates
+
+    // Step 9.7: Duration-derived BPM hint (Story 3-4).
+    // When AudioAnalysisService passes fileDurationSeconds (default-on via
+    // Options.durationHint), candidates matching common bar-count-derived BPMs
+    // (within 2% relative tolerance) receive a 10% multiplicative boost — but only
+    // when the file is at least `durationHintMinFileSeconds` long (default 3 min).
+    // Below the threshold the file is more likely a clip/loop where bar-count math
+    // is structurally meaningless. Weak corroborative prior — never damps.
+    // Composes in series with click rescore.
+    let hintedCandidates: [(bpm: Double, score: Float)] =
+      options.fileDurationSeconds.map { duration in
+        applyDurationHint(
+          candidates: rescoredCandidates,
+          fileDurationSeconds: duration,
+          minFileSeconds: options.durationHintMinFileSeconds,
+          trace: &trace)
+      } ?? rescoredCandidates
+
     // Step 10: Octave disambiguation with sub-band voting
-    var winner = resolveOctaveAmbiguity(
-      candidates: candidates, fused: fused, bpmMin: bpmMin,
+    let disambiguated = resolveOctaveAmbiguity(
+      candidates: hintedCandidates, fused: fused, bpmMin: bpmMin,
       subBandACFs: subBandACFs, onsetRate: onsetRate)
+    var winner = disambiguated.best
+
+    if let ev = disambiguated.evidence {
+      trace?.harmonicRatioDetail = ev
+    }
 
     // Step 10b: Sub-band periodicity confirmation
-    if techniques.contains(.subBandVoting) && !subBandACFs.isEmpty {
+    if techniqueSet.contains(.subBandVoting) && !subBandACFs.isEmpty {
       let preVoteBPM = winner.bpm
       winner = confirmWithSubBandPeaks(
         winner: winner, subBandACFs: subBandACFs, onsetRate: onsetRate)
 
       if options.enableTrace {
         let changed = winner.bpm != preVoteBPM
-        trace?.subBandVoteDetail = [
-          "preVoteBPM": String(format: "%.1f", preVoteBPM),
-          "postVoteBPM": String(format: "%.1f", winner.bpm),
-          "changed": changed ? "true" : "false",
-        ]
+        trace?.subBandVoteDetail = SubBandVoteEvidence(
+          preVoteBPM: preVoteBPM,
+          postVoteBPM: winner.bpm,
+          changed: changed)
       }
     }
 
     trace?.disambiguationResult = (bpm: winner.bpm, score: winner.score)
 
     // Step 10c: Fine-grid tempogram refinement
-    if techniques.contains(.fineGridRefinement) {
+    if techniqueSet.contains(.fineGridRefinement) {
       let refinedCandidates = refineCandidates(
         candidates: [winner],
         onsetEnvelope: onsetEnvelope,
@@ -322,7 +419,10 @@ struct BPMAnalyzer {
 
     trace?.confidence = confidence
 
-    return BPMResult(bpm: bpm, confidence: confidence, candidates: candidates, trace: trace)
+    // BPMResult.candidates carries rescored + duration-hinted values (DD#11 contract);
+    // trace.rawCandidates above preserves the pre-rescore signal for diagnostics.
+    return BPMResult(
+      bpm: bpm, confidence: confidence, candidates: hintedCandidates, trace: trace)
   }
 
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)
@@ -787,10 +887,10 @@ struct BPMAnalyzer {
       let freq = bpm / 60.0
 
       // Compute phase vector: 2*pi*freq*k/onsetRate for k = 0..<windowLength
-      let phaseStep = Float(2.0 * .pi * freq / onsetRate)
-      for k in 0..<windowLength {
-        tempBufs.phase[k] = phaseStep * Float(k)
-      }
+      // via vDSP_vramp (Accelerate-required by CLAUDE.md design constraints).
+      var phaseStart: Float = 0
+      var phaseStep = Float(2.0 * .pi * freq / onsetRate)
+      vDSP_vramp(&phaseStart, &phaseStep, tempBufs.phase, 1, vDSP_Length(windowLength))
 
       // Compute cos and sin via vForce (separate in/out arrays required)
       var count = Int32(windowLength)
@@ -887,10 +987,10 @@ struct BPMAnalyzer {
     buffers: TempogramBuffers
   ) -> Float {
     let freq = bpm / 60.0
-    let phaseStep = Float(2.0 * .pi * freq / onsetRate)
-    for k in 0..<windowLength {
-      buffers.phase[k] = phaseStep * Float(k)
-    }
+    // Phase vector via vDSP_vramp (Accelerate-required by CLAUDE.md design constraints).
+    var phaseStart: Float = 0
+    var phaseStep = Float(2.0 * .pi * freq / onsetRate)
+    vDSP_vramp(&phaseStart, &phaseStep, buffers.phase, 1, vDSP_Length(windowLength))
     var count = Int32(windowLength)
     vvcosf(buffers.cos, buffers.phase, &count)
     vvsinf(buffers.sin, buffers.phase, &count)
@@ -903,9 +1003,73 @@ struct BPMAnalyzer {
     return sqrtf(realSum * realSum + imagSum * imagSum)
   }
 
-  /// Refines coarse integer-BPM candidates to 0.1 BPM resolution using a two-pass approach.
-  /// For each candidate, evaluates the tempogram at 0.1 BPM steps in a ±4 BPM window,
-  /// fuses with ACF, and returns the refined BPM with the highest fused score.
+  /// Refines coarse integer-BPM candidates to sub-BPM resolution.
+  ///
+  /// Note: when `.clickTrackCorrelation` is in the technique set, candidate scores
+  /// are rescored at step 9.5 (between candidate extraction and octave disambiguation)
+  /// via `clickRescore` before this refinement step ever runs.
+  ///
+  /// **Gated hybrid: a fused-score quadratic fit is the default refinement path; a
+  /// tempogram-peak quadratic fit overrides it when a three-condition gate detects
+  /// the parabolic-ACF interpolation bias signature.** Diagnostic findings showed
+  /// that the parabolic-interpolated ACF used in `fusePeriodicity` has two inherent
+  /// biases when scanned at 0.1 BPM resolution within a narrow window:
+  /// (1) sample-anchor switching at `lag = N + 0.5` boundaries (when `lag.rounded()`
+  /// flips) produces 14-75% step jumps in the BPM-domain ACF mapping; and (2) for
+  /// sharp ACF peaks, the parabolic-fit apex is offset from the true continuous peak
+  /// (the offset grows with |t|, the fractional position relative to the rounded
+  /// lag-domain anchor — exact at integer-aligned tempos like 120/150 BPM at 44.1 kHz,
+  /// but ~0.4 BPM for 126 BPM where t≈-0.38). Local max-normalization within the
+  /// scan window amplifies the ACF's bias because the ACF spans ~100x the dynamic
+  /// range of the Hann-windowed tempogram, so the fused product inherits the bias.
+  ///
+  /// The fix avoids touching the shared `parabolicInterpolateACF` (used by
+  /// `fusePeriodicity` for the validated coarse pipeline). Instead it computes a
+  /// fused-score quadratic fit by default — preserving the calibrated coarse-stage
+  /// discriminability that real noisy tracks rely on — and conditionally substitutes
+  /// a tempogram-peak quadratic fit. The tempogram is a smooth DFT magnitude that is
+  /// correctly centered on the true frequency, so when the bias signature appears
+  /// the tempogram peak is the better source.
+  ///
+  /// **Override gate (all three required):**
+  /// - `|tempogramPeak − fusedWinner| ≥ 0.3 BPM` — tempogram and fused disagree
+  /// - `|fusedWinner − coarseCenter| ≥ 0.3 BPM` — fused is displaced from coarse winner
+  /// - `|tempogramPeak − coarseCenter| < |fusedWinner − coarseCenter|` — tempogram is
+  ///   strictly closer to the coarse-pipeline center; the override must improve
+  ///   center agreement, not merely avoid worsening it.
+  ///
+  /// The tempogram local-peak search radius is **±0.4 BPM** around the fused winner.
+  /// Wider radii let distant spurious tempogram peaks (typical of noise/harmonics in
+  /// real recordings) trigger the override and degrade real-track accuracy; the
+  /// 0.4 BPM radius is the minimum that still recovers the diagnosed synthetic peak
+  /// displacement (4 grid steps at 126 BPM, 3 at 140 BPM @ 44.1 kHz).
+  ///
+  /// Real tracks with significant fused-vs-coarse displacement (e.g., the Icicle DAW
+  /// track) can also trigger the override; the gate identifies the displacement
+  /// signature, not synthesis-vs-real. Over the OA300 and GiantSteps corpora the
+  /// override fires rarely enough that Acc1/Acc2 are unchanged; per-track behavior
+  /// can shift in either direction within the 2% Acc1 tolerance.
+  ///
+  /// **Dispatch order (priority):** override beats plateau beats default. A flat
+  /// fused plateau is short-circuited to the integer-midpoint scan-grid index, but
+  /// only when the override gate is NOT firing — the override path takes precedence
+  /// because its three-condition gate has already verified the tempogram offers a
+  /// more credible peak location than the plateau midpoint.
+  ///
+  /// **On override-path quadratic-fit guard failure**, the fallback is the **fused
+  /// winner's** discrete BPM (the spec's "discrete winner BPM as-is"), not the
+  /// tempogram peak's — falling back to the unrefined fused winner is safer than
+  /// committing to a tempogram peak whose curvature was rejected.
+  ///
+  /// Per-fit guards (apply to both refinement paths via `quadraticPeakBPM`):
+  /// - **Edge guard** falls back to `onFailure` when the chosen index has no left
+  ///   or right neighbor.
+  /// - **Concavity guard** (`denom < -epsD`) requires strict downward curvature.
+  /// - **Conditioning guard** (`|offset| ≤ 1`) rejects ill-conditioned fits whose
+  ///   apex falls beyond the immediate neighbors.
+  /// - **Clamp** to `[scanMin, scanMax]` is applied to all output paths to defend
+  ///   against Double quantization drift on the integer-step grid.
+  ///
   /// When `pipelineBuffers` is provided, reuses pre-computed Hann-windowed onset.
   private static func refineCandidates(
     candidates: [(bpm: Double, score: Float)],
@@ -938,53 +1102,238 @@ struct BPMAnalyzer {
     }
     defer { localBufs?.deallocate() }
 
-    // Pre-allocate buffers once, reuse for all ~240 evaluations
+    // Pre-allocate cos/sin/phase buffers once, reuse across ~80 tempogram evaluations per candidate
     let buffers = TempogramBuffers.allocate(capacity: windowLength)
     defer { buffers.deallocate() }
 
+    let stepSize: Double = 0.1
+
+    // Tempogram local-peak search radius around the fused winner. The minimum
+    // that still recovers the diagnosed synthetic-click-track ACF-bias peak
+    // displacement (4 steps at 126 BPM, 3 steps at 140 BPM @ 44.1 kHz). Wider
+    // radii let distant spurious tempogram peaks (typical of noise / harmonics
+    // in real recordings) trigger the override and degrade real-track accuracy.
+    // Validated against OA300 (no regression) and GiantSteps corpora.
+    let tempogramSearchRadiusBPM: Double = 0.4
+
+    // Override gate displacement thresholds. Both gates require ≥ 0.3 BPM
+    // displacement: T-F (tempogram disagrees with fused) and F-C (fused is
+    // displaced from coarse-pipeline center). The third gate condition (T-C
+    // strictly closer to center than F-C) is computed inline at the gate site.
+    let overrideMinDisagreementBPM: Double = 0.3  // T-F threshold
+    let overrideMinFusedOffsetBPM: Double = 0.3  // F-C threshold
+
+    // Convert BPM-domain thresholds to grid steps. Use `floor` for the search
+    // radius (max-radius semantics — the search must stay within ±radius BPM)
+    // and `ceil` for the displacement thresholds (min-threshold semantics —
+    // the gate must fire only when displacement meets or exceeds the BPM
+    // floor). At stepSize = 0.1 these resolve to (4, 3, 3) — bit-equivalent
+    // to the corpus-validated literals; the floor/ceil choice protects the
+    // semantics if stepSize ever changes.
+    let tempogramSearchSteps =
+      Int((tempogramSearchRadiusBPM / stepSize).rounded(.down))
+    let tempogramOverrideDistance =
+      Int((overrideMinDisagreementBPM / stepSize).rounded(.up))
+    let fusedDisplacementThreshold =
+      Int((overrideMinFusedOffsetBPM / stepSize).rounded(.up))
+
     var refined: [(bpm: Double, score: Float)] = []
+    refined.reserveCapacity(candidates.count)
 
     for candidate in candidates {
       let centerBPM = candidate.bpm
       let scanMin = max(Double(bpmRange.lowerBound), centerBPM - 4.0)
       let scanMax = min(Double(bpmRange.upperBound), centerBPM + 4.0)
 
-      // Two-pass: first collect tempogram magnitudes, then normalize and fuse
       // Use integer step counter to avoid floating-point accumulation drift
-      let stepCount = Int(((scanMax - scanMin) / 0.1).rounded()) + 1
-      var scanPoints: [(bpm: Double, tMag: Float, acfVal: Float)] = []
+      let stepCount = Int(((scanMax - scanMin) / stepSize).rounded()) + 1
+      guard stepCount >= 1 else {
+        refined.append((bpm: centerBPM, score: candidate.score))
+        continue
+      }
+
+      // Pass 1: collect tempogram magnitude + parabolic-interpolated ACF at each scan point.
+      var tempogramScores = [Float](repeating: 0, count: stepCount)
+      var acfScores = [Float](repeating: 0, count: stepCount)
       for step in 0..<stepCount {
-        let scanBPM = scanMin + Double(step) * 0.1
+        let scanBPM = scanMin + Double(step) * stepSize
         let tMag = tempogramMagnitude(
           bpm: scanBPM, windowed: windowedPtr, windowLength: windowLength,
           onsetRate: onsetRate, buffers: buffers)
         let lag = 60.0 * onsetRate / scanBPM
         let acfVal = parabolicInterpolateACF(autocorrelation, at: lag)
-        scanPoints.append((bpm: scanBPM, tMag: tMag, acfVal: acfVal))
+        tempogramScores[step] = tMag
+        acfScores[step] = acfVal
       }
 
-      // Normalize both to [0,1] within this candidate's scan window (matching fusePeriodicity)
-      let tMax = scanPoints.map(\.tMag).max() ?? 0
-      let aMax = scanPoints.map(\.acfVal).max() ?? 0
+      // Local max-normalization (matches fusePeriodicity coarse-stage behavior)
+      let tMax = tempogramScores.max() ?? 0
+      let aMax = acfScores.max() ?? 0
 
-      var bestBPM = centerBPM
+      // Pass 2: compute fused scores into a parallel array so post-scan logic
+      // can read winner-neighbor values after the scan completes.
+      var fusedScores = [Float](repeating: 0, count: stepCount)
       var bestFused: Float = 0
-
-      for pt in scanPoints {
-        let normT = tMax > 0 ? pt.tMag / tMax : 0
-        let normA = aMax > 0 ? pt.acfVal / aMax : 0
+      var winnerIdx = -1
+      for i in 0..<stepCount {
+        let normT = tMax > 0 ? tempogramScores[i] / tMax : 0
+        let normA = aMax > 0 ? acfScores[i] / aMax : 0
         let fusedVal = normT * normA
-
+        fusedScores[i] = fusedVal
+        // Strict `>` preserves "first to achieve maximum wins" semantics; the
+        // tie-run handler below corrects the residual low-end plateau bias.
         if fusedVal > bestFused {
           bestFused = fusedVal
-          bestBPM = pt.bpm
+          winnerIdx = i
         }
       }
 
-      refined.append((bpm: bestBPM, score: candidate.score))
+      // Preserve original behavior: if no scan point scored a positive fused
+      // value (e.g., negative ACF overshoot dominates the window), return the
+      // original center BPM unchanged.
+      guard winnerIdx >= 0 else {
+        refined.append((bpm: centerBPM, score: candidate.score))
+        continue
+      }
+
+      // Detect a flat fused plateau around the winner with a relative epsilon.
+      // Strict-`>` already excludes earlier indices from achieving bestFused
+      // exactly; near-ties from Float quantization on adjacent indices count
+      // toward the plateau. Bounds are computed eagerly but consumed only after
+      // the override gate is evaluated — the override path takes precedence
+      // over the plateau short-circuit when both apply.
+      let absMax = max(abs(bestFused), Float(1e-30))
+      let plateauEps: Float = max(Float(1e-6), Float(1e-6) * absMax)
+      var lo = winnerIdx
+      while lo > 0 && abs(fusedScores[lo - 1] - bestFused) <= plateauEps {
+        lo -= 1
+      }
+      var hi = winnerIdx
+      while hi < stepCount - 1 && abs(fusedScores[hi + 1] - bestFused) <= plateauEps {
+        hi += 1
+      }
+      let hasPlateau = hi > lo
+
+      // Tempogram local-peak search within ±tempogramSearchSteps of the fused
+      // winner. Run unconditionally so the override gate can be evaluated even
+      // when a fused plateau is present.
+      let searchLo = max(1, winnerIdx - tempogramSearchSteps)
+      let searchHi = min(stepCount - 2, winnerIdx + tempogramSearchSteps)
+      var tempogramPeakIdx = -1
+      var tempogramPeakValue: Float = 0
+      if searchLo <= searchHi {
+        for i in searchLo...searchHi {
+          let v = tempogramScores[i]
+          if v > tempogramScores[i - 1] && v > tempogramScores[i + 1]
+            && v > tempogramPeakValue
+          {
+            tempogramPeakValue = v
+            tempogramPeakIdx = i
+          }
+        }
+      }
+
+      let centerIdx = Int(((centerBPM - scanMin) / stepSize).rounded())
+
+      // Override gate (all three required):
+      //   (a) |T - F| ≥ tempogramOverrideDistance (≥ overrideMinDisagreementBPM)
+      //       — tempogram and fused disagree about peak location.
+      //   (b) |F - C| ≥ fusedDisplacementThreshold (≥ overrideMinFusedOffsetBPM)
+      //       — fused is displaced from the integer coarse-pipeline center.
+      //   (c) |T - C| < |F - C| — tempogram is strictly closer to the coarse
+      //       center than fused is. The override must improve center agreement,
+      //       not merely avoid worsening it.
+      //
+      // The synthetic 126 BPM case satisfies all three (fused at i=36,
+      // tempogram at i=40, center at i=40 ⇒ |T-F|=4, |F-C|=4, |T-C|=0 < 4).
+      // Real tracks with significant fused-vs-coarse displacement (e.g.,
+      // Icicle in the DAW oracle) can also trigger the override; the gate
+      // identifies the displacement signature, not synthesis-vs-real.
+      let useTempogramOverride =
+        tempogramPeakIdx >= 0
+        && abs(tempogramPeakIdx - winnerIdx) >= tempogramOverrideDistance
+        && abs(winnerIdx - centerIdx) >= fusedDisplacementThreshold
+        && abs(tempogramPeakIdx - centerIdx) < abs(winnerIdx - centerIdx)
+
+      // Fused-winner discrete BPM, clamped to the scan window. Used as the
+      // common fallback for both the override and default refinement paths.
+      let fusedFallbackBPM =
+        min(max(scanMin + Double(winnerIdx) * stepSize, scanMin), scanMax)
+
+      // Dispatch in priority order: override beats plateau beats default.
+      if useTempogramOverride {
+        // Override path: quadratic fit on tempogramScores at tempogramPeakIdx.
+        // On any guard failure (edge / non-concave / |offset| > 1) fall back
+        // to the FUSED winner's discrete BPM — not the tempogram peak's.
+        let bpm = quadraticPeakBPM(
+          scores: tempogramScores, idx: tempogramPeakIdx,
+          scanMin: scanMin, scanMax: scanMax, stepSize: stepSize,
+          stepCount: stepCount, onFailure: fusedFallbackBPM)
+        refined.append((bpm: bpm, score: candidate.score))
+        continue
+      }
+
+      if hasPlateau {
+        // Flat-plateau case: midpoint and short-circuit (no quadratic fit).
+        // Clamp guards against Double quantization drift on the integer grid.
+        let midIdx = Double(lo + hi) * 0.5
+        let mid = scanMin + midIdx * stepSize
+        refined.append(
+          (bpm: min(max(mid, scanMin), scanMax), score: candidate.score))
+        continue
+      }
+
+      // Default fused path: quadratic fit on fused scores at the fused winner.
+      let bpm = quadraticPeakBPM(
+        scores: fusedScores, idx: winnerIdx,
+        scanMin: scanMin, scanMax: scanMax, stepSize: stepSize,
+        stepCount: stepCount, onFailure: fusedFallbackBPM)
+      refined.append((bpm: bpm, score: candidate.score))
     }
 
     return refined
+  }
+
+  /// 3-point quadratic peak fit on `scores[idx-1..idx+1]`, returning a refined
+  /// BPM clamped to `[scanMin, scanMax]`. Falls back to `onFailure` on any of:
+  /// - **Edge guard**: `idx` at the scan-window boundary (no 3-point stencil).
+  /// - **Concavity guard**: `denom < -epsD` (downward-curving parabola) not
+  ///   satisfied. Positive `denom` is a valley/inflection; near-zero `denom`
+  ///   is a flat plateau where the parabolic-fit offset is unstable.
+  /// - **Conditioning guard**: `|offset| > 1` indicates the fit's apex falls
+  ///   beyond the immediate neighbors (poorly conditioned).
+  ///
+  /// `epsD` is a relative epsilon scaled by `magnitudeMax` with a `1e-6` floor
+  /// (above Float ULP noise on unit-normalized fused scores).
+  ///
+  /// 7 parameters (vs SwiftLint's default 5) is intentional: the scan-window
+  /// triplet (`scanMin`, `scanMax`, `stepCount`) plus `stepSize` are all
+  /// per-candidate locals already; bundling them into a struct here would add
+  /// boilerplate without clarity at the single call site.
+  private static func quadraticPeakBPM(  // swiftlint:disable:this function_parameter_count
+    scores: [Float],
+    idx: Int,
+    scanMin: Double,
+    scanMax: Double,
+    stepSize: Double,
+    stepCount: Int,
+    onFailure: Double
+  ) -> Double {
+    if idx <= 0 || idx >= stepCount - 1 {
+      return onFailure
+    }
+    let yPrev = Double(scores[idx - 1])
+    let y0 = Double(scores[idx])
+    let yNext = Double(scores[idx + 1])
+    let denom = yPrev - 2.0 * y0 + yNext
+    let magnitudeMax = max(abs(yPrev), abs(y0), abs(yNext))
+    let epsD = max(1e-6, 1e-6 * magnitudeMax)
+    guard denom < -epsD else { return onFailure }
+    let offset = 0.5 * (yPrev - yNext) / denom
+    guard abs(offset) <= 1.0 else { return onFailure }
+    let bpm0 = scanMin + Double(idx) * stepSize
+    let unclamped = bpm0 + offset * stepSize
+    return min(max(unclamped, scanMin), scanMax)
   }
 
   // MARK: - Periodicity Fusion (Story 33-5, Task 3)
@@ -1191,68 +1540,94 @@ struct BPMAnalyzer {
     return 0
   }
 
-  // MARK: - Octave Disambiguation (Story 33-5, Task 6; updated Story 33-6, Task 4)
+  // MARK: - Octave Disambiguation (Story 33-5, Task 6; updated Story 33-6, Task 4; updated Story 3-1)
+  // HarmonicRatioEvidence is defined publicly in BPMDiagnosticTrace.swift (relocated by Story 3-3b).
 
-  /// Resolves octave ambiguity between candidates using sub-band voting
+  /// Resolves harmonic ambiguity between candidates using sub-band voting
   /// (when available) and fused periodicity heuristic.
-  private static func resolveOctaveAmbiguity(
+  /// Handles 2:1 (octave), 3:2 (triplet), and 3:1 ratios.
+  /// Returns typed evidence for the highest-priority detected pair.
+  static func resolveOctaveAmbiguity(
     candidates: [(bpm: Double, score: Float)],
     fused: [Float],
     bpmMin: Int,
     subBandACFs: [[Float]] = [],
     onsetRate: Double = 0
-  ) -> (bpm: Double, score: Float) {
+  ) -> (best: (bpm: Double, score: Float), evidence: HarmonicRatioEvidence?) {
     guard candidates.count >= 2 else {
-      return candidates.first ?? (bpm: 0, score: 0)
+      return (best: candidates.first ?? (bpm: 0, score: 0), evidence: nil)
     }
 
     var best = candidates[0]
+    var evidence: HarmonicRatioEvidence?
 
-    // Check for octave pairs (2:1 ratio within 4% tolerance)
     for i in 0..<candidates.count {
       for j in (i + 1)..<candidates.count {
         let faster = candidates[i].bpm > candidates[j].bpm ? candidates[i] : candidates[j]
         let slower = candidates[i].bpm > candidates[j].bpm ? candidates[j] : candidates[i]
 
         let ratio = faster.bpm / slower.bpm
-        guard ratio > 1.92 && ratio < 2.08 else { continue }
 
-        // Story 33-6: Sub-band voting promotes to faster tempo only.
-        // If bands vote for faster, override to faster. If bands vote for
-        // slower, fall through to fused-periodicity heuristic (don't demote).
-        if subBandACFs.count == 4 && onsetRate > 0 {
-          let winner = subBandVote(
-            subBandACFs: subBandACFs,
-            candidateFast: faster.bpm,
-            candidateSlow: slower.bpm,
-            onsetRate: onsetRate)
-          if winner == faster.bpm {
-            best = faster
-            continue  // Sub-band vote decided, skip fused heuristic for this pair
-          }
-          // Bands voted slow — fall through to fused-periodicity heuristic
-        }
-
-        // Fallback: original fused-periodicity heuristic
-        let fasterIdx = Int(faster.bpm.rounded()) - bpmMin
-        let slowerIdx = Int(slower.bpm.rounded()) - bpmMin
-
-        if fasterIdx >= 0 && fasterIdx < fused.count && slowerIdx >= 0
-          && slowerIdx < fused.count
-        {
-          let fasterEnergy = fused[fasterIdx]
-          let slowerEnergy = fused[slowerIdx]
-
-          if fasterEnergy >= octaveEnergyThreshold * slowerEnergy {
-            if faster.score >= best.score * octaveScoreThreshold {
+        if ratio > 1.92 && ratio < 2.08 {
+          // 2:1 octave pair
+          if subBandACFs.count == 4 && onsetRate > 0 {
+            let winner = subBandVote(
+              subBandACFs: subBandACFs,
+              candidateFast: faster.bpm,
+              candidateSlow: slower.bpm,
+              onsetRate: onsetRate)
+            if winner == faster.bpm {
               best = faster
+              evidence = HarmonicRatioEvidence(
+                ratio: "2:1", fastBPM: faster.bpm,
+                slowBPM: slower.bpm, winnerBPM: faster.bpm)
+              continue
             }
           }
+
+          // Fallback: fused-periodicity heuristic (calibrated for 2:1 only)
+          let fasterIdx = Int(faster.bpm.rounded()) - bpmMin
+          let slowerIdx = Int(slower.bpm.rounded()) - bpmMin
+
+          if fasterIdx >= 0 && fasterIdx < fused.count && slowerIdx >= 0
+            && slowerIdx < fused.count
+          {
+            let fasterEnergy = fused[fasterIdx]
+            let slowerEnergy = fused[slowerIdx]
+
+            if fasterEnergy >= octaveEnergyThreshold * slowerEnergy {
+              if faster.score >= best.score * octaveScoreThreshold {
+                best = faster
+                evidence = HarmonicRatioEvidence(
+                  ratio: "2:1", fastBPM: faster.bpm,
+                  slowBPM: slower.bpm, winnerBPM: faster.bpm)
+              }
+            }
+          }
+
+        } else if ratio > 1.45 && ratio < 1.55 {
+          // 3:2 triplet pair — trace-only, does not modify best
+          if evidence == nil || evidence?.ratio == "3:1" {
+            evidence = HarmonicRatioEvidence(
+              ratio: "3:2", fastBPM: faster.bpm,
+              slowBPM: slower.bpm, winnerBPM: best.bpm)
+          }
+
+        } else if ratio > 2.85 && ratio < 3.15 {
+          // 3:1 ratio pair — trace-only, does not modify best
+          if evidence == nil {
+            evidence = HarmonicRatioEvidence(
+              ratio: "3:1", fastBPM: faster.bpm,
+              slowBPM: slower.bpm, winnerBPM: best.bpm)
+          }
+
+        } else {
+          continue
         }
       }
     }
 
-    return best
+    return (best: best, evidence: evidence)
   }
 
   // MARK: - Sub-Band Periodicity Confirmation (Story 33-6)
@@ -1466,5 +1841,365 @@ struct BPMAnalyzer {
     var indexed = array.enumerated().map { (index: $0.offset, value: $0.element) }
     indexed.sort { $0.value > $1.value }
     return Array(indexed.prefix(topN))
+  }
+
+  // MARK: - Click-Track Cross-Correlation (Story 3-3)
+
+  /// Reads `CLICK_RESCORE_ALPHA_OVERRIDE` env var as `Float` for the Story 3-3 Task 3.3
+  /// α-sweep. Returns `nil` when unset / unparseable / out of `[0, 1]`. Test-only hook.
+  ///
+  /// Gated by `#if DEBUG` so Release builds CANNOT have BPM results silently mutated
+  /// by a process env var (Story 3-3 review patch P2 / Codex Blind-Hunter finding).
+  private static func alphaOverride() -> Float? {
+    #if DEBUG
+      guard let raw = ProcessInfo.processInfo.environment["CLICK_RESCORE_ALPHA_OVERRIDE"],
+        let value = Float(raw),
+        value >= 0, value <= 1
+      else {
+        return nil
+      }
+      return value
+    #else
+      return nil
+    #endif
+  }
+
+  /// Synthesizes an envelope-rate click kernel for normalized cross-correlation.
+  ///
+  /// The kernel is `clickCount` unit impulses spaced at `60 · onsetRate / bpm` frames.
+  /// Indices are computed via `Int((Double(k) * period).rounded())` for `k ∈ 0..<clickCount`,
+  /// then the array is sized to `indices.last! + 1` so every write is in bounds (DD#8;
+  /// the older `Int(period * (clickCount - 1)) + 1` formula could yield `index == length`
+  /// for fractional periods like 60/61 · 100 = 98.36...).
+  ///
+  /// **Visibility is `internal static`**: tests in `BoomBoomBoomKitTests` use
+  /// `@testable import BoomBoomBoomKit` to call this directly (DD#5).
+  ///
+  /// Guards: returns empty `[Float]` when `bpm <= 0`, `!bpm.isFinite`, `onsetRate <= 0`,
+  /// `clickCount < 4`, or `period < 1.0` (BPMs > 6000 alias at 100 Hz onset rate).
+  /// The caller treats an empty kernel as "skip rescoring for this candidate; preserve
+  /// the original score" (combined with DD#13b uniform-skip in `clickRescore`).
+  ///
+  /// - Parameters:
+  ///   - bpm: Candidate beats-per-minute.
+  ///   - onsetRate: Onset envelope frame rate (sampleRate / hopSize ≈ 100 Hz).
+  ///   - clickCount: Number of unit impulses (default 8, minimum 4).
+  /// - Returns: Click kernel as `[Float]` of length `lastIndex + 1`, or empty on guard hit.
+  internal static func synthesizeClickPattern(
+    bpm: Double,
+    onsetRate: Double,
+    clickCount: Int = 8
+  ) -> [Float] {
+    guard bpm > 0, bpm.isFinite, onsetRate > 0, onsetRate.isFinite, clickCount >= 4 else {
+      return []
+    }
+    let period = 60.0 * onsetRate / bpm
+    guard period >= 1.0 else { return [] }
+
+    // Compute indices first, then size the array to indices.last! + 1 (DD#8).
+    let indices = (0..<clickCount).map { Int((Double($0) * period).rounded()) }
+    guard let last = indices.last else { return [] }
+    let length = last + 1
+    var pattern = [Float](repeating: 0, count: length)
+    for idx in indices {
+      pattern[idx] = 1.0
+    }
+    return pattern
+  }
+
+  /// Rescore candidates by normalized cross-correlation between a synthetic click
+  /// kernel at each candidate BPM and the onset envelope.
+  ///
+  /// Per-candidate score: `oldScore * (alpha + (1 - alpha) * bestNCC)` where
+  /// `bestNCC = max over lags ℓ of dot(kernel, envelope[ℓ:ℓ+L]) / (||kernel||₂ · ||envelope[ℓ:ℓ+L]||₂)`,
+  /// bounded in `[0, 1]` by Cauchy–Schwarz. The blend always damps (multiplier ≤ 1) —
+  /// it never boosts the absolute score; it tempers candidates that fail the
+  /// rhythmic-alignment check while preserving most of the upstream-calibrated ordering.
+  ///
+  /// **Sparse normalized beat-search** (DD#6): the kernel is overwhelmingly zeros (8
+  /// unit impulses among ~480 frames at 60 BPM × 100 Hz). The inner loop iterates the
+  /// small `clickIndices` array (size = `clickCount`, default 8) — not a loop over
+  /// the signal buffer. The equivalent dense `vDSP_conv` path passes the kernel as-is
+  /// with `IF = +1` per `vDSP.h:2328` (correlation when `IF > 0`; pre-reversal would
+  /// silently invert the operation back to convolution).
+  ///
+  /// **Uniform-skip guard** (DD#13b): if ANY candidate's kernel doesn't fit the
+  /// envelope (`outputLen <= 0`), the function returns `candidates` unchanged for the
+  /// ENTIRE candidate set. Skipping only the offending candidate would advantage it
+  /// (its `oldScore × 1.0` would compete with rescored values < 1).
+  ///
+  /// **Zero-energy guard** (DD#13a): per-lag, if `||envelope[ℓ:ℓ+L]||₂ == 0`, the lag
+  /// is skipped (treated as score 0).
+  ///
+  /// Trace population: when `trace` is non-nil, sets `clickCorrelationDetail` to
+  /// one ``ClickCorrelationEntry`` per candidate, preserving the input-order
+  /// `candidateIndex`, full-precision `bpm`, and normalized click score.
+  ///
+  /// **Visibility is `internal static`** (DD#5): tests use `@testable import` to call
+  /// this directly.
+  ///
+  /// - Parameters:
+  ///   - candidates: Pre-disambiguation candidates `(bpm, score)`.
+  ///   - onsetEnvelope: Full-band onset envelope at `onsetRate` Hz.
+  ///   - onsetRate: Onset envelope frame rate.
+  ///   - alpha: Damping floor in `[0, 1]` (default 0.7, finalized by Task 3.3 α-sweep).
+  ///   - trace: Optional diagnostic trace; populates `clickCorrelationDetail`.
+  /// - Returns: Rescored candidates, sorted descending by score with stable index tiebreaker.
+  internal static func clickRescore(
+    candidates: [(bpm: Double, score: Float)],
+    onsetEnvelope: [Float],
+    onsetRate: Double,
+    alpha: Float = 0.7,
+    trace: inout BPMDiagnosticTrace?
+  ) -> [(bpm: Double, score: Float)] {
+    guard !candidates.isEmpty, !onsetEnvelope.isEmpty else { return candidates }
+
+    // Defensive clamp: alpha must be in [0, 1] to preserve the "blend always damps"
+    // invariant promised in the doc-comment. Direct internal callers (tests, future
+    // ablation hooks) could pass out-of-range values; clamp instead of trapping so
+    // the pipeline degrades gracefully.
+    let alpha = max(Float(0), min(alpha, Float(1)))
+
+    // Pre-flight: synthesize all kernels and check that every candidate's kernel
+    // fits the envelope. Uniform-skip if ANY kernel is empty or doesn't fit (DD#13b).
+    var kernels: [[Float]] = []
+    kernels.reserveCapacity(candidates.count)
+    for cand in candidates {
+      let kernel = synthesizeClickPattern(bpm: cand.bpm, onsetRate: onsetRate)
+      if kernel.isEmpty || onsetEnvelope.count < kernel.count {
+        return candidates
+      }
+      kernels.append(kernel)
+    }
+
+    // Cumulative sum-of-squares of the envelope (one O(N) pass), reused across candidates.
+    let envCount = onsetEnvelope.count
+    var sq = [Float](repeating: 0, count: envCount)
+    vDSP.square(onsetEnvelope, result: &sq)
+    var cumSumSq = [Float](repeating: 0, count: envCount + 1)
+    var running: Float = 0
+    for i in 0..<envCount {
+      running += sq[i]
+      cumSumSq[i + 1] = running
+    }
+
+    // Per-candidate sparse normalized beat-search.
+    var newScores: [Float] = []
+    newScores.reserveCapacity(candidates.count)
+    let writeTrace = trace != nil
+    var entries: [ClickCorrelationEntry] = []
+    if writeTrace { entries.reserveCapacity(candidates.count) }
+
+    for (idx, cand) in candidates.enumerated() {
+      let kernel = kernels[idx]
+      let kernelLength = kernel.count
+      let outputLen = envCount - kernelLength + 1
+      // outputLen > 0 by pre-flight — but defensively guard anyway.
+      guard outputLen > 0 else { return candidates }
+
+      // Click indices (where kernel is non-zero).
+      var clickIndices: [Int] = []
+      clickIndices.reserveCapacity(kernel.count)
+      for k in 0..<kernelLength where kernel[k] != 0 {
+        clickIndices.append(k)
+      }
+      guard !clickIndices.isEmpty else {
+        newScores.append(cand.score * alpha)
+        if writeTrace {
+          entries.append(
+            ClickCorrelationEntry(candidateIndex: idx, bpm: cand.bpm, normalizedClickScore: 0))
+        }
+        continue
+      }
+
+      // Kernel L2 norm via vDSP_svesq (handles future tapered kernels too).
+      var kernelSumSq: Float = 0
+      kernel.withUnsafeBufferPointer { kPtr in
+        vDSP_svesq(kPtr.baseAddress!, 1, &kernelSumSq, vDSP_Length(kernelLength))
+      }
+      let kernelL2 = sqrtf(kernelSumSq)
+      guard kernelL2 > 0 else {
+        newScores.append(cand.score * alpha)
+        if writeTrace {
+          entries.append(
+            ClickCorrelationEntry(candidateIndex: idx, bpm: cand.bpm, normalizedClickScore: 0))
+        }
+        continue
+      }
+
+      var bestNCC: Float = 0
+      onsetEnvelope.withUnsafeBufferPointer { envPtr in
+        let env = envPtr.baseAddress!
+        for lag in 0..<outputLen {
+          var dot: Float = 0
+          for offset in clickIndices {
+            dot += env[lag + offset]
+          }
+          let segSumSq = cumSumSq[lag + kernelLength] - cumSumSq[lag]
+          guard segSumSq > 0 else { continue }  // DD#13a zero-energy guard.
+          let segL2 = sqrtf(segSumSq)
+          let ncc = dot / (kernelL2 * segL2)
+          if ncc > bestNCC { bestNCC = ncc }
+        }
+      }
+
+      // Clamp bestNCC to [0, 1]. Cauchy-Schwarz guarantees this mathematically, but
+      // FP rounding can push it slightly above 1.0 or produce non-finite values when
+      // the envelope contains pathological data. Clamping protects the damping invariant.
+      let clampedNCC = bestNCC.isFinite ? max(Float(0), min(bestNCC, Float(1))) : 0
+      newScores.append(cand.score * (alpha + (1.0 - alpha) * clampedNCC))
+      if writeTrace {
+        entries.append(
+          ClickCorrelationEntry(
+            candidateIndex: idx, bpm: cand.bpm, normalizedClickScore: clampedNCC))
+      }
+    }
+
+    if writeTrace {
+      trace?.clickCorrelationDetail = entries
+    }
+
+    // Sort with explicit index tiebreaker for determinism (Swift Array.sort is not stable).
+    let zipped: [(offset: Int, bpm: Double, newScore: Float)] = candidates.enumerated().map {
+      (offset: $0.offset, bpm: $0.element.bpm, newScore: newScores[$0.offset])
+    }
+    let sorted = zipped.sorted { lhs, rhs in
+      lhs.newScore != rhs.newScore ? lhs.newScore > rhs.newScore : lhs.offset < rhs.offset
+    }
+    return sorted.map { (bpm: $0.bpm, score: $0.newScore) }
+  }
+
+  // MARK: - Duration-Derived BPM Hint (Story 3-4, Step 9.7)
+
+  /// Computes structurally-plausible BPMs from common bar counts at a given file duration.
+  ///
+  /// For each bar count `B` in `durationHintBarCounts`, the corresponding BPM is
+  /// `B * 4 * 60 / durationSeconds` (assumes 4/4 time, 4 beats per bar). Only BPMs
+  /// falling within the perceptual range (`60...200`) are returned. Out-of-range
+  /// pairs are silently dropped — the helper degrades gracefully on very short and
+  /// very long files (per AC #3c).
+  ///
+  /// When `durationSeconds < minFileSeconds`, returns `[]` immediately because
+  /// bar-count math is only meaningful when the file is a full song (clips fail
+  /// the structural assumption).
+  ///
+  /// Internal (not private) so unit tests can exercise it directly via `@testable
+  /// import BoomBoomBoomKit`.
+  ///
+  /// - Parameters:
+  ///   - durationSeconds: Full file duration in seconds (NOT analysis-window duration —
+  ///     bar-count math is only musically meaningful at file-level scale).
+  ///   - minFileSeconds: Threshold below which the helper returns `[]`. Defaults to
+  ///     `durationHintMinFileSecondsDefault` (180s). Pass `0` in tests that exercise
+  ///     the bar-count math itself rather than the threshold gate.
+  /// - Returns: Pairs of `(bars, bpm)` whose `bpm` lies within the perceptual range.
+  static func applyDurationHintBarCounts(
+    durationSeconds: Double,
+    minFileSeconds: Double = durationHintMinFileSecondsDefault
+  ) -> [(bars: Int, bpm: Double)] {
+    guard durationSeconds > 0, durationSeconds.isFinite else { return [] }
+    // NaN / Inf threshold falls back to the documented default; negative threshold
+    // clamps to 0 ("no minimum"). Validates code-review Patch #6 (Story 3-4).
+    let effectiveMin: Double =
+      minFileSeconds.isFinite ? max(0, minFileSeconds) : durationHintMinFileSecondsDefault
+    guard durationSeconds >= effectiveMin else { return [] }
+    var result: [(bars: Int, bpm: Double)] = []
+    result.reserveCapacity(durationHintBarCounts.count)
+    for bars in durationHintBarCounts {
+      let bpm = Double(bars) * 4.0 * 60.0 / durationSeconds
+      if bpm >= perceptualMinBPM && bpm <= perceptualMaxBPM {
+        result.append((bars: bars, bpm: bpm))
+      }
+    }
+    return result
+  }
+
+  /// Applies the duration-derived BPM hint to a candidate set: any candidate whose BPM
+  /// matches a structurally-plausible bar-count-derived BPM (within the relative
+  /// tolerance) has its score multiplied by `1 + durationHintBoostWeight` exactly once
+  /// (no compounding when multiple bar counts match).
+  ///
+  /// Corroborative-not-authoritative: unmatched candidates are NEVER damped — distinct
+  /// from click rescore's blend, which damps when NCC < 1.
+  ///
+  /// Trace population (when `trace` is non-nil): always populates all three fields of
+  /// `DurationHintEvidence` when the helper runs (even if no boost fires) so the
+  /// diagnostic distinguishes "feature off" (`trace?.durationHintDetail == nil`) from
+  /// "feature on but no in-range bars"
+  /// (`trace?.durationHintDetail?.barCandidates.isEmpty == true`).
+  ///
+  /// Internal (not private) so unit tests can exercise it directly via `@testable
+  /// import BoomBoomBoomKit` — same access pattern as `clickRescore` and `subBandVote`.
+  ///
+  /// - Parameters:
+  ///   - candidates: Pre-hint candidate array (typically the output of step 9.5
+  ///     click rescore, or the raw extraction when click rescore is inactive).
+  ///   - fileDurationSeconds: Full file duration in seconds.
+  ///   - minFileSeconds: Threshold below which the helper produces no boosts (clip
+  ///     vs full-song gate). Defaults to `durationHintMinFileSecondsDefault` (180s).
+  ///   - trace: Diagnostic trace inout — populated when non-nil.
+  /// - Returns: Boosted candidates sorted descending by score with a tiebreaker on
+  ///   original index (deterministic per Story 3-3 DD#6).
+  static func applyDurationHint(
+    candidates: [(bpm: Double, score: Float)],
+    fileDurationSeconds: Double,
+    minFileSeconds: Double = durationHintMinFileSecondsDefault,
+    trace: inout BPMDiagnosticTrace?
+  ) -> [(bpm: Double, score: Float)] {
+    let barCandidates = applyDurationHintBarCounts(
+      durationSeconds: fileDurationSeconds, minFileSeconds: minFileSeconds)
+
+    // Trace: always set fileDurationSeconds and barCandidates when the helper runs.
+    let writeTrace = trace != nil
+
+    // Compute boosted scores (per-candidate idempotent boost).
+    let boostMultiplier = 1.0 + durationHintBoostWeight
+    var boostedBPMs: [Double] = []
+    var newScores: [Float] = []
+    newScores.reserveCapacity(candidates.count)
+    for cand in candidates {
+      let matched = barCandidates.contains {
+        abs(cand.bpm - $0.bpm) / $0.bpm <= durationHintTolerance
+      }
+      if matched {
+        newScores.append(cand.score * boostMultiplier)
+        boostedBPMs.append(cand.bpm)
+      } else {
+        newScores.append(cand.score)
+      }
+    }
+
+    if writeTrace {
+      let typedBars = barCandidates.map { BarCandidate(bars: $0.bars, bpm: $0.bpm) }
+      trace?.durationHintDetail = DurationHintEvidence(
+        fileDurationSeconds: fileDurationSeconds,
+        barCandidates: typedBars,
+        boostedCandidates: boostedBPMs)
+    }
+
+    // No-op guard (code-review Patch #1, Story 3-4): when no candidate matched a
+    // bar-count BPM, every entry of `newScores` equals the input score, so re-sorting
+    // could only reorder previously-equal scores. AC #3 contracts that "the original
+    // candidates array flows unchanged" on no-op paths — preserve input order verbatim.
+    if boostedBPMs.isEmpty { return candidates }
+
+    // Sort with explicit tiebreaker on original index for determinism.
+    // Non-finite-score handling (code-review Patch #2): NaN scores break the comparator
+    // because both `NaN > x` and `NaN < x` are false AND `NaN != x` is true, so the
+    // offset tiebreaker would never fire — non-deterministic. Branch on `isNaN` first so
+    // NaN scores rank below all real scores, then the offset tiebreaker resolves ties
+    // (including NaN-vs-NaN). `+Inf` follows normal IEEE 754 ordering — it ranks
+    // legitimately at the top, not as a defensive demotion.
+    let zipped: [(offset: Int, bpm: Double, newScore: Float)] = candidates.enumerated().map {
+      (offset: $0.offset, bpm: $0.element.bpm, newScore: newScores[$0.offset])
+    }
+    let sorted = zipped.sorted { lhs, rhs in
+      if lhs.newScore.isNaN != rhs.newScore.isNaN { return !lhs.newScore.isNaN }
+      if !lhs.newScore.isNaN && lhs.newScore != rhs.newScore {
+        return lhs.newScore > rhs.newScore
+      }
+      return lhs.offset < rhs.offset
+    }
+    return sorted.map { (bpm: $0.bpm, score: $0.newScore) }
   }
 }

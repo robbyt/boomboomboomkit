@@ -121,6 +121,39 @@ public struct PCMBufferReader {
     return (samples: mono, sampleRate: format.sampleRate)
   }
 
+  /// Reads the duration of an audio file in seconds via AVAudioFile metadata.
+  ///
+  /// Cheap operation — opens the file but does not decode PCM samples.
+  /// Used by the duration-derived BPM hint (Story 3-4) at step 9.7 of the BPM
+  /// pipeline. Public so that callers needing the duration without the full
+  /// PCM read (e.g., UI chrome like "Loading 3:42 of audio…") can use it.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file.
+  /// - Returns: Duration in seconds, or `0.0` for zero-length files
+  ///   (mirrors `readMonoSamples` zero-frame behavior).
+  /// - Throws: `PCMBufferReaderError.fileNotReadable(url)` if the file cannot be opened.
+  public static func fileDuration(url: URL) throws -> Double {
+    let file: AVAudioFile
+    do {
+      file = try AVAudioFile(forReading: url)
+    } catch {
+      throw PCMBufferReaderError.fileNotReadable(url)
+    }
+
+    // Validate sampleRate is a usable, finite, positive number before dividing.
+    // Malformed or unusual file metadata could otherwise yield `inf` / `nan` from
+    // `Double(file.length) / sampleRate`, breaking the public-API contract that
+    // promises seconds. Code-review Patch #5 (Story 3-4).
+    let sampleRate = file.processingFormat.sampleRate
+    guard sampleRate.isFinite, sampleRate > 0 else {
+      throw PCMBufferReaderError.fileNotReadable(url)
+    }
+
+    if file.length == 0 { return 0.0 }
+    return Double(file.length) / sampleRate
+  }
+
   // MARK: - Channel Mixdown
 
   private static func mixStereoToMono(

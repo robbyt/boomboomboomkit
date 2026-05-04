@@ -74,6 +74,83 @@ struct GiantStepsBenchmarkTests {
         print("(\(metrics.failures.count - 30) more failures omitted)")
       }
     }
+
+    // Story 3-3 AC #6 + Story 3-4 AC #4 floors: unconditional `#expect` on every CI
+    // invocation regardless of preset membership. Catches wiring bugs that
+    // "by construction" reasoning would miss.
+    #expect(
+      metrics.acc1Correct >= 537,
+      "AC #6 GiantSteps Acc1 regression: expected >= 537/661 (81.2%), got \(metrics.acc1Correct)/\(metrics.total)"
+    )
+    #expect(
+      metrics.acc2Correct >= 546,
+      "AC #6 GiantSteps Acc2 regression: expected >= 546/661 (82.6%), got \(metrics.acc2Correct)/\(metrics.total)"
+    )
+  }
+
+  // Story 3-4 AC #5: opt-out regression-safety control. With `durationHint: false`,
+  // GiantSteps must match the pre-Story-3-4 baseline EXACTLY (537/661 Acc1, 546/661 Acc2
+  // under strict-2% tolerance, matching Story 3-3a Completion Notes). Story 3.6 AC #4
+  // also requires `metadataPolicy = .disabled` to keep the byte-equality contract.
+  @Test("AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY")
+  func benchmarkDurationHintOptOut() async throws {
+    let (metrics, _) = try await runBenchmark(
+      intensity: .default, tolerance: 0.02,
+      durationHint: false, metadataPolicy: .disabled)
+    print("\n=== GiantSteps Benchmark — durationHint=false (AC #5 control) ===")
+    print(
+      "Acc1: \(metrics.acc1Correct)/\(metrics.total), Acc2: \(metrics.acc2Correct)/\(metrics.total)"
+    )
+    #expect(
+      metrics.acc1Correct == 537,
+      "AC #5 GiantSteps Acc1 (durationHint=false) must equal 537/661 EXACTLY, got \(metrics.acc1Correct)/\(metrics.total)"
+    )
+    #expect(
+      metrics.acc2Correct == 546,
+      "AC #5 GiantSteps Acc2 (durationHint=false) must equal 546/661 EXACTLY, got \(metrics.acc2Correct)/\(metrics.total)"
+    )
+  }
+
+  // Story 3-5 Task 8.3 — corpus regression `#expect` for AC #4.
+  // Baseline captured at git SHA `ba6ba523990aecef872c0bdff96b758918609eee`
+  // (post-Story-3-4 close-out, pre-Story-3-5) via a temporary harness running
+  // `runBenchmark(intensity: .default, mergeStrategy: .windowVoting,
+  // tolerance: 0.02)`. Drift indicates the Story 3-5 wiring leaked state into
+  // the default windowVoting code path.
+  @Test("AC #4: windowVoting + .simpleMajority matches pre-Story-3-5 baseline EXACTLY")
+  func windowVotingDefaultPolicyMatchesBaseline() async throws {
+    // Hardcoded from Task 0 baseline capture (see story Debug Log References).
+    let giantStepsAcc1Baseline = 537
+    let giantStepsAcc2Baseline = 546
+    let total = 661
+
+    // Story 3.6 AC #4: this exact-baseline test predates metadata corroboration.
+    // Setting `.disabled` preserves the pre-Story-3.6 pipeline so the byte-equality
+    // contract still holds.
+    let (metrics, perTrack) = try await runBenchmark(
+      intensity: .default, mergeStrategy: .windowVoting, tolerance: 0.02,
+      metadataPolicy: .disabled)
+
+    // Surface analyzeBPM nils explicitly — without this guard, a transient
+    // AVFoundation failure would silently lower Acc1 and fail the unconditional
+    // baseline check below with a misleading "Acc1 must equal 537/661" message.
+    let nilTracks = perTrack.filter { $0.detected == nil }.map { $0.track.filename }
+    #expect(
+      nilTracks.isEmpty,
+      "AC #4 baseline: \(nilTracks.count) tracks returned nil from analyzeBPM (failure precedes Acc1/Acc2 drift): \(nilTracks.prefix(5))"
+    )
+
+    #expect(
+      metrics.total == total,
+      "Expected \(total) GiantSteps tracks at baseline; got \(metrics.total)")
+    #expect(
+      metrics.acc1Correct == giantStepsAcc1Baseline,
+      "AC #4: GiantSteps windowVoting+.simpleMajority Acc1 must equal \(giantStepsAcc1Baseline)/\(total) EXACTLY, got \(metrics.acc1Correct)/\(metrics.total)"
+    )
+    #expect(
+      metrics.acc2Correct == giantStepsAcc2Baseline,
+      "AC #4: GiantSteps windowVoting+.simpleMajority Acc2 must equal \(giantStepsAcc2Baseline)/\(total) EXACTLY, got \(metrics.acc2Correct)/\(metrics.total)"
+    )
   }
 
   @Test("benchmark Acc1 strict (2% tolerance)")
@@ -176,7 +253,9 @@ struct GiantStepsBenchmarkTests {
   private func runBenchmark(
     intensity: AnalysisIntensity,
     mergeStrategy: CandidateMergeStrategy = .maxConfidence,
-    tolerance: Double
+    tolerance: Double,
+    durationHint: Bool = true,
+    metadataPolicy: MetadataPolicy = .default
   ) async throws -> (
     metrics: AccuracyMetrics, perTrack: [(track: GiantStepsTrack, detected: Double?)]
   ) {
@@ -197,6 +276,8 @@ struct GiantStepsBenchmarkTests {
                 var o = AudioAnalysisService.Options()
                 o.intensity = intensity
                 o.mergeStrategy = mergeStrategy
+                o.durationHint = durationHint
+                o.metadataPolicy = metadataPolicy
                 return o
               }()))?.bpm
           )

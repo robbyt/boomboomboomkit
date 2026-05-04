@@ -43,11 +43,18 @@ public struct AnalysisIntensity: Sendable, Hashable, Comparable {
 
   /// The technique set for this intensity level, based on empirical ablation data.
   ///
-  /// Mapping (ADR-2, Phase 2):
+  /// Mapping (ADR-2, Phase 2; Story 3-3 ablation revisited but did not change):
   /// - Level 1: empty (minimal pipeline, 1 candidate, no disambiguation)
   /// - Level 2: voting + fineGrid (baseline, 3 candidates)
   /// - Level 3-7: sharp + voting + fineGrid (optimal, 3 candidates, Acc1=67.1%)
   /// - Level 8-10: reserved for ML (same DSP as level 7)
+  ///
+  /// `.clickTrackCorrelation` is NOT in any default-mapped intensity level:
+  /// Story 3-3 ablation showed it ties `.optimal` Acc1 at α=0.7 (no margin to insert).
+  /// Users who want the technique can opt in by setting
+  /// `AudioAnalysisService.Options.techniqueSet = .clickAugmented`, which overrides the
+  /// intensity-derived default. (Story 3-3a will broaden this override pattern across
+  /// the rest of the public API.)
   public var techniqueSet: TechniqueSet {
     switch rawValue {
     case 1:

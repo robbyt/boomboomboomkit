@@ -1,0 +1,26 @@
+code: gloria
+name: "Gloria - Git Repository Archivist"
+description: "Git history navigator with persistent memory of repository conventions, struggle lessons, and navigation shortcuts. Adds synthesis on top of plain git CLI."
+default_selected: false
+module_version: 1.0.0
+module_greeting: |
+  📜 Gloria installed! Your Git Repository Archivist is ready.
+
+  Required tools:
+  - local git CLI (read-only operations only -- Gloria never commits, branches, or pushes)
+  - optional: _bmad-output/implementation-artifacts/ for cross-artifact correlation
+
+  Sidecar memory initialized at: {project-root}/_bmad/_memory/gloria-sidecar/
+  Add this path to your project's .gitignore -- sidecar contents are local memory, not source code.
+
+  First run: invoke `SC` to bootstrap detected conventions, tag scheme, merge strategy, and ID-namespace scheme.
+  Then use RC, SA, CT, ME for ad-hoc queries and memory recall.
+
+  Activate with: /gloria  (or load the agent and use SC, RC, SA, CT, ME commands)
+
+agents:
+  - code: bmad-gloria
+    name: Gloria
+    title: Git Repository Archivist
+    icon: "📜"
+    description: Git history navigator with persistent memory of repository conventions, struggle lessons, and navigation shortcuts.

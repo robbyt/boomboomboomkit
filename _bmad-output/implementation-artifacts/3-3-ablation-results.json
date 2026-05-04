@@ -1,0 +1,1100 @@
+{
+  "regressionGate" : {
+    "clickOffCombos" : [
+      "minimal",
+      "sharp",
+      "thresh",
+      "sharp+thresh",
+      "norm",
+      "sharp+norm",
+      "thresh+norm",
+      "sharp+thresh+norm",
+      "top5",
+      "sharp+top5",
+      "thresh+top5",
+      "sharp+thresh+top5",
+      "top5+norm",
+      "sharp+top5+norm",
+      "thresh+top5+norm",
+      "sharp+thresh+top5+norm",
+      "fine",
+      "sharp+fine",
+      "thresh+fine",
+      "sharp+thresh+fine",
+      "fine+norm",
+      "sharp+fine+norm",
+      "thresh+fine+norm",
+      "sharp+thresh+fine+norm",
+      "top5+fine",
+      "sharp+top5+fine",
+      "thresh+top5+fine",
+      "sharp+thresh+top5+fine",
+      "top5+fine+norm",
+      "sharp+top5+fine+norm",
+      "thresh+top5+fine+norm",
+      "sharp+thresh+top5+fine+norm",
+      "vote",
+      "sharp+vote",
+      "thresh+vote",
+      "sharp+thresh+vote",
+      "norm+vote",
+      "sharp+norm+vote",
+      "thresh+norm+vote",
+      "sharp+thresh+norm+vote",
+      "top5+vote",
+      "sharp+top5+vote",
+      "thresh+top5+vote",
+      "sharp+thresh+top5+vote",
+      "top5+norm+vote",
+      "sharp+top5+norm+vote",
+      "thresh+top5+norm+vote",
+      "sharp+thresh+top5+norm+vote",
+      "fine+vote",
+      "sharp+fine+vote",
+      "thresh+fine+vote",
+      "sharp+thresh+fine+vote",
+      "fine+norm+vote",
+      "sharp+fine+norm+vote",
+      "thresh+fine+norm+vote",
+      "sharp+thresh+fine+norm+vote",
+      "top5+fine+vote",
+      "sharp+top5+fine+vote",
+      "thresh+top5+fine+vote",
+      "sharp+thresh+top5+fine+vote",
+      "top5+fine+norm+vote",
+      "sharp+top5+fine+norm+vote",
+      "thresh+top5+fine+norm+vote",
+      "sharp+thresh+top5+fine+norm+vote"
+    ],
+    "note" : "Story 3-2 baseline comparison reserved (vsStory32BaselineDeltaAcc1 = null) until a stored Story 3-2 baseline JSON is added. The current gate is optimalAcc1 >= 55 (carried from Story 3-2). Click-on combos report clickOnVsOffDeltaAcc1 vs their click-off twins for paired comparison.",
+    "optimalAcc1" : 55,
+    "optimalAcc1Floor" : 55,
+    "status" : "pass"
+  },
+  "rows" : [
+    {
+      "acc1" : 40,
+      "acc2" : 52,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "minimal",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 46,
+      "acc2" : 58,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 40,
+      "acc2" : 52,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 46,
+      "acc2" : 58,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 39,
+      "acc2" : 52,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 46,
+      "acc2" : 58,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 39,
+      "acc2" : 52,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 46,
+      "acc2" : 58,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 41,
+      "acc2" : 53,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 58,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 41,
+      "acc2" : 53,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 58,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 41,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 60,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 48,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 41,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 60,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 48,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "thresh+top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : null,
+      "label" : "sharp+thresh+top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 41,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 3,
+      "label" : "sharp+click",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 41,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 3,
+      "label" : "sharp+click+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 40,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click+top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 3,
+      "label" : "sharp+click+top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click+top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 40,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click+top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 3,
+      "label" : "sharp+click+top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click+top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 42,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 2,
+      "label" : "sharp+click+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 42,
+      "acc2" : 54,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 2,
+      "label" : "sharp+click+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 47,
+      "acc2" : 61,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 42,
+      "acc2" : 55,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click+top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 2,
+      "label" : "sharp+click+top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click+top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 48,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5+fine",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 42,
+      "acc2" : 55,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "click+top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 2,
+      "label" : "sharp+click+top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "thresh+click+top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 48,
+      "acc2" : 62,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5+fine+norm",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "click+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 69,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "sharp+click+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "click+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 69,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "sharp+click+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 51,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "click+top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "sharp+click+top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "click+top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : 1,
+      "label" : "sharp+click+top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 66,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 65,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "click+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 68,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+click+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 52,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "click+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 68,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+click+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "click+top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+click+top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5+fine+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "click+top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+click+top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 50,
+      "acc2" : 63,
+      "clickOnVsOffDeltaAcc1" : -1,
+      "label" : "thresh+click+top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    },
+    {
+      "acc1" : 49,
+      "acc2" : 64,
+      "clickOnVsOffDeltaAcc1" : 0,
+      "label" : "sharp+thresh+click+top5+fine+norm+vote",
+      "total" : 82,
+      "vsStory32BaselineDeltaAcc1" : null
+    }
+  ]
+}

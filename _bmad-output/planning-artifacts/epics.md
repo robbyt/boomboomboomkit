@@ -820,24 +820,24 @@ So that I can decide whether to add the ML package or adjust my configuration.
 **When** called with a valid `MLTechnique`
 **Then** returns 10
 
-### Story 4.3: ML Technique Parameter Injection and Trace Population
+### Story 4.3: ML Technique Slot Wiring and Trace Population
 
 As a library author,
-I want `analyzeBPM` to accept an optional `MLTechnique` conformance via parameter injection,
-So that the ML path integrates cleanly without the core library knowing about specific ML implementations.
+I want `analyzeBPM` to honour the `mlTechnique` field already reserved on `AudioAnalysisService.Options`,
+So that the ML path integrates cleanly without the core library knowing about specific ML implementations and without growing the `analyzeBPM` parameter list (ADR-11).
 
 **Acceptance Criteria:**
 
-**Given** `AudioAnalysisService.analyzeBPM()`
-**When** a new parameter `mlTechnique: (any MLTechnique)? = nil` is added
-**Then** the default behavior (nil) is identical to current DSP-only analysis
+**Given** `AudioAnalysisService.analyzeBPM(url:options:)` and the `mlTechnique` field already reserved on `AudioAnalysisService.Options` by Story 3-3a
+**When** the evaluation path is wired against `options.mlTechnique` (per ADR-11, Options-first public configuration — no new method parameter)
+**Then** the default behavior (`options.mlTechnique == nil`) is identical to current DSP-only analysis
 
-**Given** `mlTechnique` is non-nil
+**Given** `options.mlTechnique` is non-nil
 **When** analysis runs
 **Then** `BPMDiagnosticTrace` is built internally regardless of the `enableTrace` flag (ML needs it as input)
 **And** the trace is only returned to the consumer when `enableTrace` is true
 
-**Given** `mlTechnique` is non-nil and the pipeline completes
+**Given** `options.mlTechnique` is non-nil and the pipeline completes
 **When** the DSP result and trace are available
 **Then** `MLTechnique.evaluate(candidates:trace:)` is called with the DSP candidates and trace
 **And** the ML result is combined with the DSP result via the ensemble resolution policy
@@ -845,6 +845,8 @@ So that the ML path integrates cleanly without the core library knowing about sp
 **Given** `MLTechnique.evaluate()` returns nil
 **When** ensemble resolution runs
 **Then** the DSP result carries unchanged (ML abstains)
+
+**Note:** References ADR-11 (Options-first public configuration). The `mlTechnique` slot is already reserved on `AudioAnalysisService.Options` by Story 3-3a (with a passing test asserting the slot is inert until this story lands).
 
 ### Story 4.4: Configurable ML Ensemble Voting Policy
 
