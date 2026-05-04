@@ -7,6 +7,7 @@ let package = Package(
   products: [
     .library(name: "BoomBoomBoomKit", targets: ["BoomBoomBoomKit"]),
     .library(name: "BoomBoomBoomKitTestSupport", targets: ["BoomBoomBoomKitTestSupport"]),
+    .library(name: "BoomBoomBoomKitML", targets: ["BoomBoomBoomKitML"]),
   ],
   targets: [
     .target(
@@ -17,6 +18,12 @@ let package = Package(
       name: "BoomBoomBoomKitTestSupport",
       path: "Sources/BoomBoomBoomKitTestSupport",
       resources: [.copy("Resources/AudioFixtures")]
+    ),
+    .target(
+      name: "BoomBoomBoomKitML",
+      dependencies: ["BoomBoomBoomKit"],
+      path: "Sources/BoomBoomBoomKitML",
+      resources: [.copy("Resources")]
     ),
     .testTarget(
       name: "BoomBoomBoomKitTests",
