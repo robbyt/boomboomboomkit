@@ -229,10 +229,10 @@ Library delivers more accurate BPM detection, fixing octave errors (2:1), triple
 ### Epic 4: ML-Augmented Detection
 Consumers can optionally add ML-augmented detection at intensity 8-10, getting better accuracy with zero impact on the core DSP-only library. Graceful degradation with actionable provenance.
 **FRs covered:** FR6, FR7, FR15, FR16, FR17, FR18
-**ADRs:** ADR-4 (eager model loading at init), ADR-5 (configurable ensemble voting), ADR-6 (trace populated for ML input)
+**ADRs:** ADR-4 (eager model loading at init), ADR-5 (configurable ensemble voting), ADR-6 (trace populated for ML input), ADR-11 (Options-first public configuration — Story 3-3a)
 **Phase:** 3C
 **Dependencies:** Epic 3 establishes the best DSP baseline before ML augments it. ML is strictly additive (NFR8).
-**Notes:** BoomBoomBoomKitML as separate SPM product. BNNS first (zero new deps), CoreML second (Neural Engine). Mock MLTechnique in test target for deterministic ensemble tests.
+**Notes:** 7 stories total (4.1-4.7). BoomBoomBoomKitML as separate SPM product. Story 4.7 (spectral-flux DSP variant) addresses upstream onset-envelope weakness — recommended sequence: 4.7 → 4.5. BNNSGraph for BNNS (classic per-layer API deprecated, confirmed apple-docs 2026-05-04); CoreML conditional on 4.5 outcome (three branches). Mock MLTechnique in `BoomBoomBoomKitTestSupport` for deterministic ensemble tests. Pre-1.0 / no-BC framing throughout: minimum public types, defer enum cases, evolve freely. Planning session 2026-05-04 + Codex consultation thread `019df0ea-9b91-7173-866c-7f8e8efdc94e`.
 
 ### Epic 5: Developer Experience & Demo
 External developers can evaluate and adopt BoomBoomBoomKit through a visual demo app, clear documentation, quick-start guides, and batch workflow guidance.
@@ -757,7 +757,18 @@ So that well-tagged library files converge faster and more accurately without sa
 
 Consumers can optionally add ML-augmented detection at intensity 8-10, getting better accuracy with zero impact on the core DSP-only library. Graceful degradation with actionable provenance.
 
-**References:** Schreiber & Muller (2018) "A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network" ([PDF](https://archives.ismir.net/ismir2018/paper/000068.pdf), [Code](https://github.com/hendriks73/tempo-cnn)). Apple: [BNNS](https://developer.apple.com/documentation/accelerate/bnns) (Accelerate), [BNNSGraph](https://developer.apple.com/documentation/accelerate/bnns/graph) (macOS 15+), [MLModel.init(contentsOf:configuration:)](https://developer.apple.com/documentation/coreml/mlmodel/init(contentsof:configuration:)), [MLShapedArray](https://developer.apple.com/documentation/coreml/mlshapedarray), [Bundle.module for SPM resources](https://developer.apple.com/documentation/xcode/bundling-resources-with-a-swift-package). WWDC 2024-10159 "Bring your ML models to Apple silicon", WWDC 2022-10027 "Optimize your Core ML usage".
+**Planning decisions (2026-05-04):** Acceptance gates split by story type — 4.3/4.5/4.6 require numeric Acc1/Acc2 delta gates; 4.1/4.2/4.4 require hard non-regression gates with snapshot artifacts (NOT a delta-or-inertness escape hatch). New Story 4.7 (spectral-flux onset DSP variant) addresses the upstream onset-envelope weakness on heavily-mastered DnB material — recommended sequencing is 4.7 → 4.5 so BNNS feature design knows the post-spectral-flux baseline. Story 4.6 acceptance is conditional on Story 4.5 outcome (three branches written into 4.6 spec). Pre-1.0 / no-BC framing applied throughout: minimum public types now, add fields per-story; `EnsemblePolicy` enum cases deferred to Story 4.4 author after 4.5 ablation. Codex consultation: thread `019df0ea-9b91-7173-866c-7f8e8efdc94e`.
+
+**Definitions used in Epic 4 acceptance criteria:**
+
+- **Asserted floors** — the `#expect`-locked corpus accuracy floors in the benchmark test suite: OA300 Acc1 ≥ 57/82, OA300 Acc2 ≥ 73/82 (`Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift:105,109,130,134`); GiantSteps Acc1 ≥ 537/661, GiantSteps Acc2 ≥ 546/661 (`Tests/BoomBoomBoomKitBenchmarkTests/GiantStepsBenchmarkTests.swift`). These fire on every CI invocation regardless of preset/policy membership.
+- **Current snapshot** (as of 2026-05-04 / Epic 3 close-out) — observed live accuracy with all default features enabled: OA300 Acc1=58/82 (70.7%), Acc2=74/82 (90.2%); GiantSteps Acc1=537/661 (81.2%), Acc2=546/661 (82.6%). The snapshot is what the asserted floors guard regression FROM; it is NOT itself an asserted floor. Snapshots are re-captured at each story's first dev commit and at story merge time; the ratio between snapshot-and-floor is the headroom we have for Epic 4 work.
+- **Byte-identical** — `Double.bitPattern` equality on `bpm` and `confidence`, element-wise on `candidates`. Established by Story 3-6 paired-test pattern (`AudioAnalysisService.runPreCorroborationPipeline` shared between production and the disabled-policy bitPattern test; project-context.md "Byte-equality opt-out tests" rule). Does NOT include wall-clock, timestamp-bearing artifacts, or log-ordering.
+- **Non-regression gate** — for stories 4.1/4.2/4.4: (a) all asserted floors hold AND (b) per-track BPM JSON output is byte-identical to the pre-story baseline snapshot, captured to `_bmad-output/implementation-artifacts/{story}-regression-snapshot.json` BEFORE the story's first dev commit and verified at PR time. The snapshot Acc1/Acc2 numbers are informational; the byte-equality is the test-enforceable assertion.
+- **Numeric delta gate** — for stories 4.3/4.5/4.6/4.7: (a) all asserted floors hold AND (b) the story-specific Acc1/Acc2 delta target (named in the story's AC) is met OR Completion Notes document inertness with the impact-report JSON as evidence (see story for which path is permitted).
+- **New Makefile targets** — Stories 4.1, 4.4, 4.5, 4.6, 4.7 each introduce a new Makefile target (`compile-model`, `ml-policy-sweep`, `bnns-impact-report`, `coreml-impact-report`, `spectral-flux-impact-report` respectively). All `*-impact-report` targets MUST follow the existing pattern in `Makefile:98-114` (`click-impact-report`, `duration-impact-report`): env-gated on `OA300_CORPUS_PATH` plus a feature-specific env flag (e.g. `BNNS_IMPACT=1`), output directory env override (e.g. `BNNS_IMPACT_OUT_DIR`), invokes `swift test --filter <BenchmarkSuite>`. The Makefile additions are part of each story's first-commit deliverable, not deferred.
+
+**References:** Schreiber & Muller (2018) "A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network" ([PDF](https://archives.ismir.net/ismir2018/paper/000068.pdf), [Code](https://github.com/hendriks73/tempo-cnn)). Apple: [BNNS library overview](https://developer.apple.com/documentation/accelerate/bnns-library) — classic `BNNS.*Layer` / `BNNSFilterCreateLayer*` API surface is deprecated (`classic-bnns-api` collection); use [BNNSGraph](https://developer.apple.com/documentation/accelerate/bnnsgraph) reading `.mlmodelc` instead. [MLModel.init(contentsOf:configuration:)](https://developer.apple.com/documentation/coreml/mlmodel/init(contentsof:configuration:)), [MLShapedArray](https://developer.apple.com/documentation/coreml/mlshapedarray), [Bundle.module for SPM resources](https://developer.apple.com/documentation/xcode/bundling-resources-with-a-swift-package). WWDC 2024-10159 "Bring your ML models to Apple silicon" (Core ML Tools converter — applies to training/conversion that produces the `.mlmodelc`, NOT to the runtime Swift code that loads it). WWDC 2022-10027 "Optimize your Core ML usage" (still accurate but predates `MLShapedArray`-preferred patterns). Music-IR onset-detection literature: Bello et al. "A Tutorial on Onset Detection in Music Signals" (referenced by Story 4.7 spectral-flux variant).
 
 ### Story 4.1: BoomBoomBoomKitML Package Structure
 
@@ -770,12 +781,12 @@ So that consumers can optionally add ML-augmented detection without impacting th
 **Given** `Package.swift`
 **When** updated
 **Then** a new library product `BoomBoomBoomKitML` exists with target `BoomBoomBoomKitML` depending on `BoomBoomBoomKit`
-**And** the target has `resources: [.copy("Resources")]` for the model bundle
+**And** the target has `resources: [.copy("Resources")]` for the model bundle (`.copy`, NOT `.process`, because `.mlmodelc` is a directory that must be preserved as a tree)
 
 **Given** `Sources/BoomBoomBoomKitML/`
 **When** created
 **Then** it contains placeholder files for `BNNSTechnique.swift` and `CoreMLTechnique.swift`
-**And** a `Resources/` directory exists for future `.mlmodelc` files
+**And** a `Resources/` directory exists for `.mlmodelc` files
 
 **Given** `BoomBoomBoomKit` core library
 **When** built independently
@@ -787,6 +798,25 @@ So that consumers can optionally add ML-augmented detection without impacting th
 **Then** no CoreML dependency is pulled in
 **When** they add `BoomBoomBoomKitML`
 **Then** CoreML is available via `import CoreML` in the ML target only
+
+**Given** the `Makefile`
+**When** the `compile-model` target is invoked
+**Then** `xcrun coremlc compile <input>.mlmodel <output_dir>` produces a `.mlmodelc` directory under `Sources/BoomBoomBoomKitML/Resources/`
+**And** the source `.mlmodel` artifact lives outside the runtime target (e.g. in `_bmad-output/ml-models/` or a sibling tooling directory) for reproducibility — the runtime target ships only the compiled `.mlmodelc`
+
+**Given** `BoomBoomBoomKitML` ships its own `Bundle.module` (distinct from `BoomBoomBoomKit`'s)
+**When** loaded from `BNNSTechnique` or `CoreMLTechnique`
+**Then** the load path uses that target's `Bundle.module`, NEVER `BoomBoomBoomKit`'s
+
+**Non-regression gate (A1, applies to Story 4.1):**
+
+**Given** Story 4.1 ships only package scaffolding
+**When** `make benchmark` and `make benchmark-giantsteps` run pre-merge
+**Then** the non-regression gate per Epic 4 Definitions holds — i.e. asserted floors hold (OA300 Acc1 ≥ 57/82, Acc2 ≥ 73/82, GiantSteps Acc1 ≥ 537/661, Acc2 ≥ 546/661) AND per-track BPM JSON output is byte-identical to the pre-Story-4.1 snapshot captured at `_bmad-output/implementation-artifacts/4-1-regression-snapshot.json`
+**And** the snapshot is captured BEFORE the Story 4.1 first dev commit and verified at PR time (current snapshot reference: OA300 Acc1=58/82, Acc2=74/82, GiantSteps Acc1=537/661, Acc2=546/661)
+**And** Completion Notes link to BOTH the regression snapshot AND the package-boundary proof `_bmad-output/implementation-artifacts/4-1-package-boundary-proof.txt` (output of `swift package show-dependencies --format json | jq` confirming no CoreML in `BoomBoomBoomKit` dependency tree)
+
+**Note:** This story scaffolds the package boundary. It is structurally inert by design — no DSP behavior changes. The non-regression gate IS the success criterion, NOT an "inertness escape hatch" (Epic 4 planning session decision 2026-05-04). Story 4.1 promotion is NOT blocked on the DnB triplet ground-truth verification (which gates 4.3/4.5/4.6 promotion only — see Story 4.5).
 
 ### Story 4.2: Effective Intensity and Graceful ML Degradation
 
@@ -820,33 +850,92 @@ So that I can decide whether to add the ML package or adjust my configuration.
 **When** called with a valid `MLTechnique`
 **Then** returns 10
 
-### Story 4.3: ML Technique Slot Wiring and Trace Population
+**Non-regression gate (A1, applies to Story 4.2):**
+
+**Given** Story 4.2 ships result-field plumbing only (`effectiveIntensity`, `degradationReason`, `maximumSupportedIntensity`)
+**When** `make benchmark` and `make benchmark-giantsteps` run pre-merge
+**Then** the non-regression gate per Epic 4 Definitions holds — asserted floors hold AND per-track BPM JSON output is byte-identical to the pre-Story-4.2 snapshot at `_bmad-output/implementation-artifacts/4-2-regression-snapshot.json`
+**And** the snapshot is captured BEFORE the Story 4.2 first dev commit and verified at PR time
+**And** Completion Notes link to the snapshot artifact
+
+**Note:** A reporting-surface story cannot move accuracy. If 4.2 changes a single track outcome, something is wrong (Epic 4 planning session decision 2026-05-04).
+
+### Story 4.3: ML Technique Slot Wiring + Tuple→Struct Migration
 
 As a library author,
-I want `analyzeBPM` to honour the `mlTechnique` field already reserved on `AudioAnalysisService.Options`,
-So that the ML path integrates cleanly without the core library knowing about specific ML implementations and without growing the `analyzeBPM` parameter list (ADR-11).
+I want `analyzeBPM` to honour the `mlTechnique` field already reserved on `AudioAnalysisService.Options`, with `MLTechnique` migrated from labeled-tuple signatures to named `Sendable` structs,
+So that the ML path integrates cleanly without the core library knowing about specific ML implementations, without growing the `analyzeBPM` parameter list (ADR-11), and without compiler-invisible Sendable holes.
 
 **Acceptance Criteria:**
 
+**Given** the current `MLTechnique` protocol at `Sources/BoomBoomBoomKit/DSPTechnique.swift:197-200` uses labeled tuples that bypass `Sendable` (deferred-work entry from Story 3-3a code review)
+**When** Story 4.3 ships
+**Then** `MLTechnique` is replaced with named `Sendable` structs:
+```swift
+public struct MLEvaluation: Sendable {
+    public let bpm: Double
+    public let confidence: Double
+}
+public protocol MLTechnique: Sendable {
+    func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation?
+}
+```
+**And** the protocol input is `BPMDiagnosticTrace` only — DSP candidates are already in the trace via `BarCandidate`; no separate `candidates: [(bpm, score)]` parameter
+**And** the return is `Optional<MLEvaluation>` where `nil` means "model declines to evaluate, defer to DSP"
+**And** `MLEvaluation` carries ONLY `bpm` + `confidence` for now — fields like `modelIdentifier`, `alternateCandidates`, `featureSetVersion`, `featureSummary` are added per-story when a downstream story actually consumes them (pre-1.0 / no-BC framing — Epic 4 planning session decision 2026-05-04)
+
 **Given** `AudioAnalysisService.analyzeBPM(url:options:)` and the `mlTechnique` field already reserved on `AudioAnalysisService.Options` by Story 3-3a
-**When** the evaluation path is wired against `options.mlTechnique` (per ADR-11, Options-first public configuration — no new method parameter)
-**Then** the default behavior (`options.mlTechnique == nil`) is identical to current DSP-only analysis
+**When** the evaluation path is wired against `options.mlTechnique` (per ADR-11 — no new method parameter)
+**Then** the default behavior (`options.mlTechnique == nil`) is byte-identical to current DSP-only analysis
 
 **Given** `options.mlTechnique` is non-nil
 **When** analysis runs
 **Then** `BPMDiagnosticTrace` is built internally regardless of the `enableTrace` flag (ML needs it as input)
 **And** the trace is only returned to the consumer when `enableTrace` is true
 
-**Given** `options.mlTechnique` is non-nil and the pipeline completes
-**When** the DSP result and trace are available
-**Then** `MLTechnique.evaluate(candidates:trace:)` is called with the DSP candidates and trace
-**And** the ML result is combined with the DSP result via the ensemble resolution policy
+**Given** a new internal caseless-enum namespace `EnsembleCombiner` in `Sources/BoomBoomBoomKit/EnsembleCombiner.swift` (parallel to `MetadataCorroborator`)
+**When** the pipeline completes both DSP and ML evaluation
+**Then** `EnsembleCombiner.combine(dspWinner:mlEvaluation:...)` resolves the final BPM
+**And** ML runs AFTER `MetadataCorroborator.apply` — pipeline ordering is `merge → MetadataCorroborator.apply → MLTechnique.evaluate → EnsembleCombiner.combine → AudioAnalysisResult`
+**And** Story 4.3 ships ONLY the smallest internal default-DSP path needed to make `EnsembleCombiner.combine` compile and behave (e.g. an internal flag, a private function dispatch, or a single-case internal enum) — Story 4.3 does NOT introduce the public `EnsemblePolicy` type or any of its cases; that lands in Story 4.4 with case names chosen by 4.4 author based on 4.5 ablation evidence (per Story 4.4 deferral decision)
 
 **Given** `MLTechnique.evaluate()` returns nil
-**When** ensemble resolution runs
-**Then** the DSP result carries unchanged (ML abstains)
+**When** `EnsembleCombiner.combine` runs
+**Then** the DSP result carries unchanged (ML abstains, no behavior change)
 
-**Note:** References ADR-11 (Options-first public configuration). The `mlTechnique` slot is already reserved on `AudioAnalysisService.Options` by Story 3-3a (with a passing test asserting the slot is inert until this story lands).
+**Numeric delta gate (A1, applies to Story 4.3 default-disabled path):**
+
+**Given** Story 4.3 ships with default `options.mlTechnique == nil`
+**When** `make benchmark` and `make benchmark-giantsteps` run pre-merge with no `mlTechnique` set
+**Then** the non-regression gate per Epic 4 Definitions holds — asserted floors hold AND per-track BPM JSON output is byte-identical to the pre-Story-4.3 snapshot at `_bmad-output/implementation-artifacts/4-3-regression-snapshot.json` (the default-disabled path is non-regression — no escape hatch)
+**And** the snapshot is captured BEFORE the Story 4.3 first dev commit and verified at PR time
+**And** Completion Notes link to the snapshot artifact
+
+**Perf-non-regression gate (A1 addendum, applies to Story 4.3 mock-on-but-abstaining path):**
+
+**Given** Story 4.3 builds `BPMDiagnosticTrace` unconditionally when `options.mlTechnique != nil` (ML needs trace as input — see AC above)
+**When** the mock `MLTechnique` returns nil (ML-on-but-abstaining hot path)
+**Then** `make perf-benchmark` wall-clock regresses ≤ 10% vs the pre-Story-4.3 baseline at the same intensity
+**And** Completion Notes link to the perf-baseline JSON record showing the delta
+
+**Mock and decision-table deliverables:**
+
+**Given** a mock `MLTechnique` conformance in `Sources/BoomBoomBoomKitTestSupport/` (per project-context.md SPM-targets rule: shared fixtures + helpers belong in TestSupport so consuming packages can use them)
+**And** the `BoomBoomBoomKitTestSupport` target in `Package.swift:16-20` is updated to depend on `BoomBoomBoomKit` (currently has no `dependencies:` line — required for the mock to `import BoomBoomBoomKit` and conform to `MLTechnique`)
+**When** the mock returns `MLEvaluation(bpm: 160.0, confidence: 1.0)` (or other deterministic injected values)
+**When** unit tests run with the mock injected on a hand-picked set of ~5 synthetic cases
+**Then** `_bmad-output/implementation-artifacts/4-3-mock-ensemble-trace.json` is produced with deterministic decisions, e.g.:
+```json
+{
+  "case": "dsp_high_conf_ml_disagrees",
+  "dsp": {"bpm": 120, "conf": 0.9},
+  "ml":  {"bpm": 60,  "conf": 0.7},
+  "ensemble": {"bpm": 120, "source": "dsp", "reason": "dsp_confidence_dominates"}
+}
+```
+**And** the deterministic test-derived artifact validates the ensemble-combine logic without requiring a real model
+
+**Note:** ADR-11 (Options-first public configuration) governs. The `mlTechnique` slot was reserved on `AudioAnalysisService.Options` by Story 3-3a (with a passing test asserting inertness until this story lands). Pre-1.0 / no-BC framing per "Public API Discipline (pre-1.0)" subsection in `_bmad-output/project-context.md`: minimum struct shape now, evolve freely as later stories surface concrete needs. Sequencing: Story 4.2 (which lands the mock if scoped that way) may gate Story 4.3 — to be confirmed when 4.3 author drafts.
 
 ### Story 4.4: Configurable ML Ensemble Voting Policy
 
@@ -856,58 +945,152 @@ So that I can compile once and sweep through resolution strategies during benchm
 
 **Acceptance Criteria:**
 
-**Given** a new `EnsemblePolicy` public enum with cases like `.dspAlways`, `.mlWhenConfident(threshold: Double)`, `.highestConfidence`, `.quorum`
-**When** passed as a parameter to `analyzeBPM()` or associated with the `mlTechnique`
-**Then** the ensemble resolution uses the specified policy at runtime
-**And** `EnsemblePolicy` conforms to `CaseIterable`, `Sendable`, `Hashable`
+**Given** the `EnsemblePolicy` public enum
+**When** Story 4.4 ships
+**Then** the enum case list is determined by the Story 4.4 author based on what Story 4.5 BNNS ablation actually reveals about ML confidence behavior — NOT pre-locked from this Epic 4 spec (pre-1.0 / no-BC framing — Epic 4 planning session decision 2026-05-04; original spec proposals `.dspAlways`, `.mlWhenConfident(threshold:)`, `.highestConfidence`, `.quorum` are illustrative starting points only)
 
-**Given** the conservative default policy
-**When** no policy is specified
-**Then** DSP wins unless ML confidence is high AND DSP confidence is low
+**Given** the locked design invariants (regardless of which cases land)
+**When** Story 4.4 specs the type
+**Then** `EnsemblePolicy` follows ADR-11 (lives on `AudioAnalysisService.Options`, NOT as a method parameter on `analyzeBPM`)
+**And** conforms to `Sendable, Hashable` (and `CaseIterable` if associated values permit; otherwise document why)
+**And** has a deterministic default value
+**And** the default value produces byte-identical-to-DSP-only output when `options.mlTechnique == nil` AND when no real `MLTechnique` is available
+**And** there is an explicit no-ML / DSP-only path (the default value satisfies this until Story 4.5/4.6 land a real model)
+**And** corpus non-regression holds with the default policy per Epic 4 Definitions (asserted floors AND byte-identical to pre-Story-4.4 snapshot — see the Story 4.4 non-regression gate below for the operational expression)
 
-**Given** a benchmark run with ML enabled
-**When** iterating over ensemble policies
-**Then** each policy produces Acc1/Acc2 from the same pre-read audio (compile once, sweep policies)
+**Given** a benchmark sweep with a real `MLTechnique` enabled (post Story 4.5)
+**When** iterating over `EnsemblePolicy` cases
+**Then** each policy produces Acc1/Acc2 from the same pre-read audio (compile once, sweep policies — pattern from Story 3-5 `benchmarkVotingPolicies`)
 **And** results are printed per-policy for comparison
+**And** Completion Notes document the empirical default-value pick
 
-**Given** `EnsemblePolicy`
-**When** designed
-**Then** it follows the same pattern as `CandidateMergeStrategy`: public enum, `CaseIterable` (no associated values -- thresholds as separate parameters), `Sendable`, `Hashable`, runtime-configurable, benchmark-sweepable
+**Given** a new `make ml-policy-sweep` target (or equivalent benchmark sweep entry point)
+**When** run with a real `MLTechnique` injected
+**Then** the per-policy results inform the Story 4.4 default-value choice
 
-**Given** `make ablation` with ML enabled
+**Given** `make ablation` with ML enabled (post Story 4.5)
 **When** the full matrix runs
-**Then** ML + DSP accuracy is strictly >= DSP-only accuracy for the default policy (NFR8)
+**Then** ML + DSP accuracy is strictly ≥ DSP-only accuracy for the default policy (NFR8)
+
+**Non-regression gate (A1, applies to Story 4.4):**
+
+**Given** Story 4.4 ships the policy enum + default value, but no real `MLTechnique` exists yet (Story 4.5 has not landed)
+**When** `make benchmark` and `make benchmark-giantsteps` run pre-merge
+**Then** the non-regression gate per Epic 4 Definitions holds — asserted floors hold AND per-track BPM JSON output is byte-identical to the pre-Story-4.4 snapshot at `_bmad-output/implementation-artifacts/4-4-regression-snapshot.json`
+**And** `Options.ensemblePolicy` default produces `result.bpm == dspResult.bpm` with `Double.bitPattern` equality regardless of `mlTechnique` value (this is the operational definition of "structurally inert")
+**And** the snapshot is captured BEFORE the Story 4.4 first dev commit and verified at PR time
+**And** Completion Notes link to the snapshot artifact
+
+**Note:** Pre-locking the enum case list (`.dspAlways`, `.mlWhenConfident`, `.highestConfidence`, `.quorum` were the original Epic 4 spec proposals) was DROPPED at the Epic 4 planning session (2026-05-04). Codex consultation (thread `019df0ea-9b91-7173-866c-7f8e8efdc94e`) recommended deferral: "policy cases should follow observed BNNS/CoreML confidence behavior, not precede it." Story 4.4 author proposes cases based on Story 4.5 BNNS ablation evidence.
 
 ### Story 4.5: BNNS MLTechnique Conformance (Proof of Concept)
 
 As a library author,
-I want a BNNS-based `MLTechnique` conformance as the first real implementation,
-So that the ML integration architecture is validated with zero new framework dependencies.
+I want a BNNSGraph-based `MLTechnique` conformance reading the same `.mlmodelc` artifact that Story 4.6 will consume,
+So that the ML integration architecture is validated with zero new framework dependencies (BNNS lives inside Accelerate) and Story 4.6 inherits a symmetric load path.
 
 **Acceptance Criteria:**
 
 **Given** `BNNSTechnique` in `Sources/BoomBoomBoomKitML/`
 **When** initialized
-**Then** it loads a trained model from `Bundle.module` resources
+**Then** it loads a precompiled model via `BNNSGraphCompileFromFile` from `Bundle.module.url(forResource: "model", withExtension: "mlmodelc")`
 **And** the initializer is `throws` (model load can fail)
 **And** `try? BNNSTechnique()` returns nil if the model resource is missing
+**And** the same `.mlmodelc` artifact is consumable by `MLModel.init(contentsOf:)` in Story 4.6 (symmetric load path; one bundling pattern per Epic 4)
+
+**Given** Apple's classic `BNNS.*Layer` / `BNNSFilterCreateLayer*` API surface is deprecated (the `classic-bnns-api` collection on Apple's BNNS landing page)
+**When** Story 4.5 chooses the BNNS API surface
+**Then** it uses `BNNSGraph.Builder` / `bnns_graph_t` / `BNNSGraphCompileFromFile` only — NEVER the deprecated direct-layer API (no `BNNSFilterCreateLayerConvolution`, etc.)
 
 **Given** a `BNNSTechnique` instance and a `BPMDiagnosticTrace`
-**When** `evaluate(candidates:trace:)` is called
-**Then** it returns an optional `(bpm: Double, confidence: Double)` based on model inference
-**And** the model input is derived from trace features (sub-band energies, ACF shape, periodicity peaks)
+**When** `evaluate(trace:)` is called (per Story 4.3 protocol shape: `func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation?`)
+**Then** it returns `MLEvaluation?` based on model inference
+**And** the model input is derived from trace features that are robust to clipped/limited material — at minimum log-mel-spectrogram with per-sub-band z-score normalization across the time axis (NOT raw onset-envelope peaks alone — the upstream weakness identified by Epic 3 retro footnote)
+**And** the dev verifies during DD-block authoring whether log-compression of the mel-spectrogram is currently applied in `MelFilterbank` or downstream in `BPMAnalyzer.computeMelSpectrogram`; if not log-compressed today, Story 4.5 adds the log step with a paired byte-equality opt-out test
+**And** the model input tensor shape and stride layout are declared explicitly in code AND documented in Completion Notes (e.g. NCHW row-major with N=1, C=1, H=mel_bands, W=time_frames) — Story 4.6 inherits this exact layout to keep `MLShapedArray<Float>` strides matching
 
-**Given** BNNS lives inside Accelerate
-**When** `BoomBoomBoomKitML` imports BNNS
-**Then** no new framework dependency is added beyond what the core library already uses
+**Pre-promotion ground-truth verification gate (applies to Stories 4.3 / 4.5 / 4.6):**
 
-**Given** a mock `MLTechnique` conformance in the test target
+**Given** Stories 4.3 / 4.5 / 4.6 cannot move from `backlog` to `ready-for-dev` until the 4 DnB triplet ground-truth bookkeeping is complete (Story 4.1 promotion is NOT blocked — it is inert scaffolding; Codex consultation 2026-05-04)
+**When** the user runs the pre-promotion check
+**Then** an artifact `_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json` exists with schema:
+```json
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "track_id": "<oa300_filename_stem>",
+      "ground_truth_bpm": 160.0,
+      "source": "dawproject|daw_oracle",
+      "current_predicted_bpm": <number>,
+      "current_abs_error": <number>
+    }
+  ],
+  "regression_threshold": {
+    "min_resolved": 2,
+    "tolerance_bpm": 0.5,
+    "min_oa300_acc1": 58,
+    "min_giantsteps_acc1": 537
+  }
+}
+```
+**And** all 4 `track_id` values resolve to existing files in `OA300_CORPUS_PATH` (Charly @ 160, Faraday_Bunker @ 170, Yin Yang Audio @ 170 DAW, HEFT_Anagram 6 @ 170 DAW)
+**And** all 4 entries have a non-null `source` proving DAW oracle / dawproject ground truth exists; if any are missing, regenerate via `make oracle-generate` BEFORE Story 4.3 promotion
+**And** the `current_predicted_bpm` and `current_abs_error` values are populated by running the current default pipeline against each track at gate-creation time AND re-frozen as the named-track baseline that Story 4.5's T2 non-regression assertion compares against (NOT a re-run at PR time — re-run risks per-track non-determinism via NTP-style drift in benchmark wall-clock, even though per-track BPM is deterministic)
+**And** the JSON example values shown above (`<oa300_filename_stem>`, `<number>`) are placeholders; the populated artifact uses literal strings and numbers (e.g. `"track_id": "charly_xx"`, `"ground_truth_bpm": 160.0`, `"current_predicted_bpm": 106.2`)
+
+**T2 — Numeric delta gate (A1, applies to Story 4.5):**
+
+**Given** Story 4.5 BNNS is enabled at intensity 8+ via `options.mlTechnique = try BNNSTechnique()` AND `options.intensity = .thorough` (or higher)
+**When** `make bnns-impact-report` runs against the 4 DnB triplet targets
+**Then** ≥ 2 of the 4 named tracks must be detected within ±0.5 BPM strict Acc1 of their named ground-truth value
+**And** NO track in the named set may regress in absolute BPM error vs the Story 3-1 / 3-6 baseline (cannot trade Charly+HEFT wins for breaking Faraday_Bunker — corpus floors are a per-track invariant on the named set)
+**And** asserted floors hold per Epic 4 Definitions (≥57/82 OA300 Acc1, ≥73/82 OA300 Acc2, ≥537/661 GiantSteps Acc1, ≥546/661 GiantSteps Acc2) AND the BNNS-on path does NOT regress vs the current snapshot (OA300 Acc1=58, Acc2=74, GiantSteps Acc1=537, Acc2=546) — i.e. BNNS may improve named-track resolution but cannot trade Charly+HEFT wins for breaking Faraday_Bunker AND cannot regress overall corpus from snapshot
+**And** Acc1 must NOT regress below 58/82 with the BNNS-on path active at default intensity (the BNNS-on path may not be worse than DSP-only at the default config it ships under)
+
+**HALT trigger (per Epic 4 retro action item T2):**
+
+**Given** Story 4.5 BNNS resolves < 2 of 4 named DnB triplets
+**When** Story 4.5 close-out is being authored
+**Then** Completion Notes MUST document per-track failure modes with the impact-report JSON as evidence
+**AND** Story 4.6 enters Branch C (paused, converted to research/training-data spike — see Story 4.6 spec)
+
+**Mock and impact-report deliverables:**
+
+**Given** the mock `MLTechnique` conformance in `Sources/BoomBoomBoomKitTestSupport/` (added in Story 4.3)
 **When** ensemble voting tests run
-**Then** deterministic test cases cover: ML agrees with DSP, ML disagrees with low confidence (DSP wins), ML disagrees with high confidence (ML wins), ML returns nil (DSP carries)
+**Then** deterministic test cases cover: ML agrees with DSP, ML disagrees with low confidence (DSP wins), ML disagrees with high confidence (ML wins), ML returns nil (DSP carries) — independent of model quality
 
-**Reference:** [BNNS](https://developer.apple.com/documentation/accelerate/bnns), [BNNSGraph](https://developer.apple.com/documentation/accelerate/bnns/graph) (macOS 15+). Schreiber CNN architecture is shallow enough for BNNS inference.
+**Given** a new `make bnns-impact-report` target
+**When** run with `OA300_CORPUS_PATH` set
+**Then** `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json` is produced with schema:
+```json
+{
+  "track": "<id>",
+  "dsp_winner": <bpm>,
+  "ml_winner": <bpm>,
+  "ensemble_winner": <bpm>,
+  "ml_confidence": <0..1>,
+  "ground_truth": <bpm>,
+  "dsp_correct": <bool>,
+  "ml_correct": <bool>,
+  "ensemble_correct": <bool>,
+  "named_dnb_track": <bool>,
+  "latency_ms": <number>
+}
+```
+**And** the report explicitly calls out the 4 named DnB triplet outcomes
+**And** if BNNS resolves <2 of 4, completion notes document per-track failure modes with this JSON as evidence (HALT trigger above)
 
-**Note:** ML model training is out of scope for Phase 3. This story validates the `MLTechnique` protocol architecture and DSP+ML ensemble plumbing using either a placeholder model or a minimal trained model. Production model quality is a separate concern. The mock `MLTechnique` in the test target provides deterministic testing independent of model quality.
+**Reference:** [BNNS library overview](https://developer.apple.com/documentation/accelerate/bnns-library) — `classic-bnns-api` deprecation confirmed via apple-docs MCP 2026-05-04. [BNNSGraph](https://developer.apple.com/documentation/accelerate/bnnsgraph) is the documented current path. Schreiber & Muller (2018) shallow CNN architecture (log-mel-spectrogram → multi-filter conv → temporal pooling → dense → softmax over BPM bins). Music-IR onset-detection literature for clipped-material handling: Bello et al. tutorial on onset detection.
+
+**Notes:**
+- `EnsembleCombiner` lives in core (`Sources/BoomBoomBoomKit/`, Story 4.3); `BoomBoomBoomKitML` only conforms to `MLTechnique` and returns `MLEvaluation?`. Story 4.5 NEVER calls `EnsembleCombiner` directly.
+- This story depends on Story 4.1 having used `.copy("Resources")` in `Package.swift` — `.mlmodelc` is a directory tree; `.process` would flatten/destroy it. If 4.1 is later "fixed" to `.process`, both 4.5 and 4.6 silently break at runtime, not build time.
+- ML model training is out of scope for Phase 3. This story validates the `MLTechnique` protocol architecture and DSP+ML ensemble plumbing using either a placeholder model or a minimal trained model. Production model quality is a separate concern. The mock `MLTechnique` provides deterministic testing.
+- Onset-envelope footnote design constraint: BNNS feature extraction must tolerate clipped/limited DnB material. Favor sub-band normalized energy distributions over raw peakiness (Epic 3 retro 2026-05-03 footnote, reinforced 2026-05-04 planning session).
+- Sequencing recommendation: land Story 4.7 (spectral-flux DSP variant) BEFORE Story 4.5 so BNNS feature design knows the post-spectral-flux baseline.
+- Codex consultation thread: `019df0ea-9b91-7173-866c-7f8e8efdc94e`.
 
 ### Story 4.6: CoreML MLTechnique Conformance (Production)
 
@@ -915,28 +1098,152 @@ As a library author,
 I want a CoreML-based `MLTechnique` conformance for Neural Engine acceleration,
 So that ML inference at intensity 8-10 is fast enough for batch workflows on Apple Silicon.
 
-**Acceptance Criteria:**
+**Conditional acceptance based on Story 4.5 outcome (Epic 4 planning session decision 2026-05-04):**
+
+**Branch A — Story 4.5 BNNS resolved 3 or 4 of 4 named DnB triplet failures:**
+**Given** Branch A (covers both 3/4 and 4/4 cases — see Branch A' note below)
+**When** Story 4.6 specs CoreML acceptance
+**Then** the gate is "match or beat BNNS on the 4 named DnB triplets (within ±0.5 BPM strict Acc1) AND asserted floors hold per Epic 4 Definitions AND CoreML-on path does NOT regress vs the post-4.5 snapshot"
+**And** Story 4.6 proceeds as planned with the implementation ACs below
+
+**Branch A' (refinement, applies if 4.5 resolved all 4/4) —** the "match or beat" gate is trivially satisfied if BNNS hit 4/4. Add a stiffer requirement: CoreML must demonstrate a Neural-Engine wall-clock speedup of ≥2x over BNNS on the same 4 tracks (`make coreml-impact-report` `latency_ms` field), OR ≥2 additional Acc1 tracks anywhere on OA300/GiantSteps. Without one of these, Story 4.6 has no measurable value-add over 4.5 and the dev must HALT and surface to PM.
+
+**Branch B — Story 4.5 BNNS resolved exactly 2 of 4:**
+**Given** Branch B
+**When** Story 4.6 specs CoreML acceptance
+**Then** the gate is "resolve ≥ 3 of 4 named DnB triplets within ±0.5 BPM strict Acc1 OR demonstrate ≥ 2 net additional Acc1 tracks across the union of OA300 and GiantSteps (delta vs the post-4.5 snapshot, measured per `make coreml-impact-report` summed across both corpora; baseline commit SHA recorded in Completion Notes)"
+**And** asserted floors hold per Epic 4 Definitions AND CoreML-on path does NOT regress vs the post-4.5 snapshot
+**And** Story 4.6 proceeds with this stiffer gate
+
+**Branch C — Story 4.5 BNNS resolved < 2 of 4:**
+**Given** Branch C
+**When** Story 4.5 close-out documents the failure
+**Then** Story 4.6 is moved BACK TO `backlog` in `sprint-status.yaml` (NOT a new "paused" state — using existing terminology) with a `gated_on: research-spike-X.Y` annotation and a research-spike story spec re-write required before re-promotion
+**And** the new research-spike story (e.g. 4.5b) investigates whether richer model architecture, alternative feature engineering, or different training-data scale changes the picture before committing to a CoreML production path
+**And** the spike outcome determines whether Story 4.6 proceeds (with re-spec'd ACs reflecting spike findings), gets re-spec'd against a different model architecture, or is dropped from Epic 4 (Epic 4 close-out at that point)
+
+**Note on branch flexibility:** These are story-promotion rules, not implementation commitments. If Story 4.5 finds that the labels or features are wrong (rather than the model being inadequate), the branch decision should allow re-scoping rather than forcing CoreML theater (Codex consultation 2026-05-04).
+
+**Sequence enforcement (applies to Branches A/A'/B):** Story 4.6 cannot be promoted from `backlog` to `ready-for-dev` until Story 4.5 reaches `done` AND the Story 4.5 close-out commit explicitly names which Branch fired (in Completion Notes). This is a manual gate enforced by the SM at story-creation time — `sprint-status.yaml` does not currently support `depends_on` semantics; track as a process discipline until that schema lands.
+
+**Implementation Acceptance Criteria (apply when Branch A or B proceeds):**
 
 **Given** `CoreMLTechnique` in `Sources/BoomBoomBoomKitML/`
 **When** initialized
 **Then** it loads a `.mlmodelc` from `Bundle.module` via `MLModel.init(contentsOf:configuration:)` (throws)
 **And** `try? CoreMLTechnique()` returns nil if the model resource is missing
+**And** the `.mlmodelc` artifact is the SAME one Story 4.5 consumes (one bundling pattern per Epic 4 — symmetric load path)
 
 **Given** a `CoreMLTechnique` instance
-**When** `evaluate(candidates:trace:)` is called
-**Then** it performs inference using CoreML (CPU, GPU, or Neural Engine as decided by the system)
-**And** the input/output contract matches `BNNSTechnique` (same trace features, same return type)
-**And** model input is provided via `MLShapedArray<Float>` (preferred over `MLMultiArray` for type safety)
+**When** `evaluate(trace:)` is called (per Story 4.3 protocol shape: `func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation?`)
+**Then** it performs inference via CoreML
+**And** `MLModelConfiguration.computeUnits = .cpuAndNeuralEngine` is the default (NOT `.all` — `.all` lets the system pick GPU, which adds dispatch latency for small inputs); a `.cpuOnly` fallback is acceptable for diagnostic builds
+**And** model input is provided via `MLShapedArray<Float>` (preferred over `MLMultiArray` — `MLShapedArray` is `Sendable` and value-typed; `MLMultiArray` is a reference type and triggers Swift 6 strict-concurrency warnings without `@unchecked`)
+**And** `MLShapedArray<Float>` strides match the BNNS NCHW tensor layout from Story 4.5 (row-major shape declared explicitly at construction)
+**And** the input/output contract matches `BNNSTechnique` — same trace features, same `MLEvaluation?` return
 
 **Given** `BoomBoomBoomKitML` with CoreML
 **When** the ML target is built
-**Then** only `CoreML` is added as a framework dependency (to the ML target only)
+**Then** only `CoreML` is added as a framework dependency (to the ML target only — `BoomBoomBoomKit` core stays CoreML-free)
 
 **Given** both `BNNSTechnique` and `CoreMLTechnique` exist
-**When** a consumer passes either to `analyzeBPM(mlTechnique:)`
-**Then** the API is identical -- consumer doesn't care which implementation runs
+**When** a consumer passes either to `options.mlTechnique`
+**Then** the API is identical — consumer doesn't care which implementation runs (per Story 4.3 protocol uniformity)
 
-**Reference:** [MLModel.init(contentsOf:configuration:)](https://developer.apple.com/documentation/coreml/mlmodel/init(contentsof:configuration:)), [MLShapedArray](https://developer.apple.com/documentation/coreml/mlshapedarray), [Bundle.module](https://developer.apple.com/documentation/xcode/bundling-resources-with-a-swift-package). WWDC 2024-10159, WWDC 2022-10027.
+**Numeric delta gate (A1, applies to Story 4.6 Branch A or B):**
+
+**Given** Story 4.6 CoreML enabled at intensity 8+
+**When** `make benchmark` runs with the CoreML path active
+**Then** Acc1 satisfies the branch-specific gate above (Branch A: parity-or-better with BNNS on the 4 named triplets; Branch B: stiffer)
+**And** the per-track impact report attributes per-track changes to CoreML vs BNNS evaluation
+**And** asserted floors hold per Epic 4 Definitions AND the CoreML-on path does NOT regress vs the current snapshot (Story 4.5 BNNS post-merge snapshot serves as the new baseline once 4.5 lands)
+
+**Impact-report deliverables:**
+
+**Given** a new `make coreml-impact-report` target
+**When** run with `OA300_CORPUS_PATH` set
+**Then** `_bmad-output/implementation-artifacts/4-6-coreml-impact-report.json` is produced
+**And** the schema is identical to Story 4.5's `4-5-bnns-impact-report.json` plus three additional fields: `model_load_latency_ms`, `peak_memory_mb`, and a `bnns_vs_coreml_diff` section listing tracks where BNNS and CoreML disagree (validates the contract held)
+
+**Reference:** [MLModel.init(contentsOf:configuration:)](https://developer.apple.com/documentation/coreml/mlmodel/init(contentsof:configuration:)), [MLShapedArray](https://developer.apple.com/documentation/coreml/mlshapedarray), [Bundle.module](https://developer.apple.com/documentation/xcode/bundling-resources-with-a-swift-package). WWDC 2024-10159 (Core ML Tools converter — applies to the training/conversion side that produces the `.mlmodelc`, NOT to the runtime Swift code that loads it). WWDC 2022-10027 (still accurate but predates `MLShapedArray`-preferred patterns).
+
+**Notes:**
+- `EnsembleCombiner` lives in core (`Sources/BoomBoomBoomKit/`, Story 4.3); `BoomBoomBoomKitML` only conforms to `MLTechnique` and returns `MLEvaluation?`. Story 4.6 NEVER calls `EnsembleCombiner` directly.
+- This story depends on Story 4.1 having used `.copy("Resources")` in `Package.swift` AND on Story 4.5 having declared the explicit tensor shape and stride layout (NCHW row-major). Story 4.6 inherits both.
+- `BoomBoomBoomKitML` ships its own `Bundle.module` (distinct from `BoomBoomBoomKit`'s); `CoreMLTechnique` must use that target's `Bundle.module` per Story 4.1 AC.
+
+### Story 4.7: Spectral-Flux Onset Detection DSP Variant
+
+As a library author,
+I want a `DSPTechnique.spectralFluxOnset` variant that operates on frame-to-frame magnitude differences (half-wave rectified) rather than energy-based onset detection,
+So that the upstream onset-envelope weakness on heavily-mastered DnB material is addressed BEFORE BNNS feature engineering has to compensate.
+
+**Sequencing recommendation:** This story should land BEFORE Story 4.5 so BNNS feature design knows the post-spectral-flux baseline. Without this story, BNNS is doing double duty — solving both feature-quality AND tempo-classification — and the upstream weakness stays unfixed for non-ML paths (Epic 4 planning session decision 2026-05-04).
+
+**Acceptance Criteria:**
+
+**Given** the existing 7-case `DSPTechnique` enum at `Sources/BoomBoomBoomKit/DSPTechnique.swift`
+**When** Story 4.7 ships
+**Then** a new case `.spectralFluxOnset` is appended LAST in case order (8 cases total — do not insert before existing cases; preserves stable-identifier convention)
+**And** ALL of the following invariant assertions and doc strings are updated in lockstep — partial updates fail `make test` or leave silent doc drift:
+  1. `Tests/BoomBoomBoomKitTests/MetadataCorroborationTests.swift:574-576` — `#expect(DSPTechnique.allCases.count == 7)` → `== 8`, plus the test name string
+  2. `Tests/BoomBoomBoomKitTests/MetadataCorroborationTests.swift:579-581` — `#expect(TechniqueSet.allDSPCombinations().count == 128)` → `== 256` (`2^7` → `2^8` in the test name string)
+  3. `Tests/BoomBoomBoomKitTests/AblationQuickTests.swift:19-22` — `combos.count == 128` → `== 256`, plus the `@Test` name string
+  4. `Tests/BoomBoomBoomKitTests/AblationQuickTests.swift:25-27` — `DSPTechnique.allCases.count == 7` → `== 8`, plus the `@Test` name string
+  5. `Sources/BoomBoomBoomKit/DSPTechnique.swift:162` — doc comment "Generates all 2^7 = 128 DSP technique combinations (power set)" → "2^8 = 256"
+  6. `CLAUDE.md` — "DSPTechnique — Public enum (7 cases)" → "(8 cases)"; "`allDSPCombinations()` generates 2^7=128 combos" → "2^8=256 combos"
+  7. `_bmad-output/project-context.md:41` — `DSPTechnique.allCases.count == 7`, `TechniqueSet.allDSPCombinations().count == 128 (2^7)` → 8/256/2^8
+  8. `_bmad-output/project-context.md:88` — same invariants in Post-Pipeline Corroboration Boundary section
+  9. `_bmad-output/project-context.md:101` — "all 2^7=128 DSP technique combinations" → "2^8=256"
+  10. `_bmad-output/project-context.md:160` — same invariants in Critical Don't-Miss Rules section
+**And** the ablation matrix continues to pass under the new combo count (`make ablation` doubles wall-clock; track in perf baseline)
+
+**Given** the spectral-flux variant in `BPMAnalyzer` step 3 onset detection
+**When** `.spectralFluxOnset ∈ techniqueSet`
+**Then** onset detection uses spectral flux: per-frame magnitude difference (half-wave rectified, `max(0, |X[t]| - |X[t-1]|)`) summed across mel bands
+**And** the existing energy-based onset detection is the default when `.spectralFluxOnset ∉ techniqueSet`
+**And** the variant operates on the SAME mel-spectrogram (`melSpectrogram` trace field) — no second STFT, no extra audio pass, no new pipeline step number
+
+**Given** `Options.techniqueSet` does NOT contain `.spectralFluxOnset`
+**When** `make benchmark` runs
+**Then** the non-regression gate per Epic 4 Definitions holds — asserted floors hold AND per-track BPM JSON output is byte-identical to the pre-Story-4.7 snapshot at `_bmad-output/implementation-artifacts/4-7-variant-disabled-snapshot.json` (byte-equality opt-out test required per project-context.md "Byte-equality opt-out tests" rule)
+
+**Numeric delta gate (A1, applies to Story 4.7):**
+
+**Given** `Options.techniqueSet` contains `.spectralFluxOnset` (variant enabled)
+**When** `make benchmark` and `make benchmark-giantsteps` run pre-merge
+**Then** asserted floors hold per Epic 4 Definitions (≥57/82 OA300 Acc1, ≥73/82 OA300 Acc2, ≥537/661 GiantSteps Acc1, ≥546/661 GiantSteps Acc2) AND the variant-on path does NOT regress vs current snapshot (OA300 Acc1=58, Acc2=74; GiantSteps Acc1=537, Acc2=546)
+**And** if variant-on moves the named DnB tracks but regresses corpus floor or snapshot, the dev MUST HALT and surface to PM — do not silently relax either gate (HALT discipline per project-context.md "Story Authoring Discipline")
+**And** the variant must improve performance on the 4 named DnB triplet tracks (Charly @ 160, Faraday_Bunker @ 170, Yin Yang Audio @ 170 DAW, HEFT_Anagram 6 @ 170 DAW) — at least one named track must move from incorrect-detection to within ±2% Acc1 of ground truth (i.e. `make spectral-flux-impact-report` must show ≥1 named track improvement)
+**OR** Completion Notes document per-track inertness with the impact-report JSON as evidence AND propose closing the story without adding the case to any preset (`.optimal`, `.dnbOptimized`, etc.) — the variant becomes available but inert by default; Epic 4 planning session 2026-05-04 explicitly authorizes closing the story this way if the brutal corpus gate is not cleared
+
+**Given** the variant is shipped inert-by-default (the OR branch above)
+**When** updating `make ablation-smoke` (curated 16-combo lane in `Makefile:51-65`)
+**Then** the smoke lane MUST NOT include `.spectralFluxOnset` in any of its 16 combos by default — preserving everyday smoke wall-clock at the same cadence as before
+**And** only the full 256-combo `make ablation` pays the 2× cost; CI smoke runs are unaffected
+
+**Impact-report deliverables:**
+
+**Given** a new `make spectral-flux-impact-report` target
+**When** run with `OA300_CORPUS_PATH` set
+**Then** `_bmad-output/implementation-artifacts/4-7-spectral-flux-impact-report.json` is produced with schema:
+```json
+{
+  "track": "<id>",
+  "baseline_bpm": <bpm>,
+  "with_variant_bpm": <bpm>,
+  "ground_truth": <bpm>,
+  "baseline_correct": <bool>,
+  "variant_correct": <bool>,
+  "named_dnb_track": <bool>
+}
+```
+**And** the report calls out the 4 named DnB triplet tracks explicitly
+
+**Notes:**
+- Onset-envelope quality on heavily-mastered material is the upstream weakness identified by Epic 3 retrospective (2026-05-03). Energy-based onset detection collapses on brick-walled masters because the limiter has equalized exactly the dynamic range it keys off. Spectral flux survives because it captures spectral content change rather than amplitude change.
+- Codex consultation (2026-05-04, thread `019df0ea-9b91-7173-866c-7f8e8efdc94e`) recommended adding this story with brutal corpus-benchmark gating: "if it does not move the target failures or improve ML features, close it without adding default complexity." The numeric gate above implements that recommendation.
+- Music-IR literature reference: Bello et al. "A Tutorial on Onset Detection in Music Signals."
 
 ---
 
