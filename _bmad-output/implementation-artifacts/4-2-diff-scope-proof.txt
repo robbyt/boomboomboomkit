@@ -1,0 +1,179 @@
+# Story 4.2 Diff-Scope Proof Artifact (AC #7)
+# Pre-story SHA: 8c37d64
+# Post-story tree: working copy (uncommitted)
+# Generated: 2026-05-04T22:19:18Z
+
+================================================================
+# Section: git diff --stat <pre-story-SHA>..HEAD -- Sources/ Tests/
+================================================================
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  87 +++++++++++++-
+ .../AudioAnalysisServiceTests.swift                | 126 +++++++++++++++++++++
+ 2 files changed, 212 insertions(+), 1 deletion(-)
+
+Expected: ONLY AudioAnalysisService.swift (Sources) + AudioAnalysisServiceTests.swift (Tests) modified.
+ZERO modifications to BPMAnalyzer.swift, AnalysisIntensity.swift, MetadataCorroborator.swift,
+BPMDiagnosticTrace.swift, CandidateMergeStrategy.swift, or any other file under Sources/BoomBoomBoomKit/.
+
+================================================================
+# Section: git diff --numstat (additions vs deletions)
+================================================================
+86	1	Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+126	0	Tests/BoomBoomBoomKitTests/AudioAnalysisServiceTests.swift
+
+Tests/BoomBoomBoomKitTests/AudioAnalysisServiceTests.swift: 126 additions, 0 deletions
+  -> Confirms test changes are additions only; no pre-existing test code was modified.
+
+================================================================
+# Section: git diff Sources/BoomBoomBoomKit/AudioAnalysisService.swift (full file diff)
+================================================================
+diff --git a/Sources/BoomBoomBoomKit/AudioAnalysisService.swift b/Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+index c790c9a..c9032e9 100644
+--- a/Sources/BoomBoomBoomKit/AudioAnalysisService.swift
++++ b/Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+@@ -25,11 +25,45 @@ public struct AudioAnalysisResult: Sendable {
+   /// per parsed tag — including parse-phase and corroboration rejections — so callers
+   /// can audit which tags were read and what the library did with them.
+   public let metadataEvidence: [MetadataBPMEvidence]
++  /// The effective DSP-level depth reported for this analysis.
++  ///
++  /// Equals ``AudioAnalysisService/Options/intensity`` for requests in 1-7 (DSP-only
++  /// range) and for requests in 8-10 when ``AudioAnalysisService/Options/mlTechnique``
++  /// is non-nil. When intensity 8-10 is requested without an ``MLTechnique``
++  /// conformance, this is reported as ``AnalysisIntensity/default`` (7) and
++  /// ``degradationReason`` carries the explanation.
++  ///
++  /// Note: today the pipeline runs at the requested intensity unchanged — levels 8-10
++  /// currently produce identical DSP output to level 7 by switch-default coincidence
++  /// in ``AnalysisIntensity``; future stories may change level 8-10 semantics, in
++  /// which case this field will continue to report what was effectively achieved.
++  public let effectiveIntensity: AnalysisIntensity
++  /// A display-oriented explanation when the requested intensity was not honoured
++  /// (e.g., when 8-10 was requested but no ``MLTechnique`` conformance was supplied).
++  /// `nil` when no degradation occurred.
++  ///
++  /// Today's message format is `"Requested intensity \(requested) requires
++  /// BoomBoomBoomKitML package. Running at intensity \(effective) (DSP-only)."` —
++  /// this exact text is asserted by Story 4.2's regression tests, but consumers
++  /// should treat it as display text; pre-1.0 / no-BC framing allows wording revision
++  /// in a future story.
++  ///
++  /// **For control flow, do NOT string-parse this field — call
++  /// ``AudioAnalysisService/maximumSupportedIntensity(mlTechnique:)`` BEFORE
++  /// analysis to query whether the configuration supports the requested intensity.**
++  public let degradationReason: String?
+ }
+ 
+ /// Stateless service that coordinates PCM reading and BPM estimation.
+ public struct AudioAnalysisService {
+ 
++  /// Single source of truth for the DSP-only intensity ceiling. Intensities
++  /// 8-10 are reserved for ML augmentation; without an ``MLTechnique``
++  /// conformance the effective ceiling is ``AnalysisIntensity/default`` (7).
++  /// Reused by ``analyzeBPM(url:options:)``, the degradation message builder,
++  /// and ``maximumSupportedIntensity(mlTechnique:)``.
++  private static let dspOnlyMaxIntensity: AnalysisIntensity = .default
++
+   /// Configuration options for BPM analysis.
+   ///
+   /// All fields have sensible defaults. Use `Options()` and mutate as needed:
+@@ -214,10 +248,61 @@ public struct AudioAnalysisService {
+     let (corroborated, evidence) = MetadataCorroborator.apply(
+       to: merged, input: pre.metadataInput)
+ 
++    // Story 4.2: post-pipeline reporting of effective intensity + degradation
++    // reason. Computed AFTER both `runPreCorroborationPipeline` and
++    // `MetadataCorroborator.apply` return — pure reporting, no DSP mutation.
++    let effective = computeEffectiveIntensity(
++      requested: options.intensity, mlTechnique: options.mlTechnique)
++    let reason = degradationMessage(
++      requested: options.intensity, effective: effective)
++
+     return AudioAnalysisResult(
+       bpm: corroborated.bpm, confidence: corroborated.confidence,
+       candidates: corroborated.candidates, trace: corroborated.trace,
+-      metadataEvidence: evidence)
++      metadataEvidence: evidence,
++      effectiveIntensity: effective, degradationReason: reason)
++  }
++
++  // MARK: - Story 4.2: effective intensity reporting + maximum supported query
++
++  /// Returns the effective DSP-level depth for a (requested intensity,
++  /// ML technique) pair. Caps requests in 8-10 to ``dspOnlyMaxIntensity``
++  /// when no ``MLTechnique`` conformance is supplied; otherwise returns
++  /// the requested intensity unchanged.
++  private static func computeEffectiveIntensity(
++    requested: AnalysisIntensity, mlTechnique: (any MLTechnique)?
++  ) -> AnalysisIntensity {
++    if requested.rawValue <= dspOnlyMaxIntensity.rawValue { return requested }
++    if mlTechnique != nil { return requested }
++    return dspOnlyMaxIntensity
++  }
++
++  /// Returns a display-oriented degradation message when ``requested`` was
++  /// not honoured (i.e., ``effective`` is the DSP-only cap), or `nil` when
++  /// no degradation occurred. Uses the integer `rawValue` of each intensity
++  /// so the message does NOT leak named-constant identifiers (`.thorough`,
++  /// `.maximum`) into developer-facing text.
++  private static func degradationMessage(
++    requested: AnalysisIntensity, effective: AnalysisIntensity
++  ) -> String? {
++    if requested == effective { return nil }
++    return
++      "Requested intensity \(requested.rawValue) requires BoomBoomBoomKitML "
++      + "package. Running at intensity \(effective.rawValue) (DSP-only)."
++  }
++
++  /// Maximum analysis intensity supported by the current configuration.
++  ///
++  /// - Parameter mlTechnique: The ML technique that will be supplied via
++  ///   ``Options/mlTechnique`` — pass `nil` to ask "what's the ceiling without
++  ///   the BoomBoomBoomKitML package?" or pass a real conformance to ask
++  ///   "what's the ceiling with my chosen ML model?"
++  /// - Returns: ``AnalysisIntensity/default`` (7) when `mlTechnique` is `nil`;
++  ///   ``AnalysisIntensity/maximum`` (10) when non-nil.
++  public static func maximumSupportedIntensity(
++    mlTechnique: (any MLTechnique)?
++  ) -> AnalysisIntensity {
++    mlTechnique == nil ? dspOnlyMaxIntensity : .maximum
+   }
+ 
+   // MARK: - Story 3-6b: pre-corroboration pipeline (test-shareable)
+
+================================================================
+# Section: hunk locations within AudioAnalysisService.swift
+================================================================
+@@ -27,0 +28,27 @@ public struct AudioAnalysisResult: Sendable {
+@@ -32,0 +60,7 @@ public struct AudioAnalysisService {
+@@ -216,0 +251,8 @@ public struct AudioAnalysisService {
+@@ -220 +262,44 @@ public struct AudioAnalysisService {
+
+Hunks confined to:
+  - AudioAnalysisResult struct (two new field declarations + doc-comments)
+  - AudioAnalysisService dspOnlyMaxIntensity private constant declaration
+  - analyzeBPM(url:options:) body (compute effective + reason post-MetadataCorroborator.apply, pass into result init)
+  - Net-additions for computeEffectiveIntensity, degradationMessage, maximumSupportedIntensity
+
+ZERO modifications inside runPreCorroborationPipeline function body.
+
+================================================================
+# Section: +/- lines referencing runPreCorroborationPipeline
+================================================================
+56:+    // reason. Computed AFTER both `runPreCorroborationPipeline` and
+
+Only +/- match is a comment line in analyzeBPM that mentions runPreCorroborationPipeline by
+name in the context of post-pipeline computation — function body itself is unmodified.
+
+================================================================
+# Section: grep -n 'AudioAnalysisResult(' Sources/ Tests/
+================================================================
+Sources/BoomBoomBoomKit/AudioAnalysisService.swift:259:    return AudioAnalysisResult(
+
+Pre-story baseline: 1 production construction site at AudioAnalysisService.swift:217
+Post-story: 1 production construction site at AudioAnalysisService.swift:259 (line shifted due to additions)
+Test sites use analyzeBPM() facade — no direct AudioAnalysisResult(...) construction added.
+
+================================================================
+# Section: git diff Tests/BoomBoomBoomKitBenchmarkTests/ (must be empty per AC #11)
+================================================================
+(empty diff above expected per AC #11 — no benchmark-target modifications for snapshot capture)

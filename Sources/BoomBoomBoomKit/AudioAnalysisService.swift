@@ -25,10 +25,44 @@ public struct AudioAnalysisResult: Sendable {
   /// per parsed tag — including parse-phase and corroboration rejections — so callers
   /// can audit which tags were read and what the library did with them.
   public let metadataEvidence: [MetadataBPMEvidence]
+  /// The effective DSP-level depth reported for this analysis.
+  ///
+  /// Equals ``AudioAnalysisService/Options/intensity`` for requests in 1-7 (DSP-only
+  /// range) and for requests in 8-10 when ``AudioAnalysisService/Options/mlTechnique``
+  /// is non-nil. When intensity 8-10 is requested without an ``MLTechnique``
+  /// conformance, this is reported as ``AnalysisIntensity/default`` (7) and
+  /// ``degradationReason`` carries the explanation.
+  ///
+  /// Note: today the pipeline runs at the requested intensity unchanged — levels 8-10
+  /// currently produce identical DSP output to level 7 by switch-default coincidence
+  /// in ``AnalysisIntensity``; future stories may change level 8-10 semantics, in
+  /// which case this field will continue to report what was effectively achieved.
+  public let effectiveIntensity: AnalysisIntensity
+  /// A display-oriented explanation when the requested intensity was not honoured
+  /// (e.g., when 8-10 was requested but no ``MLTechnique`` conformance was supplied).
+  /// `nil` when no degradation occurred.
+  ///
+  /// Today's message format is `"Requested intensity \(requested) requires
+  /// BoomBoomBoomKitML package. Running at intensity \(effective) (DSP-only)."` —
+  /// this exact text is asserted by Story 4.2's regression tests, but consumers
+  /// should treat it as display text; pre-1.0 / no-BC framing allows wording revision
+  /// in a future story.
+  ///
+  /// **For control flow, do NOT string-parse this field — call
+  /// ``AudioAnalysisService/maximumSupportedIntensity(mlTechnique:)`` BEFORE
+  /// analysis to query whether the configuration supports the requested intensity.**
+  public let degradationReason: String?
 }
 
 /// Stateless service that coordinates PCM reading and BPM estimation.
 public struct AudioAnalysisService {
+
+  /// Single source of truth for the DSP-only intensity ceiling. Intensities
+  /// 8-10 are reserved for ML augmentation; without an ``MLTechnique``
+  /// conformance the effective ceiling is ``AnalysisIntensity/default`` (7).
+  /// Reused by ``analyzeBPM(url:options:)``, the degradation message builder,
+  /// and ``maximumSupportedIntensity(mlTechnique:)``.
+  private static let dspOnlyMaxIntensity: AnalysisIntensity = .default
 
   /// Configuration options for BPM analysis.
   ///
@@ -214,10 +248,61 @@ public struct AudioAnalysisService {
     let (corroborated, evidence) = MetadataCorroborator.apply(
       to: merged, input: pre.metadataInput)
 
+    // Story 4.2: post-pipeline reporting of effective intensity + degradation
+    // reason. Computed AFTER both `runPreCorroborationPipeline` and
+    // `MetadataCorroborator.apply` return — pure reporting, no DSP mutation.
+    let effective = computeEffectiveIntensity(
+      requested: options.intensity, mlTechnique: options.mlTechnique)
+    let reason = degradationMessage(
+      requested: options.intensity, effective: effective)
+
     return AudioAnalysisResult(
       bpm: corroborated.bpm, confidence: corroborated.confidence,
       candidates: corroborated.candidates, trace: corroborated.trace,
-      metadataEvidence: evidence)
+      metadataEvidence: evidence,
+      effectiveIntensity: effective, degradationReason: reason)
+  }
+
+  // MARK: - Story 4.2: effective intensity reporting + maximum supported query
+
+  /// Returns the effective DSP-level depth for a (requested intensity,
+  /// ML technique) pair. Caps requests in 8-10 to ``dspOnlyMaxIntensity``
+  /// when no ``MLTechnique`` conformance is supplied; otherwise returns
+  /// the requested intensity unchanged.
+  private static func computeEffectiveIntensity(
+    requested: AnalysisIntensity, mlTechnique: (any MLTechnique)?
+  ) -> AnalysisIntensity {
+    if requested.rawValue <= dspOnlyMaxIntensity.rawValue { return requested }
+    if mlTechnique != nil { return requested }
+    return dspOnlyMaxIntensity
+  }
+
+  /// Returns a display-oriented degradation message when ``requested`` was
+  /// not honoured (i.e., ``effective`` is the DSP-only cap), or `nil` when
+  /// no degradation occurred. Uses the integer `rawValue` of each intensity
+  /// so the message does NOT leak named-constant identifiers (`.thorough`,
+  /// `.maximum`) into developer-facing text.
+  private static func degradationMessage(
+    requested: AnalysisIntensity, effective: AnalysisIntensity
+  ) -> String? {
+    if requested == effective { return nil }
+    return
+      "Requested intensity \(requested.rawValue) requires BoomBoomBoomKitML "
+      + "package. Running at intensity \(effective.rawValue) (DSP-only)."
+  }
+
+  /// Maximum analysis intensity supported by the current configuration.
+  ///
+  /// - Parameter mlTechnique: The ML technique that will be supplied via
+  ///   ``Options/mlTechnique`` — pass `nil` to ask "what's the ceiling without
+  ///   the BoomBoomBoomKitML package?" or pass a real conformance to ask
+  ///   "what's the ceiling with my chosen ML model?"
+  /// - Returns: ``AnalysisIntensity/default`` (7) when `mlTechnique` is `nil`;
+  ///   ``AnalysisIntensity/maximum`` (10) when non-nil.
+  public static func maximumSupportedIntensity(
+    mlTechnique: (any MLTechnique)?
+  ) -> AnalysisIntensity {
+    mlTechnique == nil ? dspOnlyMaxIntensity : .maximum
   }
 
   // MARK: - Story 3-6b: pre-corroboration pipeline (test-shareable)
