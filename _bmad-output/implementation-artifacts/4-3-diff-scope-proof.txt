@@ -1,0 +1,379 @@
+# Story 4.3 Diff-Scope Proof Artifact
+
+Generated: 2026-05-05T22:21:27Z
+Pre-source-commit SHA: 9fd7c44 (Task 1 baseline artifacts)
+Pre-Story-4.3 SHA: 9185698 (Story 4.2 close)
+Working-tree SHA: 9fd7c44 (uncommitted source changes pending)
+
+## Section: git diff --stat 9fd7c44..HEAD (working tree)
+
+ Package.swift                                      |   1 +
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  88 ++++++++--
+ Sources/BoomBoomBoomKit/DSPTechnique.swift         | 117 +++++++++++--
+ .../MockMLTechnique.swift                          |  68 ++++++++
+ .../PerformanceBenchmarkTests.swift                |  89 ++++++++++
+ .../BoomBoomBoomKitTests/AblationQuickTests.swift  |   9 +-
+ .../AudioAnalysisServiceTests.swift                |  69 ++++----
+ .../EnsembleCombinerTests.swift                    | 189 +++++++++++++++++++++
+ .../MLTechniquePerfTests.swift                     | 135 +++++++++++++++
+ .../MetadataCorroborationTests.swift               |   2 +-
+ 10 files changed, 705 insertions(+), 62 deletions(-)
+
+## Section: full file diffs of in-scope source files
+
+### Sources/BoomBoomBoomKit/DSPTechnique.swift
+
+```diff
+diff --git a/Sources/BoomBoomBoomKit/DSPTechnique.swift b/Sources/BoomBoomBoomKit/DSPTechnique.swift
+index 9d68fae..7855efb 100644
+--- a/Sources/BoomBoomBoomKit/DSPTechnique.swift
++++ b/Sources/BoomBoomBoomKit/DSPTechnique.swift
+@@ -3,7 +3,8 @@
+ //  BoomBoomBoomKit
+ //
+ //  Closed enum of DSP pipeline techniques, composable TechniqueSet,
+-//  and open MLTechnique protocol for future CoreML integration.
++//  and open MLTechnique protocol for ML-augmented BPM detection
++//  (Story 4.3 wired the path; Stories 4.5/4.6 ship BNNS/CoreML conformances).
+ //
+ 
+ import Foundation
+@@ -179,23 +180,111 @@ public struct TechniqueSet: Sendable, Hashable {
+   }
+ }
+ 
++// MARK: - MLEvaluation
++
++/// Immutable record of an ML model's tempo estimate, returned by
++/// ``MLTechnique/evaluate(trace:)``.
++///
++/// ``MLEvaluation`` is a pure value type — once constructed it carries one
++/// candidate BPM, the model's self-reported confidence, and an optional
++/// stable identifier. The ensemble combiner inside
++/// ``AudioAnalysisService/analyzeBPM(url:options:)`` consumes this value
++/// alongside the DSP-derived ``BPMResult`` to produce the final
++/// ``AudioAnalysisResult``. Story 4.3 ships a single-case default policy
++/// ("DSP wins regardless"); Story 4.4 introduces the public
++/// `EnsemblePolicy` enum that switches on richer combine strategies.
++///
++/// Conformers (Story 4.5 BNNS, Story 4.6 CoreML) construct an
++/// ``MLEvaluation`` only when the model produces a confident estimate;
++/// returning `nil` from ``MLTechnique/evaluate(trace:)`` is the documented
++/// abstain path.
++public struct MLEvaluation: Sendable {
++
++  /// Estimated tempo in beats per minute.
++  ///
++  /// Conformers should clamp predictions to `60.0...200.0` to match the
++  /// DSP pipeline's range-normalized candidate space; out-of-range values
++  /// surface to the ensemble combiner unchanged. A value of `0` (or any
++  /// non-finite) is undefined and is rejected by future ensemble policies
++  /// — return `nil` from ``MLTechnique/evaluate(trace:)`` instead.
++  public let bpm: Double
++
++  /// Self-reported confidence in `[0.0, 1.0]`.
++  ///
++  /// Should be the model's calibrated softmax confidence (or equivalent).
++  /// Story 4.4's ensemble policies may down-weight uncalibrated values —
++  /// conformers SHOULD calibrate using their training-set held-out scores
++  /// rather than emit raw logits.
++  public let confidence: Double
++
++  /// Optional stable identifier of the producing model.
++  ///
++  /// Used for forensic trace tagging when Story 4.5 BNNS and Story 4.6
++  /// CoreML conformances coexist (e.g., `"bnns_tempo_v1"`,
++  /// `"coreml_resnet18_v3"`). Pass `nil` if the model has no stable
++  /// identifier or the consumer does not need to distinguish models.
++  public let modelIdentifier: String?
++
++  public init(bpm: Double, confidence: Double, modelIdentifier: String? = nil) {
++    self.bpm = bpm
++    self.confidence = confidence
++    self.modelIdentifier = modelIdentifier
++  }
++}
++
+ // MARK: - MLTechnique
+ 
+-/// Extension point for future ML-based BPM estimation (Phase 3).
++/// Extension point for ML-augmented BPM estimation.
+ ///
+-/// ML techniques evaluate candidates post-pipeline — they do not modify DSP stages.
+-/// Conformances receive a `BPMDiagnosticTrace` (not raw samples) to avoid
+-/// duplicating DSP computation inside the ML model.
++/// Conformers evaluate the DSP candidate set carried inside
++/// ``BPMDiagnosticTrace/candidatesAfterBoost`` against an on-device model
++/// and return an ``MLEvaluation`` if the model produces a confident
++/// estimate, else `nil`. ML techniques run after the DSP pipeline and
++/// after metadata corroboration — they do not modify DSP stages, do not
++/// see raw audio samples, and do not duplicate DSP computation.
+ ///
+-/// **Note:** Callers must pass `enableTrace: true` when ML techniques are present.
+-/// Auto-enabling trace is deferred to Phase 3.
++/// ## `nil` return semantics
++///
++/// Returning `nil` from ``evaluate(trace:)`` is the documented abstain
++/// path. The ensemble combiner preserves the DSP result unchanged; the
++/// model's silence is treated as "no opinion." Conformers SHOULD return
++/// `nil` (rather than a low-confidence value) whenever the input falls
++/// outside the model's training distribution.
++///
++/// ## Synchronous-by-design
++///
++/// ``evaluate(trace:)`` is intentionally synchronous. Apple's BNNS path
++/// (`BNNSGraphContextExecute`, WWDC 2024 #10211) is synchronous and is
++/// the canonical real-time CPU inference pattern. CoreML conformances may
++/// either use the synchronous `MLModel.prediction(from:)` API or bridge
++/// the async API via a semaphore — both paths run safely from
++/// ``AudioAnalysisService/analyzeBPM(url:options:)`` because the service
++/// is consumer-called from a background `Task`, not `MainActor`.
++///
++/// ## Canonical conformance shape
++///
++/// ```swift
++/// public struct MyBNNSTechnique: MLTechnique {
++///   private let context: BNNSGraph.Context
++///   public func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
++///     // 1. Featurize from trace.onsetEnvelopeLength / candidatesAfterBoost
++///     // 2. BNNSGraphContextExecute(context, ...)
++///     // 3. Decode logits → (bpm, confidence)
++///     // 4. Return nil to abstain when confidence < threshold
++///     return MLEvaluation(bpm: 128.0, confidence: 0.92, modelIdentifier: "bnns_v1")
++///   }
++/// }
++/// ```
+ public protocol MLTechnique: Sendable {
+-  var name: String { get }
+ 
+-  /// Evaluate pipeline candidates and optionally return an alternative BPM estimate.
+-  /// Returns `nil` to defer to the DSP result.
+-  func evaluate(
+-    candidates: [(bpm: Double, score: Float)],
+-    trace: BPMDiagnosticTrace
+-  ) -> (bpm: Double, confidence: Double)?
++  /// Evaluate the DSP pipeline trace and optionally produce an ML estimate.
++  ///
++  /// - Parameter trace: Populated diagnostic trace from the just-completed
++  ///   DSP pipeline (post metadata corroboration). Read DSP candidates
++  ///   from ``BPMDiagnosticTrace/candidatesAfterBoost`` (post-corroboration
++  ///   top-level field) or ``BPMDiagnosticTrace/rawCandidates`` (pre-rescore).
++  /// - Returns: An ``MLEvaluation`` when the model produces a confident
++  ///   estimate, or `nil` to abstain (the DSP result is preserved
++  ///   unchanged by the ensemble combiner).
++  func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation?
+ }
+```
+
+### Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+
+```diff
+diff --git a/Sources/BoomBoomBoomKit/AudioAnalysisService.swift b/Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+index c9032e9..169b8cb 100644
+--- a/Sources/BoomBoomBoomKit/AudioAnalysisService.swift
++++ b/Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+@@ -110,14 +110,22 @@ public struct AudioAnalysisService {
+ 
+     /// Optional ML technique consulted post-pipeline to refine the DSP estimate.
+     ///
+-    /// When non-nil, the pipeline runs as usual and the resulting candidates plus
+-    /// ``BPMDiagnosticTrace`` are passed to ``MLTechnique/evaluate(candidates:trace:)``
+-    /// for an alternative estimate. When `nil` (default), the feature is inactive and
+-    /// the DSP result is returned unchanged.
++    /// When non-nil, the pipeline runs as usual and the resulting populated
++    /// ``BPMDiagnosticTrace`` (with DSP candidates carried in
++    /// ``BPMDiagnosticTrace/candidatesAfterBoost``) is passed to
++    /// ``MLTechnique/evaluate(trace:)`` for an alternative estimate. The
++    /// ``MLEvaluation?`` return value flows through the internal ensemble
++    /// combiner alongside the DSP winner; Story 4.3 ships a single-case default
++    /// policy ("DSP wins regardless") so a non-nil ML evaluation does not yet
++    /// change the final BPM/confidence — Story 4.4's `EnsemblePolicy` enum
++    /// will switch the combiner. When `nil` (default), the feature is inactive
++    /// and the DSP result is returned unchanged.
+     ///
+     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
+-    /// The evaluation path itself is wired by Story 4.3; setting this field today is
+-    /// a no-op against the shipped pipeline.
++    /// Setting this field forces ``BPMDiagnosticTrace`` construction internally
++    /// (per ADR-6) so ``MLTechnique`` always receives a populated trace; the
++    /// trace is dropped from ``AudioAnalysisResult/trace`` unless
++    /// ``enableTrace`` is also `true`.
+     public var mlTechnique: (any MLTechnique)?
+ 
+     /// Strategy for combining candidates across analysis windows (default: `.maxConfidence`).
+@@ -239,7 +247,16 @@ public struct AudioAnalysisService {
+     url: URL,
+     options: Options
+   ) throws -> AudioAnalysisResult? {
+-    let pre = try Self.runPreCorroborationPipeline(url: url, options: options)
++    // Story 4.3 + ADR-6: when `mlTechnique != nil`, the trace must be
++    // populated regardless of `enableTrace` because `MLTechnique.evaluate`
++    // takes a `BPMDiagnosticTrace` as input. Computed here in `analyzeBPM`
++    // (post-corroboration concern) and threaded as a parameter to
++    // `runPreCorroborationPipeline` so the helper does not consult
++    // `options.mlTechnique` in its own body.
++    let shouldBuildTrace = options.enableTrace || options.mlTechnique != nil
++
++    let pre = try Self.runPreCorroborationPipeline(
++      url: url, options: options, enableTrace: shouldBuildTrace)
+     guard let merged = pre.result else { return nil }
+ 
+     // Story 3.6: post-merge metadata corroboration. Runs unconditionally so
+@@ -248,6 +265,19 @@ public struct AudioAnalysisService {
+     let (corroborated, evidence) = MetadataCorroborator.apply(
+       to: merged, input: pre.metadataInput)
+ 
++    // Story 4.3: ML evaluation runs AFTER metadata corroboration so the
++    // tag-driven candidate boost is reflected in `corroborated.trace`. When
++    // `options.mlTechnique == nil`, the chain reduces to a no-op:
++    // `mlEvaluation = nil` and `combine` returns `corroborated` unchanged.
++    let mlEvaluation = options.mlTechnique.flatMap { ml -> MLEvaluation? in
++      // Trace is non-nil here because `shouldBuildTrace` forces construction
++      // when `options.mlTechnique != nil` (ADR-6).
++      guard let trace = corroborated.trace else { return nil }
++      return ml.evaluate(trace: trace)
++    }
++    let combined = Self.combine(
++      dspWinner: corroborated, mlEvaluation: mlEvaluation)
++
+     // Story 4.2: post-pipeline reporting of effective intensity + degradation
+     // reason. Computed AFTER both `runPreCorroborationPipeline` and
+     // `MetadataCorroborator.apply` return — pure reporting, no DSP mutation.
+@@ -257,8 +287,9 @@ public struct AudioAnalysisService {
+       requested: options.intensity, effective: effective)
+ 
+     return AudioAnalysisResult(
+-      bpm: corroborated.bpm, confidence: corroborated.confidence,
+-      candidates: corroborated.candidates, trace: corroborated.trace,
++      bpm: combined.bpm, confidence: combined.confidence,
++      candidates: combined.candidates,
++      trace: options.enableTrace ? combined.trace : nil,
+       metadataEvidence: evidence,
+       effectiveIntensity: effective, degradationReason: reason)
+   }
+@@ -291,6 +322,34 @@ public struct AudioAnalysisService {
+       + "package. Running at intensity \(effective.rawValue) (DSP-only)."
+   }
+ 
++  // MARK: - Story 4.3: ML ensemble combiner (internal)
++
++  /// Combines the post-corroboration DSP winner with an optional
++  /// ``MLEvaluation`` into a final ``BPMResult``.
++  ///
++  /// Story 4.3 default policy is "DSP wins regardless" — the function
++  /// returns ``dspWinner`` unchanged whether ``mlEvaluation`` is `nil` or
++  /// non-nil. Caller invariant: ``mlEvaluation`` is `nil` whenever
++  /// ``Options/mlTechnique`` is `nil`; the function works either way.
++  ///
++  /// Story 4.4 promotes this function to its own file
++  /// (`Sources/BoomBoomBoomKit/EnsembleCombiner.swift`,
++  /// `internal enum EnsembleCombiner` namespace) when the public
++  /// ``EnsemblePolicy`` enum lands and the body switches on policy cases.
++  /// Until then the body stays trivial and the function lives here.
++  ///
++  /// Access is `internal` (not `fileprivate`) so `EnsembleCombinerTests`
++  /// can reach it via `@testable import BoomBoomBoomKit` for direct unit
++  /// tests; Story 4.4 may change the signature without breaking external
++  /// API.
++  internal static func combine(
++    dspWinner: BPMResult,
++    mlEvaluation: MLEvaluation?
++  ) -> BPMResult {
++    _ = mlEvaluation
++    return dspWinner
++  }
++
+   /// Maximum analysis intensity supported by the current configuration.
+   ///
+   /// - Parameter mlTechnique: The ML technique that will be supplied via
+@@ -338,13 +397,20 @@ public struct AudioAnalysisService {
+   ///   - url: Path to the audio file.
+   ///   - options: Configuration controlling read length, intensity, merge,
+   ///     cancellation, and progress.
++  ///   - enableTrace: Whether ``BPMAnalyzer`` should populate a
++  ///     ``BPMDiagnosticTrace`` for each window. Computed by the caller
++  ///     (Story 4.3, ADR-6: trace is forced on whenever
++  ///     ``Options/mlTechnique`` is non-nil so ``MLTechnique`` always
++  ///     receives a populated trace) — the helper does not consult
++  ///     ``Options/enableTrace`` directly so that pre-corroboration code
++  ///     stays free of post-corroboration concerns.
+   /// - Returns: ``PreCorroborationOutput`` carrying the merged DSP
+   ///   candidate (nil for silence/too-short/no-result) and the metadata
+   ///   input destined for ``MetadataCorroborator/apply(to:input:)``.
+   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
+   ///   `CancellationError` if cancelled via `options.isCancelled`.
+   static func runPreCorroborationPipeline(
+-    url: URL, options: Options
++    url: URL, options: Options, enableTrace: Bool
+   ) throws -> PreCorroborationOutput {
+     // Early cancellation check — avoid ~10MB PCM read on pre-cancelled calls.
+     if options.isCancelled() { throw CancellationError() }
+@@ -393,7 +459,7 @@ public struct AudioAnalysisService {
+             analysisWindowSeconds: windowSeconds,
+             intensity: options.intensity,
+             techniqueSet: options.techniqueSet,
+-            enableTrace: options.enableTrace,
++            enableTrace: enableTrace,
+             fileDurationSeconds: fileDurationSeconds,
+             durationHintMinFileSeconds: options.durationHintMinFileSeconds)
+         )
+```
+
+### Package.swift
+
+```diff
+diff --git a/Package.swift b/Package.swift
+index a25d962..addf084 100644
+--- a/Package.swift
++++ b/Package.swift
+@@ -16,6 +16,7 @@ let package = Package(
+     ),
+     .target(
+       name: "BoomBoomBoomKitTestSupport",
++      dependencies: ["BoomBoomBoomKit"],
+       path: "Sources/BoomBoomBoomKitTestSupport",
+       resources: [.copy("Resources/AudioFixtures")]
+     ),
+```
+
+### Sources/BoomBoomBoomKitTestSupport/ (NEW: MockMLTechnique.swift)
+
+ .../MockMLTechnique.swift                          | 68 ++++++++++++++++++++++
+ 1 file changed, 68 insertions(+)
+
+## Section: untouched files in Sources/BoomBoomBoomKit/ (DD #12 invariant)
+
+Expected zero diff against:
+
+  - BPMAnalyzer.swift: UNMODIFIED ✓
+  - BPMDiagnosticTrace.swift: UNMODIFIED ✓
+  - AnalysisIntensity.swift: UNMODIFIED ✓
+  - MetadataCorroborator.swift: UNMODIFIED ✓
+  - MetadataPolicy.swift: UNMODIFIED ✓
+  - CandidateMergeStrategy.swift: UNMODIFIED ✓
+  - VotingPolicy.swift: UNMODIFIED ✓
+  - LUFSAnalyzer.swift: UNMODIFIED ✓
+  - MelFilterbank.swift: UNMODIFIED ✓
+  - PCMBufferReader.swift: UNMODIFIED ✓
+  - FileMetadataReader.swift: UNMODIFIED ✓
+  - ProgressUpdate.swift: UNMODIFIED ✓
+
+## Section: NO new file Sources/BoomBoomBoomKit/EnsembleCombiner.swift (DD #4)
+
+  EnsembleCombiner.swift does not exist ✓ (Story 4.4 owns the file promotion)
+
+## Section: zero MLTechnique.name references (HALT (b) check)
+
+  Matches:        0
+  HALT (b) PASS ✓
+
+## Section: Tests/BoomBoomBoomKitBenchmarkTests/ scope
+
+Story 4.3's original AC #11 prohibited SNAPSHOT-capture additions to this target.
+The Codex C-modified amendment (2026-05-05) explicitly added a perf-gate @Test
+(mlMockOnAbstainPerf) to PerformanceBenchmarkTests.swift — perf addition, NOT
+snapshot addition. AC #11's prohibition does not extend to perf additions; the
+literal text only forbids snapshot captures.
+
+ .../PerformanceBenchmarkTests.swift                | 89 ++++++++++++++++++++++
+ 1 file changed, 89 insertions(+)

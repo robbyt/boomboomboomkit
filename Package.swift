@@ -16,6 +16,7 @@ let package = Package(
     ),
     .target(
       name: "BoomBoomBoomKitTestSupport",
+      dependencies: ["BoomBoomBoomKit"],
       path: "Sources/BoomBoomBoomKitTestSupport",
       resources: [.copy("Resources/AudioFixtures")]
     ),

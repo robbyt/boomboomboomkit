@@ -109,19 +109,14 @@ struct AblationQuickTests {
   @Test("MLTechnique protocol can be conformed to")
   func mlTechniqueConformance() {
     struct NoOpML: MLTechnique {
-      let name = "noop"
-      func evaluate(
-        candidates: [(bpm: Double, score: Float)],
-        trace: BPMDiagnosticTrace
-      ) -> (bpm: Double, confidence: Double)? {
+      func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
         return nil
       }
     }
 
     let ml = NoOpML()
-    #expect(ml.name == "noop")
     let trace = BPMDiagnosticTrace()
-    let result = ml.evaluate(candidates: [(bpm: 120.0, score: 0.9)], trace: trace)
+    let result = ml.evaluate(trace: trace)
     #expect(result == nil)
   }
 }

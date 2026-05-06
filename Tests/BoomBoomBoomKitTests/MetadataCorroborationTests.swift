@@ -433,7 +433,7 @@ struct MetadataCorroborationServiceTests {
     // is precisely that metadata I/O produces no evidence.
     let baseline = try #require(
       try AudioAnalysisService.runPreCorroborationPipeline(
-        url: url, options: optsDisabled
+        url: url, options: optsDisabled, enableTrace: optsDisabled.enableTrace
       ).result)
     #expect(resultDisabled.metadataEvidence.isEmpty)
     #expect(resultDisabled.bpm.bitPattern == baseline.bpm.bitPattern)
