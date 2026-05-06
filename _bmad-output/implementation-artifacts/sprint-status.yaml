@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-05 (Story 4.3 → done post code-review close-out: 1 decision-needed + 4 patches resolved, all benchmarks byte-identical, perf gate 1.092x)
+last_updated: 2026-05-06 (Story 4-3b → done: code review resolved — D1 re-ran corpora exit-0 byte-identical; D2 Branch-B-prime hybrid approved; 8 patches applied + 327 tests pass + perf-benchmark 1.086x ≤ 1.20x)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -77,7 +77,7 @@ development_status:
   4-1-boomboomboomkitml-package-structure: done
   4-2-effective-intensity-and-graceful-ml-degradation: done
   4-3-ml-technique-slot-wiring-and-tuple-to-struct-migration: done
-  4-3b-trace-build-cost-budget: ready-for-dev
+  4-3b-trace-build-cost-budget: done
   4-4-configurable-ml-ensemble-voting-policy: backlog
   4-5-bnns-mltechnique-conformance: backlog
   4-6-coreml-mltechnique-conformance: backlog

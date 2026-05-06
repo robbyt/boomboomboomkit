@@ -313,7 +313,7 @@ struct BPMAnalyzerTraceTests {
       BPMAnalyzer.estimateBPM(
         samples: samples, sampleRate: 44100, options: .init(intensity: 1, enableTrace: true)))
     let trace = try #require(result.trace)
-    #expect(trace.subBandEnergies.isEmpty)
+    #expect(trace.subBandEnergies == .zero)
     #expect(trace.refinedBPM == nil)
     #expect(trace.intensityUsed.rawValue == 1)
   }

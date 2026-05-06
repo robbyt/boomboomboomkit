@@ -94,6 +94,52 @@ struct MLTechniquePerfTests {
     #expect(
       mockResult != nil, "mock-injected analyzeBPM should return a result on a clean click track")
   }
+
+  /// Story 4-3b Task 1.2/1.3: long-loop profiling target for xctrace Time
+  /// Profiler. Env-gated on `PROFILE_LOOPS=1` so it never runs under
+  /// `make test` — only when `_bmad-output/scripts/profile-trace-build-cost.sh`
+  /// invokes it via `xctrace record --launch`. Loops the mock-injected hot
+  /// path so xctrace can capture stable CPU samples. Default 200 iters
+  /// yields ~2.4 s of analyzer work; the committed profile artifact used
+  /// `PROFILE_LOOPS_ITERS=2000` (~14 s of CPU samples). Set
+  /// `PROFILE_LOOPS_ITERS` to scale capture length.
+  @Test(
+    "profile-long-loop (env-gated PROFILE_LOOPS=1)",
+    .enabled(if: ProcessInfo.processInfo.environment["PROFILE_LOOPS"] == "1"))
+  func profileLongLoop() throws {
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("ml_technique_profile_long.wav")
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    try writeClickTrackWAV(
+      bpm: 120, sampleRate: 44100, durationSeconds: 30, url: tempURL)
+
+    var withMockOpts = AudioAnalysisService.Options()
+    withMockOpts.intensity = .fastest
+    withMockOpts.mlTechnique = MockMLTechnique(returning: nil)
+
+    // 200 iterations × ~12 ms/iter = ~2.4 s of analyzer work. Override via
+    // PROFILE_LOOPS_ITERS for longer captures.
+    let iterations =
+      Int(ProcessInfo.processInfo.environment["PROFILE_LOOPS_ITERS"] ?? "200") ?? 200
+    precondition(
+      iterations >= 1,
+      "PROFILE_LOOPS_ITERS must be >= 1; got \(iterations)")
+
+    print("Profile long-loop: \(iterations) iterations of mock-injected analyzeBPM")
+    let clock = ContinuousClock()
+    let start = clock.now
+    var nonNilCount = 0
+    for _ in 0..<iterations {
+      if try AudioAnalysisService.analyzeBPM(url: tempURL, options: withMockOpts) != nil {
+        nonNilCount += 1
+      }
+    }
+    let elapsed = clock.now - start
+    print(
+      "Profile long-loop: \(nonNilCount)/\(iterations) non-nil; total=\(secondsOf(elapsed))s"
+    )
+    #expect(nonNilCount == iterations, "all iterations should produce a result")
+  }
 }
 
 private func secondsOf(_ duration: Duration) -> Double {

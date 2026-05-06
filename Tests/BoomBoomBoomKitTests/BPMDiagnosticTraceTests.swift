@@ -137,3 +137,59 @@ struct BPMDiagnosticTraceTests {
     #expect(durationStr.contains("128"))
   }
 }
+
+// MARK: - Story 4-3b: SubBandEnergies typed migration
+
+/// Story 4-3b Task 2.8 — verifies the `SubBandEnergies` shape and the
+/// `.zero` semantic preservation (the migrated field must observe the same
+/// "no entry / zero energy" equivalence the old `[String: Float] = [:]`
+/// shape provided).
+@Suite("SubBandEnergies — Story 4-3b typed migration")
+struct SubBandEnergiesTests {
+
+  /// `.zero` is the default-initialization sentinel: all four sub-band fields
+  /// equal `0`. Same observable state as the pre-Story-4-3b empty dict.
+  @Test("zero constant has all four fields at 0")
+  func zeroHasAllFieldsAtZero() {
+    let z = SubBandEnergies.zero
+    #expect(z.kick == 0)
+    #expect(z.snare == 0)
+    #expect(z.crack == 0)
+    #expect(z.hihat == 0)
+  }
+
+  /// Memberwise init round-trips field values exactly (no precision loss).
+  @Test("init round-trip preserves field values")
+  func initRoundTrip() {
+    let e = SubBandEnergies(kick: 0.25, snare: 0.5, crack: 0.125, hihat: 1.0)
+    #expect(e.kick == 0.25)
+    #expect(e.snare == 0.5)
+    #expect(e.crack == 0.125)
+    #expect(e.hihat == 1.0)
+  }
+
+  /// Description matches the Story 3-3b shape (e.g., `ClickCorrelationEntry`)
+  /// — `"SubBandEnergies(kick: <f>, snare: <f>, crack: <f>, hihat: <f>)"`.
+  @Test("description includes all four labelled fields")
+  func descriptionShape() {
+    let e = SubBandEnergies(kick: 0.1, snare: 0.2, crack: 0.3, hihat: 0.4)
+    let d = String(describing: e)
+    #expect(d.contains("SubBandEnergies"))
+    #expect(d.contains("kick:"))
+    #expect(d.contains("snare:"))
+    #expect(d.contains("crack:"))
+    #expect(d.contains("hihat:"))
+  }
+
+  /// `Equatable` conformance is required so the `BPMAnalyzerTests`
+  /// `traceAtIntensity1` reader can use `== .zero` (Story 4-3b Task 2.5).
+  /// Synthesis is free for all-`Float` storage.
+  @Test("Equatable: zero == zero, nonzero != zero")
+  func equatableConformance() {
+    #expect(SubBandEnergies.zero == SubBandEnergies.zero)
+    #expect(SubBandEnergies(kick: 0.5, snare: 0, crack: 0, hihat: 0) != .zero)
+    #expect(
+      SubBandEnergies(kick: 0.1, snare: 0.2, crack: 0.3, hihat: 0.4)
+        == SubBandEnergies(kick: 0.1, snare: 0.2, crack: 0.3, hihat: 0.4))
+  }
+}
