@@ -1,0 +1,79 @@
+[
+  {
+    "case" : "ml_abstains",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "ml_abstains",
+      "source" : "dsp"
+    },
+    "ml" : null
+  },
+  {
+    "case" : "ml_agrees",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "default_dsp_policy_v0",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 120,
+      "conf" : 0.85
+    }
+  },
+  {
+    "case" : "ml_disagrees_low_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "default_dsp_policy_v0",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.4
+    }
+  },
+  {
+    "case" : "ml_disagrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "default_dsp_policy_v0",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.95
+    }
+  },
+  {
+    "case" : "ml_disagrees_dsp_low_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.4
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "default_dsp_policy_v0",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.95
+    }
+  }
+]

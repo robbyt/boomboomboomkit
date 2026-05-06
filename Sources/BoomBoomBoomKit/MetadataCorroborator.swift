@@ -52,16 +52,47 @@ enum MetadataCorroborator {
   /// re-selects the winner from the boosted candidate pool, and applies the
   /// confidence boost or skepticism penalty per AC #11 / #14 / #15.
   ///
-  /// When `input.participatingTags.isEmpty`, returns `(result, [])` unchanged
-  /// — this is the policy=disabled path and the no-tags-found path.
+  /// When `input.participatingTags.isEmpty` (the policy=disabled path and the
+  /// no-tags-found path), returns the result with `bpm`/`confidence`/`candidates`
+  /// unchanged. When `result.trace != nil`, the trace's `candidatesAfterBoost`
+  /// is populated by mirroring `result.candidates` so ``MLTechnique`` conformers
+  /// can read the canonical post-pipeline candidate set from a single field;
+  /// when `result.trace == nil`, the populator returns nil and the BPMResult's
+  /// trace stays nil. Returned evidence is always `[]` on this branch.
   static func apply(
     to result: BPMResult,
     input: MetadataCorroborationInput
   ) -> (BPMResult, [MetadataBPMEvidence]) {
 
-    // No tags → pass through.
+    // No tags → pass through, but populate the trace's
+    // ``BPMDiagnosticTrace/candidatesAfterBoost`` with the post-pipeline
+    // candidate set so ``MLTechnique`` conformers can always read the
+    // canonical featurization surface from a single field — instead of
+    // having to special-case the no-tags / disabled-policy paths against
+    // ``BPMDiagnosticTrace/rawCandidates``. Mirrors `result.candidates`
+    // verbatim; metadata evidence remains empty (no tags participated)
+    // and `metadataPolicyUsed` records the policy this run used.
+    // Story 4.3 code review (Codex consult thread
+    // `019dfa81-a8b9-7bf3-b602-4f8c53916ab0`, 2026-05-05): "absence is
+    // metadata-shaped, not candidate-shaped" — keep the candidate
+    // collection candidate-shaped. When `result.trace == nil`
+    // (`enableTrace == false` AND `mlTechnique == nil`), the populator
+    // returns nil and `BPMResult.trace` stays nil — zero behavior change.
     if input.participatingTags.isEmpty {
-      return (result, [])
+      let updatedTrace = trace(
+        result.trace,
+        TracePopulation(
+          policy: input.policy,
+          evidenceBeforeBoost: [],
+          candidatesBefore: result.candidates,
+          candidatesAfter: result.candidates,
+          finalConfidence: result.confidence))
+      return (
+        BPMResult(
+          bpm: result.bpm, confidence: result.confidence,
+          candidates: result.candidates, trace: updatedTrace),
+        []
+      )
     }
 
     // Snapshot the trace's pre-boost view (populated below if enableTrace).

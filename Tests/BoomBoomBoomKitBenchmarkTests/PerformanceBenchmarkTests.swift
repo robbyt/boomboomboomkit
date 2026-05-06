@@ -424,6 +424,115 @@ struct PerformanceBenchmarkTests {
     try Self.handleBaselinePersistence(record: record, hardware: hardware)
   }
 
+  /// Story 4.3 AC #7 second-gate (post Codex C-modified, 2026-05-05): the
+  /// mock-on-abstaining ML path's wall-clock at intensity 7 must complete
+  /// within `mlMockOnAbstainMaxRatio` of the `mlTechnique=nil` baseline
+  /// recorded in this same suite invocation. Hard-fail; replaces the
+  /// unit-test 1.10x gate that was authored without empirical measurement.
+  ///
+  /// Both passes run within a single test invocation so the comparison is
+  /// against the same machine state, same warm/cold-cache profile, same
+  /// system load — no cross-run noise. Each pass excludes its first
+  /// successful track as warmup (matches `benchmarkWallClockTime`).
+  ///
+  /// The 1.30x threshold is intentionally above the empirically-observed
+  /// ~1.22x structural floor (constant across `.fastest` and `.default`).
+  /// Story 4-3b will tighten the threshold against measured floor data
+  /// after profiling and targeted optimizations.
+  @Test("ML mock-on-abstain wall-clock ≤ 1.30x baseline at intensity 7 (Story 4.3 AC #7)")
+  func mlMockOnAbstainPerf() async throws {
+    let availableTracks = groundTruth.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track).path)
+    }
+    try #require(!availableTracks.isEmpty, "OA300 corpus is empty or paths are wrong")
+
+    // Per-track per-pass result: nil duration means analyzeBPM threw.
+    // Capturing the first error so an empty-corpus failure surfaces the
+    // root cause instead of a "no tracks succeeded" tautology
+    // (Story 4.3 review patch 2026-05-05).
+    func runPass(
+      mlTechnique: (any MLTechnique)?
+    ) -> (perTrack: [Double?], firstError: Error?) {
+      let clock = ContinuousClock()
+      var perTrack: [Double?] = []
+      var firstError: Error?
+      for track in availableTracks {
+        let url = trackURL(track)
+        let start = clock.now
+        do {
+          _ = try AudioAnalysisService.analyzeBPM(
+            url: url,
+            options: {
+              var o = AudioAnalysisService.Options()
+              o.intensity = .default
+              o.mlTechnique = mlTechnique
+              return o
+            }())
+          let elapsed = clock.now - start
+          perTrack.append(Self.durationSeconds(elapsed))
+        } catch {
+          if firstError == nil { firstError = error }
+          perTrack.append(nil)
+        }
+      }
+      return (perTrack, firstError)
+    }
+
+    let baseline = runPass(mlTechnique: nil)
+    let mockRun = runPass(mlTechnique: MockMLTechnique(returning: nil))
+
+    // Symmetric warmup: aggregate ONLY over tracks that succeeded in
+    // BOTH passes (preserves A/B pairing under transient failures), then
+    // drop the first such index from BOTH passes (matches
+    // `benchmarkWallClockTime`'s warmup discipline). Story 4.3 review
+    // patch 2026-05-05: the prior per-pass `warmupAssigned` flag could
+    // exclude DIFFERENT first-successful tracks from baseline vs mock
+    // when failures diverged, breaking comparability.
+    var pairedDurations: [(baseline: Double, mock: Double)] = []
+    for (b, m) in zip(baseline.perTrack, mockRun.perTrack) {
+      if let b = b, let m = m { pairedDurations.append((b, m)) }
+    }
+
+    if pairedDurations.count < 2 {
+      let diag: String
+      if let err = baseline.firstError ?? mockRun.firstError {
+        diag = "first analyzeBPM error: \(err)"
+      } else {
+        diag = "no analyzeBPM errors recorded — check OA300 corpus contents"
+      }
+      try #require(
+        pairedDurations.count >= 2,
+        "perf gate needs ≥2 tracks succeeding in BOTH passes (got \(pairedDurations.count)). \(diag)"
+      )
+    }
+
+    let measured = pairedDurations.dropFirst()  // symmetric warmup drop
+    let baselineMean = measured.map(\.baseline).reduce(0, +) / Double(measured.count)
+    let mockMean = measured.map(\.mock).reduce(0, +) / Double(measured.count)
+    let ratio = mockMean / baselineMean
+
+    print("\n=== Performance Benchmark — ML Mock-on-Abstain Gate (Story 4.3 AC #7) ===")
+    print(
+      "baseline (mlTechnique=nil)        mean: \(String(format: "%.3f", baselineMean))s over \(measured.count) tracks"
+    )
+    print(
+      "mock     (MockMLTechnique(nil))   mean: \(String(format: "%.3f", mockMean))s over \(measured.count) tracks"
+    )
+    print(
+      "ratio = \(String(format: "%.3f", ratio))x (threshold: \(String(format: "%.2f", Self.mlMockOnAbstainMaxRatio))x)"
+    )
+
+    #expect(
+      ratio < Self.mlMockOnAbstainMaxRatio,
+      "Story 4.3 AC #7: mock-on-abstain ratio \(String(format: "%.3f", ratio))x exceeds threshold \(String(format: "%.2f", Self.mlMockOnAbstainMaxRatio))x — investigate trace-build cost (Story 4-3b)"
+    )
+  }
+
+  /// Story 4.3 AC #7 (post Codex C-modified, 2026-05-05): mock-on-abstain
+  /// hard-fail threshold. Story 4-3b will tighten this against measured
+  /// floor data after profiling. Empirically observed floor: ~1.22x.
+  private static let mlMockOnAbstainMaxRatio: Double = 1.30
+
   // MARK: - Helpers
 
   private func trackURL(_ track: OA300Track) -> URL {

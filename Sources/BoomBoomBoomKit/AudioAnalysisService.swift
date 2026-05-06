@@ -110,14 +110,22 @@ public struct AudioAnalysisService {
 
     /// Optional ML technique consulted post-pipeline to refine the DSP estimate.
     ///
-    /// When non-nil, the pipeline runs as usual and the resulting candidates plus
-    /// ``BPMDiagnosticTrace`` are passed to ``MLTechnique/evaluate(candidates:trace:)``
-    /// for an alternative estimate. When `nil` (default), the feature is inactive and
-    /// the DSP result is returned unchanged.
+    /// When non-nil, the pipeline runs as usual and the resulting populated
+    /// ``BPMDiagnosticTrace`` (with DSP candidates carried in
+    /// ``BPMDiagnosticTrace/candidatesAfterBoost``) is passed to
+    /// ``MLTechnique/evaluate(trace:)`` for an alternative estimate. The
+    /// ``MLEvaluation?`` return value flows through the internal ensemble
+    /// combiner alongside the DSP winner; Story 4.3 ships a single-case default
+    /// policy ("DSP wins regardless") so a non-nil ML evaluation does not yet
+    /// change the final BPM/confidence — Story 4.4's `EnsemblePolicy` enum
+    /// will switch the combiner. When `nil` (default), the feature is inactive
+    /// and the DSP result is returned unchanged.
     ///
     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
-    /// The evaluation path itself is wired by Story 4.3; setting this field today is
-    /// a no-op against the shipped pipeline.
+    /// Setting this field forces ``BPMDiagnosticTrace`` construction internally
+    /// (per ADR-6) so ``MLTechnique`` always receives a populated trace; the
+    /// trace is dropped from ``AudioAnalysisResult/trace`` unless
+    /// ``enableTrace`` is also `true`.
     public var mlTechnique: (any MLTechnique)?
 
     /// Strategy for combining candidates across analysis windows (default: `.maxConfidence`).
@@ -239,7 +247,16 @@ public struct AudioAnalysisService {
     url: URL,
     options: Options
   ) throws -> AudioAnalysisResult? {
-    let pre = try Self.runPreCorroborationPipeline(url: url, options: options)
+    // Story 4.3 + ADR-6: when `mlTechnique != nil`, the trace must be
+    // populated regardless of `enableTrace` because `MLTechnique.evaluate`
+    // takes a `BPMDiagnosticTrace` as input. Computed here in `analyzeBPM`
+    // (post-corroboration concern) and threaded as a parameter to
+    // `runPreCorroborationPipeline` so the helper does not consult
+    // `options.mlTechnique` in its own body.
+    let shouldBuildTrace = options.enableTrace || options.mlTechnique != nil
+
+    let pre = try Self.runPreCorroborationPipeline(
+      url: url, options: options, enableTrace: shouldBuildTrace)
     guard let merged = pre.result else { return nil }
 
     // Story 3.6: post-merge metadata corroboration. Runs unconditionally so
@@ -247,6 +264,19 @@ public struct AudioAnalysisService {
     // get the corroboration pass.
     let (corroborated, evidence) = MetadataCorroborator.apply(
       to: merged, input: pre.metadataInput)
+
+    // Story 4.3: ML evaluation runs AFTER metadata corroboration so the
+    // tag-driven candidate boost is reflected in `corroborated.trace`. When
+    // `options.mlTechnique == nil`, the chain reduces to a no-op:
+    // `mlEvaluation = nil` and `combine` returns `corroborated` unchanged.
+    let mlEvaluation = options.mlTechnique.flatMap { ml -> MLEvaluation? in
+      // Trace is non-nil here because `shouldBuildTrace` forces construction
+      // when `options.mlTechnique != nil` (ADR-6).
+      guard let trace = corroborated.trace else { return nil }
+      return ml.evaluate(trace: trace)
+    }
+    let combined = Self.combine(
+      dspWinner: corroborated, mlEvaluation: mlEvaluation)
 
     // Story 4.2: post-pipeline reporting of effective intensity + degradation
     // reason. Computed AFTER both `runPreCorroborationPipeline` and
@@ -257,8 +287,9 @@ public struct AudioAnalysisService {
       requested: options.intensity, effective: effective)
 
     return AudioAnalysisResult(
-      bpm: corroborated.bpm, confidence: corroborated.confidence,
-      candidates: corroborated.candidates, trace: corroborated.trace,
+      bpm: combined.bpm, confidence: combined.confidence,
+      candidates: combined.candidates,
+      trace: options.enableTrace ? combined.trace : nil,
       metadataEvidence: evidence,
       effectiveIntensity: effective, degradationReason: reason)
   }
@@ -289,6 +320,34 @@ public struct AudioAnalysisService {
     return
       "Requested intensity \(requested.rawValue) requires BoomBoomBoomKitML "
       + "package. Running at intensity \(effective.rawValue) (DSP-only)."
+  }
+
+  // MARK: - Story 4.3: ML ensemble combiner (internal)
+
+  /// Combines the post-corroboration DSP winner with an optional
+  /// ``MLEvaluation`` into a final ``BPMResult``.
+  ///
+  /// Story 4.3 default policy is "DSP wins regardless" — the function
+  /// returns ``dspWinner`` unchanged whether ``mlEvaluation`` is `nil` or
+  /// non-nil. Caller invariant: ``mlEvaluation`` is `nil` whenever
+  /// ``Options/mlTechnique`` is `nil`; the function works either way.
+  ///
+  /// Story 4.4 promotes this function to its own file
+  /// (`Sources/BoomBoomBoomKit/EnsembleCombiner.swift`,
+  /// `internal enum EnsembleCombiner` namespace) when the public
+  /// ``EnsemblePolicy`` enum lands and the body switches on policy cases.
+  /// Until then the body stays trivial and the function lives here.
+  ///
+  /// Access is `internal` (not `fileprivate`) so `EnsembleCombinerTests`
+  /// can reach it via `@testable import BoomBoomBoomKit` for direct unit
+  /// tests; Story 4.4 may change the signature without breaking external
+  /// API.
+  internal static func combine(
+    dspWinner: BPMResult,
+    mlEvaluation: MLEvaluation?
+  ) -> BPMResult {
+    _ = mlEvaluation
+    return dspWinner
   }
 
   /// Maximum analysis intensity supported by the current configuration.
@@ -338,13 +397,20 @@ public struct AudioAnalysisService {
   ///   - url: Path to the audio file.
   ///   - options: Configuration controlling read length, intensity, merge,
   ///     cancellation, and progress.
+  ///   - enableTrace: Whether ``BPMAnalyzer`` should populate a
+  ///     ``BPMDiagnosticTrace`` for each window. Computed by the caller
+  ///     (Story 4.3, ADR-6: trace is forced on whenever
+  ///     ``Options/mlTechnique`` is non-nil so ``MLTechnique`` always
+  ///     receives a populated trace) — the helper does not consult
+  ///     ``Options/enableTrace`` directly so that pre-corroboration code
+  ///     stays free of post-corroboration concerns.
   /// - Returns: ``PreCorroborationOutput`` carrying the merged DSP
   ///   candidate (nil for silence/too-short/no-result) and the metadata
   ///   input destined for ``MetadataCorroborator/apply(to:input:)``.
   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
   ///   `CancellationError` if cancelled via `options.isCancelled`.
   static func runPreCorroborationPipeline(
-    url: URL, options: Options
+    url: URL, options: Options, enableTrace: Bool
   ) throws -> PreCorroborationOutput {
     // Early cancellation check — avoid ~10MB PCM read on pre-cancelled calls.
     if options.isCancelled() { throw CancellationError() }
@@ -393,7 +459,7 @@ public struct AudioAnalysisService {
             analysisWindowSeconds: windowSeconds,
             intensity: options.intensity,
             techniqueSet: options.techniqueSet,
-            enableTrace: options.enableTrace,
+            enableTrace: enableTrace,
             fileDurationSeconds: fileDurationSeconds,
             durationHintMinFileSeconds: options.durationHintMinFileSeconds)
         )

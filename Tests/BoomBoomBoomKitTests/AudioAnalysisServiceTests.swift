@@ -377,34 +377,19 @@ struct AudioAnalysisServiceProgressTests {
   }
 }
 
-// MARK: - MLTechnique Slot (Story 3-3a / ADR-11)
-
-/// Test-target-only mock conformance for ``MLTechnique``. Lives in the test target
-/// per architecture.md:482 — the public package ships no MLTechnique conformances.
-private struct MockMLTechnique: MLTechnique {
-  let name: String
-  init(name: String = "Mock") { self.name = name }
-
-  func evaluate(
-    candidates: [(bpm: Double, score: Float)],
-    trace: BPMDiagnosticTrace
-  ) -> (bpm: Double, confidence: Double)? {
-    // Sentinel: 999 BPM is outside the public 60-200 output range, so a future
-    // wired-but-not-Story-4.3 read of `options.mlTechnique` that surfaced this
-    // value would break `mlTechniqueNonNilIsIgnoredPreStory43`'s identity assertion.
-    (bpm: 999.0, confidence: 1.0)
-  }
-}
+// MARK: - MLTechnique Slot (Story 3-3a / ADR-11; wired by Story 4.3)
 
 @Suite("AudioAnalysisService — MLTechnique Slot")
 struct MLTechniqueSlotTests {
 
-  /// AC#2: `Options` accepts a real `MLTechnique` conformance and round-trips it.
+  /// AC#2 (Story 3-3a): `Options` accepts a real `MLTechnique` conformance and
+  /// round-trips it. Post-Story-4.3 the protocol no longer requires a `name`
+  /// channel; round-trip is proven by non-nil identity alone.
   @Test("mlTechnique slot accepts conformance and round-trips")
   func mlTechniqueSlotAcceptsConformance() {
     var opts = AudioAnalysisService.Options()
-    opts.mlTechnique = MockMLTechnique(name: "Probe")
-    #expect(opts.mlTechnique?.name == "Probe")
+    opts.mlTechnique = MockMLTechnique()
+    #expect(opts.mlTechnique != nil)
   }
 
   /// AC#2: A fresh `Options()` defaults `mlTechnique` to nil per the implicit-nil rule.
@@ -414,12 +399,14 @@ struct MLTechniqueSlotTests {
     #expect(opts.mlTechnique == nil)
   }
 
-  /// AC#2: With Story 4.3 not yet landed, setting `mlTechnique` to a non-nil mock
-  /// MUST produce results identical to the baseline (proves the field is inert).
-  /// When Story 4.3 wires the evaluation path, this test will fail and must be
-  /// updated to reflect the new ML-influenced behavior.
-  @Test("mlTechnique non-nil produces results identical to baseline (slot is inert pre-Story-4.3)")
-  func mlTechniqueNonNilIsIgnoredPreStory43() throws {
+  /// Post-Story-4.3 invariant (DD #5): the default ensemble policy is
+  /// "DSP wins regardless." An injected `MLEvaluation` — even one carrying a
+  /// sentinel BPM outside the public 60-200 output range — must NOT change
+  /// the final BPM/confidence vs the baseline. Story 4.4 introduces the
+  /// public `EnsemblePolicy` enum that switches the combiner; until then the
+  /// ML path is wired-but-inert at the result layer.
+  @Test("mlEvaluation does not change DSP result under default policy (Story 4.3 DD #5)")
+  func mlEvaluationDoesNotChangeDSPResultUnderDefaultPolicy() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
 
     var baseline = AudioAnalysisService.Options()
@@ -429,12 +416,42 @@ struct MLTechniqueSlotTests {
 
     var withMock = AudioAnalysisService.Options()
     withMock.intensity = .fastest
-    withMock.mlTechnique = MockMLTechnique()
+    // 999 BPM is outside the public 60-200 output range. If a future change
+    // accidentally promoted ML output to the ensemble result, this sentinel
+    // would surface in `mockResult.bpm` and break the bitPattern equality.
+    withMock.mlTechnique = MockMLTechnique(
+      returning: MLEvaluation(bpm: 999.0, confidence: 1.0))
     let mockResult = try #require(
       try AudioAnalysisService.analyzeBPM(url: url, options: withMock))
 
     #expect(baselineResult.bpm == mockResult.bpm)
     #expect(baselineResult.confidence == mockResult.confidence)
+  }
+
+  /// AC #4: `MLTechnique.evaluate(trace:)` is invoked exactly once per window
+  /// when `mlTechnique != nil`, with a non-nil trace, even when
+  /// `enableTrace == false`. The trace is dropped from the public
+  /// `AudioAnalysisResult.trace` surface.
+  @Test("evaluate is invoked with non-nil trace when mlTechnique is set and enableTrace=false")
+  func evaluateIsInvokedWithNonNilTraceWhenEnableTraceFalse() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let mock = RecordingMockMLTechnique(returning: nil)
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = .fastest  // single window
+    opts.enableTrace = false
+    opts.mlTechnique = mock
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    #expect(mock.callCount == 1)
+    // After Story 4.3 review's Option 2 resolution (Codex consult thread
+    // `019dfa81-a8b9-7bf3-b602-4f8c53916ab0`, 2026-05-05),
+    // `MetadataCorroborator.apply` populates `candidatesAfterBoost`
+    // unconditionally. This assertion proves the trace was passed AND
+    // populated with candidate data — not merely non-nil-by-type
+    // (the protocol's `trace` parameter is already non-optional, so
+    // type-presence is guaranteed by the compiler).
+    #expect((mock.capturedCandidatesAfterBoostCount ?? 0) > 0)
+    #expect(result.trace == nil)
   }
 }
 
@@ -732,7 +749,8 @@ private func createClickTrackWAV(
 /// Story 4.2 ACs #2-#4: `AudioAnalysisResult.effectiveIntensity` reflects the
 /// effective DSP-level depth and `degradationReason` carries an actionable
 /// explanation when intensity 8-10 is requested without an `MLTechnique`.
-/// Reuses the file-private ``MockMLTechnique`` defined above (DD #5).
+/// Reuses ``BoomBoomBoomKitTestSupport/MockMLTechnique`` (Story 4.3 Task 5.2
+/// promotion; DD #7).
 @Suite("AudioAnalysisService — Effective Intensity")
 struct EffectiveIntensityTests {
 
