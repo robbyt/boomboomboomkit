@@ -424,22 +424,27 @@ struct PerformanceBenchmarkTests {
     try Self.handleBaselinePersistence(record: record, hardware: hardware)
   }
 
-  /// Story 4.3 AC #7 second-gate (post Codex C-modified, 2026-05-05): the
-  /// mock-on-abstaining ML path's wall-clock at intensity 7 must complete
-  /// within `mlMockOnAbstainMaxRatio` of the `mlTechnique=nil` baseline
-  /// recorded in this same suite invocation. Hard-fail; replaces the
-  /// unit-test 1.10x gate that was authored without empirical measurement.
+  /// Story 4.3 AC #7 second-gate (post Codex C-modified, 2026-05-05),
+  /// tightened by Story 4-3b: the mock-on-abstaining ML path's wall-clock
+  /// at intensity 7 must complete within `mlMockOnAbstainMaxRatio` of the
+  /// `mlTechnique=nil` baseline recorded in this same suite invocation.
+  /// Hard-fail.
   ///
   /// Both passes run within a single test invocation so the comparison is
   /// against the same machine state, same warm/cold-cache profile, same
   /// system load — no cross-run noise. Each pass excludes its first
   /// successful track as warmup (matches `benchmarkWallClockTime`).
   ///
-  /// The 1.30x threshold is intentionally above the empirically-observed
-  /// ~1.22x structural floor (constant across `.fastest` and `.default`).
-  /// Story 4-3b will tighten the threshold against measured floor data
-  /// after profiling and targeted optimizations.
-  @Test("ML mock-on-abstain wall-clock ≤ 1.30x baseline at intensity 7 (Story 4.3 AC #7)")
+  /// Threshold tightened to **1.20x** by Story 4-3b (2026-05-05) against
+  /// a measured floor of 1.083x (median of 5 mock-injected `make perf-benchmark`
+  /// runs on Apple M5 Max; 5-run vector `[1.042, 1.083, 1.100, 1.093, 1.083]`,
+  /// range (max-min) = 0.058 ≤ 0.10 bound). Computed via the AC #4 formula
+  /// `safeThreshold(measured)` = `ceil((1.083 + 0.10) / 0.05) * 0.05` = 1.20.
+  /// See `_bmad-output/implementation-artifacts/4-3b-trace-profile.md` for
+  /// the empirical investigation that established this floor (Branch B —
+  /// trace-build cost is structurally diffuse across 18 trace writes; no
+  /// individual hotspot is reducible without architectural change).
+  @Test("ML mock-on-abstain wall-clock ≤ 1.20x baseline at intensity 7 (Story 4-3b tightened)")
   func mlMockOnAbstainPerf() async throws {
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
@@ -523,15 +528,18 @@ struct PerformanceBenchmarkTests {
     )
 
     #expect(
-      ratio < Self.mlMockOnAbstainMaxRatio,
-      "Story 4.3 AC #7: mock-on-abstain ratio \(String(format: "%.3f", ratio))x exceeds threshold \(String(format: "%.2f", Self.mlMockOnAbstainMaxRatio))x — investigate trace-build cost (Story 4-3b)"
+      ratio <= Self.mlMockOnAbstainMaxRatio,
+      "Story 4-3b AC #4: mock-on-abstain ratio \(String(format: "%.3f", ratio))x exceeds tightened threshold \(String(format: "%.2f", Self.mlMockOnAbstainMaxRatio))x (inclusive) — investigate trace-build cost (4-3b-trace-profile.md establishes the structural floor)"
     )
   }
 
-  /// Story 4.3 AC #7 (post Codex C-modified, 2026-05-05): mock-on-abstain
-  /// hard-fail threshold. Story 4-3b will tighten this against measured
-  /// floor data after profiling. Empirically observed floor: ~1.22x.
-  private static let mlMockOnAbstainMaxRatio: Double = 1.30
+  /// Story 4-3b AC #4 (2026-05-05): tightened from Story 4.3's 1.30x
+  /// (unmeasured) to **1.20x** against the measured floor 1.083x (median
+  /// of 5 `make perf-benchmark` mock-injected runs on Apple M5 Max,
+  /// vector `[1.042, 1.083, 1.100, 1.093, 1.083]`). Per AC #4 formula
+  /// `safeThreshold(measured)`:
+  /// `ceil((1.083 + 0.10) / 0.05) * 0.05` = `ceil(23.66) * 0.05` = `1.20`.
+  private static let mlMockOnAbstainMaxRatio: Double = 1.20
 
   // MARK: - Helpers
 

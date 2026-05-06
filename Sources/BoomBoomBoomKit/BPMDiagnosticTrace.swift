@@ -27,9 +27,11 @@ public struct BPMDiagnosticTrace: Sendable {
   /// Frame count of the computed onset envelope.
   public var onsetEnvelopeLength: Int = 0
 
-  /// Maximum energy per sub-band. Keys: "kick", "snare", "crack", "hihat".
-  /// Empty when sub-band computation was skipped (intensity 1-2).
-  public var subBandEnergies: [String: Float] = [:]
+  /// Maximum onset-envelope energy per drum sub-band (kick, snare, crack,
+  /// hihat). Equals ``SubBandEnergies/zero`` when sub-band computation was
+  /// skipped (intensity 1-2 or `subBandVoting` not in the active technique
+  /// set). See ``SubBandEnergies`` for shape rationale.
+  public var subBandEnergies: SubBandEnergies = .zero
 
   // MARK: - Step 4: Autocorrelation
 
@@ -279,5 +281,48 @@ public struct BarCandidate: Sendable, CustomStringConvertible {
 
   public var description: String {
     "BarCandidate(bars: \(bars), bpm: \(bpm))"
+  }
+}
+
+/// Maximum onset-envelope energy per drum sub-band, emitted on
+/// ``BPMDiagnosticTrace/subBandEnergies`` at Step 3 when `enableTrace` is on.
+///
+/// Replaces a legacy `[String: Float]` keyed by the closed set
+/// `{"kick", "snare", "crack", "hihat"}` — the dictionary shape was the last
+/// surviving instance of `project-context.md` §"Banned trace-field shapes"
+/// anti-pattern (1) (`[String: Float]` keyed by closed-set strings) after
+/// Story 3-3b migrated four other trace fields. The dict semantically
+/// treated "no entry" and "zero energy" as the same observable state — at
+/// `.fastest` intensity (where `subBandVoting` is not in the technique set)
+/// the dict was always empty anyway. ``zero`` preserves that semantic
+/// without forcing readers through optional unwrapping.
+public struct SubBandEnergies: Sendable, CustomStringConvertible, Equatable {
+
+  /// Maximum sub-band envelope energy attributed to the kick drum band.
+  public let kick: Float
+
+  /// Maximum sub-band envelope energy attributed to the snare band.
+  public let snare: Float
+
+  /// Maximum sub-band envelope energy attributed to the crack / clap band.
+  public let crack: Float
+
+  /// Maximum sub-band envelope energy attributed to the hi-hat band.
+  public let hihat: Float
+
+  public init(kick: Float, snare: Float, crack: Float, hihat: Float) {
+    self.kick = kick
+    self.snare = snare
+    self.crack = crack
+    self.hihat = hihat
+  }
+
+  /// Default value emitted when sub-band computation was skipped (intensity
+  /// 1-2, or `subBandVoting` not in the active technique set). Same observable
+  /// state as the pre-Story-4-3b `[String: Float] = [:]` shape.
+  public static let zero = SubBandEnergies(kick: 0, snare: 0, crack: 0, hihat: 0)
+
+  public var description: String {
+    "SubBandEnergies(kick: \(kick), snare: \(snare), crack: \(crack), hihat: \(hihat))"
   }
 }

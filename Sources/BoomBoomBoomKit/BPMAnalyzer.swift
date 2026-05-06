@@ -226,15 +226,29 @@ struct BPMAnalyzer {
 
     trace?.onsetEnvelopeLength = onsetEnvelope.count
     if options.enableTrace {
-      let bandNames = ["kick", "snare", "crack", "hihat"]
-      var energies: [String: Float] = [:]
-      for (i, band) in onsetResult.subBands.enumerated()
-      where i < bandNames.count && !band.isEmpty {
+      // Story 4-3b: typed `SubBandEnergies` replaces the prior
+      // `[String: Float]` keyed by `["kick", "snare", "crack", "hihat"]`.
+      // The 4-iteration loop becomes 4 conditional field writes; the band
+      // index → field mapping is intentionally explicit (not a closed-key
+      // dict lookup) so the migration eliminates the string-hashing cost
+      // and the closed-set anti-pattern in one step.
+      var kick: Float = 0
+      var snare: Float = 0
+      var crack: Float = 0
+      var hihat: Float = 0
+      for (i, band) in onsetResult.subBands.enumerated() where !band.isEmpty {
         var maxVal: Float = 0
         vDSP_maxv(band, 1, &maxVal, vDSP_Length(band.count))
-        energies[bandNames[i]] = maxVal
+        switch i {
+        case 0: kick = maxVal
+        case 1: snare = maxVal
+        case 2: crack = maxVal
+        case 3: hihat = maxVal
+        default: break  // Future-proof: extra sub-bands silently ignored.
+        }
       }
-      trace?.subBandEnergies = energies
+      trace?.subBandEnergies = SubBandEnergies(
+        kick: kick, snare: snare, crack: crack, hihat: hihat)
     }
 
     // Step 3.5: Adaptive thresholding on full-band onset envelope
