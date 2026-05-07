@@ -1,0 +1,120 @@
+# Story 4-4 diff-scope proof
+# Generated: 2026-05-08
+# Pre-Story-4.4 SHA: be38d80 (Story 4-4 Task 1 pre-source baselines commit)
+# HEAD: be38d80 (Story 4-4 source changes still uncommitted at this snapshot;
+#                see Task 8 close-out commit for the post-merge HEAD)
+
+## Section: files changed since be38d80 (working tree + untracked)
+Makefile
+Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift
+Tests/BoomBoomBoomKitBenchmarkTests/MLPolicySweepTests.swift
+Tests/BoomBoomBoomKitTests/AudioAnalysisServiceTests.swift
+Tests/BoomBoomBoomKitTests/EnsembleCombinerTests.swift
+Tests/BoomBoomBoomKitTests/MetadataCorroborationTests.swift
+_bmad-output/implementation-artifacts/4-4-configurable-ml-ensemble-voting-policy.md
+Sources/BoomBoomBoomKit/EnsembleCombiner.swift            (NEW)
+Sources/BoomBoomBoomKit/EnsembleDecision.swift            (NEW)
+Sources/BoomBoomBoomKit/EnsemblePolicy.swift              (NEW)
+Tests/BoomBoomBoomKitTests/EnsemblePolicyTests.swift      (NEW)
+_bmad-output/implementation-artifacts/4-4-diff-scope-proof.txt          (NEW)
+_bmad-output/implementation-artifacts/4-4-ensemble-policy-decision-table.json  (NEW)
+_bmad-output/implementation-artifacts/4-4-ml-policy-sweep.json          (NEW)
+
+## Section: AC #11 mapping
+
+Modified (Sources):
+  - Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+      (combine helper REMOVED + ensemblePolicy field added on Options
+       + call site updated + A1 short-circuit IIFE-guard added)
+  - Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift
+      (new ensembleDecision: EnsembleDecision? field per AC #13)
+
+New (Sources):
+  - Sources/BoomBoomBoomKit/EnsemblePolicy.swift
+  - Sources/BoomBoomBoomKit/EnsembleCombiner.swift
+  - Sources/BoomBoomBoomKit/EnsembleDecision.swift
+
+Modified (Tests):
+  - Tests/BoomBoomBoomKitTests/EnsembleCombinerTests.swift
+      (call sites switched to EnsembleCombiner.combine; added 12 policy-matrix
+       tests + 6 sanitization boundary tests; removed obsolete decision-table
+       suite supplanted by 4-4-ensemble-policy-decision-table.json)
+  - Tests/BoomBoomBoomKitTests/MetadataCorroborationTests.swift
+      (new EnsemblePolicy.allCases.count == 3 invariant test per AC #9)
+
+Modified (Tests — pre-1.0 no-BC cleanup):
+  - Tests/BoomBoomBoomKitTests/AudioAnalysisServiceTests.swift
+      (Story 4-3 wiring proof `evaluateIsInvokedWithNonNilTraceWhenEnableTraceFalse`
+       was DELETED. Its premise — "ML always runs when mlTechnique != nil" —
+       is exactly what the Story 4-4 A1 short-circuit deliberately broke.
+       Per project-context.md "Public API Discipline (pre-1.0)" the test
+       isn't preserved via opt-in; it's removed. Post-Story-4-4 invariants
+       are covered by EnsemblePolicyTests: AC #14 callCount==0 under
+       `.dspOnly`, callCount==1 under `.mlOnly`, the AC #13 trace
+       population matrix, and the AC #5 inertness proofs.)
+
+Removed (artifacts — pre-1.0 no-BC cleanup):
+  - _bmad-output/implementation-artifacts/4-3-mock-ensemble-trace.json
+      (Story 4-3 5-row decision-table artifact, supplanted by
+       4-4-ensemble-policy-decision-table.json which covers the full
+       3 × 4 policy/outcome matrix.)
+
+New (Tests):
+  - Tests/BoomBoomBoomKitTests/EnsemblePolicyTests.swift
+      (synthetic E2E + AC #14 short-circuit contract + AC #13 trace
+       population matrix + AC #10/Task 6.1 decision-table reproducibility)
+
+Modified (Tests/Benchmark):
+  - Tests/BoomBoomBoomKitBenchmarkTests/MLPolicySweepTests.swift
+      (file was created at Task 1 with the baseline-capture test;
+       Task 5.6 added two corpus-paired tests and Task 6.3 added the
+       env-gated `policySweepReport`)
+
+Modified (Makefile):
+  - Makefile  (new ml-policy-sweep target per AC #6)
+
+New (artifacts):
+  - _bmad-output/implementation-artifacts/4-4-regression-snapshot.json     (Task 1 commit)
+  - _bmad-output/implementation-artifacts/4-4-ensemble-policy-decision-table.json
+  - _bmad-output/implementation-artifacts/4-4-ml-policy-sweep.json
+  - _bmad-output/implementation-artifacts/4-4-diff-scope-proof.txt
+  - Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json    (Task 1 commit)
+  - _bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260507T062546Z--aa786e3--31de1a20.json   (Task 1 commit)
+
+## Section: AC #11 no-modify verification
+
+The following Sources are listed in AC #11 as MUST NOT be modified.
+Verified by `git diff be38d80 -- <path>` returning empty for each:
+
+  OK untouched: Sources/BoomBoomBoomKit/BPMAnalyzer.swift
+  OK untouched: Sources/BoomBoomBoomKit/AnalysisIntensity.swift
+  OK untouched: Sources/BoomBoomBoomKit/DSPTechnique.swift
+  OK untouched: Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift
+  OK untouched: Sources/BoomBoomBoomKit/VotingPolicy.swift
+  OK untouched: Sources/BoomBoomBoomKit/LUFSAnalyzer.swift
+  OK untouched: Sources/BoomBoomBoomKit/MelFilterbank.swift
+  OK untouched: Sources/BoomBoomBoomKit/PCMBufferReader.swift
+  OK untouched: Sources/BoomBoomBoomKit/FileMetadataReader.swift
+  OK untouched: Sources/BoomBoomBoomKit/MetadataPolicy.swift
+  OK untouched: Sources/BoomBoomBoomKit/MetadataCorroborator.swift
+  OK untouched: Sources/BoomBoomBoomKit/ProgressUpdate.swift
+  OK untouched: Sources/BoomBoomBoomKitML/ (entire tree)
+  OK untouched: Sources/BoomBoomBoomKitTestSupport/ (entire tree)
+  OK untouched: Package.swift
+
+## Section: required-new-files presence
+
+  OK exists: Sources/BoomBoomBoomKit/EnsemblePolicy.swift
+  OK exists: Sources/BoomBoomBoomKit/EnsembleCombiner.swift
+  OK exists: Sources/BoomBoomBoomKit/EnsembleDecision.swift
+  OK exists: Tests/BoomBoomBoomKitTests/EnsemblePolicyTests.swift
+  OK exists: Tests/BoomBoomBoomKitBenchmarkTests/MLPolicySweepTests.swift
+  OK exists: Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json
+
+## Section: stale-call-site verification (AC #3)
+
+Command: rg -n "AudioAnalysisService\.combine|Self\.combine" Sources/ Tests/
+Result: zero matches. The Story 4-3 `internal static func combine(dspWinner:mlEvaluation:)`
+        on `AudioAnalysisService` is fully retired; all call sites switched to
+        `EnsembleCombiner.combine(dspWinner:mlEvaluation:policy:)`.

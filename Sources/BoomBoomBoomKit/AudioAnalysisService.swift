@@ -110,22 +110,31 @@ public struct AudioAnalysisService {
 
     /// Optional ML technique consulted post-pipeline to refine the DSP estimate.
     ///
-    /// When non-nil, the pipeline runs as usual and the resulting populated
+    /// When non-`nil` AND ``ensemblePolicy`` is not ``EnsemblePolicy/dspOnly``,
+    /// the pipeline runs as usual and the resulting populated
     /// ``BPMDiagnosticTrace`` (with DSP candidates carried in
     /// ``BPMDiagnosticTrace/candidatesAfterBoost``) is passed to
     /// ``MLTechnique/evaluate(trace:)`` for an alternative estimate. The
-    /// ``MLEvaluation?`` return value flows through the internal ensemble
-    /// combiner alongside the DSP winner; Story 4.3 ships a single-case default
-    /// policy ("DSP wins regardless") so a non-nil ML evaluation does not yet
-    /// change the final BPM/confidence — Story 4.4's `EnsemblePolicy` enum
-    /// will switch the combiner. When `nil` (default), the feature is inactive
-    /// and the DSP result is returned unchanged.
+    /// ``MLEvaluation?`` return value flows through the internal
+    /// ``EnsembleCombiner`` alongside the DSP winner; the resulting BPM and
+    /// confidence depend on ``ensemblePolicy``. When `nil` (default), the
+    /// feature is inactive and the DSP result is returned unchanged.
+    ///
+    /// **Story 4.4 A1 short-circuit.** Under
+    /// ``EnsemblePolicy/dspOnly`` (the default policy), setting `mlTechnique`
+    /// has NO effect: ``MLTechnique/evaluate(trace:)`` is NOT invoked, and the
+    /// ML-feeding ``BPMDiagnosticTrace`` branch is NOT constructed internally
+    /// (`shouldBuildTrace` falls back to ``enableTrace`` alone). To exercise
+    /// `mlTechnique`, pair it with ``EnsemblePolicy/mlOnly`` or
+    /// ``EnsemblePolicy/highestConfidence``.
+    ///
+    /// **Public-trace gating.** The internal ML-feeding trace and the public
+    /// ``AudioAnalysisResult/trace`` are distinct: the public surface stays
+    /// gated by ``enableTrace`` regardless of `mlTechnique` or
+    /// ``ensemblePolicy``. Set ``enableTrace`` to `true` if you want the
+    /// trace (and any attached ``EnsembleDecision``) returned to your caller.
     ///
     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
-    /// Setting this field forces ``BPMDiagnosticTrace`` construction internally
-    /// (per ADR-6) so ``MLTechnique`` always receives a populated trace; the
-    /// trace is dropped from ``AudioAnalysisResult/trace`` unless
-    /// ``enableTrace`` is also `true`.
     public var mlTechnique: (any MLTechnique)?
 
     /// Strategy for combining candidates across analysis windows (default: `.maxConfidence`).
@@ -148,6 +157,30 @@ public struct AudioAnalysisService {
     /// ``VotingPolicy/simpleMajority``) so a benchmark sweep can dial up the
     /// threshold without recompiling.
     public var votingThreshold: Double = 0.0
+
+    /// Resolution policy for the DSP+ML ensemble combiner (Story 4.4).
+    ///
+    /// Selects how ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``
+    /// reconciles the post-corroboration DSP candidate with an optional
+    /// ``MLEvaluation`` from ``mlTechnique``. Always-present configuration
+    /// per ADR-11 (`_bmad-output/planning-artifacts/architecture.md`) — the
+    /// field is non-optional with a sensible default and is mutated rather
+    /// than threaded as a method parameter on
+    /// ``analyzeBPM(url:options:)``.
+    ///
+    /// Default ``EnsemblePolicy/dspOnly`` is operation-inert: when this
+    /// policy is selected, ``MLTechnique/evaluate(trace:)`` is NOT invoked
+    /// even if ``mlTechnique`` is non-nil (Story 4-4 short-circuit at the
+    /// call site). This makes the configuration `Options.mlTechnique != nil`
+    /// + `Options.ensemblePolicy = .dspOnly` valid for users who load a model
+    /// but want to disable the ensemble per-call without dropping the model.
+    /// Output is byte-identical to the no-ML pipeline under this default.
+    ///
+    /// Set ``EnsemblePolicy/mlOnly`` or ``EnsemblePolicy/highestConfidence``
+    /// to opt into ML-influenced final BPM. See ``EnsemblePolicy`` for the
+    /// per-case selection logic and the tag-bias caveat on
+    /// ``EnsemblePolicy/highestConfidence``.
+    public var ensemblePolicy: EnsemblePolicy = .dspOnly
 
     /// When `true`, populates `result.trace` with per-step diagnostic data.
     public var enableTrace: Bool = false
@@ -247,13 +280,15 @@ public struct AudioAnalysisService {
     url: URL,
     options: Options
   ) throws -> AudioAnalysisResult? {
-    // Story 4.3 + ADR-6: when `mlTechnique != nil`, the trace must be
-    // populated regardless of `enableTrace` because `MLTechnique.evaluate`
-    // takes a `BPMDiagnosticTrace` as input. Computed here in `analyzeBPM`
-    // (post-corroboration concern) and threaded as a parameter to
-    // `runPreCorroborationPipeline` so the helper does not consult
-    // `options.mlTechnique` in its own body.
-    let shouldBuildTrace = options.enableTrace || options.mlTechnique != nil
+    // Story 4.3 + ADR-6 reconciled by Story 4.4 DD #2: trace is built when
+    // `mlTechnique != nil` AND the selected policy can consume the
+    // evaluation. Under `.dspOnly` the trace ML branch is moot because
+    // `MLTechnique.evaluate(trace:)` is short-circuited below — building the
+    // trace there would be wasted work and would also create the false
+    // expectation that ML inference is running.
+    let shouldBuildTrace =
+      options.enableTrace
+      || (options.mlTechnique != nil && options.ensemblePolicy != .dspOnly)
 
     let pre = try Self.runPreCorroborationPipeline(
       url: url, options: options, enableTrace: shouldBuildTrace)
@@ -265,18 +300,25 @@ public struct AudioAnalysisService {
     let (corroborated, evidence) = MetadataCorroborator.apply(
       to: merged, input: pre.metadataInput)
 
-    // Story 4.3: ML evaluation runs AFTER metadata corroboration so the
-    // tag-driven candidate boost is reflected in `corroborated.trace`. When
-    // `options.mlTechnique == nil`, the chain reduces to a no-op:
-    // `mlEvaluation = nil` and `combine` returns `corroborated` unchanged.
-    let mlEvaluation = options.mlTechnique.flatMap { ml -> MLEvaluation? in
-      // Trace is non-nil here because `shouldBuildTrace` forces construction
-      // when `options.mlTechnique != nil` (ADR-6).
-      guard let trace = corroborated.trace else { return nil }
+    // Story 4.3 + Story 4.4 A1 short-circuit: ML evaluation runs AFTER
+    // metadata corroboration so the tag-driven candidate boost is reflected
+    // in `corroborated.trace`. Under `.dspOnly` the IIFE-`guard` returns
+    // `nil` before binding `ml`, so `evaluate(trace:)` is unreachable —
+    // `RecordingMockMLTechnique.callCount == 0` is the AC #14 contract that
+    // proves this short-circuit fires. The `flatMap`-on-protocol-existential
+    // form was Swift-broken (Codex D1, 2026-05-07) — IIFE-`guard` is the
+    // correct shape.
+    let mlEvaluation: MLEvaluation? = {
+      guard options.ensemblePolicy != .dspOnly,
+        let ml = options.mlTechnique,
+        let trace = corroborated.trace
+      else { return nil }
       return ml.evaluate(trace: trace)
-    }
-    let combined = Self.combine(
-      dspWinner: corroborated, mlEvaluation: mlEvaluation)
+    }()
+    let combined = EnsembleCombiner.combine(
+      dspWinner: corroborated,
+      mlEvaluation: mlEvaluation,
+      policy: options.ensemblePolicy)
 
     // Story 4.2: post-pipeline reporting of effective intensity + degradation
     // reason. Computed AFTER both `runPreCorroborationPipeline` and
@@ -322,33 +364,13 @@ public struct AudioAnalysisService {
       + "package. Running at intensity \(effective.rawValue) (DSP-only)."
   }
 
-  // MARK: - Story 4.3: ML ensemble combiner (internal)
+  // MARK: - Story 4.4: ML ensemble combiner promoted to EnsembleCombiner.swift
 
-  /// Combines the post-corroboration DSP winner with an optional
-  /// ``MLEvaluation`` into a final ``BPMResult``.
-  ///
-  /// Story 4.3 default policy is "DSP wins regardless" — the function
-  /// returns ``dspWinner`` unchanged whether ``mlEvaluation`` is `nil` or
-  /// non-nil. Caller invariant: ``mlEvaluation`` is `nil` whenever
-  /// ``Options/mlTechnique`` is `nil`; the function works either way.
-  ///
-  /// Story 4.4 promotes this function to its own file
-  /// (`Sources/BoomBoomBoomKit/EnsembleCombiner.swift`,
-  /// `internal enum EnsembleCombiner` namespace) when the public
-  /// ``EnsemblePolicy`` enum lands and the body switches on policy cases.
-  /// Until then the body stays trivial and the function lives here.
-  ///
-  /// Access is `internal` (not `fileprivate`) so `EnsembleCombinerTests`
-  /// can reach it via `@testable import BoomBoomBoomKit` for direct unit
-  /// tests; Story 4.4 may change the signature without breaking external
-  /// API.
-  internal static func combine(
-    dspWinner: BPMResult,
-    mlEvaluation: MLEvaluation?
-  ) -> BPMResult {
-    _ = mlEvaluation
-    return dspWinner
-  }
+  // The internal `combine(dspWinner:mlEvaluation:)` helper that lived here in
+  // Story 4.3 has been promoted to ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``.
+  // The call site now lives inline in ``analyzeBPM(url:options:)`` (above)
+  // alongside the A1 short-circuit IIFE that decides whether ML inference
+  // runs at all.
 
   /// Maximum analysis intensity supported by the current configuration.
   ///

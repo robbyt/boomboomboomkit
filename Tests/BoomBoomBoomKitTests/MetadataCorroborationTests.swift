@@ -587,6 +587,21 @@ struct ArchitectureInvariantsTests {
     #expect(Set(MetadataSource.allCases) == Set([.iTunesTmpo, .id3TBPM, .vorbisBPM]))
   }
 
+  /// Story 4.4 AC #9: `EnsemblePolicy.allCases.count == 3` is unit-test-locked
+  /// alongside the existing five architecture invariants. Pre-1.0 / no-BC
+  /// framing (DD #13) allows breaking this invariant in a follow-up story
+  /// — but accidental drift fails this test loudly rather than silently.
+  @Test("EnsemblePolicy has exactly three cases (Story 4.4 AC #9)")
+  func ensemblePolicyCases() {
+    #expect(EnsemblePolicy.allCases.count == 3)
+    // Ordered comparison locks the iteration order so benchmark sweeps
+    // consuming `EnsemblePolicy.allCases` produce stable, reproducible
+    // policy-row order across runs (and so the JSON artifacts emitted by
+    // `make ml-policy-sweep` have a fixed row order regardless of how a
+    // future maintainer reorders the case definitions).
+    #expect(EnsemblePolicy.allCases == [.dspOnly, .mlOnly, .highestConfidence])
+  }
+
   @Test("MetadataPolicy.default enables all sources, valueRange 30-300")
   func defaultPolicyShape() {
     let p = MetadataPolicy.default

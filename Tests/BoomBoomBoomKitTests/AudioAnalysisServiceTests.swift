@@ -428,31 +428,17 @@ struct MLTechniqueSlotTests {
     #expect(baselineResult.confidence == mockResult.confidence)
   }
 
-  /// AC #4: `MLTechnique.evaluate(trace:)` is invoked exactly once per window
-  /// when `mlTechnique != nil`, with a non-nil trace, even when
-  /// `enableTrace == false`. The trace is dropped from the public
-  /// `AudioAnalysisResult.trace` surface.
-  @Test("evaluate is invoked with non-nil trace when mlTechnique is set and enableTrace=false")
-  func evaluateIsInvokedWithNonNilTraceWhenEnableTraceFalse() throws {
-    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
-    let mock = RecordingMockMLTechnique(returning: nil)
-    var opts = AudioAnalysisService.Options()
-    opts.intensity = .fastest  // single window
-    opts.enableTrace = false
-    opts.mlTechnique = mock
-    let result = try #require(
-      try AudioAnalysisService.analyzeBPM(url: url, options: opts))
-    #expect(mock.callCount == 1)
-    // After Story 4.3 review's Option 2 resolution (Codex consult thread
-    // `019dfa81-a8b9-7bf3-b602-4f8c53916ab0`, 2026-05-05),
-    // `MetadataCorroborator.apply` populates `candidatesAfterBoost`
-    // unconditionally. This assertion proves the trace was passed AND
-    // populated with candidate data — not merely non-nil-by-type
-    // (the protocol's `trace` parameter is already non-optional, so
-    // type-presence is guaranteed by the compiler).
-    #expect((mock.capturedCandidatesAfterBoostCount ?? 0) > 0)
-    #expect(result.trace == nil)
-  }
+  // Story 4-3's `evaluateIsInvokedWithNonNilTraceWhenEnableTraceFalse`
+  // wiring proof was removed in Story 4-4: its premise ("ML always runs
+  // when mlTechnique != nil") is exactly what the A1 short-circuit
+  // deliberately broke under the default `.dspOnly` policy. The post-4-4
+  // invariants are covered by `EnsemblePolicyTests`:
+  //   - callCount==0 under `.dspOnly` (AC #14)
+  //   - callCount==1 under `.mlOnly` / `.highestConfidence` (AC #14
+  //     contrapositive)
+  //   - trace.ensembleDecision population matrix (AC #13)
+  //   - the inertness proofs against sentinel ML evaluations (AC #5)
+  // Pre-1.0 / no-BC posture per project-context.md "Public API Discipline".
 }
 
 // MARK: - Duration Hint Tests (Story 3-4)

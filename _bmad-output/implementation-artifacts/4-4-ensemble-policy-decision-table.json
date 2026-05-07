@@ -1,0 +1,197 @@
+[
+  {
+    "case" : "ml_nil",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "protocol_abstain",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "dspOnly"
+  },
+  {
+    "case" : "ml_agrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_dspOnly_short_circuit",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 120,
+      "conf" : 0.95
+    },
+    "policy" : "dspOnly"
+  },
+  {
+    "case" : "ml_disagrees_low_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_dspOnly_short_circuit",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.4
+    },
+    "policy" : "dspOnly"
+  },
+  {
+    "case" : "ml_disagrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_dspOnly_short_circuit",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.95
+    },
+    "policy" : "dspOnly"
+  },
+  {
+    "case" : "ml_nil",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "protocol_abstain",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "mlOnly"
+  },
+  {
+    "case" : "ml_agrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_mlOnly_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 120,
+      "conf" : 0.95
+    },
+    "policy" : "mlOnly"
+  },
+  {
+    "case" : "ml_disagrees_low_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 60,
+      "reason" : "policy_mlOnly_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.4
+    },
+    "policy" : "mlOnly"
+  },
+  {
+    "case" : "ml_disagrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 60,
+      "reason" : "policy_mlOnly_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.95
+    },
+    "policy" : "mlOnly"
+  },
+  {
+    "case" : "ml_nil",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "protocol_abstain",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "highestConfidence"
+  },
+  {
+    "case" : "ml_agrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_highestConfidence_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 120,
+      "conf" : 0.95
+    },
+    "policy" : "highestConfidence"
+  },
+  {
+    "case" : "ml_disagrees_low_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_highestConfidence_dsp",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.4
+    },
+    "policy" : "highestConfidence"
+  },
+  {
+    "case" : "ml_disagrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 60,
+      "reason" : "policy_highestConfidence_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.95
+    },
+    "policy" : "highestConfidence"
+  }
+]
