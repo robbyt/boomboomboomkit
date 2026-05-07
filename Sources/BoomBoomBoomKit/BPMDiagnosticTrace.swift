@@ -136,6 +136,16 @@ public struct BPMDiagnosticTrace: Sendable {
 
   /// The metadata policy that produced this trace.
   public var metadataPolicyUsed: MetadataPolicy = .default
+
+  // MARK: - Story 4.4: Ensemble Decision
+
+  /// Diagnostic record of how ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``
+  /// resolved the post-corroboration DSP candidate against an
+  /// ``MLEvaluation``. Populated when ``MLTechnique/evaluate(trace:)``
+  /// returned a non-nil ``MLEvaluation``; otherwise `nil` (including under
+  /// ``EnsemblePolicy/dspOnly``, where the evaluation never runs).
+  /// See ``EnsembleDecision`` for the population matrix.
+  public var ensembleDecision: EnsembleDecision?
 }
 
 // MARK: - Trace Evidence Types (Story 3-3b)

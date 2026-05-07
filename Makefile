@@ -115,6 +115,16 @@ duration-impact-report:
 	DURATION_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/durationImpactReport
 
+## ml-policy-sweep: Generate per-policy ml-policy-sweep JSON to _bmad-output/implementation-artifacts/4-4-ml-policy-sweep.json
+.PHONY: ml-policy-sweep
+ml-policy-sweep:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	ML_POLICY_SWEEP=1 \
+	ML_POLICY_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.MLPolicySweepTests/policySweepReport
+
 ## compile-model: Compile $(ML_MODEL_INPUT) (.mlmodel) into $(ML_MODEL_OUT_DIR)/<name>.mlmodelc via xcrun coremlc; override path with ML_MODEL_INPUT=...
 .PHONY: compile-model
 compile-model:
