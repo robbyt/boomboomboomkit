@@ -1,0 +1,85 @@
+{
+  "snapshot_metadata": {
+    "captured_at": "2026-05-09T18:00:00Z",
+    "captured_by": "Robert Terhaar (via /bmad-dev-story Claude Opus 4.7)",
+    "git_sha": "757d57c",
+    "macos_version": "26.5",
+    "xcode_version": "Xcode 26.4.1",
+    "swift_version": "Apple Swift version 6.3.1 (swiftlang-6.3.1.1.2 clang-2100.0.123.102)",
+    "story": "4.4b",
+    "purpose": "Pre-Story-4-4b regression snapshot. Story 4-4b adds zero source code to Sources/BoomBoomBoomKit/ — only adds the produced reference .mlmodelc resource under Sources/BoomBoomBoomKitML/Resources/, which Story 4-5 (still ready-for-dev) has not yet wired into MLTechnique. Therefore the post-Story-4-4b benchmark output must be byte-identical to this baseline at Task 9.3. Per-track byte-identity is enforced by the existing Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json fixture + MLPolicySweepTests::dspOnlyMatchesStory4_3Baseline (landed in Story 4-4); this snapshot is the metadata informational layer.",
+    "rev": 1
+  },
+  "corpus_runs": [
+    {
+      "corpus": "OA300",
+      "intensity": 7,
+      "tolerance_pct": 2.0,
+      "total": 82,
+      "acc1Correct": 58,
+      "acc2Correct": 74,
+      "acc1_pct": 70.7,
+      "acc2_pct": 90.2,
+      "merge_strategy_default": "maxConfidence",
+      "voting_policy_default": "simpleMajority",
+      "ensemble_policy_default": "dspOnly",
+      "wall_clock_seconds_full_suite": 91.7,
+      "tracks_failure_subset_truncated_count": 0,
+      "tracks_failure_subset": [
+        { "track_title_prefix40": "1. The Faraday_Bunker (D-Struct Remix)", "expected_pct1": 170.0, "got_pct1": 113.5, "delta_pct1": 33.3 },
+        { "track_title_prefix40": "4. Yin Yang Audio_Within Cells Interlink", "expected_pct1": 85.0,  "got_pct1": 113.2, "delta_pct1": 33.2 },
+        { "track_title_prefix40": "9. HEFT_Anagram 6 (Owl Remix)",          "expected_pct1": 85.0,  "got_pct1": 113.4, "delta_pct1": 33.4 },
+        { "track_title_prefix40": "Charly (Neekeetone Jungle Rework)",       "expected_pct1": 160.0, "got_pct1": 106.2, "delta_pct1": 33.6 },
+        { "track_title_prefix40": "Smalltown Boy (12\" Version)",            "expected_pct1": 135.8, "got_pct1": 127.1, "delta_pct1": 6.4  },
+        { "track_title_prefix40": "Boymerang - Rules (Leaf)",                "expected_pct1": 82.9,  "got_pct1": 166.9, "delta_pct1": 101.4 },
+        { "track_title_prefix40": "Echtoo - Chakra",                          "expected_pct1": 160.0, "got_pct1": 80.0,  "delta_pct1": 50.0 },
+        { "track_title_prefix40": "7. Everything Changes_Subotica (Esthetic", "expected_pct1": 160.0, "got_pct1": 80.0,  "delta_pct1": 50.0 }
+      ],
+      "named_dnb_triplet_pre_train": [
+        { "track_id": "Charly (Neekeetone Jungle Rework)",     "expected_bpm": 160.0, "dsp_predicted_bpm_intensity7": 106.2, "abs_error_bpm": 53.8 },
+        { "track_id": "1. The Faraday_Bunker (D-Struct Remix)", "expected_bpm": 170.0, "dsp_predicted_bpm_intensity7": 113.5, "abs_error_bpm": 56.5 },
+        { "track_id": "4. Yin Yang Audio_Within Cells Interlinked", "expected_bpm": 85.0, "dsp_predicted_bpm_intensity7": 113.2, "abs_error_bpm": 28.2 },
+        { "track_id": "9. HEFT_Anagram 6 (Owl Remix)",          "expected_bpm": 85.0,  "dsp_predicted_bpm_intensity7": 113.4, "abs_error_bpm": 28.4 }
+      ]
+    },
+    {
+      "corpus": "GiantSteps",
+      "intensity": 7,
+      "tolerance_pct": 2.0,
+      "total": 661,
+      "acc1Correct_2pct": 537,
+      "acc2Correct_2pct": 546,
+      "acc1_pct_2pct": 81.2,
+      "acc2_pct_2pct": 82.6,
+      "acc1Correct_4pct_mirex": 556,
+      "acc2Correct_4pct_mirex": 562,
+      "acc1_pct_4pct_mirex": 84.1,
+      "acc2_pct_4pct_mirex": 85.0,
+      "wall_clock_seconds_full_suite": 101.1,
+      "fold_assignments": {
+        "val_fold01_count": 66,
+        "train_folds_02_to_10_count_after_filter": 595,
+        "fold_entries_filtered_out_due_to_missing_gt": 3
+      }
+    }
+  ],
+  "environment": {
+    "hardware": "Apple M5 Max, 128 GB unified memory",
+    "python_version": "3.13.13",
+    "uv_version": "0.11.12",
+    "torch_version": "2.11.0",
+    "torch_mps_available": true,
+    "coremltools_version": "9.0",
+    "librosa_version": "0.11.0",
+    "numpy_version": "2.4.4",
+    "ffmpeg_version": "8.1.1"
+  },
+  "spec_deviations": [
+    {
+      "decision": "Python 3.13 instead of spec-literal Python >=3.11,<3.13",
+      "reason": "coremltools 9.0 (latest as of 2026-05-09) supports Python 3.7-3.13 per its PyPI Programming Language classifiers; spec DD #8 was authored against coremltools 8.x and explicitly authorized: 'the dev verifies the current Python compat range at Task 1 and adjusts requires-python accordingly'. Python 3.14 is NOT yet supported by coremltools 9.0 (no 3.14 classifier). Selected 3.13 as most modern supported version.",
+      "approved_by": "user (Robert Terhaar) via inline /ask 2026-05-09",
+      "pyproject_pin": ">=3.11,<3.14"
+    }
+  ]
+}

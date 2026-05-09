@@ -1,5 +1,5 @@
 # generated: 2026-03-31
-# last_updated: 2026-05-07
+# last_updated: 2026-05-09
 # project: BoomBoomBoomKit
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-08 (Story 4-4 done: post-review patch pass landed 11 patches from 4-layer review (Blind/Edge/Auditor/Codex); 2 MAJOR fixes (mlConfidence DocC drift, EnsembleDecision Hashable-with-NaN unsoundness) + 9 MINOR; 8 items deferred to deferred-work.md; test count 352 -> 355 (band [349, 355]); fmt clean, lint 1/0 (pre-existing baseline); OA300/GiantSteps/ablation/perf gates unchanged from review HEAD)
+last_updated: 2026-05-09 (Story 4-4b in-progress: dev agent picked up the tempo classifier training pipeline; environment verified — M5 Max 128GB, macOS 26.5, Xcode 26.4, OA300 + GiantSteps corpora resolvable at Makefile defaults, ffmpeg + uv installed; pre-source baseline + Python project scaffolding underway.)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -79,7 +79,8 @@ development_status:
   4-3-ml-technique-slot-wiring-and-tuple-to-struct-migration: done
   4-3b-trace-build-cost-budget: done
   4-4-configurable-ml-ensemble-voting-policy: done
-  4-5-bnns-mltechnique-conformance: backlog
+  4-4b-tempo-classifier-training: in-progress
+  4-5-bnns-mltechnique-conformance: ready-for-dev
   4-6-coreml-mltechnique-conformance: backlog
   4-7-spectral-flux-onset-dsp-variant: backlog
   epic-4-retrospective: optional
