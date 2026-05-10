@@ -1,8 +1,8 @@
 # BoomBoomBoomKit — Tempo Classifier Training Pipeline (Story 4-4b)
 
-Dev-only training pipeline for the reference tempo classifier `tempo_classifier.mlmodelc` consumed by Story 4-5's `BNNSTechnique`. Local PyTorch + MPS training on M5 Max against GiantSteps (train/val) + OA300 (held-out test).
+Dev-only training pipeline for the reference tempo classifier `giantsteps_v1.mlmodelc` consumed by Story 4-5's `BNNSTechnique`. Local PyTorch + MPS training on M5 Max against GiantSteps (train/val) + OA300 (held-out test).
 
-**This directory lives ONLY on `develop` — it does NOT ship to `main`.** The release process (project-context.md §"Development Workflow Rules" — "What goes to main") excludes `_bmad-output/` from squash-merges. Only the produced `Sources/BoomBoomBoomKitML/Resources/tempo_classifier.mlmodelc/` artifact ships to `main`. The consumer-facing convert tool that DOES ship to `main` lives at `tools/coreml-convert/` (Story 4-4b DD #13).
+**This directory lives ONLY on `develop` — it does NOT ship to `main`.** The release process (project-context.md §"Development Workflow Rules" — "What goes to main") excludes `_bmad-output/` from squash-merges. Only the produced `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` artifact ships to `main`. The consumer-facing convert tool that DOES ship to `main` lives at `tools/coreml-convert/` (Story 4-4b DD #13).
 
 ## Setup
 
@@ -40,7 +40,7 @@ tmux new-session -d -s train 'uv run python train.py --seed 42 --epochs 60'
 uv run python eval.py --checkpoint model.pt --test-corpus oa300
 
 # 6. Export to CoreML (AC #9 — separate CPU-only script per Apple convention)
-uv run python export.py --checkpoint model.pt --output ../ml-models/tempo_classifier.mlmodel
+uv run python export.py --checkpoint model.pt --output ../ml-models/giantsteps_v1.mlmodel
 
 # 7. Compile .mlmodelc via Story 4.1 Makefile target
 cd ../.. && make compile-model
@@ -85,7 +85,7 @@ Generated:
 ## Per-story conventions
 
 - All scripts run via `uv run python <script>.py` — never `python3 ...` (project-context.md §"Development Workflow Rules").
-- ZERO modifications to `Package.swift`, `Sources/BoomBoomBoomKit/`, `Sources/BoomBoomBoomKitML/*.swift`, `Tests/`, `Makefile`, `CLAUDE.md`, or `_bmad/`. Only added files are this directory + `_bmad-output/ml-models/tempo_classifier.mlmodel` + `Sources/BoomBoomBoomKitML/Resources/tempo_classifier.mlmodelc/` + `tools/coreml-convert/` + the regression / diff-scope artifacts.
+- ZERO modifications to `Package.swift`, `Sources/BoomBoomBoomKit/`, `Sources/BoomBoomBoomKitML/*.swift`, `Tests/`, `Makefile`, `CLAUDE.md`, or `_bmad/`. Only added files are this directory + `_bmad-output/ml-models/giantsteps_v1.mlmodel` + `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` + `tools/coreml-convert/` + the regression / diff-scope artifacts.
 
 ## References
 

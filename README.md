@@ -103,7 +103,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `CandidateMergeStrategy` | How multi-window candidates are combined (8 strategies) |
 | `DSPTechnique` | Individual DSP technique enum (closed set, `CaseIterable`) |
 | `TechniqueSet` | Composable technique set with named presets (`.optimal`, `.clickAugmented`, `.full`, …) |
-| `MLTechnique` | Protocol for future ML-based estimation (slot reserved on `Options.mlTechnique`) |
+| `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Optional ML Models" section + [MODEL_CARD.md](MODEL_CARD.md) |
 | `BPMDiagnosticTrace` | Per-step pipeline diagnostic state |
 | `ProgressUpdate` | Per-window progress payload for the `Options.onProgress` callback |
 
@@ -135,11 +135,38 @@ let clickTrack = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds
 9. **Octave Disambiguation** — Sub-band voting resolves 2:1 ambiguity
 10. **Progressive Analysis** — Multi-window analysis at 30s/60s/90s with configurable merge strategy
 
+## Optional ML Models (advanced, opt-in only)
+
+BoomBoomBoomKit's production BPM path is **DSP-first**. The default analysis pipeline does not require or enable ML, and on the project's regression corpora the DSP pipeline currently outperforms every model the project has trained (see [MODEL_CARD.md](MODEL_CARD.md) for measured comparisons).
+
+The optional `BoomBoomBoomKitML` target adds an `MLTechnique` plug-in surface for consumers who want to **bring their own tempo classifier** (BYOM) and ensemble it with the DSP results — for example, if you have a domain-specific model trained on your own corpus that beats the DSP on your distribution.
+
+```swift
+import BoomBoomBoomKit
+import BoomBoomBoomKitML
+
+var options = AudioAnalysisService.Options()
+
+// Path A — same architecture, your own weights:
+let yourModel = Bundle.main.url(forResource: "your_model", withExtension: "mlmodelc")!
+options.mlTechnique = try? BNNSTechnique(modelURL: yourModel)
+
+// Path B — different architecture, your own MLTechnique conformance:
+options.mlTechnique = MyDeepRhythmTechnique()
+
+let result = try await AudioAnalysisService.analyzeBPM(url: trackURL, options: options)
+```
+
+**A small reference model is bundled** at `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` to validate the adapter pipeline end-to-end and provide a known tensor/metadata contract for BYOM workflows. **It is not a recommended accuracy default** — on the held-out OA300 corpus it scores 39.0% within ±2% BPM tolerance, while the DSP pipeline scores 70.7% on the same corpus + tolerance. See [MODEL_CARD.md](MODEL_CARD.md) for the full per-model accuracy table, known failure modes (bin collapse, half-tempo doubling on slow material), and guidance on when to enable ML vs stick with DSP-only.
+
+To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project; no need to clone the dev-only training pipeline). It supports the bundled reference architecture as well as fully custom architectures via your own `nn.Module` class.
+
 ## References
 
 - Davies, M.E.P. & Plumbley, M.D. (2007). "Context-dependent beat tracking of musical audio"
 - ITU-R BS.1770-5 — Algorithms to measure audio programme loudness
 - O'Shaughnessy, D. (1987). Mel-frequency scale conversion
+- Schreiber, H. & Müller, M. (2018). "A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network" — architecture reference for the bundled `giantsteps_v1` model
 
 ## License
 

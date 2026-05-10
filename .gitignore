@@ -40,3 +40,13 @@ Icon?
 *.tracetemplate
 _bmad-output/perf-baselines/*.trace/
 _bmad-output/perf-baselines/4-3b-profile-metadata.txt
+
+# Story 4-4b — Python training pipeline + consumer convert tool
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+_bmad-output/ml-training/checkpoints/
+_bmad-output/ml-training/swift_feature_extractor/out/
+_bmad-output/ml-training/benchmark-oa300-pre.log
+_bmad-output/ml-training/benchmark-giantsteps-pre.log

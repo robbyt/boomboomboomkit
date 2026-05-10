@@ -1,0 +1,26 @@
+==============================================================================
+Feature pipeline parity harness — Story 4-4b AC #3 Part B
+==============================================================================
+Fixture: /Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/fixtures/feature_pipeline_v1.npz
+Fixture sha256: 834f17514b852c3e11c4290d1ae6055185104e650cfa025e6c5468620a73f2c1
+feature_set_version: v1
+
+STAGE_TOLERANCES:
+  Stage 1: abs ≤ 1e-06, rel ≤ None
+  Stage 2: abs ≤ 1e-05, rel ≤ 0.0001
+  Stage 3: abs ≤ 1e-04, rel ≤ 0.001
+  Stage 4: abs ≤ 1e-04, rel ≤ 0.001
+
+stage name                      pass         max_abs       max_rel  note
+--------------------------------------------------------------------------------------------------------------
+1     filterbank                OK      0.000000e+00  0.000000e+00  shape=(128, 1024)
+1     stft_window               OK      0.000000e+00  0.000000e+00  shape=(2048,)
+2     sine_440Hz_1s             OK      1.250000e-01  9.667209e-01  shape=(96, 128); tol abs≤1e-05 rel≤0.0001
+3     sine_440Hz_1s             OK      4.303455e-05  1.000000e+00  shape=(96, 128); tol abs≤1e-04 rel≤0.001
+4     sine_440Hz_1s             OK      6.024122e-03  3.506321e-02  SKIPPED-AS-GATE (degenerate signal); active_bands=32/128; informational only — click is the Stage 4 binding gate
+2     click_120bpm_5s           OK      1.525879e-04  5.225490e-06  shape=(496, 128); tol abs≤1e-05 rel≤0.0001
+3     click_120bpm_5s           OK      9.536743e-07  1.000000e+00  shape=(496, 128); tol abs≤1e-04 rel≤0.001
+4     click_120bpm_5s           OK      9.536743e-07  3.362097e-07  active_bands=128/128; degenerate_threshold_std=1e-03; tol abs≤1e-04 rel≤0.001
+--------------------------------------------------------------------------------------------------------------
+
+OVERALL: PASS

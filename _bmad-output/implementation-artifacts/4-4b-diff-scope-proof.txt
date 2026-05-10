@@ -1,0 +1,125 @@
+============================================================
+ Story 4-4b — diff-scope proof (AC #1, HALT (f) per DD #12)
+============================================================
+
+Baseline:    73f8188
+HEAD:        ca6a97f
+Generated:   2026-05-10T18:17:23Z
+Allowed Sources/ path: Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc
+
+--- git diff --stat 73f8188..HEAD -- Sources/ Tests/ ---
+
+--- git diff --stat 73f8188..HEAD -- _bmad-output/ml-training/ ---
+
+--- git diff --stat 73f8188..HEAD -- _bmad-output/ml-models/ ---
+
+--- git diff --stat 73f8188..HEAD -- tools/coreml-convert/ ---
+
+--- git diff --stat 73f8188..HEAD -- _bmad-output/implementation-artifacts/4-4b-* ---
+
+--- git status (working tree) ---
+M  .gitignore
+AM MODEL_CARD.md
+MM Makefile
+M  README.md
+A  Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/analytics/coremldata.bin
+A  Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/coremldata.bin
+A  Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/metadata.json
+A  Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/model.mil
+A  Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/weights/weight.bin
+AM _bmad-output/implementation-artifacts/4-4b-diff-scope-proof.txt
+MM _bmad-output/implementation-artifacts/4-4b-tempo-classifier-training.md
+MM _bmad-output/implementation-artifacts/4-5-bnns-mltechnique-conformance.md
+ M _bmad-output/implementation-artifacts/deferred-work.md
+MM _bmad-output/implementation-artifacts/sprint-status.yaml
+A  _bmad-output/ml-models/giantsteps_v1.mlmodel.convert_report.json
+A  _bmad-output/ml-models/giantsteps_v1.mlmodel/Data/com.apple.CoreML/model.mlmodel
+A  _bmad-output/ml-models/giantsteps_v1.mlmodel/Data/com.apple.CoreML/weights/weight.bin
+A  _bmad-output/ml-models/giantsteps_v1.mlmodel/Manifest.json
+M  _bmad-output/ml-training/README.md
+AM _bmad-output/ml-training/build_fixture.py
+A  _bmad-output/ml-training/corpus_splits.json
+AM _bmad-output/ml-training/dataset.py
+AM _bmad-output/ml-training/diff_scope_check.sh
+AM _bmad-output/ml-training/eval.py
+A  _bmad-output/ml-training/eval_report.json
+AM _bmad-output/ml-training/export.py
+A  _bmad-output/ml-training/feature_parity_report.txt
+AM _bmad-output/ml-training/finalize.sh
+A  _bmad-output/ml-training/fixtures/feature_pipeline_v1.npz
+A  _bmad-output/ml-training/mlmodelc_layout.txt
+A  _bmad-output/ml-training/model.pt
+A  _bmad-output/ml-training/model.py
+A  _bmad-output/ml-training/model_metadata.json
+A  _bmad-output/ml-training/model_summary.txt
+A  _bmad-output/ml-training/parity_signals/click_120bpm_5s.f32
+A  _bmad-output/ml-training/parity_signals/sine_440Hz_1s.f32
+A  _bmad-output/ml-training/swift_feature_extractor/Package.swift
+AM _bmad-output/ml-training/swift_feature_extractor/Sources/dump-fixture/main.swift
+AM _bmad-output/ml-training/test_feature_parity.py
+AM _bmad-output/ml-training/train.py
+A  _bmad-output/ml-training/training_log.json
+AM tools/coreml-convert/README.md
+AM tools/coreml-convert/convert.py
+AM tools/coreml-convert/pyproject.toml
+AM tools/coreml-convert/reference_arch.py
+AM tools/coreml-convert/tests/test_round_trip.py
+AM tools/coreml-convert/uv.lock
+A  tools/coreml-convert/validate.py
+?? tools/coreml-convert/conftest.py
+?? tools/coreml-convert/tests/fixtures/
+
+--- find _bmad-output/ml-training -type f (excluding .venv/__pycache__/checkpoints/swift_feature_extractor build outputs) ---
+_bmad-output/ml-training/.pytest_cache/.gitignore
+_bmad-output/ml-training/.pytest_cache/CACHEDIR.TAG
+_bmad-output/ml-training/.pytest_cache/README.md
+_bmad-output/ml-training/.pytest_cache/v/cache/nodeids
+_bmad-output/ml-training/benchmark-giantsteps-pre.log
+_bmad-output/ml-training/benchmark-oa300-pre.log
+_bmad-output/ml-training/build_fixture.py
+_bmad-output/ml-training/corpus_splits.json
+_bmad-output/ml-training/dataset.py
+_bmad-output/ml-training/diff_scope_check.sh
+_bmad-output/ml-training/eval_report.json
+_bmad-output/ml-training/eval.py
+_bmad-output/ml-training/export.py
+_bmad-output/ml-training/feature_parity_report.txt
+_bmad-output/ml-training/finalize.sh
+_bmad-output/ml-training/fixtures/feature_pipeline_v1.npz
+_bmad-output/ml-training/mlmodelc_layout.txt
+_bmad-output/ml-training/model_metadata.json
+_bmad-output/ml-training/model_summary.txt
+_bmad-output/ml-training/model.pt
+_bmad-output/ml-training/model.py
+_bmad-output/ml-training/parity_signals/click_120bpm_5s.f32
+_bmad-output/ml-training/parity_signals/sine_440Hz_1s.f32
+_bmad-output/ml-training/pyproject.toml
+_bmad-output/ml-training/README.md
+_bmad-output/ml-training/swift_feature_extractor/Package.swift
+_bmad-output/ml-training/swift_feature_extractor/Sources/dump-fixture/main.swift
+_bmad-output/ml-training/test_feature_parity.py
+_bmad-output/ml-training/train.py
+_bmad-output/ml-training/training_log.json
+_bmad-output/ml-training/uv.lock
+
+--- find Sources/BoomBoomBoomKitML/Resources -type f ---
+Sources/BoomBoomBoomKitML/Resources/.gitkeep
+Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/analytics/coremldata.bin
+Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/coremldata.bin
+Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/metadata.json
+Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/model.mil
+Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/weights/weight.bin
+
+--- find tools/coreml-convert -type f (excluding caches) ---
+tools/coreml-convert/conftest.py
+tools/coreml-convert/convert.py
+tools/coreml-convert/pyproject.toml
+tools/coreml-convert/README.md
+tools/coreml-convert/reference_arch.py
+tools/coreml-convert/tests/fixtures/custom_arch.py
+tools/coreml-convert/tests/test_round_trip.py
+tools/coreml-convert/uv.lock
+tools/coreml-convert/validate.py
+
+--- HALT (f) GATE ---
+PASS: zero non-allowed changes under Sources/ or Tests/ (committed + staged + unstaged)
