@@ -1,0 +1,60 @@
+Story 4-4b — .mlmodelc layout + structural-equivalence empirical record (Task 7.5 + Task 8.3 + AC #10)
+=======================================================================================================
+
+Generated: 2026-05-09 15:05 EDT (against the 1-epoch test artifact; will be re-run against
+the final 60-epoch trained model at Task 8/9 completion).
+
+`.mlmodel` extension behavior under coremltools 9.0
+---------------------------------------------------
+
+`coremltools.convert(..., convert_to="mlprogram").save("path.mlmodel")` does NOT auto-rename
+to `.mlpackage`. It throws:
+    Exception: For an ML Program, extension must be .mlpackage (not .mlmodel).
+    Please see https://coremltools.readme.io/docs/unified-conversion-api#target-conversion-formats
+
+Resolution applied in `export.py`:
+  1. Save to `<output>.mlpackage` (forced extension).
+  2. Move/rename the resulting directory tree to `<output>.mlmodel` if the caller
+     requested .mlmodel (Story 4.1 convention).
+  3. xcrun coremlc compile accepts directory bundles regardless of suffix.
+
+Story 4.1's `make compile-model` Makefile target was originally guarded by `[ ! -f ... ]`
+(file-only). Since the .mlmodel under coremltools 9.x is now a DIRECTORY bundle, this guard
+fails. Fix: amended to `[ ! -e ... ]` (file OR directory). Spec amendment recorded in
+Change Log.
+
+Compiled `.mlmodelc` directory tree
+-----------------------------------
+
+Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/
+├── analytics/
+│   └── coremldata.bin
+├── coremldata.bin                  (top-level)
+├── metadata.json
+├── model.mil                       (MIL program — op graph)
+└── weights/
+    └── weight.bin                  (binary weight tensor)
+
+Total size: ~641 KB (1-epoch model). Final 60-epoch model expected similar size.
+
+
+Structural-equivalence check (AC #10)
+-------------------------------------
+
+Compiled twice from the same source `.mlmodel` to /tmp/coreml-out1/ and /tmp/coreml-out2/:
+
+  IDENTICAL  analytics/coremldata.bin       (sha256 same)
+  DIFFERS    coremldata.bin                 (top-level container — likely build-id or timestamp)
+  IDENTICAL  metadata.json                  (sha256 same)
+  IDENTICAL  model.mil                      (sha256 same — op graph stable)
+  IDENTICAL  weights/weight.bin             (sha256 244a2d0c... — weight serialization deterministic)
+
+Result: STRUCTURAL EQUIVALENCE PASS per AC #10.
+  - Op-graph (model.mil): byte-identical across re-compiles.
+  - Weight blob (weights/weight.bin): byte-identical across re-compiles.
+  - Container metadata (top-level coremldata.bin): differs across re-compiles (Apple does
+    not document a byte-identity guarantee for `xcrun coremlc compile`; this is consistent
+    with the spec's framing that "byte-identical container" was never the contractual claim).
+
+The `model.mil + weights` byte-identity is stronger than the spec required (which only
+asked for op-graph plutil diff empty + per-weight sha256 identical). Both checks pass.

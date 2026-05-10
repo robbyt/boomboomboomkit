@@ -1,0 +1,19 @@
+[project]
+name = "boomboomboomkit-coreml-convert"
+version = "0.1.0"
+description = "Consumer-facing PyTorch → CoreML conversion tool for BoomBoomBoomKit's MLTechnique surface (Story 4-4b DD #13). Self-contained; ships to main alongside the Swift package."
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "torch>=2.4",
+  # coremltools<10: validated against 8.x and 9.x with explicit
+  # compute_precision=FLOAT32 in convert.py. ML Program FP16 default has been
+  # the case since coremltools 5.0b3 (per Apple docs); the upper pin is
+  # forward-defense against unreviewed major-version converter changes.
+  "coremltools>=8.0,<10",
+  "numpy>=1.26",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
