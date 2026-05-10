@@ -9,6 +9,67 @@ See @Makefile for all targets (`make help`). Key ones: `make build`, `make test`
 Run a single test suite: `swift test --filter BPMAnalyzer120BPMTests`
 Run a single test: `swift test --filter BPMAnalyzer120BPMTests/detect120BPM`
 
+## Release Process — what ships to `main` vs stays on `develop`
+
+**This repo is multi-branch.** `main` is the public open-source release target; `develop` carries everything else, including all LLM-aided-development tooling. Read this section before authoring or moving any file. **When in doubt, default to develop.**
+
+### Ships to `main` (the public open-source library)
+
+| Path | Why |
+|---|---|
+| `Package.swift` | SPM manifest |
+| `Sources/` | All three SPM targets (`BoomBoomBoomKit`, `BoomBoomBoomKitTestSupport`, `BoomBoomBoomKitML`), including the bundled `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` reference model |
+| `Tests/` | Unit tests + the env-gated benchmark target |
+| `tools/coreml-convert/` | Consumer-facing PyTorch → CoreML conversion CLI. This is **the only Python tooling that ships to main** (Story 4-4b DD #13 exception, recorded in `_bmad-output/implementation-artifacts/4-4b-tempo-classifier-training.md`) |
+| `README.md` | Public-facing readme |
+| `MODEL_CARD.md` | Authoritative bundled-model accuracy disclosure (per Story 4-4b party-mode follow-up) |
+| `LICENSE` | License text |
+| `.swiftlint.yml` | Lint config |
+| `.gitignore` | Ignored-path rules (must include the develop-only patterns so they don't accidentally land on main) |
+| `Makefile` | Build/test targets. `ml-*` shortcut targets remain in the file even though their underlying scripts live in `_bmad-output/`; they fail loudly on a main-only checkout, which is intentional — consumers shouldn't run them |
+
+### Stays on `develop` ONLY — NEVER shipped to `main`
+
+These are the LLM-aided-development scaffolding directories. They MUST be excluded from the squash-merge to main.
+
+- **`CLAUDE.md`** — this file. Public consumers do not need it; shipping it advertises the AI-agent workflow inappropriately and exposes internal conventions
+- **`.claude/`** — Claude Code configuration: settings, skills, projects, scheduled tasks, worktrees
+- **`.agents/`** — agent skill directory
+- **`_bmad/`** — BMAD framework installation: `bmm` module, hooks, config TOMLs, scripts
+- **`_bmad-output/`** — every BMAD output:
+  - `_bmad-output/implementation-artifacts/` — story specs, regression snapshots, diff-scope proofs, sprint-status.yaml
+  - `_bmad-output/ml-training/` — Python training pipeline + Swift CLI fixture extractor + parity harness + reports + `model.pt`
+  - `_bmad-output/ml-models/` — uncompiled `.mlmodel` source bundle (the input to `make compile-model`; the *compiled* output `.mlmodelc` ships under `Sources/`)
+  - `_bmad-output/perf-baselines/` — performance benchmark history
+  - `_bmad-output/planning-artifacts/` — epics + architecture docs
+  - `_bmad-output/project-context.md` — internal AI-agent context
+- **`scripts/`** — non-shipping Python utilities (e.g., `scripts/dawproject-bpm.py` for DAW oracle ground-truth generation)
+
+### Squash-merge protocol (`develop` → `main`)
+
+Manual; the release operator does this by hand. There is no automation.
+
+1. `git checkout main`
+2. `git merge --squash develop`
+3. **Before committing, `git rm --cached -r` every path in the "Stays on `develop` ONLY" list above**, plus any other develop-only artifact that landed (`*.trace`, etc. — see `.gitignore`)
+4. Verify with `git status` that the staged tree contains only paths from the "Ships to `main`" table
+5. Commit with a clean public release message — no references to BMAD, Claude Code, party mode, story specs, AI agents, or any LLM-aided-development concept
+
+**`main`'s history must never reflect the LLM-aided development workflow.** No story-spec commit messages. No `Story 4-4b: ...` subjects. The release commit on main is one squash with a public-facing message; the audit trail of *how* the work happened lives on develop.
+
+### Why this matters
+
+- **Consumers cloning from `main`** should see a clean Swift package + a consumer convert tool. Seeing `.claude/`, `_bmad/`, or `CLAUDE.md` would be confusing, would expose internal workflow, and would create an implicit commitment to support development tooling that is project-internal.
+- **`develop` is the audit trail.** Story specs, regression evidence, training reproducibility, and AI-agent collaboration history all live there. That's intentional and should remain so.
+- **Pre-1.0 framing.** This discipline applies *now*, even pre-1.0; it tightens further at 1.0. Don't let main drift.
+
+### Authoring a new file — decision tree
+
+1. **Does it ship with the library?** → `Sources/` or `Tests/`. Lands on main.
+2. **Is it consumer-facing infrastructure** that consumers need at clone time (e.g., a CLI for converting their own ML models)? → `tools/coreml-convert/` (currently the only such directory). Lands on main *only* with explicit story-spec authorization (DD #13 was the precedent — do not add more without one).
+3. **Is it project planning, training, ML reproducibility, or AI-agent tooling?** → `_bmad-output/`, `_bmad/`, `.claude/`, `.agents/`, or `scripts/`. Stays on develop.
+4. **Anything else?** Default to develop. Ask before promoting.
+
 ## Architecture
 
 BoomBoomBoomKit is a standalone audio analysis library for BPM estimation and LUFS loudness measurement. Pure Swift, zero external dependencies — only Apple system frameworks (Accelerate/vDSP, AVFoundation, Foundation). Swift 6.0 strict concurrency, macOS 15+.
