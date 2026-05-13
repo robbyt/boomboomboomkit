@@ -1,0 +1,120 @@
+===========================================================
+Story 4-5 diff-scope proof — captured at 2026-05-13T22:25:31Z
+===========================================================
+
+## Pre-Story-4-5 SHA: 9c48629 (tony corpus commit; HEAD before Story 4-5 began)
+## Task 1 pre-source SHA: c446069 (Story 4-5 baseline artifacts only)
+## Current HEAD: 739feea
+
+## Section: Full Story 4-5 diff (9c48629..HEAD) — includes Task 1 artifacts
+
+ Makefile                                           |  11 +
+ Package.swift                                      |  15 +-
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  71 +-
+ Sources/BoomBoomBoomKit/BPMAnalyzer.swift          |  71 +-
+ Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift   | 153 ++++
+ Sources/BoomBoomBoomKit/DSPTechnique.swift         | 116 +--
+ Sources/BoomBoomBoomKit/MLTechnique.swift          | 162 ++++
+ Sources/BoomBoomBoomKitML/BNNSTechnique.swift      | 560 ++++++++++++-
+ .../BNNSImpactTests.swift                          | 297 +++++++
+ .../BoomBoomBoomKitTests/BNNSTechniqueTests.swift  | 345 ++++++++
+ .../MLFeatureFramesTests.swift                     | 209 +++++
+ .../MLTechniqueProtocolTests.swift                 |  82 ++
+ .../4-5-allocator-probe.log                        |  30 +
+ .../4-5-baseline-logs/benchmark-giantsteps.log     | 185 +++++
+ .../4-5-baseline-logs/benchmark-oa300.log          | 293 +++++++
+ .../4-5-baseline-logs/perf-benchmark.log           | 136 ++++
+ .../4-5-bnns-header-grep.txt                       | 231 ++++++
+ .../4-5-bnns-impact-report.json                    | 869 +++++++++++++++++++++
+ .../4-5-bnns-mltechnique-conformance.md            | 251 ++++--
+ .../4-5-regression-snapshot.json                   |  94 +++
+ .../implementation-artifacts/sprint-status.yaml    |   4 +-
+ .../swift_feature_extractor/Package.swift          |  10 +
+ .../Sources/bnns-probe/main.swift                  | 356 +++++++++
+ ...Debug--20260513T212552Z--9c48629--9de4446f.json |  40 +
+ 24 files changed, 4357 insertions(+), 234 deletions(-)
+
+## Section: Source-edit-only diff (c446069..HEAD) — excludes pre-source baselines
+
+ Makefile                                           |  11 +
+ Package.swift                                      |  15 +-
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  71 +-
+ Sources/BoomBoomBoomKit/BPMAnalyzer.swift          |  71 +-
+ Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift   | 153 ++++
+ Sources/BoomBoomBoomKit/DSPTechnique.swift         | 116 +--
+ Sources/BoomBoomBoomKit/MLTechnique.swift          | 162 ++++
+ Sources/BoomBoomBoomKitML/BNNSTechnique.swift      | 560 ++++++++++++-
+ .../BNNSImpactTests.swift                          | 297 +++++++
+ .../BoomBoomBoomKitTests/BNNSTechniqueTests.swift  | 345 ++++++++
+ .../MLFeatureFramesTests.swift                     | 209 +++++
+ .../MLTechniqueProtocolTests.swift                 |  82 ++
+ .../4-5-bnns-impact-report.json                    | 869 +++++++++++++++++++++
+ .../4-5-bnns-mltechnique-conformance.md            |  34 +-
+ 14 files changed, 2829 insertions(+), 166 deletions(-)
+
+## Section: AC #10 untouched-files verification
+AC #10 prohibits modifications to: EnsembleCombiner.swift, EnsemblePolicy.swift,
+EnsembleDecision.swift, CandidateMergeStrategy.swift, VotingPolicy.swift,
+LUFSAnalyzer.swift, MelFilterbank.swift, PCMBufferReader.swift,
+FileMetadataReader.swift, MetadataPolicy.swift, MetadataCorroborator.swift,
+ProgressUpdate.swift, CoreMLTechnique.swift.
+
+Per AC #10 chunk-4 amendment: DSPTechnique.swift IS authorized for modification
+(relocation removal only); Package.swift modification (test-target deps only,
+no new external deps) is authorized per the Task 8 commit message rationale.
+
+  ✓ Sources/BoomBoomBoomKit/EnsembleCombiner.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/EnsemblePolicy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/EnsembleDecision.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/VotingPolicy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/LUFSAnalyzer.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/MelFilterbank.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/PCMBufferReader.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/FileMetadataReader.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/MetadataPolicy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/MetadataCorroborator.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/ProgressUpdate.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKitML/CoreMLTechnique.swift — UNTOUCHED
+
+## Section: AC #1 raw-API guard greps
+
+### grep BNNSFilterCreate|BNNSFilterApply in BoomBoomBoomKitML/:
+(no matches)
+
+### grep BNNSGraph.Builder|BNNSGraph.Context|BNNSGraph.makeContext in BoomBoomBoomKitML/:
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:8://  raw C API on macOS 15 (Swift overlay `BNNSGraph.Context` is locked out
+
+## Section: External-deps invariant
+
+swift package show-dependencies --format json | jq '.dependencies | length':
+0
+
+## Section: Banned trace-field shapes audit (recipes A-E)
+
+### Recipe A — banned trace field types:
+(no matches)
+
+### Recipe B — %.1f stringified BPM keys:
+(no matches)
+
+### Recipe C — CSV serialization in trace writes:
+(no matches)
+
+### Recipe D — test consumer leftovers:
+(no matches)
+
+### Recipe E — non-Sendable evidence types:
+(no matches)
+
+
+## Section: AC #1 raw-API guard — annotation
+
+The single BNNSGraph.Context match above is from a `///` doc-comment in
+BNNSTechnique.swift (line 8) explaining WHY the Swift overlay is rejected
+in favor of the raw C API on macOS 15. It is NOT a code usage. A
+code-only audit (excluding `///` / `//` comment lines) returns ZERO
+matches as required by AC #1:
+
+### grep excluding comment lines:
+(no code-line matches)
