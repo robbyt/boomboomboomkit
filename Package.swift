@@ -41,7 +41,10 @@ let package = Package(
     ),
     .testTarget(
       name: "BoomBoomBoomKitBenchmarkTests",
-      dependencies: ["BoomBoomBoomKit", "BoomBoomBoomKitTestSupport"],
+      // Story 4-5: BoomBoomBoomKitML added so BNNSImpactTests can link
+      // against BNNSTechnique. NOT a new external dependency — see the
+      // BoomBoomBoomKitTests comment above for the same rationale.
+      dependencies: ["BoomBoomBoomKit", "BoomBoomBoomKitTestSupport", "BoomBoomBoomKitML"],
       resources: [.copy("Fixtures")]
     ),
   ]

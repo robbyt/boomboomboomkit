@@ -5,6 +5,7 @@ OA300_CORPUS_PATH ?= /Users/rterhaar/Dropbox/OA300_OnsetAudio300
 GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset
 ML_MODEL_INPUT ?= _bmad-output/ml-models/giantsteps_v1.mlmodel
 ML_MODEL_OUT_DIR ?= Sources/BoomBoomBoomKitML/Resources
+BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts
 
 .PHONY: all
 all: help
@@ -124,6 +125,16 @@ ml-policy-sweep:
 	ML_POLICY_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.MLPolicySweepTests/policySweepReport
+
+## bnns-impact-report: Generate per-track BNNS impact JSON to _bmad-output/implementation-artifacts/4-5-bnns-impact-report.json
+.PHONY: bnns-impact-report
+bnns-impact-report:
+	@mkdir -p "$(BNNS_IMPACT_OUT_DIR)"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	BNNS_IMPACT=1 \
+	BNNS_IMPACT_OUT_DIR="$(BNNS_IMPACT_OUT_DIR)" \
+	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.BNNSImpactTests/bnnsImpactReport
 
 ## compile-model: Compile $(ML_MODEL_INPUT) (.mlmodel or .mlpackage directory bundle) into $(ML_MODEL_OUT_DIR)/<name>.mlmodelc via xcrun coremlc; override path with ML_MODEL_INPUT=...
 .PHONY: compile-model
