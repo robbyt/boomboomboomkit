@@ -300,21 +300,18 @@ public struct AudioAnalysisService {
     let (corroborated, evidence) = MetadataCorroborator.apply(
       to: merged, input: pre.metadataInput)
 
-    // Story 4.3 + Story 4.4 A1 short-circuit: ML evaluation runs AFTER
-    // metadata corroboration so the tag-driven candidate boost is reflected
-    // in `corroborated.trace`. Under `.dspOnly` the IIFE-`guard` returns
-    // `nil` before binding `ml`, so `evaluate(trace:)` is unreachable —
-    // `RecordingMockMLTechnique.callCount == 0` is the AC #14 contract that
-    // proves this short-circuit fires. The `flatMap`-on-protocol-existential
-    // form was Swift-broken (Codex D1, 2026-05-07) — IIFE-`guard` is the
-    // correct shape.
-    let mlEvaluation: MLEvaluation? = {
-      guard options.ensemblePolicy != .dspOnly,
-        let ml = options.mlTechnique,
-        let trace = corroborated.trace
-      else { return nil }
-      return ml.evaluate(trace: trace)
-    }()
+    // Story 4-5 / DD #11 / AC #9: ML evaluation runs AFTER metadata
+    // corroboration via a private throws helper that checks cancellation
+    // BEFORE calling evaluate. Replaces the Story 4-4 IIFE-`guard` shape
+    // because the IIFE couldn't `throw CancellationError()` cleanly while
+    // returning `MLEvaluation?`. Story 4-4 AC #14 invariant
+    // (`RecordingMockMLTechnique.callCount == 0` on `.dspOnly`) is
+    // preserved by the helper's first guard, which returns nil before
+    // binding `ml` (so `evaluate(trace:)` is unreachable when ML is off).
+    // Resolves the `deferred-work.md` cancellation entry filed at Story
+    // 4-3 close-out.
+    let mlEvaluation = try Self.evaluateMLIfActive(
+      options: options, trace: corroborated.trace)
     let combined = EnsembleCombiner.combine(
       dspWinner: corroborated,
       mlEvaluation: mlEvaluation,
@@ -362,6 +359,38 @@ public struct AudioAnalysisService {
     return
       "Requested intensity \(requested.rawValue) requires BoomBoomBoomKitML "
       + "package. Running at intensity \(effective.rawValue) (DSP-only)."
+  }
+
+  // MARK: - Story 4.5: Cancellation cooperation helper
+
+  /// Story 4-5 / DD #11 / AC #9 — evaluates `options.mlTechnique` against
+  /// `trace` only when ML is active (policy != `.dspOnly` AND
+  /// `mlTechnique != nil` AND a trace was built), with a pre-call
+  /// cancellation check that throws `CancellationError` instead of
+  /// quietly running expensive inference on a cancelled task.
+  ///
+  /// Story 4-4 AC #14 invariant preserved: the first `guard` returns nil
+  /// when `options.ensemblePolicy == .dspOnly` BEFORE reaching the
+  /// cancellation check, so `RecordingMockMLTechnique.callCount` stays
+  /// at 0 on the short-circuit path regardless of cancellation state.
+  ///
+  /// Cancellation latency contract (axiom-concurrency audit): once
+  /// `ml.evaluate(trace:)` is called, the helper does NOT thread a
+  /// cancellation closure into the conformance — BNNSGraph inference is
+  /// atomic from the consumer's perspective. A cancelled task will wait
+  /// the full inference wall-clock (50-1000 ms) before observing
+  /// cancellation. ADR-1's per-window granularity is satisfied (checks
+  /// fire BEFORE each window AND BEFORE each evaluate call); finer
+  /// mid-inference cancellation is documented as deferred-work.
+  private static func evaluateMLIfActive(
+    options: Options, trace: BPMDiagnosticTrace?
+  ) throws -> MLEvaluation? {
+    guard options.ensemblePolicy != .dspOnly,
+      let ml = options.mlTechnique,
+      let trace
+    else { return nil }
+    if options.isCancelled() { throw CancellationError() }
+    return ml.evaluate(trace: trace)
   }
 
   // MARK: - Story 4.4: ML ensemble combiner promoted to EnsembleCombiner.swift
