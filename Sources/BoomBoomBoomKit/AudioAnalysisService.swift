@@ -464,6 +464,15 @@ public struct AudioAnalysisService {
     // pipeline actually extracted.
     let resolvedTechniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
 
+    // Story 4-5 / AC #4 / DD #4: capture log-mel features for `MLTechnique.evaluate`
+    // ONLY when the trace will actually feed an ML conformance. Mirror of the
+    // `shouldBuildTrace` predicate at the analyzeBPM call site so the DSP-only
+    // path stays bit-exact to pre-Story-4.5 (HALT (e) byte-identity contract).
+    let captureMLFeatures =
+      enableTrace
+      && options.mlTechnique != nil
+      && options.ensemblePolicy != .dspOnly
+
     // Collect results from all windows.
     var windowResults: [BPMResult] = []
     let windowSizes = options.intensity.windowSizes
@@ -483,7 +492,8 @@ public struct AudioAnalysisService {
             techniqueSet: options.techniqueSet,
             enableTrace: enableTrace,
             fileDurationSeconds: fileDurationSeconds,
-            durationHintMinFileSeconds: options.durationHintMinFileSeconds)
+            durationHintMinFileSeconds: options.durationHintMinFileSeconds,
+            captureMLFeatures: captureMLFeatures)
         )
       else {
         completed += 1

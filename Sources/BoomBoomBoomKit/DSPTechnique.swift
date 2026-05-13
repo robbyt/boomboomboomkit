@@ -2,9 +2,10 @@
 //  DSPTechnique.swift
 //  BoomBoomBoomKit
 //
-//  Closed enum of DSP pipeline techniques, composable TechniqueSet,
-//  and open MLTechnique protocol for ML-augmented BPM detection
-//  (Story 4.3 wired the path; Stories 4.5/4.6 ship BNNS/CoreML conformances).
+//  Closed enum of DSP pipeline techniques and the composable TechniqueSet.
+//  The MLTechnique protocol + MLEvaluation return type live in
+//  MLTechnique.swift (relocated by Story 4.5 chunk-4 review 2026-05-13;
+//  Story 4.3 wired the path, Stories 4.5/4.6 ship BNNS/CoreML conformances).
 //
 
 import Foundation
@@ -178,113 +179,4 @@ public struct TechniqueSet: Sendable, Hashable {
     }
     return combinations
   }
-}
-
-// MARK: - MLEvaluation
-
-/// Immutable record of an ML model's tempo estimate, returned by
-/// ``MLTechnique/evaluate(trace:)``.
-///
-/// ``MLEvaluation`` is a pure value type — once constructed it carries one
-/// candidate BPM, the model's self-reported confidence, and an optional
-/// stable identifier. The ensemble combiner inside
-/// ``AudioAnalysisService/analyzeBPM(url:options:)`` consumes this value
-/// alongside the DSP-derived ``BPMResult`` to produce the final
-/// ``AudioAnalysisResult``. Story 4.3 ships a single-case default policy
-/// ("DSP wins regardless"); Story 4.4 introduces the public
-/// `EnsemblePolicy` enum that switches on richer combine strategies.
-///
-/// Conformers (Story 4.5 BNNS, Story 4.6 CoreML) construct an
-/// ``MLEvaluation`` only when the model produces a confident estimate;
-/// returning `nil` from ``MLTechnique/evaluate(trace:)`` is the documented
-/// abstain path.
-public struct MLEvaluation: Sendable {
-
-  /// Estimated tempo in beats per minute.
-  ///
-  /// Conformers should clamp predictions to `60.0...200.0` to match the
-  /// DSP pipeline's range-normalized candidate space; out-of-range values
-  /// surface to the ensemble combiner unchanged. A value of `0` (or any
-  /// non-finite) is undefined and is rejected by future ensemble policies
-  /// — return `nil` from ``MLTechnique/evaluate(trace:)`` instead.
-  public let bpm: Double
-
-  /// Self-reported confidence in `[0.0, 1.0]`.
-  ///
-  /// Should be the model's calibrated softmax confidence (or equivalent).
-  /// Story 4.4's ensemble policies may down-weight uncalibrated values —
-  /// conformers SHOULD calibrate using their training-set held-out scores
-  /// rather than emit raw logits.
-  public let confidence: Double
-
-  /// Optional stable identifier of the producing model.
-  ///
-  /// Used for forensic trace tagging when Story 4.5 BNNS and Story 4.6
-  /// CoreML conformances coexist (e.g., `"bnns_tempo_v1"`,
-  /// `"coreml_resnet18_v3"`). Pass `nil` if the model has no stable
-  /// identifier or the consumer does not need to distinguish models.
-  public let modelIdentifier: String?
-
-  public init(bpm: Double, confidence: Double, modelIdentifier: String? = nil) {
-    self.bpm = bpm
-    self.confidence = confidence
-    self.modelIdentifier = modelIdentifier
-  }
-}
-
-// MARK: - MLTechnique
-
-/// Extension point for ML-augmented BPM estimation.
-///
-/// Conformers evaluate the DSP candidate set carried inside
-/// ``BPMDiagnosticTrace/candidatesAfterBoost`` against an on-device model
-/// and return an ``MLEvaluation`` if the model produces a confident
-/// estimate, else `nil`. ML techniques run after the DSP pipeline and
-/// after metadata corroboration — they do not modify DSP stages, do not
-/// see raw audio samples, and do not duplicate DSP computation.
-///
-/// ## `nil` return semantics
-///
-/// Returning `nil` from ``evaluate(trace:)`` is the documented abstain
-/// path. The ensemble combiner preserves the DSP result unchanged; the
-/// model's silence is treated as "no opinion." Conformers SHOULD return
-/// `nil` (rather than a low-confidence value) whenever the input falls
-/// outside the model's training distribution.
-///
-/// ## Synchronous-by-design
-///
-/// ``evaluate(trace:)`` is intentionally synchronous. Apple's BNNS path
-/// (`BNNSGraphContextExecute`, WWDC 2024 #10211) is synchronous and is
-/// the canonical real-time CPU inference pattern. CoreML conformances may
-/// either use the synchronous `MLModel.prediction(from:)` API or bridge
-/// the async API via a semaphore — both paths run safely from
-/// ``AudioAnalysisService/analyzeBPM(url:options:)`` because the service
-/// is consumer-called from a background `Task`, not `MainActor`.
-///
-/// ## Canonical conformance shape
-///
-/// ```swift
-/// public struct MyBNNSTechnique: MLTechnique {
-///   private let context: BNNSGraph.Context
-///   public func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
-///     // 1. Featurize from trace.onsetEnvelopeLength / candidatesAfterBoost
-///     // 2. BNNSGraphContextExecute(context, ...)
-///     // 3. Decode logits → (bpm, confidence)
-///     // 4. Return nil to abstain when confidence < threshold
-///     return MLEvaluation(bpm: 128.0, confidence: 0.92, modelIdentifier: "bnns_v1")
-///   }
-/// }
-/// ```
-public protocol MLTechnique: Sendable {
-
-  /// Evaluate the DSP pipeline trace and optionally produce an ML estimate.
-  ///
-  /// - Parameter trace: Populated diagnostic trace from the just-completed
-  ///   DSP pipeline (post metadata corroboration). Read DSP candidates
-  ///   from ``BPMDiagnosticTrace/candidatesAfterBoost`` (post-corroboration
-  ///   top-level field) or ``BPMDiagnosticTrace/rawCandidates`` (pre-rescore).
-  /// - Returns: An ``MLEvaluation`` when the model produces a confident
-  ///   estimate, or `nil` to abstain (the DSP result is preserved
-  ///   unchanged by the ensemble combiner).
-  func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation?
 }
