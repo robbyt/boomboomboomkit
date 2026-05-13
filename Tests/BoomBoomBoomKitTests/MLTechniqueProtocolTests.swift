@@ -44,24 +44,17 @@ struct MLTechniqueProtocolTests {
     }
   }
 
-  @Test("BNNSTechnique conforms to MLTechnique at compile time")
-  func bnnsTechniqueConforms() {
-    // Task 4 will declare `BNNSTechnique: MLTechnique` after Shape A-prime
-    // ships. Until then, BNNSTechnique is the Story 4-1 placeholder
-    // (`public struct BNNSTechnique: Sendable`) and the assertion below
-    // would fail at compile time. The assertion is re-enabled by Task 4.
+  /// Single compile-time witness covering all three required conformers
+  /// (BNNSTechnique + MockMLTechnique + downstream-consumer-style class)
+  /// in one body. Per DD #13 test count budgeting — collapsing three
+  /// witness-only tests into one keeps the project inside the [370, 378]
+  /// `@Test(` count band.
+  @Test("BNNSTechnique + MockMLTechnique + custom downstream conformer all conform at compile time")
+  func allRequiredConformersCompile() {
     if #available(macOS 15.0, *) {
-      // Self.assertMLTechnique(BNNSTechnique.self)  // re-enable in Task 4
+      Self.assertMLTechnique(BNNSTechnique.self)
     }
-  }
-
-  @Test("MockMLTechnique conforms to MLTechnique at compile time")
-  func mockMLTechniqueConforms() {
     Self.assertMLTechnique(MockMLTechnique.self)
-  }
-
-  @Test("Custom downstream-consumer-style conformance compiles")
-  func customConformanceCompiles() {
     Self.assertMLTechnique(TestCustomTechnique.self)
   }
 
