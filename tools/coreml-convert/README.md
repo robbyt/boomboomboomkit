@@ -47,6 +47,38 @@ uv run python convert.py \
   --output your_model.mlpackage
 ```
 
+## How it works — consumer pipeline
+
+```text
+[your PyTorch .pt]
+        |
+        v
+tools/coreml-convert/convert.py
+        |
+        v
+[your_model.mlmodelc]
+        |
+        v
+[bundle in your app's Resources]
+        |
+        v
+Options.mlTechnique = try? BNNSTechnique(modelURL: yourURL)
+        |
+        v
+BPMAnalyzer ---> MLFeatureFrames ---> BNNSTechnique.evaluate(trace:)
+                                              |
+                                              v
+                                       MLEvaluation
+                                              |
+                                              v
+EnsembleCombiner --> AudioAnalysisResult
+```
+
+The library's bundled `giantsteps_v1.mlmodelc` is reachable via
+`Options.mlTechnique = try? BNNSTechnique()` (no `modelURL`). The
+diagram above shows the consumer-override (BYOW) variant; the bundled
+path is identical except `convert.py` is skipped.
+
 ## Worked examples
 
 ### Path A — same architecture, different weights
@@ -72,13 +104,16 @@ import BoomBoomBoomKitML
 
 let yourModelURL = Bundle.main.url(
   forResource: "your_model",
-  withExtension: "mlpackage"  // <!-- FINALIZED-BY-4-5 (extension may be .mlmodelc) -->
+  withExtension: "mlmodelc"  // BNNSTechnique accepts compiled .mlmodelc only
 )!
 
 var options = AudioAnalysisService.Options()
 options.mlTechnique = try? BNNSTechnique(modelURL: yourModelURL)
-// Use try without `?` if you want explicit error handling on load failure
-// (see Story 4-5 DD #22 / MLTechniqueError <!-- FINALIZED-BY-4-5 -->)
+// Use plain `try` if you want explicit error handling — BNNSTechnique
+// throws MLTechniqueError on .modelResourceMissing(URL),
+// .modelLoadFailed(underlying: any Error),
+// .invalidTensorContract(missing: String), and
+// .binCountMismatch(expected: Int, actual: Int).
 ```
 
 The bundled reference acts as the default when `options.mlTechnique = nil`; your override replaces it.

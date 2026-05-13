@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-13 (Story 4-5 moved to in-progress: BNNS MLTechnique conformance + ML feature trace plumbing; Branch A path confirmed (bundled giantsteps_v1.mlmodelc present at Sources/BoomBoomBoomKitML/Resources/); Tony corpus pipeline committed to develop on a separate commit before story work to preserve AC #10 bounded-diff proof; partial Task 0 scaffolding (MLTechnique.swift relocation) preserved in worktree for rewrite to DD #18 shape.)
+last_updated: 2026-05-13 (Story 4-5 moved to review: BNNS MLTechnique conformance + MLFeatureFrames trace plumbing landed via 6 task-milestone commits (c446069 → 2be87bb); Branch C is the empirical outcome per DD #12 BYOW reframing — bundled giantsteps_v1.mlmodelc abstains 82/82 at the pinned impact-report config and does NOT improve on DSP accuracy, so default Options.mlTechnique stays nil per the post-pivot framing. Story 4.6 (CoreML conformance) stays in `backlog` — promoted only when a higher-quality bundled model lands. Story 4-5 still ships its full scope: BNNSTechnique conformance, init(modelURL:) injection, MLTechnique public protocol freeze (DD #18), MLFeatureFrames typed-evidence, MLTechniqueError enum, cancellation helper (resolves the Story 4-3 deferred-work entry), bnns-impact-report Makefile target, consumer-onboarding doc in tools/coreml-convert/README.md. 378 tests pass (inside DD #13 [370, 378] band). Gating-checklist evidence + Branch decision + deferred-work disposition documented in story file Completion Notes.)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -80,7 +80,7 @@ development_status:
   4-3b-trace-build-cost-budget: done
   4-4-configurable-ml-ensemble-voting-policy: done
   4-4b-tempo-classifier-training: done
-  4-5-bnns-mltechnique-conformance: in-progress
+  4-5-bnns-mltechnique-conformance: review
   4-6-coreml-mltechnique-conformance: backlog
   4-7-spectral-flux-onset-dsp-variant: backlog
   epic-4-retrospective: optional
