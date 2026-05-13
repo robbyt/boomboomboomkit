@@ -283,3 +283,43 @@ ml-convert-tests:
 ## ml-pipeline: Post-training gate run — fixture → parity → eval → export → compile (assumes ml-train has already produced model.pt)
 .PHONY: ml-pipeline
 ml-pipeline: ml-dump-fixture ml-parity ml-eval ml-export compile-model
+
+# ---------------------------------------------------------------------------
+# Tony's private corpus (Rekordbox XML export + on-disk audio under
+# /Users/rterhaar/Dropbox/tony-tunes/). Develop-only.
+# ---------------------------------------------------------------------------
+
+TONY_XML ?= /Users/rterhaar/Dropbox/tony-tunes/05092026.xml
+TONY_AUDIO_ROOT ?= /Users/rterhaar/Dropbox/tony-tunes
+TONY_CORPUS_DIR := _bmad-output/ml-training/tony-corpus
+TONY_MISSING_TXT ?= $(TONY_AUDIO_ROOT)/missing-tracks.txt
+
+## tony-survey: Parse Rekordbox XML, resolve on-disk paths, dump survey JSON + missing-tracks.txt
+.PHONY: tony-survey
+tony-survey:
+	@mkdir -p "$(CURDIR)/$(TONY_CORPUS_DIR)"
+	uv run scripts/tony-tunes-survey.py "$(TONY_XML)" \
+		--audio-root "$(TONY_AUDIO_ROOT)" \
+		--write-missing "$(TONY_MISSING_TXT)" \
+		> "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-survey.json"
+
+## tony-dsp-prepass: Run BoomBoomBoomKit DSP against each resolved track and dump per-track bpm/confidence
+.PHONY: tony-dsp-prepass
+tony-dsp-prepass:
+	@mkdir -p "$(CURDIR)/$(TONY_CORPUS_DIR)"
+	cd $(ML_TRAINING_DIR)/swift_feature_extractor && \
+		swift run -c release tony-dsp-prepass \
+			--survey-json "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-survey.json" \
+			--output "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-dsp-prepass.json"
+
+## tony-labels: Derive bpm_truth labels from the 5 noisy signals (Codex strategy 4+6)
+.PHONY: tony-labels
+tony-labels:
+	uv run scripts/tony-tunes-labels.py \
+		--survey-json "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-survey.json" \
+		--dsp-json    "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-dsp-prepass.json" \
+		--output      "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-truth-labels.json"
+
+## tony-corpus: Full pipeline — survey → DSP prepass → labeler
+.PHONY: tony-corpus
+tony-corpus: tony-survey tony-dsp-prepass tony-labels

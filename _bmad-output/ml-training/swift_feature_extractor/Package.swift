@@ -28,10 +28,29 @@ import PackageDescription
 let package = Package(
   name: "swift-feature-extractor",
   platforms: [.macOS(.v15)],
+  // tony-dsp-prepass depends on BoomBoomBoomKit. Reached via local SPM path
+  // back to the repo root (this package sits 3 dirs deeper). dump-fixture
+  // intentionally has NO BoomBoomBoomKit dependency — it re-implements DSP
+  // line-for-line so the Story 4-4b parity harness can detect Sources/ drift.
+  dependencies: [
+    .package(path: "../../..")
+  ],
   targets: [
     .executableTarget(
       name: "dump-fixture",
       path: "Sources/dump-fixture"
-    )
+    ),
+    // tony-dsp-prepass: develop-only CLI that runs BoomBoomBoomKit DSP against
+    // every resolved track in a Rekordbox survey JSON and dumps per-track
+    // {bpm, confidence, top candidates} to JSON. Consumed by
+    // scripts/tony-tunes-labels.py as the DSP signal in the weighted-ensemble
+    // labeler. Stays out of Sources/ / Tests/ — never ships to main.
+    .executableTarget(
+      name: "tony-dsp-prepass",
+      dependencies: [
+        .product(name: "BoomBoomBoomKit", package: "BoomBoomBoomKit")
+      ],
+      path: "Sources/tony-dsp-prepass"
+    ),
   ]
 )
