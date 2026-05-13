@@ -134,6 +134,21 @@ public struct AudioAnalysisService {
     /// ``ensemblePolicy``. Set ``enableTrace`` to `true` if you want the
     /// trace (and any attached ``EnsembleDecision``) returned to your caller.
     ///
+    /// **Story 4-5 BYOW selection (DD #19).** Consumers pick exactly one
+    /// of the four ML options below; there is no implicit fallback or
+    /// precedence chain.
+    ///
+    /// | Consumer intent | Code |
+    /// |---|---|
+    /// | Disable ML entirely (default — DSP-only) | `Options.mlTechnique = nil` |
+    /// | Use library's bundled reference model | `Options.mlTechnique = try? BNNSTechnique()` |
+    /// | Use your converted weights, same architecture | `Options.mlTechnique = try? BNNSTechnique(modelURL: myURL)` |
+    /// | Use a custom architecture or different framework | `Options.mlTechnique = MyCustomMLTechnique()` |
+    ///
+    /// See `tools/coreml-convert/README.md` for the consumer-onboarding
+    /// flow that converts PyTorch / Core ML weights against the bundled
+    /// tensor contract.
+    ///
     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
     public var mlTechnique: (any MLTechnique)?
 
