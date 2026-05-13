@@ -52,5 +52,15 @@ let package = Package(
       ],
       path: "Sources/tony-dsp-prepass"
     ),
+    // bnns-probe: Story 4-5 Task 1.5b + 1.5d verification probe. Loads a
+    // .mlmodelc via raw BNNSGraph C API, probes graph.data's malloc zone
+    // to determine whether `free(graph.data)` is the correct destructor
+    // primitive, then runs a single deterministic inference to detect
+    // whether the model emits probabilities or logits. Develop-only.
+    .executableTarget(
+      name: "bnns-probe",
+      path: "Sources/bnns-probe",
+      linkerSettings: [.linkedFramework("Accelerate")]
+    ),
   ]
 )

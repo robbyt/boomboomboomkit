@@ -1,0 +1,94 @@
+{
+  "snapshot_metadata": {
+    "captured_at": "2026-05-13T21:25:52Z",
+    "captured_by": "Robert Terhaar",
+    "git_sha": "9c48629",
+    "git_sha_full": "9c486290cd442b859e10ed0ea02dab3a3e9c6900",
+    "macos_version": "26.5",
+    "xcode_version": "Xcode 26.5",
+    "swift_version": "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+    "story": "4.5",
+    "purpose": "Pre-Story-4.5 default-disabled regression snapshot. Pipeline state with options.mlTechnique == nil AND options.ensemblePolicy == .dspOnly (defaults). Story 4.5 must produce byte-identical output against this baseline at default config (AC #5) and against any mlTechnique under .dspOnly (the A1 short-circuit). DSP behavior is unchanged from Story 4-4b (inertness contract holds) — the per-track byte-identity baseline at `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json` (Story 4-3 capture, validated by `MLPolicySweepTests::dspOnlyMatchesStory4_3Baseline`) remains the canonical fixture for Story 4-5 as well.",
+    "amendment_note": "Per Story 4-5 AC #5: this metadata-only snapshot is informational; the test-enforceable byte-identity is the per-track BPM JSON pinned at `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json` (82 OA300 tracks, bpmBits / confidenceBits as Double.bitPattern UInt64). Both `options.mlTechnique == nil` and `options.mlTechnique != nil + options.ensemblePolicy == .dspOnly` paths converge on this fixture because the A1 short-circuit prevents `MLTechnique.evaluate(trace:)` from being called.",
+    "rev": 1
+  },
+  "corpus_runs": [
+    {
+      "corpus": "OA300",
+      "intensity": 7,
+      "tolerance_pct": 2.0,
+      "total": 82,
+      "acc1Correct": 58,
+      "acc2Correct": 74,
+      "acc1_pct": 70.7,
+      "acc2_pct": 90.2,
+      "named_dnb_triplet_failures": [
+        {
+          "track_id": "1. The Faraday_Bunker (D-Struct Remix).wav",
+          "expected_bpm": 170.0,
+          "got_bpm_at_intensity_7": 113.5,
+          "delta_bpm": 56.5,
+          "source": "dawproject"
+        },
+        {
+          "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav",
+          "expected_bpm": 170.0,
+          "got_bpm_at_intensity_7": 113.2,
+          "delta_bpm": 56.8,
+          "source": "daw_oracle"
+        },
+        {
+          "track_id": "9. HEFT_Anagram 6 (Owl Remix).wav",
+          "expected_bpm": 170.0,
+          "got_bpm_at_intensity_7": 113.4,
+          "delta_bpm": 56.6,
+          "source": "daw_oracle"
+        },
+        {
+          "track_id": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff",
+          "expected_bpm": 160.0,
+          "got_bpm_at_intensity_7": 106.2,
+          "delta_bpm": 53.8,
+          "source": "dawproject"
+        }
+      ]
+    },
+    {
+      "corpus": "GiantSteps",
+      "intensity": 7,
+      "tolerance_pct": 2.0,
+      "total": 661,
+      "acc1Correct": 537,
+      "acc2Correct": 546,
+      "acc1_pct": 81.2,
+      "acc2_pct": 82.6
+    }
+  ],
+  "perf_baseline": {
+    "path": "_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260513T212552Z--9c48629--9de4446f.json",
+    "mean_seconds": 0.16999676444444442,
+    "median_seconds": 0.140,
+    "p95_seconds": 0.233,
+    "min_seconds": 0.099,
+    "max_seconds": 0.289,
+    "tracks": 82,
+    "warmup_excluded": 1,
+    "failed_count": 0,
+    "ml_mock_on_abstain_ratio": 0.988,
+    "ml_mock_on_abstain_threshold": 1.20
+  },
+  "per_track_baseline_pointer": {
+    "path": "Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json",
+    "track_count": 82,
+    "schema": "[{filename, bpm, confidence, bpmBits (UInt64 = bpm.bitPattern), confidenceBits (UInt64 = confidence.bitPattern), expectedBPM}]",
+    "purpose": "Test-enforceable byte-identity baseline. Used by `MLPolicySweepTests::dspOnlyMatchesStory4_3Baseline` and consumed for AC #5 verification. The baseline was captured at Story 4-3 SHA and remains valid because DSP behavior is unchanged through Stories 4-3b, 4-4, 4-4b — and Story 4-5 must preserve this when ml.mlTechnique == nil (default) OR ensemblePolicy == .dspOnly (A1 short-circuit)."
+  },
+  "regression_thresholds": {
+    "oa300_acc1_floor": 57,
+    "oa300_acc2_floor": 73,
+    "giantsteps_acc1_floor": 537,
+    "giantsteps_acc2_floor": 546,
+    "perf_mock_on_abstain_ratio_ceiling": 1.20,
+    "source": "_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json + epics.md:1048"
+  }
+}

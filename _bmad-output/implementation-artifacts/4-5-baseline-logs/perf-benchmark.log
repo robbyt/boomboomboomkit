@@ -1,0 +1,136 @@
+OA300_CORPUS_PATH="/Users/rterhaar/Dropbox/OA300_OnsetAudio300" \
+	GIANTSTEPS_CORPUS_PATH="/Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset" \
+	PERF_BASELINE_DIR="/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/perf-baselines" \
+	GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.PerformanceBenchmarkTests
+[0/1] Planning build
+Building for debugging...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.11s)
+Test Suite 'Selected tests' started at 2026-05-13 17:25:23.801.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' started at 2026-05-13 17:25:23.801.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' passed at 2026-05-13 17:25:23.801.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-05-13 17:25:23.801.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite "Performance Benchmark" started.
+◇ Test "benchmark wall-clock time at intensity 7 (serial) + accuracy snapshot" started.
+
+=== Performance Benchmark — Hardware Context ===
+Chip: Apple M5 Max
+Cores: 18
+Memory: 128 GiB
+OS: Version 26.5 (Build 25F71)
+Build configuration: Debug
+Swift package version: BoomBoomBoomKit (workspace HEAD)
+
+=== Performance Benchmark — Wall-Clock Time @ Intensity 7 ===
+| Track | Time (s) | Status |
+|-------|----------|--------|
+| 8. Jonah K_Shadow Work (Esthetic Remix) | 0.139 | warmup, excluded |
+| 6. HEFT_Fuyu (Akinsa Remix) | 0.120 | ok |
+| 4. Yin Yang Audio_Within Cells Interlink | 0.134 | ok |
+| 5. Darkgray Heart_Beating Heart Of The S | 0.137 | ok |
+| 11. Sorse_Remorse (Jonah K Remix) | 0.134 | ok |
+| 2. Ahmad_The Wrong Place (Artilect Remix | 0.113 | ok |
+| 10. Hellacopta_Assemby (Xiûa Remix) | 0.134 | ok |
+| Cut and Dried | 0.239 | ok |
+| Your Love (Neekeetone 160 Rework) | 0.144 | ok |
+| Jericho (Neekeetone Jungle Rework) | 0.140 | ok |
+| Claustrophobic Sting (Neekeetone Jungle  | 0.141 | ok |
+| More Hardcore | 0.186 | ok |
+| Minority Industrial | 0.224 | ok |
+| Speedway (Neekeetone Jungle Rework) | 0.140 | ok |
+| Release - The Jungle (Remaster ope) | 0.134 | ok |
+| Full Throttle (Neekeetone 160 Rework) | 0.142 | ok |
+| Fire (Neekeetone 160 Rework) | 0.139 | ok |
+| Skylined (Neekeetone 160 Rework) | 0.143 | ok |
+| The Heat (The Energy) (Neekeetone Jungle | 0.140 | ok |
+| Amor Satyr & Fetus - Baby Check | 0.227 | ok |
+| BiosFear | 0.217 | ok |
+| Altitude | 0.231 | ok |
+| Ironik - The Calling (Remaster) | 0.130 | ok |
+| Break & Enter (Neekeetone 160 Rework) | 0.140 | ok |
+| Ruff In The Jungle Bizniss (Neekeetone J | 0.140 | ok |
+| Spider Monkey | 0.231 | ok |
+| Hyperspeed (Neekeetone 160 Rework) | 0.145 | ok |
+| Everybody In The Place (Neekeetone 160 R | 0.140 | ok |
+| So Confused | 0.234 | ok |
+| Dream World | 0.135 | ok |
+| Trapped (Original Mix) | 0.228 | ok |
+| Straight Jacket | 0.232 | ok |
+| Ya Don't Stop | 0.099 | ok |
+| Skanna - Nightstalker (Remaster) | 0.131 | ok |
+| Ron Mercy - Junkin Da Trunk | 0.129 | ok |
+| Scienide (Neekeetone 160 Rework) | 0.118 | ok |
+| Music Reach (Neekeetone 160 Rework) | 0.139 | ok |
+| Aeon Flux - Reality (Repitch Remaster) | 0.128 | ok |
+| Decoy | 0.233 | ok |
+| Slower Violence | 0.232 | ok |
+| BAMF | 0.206 | ok |
+| Lies | 0.230 | ok |
+| Their Law (Neekeetone 160 Rework) | 0.140 | ok |
+| The Still | 0.229 | ok |
+| Release - The Jungle 155bpm (Remaster) | 0.229 | ok |
+| Weather Experience (Neekeetone 160 Rewor | 0.117 | ok |
+| Red Scare | 0.205 | ok |
+| Wind It Up (Neekeetone Jungle Rework) | 0.121 | ok |
+| The Observatory | 0.228 | ok |
+| Out Of Space (Neekeetone Jungle Rework) | 0.140 | ok |
+| Isolation | 0.211 | ok |
+| Ironik - The Calling (Remaster) | 0.233 | ok |
+| Clockwork | 0.229 | ok |
+| Twice Removed | 0.229 | ok |
+| Empty Inside (Original Mix) | 0.230 | ok |
+| We Eat Rhythm (Neekeetone Dub Rework) (B | 0.141 | ok |
+| After Hours | 0.135 | ok |
+| TImelines | 0.212 | ok |
+| Legal Offence - Burnin' Up (Piano Mix) ( | 0.130 | ok |
+| Aeon Flux - Reality (Remaster) | 0.130 | ok |
+| Living for the Night | 0.135 | ok |
+| 9000 Series | 0.211 | ok |
+| Charly (Neekeetone Jungle Rework) | 0.141 | ok |
+| Death Of The Prodigy Dancers (Neekeetone | 0.138 | ok |
+| 3. D3Z_Axons (Offish Remix) | 0.112 | ok |
+| 9. HEFT_Anagram 6 (Owl Remix) | 0.130 | ok |
+| Boymerang - Autumnal (Leaf) | 0.126 | ok |
+| Get Down - Humpty Dance - Dope On Plasti | 0.212 | ok |
+| New York - Punk To Funk - I'm Sick | 0.219 | ok |
+| Smalltown Boy (12" Version) | 0.289 | ok |
+| Boymerang - Rules (Leaf) | 0.129 | ok |
+| 1. The Faraday_Bunker (D-Struct Remix) | 0.130 | ok |
+| 5. Darkgray Heart_Beating Heart Of The S | 0.223 | ok |
+| Conundrum | 0.230 | ok |
+| Makara | 0.228 | ok |
+| TVR | 0.188 | ok |
+| Chakra | 0.131 | ok |
+| Icicle - Condense | 0.133 | ok |
+| The Mummy | 0.129 | ok |
+| Echtoo - Chakra | 0.131 | ok |
+| Self Immolation | 0.227 | ok |
+| 7. Everything Changes_Subotica (Esthetic | 0.131 | ok |
+Tracks: 82 (1 warmup, 0 failed)
+mean: 0.170s
+median: 0.140s
+p95: 0.233s
+min: 0.099s
+max: 0.289s
+total: 13.770s
+
+=== Performance Benchmark — Accuracy Snapshot ===
+OA300 @ 2%: Acc1=58/82, Acc2=74/82
+GiantSteps @ 2%: Acc1=537/661, Acc2=546/661
+Δ vs last baseline (SHA 16e03e0, 2026-05-09T01:12:43Z): mean 0.176s → 0.170s (-3.5%)
+✔ Test "benchmark wall-clock time at intensity 7 (serial) + accuracy snapshot" passed after 28.644 seconds.
+◇ Test "ML mock-on-abstain wall-clock ≤ 1.20x baseline at intensity 7 (Story 4-3b tightened)" started.
+
+=== Performance Benchmark — ML Mock-on-Abstain Gate (Story 4.3 AC #7) ===
+baseline (mlTechnique=nil)        mean: 0.175s over 81 tracks
+mock     (MockMLTechnique(nil))   mean: 0.173s over 81 tracks
+ratio = 0.988x (threshold: 1.20x)
+✔ Test "ML mock-on-abstain wall-clock ≤ 1.20x baseline at intensity 7 (Story 4-3b tightened)" passed after 28.508 seconds.
+✔ Suite "Performance Benchmark" passed after 57.153 seconds.
+✔ Test run with 2 tests in 1 suite passed after 57.153 seconds.

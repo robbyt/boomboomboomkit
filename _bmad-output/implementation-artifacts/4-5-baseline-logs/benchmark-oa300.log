@@ -1,0 +1,293 @@
+OA300_CORPUS_PATH="/Users/rterhaar/Dropbox/OA300_OnsetAudio300" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.OA300BenchmarkTests
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+[2/26] Compiling BoomBoomBoomKitTests LUFSAnalyzerTests.swift
+[3/26] Compiling BoomBoomBoomKitTests PCMBufferReaderTests.swift
+[4/26] Compiling BoomBoomBoomKitBenchmarkTests MLPolicySweepTests.swift
+[5/26] Compiling BoomBoomBoomKitBenchmarkTests PerformanceBenchmarkTests.swift
+[6/26] Compiling BoomBoomBoomKitBenchmarkTests DAWOracleBenchmarkTests.swift
+[7/26] Compiling BoomBoomBoomKitBenchmarkTests AblationFullMatrixTests.swift
+/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:397:75: warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+395 |   /// runs under `.serialized` because env mutation is process-global and would race
+396 |   /// with concurrent click-using tests in the same suite.
+397 |   @Test("α-sweep over .optimal-family combos", .timeLimit(.minutes(10)), .serialized)
+    |                                                                          `- warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+398 |   func alphaSweep() async throws {
+399 |     guard ProcessInfo.processInfo.environment["ALPHA_SWEEP"] == "1" else { return }
+[8/26] Compiling BoomBoomBoomKitBenchmarkTests GiantStepsBenchmarkTests.swift
+[9/26] Emitting module BoomBoomBoomKitBenchmarkTests
+/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:397:75: warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+395 |   /// runs under `.serialized` because env mutation is process-global and would race
+396 |   /// with concurrent click-using tests in the same suite.
+397 |   @Test("α-sweep over .optimal-family combos", .timeLimit(.minutes(10)), .serialized)
+    |                                                                          `- warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+398 |   func alphaSweep() async throws {
+399 |     guard ProcessInfo.processInfo.environment["ALPHA_SWEEP"] == "1" else { return }
+[10/26] Compiling BoomBoomBoomKitBenchmarkTests OA300BenchmarkTests.swift
+[11/26] Compiling BoomBoomBoomKitTests MLTechniquePerfTests.swift
+[12/26] Compiling BoomBoomBoomKitTests MetadataCorroborationTests.swift
+[13/26] Compiling BoomBoomBoomKitTests MelFilterbankTests.swift
+[14/26] Compiling BoomBoomBoomKitTests GenreAccuracyReporterTests.swift
+[15/26] Compiling BoomBoomBoomKitTests EnsemblePolicyTests.swift
+[16/26] Compiling BoomBoomBoomKitTests EnsembleCombinerTests.swift
+[17/26] Compiling BoomBoomBoomKitTests FileMetadataReaderTests.swift
+[18/26] Compiling BoomBoomBoomKitTests BPMDiagnosticTraceTests.swift
+[19/26] Compiling BoomBoomBoomKitTests AudioAnalysisServiceTests.swift
+/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Tests/BoomBoomBoomKitTests/AudioAnalysisServiceTests.swift:310:25: warning: result of call to 'next(isolation:)' is unused [#no-usage]
+308 |         }
+309 |         group.cancelAll()
+310 |         try await group.next()
+    |                         `- warning: result of call to 'next(isolation:)' is unused [#no-usage]
+311 |       }
+312 |       Issue.record("Expected CancellationError")
+[20/26] Compiling BoomBoomBoomKitTests BPMAnalyzerClickTrackTests.swift
+[21/26] Compiling BoomBoomBoomKitTests AblationQuickTests.swift
+[22/26] Compiling BoomBoomBoomKitTests BPMAnalyzerDurationHintTests.swift
+[23/26] Compiling BoomBoomBoomKitTests BPMAnalyzerTests.swift
+[24/26] Emitting module BoomBoomBoomKitTests
+[24/26] Write Objects.LinkFileList
+[25/26] Linking BoomBoomBoomKitPackageTests
+Build complete! (3.16s)
+Test Suite 'Selected tests' started at 2026-05-13 09:39:12.596.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' started at 2026-05-13 09:39:12.598.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' passed at 2026-05-13 09:39:12.598.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-05-13 09:39:12.598.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite "OA300 Benchmark" started.
+◇ Test "Bad BPM subset with trace" started.
+➜ Test "Story 3.6: corroboration tolerance sweep (CORROBORATION_SWEEP=1)" skipped.
+◇ Test "voting policy comparison (3 policies × threshold sweep)" started.
+◇ Test "benchmark Acc1 strict (2% tolerance)" started.
+◇ Test "AC #4: windowVoting + .simpleMajority matches pre-Story-3-5 baseline EXACTLY" started.
+◇ Test "benchmark at default intensity (7)" started.
+◇ Test "Story 3.6: tagged-subset metadata breakdown" started.
+◇ Test "benchmark Acc1 MIREX (4% tolerance)" started.
+◇ Test "merge strategy comparison (all 8 strategies)" started.
+◇ Test "multi-intensity comparison (monotonic Acc1)" started.
+◇ Test "AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY" started.
+◇ Test "genre-stratified accuracy" started.
+
+=== Bad BPM Subset (trace-enabled) ===
+
+=== OA300 Multi-Intensity Comparison ===
+
+=== OA300 Merge Strategy Comparison (Intensity 7) ===
+Strategy              Acc1   Acc2  Correct  Total
+------------------------------------------------------------
+
+=== OA300 Voting Policy Comparison (Intensity 7, .windowVoting) ===
+Policy                        Acc1   Acc2  Correct  Total
+------------------------------------------------------------
+  [OK] Conundrum: expected=130.0, got=130.3, conf=0.92, candidates=[130.0, 175.0, 172.0]
+  [OK] Makara: expected=128.0, got=127.9, conf=0.92, candidates=[128.0, 125.0, 64.0]
+  [OK] TVR: expected=130.0, got=130.0, conf=0.95, candidates=[130.0, 125.0, 65.0]
+  [MISS] Chakra: expected=160.0, got=80.0, conf=0.95, candidates=[80.0, 80.0, 161.0]
+  [OK] Icicle - Condense: expected=126.0, got=125.9, conf=0.70, candidates=[125.0, 126.0, 84.0]
+  [OK] The Mummy: expected=160.0, got=160.1, conf=0.92, candidates=[160.0, 80.0, 108.0]
+  [MISS] Echtoo - Chakra: expected=160.0, got=80.0, conf=0.96, candidates=[80.0, 80.0, 160.0]
+  [OK] Self Immolation: expected=126.0, got=125.9, conf=0.87, candidates=[125.0, 126.0, 166.0]
+
+=== OA300 Genre-Stratified Accuracy (Intensity 7) ===
+Genre                                                                                                   Acc1    Acc2  Count  Status
+-----------------------------------------------------------------------------------------------------------------------------------
+drum-and-bass                                                                                          71.6%   91.0%     67
+breaks                                                                                                 60.0%   90.0%     10  ** LOW **
+techno                                                                                                insufficient        2
+footwork                                                                                              insufficient        1
+half-time-dnb                                                                                         insufficient        1
+tech-house                                                                                            insufficient        1
+Overall: Acc1=70.7%, Acc2=90.2%
+
+
+=== OA300 Benchmark — durationHint=false (AC #5 control) ===
+Acc1: 57/82, Acc2: 73/82
+
+=== Tagged-subset breakdown ===
+Tracks with metadata read:       5 / 82
+  Corroborated (same-tempo):     4
+  Corroborated (octave ratio):   0
+  Corroborated (triplet ratio):  0
+  Intra-file conflict:           0
+  DSP disagreement (unanimous):  0
+  Uncorroborated (single tag):   1
+
+=== OA300 Benchmark — Intensity 7 (default) ===
+Corpus: 82 tracks, Rekordbox ground truth
+Acc1: 70.7% (58/82)
+Acc2: 90.2% (74/82)
+
+Acc1 Failures:
+| Track | Expected | Got | Delta% |
+|-------|----------|-----|--------|
+| 4. Yin Yang Audio_Within Cells Interlink | 85.0 | 113.2 | 33.2% |
+| 2. Ahmad_The Wrong Place (Artilect Remix | 85.0 | 137.1 | 61.3% |
+| Cut and Dried | 81.0 | 161.1 | 98.9% |
+| Minority Industrial | 95.0 | 175.0 | 84.2% |
+| Skylined (Neekeetone 160 Rework) | 160.0 | 79.9 | 50.1% |
+| The Heat (The Energy) (Neekeetone Jungle | 160.0 | 79.9 | 50.0% |
+| Ruff In The Jungle Bizniss (Neekeetone J | 80.0 | 162.0 | 102.5% |
+| Spider Monkey | 86.5 | 172.7 | 99.7% |
+| Dream World | 84.9 | 169.0 | 99.0% |
+| Ya Don't Stop | 84.9 | 170.1 | 100.3% |
+| Their Law (Neekeetone 160 Rework) | 80.0 | 159.7 | 99.6% |
+| Wind It Up (Neekeetone Jungle Rework) | 85.0 | 172.6 | 103.1% |
+| The Observatory | 85.0 | 112.5 | 32.4% |
+| Clockwork | 86.5 | 172.7 | 99.7% |
+| We Eat Rhythm (Neekeetone Dub Rework) (B | 82.0 | 161.2 | 96.6% |
+| After Hours | 83.7 | 167.2 | 99.9% |
+| Charly (Neekeetone Jungle Rework) | 160.0 | 106.2 | 33.6% |
+| 9. HEFT_Anagram 6 (Owl Remix) | 85.0 | 113.4 | 33.4% |
+| Smalltown Boy (12" Version) | 135.8 | 127.1 | 6.4% |
+| Boymerang - Rules (Leaf) | 82.9 | 166.9 | 101.4% |
+| 1. The Faraday_Bunker (D-Struct Remix) | 170.0 | 113.5 | 33.3% |
+| Chakra | 160.0 | 80.0 | 50.0% |
+| Echtoo - Chakra | 160.0 | 80.0 | 50.0% |
+| 7. Everything Changes_Subotica (Esthetic | 160.0 | 80.0 | 50.0% |
+
+=== OA300 Benchmark — Acc1 Strict (2% tolerance) ===
+Corpus: 82 tracks, Rekordbox ground truth
+Acc1: 70.7% (58/82)
+Acc2: 90.2% (74/82)
+
+Acc1 Failures:
+| Track | Expected | Got | Delta% |
+|-------|----------|-----|--------|
+| 4. Yin Yang Audio_Within Cells Interlink | 85.0 | 113.2 | 33.2% |
+| 2. Ahmad_The Wrong Place (Artilect Remix | 85.0 | 137.1 | 61.3% |
+| Cut and Dried | 81.0 | 161.1 | 98.9% |
+| Minority Industrial | 95.0 | 175.0 | 84.2% |
+| Skylined (Neekeetone 160 Rework) | 160.0 | 79.9 | 50.1% |
+| The Heat (The Energy) (Neekeetone Jungle | 160.0 | 79.9 | 50.0% |
+| Ruff In The Jungle Bizniss (Neekeetone J | 80.0 | 162.0 | 102.5% |
+| Spider Monkey | 86.5 | 172.7 | 99.7% |
+| Dream World | 84.9 | 169.0 | 99.0% |
+| Ya Don't Stop | 84.9 | 170.1 | 100.3% |
+| Their Law (Neekeetone 160 Rework) | 80.0 | 159.7 | 99.6% |
+| Wind It Up (Neekeetone Jungle Rework) | 85.0 | 172.6 | 103.1% |
+| The Observatory | 85.0 | 112.5 | 32.4% |
+| Clockwork | 86.5 | 172.7 | 99.7% |
+| We Eat Rhythm (Neekeetone Dub Rework) (B | 82.0 | 161.2 | 96.6% |
+| After Hours | 83.7 | 167.2 | 99.9% |
+| Charly (Neekeetone Jungle Rework) | 160.0 | 106.2 | 33.6% |
+| 9. HEFT_Anagram 6 (Owl Remix) | 85.0 | 113.4 | 33.4% |
+| Smalltown Boy (12" Version) | 135.8 | 127.1 | 6.4% |
+| Boymerang - Rules (Leaf) | 82.9 | 166.9 | 101.4% |
+| 1. The Faraday_Bunker (D-Struct Remix) | 170.0 | 113.5 | 33.3% |
+| Chakra | 160.0 | 80.0 | 50.0% |
+| Echtoo - Chakra | 160.0 | 80.0 | 50.0% |
+| 7. Everything Changes_Subotica (Esthetic | 160.0 | 80.0 | 50.0% |
+✔ Test "Bad BPM subset with trace" passed after 12.390 seconds.
+✔ Test "AC #4: windowVoting + .simpleMajority matches pre-Story-3-5 baseline EXACTLY" passed after 12.390 seconds.
+✔ Test "genre-stratified accuracy" passed after 12.390 seconds.
+✔ Test "AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY" passed after 12.390 seconds.
+✔ Test "Story 3.6: tagged-subset metadata breakdown" passed after 12.390 seconds.
+✔ Test "benchmark at default intensity (7)" passed after 12.390 seconds.
+✔ Test "benchmark Acc1 strict (2% tolerance)" passed after 12.390 seconds.
+Intensity 1: Acc1=46.3% (38/82), Acc2=61.0%
+
+=== OA300 Benchmark — Acc1 MIREX (4% tolerance) ===
+Corpus: 82 tracks, Rekordbox ground truth
+Acc1: 70.7% (58/82)
+Acc2: 90.2% (74/82)
+
+Acc1 Failures:
+| Track | Expected | Got | Delta% |
+|-------|----------|-----|--------|
+| 4. Yin Yang Audio_Within Cells Interlink | 85.0 | 113.2 | 33.2% |
+| 2. Ahmad_The Wrong Place (Artilect Remix | 85.0 | 137.1 | 61.3% |
+| Cut and Dried | 81.0 | 161.1 | 98.9% |
+| Minority Industrial | 95.0 | 175.0 | 84.2% |
+| Skylined (Neekeetone 160 Rework) | 160.0 | 79.9 | 50.1% |
+| The Heat (The Energy) (Neekeetone Jungle | 160.0 | 79.9 | 50.0% |
+| Ruff In The Jungle Bizniss (Neekeetone J | 80.0 | 162.0 | 102.5% |
+| Spider Monkey | 86.5 | 172.7 | 99.7% |
+| Dream World | 84.9 | 169.0 | 99.0% |
+| Ya Don't Stop | 84.9 | 170.1 | 100.3% |
+| Their Law (Neekeetone 160 Rework) | 80.0 | 159.7 | 99.6% |
+| Wind It Up (Neekeetone Jungle Rework) | 85.0 | 172.6 | 103.1% |
+| The Observatory | 85.0 | 112.5 | 32.4% |
+| Clockwork | 86.5 | 172.7 | 99.7% |
+| We Eat Rhythm (Neekeetone Dub Rework) (B | 82.0 | 161.2 | 96.6% |
+| After Hours | 83.7 | 167.2 | 99.9% |
+| Charly (Neekeetone Jungle Rework) | 160.0 | 106.2 | 33.6% |
+| 9. HEFT_Anagram 6 (Owl Remix) | 85.0 | 113.4 | 33.4% |
+| Smalltown Boy (12" Version) | 135.8 | 127.1 | 6.4% |
+| Boymerang - Rules (Leaf) | 82.9 | 166.9 | 101.4% |
+| 1. The Faraday_Bunker (D-Struct Remix) | 170.0 | 113.5 | 33.3% |
+| Chakra | 160.0 | 80.0 | 50.0% |
+| Echtoo - Chakra | 160.0 | 80.0 | 50.0% |
+| 7. Everything Changes_Subotica (Esthetic | 160.0 | 80.0 | 50.0% |
+✔ Test "benchmark Acc1 MIREX (4% tolerance)" passed after 13.029 seconds.
+Intensity 3: Acc1=68.3% (56/82), Acc2=82.9%
+Intensity 5: Acc1=68.3% (56/82), Acc2=82.9%
+Intensity 7: Acc1=70.7% (58/82), Acc2=90.2%
+  Warning: 1. The Faraday_Bunker (D-Struct Remix).wav failed at: L1=106.5 L7=113.5
+  Warning: 10. Hellacopta_Assemby (Xiûa Remix).wav failed at: L1=125.0
+  Warning: 11. Sorse_Remorse (Jonah K Remix).wav failed at: L1=173.0
+  Warning: 12. Smalltown Boy (12' Version).flac failed at: L1=128.0 L3=127.3 L5=127.3 L7=127.1
+  Warning: 2. Ahmad_The Wrong Place (Artilect Remix).wav failed at: L1=137.0 L3=137.1 L5=137.1 L7=137.1
+  Warning: 4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav failed at: L1=112.0 L3=113.2 L5=113.2 L7=113.2
+  Warning: 7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav failed at: L1=139.0 L3=139.0 L5=139.0 L7=80.0
+  Warning: 8. Jonah K_Shadow Work (Esthetic Remix).wav failed at: L1=113.0 L3=114.7 L5=114.7
+  Warning: 9. HEFT_Anagram 6 (Owl Remix).wav failed at: L1=112.0 L3=113.6 L5=113.6 L7=113.4
+  Warning: Aeon Flux - Reality (Remaster).wav failed at: L1=113.0
+  Warning: Aeon Flux - Reality (Repitch Remaster).wav failed at: L1=117.0
+  Warning: Boymerang - Autumnal (Leaf).wav failed at: L1=103.5
+  Warning: Boymerang - Rules (Leaf).wav failed at: L1=167.0 L3=167.1 L5=167.1 L7=166.9
+  Warning: Echtoo - Chakra - Seminal Sounds.wav failed at: L1=80.0 L3=80.0 L5=80.0 L7=80.0
+  Warning: Echtoo - Chakra.wav failed at: L1=80.0 L3=80.0 L5=80.0 L7=80.0
+  Warning: Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3 failed at: L3=169.1 L5=169.1
+  Warning: Hooverian Blur - Cut and Dried EP - 01 Cut and Dried.mp3 failed at: L1=162.0 L3=161.2 L5=161.2 L7=161.1
+  Warning: Hooverian Blur - Cut and Dried EP - 02 Twice Removed.mp3 failed at: L1=81.0
+  Warning: Hooverian Blur - Cut and Dried EP - 04 Slower Violence.mp3 failed at: L1=121.5
+  Warning: Icicle - Condense.wav failed at: L1=177.0 L3=176.9 L5=176.9
+  Warning: Nautical Divine - Makara.mp3 failed at: L1=125.0
+  Warning: Outer Heaven - UVB76-025 - 01 The Observatory.mp3 failed at: L1=112.0 L3=112.4 L5=112.4 L7=112.5
+  Warning: Outer Heaven - UVB76-025 - 02 More Hardcore.mp3 failed at: L1=188.0
+  Warning: Outer Heaven - UVB76-025 - 03 Minority Industrial.mp3 failed at: L1=100.5 L3=175.0 L5=175.0 L7=175.0
+  Warning: Release - The Jungle 155bpm (Remaster).mp3 failed at: L1=186.0
+  Warning: Stakka & K-Tee - Living for the Night - After Hours - 01 Living for the Night.aiff failed at: L1=108.0
+  Warning: Stakka & K-Tee - Living for the Night - After Hours - 02 After Hours.aiff failed at: L1=168.0 L3=167.2 L5=167.2 L7=167.2
+  Warning: Stakka & K-Tee - Ya Don't Stop - Dream World - 01 Ya Don't Stop.aiff failed at: L1=170.0 L3=170.1 L5=170.1 L7=170.1
+  Warning: Stakka & K-Tee - Ya Don't Stop - Dream World - 02 Dream World.aiff failed at: L1=170.0 L3=169.0 L5=169.0 L7=169.0
+  Warning: Stakka & Skynet - Clockwork - Remastered 2014 - 03 Clockwork.mp3 failed at: L1=173.0 L3=172.7 L5=172.7 L7=172.7
+  Warning: Stakka & Skynet - Clockwork - Remastered 2014 - 08 Spider Monkey.mp3 failed at: L1=173.0 L3=172.7 L5=172.7 L7=172.7
+  Warning: Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3 failed at: L1=117.5
+  Warning: Stakka & Skynet feat Keaton - Clockwork - Remastered 2014 - 04 Isolation.mp3 failed at: L1=108.5
+  Warning: Sully - The Still - 01 The Still.mp3 failed at: L1=112.0
+  Warning: The Prodigy - 160 Experience - 01 Jericho (Neekeetone Jungle Rework).aiff failed at: L1=119.5
+  Warning: The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff failed at: L1=113.0 L3=172.6 L5=172.6 L7=172.6
+  Warning: The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff failed at: L1=108.5 L3=106.3 L5=106.3 L7=106.2
+  Warning: The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff failed at: L1=108.5
+  Warning: The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff failed at: L1=110.5
+  Warning: The Prodigy - 160 Experience - 11 Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss).aiff failed at: L1=118.0 L3=162.0 L5=162.0 L7=162.0
+  Warning: The Prodigy - Music For The 160 Generation - 02 Their Law (Neekeetone 160 Rework).aiff failed at: L1=160.0 L3=159.7 L5=159.7 L7=159.7
+  Warning: The Prodigy - Music For The 160 Generation - 03 Full Throttle (Neekeetone 160 Rework).aiff failed at: L1=101.0
+  Warning: The Prodigy - Music For The 160 Generation - 05 The Heat (The Energy) (Neekeetone Jungle Rework).aiff failed at: L1=121.5 L3=105.0 L5=105.0 L7=79.9
+  Warning: The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff failed at: L1=200.0 L3=194.0 L5=194.0 L7=79.9
+  Warning: The Prodigy - Music For The 160 Generation - 09 We Eat Rhythm (Neekeetone Dub Rework) (Bonus).aiff failed at: L1=122.0 L3=160.7 L5=160.7 L7=161.2
+✔ Test "multi-intensity comparison (monotonic Acc1)" passed after 15.783 seconds.
+maxConfidence         69.5%  89.0%   57       82
+simpleMajority                69.5%  87.8%   57       82
+confidenceWeighted            69.5%  87.8%   57       82
+thresholdGated@0.00           69.5%  87.8%   57       82
+thresholdGated@0.25           69.5%  87.8%   57       82
+thresholdGated@0.50           69.5%  89.0%   57       82
+thresholdGated@0.75           69.5%  89.0%   57       82
+✔ Test "voting policy comparison (3 policies × threshold sweep)" passed after 21.605 seconds.
+dedup                 59.8%  74.4%   49       82
+quorum                61.0%  75.6%   50       82
+average               59.8%  76.8%   49       82
+median                59.8%  76.8%   49       82
+weightedAverage       59.8%  76.8%   49       82
+union                 59.8%  74.4%   49       82
+windowVoting          69.5%  87.8%   57       82
+✔ Test "merge strategy comparison (all 8 strategies)" passed after 88.839 seconds.
+✔ Suite "OA300 Benchmark" passed after 88.840 seconds.
+✔ Test run with 12 tests in 1 suite passed after 88.840 seconds.
