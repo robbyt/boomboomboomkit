@@ -817,13 +817,13 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
   - [x] 8.5: REMOVED 2026-05-13 — duplicated Task 8.1's `cancellationBeforeMLEvaluateThrows` and violated AC #10's new-files-only discipline by inserting into an existing test file. The cancellation test lives in the new `Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift` (or a sibling new file) per Task 8.1 and AC #10; do NOT add anything to `AudioAnalysisServiceTests.swift` for Story 4-5.
   - [ ] 8.6: Run `make test`. Capture exact `@Test(` count via `rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` (must be in band `[370, 378]` per DD #13 / AC #11 — reconciled 2026-05-13 to a single band; the earlier `[365, 375]` and `[368, 376]` figures from prior drafts are superseded). If outside band, investigate before proceeding.
 
-- [ ] **Task 9: Capture diff-scope proof artifact (AC: #10)**
-  - [ ] 9.1: Run `git diff --stat <Task-1-pre-source-SHA>..HEAD` and capture stdout to `_bmad-output/implementation-artifacts/4-5-diff-scope-proof.txt`.
-  - [ ] 9.2: Append `git status -- Sources/` output under a `# Section: untouched files verification` header. Verify NO file is modified outside the AC #10 list.
-  - [ ] 9.3: Append `grep -rn "BNNSFilterCreate" Sources/BoomBoomBoomKitML/` output (must be zero matches per AC #1).
-  - [ ] 9.4: Append `grep -rn "AudioAnalysisService.combine\|Self.combine" Sources/ Tests/` (must remain zero matches — Story 4.5 doesn't touch the ensemble combiner).
-  - [ ] 9.5: Append the trace-field audit output (recipes A-E from `.claude/skills/bpm-diagnostic-trace/SKILL.md`) — must be zero matches.
-  - [ ] 9.6: Append `swift package show-dependencies --format json | jq '.dependencies | length'` — must be `0`.
+- [x] **Task 9: Capture diff-scope proof artifact (AC: #10)**
+  - [x] 9.1: Run `git diff --stat <Task-1-pre-source-SHA>..HEAD` and capture stdout to `_bmad-output/implementation-artifacts/4-5-diff-scope-proof.txt`.
+  - [x] 9.2: Append `git status -- Sources/` output under a `# Section: untouched files verification` header. Verify NO file is modified outside the AC #10 list.
+  - [x] 9.3: Append `grep -rn "BNNSFilterCreate" Sources/BoomBoomBoomKitML/` output (must be zero matches per AC #1).
+  - [x] 9.4: Append `grep -rn "AudioAnalysisService.combine\|Self.combine" Sources/ Tests/` (must remain zero matches — Story 4.5 doesn't touch the ensemble combiner).
+  - [x] 9.5: Append the trace-field audit output (recipes A-E from `.claude/skills/bpm-diagnostic-trace/SKILL.md`) — must be zero matches.
+  - [x] 9.6: Append `swift package show-dependencies --format json | jq '.dependencies | length'` — must be `0`.
 
 - [ ] **Task 10: Standard gating checklist + Completion Notes (AC: #5, #7, #11)**
   - [ ] 10.1: Run `make fmt`. Verify zero diff.
