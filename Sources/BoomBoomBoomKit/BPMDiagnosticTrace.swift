@@ -146,6 +146,18 @@ public struct BPMDiagnosticTrace: Sendable {
   /// ``EnsemblePolicy/dspOnly``, where the evaluation never runs).
   /// See ``EnsembleDecision`` for the population matrix.
   public var ensembleDecision: EnsembleDecision?
+
+  // MARK: - Story 4.5: ML Feature Frames
+
+  /// Log-mel spectrogram frames retained from the DSP onset pipeline,
+  /// fed into ``MLTechnique/evaluate(trace:)`` as the model input. The
+  /// library populates this lazily (only when `Options.mlTechnique != nil`
+  /// AND `Options.ensemblePolicy != .dspOnly` AND `Options.enableTrace`)
+  /// to keep the DSP-only path zero-cost.
+  ///
+  /// See ``MLFeatureFrames`` for the typed-evidence shape + semantic
+  /// metadata that disambiguates the tensor's contract.
+  public var mlFeatures: MLFeatureFrames?
 }
 
 // MARK: - Trace Evidence Types (Story 3-3b)
@@ -334,5 +346,146 @@ public struct SubBandEnergies: Sendable, CustomStringConvertible, Equatable {
 
   public var description: String {
     "SubBandEnergies(kick: \(kick), snare: \(snare), crack: \(crack), hihat: \(hihat))"
+  }
+}
+
+// MARK: - Trace Evidence Types (Story 4-5)
+
+/// Tensor layout convention for ``MLFeatureFrames``. Story 4.5 ships only
+/// ``nchw``; ``CaseIterable`` documents the closed set for the gating
+/// invariant `TensorLayout.allCases.count == 1`. Pre-1.0 framing per
+/// project-context.md "Public API Discipline" — Story 4.6 (CoreML) may
+/// extend the case list (e.g., `.nhwc`) when an `MLShapedArray` consumer
+/// surfaces a need.
+public enum TensorLayout: String, Sendable, Hashable, CaseIterable {
+
+  /// Row-major `[N=1, C=1, H=melBands, W=frames]` layout. Stride is
+  /// contiguous: `[H*W, H*W, W, 1]`. This matches both the bundled
+  /// `giantsteps_v1.mlmodelc` input contract AND the canonical
+  /// Schreiber & Muller (2018) tempo-CNN architecture from which the
+  /// library's reference model is derived.
+  case nchw
+}
+
+/// Typed-evidence carrier for the per-frame log-mel spectrogram fed into
+/// ``MLTechnique/evaluate(trace:)``. Surfaces the raw model input on the
+/// trace so consumers can audit what the ML conformance actually saw —
+/// and so future-story authors can detect when the pre-`vvlogf` pipeline
+/// drifts away from the trained model's expected feature distribution.
+///
+/// The struct follows the typed-evidence pattern established by
+/// ``ClickCorrelationEntry`` / ``SubBandEnergies`` / ``BarCandidate`` etc.
+/// (Story 3-3b precedent): named `Sendable` value type, NO `[String: Any]`
+/// payloads, NO stringified-numeric values. The accompanying
+/// ``featureSetVersion`` field is the load-bearing seam that detects
+/// pre-`vvlogf` pipeline drift — see project-context.md §"Banned trace-
+/// field shapes" for the discipline. Story 4.5 ships `"v1"` against the
+/// current `BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands` pre-image;
+/// any change to `BPMAnalyzer.hopSize` / `melBands` / `melFmin` /
+/// `melFmax` / `fftSize` / `logCompressionScale` / mel filterbank formula
+/// MUST bump the version (DD #2 + DD #14 bump-trigger checklist).
+public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
+
+  /// Number of mel bands per frame. Equals `128` for the Story 4.5
+  /// bundled `giantsteps_v1.mlmodelc` model.
+  public let melBands: Int
+
+  /// Pre-resample source frame count along the time axis. The
+  /// ``BNNSTechnique`` conformance resamples to a fixed `W=512` BEFORE
+  /// feeding the graph; this is the count BEFORE that resample step so
+  /// readers can audit the source-rate-derived frame budget.
+  public let frames: Int
+
+  /// Logical tensor layout for ``logMelData``. ``TensorLayout/nchw`` only
+  /// for Story 4.5; ``CaseIterable`` lets future stories add cases without
+  /// breaking the precondition guard.
+  public let tensorLayout: TensorLayout
+
+  /// Row-major log-mel payload. Precondition (enforced in ``init``):
+  /// `count == melBands * frames`. Layout follows ``tensorLayout``.
+  public let logMelData: [Float]
+
+  /// DSP source rate from which the spectrogram was derived. One of
+  /// `44100.0`, `48000.0`, or `96000.0` per ``LUFSAnalyzer`` and
+  /// ``BPMAnalyzer`` supported sample rates. Surfaced for completeness;
+  /// `BNNSTechnique` does not resample audio.
+  public let sampleRate: Double
+
+  /// FFT window size used by `BPMAnalyzer.computeMelOnsetEnvelope...`
+  /// at retention time. `2048` for Story 4.5; bump
+  /// ``featureSetVersion`` if this changes.
+  public let fftSize: Int
+
+  /// Hop size in samples for the mel STFT. `441` samples (≈ 100 Hz onset
+  /// rate at 44.1 kHz) for Story 4.5; bump ``featureSetVersion`` if this
+  /// changes.
+  public let hopSize: Int
+
+  /// Mel filterbank low-frequency bound. `30.0` Hz for Story 4.5.
+  public let melFmin: Double
+
+  /// Mel filterbank high-frequency bound. `min(sampleRate/2, 16000)` per
+  /// `BPMAnalyzer`'s current convention.
+  public let melFmax: Double
+
+  /// Linear pre-`vvlogf` scale factor. `100.0` for Story 4.5 (per
+  /// `BPMAnalyzer.logCompressionScale`).
+  public let logCompressionScale: Float
+
+  /// Pre-`vvlogf` pipeline version tag. Story 4.5 ships `"v1"`. Bumps to
+  /// `"v2"` (or later) per the DD #2 + DD #14 bump-trigger checklist.
+  /// Consumer ``MLTechnique`` conformances SHOULD check this against the
+  /// version their model was trained on and abstain (return `nil` from
+  /// `evaluate(trace:)`) if the versions disagree.
+  public let featureSetVersion: String
+
+  public init(
+    melBands: Int,
+    frames: Int,
+    tensorLayout: TensorLayout,
+    logMelData: [Float],
+    sampleRate: Double,
+    fftSize: Int,
+    hopSize: Int,
+    melFmin: Double,
+    melFmax: Double,
+    logCompressionScale: Float,
+    featureSetVersion: String
+  ) {
+    precondition(melBands > 0, "MLFeatureFrames: melBands must be positive (got \(melBands))")
+    precondition(frames > 0, "MLFeatureFrames: frames must be positive (got \(frames))")
+    precondition(
+      logMelData.count == melBands * frames,
+      "MLFeatureFrames: logMelData.count (\(logMelData.count)) must equal melBands * frames "
+        + "(\(melBands * frames))"
+    )
+    precondition(
+      tensorLayout == .nchw,
+      "MLFeatureFrames: Story 4.5 only supports .nchw tensor layout (got \(tensorLayout))"
+    )
+    self.melBands = melBands
+    self.frames = frames
+    self.tensorLayout = tensorLayout
+    self.logMelData = logMelData
+    self.sampleRate = sampleRate
+    self.fftSize = fftSize
+    self.hopSize = hopSize
+    self.melFmin = melFmin
+    self.melFmax = melFmax
+    self.logCompressionScale = logCompressionScale
+    self.featureSetVersion = featureSetVersion
+  }
+
+  /// Compact diagnostic representation. The full ``logMelData`` payload is
+  /// NOT printed (would be `melBands * frames` floats; up to hundreds of
+  /// thousands of values at default intensity). Element count is shown
+  /// instead so readers can verify the shape matches the metadata.
+  public var description: String {
+    "MLFeatureFrames(melBands: \(melBands), frames: \(frames), "
+      + "layout: \(tensorLayout), logMelData.count: \(logMelData.count), "
+      + "sampleRate: \(sampleRate), fftSize: \(fftSize), hopSize: \(hopSize), "
+      + "melFmin: \(melFmin), melFmax: \(melFmax), "
+      + "logCompressionScale: \(logCompressionScale), "
+      + "featureSetVersion: \(featureSetVersion))"
   }
 }

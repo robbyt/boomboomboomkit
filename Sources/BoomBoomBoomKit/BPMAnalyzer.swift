@@ -152,6 +152,16 @@ struct BPMAnalyzer {
     /// is more likely a clip/loop where `bars * 4 * 60 / D` is structurally implausible.
     /// Default 180s (3 min) — see `durationHintMinFileSecondsDefault`.
     var durationHintMinFileSeconds: Double = durationHintMinFileSecondsDefault
+
+    /// Story 4-5 / DD #4 — when `true`, the mel-spectrogram onset pipeline retains
+    /// per-frame log-mel frames into an ``MLFeatureFrames`` value and surfaces them
+    /// on the result's ``BPMDiagnosticTrace/mlFeatures`` field. INTERNAL ONLY —
+    /// not exposed on `AudioAnalysisService.Options`. The service sets it from
+    /// `shouldBuildTrace && options.mlTechnique != nil && options.ensemblePolicy != .dspOnly`.
+    /// Default `false` keeps the DSP-only path zero-cost: when the flag is off
+    /// the spectrogram intermediate stays purely transient (the heavy `[Float]`
+    /// payload is NEVER allocated).
+    var captureMLFeatures: Bool = false
   }
 
   // MARK: - Public API
@@ -220,11 +230,18 @@ struct BPMAnalyzer {
     let onsetResult = computeMelOnsetEnvelopeWithSubBands(
       samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
       computeSubBands: techniqueSet.contains(.subBandVoting),
-      normalizeSubBands: techniqueSet.contains(.subBandNormalization))
+      normalizeSubBands: techniqueSet.contains(.subBandNormalization),
+      captureMLFeatures: options.captureMLFeatures)
     var onsetEnvelope = onsetResult.fullBand
     guard !onsetEnvelope.isEmpty else { return nil }
 
     trace?.onsetEnvelopeLength = onsetEnvelope.count
+    // Story 4-5: surface the retained log-mel matrix to `MLTechnique.evaluate`
+    // via the trace. Nil-passthrough is the contract when `captureMLFeatures`
+    // is off, which is the default DSP-only path.
+    if let mlFeatures = onsetResult.mlFeatures {
+      trace?.mlFeatures = mlFeatures
+    }
     if options.enableTrace {
       // Story 4-3b: typed `SubBandEnergies` replaces the prior
       // `[String: Float]` keyed by `["kick", "snare", "crack", "hihat"]`.
@@ -479,6 +496,18 @@ struct BPMAnalyzer {
   struct OnsetEnvelopes {
     let fullBand: [Float]
     let subBands: [[Float]]  // [kick, snareLow, snareCrack, hiHat]
+    /// Story 4-5: per-frame log-mel features retained from the pre-temporal-
+    /// difference state. Non-nil ONLY when `captureMLFeatures` is true at the
+    /// call site; otherwise nil so the DSP-only path allocates nothing.
+    let mlFeatures: MLFeatureFrames?
+
+    init(
+      fullBand: [Float], subBands: [[Float]], mlFeatures: MLFeatureFrames? = nil
+    ) {
+      self.fullBand = fullBand
+      self.subBands = subBands
+      self.mlFeatures = mlFeatures
+    }
   }
 
   /// Computes onset envelopes for both full-band and 4 sub-bands from mel-spectrogram.
@@ -490,7 +519,8 @@ struct BPMAnalyzer {
     sampleRate: Double,
     hopSize: Int,
     computeSubBands: Bool = true,
-    normalizeSubBands: Bool = false
+    normalizeSubBands: Bool = false,
+    captureMLFeatures: Bool = false
   ) -> OnsetEnvelopes {
     guard
       let fft = vDSP.FFT(
@@ -590,6 +620,40 @@ struct BPMAnalyzer {
       return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
     }
 
+    // Story 4-5 / DD #2 / AC #4 — retain the post-`vvlogf` per-frame log-mel
+    // matrix BEFORE the temporal-difference loop below mutates intermediate
+    // state. The retention happens here so the byte-identity test (HALT (h))
+    // can compare against the exact post-vvlogf state. When the flag is off,
+    // the heavy [Float] payload is never allocated.
+    //
+    // Storage order: source-natural FRAME-MAJOR flat layout —
+    // [frame0_mel0, frame0_mel1, ..., frame0_melLast, frame1_mel0, ...] —
+    // matching `logMelFrames.flatMap { $0 }`. The logical NCHW
+    // (H=melBands, W=frames) shape declared via `tensorLayout` is the
+    // CONSUMER's reshape contract; `BNNSTechnique.featurize` transposes
+    // frame-major → mel-major before feeding the graph.
+    let retainedMLFeatures: MLFeatureFrames? = {
+      guard captureMLFeatures else { return nil }
+      var flat = [Float]()
+      flat.reserveCapacity(melBands * logMelFrames.count)
+      for frame in logMelFrames {
+        flat.append(contentsOf: frame)
+      }
+      return MLFeatureFrames(
+        melBands: melBands,
+        frames: logMelFrames.count,
+        tensorLayout: .nchw,
+        logMelData: flat,
+        sampleRate: sampleRate,
+        fftSize: fftSize,
+        hopSize: hopSize,
+        melFmin: melFmin,
+        melFmax: effectiveFmax,
+        logCompressionScale: logCompressionScale,
+        featureSetVersion: "v1"
+      )
+    }()
+
     let n = vDSP_Length(melBands)
     let frameCount = logMelFrames.count - 1
     var fullBandEnvelope = [Float](repeating: 0, count: frameCount)
@@ -651,7 +715,8 @@ struct BPMAnalyzer {
     }
 
     let resultSubBands = computeSubBands ? subBandEnvelopes : []
-    return OnsetEnvelopes(fullBand: fullBandEnvelope, subBands: resultSubBands)
+    return OnsetEnvelopes(
+      fullBand: fullBandEnvelope, subBands: resultSubBands, mlFeatures: retainedMLFeatures)
   }
 
   // MARK: - ACF Buffers (Story 1.1)
