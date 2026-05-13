@@ -624,7 +624,7 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
   - [x] 3.4: In `AudioAnalysisService.runPreCorroborationPipeline` (`AudioAnalysisService.swift:412+`), set `bpmOptions.captureMLFeatures = shouldBuildTrace && options.mlTechnique != nil && options.ensemblePolicy != .dspOnly` (mirrors the existing `shouldBuildTrace` predicate at lines 289-291). Propagate the resulting `mlFeatures` to `BPMResult.trace?.mlFeatures` for the merged result.
   - [x] 3.5: Verify byte-identity at AC #5 invariant: when `mlTechnique == nil` OR `ensemblePolicy == .dspOnly`, `captureMLFeatures` is false → `mlFeatures` is nil → `BPMDiagnosticTrace.mlFeatures` is nil. The `[Float]` payload is NEVER allocated on the DSP-only path.
 
-- [ ] **Task 4: Wire `BNNSTechnique` Shape A-prime — public struct + private RAII Storage class + `init() throws` (AC: #1, #5; DD #15, #16)**
+- [x] **Task 4: Wire `BNNSTechnique` Shape A-prime — public struct + private RAII Storage class + `init() throws` (AC: #1, #5; DD #15, #16)**
   - [ ] 4.1: In `Sources/BoomBoomBoomKitML/BNNSTechnique.swift`, define the private RAII storage class FIRST (per DD #15 — public struct is fine but C lifetime needs a `final class` deinit):
     ```swift
     private final class BNNSGraphHandle: @unchecked Sendable {
@@ -689,7 +689,7 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
   - [ ] 4.3: Multi-paragraph `///` doc-comment on `BNNSTechnique` referencing: (a) Story 4.5 promotion from Story 4.1 placeholder; (b) ADR-4 eager loading; (c) the `giantsteps_v1.mlmodelc` resource convention from Story 4.1; (d) the macOS-15 raw-C-only API surface (DD #7) — explicitly rejecting `BNNSGraph.Builder` / `BNNSGraph.Context.init(compileFromPath:functionName:options:)` / `BNNSGraph.makeContext` as macOS-26-only; (e) Shape A-prime lifecycle (DD #15) — public struct + private `BNNSGraphHandle` final class for `free(graph.data)` discipline; (f) per-call `bnns_graph_context_t` semantics (DD #15); (g) WWDC 2024 #10211 "Support real-time ML inference on the CPU" reference.
   - [ ] 4.4: Run grep guards: `grep -rn "BNNSFilterCreate\|BNNSFilterApply" Sources/BoomBoomBoomKitML/` AND `grep -rn "BNNSGraph\.Builder\|BNNSGraph\.Context\|BNNSGraph\.makeContext" Sources/BoomBoomBoomKitML/` BOTH return zero matches (per AC #1).
 
-- [ ] **Task 5: Implement per-call evaluate body — featurize, BNNSGraph inference via per-call context, decode (AC: #2, #5; DD #15)**
+- [x] **Task 5: Implement per-call evaluate body — featurize, BNNSGraph inference via per-call context, decode (AC: #2, #5; DD #15)**
   - [ ] 5.1: In `BNNSTechnique`, add private helper `featurize(_ features: MLFeatureFrames) -> [Float]?` that: (a) returns nil if `features.frames < 32` (DD #9 short-clip guard fires BEFORE resize); (b) z-score-normalizes each mel sub-band across the time axis using `vDSP_meanv` + `vDSP_normalizev` per row (preserves NCHW layout); (c) temporally **resamples** (NOT pools — per DD #9) to W=512 frames via `vDSP.linearInterpolate(elementsOf:using:result:)` per mel band — precompute the 512-element control vector once outside the row loop, reuse across all 128 bands. Output is a fixed-size `[Float]` of length `1 * 1 * 128 * 512 = 65536`.
   - [ ] 5.2: Add private helper `inferTempoCNN(_ inputTensor: [Float]) -> (bpm: Double, confidence: Double)?` that:
     ```swift
@@ -758,7 +758,7 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
     Doc-comment the rationale for each (Schreiber & Muller default for Gate 1; Epic 4 adjacent-bin failure mitigation for Gate 2; sidecar JSON override path documented as deferred-work).
   - [ ] 5.5: Add the HALT (g) defensive log: `private static func logNilFeaturesOnce()` uses a Swift static lazy property + `os_log(.fault, "...")` to guarantee one-shot logging per process lifetime. Doc-comment cites HALT (g).
 
-- [ ] **Task 6: Add cancellation cooperation via private throws helper (AC: #9; resolves Story 4.3 deferred-work entry)**
+- [x] **Task 6: Add cancellation cooperation via private throws helper (AC: #9; resolves Story 4.3 deferred-work entry)**
   - [ ] 6.1: In `Sources/BoomBoomBoomKit/AudioAnalysisService.swift`, locate the IIFE-`guard` ML evaluation block at lines 311-317 (Story 4-4 close-out shape).
   - [ ] 6.2: Add `private static func evaluateMLIfActive(options:trace:) throws -> MLEvaluation?` in `extension AudioAnalysisService` (private static, same file, placed below `degradationMessage` near line 358). Body per AC #9 sketch:
     ```swift
@@ -847,7 +847,7 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
   - [ ] 0.4: Verify project-wide: `grep -rn "MLTechnique" Sources/` lists the protocol declaration + `Options.mlTechnique` field + the `BNNSTechnique` conformance. No stray declarations.
   - [ ] 0.5: This task BLOCKS Tasks 2-9. The protocol shape is the contract everything else depends on; if the surface is wrong, every downstream task ships against an incorrect contract.
 
-- [ ] **Task 11 (NEW per codex Item 3 + Item 5, 2026-05-09 cohesion review): `BNNSTechnique.init(modelURL:) throws` + `validateContract` runtime invariant (AC: #13)**
+- [x] **Task 11 (NEW per codex Item 3 + Item 5, 2026-05-09 cohesion review): `BNNSTechnique.init(modelURL:) throws` + `validateContract` runtime invariant (AC: #13)**
   - [ ] 11.1: Modify the existing `BNNSTechnique.init() throws` (Story 4.1 placeholder + DD #5 here) to `init(modelURL: URL? = Self.bundledReferenceURL) throws`. Add `static let bundledReferenceURL: URL? = Bundle.module.url(forResource: "giantsteps_v1", withExtension: "mlmodelc")` (Optional, no force-unwrap per axiom-swift audit 2026-05-13). Inside the init, `guard let modelURL else { throw MLTechniqueError.modelResourceMissing(URL(fileURLWithPath: "<bundled giantsteps_v1.mlmodelc — missing>")) }` — the throw is the documented error path; the static is Optional to express the resource may be absent.
   - [ ] 11.2: Implement `private static func validateContract(graph: bnns_graph_t) throws` per DD #20 (full body in the DD). Call it from `init(modelURL:)` BEFORE caching `srcIndex` / `dstIndex`. If validateContract throws, `init` propagates the throw (caller decides via `try?` or strict `try`).
   - [ ] 11.3: Add fixture `.mlmodelc` to `Tests/Fixtures/` containing a tempo CNN with renamed output tensor (e.g., `var_42` instead of `output`) — used by AC #13's negative test. Generate via `tools/coreml-convert/` with explicit `ct.utils.rename_feature` rename of the output. Document the fixture's provenance in the test comment.
