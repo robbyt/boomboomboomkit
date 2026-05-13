@@ -1,0 +1,869 @@
+{
+  "all_tracks" : [
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 130,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 130,
+      "ground_truth" : 130,
+      "latency_ms" : 232.8510284423828,
+      "named_dnb_track" : false,
+      "track" : "03 TVR.m4a"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 137.12688571428572,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 137.12688571428572,
+      "ground_truth" : 135.91,
+      "latency_ms" : 288.2450819015503,
+      "named_dnb_track" : false,
+      "track" : "05 - New York - Punk To Funk - I'm Sick.flac"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 103.0404147926037,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 103.0404147926037,
+      "ground_truth" : 102.05,
+      "latency_ms" : 264.28306102752686,
+      "named_dnb_track" : false,
+      "track" : "07 - Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces.flac"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 113.47141575050482,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 113.47141575050482,
+      "ground_truth" : 170,
+      "latency_ms" : 219.86699104309082,
+      "named_dnb_track" : true,
+      "track" : "1. The Faraday_Bunker (D-Struct Remix).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 169.99288260456274,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 169.99288260456274,
+      "ground_truth" : 170,
+      "latency_ms" : 226.53400897979736,
+      "named_dnb_track" : false,
+      "track" : "10. Hellacopta_Assemby (Xiûa Remix).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 85.9057419135622,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 85.9057419135622,
+      "ground_truth" : 86,
+      "latency_ms" : 178.67505550384521,
+      "named_dnb_track" : false,
+      "track" : "11. Sorse_Remorse (Jonah K Remix).wav"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 127.11923522595596,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 127.11923522595596,
+      "ground_truth" : 135.85,
+      "latency_ms" : 348.7650156021118,
+      "named_dnb_track" : false,
+      "track" : "12. Smalltown Boy (12' Version).flac"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 137.09124425414015,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 137.09124425414015,
+      "ground_truth" : 85,
+      "latency_ms" : 162.88495063781738,
+      "named_dnb_track" : false,
+      "track" : "2. Ahmad_The Wrong Place (Artilect Remix).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 170.17556333406256,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 170.17556333406256,
+      "ground_truth" : 170,
+      "latency_ms" : 160.85505485534668,
+      "named_dnb_track" : false,
+      "track" : "3. D3Z_Axons (Offish Remix).wav"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 113.23972280701754,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 113.23972280701754,
+      "ground_truth" : 85,
+      "latency_ms" : 229.0210723876953,
+      "named_dnb_track" : true,
+      "track" : "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 170.42215082215083,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 170.42215082215083,
+      "ground_truth" : 170,
+      "latency_ms" : 313.4649991989136,
+      "named_dnb_track" : false,
+      "track" : "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 170.3974243278812,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 170.3974243278812,
+      "ground_truth" : 170,
+      "latency_ms" : 237.900972366333,
+      "named_dnb_track" : false,
+      "track" : "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 169.56191195091068,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 169.56191195091068,
+      "ground_truth" : 170,
+      "latency_ms" : 162.2849702835083,
+      "named_dnb_track" : false,
+      "track" : "6. HEFT_Fuyu (Akinsa Remix).wav"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 79.97966969849563,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 79.97966969849563,
+      "ground_truth" : 160,
+      "latency_ms" : 224.3189811706543,
+      "named_dnb_track" : false,
+      "track" : "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 149.9342034331111,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 149.9342034331111,
+      "ground_truth" : 150,
+      "latency_ms" : 229.10404205322266,
+      "named_dnb_track" : false,
+      "track" : "8. Jonah K_Shadow Work (Esthetic Remix).wav"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 113.36578128040475,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 113.36578128040475,
+      "ground_truth" : 85,
+      "latency_ms" : 220.31700611114502,
+      "named_dnb_track" : true,
+      "track" : "9. HEFT_Anagram 6 (Owl Remix).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 150.25571400178873,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 150.25571400178873,
+      "ground_truth" : 150.95,
+      "latency_ms" : 223.78993034362793,
+      "named_dnb_track" : false,
+      "track" : "Aeon Flux - Reality (Remaster).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 155.30248089130717,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 155.30248089130717,
+      "ground_truth" : 155.98,
+      "latency_ms" : 220.9240198135376,
+      "named_dnb_track" : false,
+      "track" : "Aeon Flux - Reality (Repitch Remaster).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.9606141581823,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.9606141581823,
+      "ground_truth" : 160,
+      "latency_ms" : 325.55699348449707,
+      "named_dnb_track" : false,
+      "track" : "Amor Satyr & Fetus - Half Half - 01 Amor Satyr & Fetus - Baby Check.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 167,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 167,
+      "ground_truth" : 164.78,
+      "latency_ms" : 193.71402263641357,
+      "named_dnb_track" : false,
+      "track" : "Boymerang - Autumnal (Leaf).wav"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 166.89321018787038,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 166.89321018787038,
+      "ground_truth" : 82.86,
+      "latency_ms" : 220.86405754089355,
+      "named_dnb_track" : false,
+      "track" : "Boymerang - Rules (Leaf).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 125.90745925992618,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 125.90745925992618,
+      "ground_truth" : 126,
+      "latency_ms" : 273.7400531768799,
+      "named_dnb_track" : false,
+      "track" : "College Hill - Undercurrents Vol 3 - 08 Self Immolation.mp3"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 79.96831804853703,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 79.96831804853703,
+      "ground_truth" : 160,
+      "latency_ms" : 198.57490062713623,
+      "named_dnb_track" : false,
+      "track" : "Echtoo - Chakra - Seminal Sounds.wav"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 79.96989456310469,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 79.96989456310469,
+      "ground_truth" : 160,
+      "latency_ms" : 178.5351037979126,
+      "named_dnb_track" : false,
+      "track" : "Echtoo - Chakra.wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 160.13473025724556,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 160.13473025724556,
+      "ground_truth" : 160,
+      "latency_ms" : 202.49605178833008,
+      "named_dnb_track" : false,
+      "track" : "Echtoo - The Mummy - Seminal Sounds.wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 130.26962309676347,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 130.26962309676347,
+      "ground_truth" : 130,
+      "latency_ms" : 299.8800277709961,
+      "named_dnb_track" : false,
+      "track" : "Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 161.07378653113088,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 161.07378653113088,
+      "ground_truth" : 81,
+      "latency_ms" : 317.9839849472046,
+      "named_dnb_track" : false,
+      "track" : "Hooverian Blur - Cut and Dried EP - 01 Cut and Dried.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 163.6940295388045,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 163.6940295388045,
+      "ground_truth" : 162,
+      "latency_ms" : 276.4151096343994,
+      "named_dnb_track" : false,
+      "track" : "Hooverian Blur - Cut and Dried EP - 02 Twice Removed.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 162.5763750968378,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 162.5763750968378,
+      "ground_truth" : 162,
+      "latency_ms" : 255.2969455718994,
+      "named_dnb_track" : false,
+      "track" : "Hooverian Blur - Cut and Dried EP - 03 Red Scare.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 162.4865054413543,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 162.4865054413543,
+      "ground_truth" : 162,
+      "latency_ms" : 320.03509998321533,
+      "named_dnb_track" : false,
+      "track" : "Hooverian Blur - Cut and Dried EP - 04 Slower Violence.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 125.90192729681614,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 125.90192729681614,
+      "ground_truth" : 126,
+      "latency_ms" : 223.44303131103516,
+      "named_dnb_track" : false,
+      "track" : "Icicle - Condense.wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 158,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 158,
+      "ground_truth" : 157.84,
+      "latency_ms" : 281.095027923584,
+      "named_dnb_track" : false,
+      "track" : "Ironik - The Calling (Remaster).mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 157.95326960063355,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 157.95326960063355,
+      "ground_truth" : 157.85,
+      "latency_ms" : 174.00801181793213,
+      "named_dnb_track" : false,
+      "track" : "Ironik - The Calling (Remaster).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.88203589690076,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.88203589690076,
+      "ground_truth" : 159.85,
+      "latency_ms" : 175.6809949874878,
+      "named_dnb_track" : false,
+      "track" : "Legal Offence - Burnin' Up (Piano Mix) (Remaster).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 140,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 140,
+      "ground_truth" : 140,
+      "latency_ms" : 274.82497692108154,
+      "named_dnb_track" : false,
+      "track" : "MattU_Empty Inside_Original Mix.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 127.87369506955376,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 127.87369506955376,
+      "ground_truth" : 128,
+      "latency_ms" : 297.3029613494873,
+      "named_dnb_track" : false,
+      "track" : "Nautical Divine - Makara.mp3"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 112.53577351222538,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 112.53577351222538,
+      "ground_truth" : 85,
+      "latency_ms" : 322.05092906951904,
+      "named_dnb_track" : false,
+      "track" : "Outer Heaven - UVB76-025 - 01 The Observatory.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 149.9234439426664,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 149.9234439426664,
+      "ground_truth" : 150,
+      "latency_ms" : 235.2670431137085,
+      "named_dnb_track" : false,
+      "track" : "Outer Heaven - UVB76-025 - 02 More Hardcore.mp3"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 175,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 175,
+      "ground_truth" : 95,
+      "latency_ms" : 264.4009590148926,
+      "named_dnb_track" : false,
+      "track" : "Outer Heaven - UVB76-025 - 03 Minority Industrial.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 140,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 140,
+      "ground_truth" : 140,
+      "latency_ms" : 272.616982460022,
+      "named_dnb_track" : false,
+      "track" : "Proxima_Trapped_Original Mix.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 154.0400394239279,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 154.0400394239279,
+      "ground_truth" : 153.94,
+      "latency_ms" : 223.56700897216797,
+      "named_dnb_track" : false,
+      "track" : "Release - The Jungle (Remaster ope).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 149,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 149,
+      "ground_truth" : 149.04,
+      "latency_ms" : 322.5829601287842,
+      "named_dnb_track" : false,
+      "track" : "Release - The Jungle 155bpm (Remaster).mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 150.00602318382403,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 150.00602318382403,
+      "ground_truth" : 150,
+      "latency_ms" : 176.73301696777344,
+      "named_dnb_track" : false,
+      "track" : "Ron Mercy - Junkin Da Trunk.wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 139.91417418191187,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 139.91417418191187,
+      "ground_truth" : 140,
+      "latency_ms" : 251.87695026397705,
+      "named_dnb_track" : false,
+      "track" : "Sam Binga & Foreign Concept - Sam Binga & Foreign Concept - One Up Top EP - 03 BAMF.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 154.75351327004367,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 154.75351327004367,
+      "ground_truth" : 154.91,
+      "latency_ms" : 176.96702480316162,
+      "named_dnb_track" : false,
+      "track" : "Skanna - Nightstalker (Remaster).wav"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 161.50727913372293,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 161.50727913372293,
+      "ground_truth" : 162.14,
+      "latency_ms" : 181.8990707397461,
+      "named_dnb_track" : false,
+      "track" : "Stakka & K-Tee - Living for the Night - After Hours - 01 Living for the Night.aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 167.2291004802364,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 167.2291004802364,
+      "ground_truth" : 83.66,
+      "latency_ms" : 179.68297004699707,
+      "named_dnb_track" : false,
+      "track" : "Stakka & K-Tee - Living for the Night - After Hours - 02 After Hours.aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 170.10756589651805,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 170.10756589651805,
+      "ground_truth" : 84.92,
+      "latency_ms" : 140.1669979095459,
+      "named_dnb_track" : false,
+      "track" : "Stakka & K-Tee - Ya Don't Stop - Dream World - 01 Ya Don't Stop.aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 169.00393967562806,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 169.00393967562806,
+      "ground_truth" : 84.92,
+      "latency_ms" : 179.2370080947876,
+      "named_dnb_track" : false,
+      "track" : "Stakka & K-Tee - Ya Don't Stop - Dream World - 02 Dream World.aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 173.00105957616952,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 173.00105957616952,
+      "ground_truth" : 172.96,
+      "latency_ms" : 278.2599925994873,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet - Clockwork - Remastered 2014 - 01 Decoy.mp3"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 172.68307069846676,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 172.68307069846676,
+      "ground_truth" : 86.48,
+      "latency_ms" : 323.24492931365967,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet - Clockwork - Remastered 2014 - 03 Clockwork.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 172.8412331406551,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 172.8412331406551,
+      "ground_truth" : 172.96,
+      "latency_ms" : 293.93303394317627,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet - Clockwork - Remastered 2014 - 05 TImelines.mp3"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 172.70331444061114,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 172.70331444061114,
+      "ground_truth" : 86.48,
+      "latency_ms" : 299.6029853820801,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet - Clockwork - Remastered 2014 - 08 Spider Monkey.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 171.7450023353573,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 171.7450023353573,
+      "ground_truth" : 172.96,
+      "latency_ms" : 299.67403411865234,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet - Clockwork - Remastered 2014 - 10 So Confused.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 172.80100552255914,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 172.80100552255914,
+      "ground_truth" : 172.96,
+      "latency_ms" : 260.36906242370605,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet - Clockwork - Remastered 2014 - 11 9000 Series.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 172.95516394264513,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 172.95516394264513,
+      "ground_truth" : 172.96,
+      "latency_ms" : 279.9239158630371,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 172.91983768235053,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 172.91983768235053,
+      "ground_truth" : 172.99,
+      "latency_ms" : 257.0410966873169,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet Feat Kemal & Rob Data - Clockwork - Remastered 2014 - 02 BiosFear.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 172.7530474934037,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 172.7530474934037,
+      "ground_truth" : 172.95,
+      "latency_ms" : 278.19299697875977,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet Feat Skinny - Clockwork - Remastered 2014 - 06 Straight Jacket.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 173.85037947420602,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 173.85037947420602,
+      "ground_truth" : 172.97,
+      "latency_ms" : 294.0330505371094,
+      "named_dnb_track" : false,
+      "track" : "Stakka & Skynet feat Keaton - Clockwork - Remastered 2014 - 04 Isolation.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 84.03602444839193,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 84.03602444839193,
+      "ground_truth" : 84,
+      "latency_ms" : 324.58603382110596,
+      "named_dnb_track" : false,
+      "track" : "Sully - The Still - 01 The Still.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 166.06376334106727,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 166.06376334106727,
+      "ground_truth" : 166,
+      "latency_ms" : 274.9500274658203,
+      "named_dnb_track" : false,
+      "track" : "Sully - The Still - 02 Lies.mp3"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.32951618726682,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.32951618726682,
+      "ground_truth" : 160,
+      "latency_ms" : 209.26809310913086,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 01 Jericho (Neekeetone Jungle Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 160.32003450920246,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 160.32003450920246,
+      "ground_truth" : 160,
+      "latency_ms" : 232.38599300384521,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 02 Music Reach (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 172.63630420918366,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 172.63630420918366,
+      "ground_truth" : 85,
+      "latency_ms" : 167.1900749206543,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 160.12230654391638,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 160.12230654391638,
+      "ground_truth" : 160,
+      "latency_ms" : 185.42706966400146,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 04 Your Love (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.77392379114917,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.77392379114917,
+      "ground_truth" : 160,
+      "latency_ms" : 231.88209533691406,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 05 Hyperspeed (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 106.24575536776753,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 106.24575536776753,
+      "ground_truth" : 160,
+      "latency_ms" : 208.50002765655518,
+      "named_dnb_track" : true,
+      "track" : "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 160.18593876998102,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 160.18593876998102,
+      "ground_truth" : 160,
+      "latency_ms" : 234.28499698638916,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 07 Out Of Space (Neekeetone Jungle Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.78688997338068,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.78688997338068,
+      "ground_truth" : 160,
+      "latency_ms" : 207.61895179748535,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 08 Everybody In The Place (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.85427436387408,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.85427436387408,
+      "ground_truth" : 160.1,
+      "latency_ms" : 198.62794876098633,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.10993464052288,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.10993464052288,
+      "ground_truth" : 160,
+      "latency_ms" : 196.16103172302246,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 162,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 162,
+      "ground_truth" : 79.99,
+      "latency_ms" : 187.33704090118408,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 11 Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 160.33476312419975,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 160.33476312419975,
+      "ground_truth" : 160,
+      "latency_ms" : 186.21790409088135,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - 160 Experience - 12 Death Of The Prodigy Dancers (Neekeetone Dub Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.88536793372322,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.88536793372322,
+      "ground_truth" : 160,
+      "latency_ms" : 230.1170825958252,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 01 Break & Enter (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 159.69008739650414,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 159.69008739650414,
+      "ground_truth" : 80,
+      "latency_ms" : 188.86494636535645,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 02 Their Law (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 158.629243740419,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 158.629243740419,
+      "ground_truth" : 160,
+      "latency_ms" : 184.3709945678711,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 03 Full Throttle (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.94417239087082,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.94417239087082,
+      "ground_truth" : 160,
+      "latency_ms" : 226.08399391174316,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 04 Speedway (Neekeetone Jungle Rework).aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 79.91866015903763,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 79.91866015903763,
+      "ground_truth" : 159.99,
+      "latency_ms" : 227.8900146484375,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 05 The Heat (The Energy) (Neekeetone Jungle Rework).aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 79.89186874419565,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 79.89186874419565,
+      "ground_truth" : 160,
+      "latency_ms" : 228.58095169067383,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.14340959313662,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.14340959313662,
+      "ground_truth" : 160,
+      "latency_ms" : 205.89697360992432,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 07 Claustrophobic Sting (Neekeetone Jungle Rework).aiff"
+    },
+    {
+      "dsp_correct" : true,
+      "dsp_winner" : 159.5969060596345,
+      "ensemble_correct" : true,
+      "ensemble_winner" : 159.5969060596345,
+      "ground_truth" : 160.32,
+      "latency_ms" : 197.687029838562,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 08 Scienide (Neekeetone 160 Rework).aiff"
+    },
+    {
+      "dsp_correct" : false,
+      "dsp_winner" : 161.21846210995542,
+      "ensemble_correct" : false,
+      "ensemble_winner" : 161.21846210995542,
+      "ground_truth" : 82,
+      "latency_ms" : 232.6260805130005,
+      "named_dnb_track" : false,
+      "track" : "The Prodigy - Music For The 160 Generation - 09 We Eat Rhythm (Neekeetone Dub Rework) (Bonus).aiff"
+    }
+  ],
+  "model_identifier" : "bnns_tempo_v1",
+  "named_dnb_track_results" : [
+    {
+      "abs_error_bpm" : 56.52858424949518,
+      "ensemble_winner_bpm" : 113.47141575050482,
+      "ground_truth_bpm" : 170,
+      "resolved_within_05" : false,
+      "track_id" : "1. The Faraday_Bunker (D-Struct Remix).wav"
+    },
+    {
+      "abs_error_bpm" : 28.239722807017543,
+      "ensemble_winner_bpm" : 113.23972280701754,
+      "ground_truth_bpm" : 85,
+      "resolved_within_05" : false,
+      "track_id" : "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav"
+    },
+    {
+      "abs_error_bpm" : 28.365781280404747,
+      "ensemble_winner_bpm" : 113.36578128040475,
+      "ground_truth_bpm" : 85,
+      "resolved_within_05" : false,
+      "track_id" : "9. HEFT_Anagram 6 (Owl Remix).wav"
+    },
+    {
+      "abs_error_bpm" : 53.75424463223247,
+      "ensemble_winner_bpm" : 106.24575536776753,
+      "ground_truth_bpm" : 160,
+      "resolved_within_05" : false,
+      "track_id" : "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff"
+    }
+  ],
+  "pinned_config" : {
+    "ensemble_policy" : "mlOnly",
+    "intensity" : 8
+  },
+  "schema_version" : 1,
+  "snapshot_sha" : "c4e3252",
+  "summary" : {
+    "dsp_acc1" : 58,
+    "ensemble_acc1" : 58,
+    "ml_acc1" : 0,
+    "named_dnb_resolved" : 0,
+    "named_dnb_total" : 4,
+    "total_tracks" : 82
+  }
+}
