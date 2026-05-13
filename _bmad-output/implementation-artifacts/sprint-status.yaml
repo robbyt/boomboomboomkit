@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-09 (Story 4-4b moved to review: 60-epoch training completed in 3.46h on M5 Max with PyTorch+MPS; final val_acc_4pct=0.818; OA300 held-out test acc_4pct=48.8% (40/82) — well above 25% promotion floor and 5% sanity HALT (c) gate; convert-roundtrip 9.54e-7 after FP32 export fix (was 1.15e-3 with FP16 default — user-authorized spec amendment); structural-equivalence byte-identical across re-compiles; OA300 + GiantSteps benchmarks BYTE-IDENTICAL to pre-Story-4-4b baseline (inertness contract holds); HALT (d) advisory FAIL at 0/4 named DnB strict_0_5 (user-authorized accept per DD #11 option (i) — Story 4-5 will trip its own HALT (b) on these tracks, addressed at that time via re-train or override path); 4-pass adversarial code review completed across all 4 chunks (3 Claude reviewers + Codex Blind Hunter on chunks 1+2; ~70 patches applied including crash-recoverable promotion in convert.py + export.py, --target macOS15 default, determinism rework, HALT (a) wall-clock enforcement, cross-corpus leak deepening); tools/coreml-convert/ ships to main with 15/15 pytests passing (was 3 at story dev-time); spec amendments + chunk-1/2/3/4 review-finding sections all recorded in Change Log. Story 4-5 HALT (a') unblocked. Strategic concern flagged for next train run: GiantSteps corpus is 96kbps MP3 — see deferred-work.md.)
+last_updated: 2026-05-13 (Story 4-5 moved to in-progress: BNNS MLTechnique conformance + ML feature trace plumbing; Branch A path confirmed (bundled giantsteps_v1.mlmodelc present at Sources/BoomBoomBoomKitML/Resources/); Tony corpus pipeline committed to develop on a separate commit before story work to preserve AC #10 bounded-diff proof; partial Task 0 scaffolding (MLTechnique.swift relocation) preserved in worktree for rewrite to DD #18 shape.)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -80,7 +80,7 @@ development_status:
   4-3b-trace-build-cost-budget: done
   4-4-configurable-ml-ensemble-voting-policy: done
   4-4b-tempo-classifier-training: done
-  4-5-bnns-mltechnique-conformance: ready-for-dev
+  4-5-bnns-mltechnique-conformance: in-progress
   4-6-coreml-mltechnique-conformance: backlog
   4-7-spectral-flux-onset-dsp-variant: backlog
   epic-4-retrospective: optional
