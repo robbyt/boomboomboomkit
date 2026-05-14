@@ -1,94 +1,1329 @@
 {
-  "snapshot_metadata": {
-    "captured_at": "2026-05-13T21:25:52Z",
-    "captured_by": "Robert Terhaar",
-    "git_sha": "9c48629",
-    "git_sha_full": "9c486290cd442b859e10ed0ea02dab3a3e9c6900",
-    "macos_version": "26.5",
-    "xcode_version": "Xcode 26.5",
-    "swift_version": "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
-    "story": "4.5",
-    "purpose": "Pre-Story-4.5 default-disabled regression snapshot. Pipeline state with options.mlTechnique == nil AND options.ensemblePolicy == .dspOnly (defaults). Story 4.5 must produce byte-identical output against this baseline at default config (AC #5) and against any mlTechnique under .dspOnly (the A1 short-circuit). DSP behavior is unchanged from Story 4-4b (inertness contract holds) — the per-track byte-identity baseline at `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json` (Story 4-3 capture, validated by `MLPolicySweepTests::dspOnlyMatchesStory4_3Baseline`) remains the canonical fixture for Story 4-5 as well.",
-    "amendment_note": "Per Story 4-5 AC #5: this metadata-only snapshot is informational; the test-enforceable byte-identity is the per-track BPM JSON pinned at `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json` (82 OA300 tracks, bpmBits / confidenceBits as Double.bitPattern UInt64). Both `options.mlTechnique == nil` and `options.mlTechnique != nil + options.ensemblePolicy == .dspOnly` paths converge on this fixture because the A1 short-circuit prevents `MLTechnique.evaluate(trace:)` from being called.",
-    "rev": 1
-  },
-  "corpus_runs": [
-    {
-      "corpus": "OA300",
-      "intensity": 7,
-      "tolerance_pct": 2.0,
-      "total": 82,
-      "acc1Correct": 58,
-      "acc2Correct": 74,
-      "acc1_pct": 70.7,
-      "acc2_pct": 90.2,
-      "named_dnb_triplet_failures": [
+  "schema_version": 1,
+  "generated_for_ac": "4-5/AC-5",
+  "source_baseline_sha": "0b2d8dc",
+  "captured_at": "2026-05-14T23:30:13Z",
+  "partitions": {
+    "mlTechnique_nil": {
+      "tracks": [
         {
-          "track_id": "1. The Faraday_Bunker (D-Struct Remix).wav",
-          "expected_bpm": 170.0,
-          "got_bpm_at_intensity_7": 113.5,
-          "delta_bpm": 56.5,
-          "source": "dawproject"
+          "bpm": 130,
+          "bpmBits": 4638777984935788544,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 130,
+          "filename": "03 TVR.m4a"
         },
         {
-          "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav",
-          "expected_bpm": 170.0,
-          "got_bpm_at_intensity_7": 113.2,
-          "delta_bpm": 56.8,
-          "source": "daw_oracle"
+          "bpm": 137.12688571428572,
+          "bpmBits": 4639028739934594554,
+          "confidence": 0.5320176370776355,
+          "confidenceBits": 4602967208409471158,
+          "expectedBPM": 135.91,
+          "filename": "05 - New York - Punk To Funk - I'm Sick.flac"
         },
         {
-          "track_id": "9. HEFT_Anagram 6 (Owl Remix).wav",
-          "expected_bpm": 170.0,
-          "got_bpm_at_intensity_7": 113.4,
-          "delta_bpm": 56.6,
-          "source": "daw_oracle"
+          "bpm": 103.0404147926037,
+          "bpmBits": 4636951241525371003,
+          "confidence": 0.7126759595962958,
+          "confidenceBits": 4604594433917423993,
+          "expectedBPM": 102.05,
+          "filename": "07 - Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces.flac"
         },
         {
-          "track_id": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff",
-          "expected_bpm": 160.0,
-          "got_bpm_at_intensity_7": 106.2,
-          "delta_bpm": 53.8,
-          "source": "dawproject"
+          "bpm": 113.47141575050482,
+          "bpmBits": 4637685257963294515,
+          "confidence": 0.6652902303045223,
+          "confidenceBits": 4604167621211861772,
+          "expectedBPM": 170,
+          "filename": "1. The Faraday_Bunker (D-Struct Remix).wav"
+        },
+        {
+          "bpm": 169.99288260456274,
+          "bpmBits": 4640185109398252456,
+          "confidence": 0.71380919682917,
+          "confidenceBits": 4604604641210983382,
+          "expectedBPM": 170,
+          "filename": "10. Hellacopta_Assemby (Xiûa Remix).wav"
+        },
+        {
+          "bpm": 85.9057419135622,
+          "bpmBits": 4635745496112977774,
+          "confidence": 0.9370231189833031,
+          "confidenceBits": 4606615173484257904,
+          "expectedBPM": 86,
+          "filename": "11. Sorse_Remorse (Jonah K Remix).wav"
+        },
+        {
+          "bpm": 127.11923522595596,
+          "bpmBits": 4638645637880545477,
+          "confidence": 0.2559450646156729,
+          "confidenceBits": 4598282316308427768,
+          "expectedBPM": 135.85,
+          "filename": "12. Smalltown Boy (12' Version).flac"
+        },
+        {
+          "bpm": 137.09124425414015,
+          "bpmBits": 4639027485912199003,
+          "confidence": 0.6106347476694348,
+          "confidenceBits": 4603675328389403503,
+          "expectedBPM": 85,
+          "filename": "2. Ahmad_The Wrong Place (Artilect Remix).wav"
+        },
+        {
+          "bpm": 170.17556333406256,
+          "bpmBits": 4640191536905012637,
+          "confidence": 0.918646044455218,
+          "confidenceBits": 4606449647512264216,
+          "expectedBPM": 170,
+          "filename": "3. D3Z_Axons (Offish Remix).wav"
+        },
+        {
+          "bpm": 113.23972280701754,
+          "bpmBits": 4637668954021826489,
+          "confidence": 0.5819325071650089,
+          "confidenceBits": 4603416801590122641,
+          "expectedBPM": 85,
+          "filename": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav"
+        },
+        {
+          "bpm": 170.42215082215083,
+          "bpmBits": 4640200212930945985,
+          "confidence": 0.9181151939363851,
+          "confidenceBits": 4606444866035866605,
+          "expectedBPM": 170,
+          "filename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).mp3"
+        },
+        {
+          "bpm": 170.3974243278812,
+          "bpmBits": 4640199342944771150,
+          "confidence": 0.918180588910438,
+          "confidenceBits": 4606445455061428158,
+          "expectedBPM": 170,
+          "filename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav"
+        },
+        {
+          "bpm": 169.56191195091068,
+          "bpmBits": 4640169945966414995,
+          "confidence": 0.920387124583316,
+          "confidenceBits": 4606465329767896464,
+          "expectedBPM": 170,
+          "filename": "6. HEFT_Fuyu (Akinsa Remix).wav"
+        },
+        {
+          "bpm": 79.97966969849563,
+          "bpmBits": 4635328485853297392,
+          "confidence": 0.8201686895249676,
+          "confidenceBits": 4605562642354327600,
+          "expectedBPM": 160,
+          "filename": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav"
+        },
+        {
+          "bpm": 149.9342034331111,
+          "bpmBits": 4639479357366673597,
+          "confidence": 0.7763866752208339,
+          "confidenceBits": 4605168289027716348,
+          "expectedBPM": 150,
+          "filename": "8. Jonah K_Shadow Work (Esthetic Remix).wav"
+        },
+        {
+          "bpm": 113.36578128040475,
+          "bpmBits": 4637677824598291700,
+          "confidence": 0.919134358580768,
+          "confidenceBits": 4606454045854891949,
+          "expectedBPM": 85,
+          "filename": "9. HEFT_Anagram 6 (Owl Remix).wav"
+        },
+        {
+          "bpm": 150.25571400178873,
+          "bpmBits": 4639490669514152443,
+          "confidence": 0.7768104359589202,
+          "confidenceBits": 4605172105925120627,
+          "expectedBPM": 150.95,
+          "filename": "Aeon Flux - Reality (Remaster).wav"
+        },
+        {
+          "bpm": 155.30248089130717,
+          "bpmBits": 4639668236838238857,
+          "confidence": 0.7963712691579944,
+          "confidenceBits": 4605348294247333441,
+          "expectedBPM": 155.98,
+          "filename": "Aeon Flux - Reality (Repitch Remaster).wav"
+        },
+        {
+          "bpm": 159.9606141581823,
+          "bpmBits": 4639832130332339958,
+          "confidence": 0.9191848801549874,
+          "confidenceBits": 4606454500912777607,
+          "expectedBPM": 160,
+          "filename": "Amor Satyr & Fetus - Half Half - 01 Amor Satyr & Fetus - Baby Check.mp3"
+        },
+        {
+          "bpm": 167,
+          "bpmBits": 4640079806703075328,
+          "confidence": 0.318517184828807,
+          "confidenceBits": 4599409515417530378,
+          "expectedBPM": 164.78,
+          "filename": "Boymerang - Autumnal (Leaf).wav"
+        },
+        {
+          "bpm": 166.89321018787038,
+          "bpmBits": 4640076049370590063,
+          "confidence": 0.47340285511021807,
+          "confidenceBits": 4602199687605387948,
+          "expectedBPM": 82.86,
+          "filename": "Boymerang - Rules (Leaf).wav"
+        },
+        {
+          "bpm": 125.90745925992618,
+          "bpmBits": 4638560366727591286,
+          "confidence": 0.8664611410623461,
+          "confidenceBits": 4605979607689315209,
+          "expectedBPM": 126,
+          "filename": "College Hill - Undercurrents Vol 3 - 08 Self Immolation.mp3"
+        },
+        {
+          "bpm": 79.96831804853703,
+          "bpmBits": 4635327687051945461,
+          "confidence": 0.9508715913248212,
+          "confidenceBits": 4606739909434011727,
+          "expectedBPM": 160,
+          "filename": "Echtoo - Chakra - Seminal Sounds.wav"
+        },
+        {
+          "bpm": 79.96989456310469,
+          "bpmBits": 4635327797989295765,
+          "confidence": 0.9606524857127168,
+          "confidenceBits": 4606828007898653080,
+          "expectedBPM": 160,
+          "filename": "Echtoo - Chakra.wav"
+        },
+        {
+          "bpm": 160.13473025724556,
+          "bpmBits": 4639838256497956056,
+          "confidence": 0.9184446074167636,
+          "confidenceBits": 4606447833128721572,
+          "expectedBPM": 160,
+          "filename": "Echtoo - The Mummy - Seminal Sounds.wav"
+        },
+        {
+          "bpm": 130.26962309676347,
+          "bpmBits": 4638787471455148813,
+          "confidence": 0.9193340775500947,
+          "confidenceBits": 4606455844763443626,
+          "expectedBPM": 130,
+          "filename": "Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3"
+        },
+        {
+          "bpm": 161.07378653113088,
+          "bpmBits": 4639871296603308789,
+          "confidence": 0.6232572379398182,
+          "confidenceBits": 4603789021674359876,
+          "expectedBPM": 81,
+          "filename": "Hooverian Blur - Cut and Dried EP - 01 Cut and Dried.mp3"
+        },
+        {
+          "bpm": 163.6940295388045,
+          "bpmBits": 4639963488208253938,
+          "confidence": 0.9179150013761012,
+          "confidenceBits": 4606443062861586811,
+          "expectedBPM": 162,
+          "filename": "Hooverian Blur - Cut and Dried EP - 02 Twice Removed.mp3"
+        },
+        {
+          "bpm": 162.5763750968378,
+          "bpmBits": 4639924164238501046,
+          "confidence": 0.7876543787508027,
+          "confidenceBits": 4605269779478554125,
+          "expectedBPM": 162,
+          "filename": "Hooverian Blur - Cut and Dried EP - 03 Red Scare.mp3"
+        },
+        {
+          "bpm": 162.4865054413543,
+          "bpmBits": 4639921002231103019,
+          "confidence": 0.705256808436288,
+          "confidenceBits": 4604527608144624760,
+          "expectedBPM": 162,
+          "filename": "Hooverian Blur - Cut and Dried EP - 04 Slower Violence.mp3"
+        },
+        {
+          "bpm": 125.90192729681614,
+          "bpmBits": 4638559977450294395,
+          "confidence": 0.7008274840946465,
+          "confidenceBits": 4604487712337715720,
+          "expectedBPM": 126,
+          "filename": "Icicle - Condense.wav"
+        },
+        {
+          "bpm": 158,
+          "bpmBits": 4639763147354275840,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 157.84,
+          "filename": "Ironik - The Calling (Remaster).mp3"
+        },
+        {
+          "bpm": 157.95326960063355,
+          "bpmBits": 4639761503174516671,
+          "confidence": 0.9189134716214851,
+          "confidenceBits": 4606452056282036914,
+          "expectedBPM": 157.85,
+          "filename": "Ironik - The Calling (Remaster).wav"
+        },
+        {
+          "bpm": 159.88203589690076,
+          "bpmBits": 4639829365605556935,
+          "confidence": 0.8781067780091095,
+          "confidenceBits": 4606084502261743081,
+          "expectedBPM": 159.85,
+          "filename": "Legal Offence - Burnin' Up (Piano Mix) (Remaster).wav"
+        },
+        {
+          "bpm": 140,
+          "bpmBits": 4639129828656676864,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 140,
+          "filename": "MattU_Empty Inside_Original Mix.mp3"
+        },
+        {
+          "bpm": 127.87369506955376,
+          "bpmBits": 4638698728272271931,
+          "confidence": 0.9201676515818887,
+          "confidenceBits": 4606463352930841573,
+          "expectedBPM": 128,
+          "filename": "Nautical Divine - Makara.mp3"
+        },
+        {
+          "bpm": 112.53577351222538,
+          "bpmBits": 4637619417993987212,
+          "confidence": 0.7742997940720158,
+          "confidenceBits": 4605149492073387980,
+          "expectedBPM": 85,
+          "filename": "Outer Heaven - UVB76-025 - 01 The Observatory.mp3"
+        },
+        {
+          "bpm": 149.9234439426664,
+          "bpmBits": 4639478978800758305,
+          "confidence": 0.5000323056260969,
+          "confidenceBits": 4602679110155858216,
+          "expectedBPM": 150,
+          "filename": "Outer Heaven - UVB76-025 - 02 More Hardcore.mp3"
+        },
+        {
+          "bpm": 175,
+          "bpmBits": 4640361281679785984,
+          "confidence": 0.3378321160605333,
+          "confidenceBits": 4599757462285921936,
+          "expectedBPM": 95,
+          "filename": "Outer Heaven - UVB76-025 - 03 Minority Industrial.mp3"
+        },
+        {
+          "bpm": 140,
+          "bpmBits": 4639129828656676864,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 140,
+          "filename": "Proxima_Trapped_Original Mix.mp3"
+        },
+        {
+          "bpm": 154.0400394239279,
+          "bpmBits": 4639623818627910214,
+          "confidence": 0.7729378719622013,
+          "confidenceBits": 4605137224969575444,
+          "expectedBPM": 153.94,
+          "filename": "Release - The Jungle (Remaster ope).wav"
+        },
+        {
+          "bpm": 149,
+          "bpmBits": 4639446488005476352,
+          "confidence": 0.7371392193914075,
+          "confidenceBits": 4604814779372819058,
+          "expectedBPM": 149.04,
+          "filename": "Release - The Jungle 155bpm (Remaster).mp3"
+        },
+        {
+          "bpm": 150.00602318382403,
+          "bpmBits": 4639481884299506008,
+          "confidence": 0.919776198621405,
+          "confidenceBits": 4606459827036027638,
+          "expectedBPM": 150,
+          "filename": "Ron Mercy - Junkin Da Trunk.wav"
+        },
+        {
+          "bpm": 139.91417418191187,
+          "bpmBits": 4639126808929158423,
+          "confidence": 0.9199553125408189,
+          "confidenceBits": 4606461440350789096,
+          "expectedBPM": 140,
+          "filename": "Sam Binga & Foreign Concept - Sam Binga & Foreign Concept - One Up Top EP - 03 BAMF.mp3"
+        },
+        {
+          "bpm": 154.75351327004367,
+          "bpmBits": 4639648921757187601,
+          "confidence": 0.918823985139991,
+          "confidenceBits": 4606451250259467491,
+          "expectedBPM": 154.91,
+          "filename": "Skanna - Nightstalker (Remaster).wav"
+        },
+        {
+          "bpm": 161.50727913372293,
+          "bpmBits": 4639886548768336144,
+          "confidence": 0.5398939280686744,
+          "confidenceBits": 4603038151731815767,
+          "expectedBPM": 162.14,
+          "filename": "Stakka & K-Tee - Living for the Night - After Hours - 01 Living for the Night.aiff"
+        },
+        {
+          "bpm": 167.2291004802364,
+          "bpmBits": 4640087867459617696,
+          "confidence": 0.7778685653614594,
+          "confidenceBits": 4605181636707486598,
+          "expectedBPM": 83.66,
+          "filename": "Stakka & K-Tee - Living for the Night - After Hours - 02 After Hours.aiff"
+        },
+        {
+          "bpm": 170.10756589651805,
+          "bpmBits": 4640189144457868984,
+          "confidence": 0.9188051419607581,
+          "confidenceBits": 4606451080535197548,
+          "expectedBPM": 84.92,
+          "filename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 01 Ya Don't Stop.aiff"
+        },
+        {
+          "bpm": 169.00393967562806,
+          "bpmBits": 4640150314062266199,
+          "confidence": 0.6529668831016192,
+          "confidenceBits": 4604056622368119869,
+          "expectedBPM": 84.92,
+          "filename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 02 Dream World.aiff"
+        },
+        {
+          "bpm": 173.00105957616952,
+          "bpmBits": 4640290950216130525,
+          "confidence": 0.8426281594455738,
+          "confidenceBits": 4605764939275058362,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 01 Decoy.mp3"
+        },
+        {
+          "bpm": 172.68307069846676,
+          "bpmBits": 4640279761977137321,
+          "confidence": 0.9183407280870723,
+          "confidenceBits": 4606446897466900594,
+          "expectedBPM": 86.48,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 03 Clockwork.mp3"
+        },
+        {
+          "bpm": 172.8412331406551,
+          "bpmBits": 4640285326823353754,
+          "confidence": 0.9187131521861645,
+          "confidenceBits": 4606450251964968384,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 05 TImelines.mp3"
+        },
+        {
+          "bpm": 172.70331444061114,
+          "bpmBits": 4640280474240493399,
+          "confidence": 0.918323481521754,
+          "confidenceBits": 4606446742123650312,
+          "expectedBPM": 86.48,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 08 Spider Monkey.mp3"
+        },
+        {
+          "bpm": 171.7450023353573,
+          "bpmBits": 4640246756630804916,
+          "confidence": 0.8026562640124018,
+          "confidenceBits": 4605404904448302110,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 10 So Confused.mp3"
+        },
+        {
+          "bpm": 172.80100552255914,
+          "bpmBits": 4640283911439870418,
+          "confidence": 0.9186243371061618,
+          "confidenceBits": 4606449451989845974,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 11 9000 Series.mp3"
+        },
+        {
+          "bpm": 172.95516394264513,
+          "bpmBits": 4640289335407083350,
+          "confidence": 0.9179150013761012,
+          "confidenceBits": 4606443062861586811,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3"
+        },
+        {
+          "bpm": 172.91983768235053,
+          "bpmBits": 4640288092474796638,
+          "confidence": 0.9151895620446562,
+          "confidenceBits": 4606418514286471778,
+          "expectedBPM": 172.99,
+          "filename": "Stakka & Skynet Feat Kemal & Rob Data - Clockwork - Remastered 2014 - 02 BiosFear.mp3"
+        },
+        {
+          "bpm": 172.7530474934037,
+          "bpmBits": 4640282224066727966,
+          "confidence": 0.9183917989959718,
+          "confidenceBits": 4606447357472753172,
+          "expectedBPM": 172.95,
+          "filename": "Stakka & Skynet Feat Skinny - Clockwork - Remastered 2014 - 06 Straight Jacket.mp3"
+        },
+        {
+          "bpm": 173.85037947420602,
+          "bpmBits": 4640320833003445490,
+          "confidence": 0.5507651168821698,
+          "confidenceBits": 4603136070695594831,
+          "expectedBPM": 172.97,
+          "filename": "Stakka & Skynet feat Keaton - Clockwork - Remastered 2014 - 04 Isolation.mp3"
+        },
+        {
+          "bpm": 84.03602444839193,
+          "bpmBits": 4635613926442986697,
+          "confidence": 0.8389681391233502,
+          "confidenceBits": 4605731972742739693,
+          "expectedBPM": 84,
+          "filename": "Sully - The Still - 01 The Still.mp3"
+        },
+        {
+          "bpm": 166.06376334106727,
+          "bpmBits": 4640046865804104234,
+          "confidence": 0.9190719930803186,
+          "confidenceBits": 4606453484116402780,
+          "expectedBPM": 166,
+          "filename": "Sully - The Still - 02 Lies.mp3"
+        },
+        {
+          "bpm": 159.32951618726682,
+          "bpmBits": 4639809925546506761,
+          "confidence": 0.621719220615543,
+          "confidenceBits": 4603775168445862885,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 01 Jericho (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 160.32003450920246,
+          "bpmBits": 4639844776311706550,
+          "confidence": 0.9182797378742651,
+          "confidenceBits": 4606446348115901250,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 02 Music Reach (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 172.63630420918366,
+          "bpmBits": 4640278116527577096,
+          "confidence": 0.6897485336275879,
+          "confidenceBits": 4604387922023325518,
+          "expectedBPM": 85,
+          "filename": "The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 160.12230654391638,
+          "bpmBits": 4639837819377403557,
+          "confidence": 0.919074139591723,
+          "confidenceBits": 4606453503450458702,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 04 Your Love (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.77392379114917,
+          "bpmBits": 4639825561749000864,
+          "confidence": 0.7196029790083566,
+          "confidenceBits": 4604656826961509883,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 05 Hyperspeed (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 106.24575536776753,
+          "bpmBits": 4637176797316306993,
+          "confidence": 0.7841518478033136,
+          "confidenceBits": 4605238231484414194,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 160.18593876998102,
+          "bpmBits": 4639840058237322256,
+          "confidence": 0.9151515543738201,
+          "confidenceBits": 4606418171943807349,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 07 Out Of Space (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 159.78688997338068,
+          "bpmBits": 4639826017955981069,
+          "confidence": 0.9185554570045787,
+          "confidenceBits": 4606448831573046329,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 08 Everybody In The Place (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.85427436387408,
+          "bpmBits": 4639828388833449168,
+          "confidence": 0.8442125877766008,
+          "confidenceBits": 4605779210536740779,
+          "expectedBPM": 160.1,
+          "filename": "The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.10993464052288,
+          "bpmBits": 4639802199707662281,
+          "confidence": 0.7958323444511006,
+          "confidenceBits": 4605343440045115146,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 162,
+          "bpmBits": 4639903884842631168,
+          "confidence": 0.5471163004081786,
+          "confidenceBits": 4603103205078569611,
+          "expectedBPM": 79.99,
+          "filename": "The Prodigy - 160 Experience - 11 Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss).aiff"
+        },
+        {
+          "bpm": 160.33476312419975,
+          "bpmBits": 4639845294528776968,
+          "confidence": 0.9179150013761012,
+          "confidenceBits": 4606443062861586811,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 12 Death Of The Prodigy Dancers (Neekeetone Dub Rework).aiff"
+        },
+        {
+          "bpm": 159.88536793372322,
+          "bpmBits": 4639829482841180310,
+          "confidence": 0.7643173981643958,
+          "confidenceBits": 4605059578644408336,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 01 Break & Enter (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.69008739650414,
+          "bpmBits": 4639822612018097087,
+          "confidence": 0.8988707711803486,
+          "confidenceBits": 4606271527685560513,
+          "expectedBPM": 80,
+          "filename": "The Prodigy - Music For The 160 Generation - 02 Their Law (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 158.629243740419,
+          "bpmBits": 4639785286900173311,
+          "confidence": 0.49325109478868834,
+          "confidenceBits": 4602557241704667624,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 03 Full Throttle (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.94417239087082,
+          "bpmBits": 4639831551839081073,
+          "confidence": 0.49552169688126124,
+          "confidenceBits": 4602598145235619696,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 04 Speedway (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 79.91866015903763,
+          "bpmBits": 4635324192688622875,
+          "confidence": 0.6124276010117624,
+          "confidenceBits": 4603691476976692376,
+          "expectedBPM": 159.99,
+          "filename": "The Prodigy - Music For The 160 Generation - 05 The Heat (The Energy) (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 79.89186874419565,
+          "bpmBits": 4635322307410405702,
+          "confidence": 0.39127978967599664,
+          "confidenceBits": 4600720289977835618,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.14340959313662,
+          "bpmBits": 4639803377502850699,
+          "confidence": 0.7528019162460365,
+          "confidenceBits": 4604955856404255307,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 07 Claustrophobic Sting (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 159.5969060596345,
+          "bpmBits": 4639819333491268931,
+          "confidence": 0.8734690544126057,
+          "confidenceBits": 4606042729361220957,
+          "expectedBPM": 160.32,
+          "filename": "The Prodigy - Music For The 160 Generation - 08 Scienide (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 161.21846210995542,
+          "bpmBits": 4639876386922706319,
+          "confidence": 0.7606774712982877,
+          "confidenceBits": 4605026793097852615,
+          "expectedBPM": 82,
+          "filename": "The Prodigy - Music For The 160 Generation - 09 We Eat Rhythm (Neekeetone Dub Rework) (Bonus).aiff"
         }
       ]
     },
-    {
-      "corpus": "GiantSteps",
-      "intensity": 7,
-      "tolerance_pct": 2.0,
-      "total": 661,
-      "acc1Correct": 537,
-      "acc2Correct": 546,
-      "acc1_pct": 81.2,
-      "acc2_pct": 82.6
+    "mlTechnique_set_policy_dspOnly": {
+      "tracks": [
+        {
+          "bpm": 130,
+          "bpmBits": 4638777984935788544,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 130,
+          "filename": "03 TVR.m4a"
+        },
+        {
+          "bpm": 137.12688571428572,
+          "bpmBits": 4639028739934594554,
+          "confidence": 0.5320176370776355,
+          "confidenceBits": 4602967208409471158,
+          "expectedBPM": 135.91,
+          "filename": "05 - New York - Punk To Funk - I'm Sick.flac"
+        },
+        {
+          "bpm": 103.0404147926037,
+          "bpmBits": 4636951241525371003,
+          "confidence": 0.7126759595962958,
+          "confidenceBits": 4604594433917423993,
+          "expectedBPM": 102.05,
+          "filename": "07 - Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces.flac"
+        },
+        {
+          "bpm": 113.47141575050482,
+          "bpmBits": 4637685257963294515,
+          "confidence": 0.6652902303045223,
+          "confidenceBits": 4604167621211861772,
+          "expectedBPM": 170,
+          "filename": "1. The Faraday_Bunker (D-Struct Remix).wav"
+        },
+        {
+          "bpm": 169.99288260456274,
+          "bpmBits": 4640185109398252456,
+          "confidence": 0.71380919682917,
+          "confidenceBits": 4604604641210983382,
+          "expectedBPM": 170,
+          "filename": "10. Hellacopta_Assemby (Xiûa Remix).wav"
+        },
+        {
+          "bpm": 85.9057419135622,
+          "bpmBits": 4635745496112977774,
+          "confidence": 0.9370231189833031,
+          "confidenceBits": 4606615173484257904,
+          "expectedBPM": 86,
+          "filename": "11. Sorse_Remorse (Jonah K Remix).wav"
+        },
+        {
+          "bpm": 127.11923522595596,
+          "bpmBits": 4638645637880545477,
+          "confidence": 0.2559450646156729,
+          "confidenceBits": 4598282316308427768,
+          "expectedBPM": 135.85,
+          "filename": "12. Smalltown Boy (12' Version).flac"
+        },
+        {
+          "bpm": 137.09124425414015,
+          "bpmBits": 4639027485912199003,
+          "confidence": 0.6106347476694348,
+          "confidenceBits": 4603675328389403503,
+          "expectedBPM": 85,
+          "filename": "2. Ahmad_The Wrong Place (Artilect Remix).wav"
+        },
+        {
+          "bpm": 170.17556333406256,
+          "bpmBits": 4640191536905012637,
+          "confidence": 0.918646044455218,
+          "confidenceBits": 4606449647512264216,
+          "expectedBPM": 170,
+          "filename": "3. D3Z_Axons (Offish Remix).wav"
+        },
+        {
+          "bpm": 113.23972280701754,
+          "bpmBits": 4637668954021826489,
+          "confidence": 0.5819325071650089,
+          "confidenceBits": 4603416801590122641,
+          "expectedBPM": 85,
+          "filename": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav"
+        },
+        {
+          "bpm": 170.42215082215083,
+          "bpmBits": 4640200212930945985,
+          "confidence": 0.9181151939363851,
+          "confidenceBits": 4606444866035866605,
+          "expectedBPM": 170,
+          "filename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).mp3"
+        },
+        {
+          "bpm": 170.3974243278812,
+          "bpmBits": 4640199342944771150,
+          "confidence": 0.918180588910438,
+          "confidenceBits": 4606445455061428158,
+          "expectedBPM": 170,
+          "filename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav"
+        },
+        {
+          "bpm": 169.56191195091068,
+          "bpmBits": 4640169945966414995,
+          "confidence": 0.920387124583316,
+          "confidenceBits": 4606465329767896464,
+          "expectedBPM": 170,
+          "filename": "6. HEFT_Fuyu (Akinsa Remix).wav"
+        },
+        {
+          "bpm": 79.97966969849563,
+          "bpmBits": 4635328485853297392,
+          "confidence": 0.8201686895249676,
+          "confidenceBits": 4605562642354327600,
+          "expectedBPM": 160,
+          "filename": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav"
+        },
+        {
+          "bpm": 149.9342034331111,
+          "bpmBits": 4639479357366673597,
+          "confidence": 0.7763866752208339,
+          "confidenceBits": 4605168289027716348,
+          "expectedBPM": 150,
+          "filename": "8. Jonah K_Shadow Work (Esthetic Remix).wav"
+        },
+        {
+          "bpm": 113.36578128040475,
+          "bpmBits": 4637677824598291700,
+          "confidence": 0.919134358580768,
+          "confidenceBits": 4606454045854891949,
+          "expectedBPM": 85,
+          "filename": "9. HEFT_Anagram 6 (Owl Remix).wav"
+        },
+        {
+          "bpm": 150.25571400178873,
+          "bpmBits": 4639490669514152443,
+          "confidence": 0.7768104359589202,
+          "confidenceBits": 4605172105925120627,
+          "expectedBPM": 150.95,
+          "filename": "Aeon Flux - Reality (Remaster).wav"
+        },
+        {
+          "bpm": 155.30248089130717,
+          "bpmBits": 4639668236838238857,
+          "confidence": 0.7963712691579944,
+          "confidenceBits": 4605348294247333441,
+          "expectedBPM": 155.98,
+          "filename": "Aeon Flux - Reality (Repitch Remaster).wav"
+        },
+        {
+          "bpm": 159.9606141581823,
+          "bpmBits": 4639832130332339958,
+          "confidence": 0.9191848801549874,
+          "confidenceBits": 4606454500912777607,
+          "expectedBPM": 160,
+          "filename": "Amor Satyr & Fetus - Half Half - 01 Amor Satyr & Fetus - Baby Check.mp3"
+        },
+        {
+          "bpm": 167,
+          "bpmBits": 4640079806703075328,
+          "confidence": 0.318517184828807,
+          "confidenceBits": 4599409515417530378,
+          "expectedBPM": 164.78,
+          "filename": "Boymerang - Autumnal (Leaf).wav"
+        },
+        {
+          "bpm": 166.89321018787038,
+          "bpmBits": 4640076049370590063,
+          "confidence": 0.47340285511021807,
+          "confidenceBits": 4602199687605387948,
+          "expectedBPM": 82.86,
+          "filename": "Boymerang - Rules (Leaf).wav"
+        },
+        {
+          "bpm": 125.90745925992618,
+          "bpmBits": 4638560366727591286,
+          "confidence": 0.8664611410623461,
+          "confidenceBits": 4605979607689315209,
+          "expectedBPM": 126,
+          "filename": "College Hill - Undercurrents Vol 3 - 08 Self Immolation.mp3"
+        },
+        {
+          "bpm": 79.96831804853703,
+          "bpmBits": 4635327687051945461,
+          "confidence": 0.9508715913248212,
+          "confidenceBits": 4606739909434011727,
+          "expectedBPM": 160,
+          "filename": "Echtoo - Chakra - Seminal Sounds.wav"
+        },
+        {
+          "bpm": 79.96989456310469,
+          "bpmBits": 4635327797989295765,
+          "confidence": 0.9606524857127168,
+          "confidenceBits": 4606828007898653080,
+          "expectedBPM": 160,
+          "filename": "Echtoo - Chakra.wav"
+        },
+        {
+          "bpm": 160.13473025724556,
+          "bpmBits": 4639838256497956056,
+          "confidence": 0.9184446074167636,
+          "confidenceBits": 4606447833128721572,
+          "expectedBPM": 160,
+          "filename": "Echtoo - The Mummy - Seminal Sounds.wav"
+        },
+        {
+          "bpm": 130.26962309676347,
+          "bpmBits": 4638787471455148813,
+          "confidence": 0.9193340775500947,
+          "confidenceBits": 4606455844763443626,
+          "expectedBPM": 130,
+          "filename": "Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3"
+        },
+        {
+          "bpm": 161.07378653113088,
+          "bpmBits": 4639871296603308789,
+          "confidence": 0.6232572379398182,
+          "confidenceBits": 4603789021674359876,
+          "expectedBPM": 81,
+          "filename": "Hooverian Blur - Cut and Dried EP - 01 Cut and Dried.mp3"
+        },
+        {
+          "bpm": 163.6940295388045,
+          "bpmBits": 4639963488208253938,
+          "confidence": 0.9179150013761012,
+          "confidenceBits": 4606443062861586811,
+          "expectedBPM": 162,
+          "filename": "Hooverian Blur - Cut and Dried EP - 02 Twice Removed.mp3"
+        },
+        {
+          "bpm": 162.5763750968378,
+          "bpmBits": 4639924164238501046,
+          "confidence": 0.7876543787508027,
+          "confidenceBits": 4605269779478554125,
+          "expectedBPM": 162,
+          "filename": "Hooverian Blur - Cut and Dried EP - 03 Red Scare.mp3"
+        },
+        {
+          "bpm": 162.4865054413543,
+          "bpmBits": 4639921002231103019,
+          "confidence": 0.705256808436288,
+          "confidenceBits": 4604527608144624760,
+          "expectedBPM": 162,
+          "filename": "Hooverian Blur - Cut and Dried EP - 04 Slower Violence.mp3"
+        },
+        {
+          "bpm": 125.90192729681614,
+          "bpmBits": 4638559977450294395,
+          "confidence": 0.7008274840946465,
+          "confidenceBits": 4604487712337715720,
+          "expectedBPM": 126,
+          "filename": "Icicle - Condense.wav"
+        },
+        {
+          "bpm": 158,
+          "bpmBits": 4639763147354275840,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 157.84,
+          "filename": "Ironik - The Calling (Remaster).mp3"
+        },
+        {
+          "bpm": 157.95326960063355,
+          "bpmBits": 4639761503174516671,
+          "confidence": 0.9189134716214851,
+          "confidenceBits": 4606452056282036914,
+          "expectedBPM": 157.85,
+          "filename": "Ironik - The Calling (Remaster).wav"
+        },
+        {
+          "bpm": 159.88203589690076,
+          "bpmBits": 4639829365605556935,
+          "confidence": 0.8781067780091095,
+          "confidenceBits": 4606084502261743081,
+          "expectedBPM": 159.85,
+          "filename": "Legal Offence - Burnin' Up (Piano Mix) (Remaster).wav"
+        },
+        {
+          "bpm": 140,
+          "bpmBits": 4639129828656676864,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 140,
+          "filename": "MattU_Empty Inside_Original Mix.mp3"
+        },
+        {
+          "bpm": 127.87369506955376,
+          "bpmBits": 4638698728272271931,
+          "confidence": 0.9201676515818887,
+          "confidenceBits": 4606463352930841573,
+          "expectedBPM": 128,
+          "filename": "Nautical Divine - Makara.mp3"
+        },
+        {
+          "bpm": 112.53577351222538,
+          "bpmBits": 4637619417993987212,
+          "confidence": 0.7742997940720158,
+          "confidenceBits": 4605149492073387980,
+          "expectedBPM": 85,
+          "filename": "Outer Heaven - UVB76-025 - 01 The Observatory.mp3"
+        },
+        {
+          "bpm": 149.9234439426664,
+          "bpmBits": 4639478978800758305,
+          "confidence": 0.5000323056260969,
+          "confidenceBits": 4602679110155858216,
+          "expectedBPM": 150,
+          "filename": "Outer Heaven - UVB76-025 - 02 More Hardcore.mp3"
+        },
+        {
+          "bpm": 175,
+          "bpmBits": 4640361281679785984,
+          "confidence": 0.3378321160605333,
+          "confidenceBits": 4599757462285921936,
+          "expectedBPM": 95,
+          "filename": "Outer Heaven - UVB76-025 - 03 Minority Industrial.mp3"
+        },
+        {
+          "bpm": 140,
+          "bpmBits": 4639129828656676864,
+          "confidence": 0.95,
+          "confidenceBits": 4606732058837280358,
+          "expectedBPM": 140,
+          "filename": "Proxima_Trapped_Original Mix.mp3"
+        },
+        {
+          "bpm": 154.0400394239279,
+          "bpmBits": 4639623818627910214,
+          "confidence": 0.7729378719622013,
+          "confidenceBits": 4605137224969575444,
+          "expectedBPM": 153.94,
+          "filename": "Release - The Jungle (Remaster ope).wav"
+        },
+        {
+          "bpm": 149,
+          "bpmBits": 4639446488005476352,
+          "confidence": 0.7371392193914075,
+          "confidenceBits": 4604814779372819058,
+          "expectedBPM": 149.04,
+          "filename": "Release - The Jungle 155bpm (Remaster).mp3"
+        },
+        {
+          "bpm": 150.00602318382403,
+          "bpmBits": 4639481884299506008,
+          "confidence": 0.919776198621405,
+          "confidenceBits": 4606459827036027638,
+          "expectedBPM": 150,
+          "filename": "Ron Mercy - Junkin Da Trunk.wav"
+        },
+        {
+          "bpm": 139.91417418191187,
+          "bpmBits": 4639126808929158423,
+          "confidence": 0.9199553125408189,
+          "confidenceBits": 4606461440350789096,
+          "expectedBPM": 140,
+          "filename": "Sam Binga & Foreign Concept - Sam Binga & Foreign Concept - One Up Top EP - 03 BAMF.mp3"
+        },
+        {
+          "bpm": 154.75351327004367,
+          "bpmBits": 4639648921757187601,
+          "confidence": 0.918823985139991,
+          "confidenceBits": 4606451250259467491,
+          "expectedBPM": 154.91,
+          "filename": "Skanna - Nightstalker (Remaster).wav"
+        },
+        {
+          "bpm": 161.50727913372293,
+          "bpmBits": 4639886548768336144,
+          "confidence": 0.5398939280686744,
+          "confidenceBits": 4603038151731815767,
+          "expectedBPM": 162.14,
+          "filename": "Stakka & K-Tee - Living for the Night - After Hours - 01 Living for the Night.aiff"
+        },
+        {
+          "bpm": 167.2291004802364,
+          "bpmBits": 4640087867459617696,
+          "confidence": 0.7778685653614594,
+          "confidenceBits": 4605181636707486598,
+          "expectedBPM": 83.66,
+          "filename": "Stakka & K-Tee - Living for the Night - After Hours - 02 After Hours.aiff"
+        },
+        {
+          "bpm": 170.10756589651805,
+          "bpmBits": 4640189144457868984,
+          "confidence": 0.9188051419607581,
+          "confidenceBits": 4606451080535197548,
+          "expectedBPM": 84.92,
+          "filename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 01 Ya Don't Stop.aiff"
+        },
+        {
+          "bpm": 169.00393967562806,
+          "bpmBits": 4640150314062266199,
+          "confidence": 0.6529668831016192,
+          "confidenceBits": 4604056622368119869,
+          "expectedBPM": 84.92,
+          "filename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 02 Dream World.aiff"
+        },
+        {
+          "bpm": 173.00105957616952,
+          "bpmBits": 4640290950216130525,
+          "confidence": 0.8426281594455738,
+          "confidenceBits": 4605764939275058362,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 01 Decoy.mp3"
+        },
+        {
+          "bpm": 172.68307069846676,
+          "bpmBits": 4640279761977137321,
+          "confidence": 0.9183407280870723,
+          "confidenceBits": 4606446897466900594,
+          "expectedBPM": 86.48,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 03 Clockwork.mp3"
+        },
+        {
+          "bpm": 172.8412331406551,
+          "bpmBits": 4640285326823353754,
+          "confidence": 0.9187131521861645,
+          "confidenceBits": 4606450251964968384,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 05 TImelines.mp3"
+        },
+        {
+          "bpm": 172.70331444061114,
+          "bpmBits": 4640280474240493399,
+          "confidence": 0.918323481521754,
+          "confidenceBits": 4606446742123650312,
+          "expectedBPM": 86.48,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 08 Spider Monkey.mp3"
+        },
+        {
+          "bpm": 171.7450023353573,
+          "bpmBits": 4640246756630804916,
+          "confidence": 0.8026562640124018,
+          "confidenceBits": 4605404904448302110,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 10 So Confused.mp3"
+        },
+        {
+          "bpm": 172.80100552255914,
+          "bpmBits": 4640283911439870418,
+          "confidence": 0.9186243371061618,
+          "confidenceBits": 4606449451989845974,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 11 9000 Series.mp3"
+        },
+        {
+          "bpm": 172.95516394264513,
+          "bpmBits": 4640289335407083350,
+          "confidence": 0.9179150013761012,
+          "confidenceBits": 4606443062861586811,
+          "expectedBPM": 172.96,
+          "filename": "Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3"
+        },
+        {
+          "bpm": 172.91983768235053,
+          "bpmBits": 4640288092474796638,
+          "confidence": 0.9151895620446562,
+          "confidenceBits": 4606418514286471778,
+          "expectedBPM": 172.99,
+          "filename": "Stakka & Skynet Feat Kemal & Rob Data - Clockwork - Remastered 2014 - 02 BiosFear.mp3"
+        },
+        {
+          "bpm": 172.7530474934037,
+          "bpmBits": 4640282224066727966,
+          "confidence": 0.9183917989959718,
+          "confidenceBits": 4606447357472753172,
+          "expectedBPM": 172.95,
+          "filename": "Stakka & Skynet Feat Skinny - Clockwork - Remastered 2014 - 06 Straight Jacket.mp3"
+        },
+        {
+          "bpm": 173.85037947420602,
+          "bpmBits": 4640320833003445490,
+          "confidence": 0.5507651168821698,
+          "confidenceBits": 4603136070695594831,
+          "expectedBPM": 172.97,
+          "filename": "Stakka & Skynet feat Keaton - Clockwork - Remastered 2014 - 04 Isolation.mp3"
+        },
+        {
+          "bpm": 84.03602444839193,
+          "bpmBits": 4635613926442986697,
+          "confidence": 0.8389681391233502,
+          "confidenceBits": 4605731972742739693,
+          "expectedBPM": 84,
+          "filename": "Sully - The Still - 01 The Still.mp3"
+        },
+        {
+          "bpm": 166.06376334106727,
+          "bpmBits": 4640046865804104234,
+          "confidence": 0.9190719930803186,
+          "confidenceBits": 4606453484116402780,
+          "expectedBPM": 166,
+          "filename": "Sully - The Still - 02 Lies.mp3"
+        },
+        {
+          "bpm": 159.32951618726682,
+          "bpmBits": 4639809925546506761,
+          "confidence": 0.621719220615543,
+          "confidenceBits": 4603775168445862885,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 01 Jericho (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 160.32003450920246,
+          "bpmBits": 4639844776311706550,
+          "confidence": 0.9182797378742651,
+          "confidenceBits": 4606446348115901250,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 02 Music Reach (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 172.63630420918366,
+          "bpmBits": 4640278116527577096,
+          "confidence": 0.6897485336275879,
+          "confidenceBits": 4604387922023325518,
+          "expectedBPM": 85,
+          "filename": "The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 160.12230654391638,
+          "bpmBits": 4639837819377403557,
+          "confidence": 0.919074139591723,
+          "confidenceBits": 4606453503450458702,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 04 Your Love (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.77392379114917,
+          "bpmBits": 4639825561749000864,
+          "confidence": 0.7196029790083566,
+          "confidenceBits": 4604656826961509883,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 05 Hyperspeed (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 106.24575536776753,
+          "bpmBits": 4637176797316306993,
+          "confidence": 0.7841518478033136,
+          "confidenceBits": 4605238231484414194,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 160.18593876998102,
+          "bpmBits": 4639840058237322256,
+          "confidence": 0.9151515543738201,
+          "confidenceBits": 4606418171943807349,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 07 Out Of Space (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 159.78688997338068,
+          "bpmBits": 4639826017955981069,
+          "confidence": 0.9185554570045787,
+          "confidenceBits": 4606448831573046329,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 08 Everybody In The Place (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.85427436387408,
+          "bpmBits": 4639828388833449168,
+          "confidence": 0.8442125877766008,
+          "confidenceBits": 4605779210536740779,
+          "expectedBPM": 160.1,
+          "filename": "The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.10993464052288,
+          "bpmBits": 4639802199707662281,
+          "confidence": 0.7958323444511006,
+          "confidenceBits": 4605343440045115146,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 162,
+          "bpmBits": 4639903884842631168,
+          "confidence": 0.5471163004081786,
+          "confidenceBits": 4603103205078569611,
+          "expectedBPM": 79.99,
+          "filename": "The Prodigy - 160 Experience - 11 Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss).aiff"
+        },
+        {
+          "bpm": 160.33476312419975,
+          "bpmBits": 4639845294528776968,
+          "confidence": 0.9179150013761012,
+          "confidenceBits": 4606443062861586811,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - 160 Experience - 12 Death Of The Prodigy Dancers (Neekeetone Dub Rework).aiff"
+        },
+        {
+          "bpm": 159.88536793372322,
+          "bpmBits": 4639829482841180310,
+          "confidence": 0.7643173981643958,
+          "confidenceBits": 4605059578644408336,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 01 Break & Enter (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.69008739650414,
+          "bpmBits": 4639822612018097087,
+          "confidence": 0.8988707711803486,
+          "confidenceBits": 4606271527685560513,
+          "expectedBPM": 80,
+          "filename": "The Prodigy - Music For The 160 Generation - 02 Their Law (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 158.629243740419,
+          "bpmBits": 4639785286900173311,
+          "confidence": 0.49325109478868834,
+          "confidenceBits": 4602557241704667624,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 03 Full Throttle (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.94417239087082,
+          "bpmBits": 4639831551839081073,
+          "confidence": 0.49552169688126124,
+          "confidenceBits": 4602598145235619696,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 04 Speedway (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 79.91866015903763,
+          "bpmBits": 4635324192688622875,
+          "confidence": 0.6124276010117624,
+          "confidenceBits": 4603691476976692376,
+          "expectedBPM": 159.99,
+          "filename": "The Prodigy - Music For The 160 Generation - 05 The Heat (The Energy) (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 79.89186874419565,
+          "bpmBits": 4635322307410405702,
+          "confidence": 0.39127978967599664,
+          "confidenceBits": 4600720289977835618,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 159.14340959313662,
+          "bpmBits": 4639803377502850699,
+          "confidence": 0.7528019162460365,
+          "confidenceBits": 4604955856404255307,
+          "expectedBPM": 160,
+          "filename": "The Prodigy - Music For The 160 Generation - 07 Claustrophobic Sting (Neekeetone Jungle Rework).aiff"
+        },
+        {
+          "bpm": 159.5969060596345,
+          "bpmBits": 4639819333491268931,
+          "confidence": 0.8734690544126057,
+          "confidenceBits": 4606042729361220957,
+          "expectedBPM": 160.32,
+          "filename": "The Prodigy - Music For The 160 Generation - 08 Scienide (Neekeetone 160 Rework).aiff"
+        },
+        {
+          "bpm": 161.21846210995542,
+          "bpmBits": 4639876386922706319,
+          "confidence": 0.7606774712982877,
+          "confidenceBits": 4605026793097852615,
+          "expectedBPM": 82,
+          "filename": "The Prodigy - Music For The 160 Generation - 09 We Eat Rhythm (Neekeetone Dub Rework) (Bonus).aiff"
+        }
+      ],
+      "note": "byte-identical to mlTechnique_nil per Story 4-4 AC #14 A1 short-circuit invariant"
     }
-  ],
-  "perf_baseline": {
-    "path": "_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260513T212552Z--9c48629--9de4446f.json",
-    "mean_seconds": 0.16999676444444442,
-    "median_seconds": 0.140,
-    "p95_seconds": 0.233,
-    "min_seconds": 0.099,
-    "max_seconds": 0.289,
-    "tracks": 82,
-    "warmup_excluded": 1,
-    "failed_count": 0,
-    "ml_mock_on_abstain_ratio": 0.988,
-    "ml_mock_on_abstain_threshold": 1.20
-  },
-  "per_track_baseline_pointer": {
-    "path": "Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json",
-    "track_count": 82,
-    "schema": "[{filename, bpm, confidence, bpmBits (UInt64 = bpm.bitPattern), confidenceBits (UInt64 = confidence.bitPattern), expectedBPM}]",
-    "purpose": "Test-enforceable byte-identity baseline. Used by `MLPolicySweepTests::dspOnlyMatchesStory4_3Baseline` and consumed for AC #5 verification. The baseline was captured at Story 4-3 SHA and remains valid because DSP behavior is unchanged through Stories 4-3b, 4-4, 4-4b — and Story 4-5 must preserve this when ml.mlTechnique == nil (default) OR ensemblePolicy == .dspOnly (A1 short-circuit)."
-  },
-  "regression_thresholds": {
-    "oa300_acc1_floor": 57,
-    "oa300_acc2_floor": 73,
-    "giantsteps_acc1_floor": 537,
-    "giantsteps_acc2_floor": 546,
-    "perf_mock_on_abstain_ratio_ceiling": 1.20,
-    "source": "_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json + epics.md:1048"
   }
 }
