@@ -133,7 +133,11 @@ bnns-impact-report:
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	BNNS_IMPACT=1 \
 	BNNS_IMPACT_OUT_DIR="$(BNNS_IMPACT_OUT_DIR)" \
-	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.BNNSImpactTests/bnnsImpactReport
 
 ## compile-model: Compile $(ML_MODEL_INPUT) (.mlmodel or .mlpackage directory bundle) into $(ML_MODEL_OUT_DIR)/<name>.mlmodelc via xcrun coremlc; override path with ML_MODEL_INPUT=...

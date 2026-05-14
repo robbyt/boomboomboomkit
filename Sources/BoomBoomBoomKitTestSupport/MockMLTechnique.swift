@@ -58,6 +58,12 @@ public final class RecordingMockMLTechnique: MLTechnique, @unchecked Sendable {
   /// populated by the pipeline (not just default-initialized).
   public var capturedCandidatesAfterBoostCount: Int?
 
+  /// Full snapshot of the most recent trace handed to ``evaluate(trace:)``.
+  /// `nil` until the first call. Added Story 4-5 review pass (M5) so tests
+  /// can assert on `lastTrace?.mlFeatures` and prove the auto-trace pipeline
+  /// actually populated the ML features struct.
+  public var lastTrace: BPMDiagnosticTrace?
+
   private let evaluation: MLEvaluation?
 
   public init(returning evaluation: MLEvaluation? = nil) {
@@ -67,6 +73,7 @@ public final class RecordingMockMLTechnique: MLTechnique, @unchecked Sendable {
   public func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
     callCount += 1
     capturedCandidatesAfterBoostCount = trace.candidatesAfterBoost.count
+    lastTrace = trace
     return evaluation
   }
 }

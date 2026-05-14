@@ -17,31 +17,32 @@ struct MLFeatureFramesTests {
 
   // MARK: - TensorLayout invariants (DD #14)
 
-  @Test("TensorLayout.allCases.count == 1 (Story 4.5 ships .nchw only)")
+  @Test("TensorLayout.allCases.count == 2 (Story 4.5 review pass added .frameMajorLogMel)")
   func tensorLayoutInitialCaseSet() {
-    #expect(TensorLayout.allCases.count == 1)
+    #expect(TensorLayout.allCases.count == 2)
     #expect(TensorLayout.allCases.contains(.nchw))
+    #expect(TensorLayout.allCases.contains(.frameMajorLogMel))
   }
 
   // MARK: - Equatable + description
 
   @Test("Equatable honors all stored fields including logMelData")
-  func equatableHonorsLogMelData() {
-    let a = MLFeatureFrames(
+  func equatableHonorsLogMelData() throws {
+    let a = try MLFeatureFrames(
       melBands: 4, frames: 8, tensorLayout: .nchw,
       logMelData: [Float](repeating: 0.25, count: 32),
       sampleRate: 44_100, fftSize: 2048, hopSize: 441,
       melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
       featureSetVersion: "v1"
     )
-    let same = MLFeatureFrames(
+    let same = try MLFeatureFrames(
       melBands: 4, frames: 8, tensorLayout: .nchw,
       logMelData: [Float](repeating: 0.25, count: 32),
       sampleRate: 44_100, fftSize: 2048, hopSize: 441,
       melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
       featureSetVersion: "v1"
     )
-    let diff = MLFeatureFrames(
+    let diff = try MLFeatureFrames(
       melBands: 4, frames: 8, tensorLayout: .nchw,
       logMelData: [Float](repeating: 0.26, count: 32),  // <-- differs
       sampleRate: 44_100, fftSize: 2048, hopSize: 441,
@@ -53,8 +54,8 @@ struct MLFeatureFramesTests {
   }
 
   @Test("description does not embed the full logMelData payload")
-  func descriptionTruncatesPayload() {
-    let m = MLFeatureFrames(
+  func descriptionTruncatesPayload() throws {
+    let m = try MLFeatureFrames(
       melBands: 4, frames: 8, tensorLayout: .nchw,
       logMelData: [Float](repeating: 0.123_456, count: 32),
       sampleRate: 44_100, fftSize: 2048, hopSize: 441,
@@ -69,6 +70,90 @@ struct MLFeatureFramesTests {
     // Payload itself is NOT in the description — keep the diagnostic
     // string bounded.
     #expect(!desc.contains("0.123456"))
+  }
+
+  // MARK: - Throwing init invariants (Unit 2 / DN4)
+
+  @Test("init throws .invalidFeatureShape when melBands <= 0")
+  func initThrowsOnZeroMelBands() {
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 0, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [], sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+  }
+
+  @Test("init throws .invalidFeatureShape when frames <= 0")
+  func initThrowsOnZeroFrames() {
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 0, tensorLayout: .frameMajorLogMel,
+        logMelData: [], sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+  }
+
+  @Test("init throws .invalidFeatureShape when logMelData.count != melBands * frames")
+  func initThrowsOnCountMismatch() {
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [Float](repeating: 0.0, count: 31),  // 4*8 = 32, not 31
+        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+  }
+
+  @Test("init throws .invalidFeatureShape when total payload exceeds size cap")
+  func initThrowsOnOversizedPayload() {
+    // Story 4-5 review pass N5: exercise the size-cap branch without
+    // allocating 8.96M floats. The internal `_withTestingMaximumLogMelDataCount`
+    // helper temporarily lowers the cap so we can construct a small but
+    // over-cap payload, then restores the production cap on scope exit.
+    MLFeatureFrames._withTestingMaximumLogMelDataCount(100) {
+      #expect(throws: MLTechniqueError.self) {
+        _ = try MLFeatureFrames(
+          melBands: 4, frames: 30, tensorLayout: .frameMajorLogMel,
+          // 4 * 30 = 120 > 100 (test cap)
+          logMelData: [Float](repeating: 0.0, count: 120),
+          sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+          melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+          featureSetVersion: "v1")
+      }
+    }
+    // Production cap restored — sanity-check by constructing a payload that
+    // exceeds the test cap but stays under the production cap.
+    let smallButOverTestCap = try? MLFeatureFrames(
+      melBands: 4, frames: 30, tensorLayout: .frameMajorLogMel,
+      logMelData: [Float](repeating: 0.0, count: 120),
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: "v1")
+    #expect(
+      smallButOverTestCap != nil,
+      "production cap should be restored after _withTestingMaximumLogMelDataCount exits")
+  }
+
+  @Test("init accepts .frameMajorLogMel and .nchw layouts")
+  func initAcceptsBothLayouts() throws {
+    let fm = try MLFeatureFrames(
+      melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+      logMelData: [Float](repeating: 0.0, count: 32),
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: "v1")
+    let nchw = try MLFeatureFrames(
+      melBands: 4, frames: 8, tensorLayout: .nchw,
+      logMelData: [Float](repeating: 0.0, count: 32),
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: "v1")
+    #expect(fm.tensorLayout == .frameMajorLogMel)
+    #expect(nchw.tensorLayout == .nchw)
   }
 
   // MARK: - BPMAnalyzer capture flag invariants (AC #4)
@@ -104,11 +189,56 @@ struct MLFeatureFramesTests {
     }
     #expect(features.melBands == 128)
     #expect(features.frames > 0)
-    #expect(features.tensorLayout == .nchw)
+    // Producer emits `.frameMajorLogMel` (post-Story-4-5 review fix DN3).
+    // The `.nchw` tag is reserved for future producers (e.g., a CoreML
+    // conformance) whose retention path emits mel-major bytes.
+    #expect(features.tensorLayout == .frameMajorLogMel)
     #expect(features.logMelData.count == features.melBands * features.frames)
     #expect(features.featureSetVersion == "v1")
     #expect(features.fftSize == 2048)
     #expect(features.logCompressionScale == 100.0)
+  }
+
+  @Test(
+    "AC #14: trace.mlFeatures is populated when mlTechnique != nil + .mlOnly + enableTrace == false"
+  )
+  func mlFeaturesPopulatedWithAutoTraceWhenEnableTraceOff() throws {
+    // Post-Story-4-5 review pass M5: the `enableTrace` knob does NOT gate
+    // ML feature capture — `analyzeBPM` auto-enables trace when
+    // `mlTechnique != nil && policy != .dspOnly`. This test pins that
+    // invariant by USING A RECORDING MOCK to capture the trace the helper
+    // actually passed in (the v1 of this test only asserted `result.trace
+    // == nil` which is true for any cause; the v2 directly observes the
+    // mock's view).
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let mock = RecordingMockMLTechnique(returning: nil)
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = .default
+    opts.enableTrace = false  // <-- the load-bearing config
+    opts.mlTechnique = mock
+    opts.ensemblePolicy = .mlOnly
+    guard let result = try AudioAnalysisService.analyzeBPM(url: url, options: opts) else {
+      Issue.record("analyzeBPM returned nil")
+      return
+    }
+    // Public-API contract: `result.trace == nil` because `enableTrace ==
+    // false` — consumers don't see the auto-built trace.
+    #expect(result.trace == nil)
+    // The load-bearing invariant: the mock saw an auto-built trace, AND
+    // that trace had mlFeatures populated. This is the auto-trace pipeline
+    // proof; a regression that disabled auto-trace would land mock.callCount
+    // == 0 (helper short-circuit) or mock.lastTrace?.mlFeatures == nil
+    // (capture flag not propagated). Both failure modes are now testable.
+    #expect(mock.callCount == 1, "ML should be invoked exactly once for the merged-window trace")
+    let trace = try #require(
+      mock.lastTrace, "RecordingMock.lastTrace must be set after evaluate(trace:)")
+    let features = try #require(
+      trace.mlFeatures, "auto-trace pipeline must populate mlFeatures under .mlOnly")
+    #expect(features.melBands == 128)
+    #expect(features.frames > 0)
+    #expect(features.logMelData.count == features.melBands * features.frames)
+    #expect(features.featureSetVersion == "v1")
+    #expect(features.tensorLayout == .frameMajorLogMel)
   }
 
   @Test("trace.mlFeatures stays nil under .dspOnly even with mlTechnique set (A1 short-circuit)")
@@ -141,10 +271,20 @@ struct MLFeatureFramesTests {
     let samples = generateClickTrack(
       bpm: 120, sampleRate: 44_100, durationSeconds: 4.0)
 
+    // Story 4-5 review pass M2: capture the post-`vvlogf` per-frame log-mel
+    // matrix via the test-only `onPostVvlogf` closure. The closure deep-copies
+    // each row via `frames.map { Array($0) }` so the captured value is
+    // INDEPENDENT of the array the retention block subsequently reads — any
+    // future mutation between the closure and the retention path would diverge
+    // the bitPattern comparison below.
+    var postVvlogfCapture: [[Float]] = []
     let withCapture = BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(
       samples: samples, sampleRate: sampleRate, hopSize: hopSize,
       computeSubBands: true, normalizeSubBands: false,
-      captureMLFeatures: true)
+      captureMLFeatures: true,
+      onPostVvlogf: { frames in
+        postVvlogfCapture = frames.map { Array($0) }
+      })
     let withoutCapture = BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(
       samples: samples, sampleRate: sampleRate, hopSize: hopSize,
       computeSubBands: true, normalizeSubBands: false,
@@ -176,7 +316,7 @@ struct MLFeatureFramesTests {
     // Captured payload shape contract: melBands * frames == count.
     #expect(captured.logMelData.count == captured.melBands * captured.frames)
     #expect(captured.melBands == 128)
-    #expect(captured.tensorLayout == TensorLayout.nchw)
+    #expect(captured.tensorLayout == TensorLayout.frameMajorLogMel)
     #expect(captured.featureSetVersion == "v1")
 
     // All values must be finite — if vvlogf produced NaN/Inf for any
@@ -184,6 +324,25 @@ struct MLFeatureFramesTests {
     for v in captured.logMelData {
       #expect(v.isFinite, "non-finite element in retained log-mel payload")
     }
+
+    // Story 4-5 review pass M2 (HALT (h) literal): element-wise bitPattern
+    // equality between the independently-captured post-`vvlogf` matrix
+    // and the retained `mlFeatures.logMelData`. The capture is a deep
+    // copy of `logMelFrames` taken AT the point in the DSP loop where
+    // `vvlogf` has just written; the retention path then reads
+    // `logMelFrames` and concatenates it. If any code between the
+    // closure and the retention path mutates the frames, the
+    // bit-patterns diverge here.
+    #expect(
+      !postVvlogfCapture.isEmpty,
+      "onPostVvlogf must have been invoked when captureMLFeatures: true")
+    let flatPostVvlogf = postVvlogfCapture.flatMap { $0 }
+    #expect(
+      captured.logMelData.count == flatPostVvlogf.count,
+      "retained payload count diverges from post-vvlogf flat count")
+    #expect(
+      captured.logMelData.elementsEqual(flatPostVvlogf, by: { $0.bitPattern == $1.bitPattern }),
+      "retained logMelData diverges from independent post-vvlogf deep-copy element-wise")
   }
 
   // MARK: - Multi-window single-eval invariant (DD #17)

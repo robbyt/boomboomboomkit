@@ -110,9 +110,14 @@ public protocol MLTechnique: Sendable {
   ///   features, or out-of-distribution input). Conformers SHOULD return
   ///   `nil` rather than a low-confidence ``MLEvaluation`` when the
   ///   prediction would not improve on DSP-only candidate scoring.
-  /// - Note: Implementations MUST be thread-safe. The library may invoke
-  ///   this method concurrently from `withTaskGroup` fan-out at intensity
-  ///   `≥ .thorough`.
+  /// - Note: The library currently invokes this method at most ONCE per
+  ///   `analyzeBPM(url:options:)` call, on the merged-winner trace (Story
+  ///   4-5 DD #17). Implementations MUST still be thread-safe — a future
+  ///   intensity that fans out per-window evaluation via `withTaskGroup`
+  ///   could invoke this method concurrently, and the protocol contract
+  ///   already promises it. Backend conformers wrapping non-Sendable
+  ///   underlying types (e.g., `MLModel` from Core ML) should declare
+  ///   `@unchecked Sendable` with a documented rationale.
   /// - Note: This protocol is backend-agnostic. Conformers may use
   ///   BNNSGraph (CPU-only, low-latency), Core ML (CPU+ANE eligible),
   ///   MLX (Apple Silicon), MPS Graph, or pure Swift inference. The
@@ -159,4 +164,19 @@ public enum MLTechniqueError: Error, Sendable {
   /// Consumers shipping a different bin count must implement a custom
   /// ``MLTechnique`` conformance that decodes their own bin centers.
   case binCountMismatch(expected: Int, actual: Int)
+
+  /// A typed-evidence payload (``MLFeatureFrames``) was constructed with
+  /// dimensions outside the library's accepted range. Fires from the
+  /// throwing init when `melBands <= 0`, `frames <= 0`, `logMelData.count
+  /// != melBands * frames`, or the total payload exceeds the size cap
+  /// (≈32 MB; defends against accidental construction of arbitrarily-
+  /// large `[Float]` payloads on a public Sendable type). `reason`
+  /// describes which invariant fired.
+  ///
+  /// Producer-side this is converted to abstain (`mlFeatures = nil`) via
+  /// `try?` — an oversized feature payload routes through the standard
+  /// "model can't see features" path rather than crashing the host app.
+  /// Consumer-side `MLTechnique` conformances see no special signaling;
+  /// `trace.mlFeatures` is simply `nil`.
+  case invalidFeatureShape(reason: String)
 }

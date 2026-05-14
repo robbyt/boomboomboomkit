@@ -514,13 +514,24 @@ struct BPMAnalyzer {
   /// Reuses the same STFT + mel filterbank pipeline as `computeMelOnsetEnvelope`,
   /// but also produces 4 independent sub-band onset envelopes by summing within
   /// each band's mel bin range.
+  ///
+  /// - Parameter onPostVvlogf: Test-only seam. When non-nil, invoked exactly once
+  ///   immediately AFTER the per-frame `vvlogf` loop completes and BEFORE the
+  ///   retention block builds `mlFeatures`. The closure receives the raw
+  ///   per-frame log-mel matrix; callers should deep-copy via
+  ///   `frames.map { Array($0) }` if they intend to compare against
+  ///   `OnsetEnvelopes.mlFeatures.logMelData` for HALT (h) byte-identity
+  ///   verification (review fix M2 — pattern: independent capture, not
+  ///   shared-buffer aliasing). The closure is `nil` in all production
+  ///   call paths.
   static func computeMelOnsetEnvelopeWithSubBands(
     samples: [Float],
     sampleRate: Double,
     hopSize: Int,
     computeSubBands: Bool = true,
     normalizeSubBands: Bool = false,
-    captureMLFeatures: Bool = false
+    captureMLFeatures: Bool = false,
+    onPostVvlogf: (([[Float]]) -> Void)? = nil
   ) -> OnsetEnvelopes {
     guard
       let fft = vDSP.FFT(
@@ -620,38 +631,69 @@ struct BPMAnalyzer {
       return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
     }
 
+    // Story 4-5 review fix M2: test-only seam fires here, AFTER the per-frame
+    // `vvlogf` loop completes and BEFORE the retention block reads
+    // `logMelFrames`. Production callers pass `nil`; tests pass a closure
+    // that deep-copies via `frames.map { Array($0) }` so the captured value
+    // is independent of any downstream mutation.
+    onPostVvlogf?(logMelFrames)
+
     // Story 4-5 / DD #2 / AC #4 — retain the post-`vvlogf` per-frame log-mel
     // matrix BEFORE the temporal-difference loop below mutates intermediate
     // state. The retention happens here so the byte-identity test (HALT (h))
     // can compare against the exact post-vvlogf state. When the flag is off,
     // the heavy [Float] payload is never allocated.
     //
-    // Storage order: source-natural FRAME-MAJOR flat layout —
+    // Storage order: source-natural frame-major flat layout —
     // [frame0_mel0, frame0_mel1, ..., frame0_melLast, frame1_mel0, ...] —
-    // matching `logMelFrames.flatMap { $0 }`. The logical NCHW
-    // (H=melBands, W=frames) shape declared via `tensorLayout` is the
-    // CONSUMER's reshape contract; `BNNSTechnique.featurize` transposes
-    // frame-major → mel-major before feeding the graph.
+    // matching `logMelFrames.flatMap { $0 }`. The `tensorLayout` tag
+    // accurately reports `.frameMajorLogMel` so third-party consumers
+    // don't need to know the producer's internal convention. The
+    // `BNNSTechnique` conformance transposes frame-major → mel-major
+    // before feeding the graph (DD #16-equivalent contract).
+    //
+    // Overflow guard before the `melBands * logMelFrames.count`
+    // multiplication: a multi-hour analysis window (consumer with
+    // `maxSeconds = 1800`) could trip Int overflow on the reserveCapacity
+    // computation; abstain via `mlFeatures = nil` rather than trap.
+    //
+    // Review fix N1: `try?` blanket-swallow replaced with typed catch on
+    // `MLTechniqueError.invalidFeatureShape` (the documented abstain path);
+    // any other error is a programmer bug — `assertionFailure` traps in
+    // debug, no-ops in release, both branches still produce nil so prod
+    // callers gracefully degrade to DSP-only.
     let retainedMLFeatures: MLFeatureFrames? = {
       guard captureMLFeatures else { return nil }
+      guard logMelFrames.count > 0, melBands <= Int.max / logMelFrames.count else {
+        return nil
+      }
       var flat = [Float]()
       flat.reserveCapacity(melBands * logMelFrames.count)
       for frame in logMelFrames {
         flat.append(contentsOf: frame)
       }
-      return MLFeatureFrames(
-        melBands: melBands,
-        frames: logMelFrames.count,
-        tensorLayout: .nchw,
-        logMelData: flat,
-        sampleRate: sampleRate,
-        fftSize: fftSize,
-        hopSize: hopSize,
-        melFmin: melFmin,
-        melFmax: effectiveFmax,
-        logCompressionScale: logCompressionScale,
-        featureSetVersion: "v1"
-      )
+      do {
+        return try MLFeatureFrames(
+          melBands: melBands,
+          frames: logMelFrames.count,
+          tensorLayout: .frameMajorLogMel,
+          logMelData: flat,
+          sampleRate: sampleRate,
+          fftSize: fftSize,
+          hopSize: hopSize,
+          melFmin: melFmin,
+          melFmax: effectiveFmax,
+          logCompressionScale: logCompressionScale,
+          featureSetVersion: "v1"
+        )
+      } catch MLTechniqueError.invalidFeatureShape {
+        return nil
+      } catch {
+        assertionFailure(
+          "BPMAnalyzer retention path constructed an MLFeatureFrames with unexpected error: \(error)"
+        )
+        return nil
+      }
     }()
 
     let n = vDSP_Length(melBands)

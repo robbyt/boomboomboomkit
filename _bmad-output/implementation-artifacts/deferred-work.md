@@ -241,7 +241,9 @@ Replaces an earlier same-day defer list; supersedes items now reclassified as `p
 
   - **RESOLVED BY STORY 4.4 (2026-05-08):** Sanitized at the consumer (`EnsembleCombiner.combine`), NOT at `MLEvaluation.init`. Two-sentinel rule per DD #4: non-finite `bpm` (NaN, ±∞) treats the ML evaluation as a sentinel-abstain (combiner falls back to DSP, `mlAbstained: true` in the attached `EnsembleDecision`); finite-but-out-of-range `bpm` clamps to `60.0...200.0`. Confidence sentinel is independent: non-finite collapses to `0.0` (NOT abstain — bpm may still be valid); out-of-range clamps to `0.0...1.0`. `MLEvaluation.init` itself is unchanged (per DD #4: a failable init would be a breaking change to a struct that already shipped in Story 4-3). Tests: `EnsembleCombinerSanitizationTests` (6 boundary cases); existing `MLEvaluation` DocC saying "conformers should clamp predictions" stays correct as defense-in-depth. Close-out commit: see `git log --grep "Story 4-4: configurable EnsemblePolicy"`.
 
-- **Story 4.5/4.6 — Cancellation cooperation across `MLTechnique.evaluate` boundary.** No `options.isCancelled()` check between `MetadataCorroborator.apply` and `MLTechnique.evaluate` in `analyzeBPM`. Mock evaluate is sub-millisecond so unobservable today. A real BNNS or CoreML conformance with multi-second inference will hold the worker thread past `isCancelled` becoming true, violating the documented `analyzeBPM` cancellation contract. Decision: add a between-stage cancellation check in `analyzeBPM` AND/OR document the per-conformance responsibility. `Sources/BoomBoomBoomKit/AudioAnalysisService.swift:266-279`.
+- ~~**Story 4.5/4.6 — Cancellation cooperation across `MLTechnique.evaluate` boundary.** No `options.isCancelled()` check between `MetadataCorroborator.apply` and `MLTechnique.evaluate` in `analyzeBPM`. Mock evaluate is sub-millisecond so unobservable today. A real BNNS or CoreML conformance with multi-second inference will hold the worker thread past `isCancelled` becoming true, violating the documented `analyzeBPM` cancellation contract. Decision: add a between-stage cancellation check in `analyzeBPM` AND/OR document the per-conformance responsibility. `Sources/BoomBoomBoomKit/AudioAnalysisService.swift:266-279`.~~
+
+  - **RESOLVED BY STORY 4.5 (2026-05-14, SHA: pending final commit):** Story 4.5 introduced the private static `AudioAnalysisService.evaluateMLIfActive(options:trace:)` helper. The post-review-pass-v2 spec-canonical semantic places the cancellation check AFTER the policy/ml/trace guard (so `.dspOnly` returns nil silently regardless of cancellation, preserving Story 4-4 AC #14's `RecordingMockMLTechnique.callCount == 0` invariant) and BEFORE `ml.evaluate(trace:)` is invoked. Story 4.6 (CoreML) inherits the helper as-is — the same gate fires regardless of which `MLTechnique` conformance is wired up. Cancellation latency contract: BNNSGraph inference is atomic from the consumer's perspective (no mid-inference cancellation hook); a cancelled task waits the full inference wall-clock (50-1000 ms typical for the bundled tempo CNN) before observing cancellation. ADR-1's per-window granularity is satisfied; finer mid-inference cancellation is documented as a separate future enhancement.
 
 - **Story 4-3b — Perf-gate sequential-ordering bias (cache + thermal warmth).** Corpus-grain `mlMockOnAbstainPerf` runs baseline pass to completion before mock pass, so OS file cache and CPU thermal state are warmed when mock measurement begins. Biases `ratio = mockMean / baselineMean` downward — a real ~1.40x trace-build regression could land at ~1.15x measured. Interleave per-track (baseline, mock, baseline, mock, …) or randomize. Belongs in Story 4-3b alongside threshold tightening. `Tests/BoomBoomBoomKitBenchmarkTests/PerformanceBenchmarkTests.swift:439-462`.
 
@@ -316,3 +318,82 @@ Replaces an earlier same-day defer list; supersedes items now reclassified as `p
 ## Deferred from: code review of 4-4b-tempo-classifier-training (2026-05-09) — chunk 1 of 4 (`_bmad-output/ml-training/`)
 
 - **Corpus quality: GiantSteps train+val data is 96 kbps MP3 (lossy)** — Project Lead noted 2026-05-09 that all GiantSteps audio is encoded at 96 kbps MP3, which is aggressive lossy compression that strips high-frequency content and introduces well-known transient smearing. The trained `giantsteps_v1.mlmodelc` reference model therefore inherits this quality ceiling regardless of architecture / hyperparameters. **Next training run should consider:** (a) higher-bitrate sources (Acid Pro / native CD-rips at 320 kbps or PCM), (b) supplementing GiantSteps with a higher-quality corpus, (c) explicitly augmenting with simulated MP3-encoding round-trips on lossless source material to make the model robust to multiple bitrate/codec combinations rather than fitted to a specific lossy variant. Especially relevant given onset-envelope quality on heavily-mastered material is already documented as the upstream weakness for DnB triplet failures (project-context.md). **Re-open trigger:** any future story planning a re-train (Story 4-X) MUST consult this entry; OR a higher-quality tempo corpus becomes available; OR consumer report indicates production accuracy on PCM/lossless input is materially better than benchmarks suggest.
+
+
+## Deferred from: code review of 4-5-bnns-mltechnique-conformance (2026-05-13)
+
+- **AC #5 `4-5-regression-snapshot.json` is metadata-only — letter of spec not met** — `_bmad-output/implementation-artifacts/4-5-regression-snapshot.json` was meant to be a per-track BPM snapshot captured at Task 1 and used as the byte-identity baseline. What shipped is a metadata pointer noting that per-track byte-identity is held via Story 4-3's `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json` inherited fixture. The inertness contract IS satisfied via the inherited path; the spec's "captured at Task 1 with new per-corpus comparison" wording is a letter-vs-spirit mismatch. **Re-open trigger:** any future Story-4-X change to `BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands` or `runPreCorroborationPipeline` that invalidates the Story-4-3 inherited baseline, OR a CI workflow change that wants a Story-4-5-specific snapshot file for archival.
+
+## Deferred from: code review of 4-5-bnns-mltechnique-conformance — review-pass implementation (2026-05-14)
+
+- **DN6 — Consumer-tunable `confidenceThreshold` / `marginConfidenceThreshold` on `BNNSTechnique`** — DD #10's gate values (`0.50` softmax-max + `0.10` margin) are calibrated for the lossy 96 kbps GiantSteps training distribution. Codex's review-pass meta-review recommended exposing them via `BNNSTechnique(modelURL:confidenceThreshold:marginThreshold:)` for consumers retraining on a higher-quality corpus. Pattern set, not yet implemented — review-pass time-box prioritized correctness fixes over API expansion. **Re-open trigger:** any consumer retraining on a HiFi corpus reports calibration mismatch (over-abstain or over-accept), OR Story 4-7+ surfaces calibration evidence demanding the override.
+
+- **DN8 — Workspace caching on `BNNSGraphHandle`** — `inferTempoCNN` allocates and deallocates the BNNSGraph workspace per call. WWDC 2024 #10211 ("Support real-time ML inference on the CPU") emphasizes amortizing workspace allocation across calls. Today this is fine — `BNNSTechnique` runs at most once per `analyzeBPM` (DD #17), and per-call workspace is page-aligned + small. Codex deferred per "fix correctness first" framing. **Re-open trigger:** Instruments profile shows `BNNSGraphContextMake` + workspace allocate accounts for > 20% of `evaluate(trace:)` wall-clock; OR a Story 4-X reverses DD #17 to enable multi-window ML evaluation.
+
+- **m18 — `EnsembleDecision.rawMLBpm: Double?` to surface ML's prediction even when DSP wins ensemble** — Today `EnsembleDecision` carries `selectedBPM` + winner enum but no separate `mlBPM` field. When `winner == .dsp` (including ML abstain), the impact report cannot distinguish "ML predicted X but lost to DSP" from "ML abstained entirely." Diagnostically lossy. Codex deferred from Unit 5 because adding the trace field requires expanding `EnsembleDecision` (signature surface change). **Re-open trigger:** Story 4.6 ML calibration evidence demands the raw prediction in the impact report; OR Epic 5 debugger UI needs to show "ML predicted X, DSP won with Y."
+
+- **C6 negative-path fixture generation** — AC #13's `initThrowsOnMismatchedTensorNames` + wrong-shape + wrong-dtype tests require 3 malformed `.mlmodelc` fixtures. Per Risk #1 in the review-pass plan: this requires writing `_bmad-output/ml-training/build_malformed_fixtures.py` to construct broken CoreML models via direct `coremltools` API (NOT extending `tools/coreml-convert/convert.py`, which is consumer-facing and must not support malformed states). No `model.pt` checkpoint is currently committed; the fixture script needs to either retrain or hand-craft a minimal tempo-CNN. Time-boxed to 2 hours; exceeded. **Re-open trigger:** any future Story regenerates `model.pt`, OR pre-1.0 release counsel pass requires the HALT (i) gate to actually fire.
+
+- **HALT (h) literal post-`vvlogf` byte-identity test** — The existing `retainedSpectrogramIsBitExactPostVvlogf` test in `MLFeatureFramesTests` compares retained envelopes between `captureMLFeatures: true/false` runs. The spec's letter (Story 4-5 AC #5) is element-wise byte-identity between the retained `logMelData` and the `logOutput` array immediately AFTER `vvlogf` and BEFORE the temporal-difference `vDSP_vsub`. Requires a new `@testable internal` hook on `BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands` returning the intermediate `logOutput`. Deferred from review-pass Unit 6 because the indirect test (envelope byte-identity) already pins the retention path's regression-protection contract; the literal-letter test is a hardening gate, not a load-bearing invariant. **Re-open trigger:** any future change to `BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands`'s log-mel retention path that the existing envelope-byte-identity test cannot detect (e.g., a future refactor that splits the function into separate `logOutput`-producing and envelope-producing helpers).
+
+- **M11 multi-fixture byte-identity expansion** — `dspOnlyByteIdenticalWithBNNSAvailable` exercises one fixture (`Meta_Man.mp3`). Codex's review-pass meta-review recommended expanding to 3-5 fixtures of varying duration / sample rate to cover duration-dependent code paths (e.g., the `captureMLFeatures`-conditioned retention branch on short vs long clips). Deferred because the inertness contract is also pinned via the inherited Story 4-3 fixture pin (`Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json`) which covers the full OA300 corpus. **Re-open trigger:** any Story 4-X change to `runPreCorroborationPipeline` whose effect could plausibly be duration-dependent (e.g., a new windowing strategy or a new pre-corroboration step gated on file duration).
+
+- **`tools/coreml-convert/.venv/` lint exclusion** — Pre-existing Story 4-4b carry-over from the original close-out's Completion Notes. `.swiftlint.yml` should add `tools/coreml-convert/.venv` and `_bmad-output/ml-training/.venv` to `excluded` so `make lint` doesn't surface 157 violations from `coremltools/modelrunner/ModelRunner/ModelService.swift` (third-party Python deps that happen to ship Swift sources). Out of review-pass scope. **Re-open trigger:** any cleanup story that re-runs `make lint` at the Makefile level and wants a clean exit code.
+
+## Story 4-5 review-pass v2 — deferred Edge Case Hunter findings (2026-05-14)
+
+Items surfaced by the Edge Case Hunter pass during the post-review-pass-v2
+sweep that are NOT being fixed in this commit. Each entry: 1-line summary +
+trigger condition + Story 4.6 blocking status. Items marked `Blocks 4.6: no`
+are safe to defer; items marked `Blocks 4.6: yes` must be re-opened before
+4.6 enters dev.
+
+- **EC#01 — TOCTOU between `FileManager.fileExists` and `BNNSGraphCompileFromFile`.**
+  `BNNSTechnique.init(modelURL:)` checks file existence then opens via the
+  C API. A delete-between-checks race throws `modelLoadFailed` rather than
+  `modelResourceMissing`. **Trigger:** any consumer report of inconsistent
+  error type under filesystem churn. **Blocks 4.6:** no (same surface in
+  CoreML init).
+
+- **EC#02 — `MLFeatureFrames.Equatable` returns false for NaN-bearing
+  payloads vs themselves (Float NaN semantics).** Synthesized `Equatable`
+  reflexivity violation when `logMelData` contains NaN. Pre-existing pattern
+  documented for `SubBandEnergies` in the same file. **Trigger:** any test
+  asserting `lhs == rhs` on a trace that could contain non-finite values
+  (today's tests use deterministic finite inputs). **Blocks 4.6:** no.
+
+- **EC#03 — `BNNSGraphContextDestroy` on a partially-initialized context.**
+  Defer always fires; if `BNNSGraphContextMake` returned a context with
+  non-zero `data` but zero `size` (or vice versa), the destroy call still
+  runs. Framework-internal behavior unclear. **Trigger:** new SDK introduces
+  half-initialized context as a documented state. **Blocks 4.6:** no
+  (CoreML doesn't use this primitive).
+
+- **EC#04 — Workspace pointer + size semantics on `workspaceSize == 0`.**
+  When BNNS reports zero workspace, the code passes `nil` + `0`. If a future
+  graph reports zero size but the framework still dereferences the pointer,
+  a nil-deref ensues. **Trigger:** any failure in `BNNSGraphContextExecute`
+  under a graph variant that previously worked. **Blocks 4.6:** no.
+
+- **EC#05 — `RenamedTensors.mlmodelc` fixture corruption detection.**
+  C1's fixture lacks a SHA256 manifest. Silent corruption during git
+  merge or LFS round-trip wouldn't be caught by the existing existence
+  check. **Trigger:** add manifest hashing when the fixture causes
+  unexplained `initThrowsOnMismatchedTensorNames` flakes in CI.
+  **Blocks 4.6:** no.
+
+- **EC#06 — Raw-API guard's column-level scanner upgrade.** N11 documents
+  the line-level scanner's known false-positive/false-negative shapes
+  (banned-name embedded in `code() /* ... */ moreCode()` or `*/ realCode()`).
+  Upgrade to a column-level state machine when a maintainer needs to
+  mention a banned API by name in an inline comment. **Trigger:** first
+  legitimate banned-name mention in source. **Blocks 4.6:** no.
+
+- **EC#07 — `bnnsImpactReport` two-run determinism diff filter.** AC #8
+  expects `make bnns-impact-report` twice with the same inputs to produce
+  byte-identical JSON except for `latency_ms`. The post-N7 schema also
+  varies `named_dnb_resolved_via_dsp_fallback` if any track flips
+  between ML-win and DSP-fallback (timing-dependent at thresholds).
+  **Trigger:** first CI run that observes the new field flipping between
+  runs at the same SHA. **Blocks 4.6:** no.
+
