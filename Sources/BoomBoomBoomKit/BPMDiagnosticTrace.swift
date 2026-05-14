@@ -357,13 +357,32 @@ public struct SubBandEnergies: Sendable, CustomStringConvertible, Equatable {
 /// project-context.md "Public API Discipline" — Story 4.6 (CoreML) may
 /// extend the case list (e.g., `.nhwc`) when an `MLShapedArray` consumer
 /// surfaces a need.
+///
+/// See `tools/coreml-convert/README.md` for the canonical consumer-onboarding
+/// flow (Paths A/B/C: bundled, converted, third-party) and the worked
+/// example showing how a custom ``MLTechnique`` conformance reads this
+/// layout tag and reshapes accordingly.
 public enum TensorLayout: String, Sendable, Hashable, CaseIterable {
 
+  /// Frame-major flat layout — the on-the-wire shape ``BPMAnalyzer``
+  /// emits when capturing ``MLFeatureFrames``. Element `[frame * melBands
+  /// + mel]` of ``MLFeatureFrames/logMelData``; concatenation of per-frame
+  /// `logMelFrames` produces this order naturally. ``BNNSTechnique``
+  /// transposes frame-major → mel-major at evaluate time (see
+  /// ``BNNSTechnique`` Step 1 of `featurize`).
+  ///
+  /// Added Story 4-5 review pass (post-code-review 2026-05-13): the
+  /// producer was originally tagging this layout as ``nchw``, which was
+  /// inaccurate — third-party ``MLTechnique`` consumers reading the
+  /// `.nchw` tag would reshape frame-major bytes as mel-major NCHW and
+  /// feed transposed features to their models. Pre-1.0 fix introduces
+  /// the truthful layout case.
+  case frameMajorLogMel
   /// Row-major `[N=1, C=1, H=melBands, W=frames]` layout. Stride is
-  /// contiguous: `[H*W, H*W, W, 1]`. This matches both the bundled
-  /// `giantsteps_v1.mlmodelc` input contract AND the canonical
-  /// Schreiber & Muller (2018) tempo-CNN architecture from which the
-  /// library's reference model is derived.
+  /// contiguous: `[H*W, H*W, W, 1]`. Reserved for future producers
+  /// (e.g., a CoreML conformance that consumes `MLShapedArray<Float>`
+  /// directly) whose retention path emits mel-major bytes; the
+  /// ``BNNSTechnique`` consumer reads this layout without transposing.
   case nchw
 }
 
@@ -384,6 +403,11 @@ public enum TensorLayout: String, Sendable, Hashable, CaseIterable {
 /// any change to `BPMAnalyzer.hopSize` / `melBands` / `melFmin` /
 /// `melFmax` / `fftSize` / `logCompressionScale` / mel filterbank formula
 /// MUST bump the version (DD #2 + DD #14 bump-trigger checklist).
+///
+/// See `tools/coreml-convert/README.md` for the canonical consumer-onboarding
+/// flow — Paths A (bundled reference model), B (your converted weights), and
+/// C (third-party / AGPL caveats). The README's worked examples show how a
+/// custom ``MLTechnique`` conformance consumes this struct.
 public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
 
   /// Number of mel bands per frame. Equals `128` for the Story 4.5
@@ -401,8 +425,20 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   /// breaking the precondition guard.
   public let tensorLayout: TensorLayout
 
-  /// Row-major log-mel payload. Precondition (enforced in ``init``):
-  /// `count == melBands * frames`. Layout follows ``tensorLayout``.
+  /// Log-mel payload whose interpretation depends on ``tensorLayout``:
+  /// - ``TensorLayout/frameMajorLogMel`` (current ``BPMAnalyzer``
+  ///   producer): `[frame0_mel0, frame0_mel1, …, frame0_melLast,
+  ///   frame1_mel0, …]`. Equivalent to `logMelFrames.flatMap { $0 }`
+  ///   where each inner row is one frame's mel band values.
+  /// - ``TensorLayout/nchw``: `[N=1, C=1, H=melBands, W=frames]`
+  ///   row-major, i.e., mel-major (`[mel0_frame0, mel0_frame1, …,
+  ///   mel0_frameLast, mel1_frame0, …]`).
+  ///
+  /// Throwing-init invariants: `count == melBands * frames`, both
+  /// dimensions positive, and total element count `<= 8_388_608` (≈ 32
+  /// MB on a `[Float]`; defends the public initializer against
+  /// accidental construction of arbitrarily-large payloads on a
+  /// `Sendable` boundary).
   public let logMelData: [Float]
 
   /// DSP source rate from which the spectrogram was derived. One of
@@ -439,6 +475,57 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   /// `evaluate(trace:)`) if the versions disagree.
   public let featureSetVersion: String
 
+  /// Maximum allowed `logMelData.count` (= 8 Mi floats = 32 MB at
+  /// 4 bytes/float). Comfortably accommodates the default
+  /// `AudioAnalysisService.Options.maxSeconds = 120` budget
+  /// (120 s × 100 fps × 128 mel = 1.536 Mi floats) with ~5× headroom for
+  /// stories that bump `maxSeconds` toward 10 minutes. Consumers with
+  /// `maxSeconds = 1800` (rare) trip the cap and route through abstain
+  /// (`try?` in the producer → `mlFeatures = nil`).
+  ///
+  /// **Retention-side defense, not boundary defense (review fix N13):** the cap
+  /// fires inside the initializer AFTER the caller has already allocated the
+  /// `[Float]` payload. Its job is to defend the ``BPMAnalyzer`` retention path
+  /// against pathologically-long analysis windows producing a multi-hundred-MB
+  /// `mlFeatures` value (the `try`/`catch invalidFeatureShape` in the producer
+  /// routes the failure through the documented abstain path). Callers that
+  /// pre-allocate their own `logMelData` MUST validate the allocation size
+  /// themselves — this initializer cannot.
+  public static var maximumLogMelDataCount: Int {
+    _testingMaximumLogMelDataCount ?? 8_388_608
+  }
+
+  /// Test-only override of ``maximumLogMelDataCount``. Implemented as a Swift
+  /// `@TaskLocal` so the override is naturally per-task — concurrent tests
+  /// constructing larger ``MLFeatureFrames`` outside the
+  /// ``_withTestingMaximumLogMelDataCount(_:_:)`` scope continue to see the
+  /// production cap. The v1 implementation used `nonisolated(unsafe) static var`
+  /// which silenced Swift 6 strict-concurrency checking but didn't actually
+  /// isolate parallel tests — Codex review pass flagged this as a real bug,
+  /// not just a smell (review fix N5 v2 / codex 019e28bb).
+  ///
+  /// Production code MUST NOT touch this directly.
+  @TaskLocal internal static var _testingMaximumLogMelDataCount: Int?
+
+  /// Test-only helper that temporarily lowers ``maximumLogMelDataCount`` for the
+  /// duration of `body`. The override is task-local — concurrent tests on
+  /// other tasks see the production cap. The wrapper still uses `defer`-style
+  /// scoping via `TaskLocal.withValue` semantics so the override doesn't
+  /// leak past the closure even if `body` throws (review fix N5 v2).
+  internal static func _withTestingMaximumLogMelDataCount<R>(
+    _ cap: Int, _ body: () throws -> R
+  ) rethrows -> R {
+    try $_testingMaximumLogMelDataCount.withValue(cap, operation: body)
+  }
+
+  /// Throwing initializer enforcing the public-API invariants documented
+  /// on each field. Replaces the pre-review `precondition()` calls so a
+  /// malformed payload routes through an abstain path rather than
+  /// crashing the host app.
+  ///
+  /// Throws `MLTechniqueError.invalidFeatureShape` when any invariant
+  /// fires; see ``MLTechniqueError/invalidFeatureShape(reason:)`` for the
+  /// abstain semantics.
   public init(
     melBands: Int,
     frames: Int,
@@ -451,18 +538,40 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
     melFmax: Double,
     logCompressionScale: Float,
     featureSetVersion: String
-  ) {
-    precondition(melBands > 0, "MLFeatureFrames: melBands must be positive (got \(melBands))")
-    precondition(frames > 0, "MLFeatureFrames: frames must be positive (got \(frames))")
-    precondition(
-      logMelData.count == melBands * frames,
-      "MLFeatureFrames: logMelData.count (\(logMelData.count)) must equal melBands * frames "
-        + "(\(melBands * frames))"
-    )
-    precondition(
-      tensorLayout == .nchw,
-      "MLFeatureFrames: Story 4.5 only supports .nchw tensor layout (got \(tensorLayout))"
-    )
+  ) throws {
+    guard melBands > 0 else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "melBands must be positive (got \(melBands))")
+    }
+    guard frames > 0 else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "frames must be positive (got \(frames))")
+    }
+    // Use multipliedReportingOverflow to defend against
+    // `Int.max`-sized inputs that would trap on the unguarded
+    // multiplication.
+    let (expectedCount, overflow) = melBands.multipliedReportingOverflow(by: frames)
+    guard !overflow else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "melBands * frames overflowed Int (melBands=\(melBands), frames=\(frames))")
+    }
+    guard logMelData.count == expectedCount else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "logMelData.count (\(logMelData.count)) != melBands * frames (\(expectedCount))")
+    }
+    guard expectedCount <= Self.maximumLogMelDataCount else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason:
+          "logMelData.count \(expectedCount) exceeds size cap \(Self.maximumLogMelDataCount) "
+          + "(≈32 MB); bump cap or trim the analysis window")
+    }
+    // `tensorLayout` is `CaseIterable` with closed-set membership; the
+    // `switch` lets future-case extension surface as a non-exhaustive
+    // compile error rather than a silent precondition trap.
+    switch tensorLayout {
+    case .frameMajorLogMel, .nchw:
+      break
+    }
     self.melBands = melBands
     self.frames = frames
     self.tensorLayout = tensorLayout

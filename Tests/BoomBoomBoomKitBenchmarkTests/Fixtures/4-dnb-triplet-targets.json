@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "captured_with": {
+    "captured_at": "2026-05-05T03:15:12Z",
+    "captured_by": "Robert Terhaar",
+    "git_sha": "9185698",
+    "macos_version": "26.5",
+    "xcode_version": "Xcode 26.4.1",
+    "swift_version": "Apple Swift version 6.3.1 (swiftlang-6.3.1.1.2 clang-2100.0.123.102)"
+  },
+  "targets": [
+    {
+      "track_id": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework)",
+      "ground_truth_bpm": 160.0,
+      "source": "dawproject",
+      "current_predicted_bpm": 106.24575536776753,
+      "current_abs_error": 53.75424463223247
+    },
+    {
+      "track_id": "1. The Faraday_Bunker (D-Struct Remix)",
+      "ground_truth_bpm": 170.0,
+      "source": "dawproject",
+      "current_predicted_bpm": 113.47141575050482,
+      "current_abs_error": 56.52858424949518
+    },
+    {
+      "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)",
+      "ground_truth_bpm": 170.0,
+      "source": "daw_oracle",
+      "current_predicted_bpm": 113.23972280701754,
+      "current_abs_error": 56.76027719298246
+    },
+    {
+      "track_id": "9. HEFT_Anagram 6 (Owl Remix)",
+      "ground_truth_bpm": 170.0,
+      "source": "daw_oracle",
+      "current_predicted_bpm": 113.36578128040475,
+      "current_abs_error": 56.63421871959525
+    }
+  ],
+  "regression_threshold": {
+    "min_resolved": 2,
+    "tolerance_bpm": 0.5,
+    "min_oa300_acc1": 58,
+    "min_giantsteps_acc1": 537
+  }
+}

@@ -384,10 +384,15 @@ public struct AudioAnalysisService {
   /// cancellation check that throws `CancellationError` instead of
   /// quietly running expensive inference on a cancelled task.
   ///
-  /// Story 4-4 AC #14 invariant preserved: the first `guard` returns nil
-  /// when `options.ensemblePolicy == .dspOnly` BEFORE reaching the
-  /// cancellation check, so `RecordingMockMLTechnique.callCount` stays
-  /// at 0 on the short-circuit path regardless of cancellation state.
+  /// **ML-only cancellation checkpoint (spec-canonical semantic — post-review-pass
+  /// fix C2):** the policy/ml/trace guard fires FIRST. When the helper would not
+  /// run `evaluate(trace:)` anyway — because `.dspOnly` is set, no trace was
+  /// built, or no technique is wired up — the function returns `nil` silently
+  /// regardless of cancellation state. Cancellation is observed only on the
+  /// path that would actually call `evaluate(trace:)`. This preserves Story 4-4
+  /// AC #14's `RecordingMockMLTechnique.callCount == 0` invariant on `.dspOnly`
+  /// and avoids surfacing cancellation noise to callers who deliberately opted
+  /// out of the ML pipeline phase.
   ///
   /// Cancellation latency contract (axiom-concurrency audit): once
   /// `ml.evaluate(trace:)` is called, the helper does NOT thread a

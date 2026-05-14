@@ -4,6 +4,17 @@ Standalone PyTorch → CoreML conversion CLI for BoomBoomBoomKit's `MLTechnique`
 
 > **Important context before you use this tool:** BoomBoomBoomKit's default analysis path is DSP-first. The bundled reference model at `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc` is a **smoke-test fixture** — it validates the `MLTechnique` plug-in end-to-end but is measurably less accurate than the DSP pipeline on the project's held-out test corpus. Before bundling an ML model in your app, validate against your own corpus and confirm it improves over DSP on your distribution. See [MODEL_CARD.md](../../MODEL_CARD.md) for measured numbers + known failure modes.
 
+## Licensing (read first)
+
+| Path                          | Licensor          | Consumer obligation                                          |
+|-------------------------------|-------------------|--------------------------------------------------------------|
+| A. Bundled default            | BoomBoomBoomKit   | None — BBBKit license applies (MIT-compatible)               |
+| B. Your custom weights        | You               | Your app's license terms apply to your weights               |
+| C. Third-party (e.g., AGPL)   | Upstream author   | May impose AGPL §13 obligations on your app, including the   |
+|                               |                   | network-use trigger; consult counsel before distributing     |
+
+> **Disclaimer.** BoomBoomBoomKit makes no representation about third-party model licenses. We ship neither weights nor any rights to use them. The license obligations of your chosen weights belong to your app's distribution.
+
 ## When to use this
 
 | Scenario | Path | Tool |
@@ -144,8 +155,16 @@ uv run python convert.py \
 ```swift
 // 2. Implement your own MLTechnique conformance:
 import BoomBoomBoomKit
+import CoreML
 
-struct MyDeepRhythmTechnique: MLTechnique {
+// `MLModel` does not conform to `Sendable` in the current SDK
+// (Core ML headers note this — the class hierarchy predates Swift
+// concurrency). The `MLTechnique` protocol requires `Sendable`, so
+// conformers wrapping `MLModel` must use `@unchecked Sendable` with
+// a documented rationale (the model's inference path is internally
+// thread-safe). This matches BoomBoomBoomKit's own `BNNSTechnique`
+// pattern (`public struct BNNSTechnique: MLTechnique, @unchecked Sendable`).
+struct MyDeepRhythmTechnique: MLTechnique, @unchecked Sendable {
     let model: MLModel  // or BNNSGraph / MLX runtime / etc.
 
     func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
@@ -153,15 +172,26 @@ struct MyDeepRhythmTechnique: MLTechnique {
         // BarCandidate ranks, ...) and run your own featurize → infer → score
         // pipeline. The MLTechnique protocol is backend-agnostic
         // (Core ML, BNNSGraph, MLX, MPS Graph — all valid).
-        let features = featurize(from: trace)
-        let prediction = try? model.prediction(from: features)
-        guard let pred = prediction else { return nil }
-        return MLEvaluation(bpm: pred.bpm, confidence: pred.confidence)
+        guard let features = featurize(from: trace) else { return nil }
+        // Distinguish "no model output" (recoverable abstain → nil) from
+        // "Core ML threw" (model-shape or runtime bug → log and abstain).
+        // The earlier `try? model.prediction(from:)` swallowed every error
+        // class silently, including bugs in your featurize step. Logging
+        // the underlying error makes those bugs visible in diagnostics.
+        let prediction: MLFeatureProvider
+        do {
+            prediction = try model.prediction(from: features)
+        } catch {
+            os_log(.error, "MyDeepRhythmTechnique prediction failed: %{public}@",
+                   String(describing: error))
+            return nil  // abstain — DSP candidates remain authoritative
+        }
+        return MLEvaluation(bpm: yourBPM(prediction), confidence: yourConfidence(prediction))
     }
 }
 
 var options = AudioAnalysisService.Options()
-options.mlTechnique = MyDeepRhythmTechnique(model: try MLModel(...))
+options.mlTechnique = MyDeepRhythmTechnique(model: try MLModel(contentsOf: yourModelURL))
 ```
 
 License compliance for your weights is your responsibility — BoomBoomBoomKit ships only the protocol + bundled reference; your weights live in your app's bundle under your app's license terms.

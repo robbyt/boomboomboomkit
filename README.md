@@ -135,11 +135,11 @@ let clickTrack = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds
 9. **Octave Disambiguation** — Sub-band voting resolves 2:1 ambiguity
 10. **Progressive Analysis** — Multi-window analysis at 30s/60s/90s with configurable merge strategy
 
-## Optional ML Models (advanced, opt-in only)
+## Using your own tempo model
 
 BoomBoomBoomKit's production BPM path is **DSP-first**. The default analysis pipeline does not require or enable ML, and on the project's regression corpora the DSP pipeline currently outperforms every model the project has trained (see [MODEL_CARD.md](MODEL_CARD.md) for measured comparisons).
 
-The optional `BoomBoomBoomKitML` target adds an `MLTechnique` plug-in surface for consumers who want to **bring their own tempo classifier** (BYOM) and ensemble it with the DSP results — for example, if you have a domain-specific model trained on your own corpus that beats the DSP on your distribution.
+The optional `BoomBoomBoomKitML` target adds an `MLTechnique` plug-in surface for consumers who want to **bring their own tempo classifier** (BYOM) and ensemble it with the DSP results — for example, if you have a domain-specific model trained on your own corpus that beats the DSP on your distribution. See [`tools/coreml-convert/README.md`](tools/coreml-convert/README.md) for the full PyTorch → CoreML conversion flow and the license-matrix for bundling third-party weights.
 
 ```swift
 import BoomBoomBoomKit

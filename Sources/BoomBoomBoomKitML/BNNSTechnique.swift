@@ -137,6 +137,12 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// Argument index for the graph's output tensor.
   private let dstIndex: Int
 
+  /// Total argument count reported by `BNNSGraphGetArgumentCount` at init.
+  /// Used to size the per-call argument array in `inferTempoCNN` so a
+  /// graph with auxiliary arguments doesn't cause OOB writes when
+  /// `srcIndex` / `dstIndex` exceed 1 (review fix C1).
+  private let argumentCount: Int
+
   /// Test-only seam exposing the handle reference for the deinit witness
   /// test (`BNNSTechniqueDeinitWitnessTests`, Task 8). Reachable only via
   /// `@testable import BoomBoomBoomKitML`. Not intended for production.
@@ -174,38 +180,35 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
           message: "BNNSGraphCompileFromFile returned empty graph for \(modelURL.path())"))
     }
 
-    // Validate input/output tensor names + output bin count BEFORE
-    // caching anything on the struct. Free graph data on any failure so
-    // the lifecycle contract holds even on the throw path.
+    // Validate input/output tensor names, output bin count, input rank
+    // and shape, and graph-argument-count BEFORE caching anything on the
+    // struct. `validateContract` returns the resolved argument positions
+    // and total argument count so we don't re-query the graph after init
+    // (avoids drift between validation and caching — review fix C4) and
+    // so `inferTempoCNN` can size the per-call argument array correctly
+    // when the graph has auxiliary arguments (review fix C1).
+    //
+    // Free graph data on any failure so the lifecycle contract holds
+    // even on the throw path.
+    let validation: (src: Int, dst: Int, argumentCount: Int)
     do {
-      try Self.validateContract(graph: graph)
+      validation = try Self.validateContract(graph: graph)
     } catch {
       if let data = graph.data { free(data) }
       throw error
     }
 
-    let src = "input".withCString {
-      BNNSGraphGetArgumentPosition(graph, nil, $0)
-    }
-    let dst = "output".withCString {
-      BNNSGraphGetArgumentPosition(graph, nil, $0)
-    }
-    guard src >= 0, dst >= 0 else {
-      if let data = graph.data { free(data) }
-      throw MLTechniqueError.invalidTensorContract(
-        missing: src < 0 ? "input" : "output")
-    }
-
     self.handle = BNNSGraphHandle(graph: graph)
-    self.srcIndex = src
-    self.dstIndex = dst
+    self.srcIndex = validation.src
+    self.dstIndex = validation.dst
+    self.argumentCount = validation.argumentCount
   }
 
   // MARK: - MLTechnique
 
   public func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
     guard let features = trace.mlFeatures else {
-      Self.logNilFeaturesOnce()
+      logNilFeaturesOnce()
       return nil
     }
     guard features.featureSetVersion == Self.supportedFeatureSetVersion else {
@@ -218,19 +221,31 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     let margin = decoded.confidence - decoded.secondMax
     guard margin >= Self.marginConfidenceThreshold else { return nil }
 
-    let bpm = min(max(decoded.bpm, 60.0), 200.0)
+    // `decodeLogits` already abstains for BPM outside 60-200 (review
+    // fix m13), so `decoded.bpm` is guaranteed in-range here.
+    // `confidence` is still clamped defensively per Story 4-4 DD #4 —
+    // softmax-max in principle is in [0, 1] but `vDSP_vsdiv` precision
+    // can produce values fractionally outside the range; clamp for
+    // public-API stability.
     let confidence = min(max(decoded.confidence, 0.0), 1.0)
     return MLEvaluation(
-      bpm: bpm, confidence: confidence, modelIdentifier: "bnns_tempo_v1")
+      bpm: decoded.bpm, confidence: confidence,
+      modelIdentifier: "bnns_tempo_v1")
   }
 
   // MARK: - featurize
 
-  /// Transposes the trace's frame-major log-mel payload into mel-major
-  /// `[melBands, frames]`, z-score-normalizes each mel band across time,
-  /// and resamples each band to `W=512` frames. Returns a flat
-  /// `[1, 1, 128, 512]` NCHW row-major Float buffer or `nil` if the
-  /// input is degenerate (too few frames, wrong mel band count).
+  /// Transposes the trace's log-mel payload into mel-major
+  /// `[melBands, frames]` (Step 1, when needed), z-score-normalizes each
+  /// mel band across time (Step 2), and resamples each band to `W=512`
+  /// frames (Step 3). Returns a flat `[1, 1, 128, 512]` NCHW row-major
+  /// `Float` buffer or `nil` if the input is degenerate (too few frames,
+  /// wrong mel-band count, or an unrecognized ``TensorLayout``).
+  ///
+  /// Step 1's behavior depends on ``MLFeatureFrames/tensorLayout``:
+  /// - ``TensorLayout/frameMajorLogMel`` (current ``BPMAnalyzer``
+  ///   producer): transpose `[frame * M + mel]` → `[mel * F + frame]`.
+  /// - ``TensorLayout/nchw``: already mel-major; copy through as-is.
   private func featurize(_ features: MLFeatureFrames) -> [Float]? {
     // DD #9 short-clip guard fires BEFORE the resize step. Sub-32-frame
     // sources upsample by > 16× per row and produce features outside the
@@ -242,20 +257,33 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     let F = features.frames
     let W = Self.targetWidth
 
-    // Step 1: transpose frame-major → mel-major contiguous rows.
-    // Source: features.logMelData[frame * M + mel]
-    // Dest:   melMajor[mel * F + frame]
+    // Step 1: produce mel-major contiguous rows. The shape depends on
+    // the incoming `tensorLayout` — frame-major needs transpose,
+    // mel-major copies through. `switch`-with-default-fallthrough
+    // surfaces unhandled layouts at compile time, not via a silent
+    // mis-interpretation at execute time.
     var melMajor = [Float](repeating: 0, count: M * F)
-    features.logMelData.withUnsafeBufferPointer { src in
-      melMajor.withUnsafeMutableBufferPointer { dst in
-        guard let srcBase = src.baseAddress, let dstBase = dst.baseAddress else { return }
-        for mel in 0..<M {
-          var srcIdx = mel
-          let dstRowStart = mel * F
-          for frame in 0..<F {
-            dstBase[dstRowStart + frame] = srcBase[srcIdx]
-            srcIdx += M
+    switch features.tensorLayout {
+    case .frameMajorLogMel:
+      features.logMelData.withUnsafeBufferPointer { src in
+        melMajor.withUnsafeMutableBufferPointer { dst in
+          guard let srcBase = src.baseAddress, let dstBase = dst.baseAddress else { return }
+          for mel in 0..<M {
+            var srcIdx = mel
+            let dstRowStart = mel * F
+            for frame in 0..<F {
+              dstBase[dstRowStart + frame] = srcBase[srcIdx]
+              srcIdx += M
+            }
           }
+        }
+      }
+    case .nchw:
+      // Already mel-major: `[mel * F + frame]`. Single-shot copy.
+      features.logMelData.withUnsafeBufferPointer { src in
+        melMajor.withUnsafeMutableBufferPointer { dst in
+          guard let srcBase = src.baseAddress, let dstBase = dst.baseAddress else { return }
+          dstBase.update(from: srcBase, count: M * F)
         }
       }
     }
@@ -322,11 +350,31 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       context, BNNSGraphArgumentTypeTensor)
     guard setArgStatus == 0 else { return nil }
 
-    let workspaceSize = BNNSGraphContextGetWorkspaceSize(context, nil)
+    // `BNNSGraphContextGetWorkspaceSize` returns `size_t`, which the
+    // Clang importer currently maps to Swift `Int` (signed). The framework's
+    // failure sentinel is `SIZE_T_MAX`, which bit-reinterprets to `-1` in
+    // signed `Int`, so `>= 0` catches it. (Verified against bnns_graph.h:738-755
+    // on macOS 15 SDK and codex-019e23e6 thread.)
+    //
+    // Post-review-pass C3 fix: the explicit `: Int` annotation forces a compile
+    // error if a future SDK changes the import to `UInt` — the `>= 0` guard
+    // would otherwise silently no-op. Upper bound `< Int.max - pageSize`
+    // defends against absurd values that pass `>= 0` (review fix C3).
+    let workspaceSize: Int = BNNSGraphContextGetWorkspaceSize(context, nil)
     guard workspaceSize >= 0 else { return nil }
     var workspace: UnsafeMutableRawPointer?
     if workspaceSize > 0 {
-      let pageSize = Int(sysconf(Int32(_SC_PAGESIZE)))
+      // `sysconf` can return -1 on error; `UnsafeMutableRawPointer.allocate`
+      // traps on non-positive alignment. Fall back to the canonical
+      // macOS page size (16 KiB on Apple Silicon, 4 KiB on Intel — the
+      // 4 KiB minimum is a safe over-aligned floor for either).
+      let rawPageSize = Int(sysconf(Int32(_SC_PAGESIZE)))
+      let pageSize = rawPageSize > 0 ? rawPageSize : 4096
+      // Sanity bound against absurdly large workspace sizes that passed
+      // `>= 0` (review fix C3). 1 GiB is several orders of magnitude beyond
+      // any plausible tempo-CNN workspace; if BNNS ever needs more, the
+      // floor moves with the model architecture, not silently.
+      guard workspaceSize < (1 << 30) else { return nil }
       workspace = UnsafeMutableRawPointer.allocate(
         byteCount: workspaceSize, alignment: pageSize)
     }
@@ -353,8 +401,13 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
         outputTensorDesc.data_size_in_bytes = outBuf.count
         return withUnsafeMutablePointer(to: &inputTensorDesc) { inPtr in
           withUnsafeMutablePointer(to: &outputTensorDesc) { outPtr in
+            // Size the args array by the graph's reported argument
+            // count, not the hard-coded `count: 2`. A graph with
+            // auxiliary arguments would otherwise OOB on `args[srcIndex]`
+            // (review fix C1). srcIndex/dstIndex < argumentCount was
+            // already validated in `validateContract`.
             var args = [bnns_graph_argument_t](
-              repeating: bnns_graph_argument_t(), count: 2)
+              repeating: bnns_graph_argument_t(), count: argumentCount)
             args[srcIndex].tensor = inPtr
             args[srcIndex].data_ptr_size = inBuf.count
             args[dstIndex].tensor = outPtr
@@ -369,6 +422,13 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
         }
       }
     }
+    // C2 residual: null out the descriptor `data` pointers after the
+    // closure so a future maintainer can't accidentally reuse them
+    // outside the `withUnsafeMutableBytes` lifetime (review fix C2).
+    inputTensorDesc.data = nil
+    inputTensorDesc.data_size_in_bytes = 0
+    outputTensorDesc.data = nil
+    outputTensorDesc.data_size_in_bytes = 0
     guard execStatus == 0 else { return nil }
 
     return Self.decodeLogits(output)
@@ -382,10 +442,27 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// the bundled model emits logits, NOT softmax probabilities; this is
   /// the load-bearing host-side step that converts logits → probabilities
   /// before the two-gate abstain check.
+  ///
+  /// Ties: if the top two bins have equal probability (e.g., model is
+  /// split between two adjacent BPM bins on a half-tempo confusion), the
+  /// argmax-by-first-index tie-break is documented but produces
+  /// margin == 0 — `evaluate(trace:)`'s Gate 2 then abstains. This is the
+  /// intended path for ambiguous predictions.
+  ///
+  /// Returns nil for any non-finite logit input (NaN propagates through
+  /// `vDSP_maxv` with unspecified ordering — abstaining is safer than
+  /// emitting garbage), and nil for argmax that maps to a BPM outside
+  /// `60.0...200.0` (out-of-distribution prediction — abstain rather
+  /// than silently clamp to the boundary).
   internal static func decodeLogits(
     _ logits: [Float]
   ) -> (bpm: Double, confidence: Double, secondMax: Double)? {
     guard !logits.isEmpty else { return nil }
+    // Reject non-finite logits up front: NaN through `vDSP_maxv` is
+    // unspecified, +Inf produces NaN after subtract-max, -Inf produces
+    // sum == 0 which the post-exp guard catches — but explicit
+    // rejection here is faster and more diagnosable (review fix M26).
+    guard logits.allSatisfy({ $0.isFinite }) else { return nil }
     var shifted = logits
     var maxLogit: Float = 0
     vDSP_maxv(shifted, 1, &maxLogit, vDSP_Length(shifted.count))
@@ -418,8 +495,15 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     // Replace -.infinity with 0 if the array had only one finite value.
     let secondMax = secondMaxVal.isFinite ? secondMaxVal : 0
     let confidence = maxVal.isFinite ? maxVal : 0
+    let bpm = bpmBinOffset + Double(maxIdx)
+    // Abstain when argmax maps outside the BPM range. The pipeline-wide
+    // contract is 60-200 BPM; an out-of-range bin is either model
+    // misconfiguration (wrong bin offset) or genuine OOD prediction,
+    // both of which deserve abstain over silent clamp-to-boundary
+    // (review fix m13).
+    guard (60.0...200.0).contains(bpm) else { return nil }
     return (
-      bpm: bpmBinOffset + Double(maxIdx),
+      bpm: bpm,
       confidence: Double(confidence),
       secondMax: Double(secondMax)
     )
@@ -428,12 +512,26 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   // MARK: - validateContract
 
   /// Asserts the compiled graph exposes argument names `"input"` /
-  /// `"output"` and an output tensor with last-dim `== 256`. Throws
-  /// `MLTechniqueError.invalidTensorContract` / `.binCountMismatch` on
-  /// failure. Called from `init(modelURL:)` BEFORE the struct caches
-  /// `srcIndex` / `dstIndex` so a contract violation aborts the
-  /// constructor cleanly.
-  private static func validateContract(graph: bnns_graph_t) throws {
+  /// `"output"`, distinct positions, input rank 4 with shape
+  /// `[1, 1, expectedMelBands, targetWidth]` and `data_type == .float`,
+  /// and output rank `1...BNNS_MAX_TENSOR_DIMENSION` with total element
+  /// count `== expectedBinCount` and `data_type == .float`. Returns the
+  /// resolved `(src, dst, argumentCount)` tuple so `init(modelURL:)` does
+  /// not re-resolve positions (review fix C4 — single source of truth).
+  ///
+  /// Throws `MLTechniqueError.invalidTensorContract` on missing or
+  /// duplicate argument names, wrong input shape/dtype, or output rank
+  /// outside `1...BNNS_MAX_TENSOR_DIMENSION`. Throws
+  /// `MLTechniqueError.binCountMismatch` when output total-element-count
+  /// or dtype is wrong.
+  ///
+  /// Error precedence (stable contract): missing names → duplicate
+  /// positions → input shape/dtype → output rank → output element
+  /// count → output dtype. Tests asserting specific error cases should
+  /// rely on this ordering.
+  private static func validateContract(
+    graph: bnns_graph_t
+  ) throws -> (src: Int, dst: Int, argumentCount: Int) {
     let inputIdx = "input".withCString {
       BNNSGraphGetArgumentPosition(graph, nil, $0)
     }
@@ -446,9 +544,40 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     guard outputIdx >= 0 else {
       throw MLTechniqueError.invalidTensorContract(missing: "output")
     }
+    // Reject same-position mapping for input/output — would cause the
+    // output descriptor to overwrite the input slot at execute time
+    // (review fix: Codex new gap).
+    guard inputIdx != outputIdx else {
+      throw MLTechniqueError.invalidTensorContract(
+        missing: "distinct input/output positions")
+    }
+    // Argument count is `size_t` in C — the Clang importer currently maps it
+    // to Swift `Int` (signed); the failure sentinel `SIZE_T_MAX` bit-reinterprets
+    // to `-1`, so `>= 0` catches it. The explicit `: Int` annotation forces a
+    // compile error if a future SDK changes the import to `UInt` — the `>= 0`
+    // guard would otherwise silently no-op (review fix C3). The upper-bound
+    // sanity check defends against absurd values that pass `>= 0` (the BNNS
+    // graphs in this project have ≤ 4 named arguments; 1024 is a wildly
+    // permissive ceiling).
+    let argCount: Int = BNNSGraphGetArgumentCount(graph, nil)
+    guard argCount >= 0 else {
+      throw MLTechniqueError.modelLoadFailed(
+        underlying: BNNSCompileFailure(
+          message: "BNNSGraphGetArgumentCount returned SIZE_T_MAX during validateContract"))
+    }
+    guard argCount < 1024 else {
+      throw MLTechniqueError.modelLoadFailed(
+        underlying: BNNSCompileFailure(
+          message: "BNNSGraphGetArgumentCount returned implausible value \(argCount)"))
+    }
+    guard inputIdx < argCount, outputIdx < argCount else {
+      throw MLTechniqueError.invalidTensorContract(
+        missing:
+          "argument positions out of range (input=\(inputIdx), output=\(outputIdx), count=\(argCount))"
+      )
+    }
 
-    // Bin-count verification requires a temporary context to query
-    // tensor metadata via BNNSGraphContextGetTensor.
+    // Tensor metadata probing requires a temporary context.
     let probeContext = BNNSGraphContextMake(graph)
     defer { BNNSGraphContextDestroy(probeContext) }
     guard probeContext.data != nil else {
@@ -456,49 +585,137 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
         underlying: BNNSCompileFailure(
           message: "BNNSGraphContextMake returned empty context during validateContract"))
     }
-    var outputTensor = BNNSTensor()
-    let metaStatus = "output".withCString {
-      BNNSGraphContextGetTensor(probeContext, nil, $0, true, &outputTensor)
+
+    // Verify INPUT contract: rank 4, shape [1, 1, melBands, frames],
+    // dtype Float. A graph emitting rank-2 or int8 input would silently
+    // misinterpret bytes at execute time (review fix: M3 / Codex new gap).
+    var inputTensor = BNNSTensor()
+    let inMeta = "input".withCString {
+      BNNSGraphContextGetTensor(probeContext, nil, $0, true, &inputTensor)
     }
-    guard metaStatus == 0 else {
+    guard inMeta == 0 else {
       throw MLTechniqueError.modelLoadFailed(
         underlying: BNNSCompileFailure(
           message:
-            "BNNSGraphContextGetTensor(output) failed during validateContract (status \(metaStatus))"
-        ))
+            "BNNSGraphContextGetTensor(input) failed during validateContract (status \(inMeta))"))
     }
-    let rank = Int(outputTensor.rank)
-    guard rank > 0 else {
-      throw MLTechniqueError.binCountMismatch(
-        expected: expectedBinCount, actual: 0)
+    let maxRank = Int(BNNS_MAX_TENSOR_DIMENSION)
+    let inputRank = Int(inputTensor.rank)
+    guard (1...maxRank).contains(inputRank) else {
+      throw MLTechniqueError.invalidTensorContract(
+        missing: "input.rank in 1...\(maxRank) (got \(inputRank))")
     }
-    let lastDim: Int = withUnsafePointer(to: &outputTensor.shape) { tuplePtr in
-      tuplePtr.withMemoryRebound(to: Int.self, capacity: rank) { dims in
-        dims[rank - 1]
+    // Read the input shape into a Swift array using a fixed-size
+    // BNNS_MAX_TENSOR_DIMENSION rebind — guarded above so we never
+    // over-read the tuple (review fix: C3' / E3).
+    //
+    // `BNNSTensor.shape` is imported as a fixed-size C tuple. Each element is
+    // documented as `size_t` in `bnns_types.h`; we rebind to `Int` on the
+    // assumption that the Clang importer maps `size_t` to signed `Int` (same
+    // assumption the workspace/argCount guards above depend on). The rank
+    // guard ensures we only read the first `inputRank` elements, never
+    // overrunning the tuple. If a future SDK changes the element type, the
+    // rebind silently returns wrong bytes — there is no language-level catch.
+    // The shape-vs-expectedInputShape comparison below catches most cases of
+    // drift (the bytes won't look like [1, 1, 128, 512]); the assertion below
+    // catches the rest with a debug-only sanity bound (review fix C3).
+    let inputShape: [Int] = withUnsafePointer(to: &inputTensor.shape) { tuplePtr in
+      tuplePtr.withMemoryRebound(to: Int.self, capacity: maxRank) { dims in
+        Array(UnsafeBufferPointer(start: dims, count: inputRank))
       }
     }
-    guard lastDim == expectedBinCount else {
-      throw MLTechniqueError.binCountMismatch(
-        expected: expectedBinCount, actual: lastDim)
+    assert(
+      inputShape.allSatisfy { $0 > 0 && $0 <= 1 << 30 },
+      "BNNSTensor.shape element out of plausible range (got \(inputShape)) — possible import-type drift; review C3 guards in BNNSTechnique"
+    )
+    let expectedInputShape: [Int] = [1, 1, expectedMelBands, targetWidth]
+    guard inputShape == expectedInputShape else {
+      throw MLTechniqueError.invalidTensorContract(
+        missing: "input.shape \(expectedInputShape) (got \(inputShape))")
     }
+    guard inputTensor.data_type == BNNSDataType.float else {
+      throw MLTechniqueError.invalidTensorContract(
+        missing: "input.data_type Float (got raw=\(inputTensor.data_type.rawValue))")
+    }
+
+    // Verify OUTPUT contract: rank 1...8, total element count ==
+    // expectedBinCount, dtype Float.
+    var outputTensor = BNNSTensor()
+    let outMeta = "output".withCString {
+      BNNSGraphContextGetTensor(probeContext, nil, $0, true, &outputTensor)
+    }
+    guard outMeta == 0 else {
+      throw MLTechniqueError.modelLoadFailed(
+        underlying: BNNSCompileFailure(
+          message:
+            "BNNSGraphContextGetTensor(output) failed during validateContract (status \(outMeta))"))
+    }
+    let outputRank = Int(outputTensor.rank)
+    guard (1...maxRank).contains(outputRank) else {
+      throw MLTechniqueError.invalidTensorContract(
+        missing: "output.rank in 1...\(maxRank) (got \(outputRank))")
+    }
+    let outputShape: [Int] = withUnsafePointer(to: &outputTensor.shape) { tuplePtr in
+      tuplePtr.withMemoryRebound(to: Int.self, capacity: maxRank) { dims in
+        Array(UnsafeBufferPointer(start: dims, count: outputRank))
+      }
+    }
+    assert(
+      outputShape.allSatisfy { $0 > 0 && $0 <= 1 << 30 },
+      "BNNSTensor.shape element out of plausible range (got \(outputShape)) — possible import-type drift; review C3 guards in BNNSTechnique"
+    )
+    // Total element count must match expectedBinCount — checking the
+    // last dim alone would accept [4, 64] reinterpreted as 256 floats
+    // (review fix: M4 / Codex new gap). Use overflow-reporting product.
+    var totalElements = 1
+    for dim in outputShape {
+      guard dim > 0 else {
+        throw MLTechniqueError.invalidTensorContract(
+          missing: "output.shape positive dims (got \(outputShape))")
+      }
+      let (product, overflow) = totalElements.multipliedReportingOverflow(by: dim)
+      guard !overflow else {
+        throw MLTechniqueError.invalidTensorContract(
+          missing: "output.shape element count Int-overflow (got \(outputShape))")
+      }
+      totalElements = product
+    }
+    guard totalElements == expectedBinCount else {
+      throw MLTechniqueError.binCountMismatch(
+        expected: expectedBinCount, actual: totalElements)
+    }
+    guard outputTensor.data_type == BNNSDataType.float else {
+      throw MLTechniqueError.invalidTensorContract(
+        missing: "output.data_type Float (got raw=\(outputTensor.data_type.rawValue))")
+    }
+
+    return (src: inputIdx, dst: outputIdx, argumentCount: argCount)
   }
 
   // MARK: - HALT (g) defensive log
 
+  /// `OSLog` channel for the nil-features diagnostic. Per-class is the
+  /// right scope for the logger handle itself — `OSLog` is internally a
+  /// COW-style reference to a kernel-side log object, so a single
+  /// per-class instance is the canonical Apple pattern.
+  private static let nilFeaturesLogger = OSLog(
+    subsystem: "BoomBoomBoomKitML", category: "BNNSTechnique")
+
   /// One-shot `os_log` emission for the nil-features path. Indicates the
   /// `captureMLFeatures` flag is not propagating end-to-end from
   /// `AudioAnalysisService.runPreCorroborationPipeline` →
-  /// `BPMAnalyzer.estimateBPM` → `BPMDiagnosticTrace.mlFeatures`. The
-  /// log fires at most once per process lifetime so noisy callers don't
-  /// spam the unified log.
-  private static let nilFeaturesLogger = OSLog(
-    subsystem: "BoomBoomBoomKitML", category: "BNNSTechnique")
-  private static let nilFeaturesLatch = OneShotLatch()
-
-  private static func logNilFeaturesOnce() {
-    guard nilFeaturesLatch.tryAcquire() else { return }
+  /// `BPMAnalyzer.estimateBPM` → `BPMDiagnosticTrace.mlFeatures`.
+  ///
+  /// The latch fires at most once per `BNNSTechnique` instance lifetime
+  /// (NOT per-process — review fix DN9). The latch lives on
+  /// ``BNNSGraphHandle``, so it survives struct copies but resets when
+  /// the last reference drops + a fresh technique is constructed. This
+  /// gives long-running multi-tenant apps the diagnostic signal on every
+  /// instance, not just the first one.
+  private func logNilFeaturesOnce() {
+    guard handle.nilFeaturesLatch.tryAcquire() else { return }
     os_log(
-      .fault, log: nilFeaturesLogger,
+      .fault, log: Self.nilFeaturesLogger,
       "BNNSTechnique.evaluate(trace:) called with nil mlFeatures — capture flag may not be propagating"
     )
   }
@@ -518,6 +735,12 @@ internal final class BNNSGraphHandle: @unchecked Sendable {
   /// safe to share across threads when wrapped by per-call contexts.
   let graph: bnns_graph_t
 
+  /// Per-instance one-shot latch for the HALT (g) nil-features
+  /// diagnostic (review fix DN9). Lives on the handle so it survives
+  /// struct copies of `BNNSTechnique` but resets when the last
+  /// reference drops + a fresh technique is constructed.
+  let nilFeaturesLatch = OneShotLatch()
+
   init(graph: bnns_graph_t) {
     self.graph = graph
   }
@@ -527,6 +750,11 @@ internal final class BNNSGraphHandle: @unchecked Sendable {
     // the BoomBoomBoomKit `BNNSGraphCompileFromFile(path, nil, default)`
     // path — `free` is the correct destructor primitive. See
     // `_bmad-output/implementation-artifacts/4-5-allocator-probe.log`.
+    //
+    // FUTURE: when Apple documents a `BNNSGraphDestroy` (or equivalent)
+    // primitive on a future macOS SDK, prefer that over raw `free()` —
+    // it may release additional internal structures the framework
+    // allocates separately. Today the probe evidence is the only signal.
     if let data = graph.data { free(data) }
   }
 }
@@ -534,8 +762,10 @@ internal final class BNNSGraphHandle: @unchecked Sendable {
 // MARK: - Helpers
 
 /// Lightweight one-shot latch backed by an `NSLock`. Used by the
-/// `logNilFeaturesOnce` HALT (g) defensive path.
-private final class OneShotLatch: @unchecked Sendable {
+/// `logNilFeaturesOnce` HALT (g) defensive path. `internal` (not
+/// `private`) so it can be stored on `BNNSGraphHandle` per review fix
+/// DN9 (per-instance latch).
+internal final class OneShotLatch: @unchecked Sendable {
   private var fired = false
   private let lock = NSLock()
   func tryAcquire() -> Bool {
