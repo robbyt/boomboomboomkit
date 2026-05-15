@@ -1,0 +1,186 @@
+GIANTSTEPS_CORPUS_PATH="/Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.GiantStepsBenchmarkTests
+[0/1] Planning build
+Building for debugging...
+[0/3] Copying Fixtures
+[1/3] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.10s)
+Test Suite 'Selected tests' started at 2026-05-15 01:52:12.304.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' started at 2026-05-15 01:52:12.305.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' passed at 2026-05-15 01:52:12.305.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-05-15 01:52:12.305.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite "GiantSteps Tempo Benchmark" started.
+◇ Test "genre-stratified accuracy" started.
+◇ Test "benchmark at default intensity (7)" started.
+◇ Test "benchmark Acc1 MIREX (4% tolerance)" started.
+◇ Test "benchmark Acc1 strict (2% tolerance)" started.
+◇ Test "AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY" started.
+◇ Test "AC #4: windowVoting + .simpleMajority matches pre-Story-3-5 baseline EXACTLY" started.
+
+=== GiantSteps Tempo Benchmark — Acc1 MIREX (4% tolerance) ===
+Corpus: 661 tracks, crowdsourced ground truth (v2)
+Acc1: 84.1% (556/661)
+Acc2: 85.0% (562/661)
+
+Acc1 Failures (first 30):
+| Track ID | Genre | Expected | Got | Delta% |
+|----------|-------|----------|-----|--------|
+| 1030011 | electronica | 127.0 | 167.8 | 32.1% |
+| 1092771 | dubstep | 136.0 | 184.6 | 35.7% |
+| 1234750 | trance | 142.0 | 176.3 | 24.1% |
+| 1329955 | progressive-hou | 127.0 | 146.0 | 15.0% |
+| 1418652 | dubstep | 66.0 | 104.4 | 58.2% |
+| 1469706 | tech-house | 129.0 | 192.0 | 48.8% |
+| 1560729 | house | 123.0 | 164.3 | 33.5% |
+| 1626348 | trance | 139.0 | 189.6 | 36.4% |
+| 1728723 | dubstep | 174.0 | 140.5 | 19.3% |
+| 1747518 | electronica | 71.0 | 190.4 | 168.1% |
+| 1791554 | techno | 125.0 | 164.4 | 31.6% |
+| 1816200 | techno | 123.0 | 167.0 | 35.8% |
+| 1825982 | house | 123.0 | 167.0 | 35.8% |
+| 1874244 | reggae-dub | 71.0 | 93.5 | 31.7% |
+| 220883 | trance | 139.0 | 80.0 | 42.5% |
+| 2422602 | techno | 127.0 | 167.0 | 31.5% |
+| 2673896 | house | 129.0 | 192.8 | 49.5% |
+| 2702022 | house | 144.0 | 72.1 | 49.9% |
+| 2759853 | electro-house | 130.0 | 194.3 | 49.5% |
+| 3016341 | house | 127.0 | 177.0 | 39.4% |
+| 3097674 | trance | 139.0 | 153.6 | 10.5% |
+| 3101046 | drum-and-bass | 174.0 | 114.3 | 34.3% |
+| 3124242 | trance | 129.0 | 176.4 | 36.7% |
+| 3128068 | house | 129.0 | 191.8 | 48.7% |
+| 3169408 | indie-dance-nu- | 112.0 | 151.6 | 35.4% |
+| 3190021 | electronica | 179.0 | 120.6 | 32.6% |
+| 3209004 | electro-house | 121.0 | 158.0 | 30.6% |
+| 3211234 | trance | 139.0 | 185.5 | 33.5% |
+| 3218565 | hardcore-hard-t | 127.0 | 172.1 | 35.5% |
+| 3226180 | electronica | 142.0 | 180.4 | 27.1% |
+| ... | ... | ... | ... | ... |
+(75 more failures omitted)
+
+=== GiantSteps Benchmark — durationHint=false (AC #5 control) ===
+Acc1: 537/661, Acc2: 546/661
+✔ Test "benchmark Acc1 MIREX (4% tolerance)" passed after 85.793 seconds.
+✔ Test "AC #4: windowVoting + .simpleMajority matches pre-Story-3-5 baseline EXACTLY" passed after 85.793 seconds.
+✔ Test "AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY" passed after 85.793 seconds.
+✔ Test "benchmark at default intensity (7)" passed after 85.794 seconds.
+
+=== GiantSteps Tempo Benchmark — Intensity 7 (default) ===
+Corpus: 661 tracks, crowdsourced ground truth (v2)
+Acc1: 81.2% (537/661)
+Acc2: 82.6% (546/661)
+
+Acc1 Failures (first 30):
+| Track ID | Genre | Expected | Got | Delta% |
+|----------|-------|----------|-----|--------|
+| 1030011 | electronica | 127.0 | 167.8 | 32.1% |
+| 1092771 | dubstep | 136.0 | 184.6 | 35.7% |
+| 1234750 | trance | 142.0 | 176.3 | 24.1% |
+| 1329955 | progressive-hou | 127.0 | 146.0 | 15.0% |
+| 1418652 | dubstep | 66.0 | 104.4 | 58.2% |
+| 1469706 | tech-house | 129.0 | 192.0 | 48.8% |
+| 1560729 | house | 123.0 | 164.3 | 33.5% |
+| 1626348 | trance | 139.0 | 189.6 | 36.4% |
+| 1728723 | dubstep | 174.0 | 140.5 | 19.3% |
+| 1747518 | electronica | 71.0 | 190.4 | 168.1% |
+| 1791554 | techno | 125.0 | 164.4 | 31.6% |
+| 1816200 | techno | 123.0 | 167.0 | 35.8% |
+| 1825982 | house | 123.0 | 167.0 | 35.8% |
+| 1874244 | reggae-dub | 71.0 | 93.5 | 31.7% |
+| 1929611 | drum-and-bass | 174.0 | 179.0 | 2.9% |
+| 220883 | trance | 139.0 | 80.0 | 42.5% |
+| 2422602 | techno | 127.0 | 167.0 | 31.5% |
+| 2432724 | dj-tools | 127.0 | 164.4 | 29.5% |
+| 2673896 | house | 129.0 | 192.8 | 49.5% |
+| 2702022 | house | 144.0 | 72.1 | 49.9% |
+| 2759853 | electro-house | 130.0 | 194.3 | 49.5% |
+| 278893 | psy-trance | 147.0 | 150.8 | 2.6% |
+| 3016341 | house | 127.0 | 177.0 | 39.4% |
+| 3097674 | trance | 139.0 | 153.6 | 10.5% |
+| 3101046 | drum-and-bass | 174.0 | 114.3 | 34.3% |
+| 3124242 | trance | 129.0 | 176.4 | 36.7% |
+| 3125254 | dubstep | 139.0 | 144.0 | 3.6% |
+| 3128068 | house | 129.0 | 191.8 | 48.7% |
+| 3134837 | trance | 139.0 | 136.0 | 2.2% |
+| 3169408 | indie-dance-nu- | 112.0 | 151.6 | 35.4% |
+| ... | ... | ... | ... | ... |
+(94 more failures omitted)
+
+=== GiantSteps Tempo Benchmark — Acc1 Strict (2% tolerance) ===
+Corpus: 661 tracks, crowdsourced ground truth (v2)
+Acc1: 81.2% (537/661)
+Acc2: 82.6% (546/661)
+
+Acc1 Failures (first 30):
+| Track ID | Genre | Expected | Got | Delta% |
+|----------|-------|----------|-----|--------|
+| 1030011 | electronica | 127.0 | 167.8 | 32.1% |
+| 1092771 | dubstep | 136.0 | 184.6 | 35.7% |
+| 1234750 | trance | 142.0 | 176.3 | 24.1% |
+| 1329955 | progressive-hou | 127.0 | 146.0 | 15.0% |
+| 1418652 | dubstep | 66.0 | 104.4 | 58.2% |
+| 1469706 | tech-house | 129.0 | 192.0 | 48.8% |
+| 1560729 | house | 123.0 | 164.3 | 33.5% |
+| 1626348 | trance | 139.0 | 189.6 | 36.4% |
+| 1728723 | dubstep | 174.0 | 140.5 | 19.3% |
+| 1747518 | electronica | 71.0 | 190.4 | 168.1% |
+| 1791554 | techno | 125.0 | 164.4 | 31.6% |
+| 1816200 | techno | 123.0 | 167.0 | 35.8% |
+| 1825982 | house | 123.0 | 167.0 | 35.8% |
+| 1874244 | reggae-dub | 71.0 | 93.5 | 31.7% |
+| 1929611 | drum-and-bass | 174.0 | 179.0 | 2.9% |
+| 220883 | trance | 139.0 | 80.0 | 42.5% |
+| 2422602 | techno | 127.0 | 167.0 | 31.5% |
+| 2432724 | dj-tools | 127.0 | 164.4 | 29.5% |
+| 2673896 | house | 129.0 | 192.8 | 49.5% |
+| 2702022 | house | 144.0 | 72.1 | 49.9% |
+| 2759853 | electro-house | 130.0 | 194.3 | 49.5% |
+| 278893 | psy-trance | 147.0 | 150.8 | 2.6% |
+| 3016341 | house | 127.0 | 177.0 | 39.4% |
+| 3097674 | trance | 139.0 | 153.6 | 10.5% |
+| 3101046 | drum-and-bass | 174.0 | 114.3 | 34.3% |
+| 3124242 | trance | 129.0 | 176.4 | 36.7% |
+| 3125254 | dubstep | 139.0 | 144.0 | 3.6% |
+| 3128068 | house | 129.0 | 191.8 | 48.7% |
+| 3134837 | trance | 139.0 | 136.0 | 2.2% |
+| 3169408 | indie-dance-nu- | 112.0 | 151.6 | 35.4% |
+| ... | ... | ... | ... | ... |
+(94 more failures omitted)
+✔ Test "benchmark Acc1 strict (2% tolerance)" passed after 86.062 seconds.
+
+=== GiantSteps Genre-Stratified Accuracy (Intensity 7) ===
+Genre                                                                                                   Acc1    Acc2  Count  Status
+-----------------------------------------------------------------------------------------------------------------------------------
+drum-and-bass                                                                                          92.8%   94.2%    139
+dubstep                                                                                                76.3%   78.9%     76
+trance                                                                                                 73.0%   74.3%     74
+techno                                                                                                 83.6%   83.6%     61
+electronica                                                                                            76.9%   76.9%     52
+psy-trance                                                                                             91.2%   91.2%     34
+breaks                                                                                                 80.8%   80.8%     26
+deep-house                                                                                            100.0%  100.0%     24
+house                                                                                                  52.2%   56.5%     23  ** LOW **
+electro-house                                                                                          68.2%   68.2%     22  ** LOW **
+tech-house                                                                                             86.4%   95.5%     22
+progressive-house                                                                                      63.2%   63.2%     19  ** LOW **
+glitch-hop                                                                                             76.5%   76.5%     17
+chill-out                                                                                              93.3%   93.3%     15
+hardcore-hard-techno                                                                                   92.9%   92.9%     14
+indie-dance-nu-disco                                                                                   81.8%   81.8%     11
+dj-tools                                                                                               12.5%   25.0%      8  ** LOW **
+hard-dance                                                                                            100.0%  100.0%      8
+minimal                                                                                                87.5%   87.5%      8
+pop-rock                                                                                              insufficient        3
+hip-hop                                                                                               insufficient        2
+reggae-dub                                                                                            insufficient        2
+funk-r-and-b                                                                                          insufficient        1
+Overall: Acc1=81.2%, Acc2=82.6%
+
+✔ Test "genre-stratified accuracy" passed after 86.092 seconds.
+✔ Suite "GiantSteps Tempo Benchmark" passed after 86.092 seconds.
+✔ Test run with 6 tests in 1 suite passed after 86.092 seconds.

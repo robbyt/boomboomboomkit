@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-14 (Story 4-5 review-pass v3 close-out. Third 4-chunk adversarial review (Codex + Blind Hunter + Edge Case Hunter + Acceptance Auditor per chunk) applied 30 patches across Chunks 1/2/4: vDSP_mtrans/vDSP_vramp/vDSP_vlint adoption in BNNSTechnique featurize (eliminates 256 transient arrays per evaluate call + 3 project-context.md violations), .frameMajorLogMel production-layout transpose test, cancellation test renamed to spec-canonical name, os_log .fault→.error for recoverable abstain, release-discipline cleanups in Package.swift/.gitignore/Makefile, factual error fix in tools/coreml-convert/README.md about Options.mlTechnique=nil default behavior. 398/398 tests pass; @Test count=400 (AC #11 ceiling). Chunk 3 (impact / regression evidence) surfaced a story-readiness gap: `4-5-bnns-impact-report.json` shows ml_acc1=0 across 82 OA300 tracks, 0/4 named DnB resolved. Investigation deferred to Story 4-6 with hard AC; see _bmad-output/implementation-artifacts/deferred-work.md "Story 4-5 review-pass v3 — Chunk 3 impact-report findings" for full triage. Story 4-5 closes as 'BNNS infrastructure delivered'; ML accuracy validation moves to Story 4-6.)
+last_updated: 2026-05-15 (Story 4-6 in-progress — dev started. Story scope re-cast from the original epics.md "Story 4.6: CoreML MLTechnique Conformance (Production)" framing to "BNNS ML Accuracy Investigation and Bundle Decision" per the Story 4-5 close-out handoff. Driven by the 4-5 review-pass v3 Chunk 3 finding that `4-5-bnns-impact-report.json` shows ml_acc1=0/82 (100% abstain) and named_dnb_resolved=0/4. Story 4-6 adds diagnostic instrumentation (5-failure-mode `MLAbstainReason` on the trace), expands the DnB target set with ≥4 DSP-correct controls (Codex C5), runs a threshold-disabled smoke + optional Swift-vs-Python featurize differential, applies the indicated remediation, and either retains the bundle (Branch A — fix landed, ≥2/4 named + ≥4/4 controls preserved) or pulls it from `Sources/BoomBoomBoomKitML/Resources/` (Branch C — bundle moved to develop-only `_bmad-output/ml-models/`; `BNNSTechnique()` no-arg throws `.modelResourceMissing`; consumers BYOW). Story-key renamed from `4-6-coreml-mltechnique-conformance` to `4-6-ml-accuracy-investigation-and-bundle-decision` to match scope. CoreML conformance is OUT OF SCOPE regardless of branch; a Branch-A follow-on story `4-8-coreml-mltechnique-conformance` is unblocked only if Branch A fires.)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -81,7 +81,7 @@ development_status:
   4-4-configurable-ml-ensemble-voting-policy: done
   4-4b-tempo-classifier-training: done
   4-5-bnns-mltechnique-conformance: done
-  4-6-coreml-mltechnique-conformance: backlog
+  4-6-ml-accuracy-investigation-and-bundle-decision: in-progress
   4-7-spectral-flux-onset-dsp-variant: backlog
   epic-4-retrospective: optional
 
