@@ -127,7 +127,7 @@ options.mlTechnique = try? BNNSTechnique(modelURL: yourModelURL)
 // .binCountMismatch(expected: Int, actual: Int).
 ```
 
-The bundled reference acts as the default when `options.mlTechnique = nil`; your override replaces it.
+When `options.mlTechnique = nil` (the default), no ML model is loaded and the pipeline runs DSP-only. To opt in to the bundled reference, construct `BNNSTechnique()` (no arguments) and assign it to `options.mlTechnique`. Your custom-URL override replaces the bundled-reference fallback for the same-arch path.
 
 ### Path B — different architecture
 
@@ -216,9 +216,10 @@ Wire via Path B's custom `MLTechnique` conformance.
 
 ### Path D — runtime wiring summary
 
-The override surface is `Options.mlTechnique` (Story 4-5 DD #18 / DD #19 — finalized 2026-05-09 cohesion review):
+The override surface is `Options.mlTechnique`:
 
-- `Options.mlTechnique = nil` (default) → bundled reference loads automatically.
+- `Options.mlTechnique = nil` (default) → DSP-only; no ML model is loaded.
+- `Options.mlTechnique = try? BNNSTechnique()` → opt in to the bundled reference.
 - `Options.mlTechnique = try? BNNSTechnique(modelURL: ...)` → same-arch override.
 - `Options.mlTechnique = MyCustomTechnique()` → custom-arch override.
 
@@ -241,10 +242,10 @@ uv run python convert.py \
 
 Output extensions:
 - `.mlpackage` — coremltools native MLProgram bundle (recommended for new code).
-- `.mlmodel` — Story 4.1 BoomBoomBoomKit convention (a directory tree under this name; `xcrun coremlc compile` accepts it).
+- `.mlmodel` — Core ML model bundle (a directory tree under this name; `xcrun coremlc compile` accepts it as input).
 - `.mlmodelc` — pre-compiled. The tool runs `xcrun coremlc compile` and emits the compiled tree. Requires Xcode 15+.
 
-Compute units always `CPU_ONLY` because BNNSGraph (Story 4-5's runtime consumer) reads MIL + weights directly and ignores the runtime hint.
+Compute units always `CPU_ONLY` because BNNSGraph reads MIL + weights directly and ignores the runtime hint.
 
 ## Validation
 
@@ -298,7 +299,7 @@ Conversion stages all intermediate artifacts in a sibling staging directory (`.c
 
 This tool does NOT:
 
-- Train models (use your own training pipeline; the dev-only `_bmad-output/ml-training/` is the project's reference — develop-only, not present on the `main` branch consumers clone).
+- Train models. Use your own training pipeline; this tool only converts an already-trained PyTorch checkpoint into Core ML.
 - Fine-tune existing checkpoints.
 - Compress / palettize / quantize. If you need that, run `coremltools.optimize.*` upstream of this step.
 

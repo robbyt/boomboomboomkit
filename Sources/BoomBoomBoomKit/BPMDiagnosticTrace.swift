@@ -150,10 +150,24 @@ public struct BPMDiagnosticTrace: Sendable {
   // MARK: - Story 4.5: ML Feature Frames
 
   /// Log-mel spectrogram frames retained from the DSP onset pipeline,
-  /// fed into ``MLTechnique/evaluate(trace:)`` as the model input. The
-  /// library populates this lazily (only when `Options.mlTechnique != nil`
-  /// AND `Options.ensemblePolicy != .dspOnly` AND `Options.enableTrace`)
-  /// to keep the DSP-only path zero-cost.
+  /// fed into ``MLTechnique/evaluate(trace:)`` as the model input.
+  ///
+  /// **Population rules.** The producer (``BPMAnalyzer``) populates this
+  /// field on the *internally-constructed* trace whenever both of these
+  /// hold: `Options.mlTechnique != nil` AND
+  /// `Options.ensemblePolicy != .dspOnly`. ``Options/enableTrace`` is NOT
+  /// part of the population gate — the auto-trace ML path runs even when
+  /// the consumer asked `enableTrace: false` so that `evaluate(trace:)`
+  /// always sees the same `mlFeatures` shape (Story 4-5 AC #14 / review
+  /// fix M5). The DSP-only path remains zero-cost because both gates
+  /// short-circuit before retention.
+  ///
+  /// **What consumers observe on the result trace.** On
+  /// ``AudioAnalysisResult/trace`` (the trace returned to the caller),
+  /// ``mlFeatures`` is non-nil only when the consumer ALSO set
+  /// `Options.enableTrace = true` AND ML was active. With
+  /// `enableTrace = false`, the consumer-visible trace is `nil` (see
+  /// `runPreCorroborationPipeline` for the `shouldBuildTrace` predicate).
   ///
   /// See ``MLFeatureFrames`` for the typed-evidence shape + semantic
   /// metadata that disambiguates the tensor's contract.
@@ -351,9 +365,12 @@ public struct SubBandEnergies: Sendable, CustomStringConvertible, Equatable {
 
 // MARK: - Trace Evidence Types (Story 4-5)
 
-/// Tensor layout convention for ``MLFeatureFrames``. Story 4.5 ships only
-/// ``nchw``; ``CaseIterable`` documents the closed set for the gating
-/// invariant `TensorLayout.allCases.count == 1`. Pre-1.0 framing per
+/// Tensor layout convention for ``MLFeatureFrames``. Story 4.5 ships two
+/// cases — ``frameMajorLogMel`` (the on-the-wire layout the
+/// ``BPMAnalyzer`` retention path emits) and ``nchw`` (reserved for
+/// future producers whose retention path already emits mel-major bytes).
+/// ``CaseIterable`` documents the closed set for the gating invariant
+/// `TensorLayout.allCases.count == 2`. Pre-1.0 framing per
 /// project-context.md "Public API Discipline" — Story 4.6 (CoreML) may
 /// extend the case list (e.g., `.nhwc`) when an `MLShapedArray` consumer
 /// surfaces a need.
@@ -420,9 +437,19 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   /// readers can audit the source-rate-derived frame budget.
   public let frames: Int
 
-  /// Logical tensor layout for ``logMelData``. ``TensorLayout/nchw`` only
-  /// for Story 4.5; ``CaseIterable`` lets future stories add cases without
-  /// breaking the precondition guard.
+  /// Logical tensor layout for ``logMelData``. Story 4.5 ships
+  /// ``TensorLayout/frameMajorLogMel`` (the ``BPMAnalyzer`` producer's
+  /// actual on-the-wire shape) and ``TensorLayout/nchw`` (reserved for
+  /// future producers); ``CaseIterable`` lets future stories add cases
+  /// without breaking the precondition guard.
+  ///
+  /// **TensorLayout is a tag, not a constraint.** The initializer does
+  /// not (and cannot) inspect ``logMelData`` to verify the bytes match
+  /// the declared layout. Producers MUST set this field truthfully — a
+  /// mislabeled payload (e.g., frame-major bytes tagged ``nchw``) will
+  /// be fed transposed into a consumer ``MLTechnique`` and produce
+  /// silently wrong predictions. The standard library producer
+  /// (``BPMAnalyzer``) always emits ``frameMajorLogMel``.
   public let tensorLayout: TensorLayout
 
   /// Log-mel payload whose interpretation depends on ``tensorLayout``:
@@ -496,13 +523,23 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   }
 
   /// Test-only override of ``maximumLogMelDataCount``. Implemented as a Swift
-  /// `@TaskLocal` so the override is naturally per-task — concurrent tests
+  /// `@TaskLocal` so the override is per-task — concurrent tests
   /// constructing larger ``MLFeatureFrames`` outside the
   /// ``_withTestingMaximumLogMelDataCount(_:_:)`` scope continue to see the
   /// production cap. The v1 implementation used `nonisolated(unsafe) static var`
   /// which silenced Swift 6 strict-concurrency checking but didn't actually
   /// isolate parallel tests — Codex review pass flagged this as a real bug,
   /// not just a smell (review fix N5 v2 / codex 019e28bb).
+  ///
+  /// **Propagation caveat (Story 4-5 review pass v3 / Edge Case Hunter #8).**
+  /// Swift `@TaskLocal` values propagate to *structured* child tasks
+  /// (`async let`, `TaskGroup.addTask`) but NOT to *unstructured*
+  /// `Task { }` instances spawned inside the override scope. A test that
+  /// wraps `analyzeBPM` in `Task { try analyzeBPM(...) }.value` from
+  /// inside ``_withTestingMaximumLogMelDataCount(_:_:)`` runs on a
+  /// fresh task tree that sees the production cap, not the override.
+  /// Tests must call `analyzeBPM` directly inside the override (or via
+  /// `async let` / `TaskGroup`).
   ///
   /// Production code MUST NOT touch this directly.
   @TaskLocal internal static var _testingMaximumLogMelDataCount: Int?
@@ -512,6 +549,9 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   /// other tasks see the production cap. The wrapper still uses `defer`-style
   /// scoping via `TaskLocal.withValue` semantics so the override doesn't
   /// leak past the closure even if `body` throws (review fix N5 v2).
+  ///
+  /// See ``_testingMaximumLogMelDataCount`` for the unstructured-`Task { }`
+  /// propagation caveat.
   internal static func _withTestingMaximumLogMelDataCount<R>(
     _ cap: Int, _ body: () throws -> R
   ) rethrows -> R {
@@ -526,6 +566,11 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   /// Throws `MLTechniqueError.invalidFeatureShape` when any invariant
   /// fires; see ``MLTechniqueError/invalidFeatureShape(reason:)`` for the
   /// abstain semantics.
+  ///
+  /// **Validation order (cheap-to-expensive).** Scalar shape and
+  /// semantic-metadata checks fire first; the O(N) `allSatisfy(\.isFinite)`
+  /// scan over `logMelData` runs last so a malformed-shape payload short-
+  /// circuits before the cost of walking the buffer is paid.
   public init(
     melBands: Int,
     frames: Int,
@@ -539,6 +584,7 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
     logCompressionScale: Float,
     featureSetVersion: String
   ) throws {
+    // MARK: Shape invariants
     guard melBands > 0 else {
       throw MLTechniqueError.invalidFeatureShape(
         reason: "melBands must be positive (got \(melBands))")
@@ -572,6 +618,58 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
     case .frameMajorLogMel, .nchw:
       break
     }
+
+    // MARK: Semantic-metadata invariants (Story 4-5 review pass v3)
+    // The metadata fields are part of the tensor's typed contract per
+    // DD #2 — a consumer ``MLTechnique`` aligning its training-time
+    // pipeline against these values must be able to trust them. Storing
+    // garbage (NaN sample rates, zero hop sizes, fmax < fmin, empty
+    // version tag) without checking would silently bypass the
+    // pipeline-drift detection seam ``featureSetVersion`` exists to
+    // provide.
+    guard sampleRate.isFinite, sampleRate > 0 else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "sampleRate must be finite and positive (got \(sampleRate))")
+    }
+    guard fftSize > 0 else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "fftSize must be positive (got \(fftSize))")
+    }
+    guard hopSize > 0 else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "hopSize must be positive (got \(hopSize))")
+    }
+    guard melFmin.isFinite, melFmin >= 0 else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "melFmin must be finite and non-negative (got \(melFmin))")
+    }
+    guard melFmax.isFinite, melFmax > melFmin else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "melFmax must be finite and strictly greater than melFmin "
+          + "(melFmin=\(melFmin), melFmax=\(melFmax))")
+    }
+    guard logCompressionScale.isFinite, logCompressionScale > 0 else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "logCompressionScale must be finite and positive (got \(logCompressionScale))")
+    }
+    guard !featureSetVersion.isEmpty else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "featureSetVersion must not be empty (DD #2 pipeline-drift detection)")
+    }
+
+    // MARK: Payload finiteness — O(N) scan last
+    // Real-world audio with sustained loud peaks can push pre-`vvlogf`
+    // mel energies into the upper `Float` range; `100.0 * x + 1.0`
+    // overflows `Float.infinity` at `x ≈ 3.4e36`. Producing `+inf` /
+    // `NaN` in the tensor would propagate through downstream `vDSP`
+    // normalization (mean/stddev become `NaN`) and break synthesized
+    // `Equatable` (`Float.nan != Float.nan`). Reject at the boundary.
+    guard logMelData.allSatisfy({ $0.isFinite }) else {
+      throw MLTechniqueError.invalidFeatureShape(
+        reason: "logMelData contains non-finite values (NaN or Inf); upstream "
+          + "DSP pre-image overflowed or produced an invalid log")
+    }
+
     self.melBands = melBands
     self.frames = frames
     self.tensorLayout = tensorLayout
@@ -590,11 +688,15 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   /// thousands of values at default intensity). Element count is shown
   /// instead so readers can verify the shape matches the metadata.
   public var description: String {
+    // `featureSetVersion` is quoted so descriptions of payloads carrying
+    // malformed version tags (containing commas, colons, or other
+    // separator-looking characters) remain machine-parseable in
+    // benchmark logs and ablation reports.
     "MLFeatureFrames(melBands: \(melBands), frames: \(frames), "
       + "layout: \(tensorLayout), logMelData.count: \(logMelData.count), "
       + "sampleRate: \(sampleRate), fftSize: \(fftSize), hopSize: \(hopSize), "
       + "melFmin: \(melFmin), melFmax: \(melFmax), "
       + "logCompressionScale: \(logCompressionScale), "
-      + "featureSetVersion: \(featureSetVersion))"
+      + "featureSetVersion: \"\(featureSetVersion)\")"
   }
 }

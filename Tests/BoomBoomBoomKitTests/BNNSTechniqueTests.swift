@@ -183,7 +183,7 @@ struct BNNSTechniqueTests {
   // MARK: - Cancellation cooperation (AC #9)
 
   @Test("Story 4-5 AC #9: cancellation on the active-ML path throws CancellationError")
-  func cancellationWithValidMLConfigThrows() throws {
+  func cancellationBeforeMLEvaluateThrows() throws {
     // Spec-canonical ML-only cancellation checkpoint: when policy != .dspOnly,
     // an mlTechnique is wired up, and a trace is built, an in-flight
     // cancellation is observed at `evaluateMLIfActive` and throws BEFORE
@@ -374,6 +374,82 @@ struct BNNSTechniqueTests {
         #expect(
           Set(nonNil.map { $0.bitPattern }).count == 1,
           "concurrent evaluate produced inconsistent BPM values: \(nonNil)")
+      }
+    }
+  }
+
+  // MARK: - .frameMajorLogMel transpose path (production layout, review fix M1)
+
+  @Test(
+    "evaluate(trace:) handles .frameMajorLogMel layout via vDSP_mtrans transpose",
+    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
+  func evaluateAcceptsFrameMajorLogMelLayout() throws {
+    if #available(macOS 15.0, *) {
+      // Production layout: `BPMAnalyzer` emits `.frameMajorLogMel`
+      // (`[frame * M + mel]`). The previous test pass exercised only
+      // `.nchw`, leaving the vDSP_mtrans transpose in `featurize` untested
+      // — Codex 4-5-chunk2 M1 / Acceptance Auditor finding #11. This test
+      // builds two `MLFeatureFrames` payloads with identical underlying
+      // data in the two layouts and asserts both produce the same
+      // evaluation, proving the transpose is correct.
+      let t = try #require(try? BNNSTechnique())
+      let frames = 128
+      let mb = 128
+      // Mel-major source data (`.nchw`): row-major by mel band.
+      var nchwData = [Float](repeating: 0, count: mb * frames)
+      for i in 0..<nchwData.count {
+        nchwData[i] = Float(i % 13) / 13.0 + Float(i % 19) / 25.0
+      }
+      // Frame-major equivalent: transpose nchw → frame-major by hand
+      // (test-side, not exercising the production transpose path).
+      var frameMajorData = [Float](repeating: 0, count: mb * frames)
+      for mel in 0..<mb {
+        for frame in 0..<frames {
+          frameMajorData[frame * mb + mel] = nchwData[mel * frames + frame]
+        }
+      }
+      let nchwFeatures = try MLFeatureFrames(
+        melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: nchwData,
+        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+      let frameFeatures = try MLFeatureFrames(
+        melBands: mb, frames: frames, tensorLayout: .frameMajorLogMel,
+        logMelData: frameMajorData,
+        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+      var nchwTrace = BPMDiagnosticTrace()
+      nchwTrace.mlFeatures = nchwFeatures
+      var frameTrace = BPMDiagnosticTrace()
+      frameTrace.mlFeatures = frameFeatures
+      let nchwResult = t.evaluate(trace: nchwTrace)
+      let frameResult = t.evaluate(trace: frameTrace)
+      // Both paths produce the same BPM/confidence when fed equivalent
+      // input. Synthetic input may legitimately abstain (two-gate
+      // threshold); either both abstain together, or both produce equal
+      // non-nil results. A mismatch here is direct evidence that
+      // `vDSP_mtrans` produced different bytes than the by-hand transpose.
+      if let n = nchwResult, let f = frameResult {
+        #expect(
+          n.bpm == f.bpm,
+          ".frameMajorLogMel and .nchw must produce identical BPM after transpose")
+        #expect(
+          n.confidence == f.confidence,
+          ".frameMajorLogMel and .nchw must produce identical confidence")
+      } else {
+        // `Testing.Comment` is `ExpressibleByStringLiteral` only — runtime
+        // string interpolation is rejected at compile time, so surface
+        // the asymmetry diagnostically via Issue.record before the assert.
+        if (nchwResult == nil) != (frameResult == nil) {
+          let nDesc = String(describing: nchwResult)
+          let fDesc = String(describing: frameResult)
+          Issue.record(
+            "transpose mismatch: only one layout abstained (nchw=\(nDesc), frame=\(fDesc))")
+        }
+        #expect(
+          nchwResult == nil && frameResult == nil,
+          "transpose mismatch: only one layout abstained (see Issue.record above)")
       }
     }
   }

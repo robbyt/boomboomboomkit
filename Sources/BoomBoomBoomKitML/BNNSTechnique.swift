@@ -265,17 +265,14 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     var melMajor = [Float](repeating: 0, count: M * F)
     switch features.tensorLayout {
     case .frameMajorLogMel:
+      // vDSP_mtrans transposes the [F, M] frame-major source into the
+      // [M, F] mel-major destination in one call — replaces the manual
+      // nested loop that violated the project's "no manual loops over
+      // signal data" rule (review fix Chunk 2 C2).
       features.logMelData.withUnsafeBufferPointer { src in
         melMajor.withUnsafeMutableBufferPointer { dst in
           guard let srcBase = src.baseAddress, let dstBase = dst.baseAddress else { return }
-          for mel in 0..<M {
-            var srcIdx = mel
-            let dstRowStart = mel * F
-            for frame in 0..<F {
-              dstBase[dstRowStart + frame] = srcBase[srcIdx]
-              srcIdx += M
-            }
-          }
+          vDSP_mtrans(srcBase, 1, dstBase, 1, vDSP_Length(M), vDSP_Length(F))
         }
       }
     case .nchw:
@@ -308,25 +305,44 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       }
     }
 
-    // Step 3: temporal resample per mel band to W frames.
-    // Build the control vector once: fractional source indices spanning
-    // [0, F-1] in exactly W evenly-spaced steps.
+    // Step 3: temporal resample per mel band to W frames. Build the
+    // control vector via vDSP_vramp — fractional source indices spanning
+    // [0, F-1] in exactly W evenly-spaced steps (review fix Chunk 2 C4
+    // — replaces a manual for-loop that violated the project's vDSP
+    // rule; matches the Story 3-2 phase-ramp precedent in
+    // tempogramMagnitude / computeFourierTempogram). The last control
+    // entry is clamped one ULP below F-1 so vDSP_vlint's
+    // `A[floor(B[i])+1]` read at the exact F-1 boundary stays in-bounds
+    // (Codex 4-5-chunk2 boundary analysis).
     var controlVector = [Float](repeating: 0, count: W)
-    let scale = Float(F - 1) / Float(W - 1)
-    for w in 0..<W {
-      controlVector[w] = Float(w) * scale
-    }
+    var rampStart: Float = 0
+    var rampStep = Float(F - 1) / Float(W - 1)
+    vDSP_vramp(&rampStart, &rampStep, &controlVector, 1, vDSP_Length(W))
+    controlVector[W - 1] = controlVector[W - 1].nextDown
 
+    // Per-mel-band linear interpolation via vDSP_vlint directly. The
+    // prior implementation built a fresh `Array(melMajor[range])` plus a
+    // fresh `vDSP.linearInterpolate(...)` result array on every mel band,
+    // allocating 2·M = 256 transient arrays per evaluate call. vDSP_vlint
+    // operates on the underlying buffer base pointer with no intermediate
+    // allocations. The outer `for mel in 0..<M` is a control-flow loop
+    // wrapping a vDSP call — explicitly permitted by the project rule
+    // (review fix Chunk 2 Codex C1 subset).
     var resampled = [Float](repeating: 0, count: M * W)
-    for mel in 0..<M {
-      let sourceSlice = Array(melMajor[(mel * F)..<((mel + 1) * F)])
-      let rowOut = vDSP.linearInterpolate(
-        elementsOf: sourceSlice, using: controlVector)
-      // Memcpy the row into the resampled buffer.
-      rowOut.withUnsafeBufferPointer { src in
-        resampled.withUnsafeMutableBufferPointer { dst in
-          guard let s = src.baseAddress, let d = dst.baseAddress else { return }
-          d.advanced(by: mel * W).update(from: s, count: W)
+    melMajor.withUnsafeBufferPointer { srcBuf in
+      resampled.withUnsafeMutableBufferPointer { dstBuf in
+        controlVector.withUnsafeBufferPointer { ctrlBuf in
+          guard
+            let srcBase = srcBuf.baseAddress,
+            let dstBase = dstBuf.baseAddress,
+            let ctrlBase = ctrlBuf.baseAddress
+          else { return }
+          for mel in 0..<M {
+            vDSP_vlint(
+              srcBase + mel * F, ctrlBase, 1,
+              dstBase + mel * W, 1,
+              vDSP_Length(W), vDSP_Length(F))
+          }
         }
       }
     }
@@ -714,8 +730,13 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// instance, not just the first one.
   private func logNilFeaturesOnce() {
     guard handle.nilFeaturesLatch.tryAcquire() else { return }
+    // `.error` (not `.fault`): a missing mlFeatures payload is a
+    // configuration mismatch the consumer can recover from — the
+    // technique abstains, the DSP path still produces a result. `.fault`
+    // is reserved for unrecoverable process-level corruption (review
+    // fix Chunk 2 finding #6 / Codex 4-5-chunk2).
     os_log(
-      .fault, log: Self.nilFeaturesLogger,
+      .error, log: Self.nilFeaturesLogger,
       "BNNSTechnique.evaluate(trace:) called with nil mlFeatures — capture flag may not be propagating"
     )
   }

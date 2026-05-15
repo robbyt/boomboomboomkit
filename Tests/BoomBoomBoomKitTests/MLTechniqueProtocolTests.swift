@@ -47,8 +47,8 @@ struct MLTechniqueProtocolTests {
   /// Single compile-time witness covering all three required conformers
   /// (BNNSTechnique + MockMLTechnique + downstream-consumer-style class)
   /// in one body. Per DD #13 test count budgeting — collapsing three
-  /// witness-only tests into one keeps the project inside the [370, 378]
-  /// `@Test(` count band.
+  /// witness-only tests into one keeps the project inside the
+  /// AC #11–amended [386, 400] `@Test(` count band.
   @Test("BNNSTechnique + MockMLTechnique + custom downstream conformer all conform at compile time")
   func allRequiredConformersCompile() {
     if #available(macOS 15.0, *) {

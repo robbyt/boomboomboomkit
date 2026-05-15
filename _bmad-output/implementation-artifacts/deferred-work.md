@@ -397,3 +397,71 @@ are safe to defer; items marked `Blocks 4.6: yes` must be re-opened before
   **Trigger:** first CI run that observes the new field flipping between
   runs at the same SHA. **Blocks 4.6:** no.
 
+
+## Story 4-5 review-pass v3 — Chunk 3 impact-report findings (2026-05-14)
+
+Surfaced by the v3 4-chunk adversarial review (Chunk 3: Impact / Regression
+Evidence). Verified directly against on-disk artifacts. These are real
+findings but the v3 close-out judgment is: ship 4-5 as **"BNNS
+infrastructure delivered; ML impact validation deferred to Story 4-6."**
+Story 4-6 picks up the accuracy work with hard AC.
+
+- **C1 — BNNS ML abstained on 100% of OA300 corpus tracks.** Verified at
+  `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json`:
+  `ml_acc1 = 0/82`, `named_dnb_resolved = 0/4`, `dsp_winner ==
+  ensemble_winner` for every track, all 4 named DnB targets remain at
+  ~113 BPM (half-tempo failure; ground truth 170 BPM). The motivating
+  story case is NOT recovered. Per Codex Chunk 3 analysis: the 100%
+  abstain hides 5 different failure modes (ML never ran / features empty
+  / inference failed / decoded out of range / decoded plausible but
+  two-gate rejected). Raw decoded BPM/confidence/secondMax/margin EXIST
+  inside `BNNSTechnique.decodeLogits` at `:475-525` but are NOT surfaced
+  through any diagnostic API. Cannot distinguish which mode is firing
+  without instrumentation. **Trigger:** Story 4-6 entry. **Blocks 4-6:
+  yes** — first task of 4-6 is the diagnostic instrumentation pass.
+
+- **C2 — Bundle-pull decision deferred to Story 4-6.** Per Codex
+  consult (thread `019e2975-7b50-78b1-80d2-d01b6eb73d2c`), if Story 4-6
+  cannot demonstrate ≥ 2/4 named DnB tracks resolved, the bundled
+  `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc` should
+  be REMOVED from the main-shipping path (moved to develop-only
+  `_bmad-output/ml-models/`). Codex's framing: "Pre-1.0 is exactly
+  when to be strict about not shipping an ineffective bundled binary."
+  This decision is gated on the diagnostic results — if the abstain is
+  a wiring/featurize bug (recoverable), the bundle stays. If the model
+  itself is too weak on real DnB content, the bundle is pulled and
+  `BNNSTechnique()` no-arg form throws `.modelResourceMissing`.
+  **Trigger:** Story 4-6 diagnostic completes. **Blocks 4-6: yes** —
+  bundle status must be decided before 4-6 merges.
+
+- **C3 — `_bmad-output/implementation-artifacts/4-5-regression-snapshot.json`
+  naming and lifecycle are muddy.** Original c446069 captured a
+  metadata-only snapshot with a self-documented note that the
+  test-enforceable byte-identity gate is
+  `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json`
+  (frozen, unchanged, still serves as the AC #5 byte-identity gate).
+  Commit `4027b34` ("review pass v2: regenerate post-fix artifacts")
+  rewrote the metadata stub into a real per-track JSON for
+  cross-reference. The rewrite was honest but the file name suggests
+  a "frozen baseline" that doesn't match the lifecycle. **Trigger:**
+  Story 4-6 if revisiting the regression-snapshot infrastructure;
+  otherwise low-priority rename/delete in a cleanup pass.
+  **Blocks 4-6: no** — informational only, real byte-identity gate
+  is elsewhere.
+
+- **C4 — Impact-report HALT gate is develop-only, not in CI.**
+  `make bnns-impact-report` fires `Issue.record` on `ml_acc1 = 0` but
+  this only triggers when someone explicitly invokes the target.
+  CI's `make test` never exercises the impact harness, so the
+  100%-abstain artifact landed without observable CI failure.
+  **Trigger:** Story 4-6. **Blocks 4-6: yes** — 4-6 should either
+  promote the impact-report into a CI lane OR add a fast-running
+  abstain-floor unit test.
+
+- **C5 — DnB target list lacks DSP-correct control set.**
+  `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json`
+  has 4 tracks, all DSP-known-failures. No DnB tracks DSP gets right
+  in the control set. The impact metric measures "ML rescues DSP's
+  losses" but cannot detect "ML quietly broke 30 DnB tracks DSP got
+  right." **Trigger:** Story 4-6. **Blocks 4-6: yes** — expand target
+  set BEFORE re-running the impact report.

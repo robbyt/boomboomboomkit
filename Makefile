@@ -126,7 +126,7 @@ ml-policy-sweep:
 	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.MLPolicySweepTests/policySweepReport
 
-## bnns-impact-report: Generate per-track BNNS impact JSON to _bmad-output/implementation-artifacts/4-5-bnns-impact-report.json
+## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
 .PHONY: bnns-impact-report
 bnns-impact-report:
 	@mkdir -p "$(BNNS_IMPACT_OUT_DIR)"
