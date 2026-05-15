@@ -1434,3 +1434,299 @@ Aggregation after dedup: 6 critical, ~22 major, ~16 minor, 9 decision-needed. Ca
 - **Defer bucket extended**: workspace caching, per-instance latch, configurable thresholds, anti-aliasing
 
 **Codex thread for follow-up:** `019e23e6-93f1-72f1-af6e-63d8f4d0e12f` (use to re-vet after patches land or to dive deeper on the resource-lifecycle / numerical-correctness gaps).
+
+---
+
+## Review Findings (v3, multi-chunk adversarial — Chunk 1: Contract + End-to-End ML Path)
+
+Generated 2026-05-14. Four parallel reviewers ran against the Chunk 1 diff (1382 lines covering `MLTechnique.swift`, `BPMDiagnosticTrace.swift`, `BPMAnalyzer.swift`, `AudioAnalysisService.swift`, `DSPTechnique.swift`, `MLFeatureFramesTests.swift`, `MLTechniqueProtocolTests.swift`, `MockMLTechnique.swift`): Claude Blind Hunter, Claude Edge Case Hunter, Claude Acceptance Auditor, and Codex independent review.
+
+**Coverage gates after this pass:** `swift build` ✓, `swift test` ✓ (397 tests pass; AC #11 `[386, 400]` band), `make fmt` ✓, `make lint` ✓ (only the pre-existing `LUFSAnalyzer.swift:94` TODO baseline).
+
+**Patches checked off `[x]` are landed in this pass. Unchecked `[ ]` items are either decision-needed or deferred — Chunk 2 review proceeds against the patched code.**
+
+### Patches (applied)
+
+- [x] [Review v3][Patch] **CX3 + ECH5 — `MLFeatureFrames.init` accepts NaN/Inf payloads** `[BPMDiagnosticTrace.swift]` — added `logMelData.allSatisfy(\.isFinite)` boundary check (O(N) scan ordered last after cheaper shape checks). Closes the upstream-`vvlogf` overflow path (mel energy ≥ 3.4e36 → `+inf`) and the `Equatable`-broken-by-NaN failure mode.
+- [x] [Review v3][Patch] **CX4 — Semantic metadata stored but unvalidated** `[BPMDiagnosticTrace.swift]` — `sampleRate`, `fftSize`, `hopSize`, `melFmin`, `melFmax`, `logCompressionScale`, `featureSetVersion` now all validated (finite, positive, ordered, non-empty). DD #2 pipeline-drift detection seam is now load-bearing.
+- [x] [Review v3][Patch] **BH2 + ECH3 — Size cap defends *after* heavy allocation; integer-division overflow guard is dead code** `[BPMAnalyzer.swift retention block]` — boundary defense moved BEFORE `reserveCapacity` + copy via `multipliedReportingOverflow`. Dead-code `melBands <= Int.max / count` guard removed.
+- [x] [Review v3][Patch] **X3 + CX2 + ECH10 — Cancellation contract not enforced for atomic ML inference** `[AudioAnalysisService.evaluateMLIfActive]` — added post-`evaluate(trace:)` `isCancelled` check. Cancellation flipping DURING the atomic call now surfaces to caller; ML evaluation is discarded.
+- [x] [Review v3][Patch] **ECH2 — `assertionFailure` in retention catch traps DEBUG on future error cases** `[BPMAnalyzer.swift retention block]` — defensive catch now returns nil unconditionally (graceful degradation). Comment documents the intent.
+- [x] [Review v3][Patch] **X1 + CX8 — `TensorLayout` doc-comment says "count == 1" / "ships only nchw" but 2 cases ship** `[BPMDiagnosticTrace.swift]` — doc-comment rewritten to enumerate both cases and the actual invariant (`count == 2`).
+- [x] [Review v3][Patch] **AA2 — `TensorLayout.allCases.count` invariant in wrong test venue** `[MetadataCorroborationTests.swift, MLFeatureFramesTests.swift]` — relocated to `ArchitectureInvariantsTests` (the canonical `*.allCases.count == N` venue per Story 4-4 close-out PSI). Original feature-suite test removed; venue-pointer comment added.
+- [x] [Review v3][Patch] **AA3 — Witness test cites stale `[370, 378]` band** `[MLTechniqueProtocolTests.swift]` — updated to AC #11–amended `[386, 400]` band.
+- [x] [Review v3][Patch] **X5 + AA5 + CX9 — `BPMDiagnosticTrace.mlFeatures` doc claims `enableTrace` gating but AC #14 test contradicts** `[BPMDiagnosticTrace.swift]` — doc-comment rewritten to distinguish internal-trace-population gate (no `enableTrace` requirement) from consumer-visible-trace gate.
+- [x] [Review v3][Patch] **ECH4 — `TensorLayout` is a tag, not a constraint; mislabeled payload feeds transposed input to `MLTechnique`** `[BPMDiagnosticTrace.swift]` — `tensorLayout` field doc-comment explicitly documents the producer-trust model: "TensorLayout is a tag, not a constraint" + producer convention + consequence.
+- [x] [Review v3][Patch] **ECH8 — `_withTestingMaximumLogMelDataCount` `@TaskLocal` does NOT propagate across unstructured `Task { }`** `[BPMDiagnosticTrace.swift]` — both the TaskLocal and the wrapper now document the structured-vs-unstructured propagation caveat honestly. Tests must call `analyzeBPM` directly inside the override (or via `async let` / `TaskGroup`).
+- [x] [Review v3][Patch] **ECH13 — `featureSetVersion` interpolated unquoted in `description`** `[BPMDiagnosticTrace.swift]` — `description` now quotes the field so malformed version tags with separators don't ambiguate diagnostic output.
+- [x] [Review v3][Patch] **CX6 — Witness test only checks metatypes; never exercises `try?` failure path** `[MLFeatureFramesTests.swift]` — added `tryQuestionMarkOnInvalidInputReturnsNil` that constructs invalid inputs via `try?` and asserts nil return. DD #5 graceful-degradation now has a direct unit-test witness.
+- [x] [Review v3][Patch] **New validation tests for review-pass v3 invariants** `[MLFeatureFramesTests.swift]` — 7 new throwing-init tests for NaN payload, +inf payload, invalid `sampleRate` (NaN/Inf/non-positive), invalid `fftSize`/`hopSize`, invalid mel bounds (`fmax <= fmin`, NaN, negative), invalid `logCompressionScale`, empty `featureSetVersion`. Total test count 389 → 397 (AC #11 band `[386, 400]`).
+
+### Decision-needed (Chunk 1 — held for user input)
+
+- [ ] [Review v3][Decision] **CX1 — `MLTechnique` protocol omits `init() throws` requirement** — DD #5 says protocol frozen around throwing construction; only `evaluate(trace:)` is required at the type level. Options: (a) add `init() throws` to protocol (breaks `TestCustomTechnique` and any custom conformer with non-throwing init — pre-1.0 acceptable); (b) document the convention without a type-level requirement (current state — leaves `try?` as caller convention); (c) require a separate "loadable" sub-protocol. Affects Chunk 2 BNNSTechnique audit.
+- [ ] [Review v3][Decision] **CX5 — `MLTechniqueError` exhaustive switch + count test pins enum as source-frozen** — adding a case = source-breaking for exhaustive clients. Options: (a) frame as intentional (pre-1.0, no consumers); (b) add `@unknown default:` to test; (c) introduce `@frozen` annotation; (d) restructure `MLTechniqueError` to use a single `case other(String)` slot. Affects Chunk 2 BNNSTechnique error surface.
+- [ ] [Review v3][Decision] **X4 + CX7 — `RecordingMockMLTechnique` violates its own protocol concurrency contract** — protocol says implementations MUST be thread-safe; mock mutates `callCount`/`lastTrace`/`capturedCandidatesAfterBoostCount` without sync. Options: (a) add an actor or `Mutex` to the mock; (b) document the mock as single-threaded-only and weaken the protocol contract; (c) split into `MockMLTechnique` (thread-safe) and `RecordingMockMLTechnique` (test-only, single-threaded). Affects how concurrent-eval tests can be structured.
+- [ ] [Review v3][Decision] **X2 — `MLFeatureFrames.frames` off-by-one vs onset envelope** — retention block: `frames: logMelFrames.count`; onset pipeline: `frameCount = logMelFrames.count - 1`. Is the +1 intentional (model trained on N source frames) or a bug? Options: (a) leave as-is + document the +1 on the field comment; (b) align to `logMelFrames.count - 1` (forces re-export of the bundled model); (c) surface a derived `onsetEnvelopeFrames: Int` field on `MLFeatureFrames`.
+- [ ] [Review v3][Decision] **X1 + ECH6 — `.nchw` case in `TensorLayout` is functionally dead pre-Story-4.6** — only `.frameMajorLogMel` is emitted by the producer; `.nchw` exists only in tests. Pre-1.0 framing allows removal. Options: (a) keep `.nchw` as forward-looking; (b) remove until Story 4-6 needs it; (c) gate `.nchw` behind `#if STORY_4_6`. Affects AC #3 wording ("only supports .nchw" — currently obsolete).
+- [ ] [Review v3][Decision] **AA6 — AC #3 says "only .nchw tensor layout"; switch accepts both `.frameMajorLogMel` and `.nchw`** — implementation deviates from AC verbatim. Options: (a) amend AC #3 explicitly to "the cases `TensorLayout` defines"; (b) remove `.nchw` and restore single-case invariant; (c) keep current state and add an amendment note to AC #3.
+- [ ] [Review v3][Decision] **ECH1 — Multi-window analysis pays per-window `MLFeatureFrames` allocation cost** — non-winner BPMResults' `mlFeatures` payloads are allocated then discarded by merge. Worst case ~18 MB wasted at `.thorough` intensity. Options: (a) accept the cost (current); (b) defer retention to the merged winner (structural rework); (c) lazy-retention via a closure that fires on merge. Defer if user accepts the cost.
+- [ ] [Review v3][Decision] **ECH9 — `enableTrace=true && mlTechnique != nil && policy = .dspOnly` → trace exists but `mlFeatures == nil`** — surprising asymmetry for debug consumers benchmarking with ML disabled. Options: (a) document the asymmetry (lowest cost); (b) populate `mlFeatures` even on `.dspOnly` when `enableTrace` is on (~6 MB allocation cost on debug runs).
+
+### Deferred (pre-existing or out-of-scope for Chunk 1 patch)
+
+- [x] [Review v3][Defer] **BH4 + ECH23 — `MLTechniqueError` not `Equatable`** `[MLTechnique.swift]` — `case modelLoadFailed(underlying: any Error)` precludes synthesized `Equatable`. Tests can only assert error type, not case. Deferred — adds API surface; tracks with CX5 (exhaustivity decision).
+- [x] [Review v3][Defer] **BH7 — `evaluateMLIfActive` swallows `Task.isCancelled` on `.dspOnly` path** `[AudioAnalysisService.swift]` — documented behavior preserves AC #14 `callCount == 0` invariant; surprising but spec-canonical.
+- [x] [Review v3][Defer] **AA4 — `evaluateMLIfActive` doc-comment misframes shape as "review fix C2 deviation"** `[AudioAnalysisService.swift]` — superseded by review pass v3 rewrite of the doc-comment to cover both pre- and post-evaluate cancellation contracts.
+- [x] [Review v3][Defer] **AA7 — `MLTechnique` DocC hand-waves about future fan-out** `[MLTechnique.swift]` — Story 4-6 will revisit when the concurrency contract is actually exercised; current doc reads correctly even if verbose.
+- [x] [Review v3][Defer] **AA8 — `MLTechniqueError` 5 cases / DD #20 still says 4** `[spec internal drift]` — spec text drift, not source-of-truth issue; will normalize in epic-4 retrospective.
+- [x] [Review v3][Defer] **BH10 + ECH11 — `MLFeatureFrames.Equatable` O(N) on 8M floats** `[BPMDiagnosticTrace.swift]` — synthesized `Equatable` walks full payload. Pattern: callers comparing `MLFeatureFrames` for cache/snapshot keys eat O(8M). Deferred — re-evaluate when an actual consumer hits the cost.
+- [x] [Review v3][Defer] **BH11 — `MLTechniqueError` indirect storage of `any Error`** `[MLTechnique.swift]` — 32-byte existential; throwing from a hot path is non-trivial. Tracks with CX5 / `Equatable` decisions.
+- [x] [Review v3][Defer] **ECH12 — `assertMLTechnique` is runtime under `#available(macOS 15.0)`** `[MLTechniqueProtocolTests.swift]` — on macOS < 15 the BNNSTechnique witness is runtime-skipped, not compile-time enforced. Defer — macOS 15 minimum is the project floor; runtime-skip is moot on supported platforms.
+- [x] [Review v3][Defer] **ECH15 — `mlFeaturesPopulatedWithAutoTraceWhenEnableTraceOff` pins implementation detail** `[MLFeatureFramesTests.swift]` — test asserts `result.trace == nil`. Brittle to future "expose auto-built trace on result" decisions. Defer — the AC #14 contract is the user-visible spec.
+- [x] [Review v3][Defer] **ECH16 — `maximumLogMelDataCount` TaskLocal read on every init** `[BPMDiagnosticTrace.swift]` — O(1) per init, perf nit.
+- [x] [Review v3][Defer] **ECH17 — `onPostVvlogf` test seam could leak if `BPMAnalyzer` ever made public** `[BPMAnalyzer.swift]` — `BPMAnalyzer` is internal; seam is internal-only.
+- [x] [Review v3][Defer] **ECH18 — Non-recording `MockMLTechnique` does not capture trace** `[MockMLTechnique.swift]` — tests that need trace assertions should migrate to `RecordingMockMLTechnique`; not a regression.
+- [x] [Review v3][Defer] **ECH19 — `evaluateMLIfActive` returns nil on `trace == nil` silently** `[AudioAnalysisService.swift]` — documented behavior; trace nil + ML active is currently unreachable via `shouldBuildTrace`.
+- [x] [Review v3][Defer] **ECH21 — `assertionFailure` interpolated `\(error)` could leak in DEBUG** — superseded by the ECH2 patch (assertionFailure removed entirely).
+- [x] [Review v3][Defer] **ECH22 — `_testingMaximumLogMelDataCount` requires `@testable`** `[BPMDiagnosticTrace.swift]` — standard test-support coupling.
+- [x] [Review v3][Defer] **ECH24 — `NSError` used in tests not strictly `Sendable`** `[MLTechniqueProtocolTests.swift]` — Foundation marks `NSError` `@unchecked Sendable`; this is the canonical pattern.
+- [x] [Review v3][Defer] **ECH25 — Cancellation between merge and corroborator-apply not checked** `[AudioAnalysisService.swift]` — completeness comment for the cancellation gap picture; corroboration is fast.
+- [x] [Review v3][Defer] **BH3 — `BNNSTechnique` referenced in Chunk 1 tests but defined in Chunk 2** `[Tests]` — chunked-review artifact, not a real issue. Chunk 2 review (next pass) covers `BNNSTechnique` directly.
+- [x] [Review v3][Defer] **BH8 — `@TaskLocal` isolation claim "naturally per-task" is too confident** — superseded by the ECH8 patch (TaskLocal docstring rewrite documents the Task { } propagation caveat honestly).
+- [x] [Review v3][Defer] **BH9 — Tests don't assert seam mutation-isolation between `onPostVvlogf` callback and retention block** `[MLFeatureFramesTests.swift]` — implicit via byte-identity test (`retainedSpectrogramIsBitExactPostVvlogf`); defensive comment in production source would be nice-to-have but not load-bearing.
+
+### Dismissed as noise (4)
+
+- BH3 (cross-chunk compile dep) — chunked-review artifact, not a real issue
+- AA1 (TensorLayout doc-comment "count == 1") — subsumed by the X1 patch (rewritten doc)
+- AA5 (mlFeatures doc claims enableTrace gating) — subsumed by the X5 patch (rewritten doc)
+- AA6 (AC #3 wording drift) — moved to decision-needed instead of dismissed (real spec amendment question)
+
+### Summary
+
+| Bucket | Count |
+|---|---|
+| Patches applied | 14 |
+| Decision-needed (Chunk 1) | 8 |
+| Deferred | 20 |
+| Dismissed | 3 |
+| **Total raw findings** | **45** (39 unique after dedup) |
+
+**Chunks 2/3/4** to follow in subsequent review-pass passes. The protocol/contract surface in Chunk 1 affects what Chunk 2 (BNNSTechnique implementation) must satisfy — decision-needed items on protocol shape (CX1, CX5, X4) should be resolved before merge.
+
+---
+
+## Review Findings (v3, multi-chunk adversarial — Chunk 2: BNNS Implementation + Tests)
+
+Chunk 2 covers `Sources/BoomBoomBoomKitML/BNNSTechnique.swift` (NEW, ~785 LOC) and
+`Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift` (NEW, ~620 LOC). Reviewed by:
+
+- **Blind Hunter** — read the diff without seeing the spec; reported what looks suspicious
+- **Edge Case Hunter** — walked every branching path and boundary in the diff
+- **Acceptance Auditor** — graded the diff against AC #1–#12 line-by-line, project-context.md rules, and prior story precedent
+- **Codex** (independent agent, model `019e2949-6c40-7c70-bd86-abc215d53aa3`) — independent walk-through against the project's invariants
+
+### Patches applied (8)
+
+- [x] [Chunk 2][C2 / Codex C2] **Manual transpose loop for `.frameMajorLogMel`** `[BNNSTechnique.swift:267-280]` — replaced with single `vDSP_mtrans(srcBase, 1, dstBase, 1, M, F)` call. Violates the project's "no manual loops over signal data" rule. Codex confirmed the source `[F, M]` → dest `[M, F]` transpose is the correct vDSP_mtrans contract.
+- [x] [Chunk 2][C4 / Codex C4] **Manual control vector loop** `[BNNSTechnique.swift:314-318]` — replaced `for w in 0..<W { controlVector[w] = Float(w) * scale }` with `vDSP_vramp(&start, &step, &controlVector, 1, W)`. Matches Story 3-2 precedent (`tempogramMagnitude` / `computeFourierTempogram` phase ramps). Final entry clamped via `.nextDown` to defuse the boundary issue (see #9).
+- [x] [Chunk 2][Codex C1 subset] **Per-row `Array(melMajor[range])` slice allocations** `[BNNSTechnique.swift:320-332]` — replaced with direct `vDSP_vlint` over the underlying buffer base pointer inside a `withUnsafeBufferPointer` triple. Eliminates 2·M = 256 transient array allocations per `evaluate(trace:)` call. The outer `for mel in 0..<M` is a control-flow loop wrapping a vDSP call — explicitly permitted by project-context.md.
+- [x] [Chunk 2][#9 partial / Codex boundary refinement] **`vDSP.linearInterpolate` OOB at F==32 boundary** `[BNNSTechnique.swift]` — partial fix: control vector's last entry now clamped to `controlVector[W-1].nextDown` (one ULP below F-1) so `vDSP_vlint`'s `A[floor(B)+1]` read at the exact boundary stays in-bounds. Full algorithmic re-derivation deferred (see decision-needed below).
+- [x] [Chunk 2][#6] **`os_log(.fault)` for nil-features path** `[BNNSTechnique.swift:718]` — changed to `os_log(.error)`. `.fault` is reserved for unrecoverable process-level corruption; a missing mlFeatures payload is a recoverable configuration mismatch (technique abstains; DSP path still produces a result).
+- [x] [Chunk 2][#10] **Test name drift from AC #9 spec** `[BNNSTechniqueTests.swift:186]` — renamed `cancellationWithValidMLConfigThrows` → `cancellationBeforeMLEvaluateThrows`. AC #9 mandates the spec-canonical name.
+- [x] [Chunk 2][M1 / #11] **Production `.frameMajorLogMel` transpose path untested** `[BNNSTechniqueTests.swift]` — added `evaluateAcceptsFrameMajorLogMelLayout`. Builds two `MLFeatureFrames` payloads with identical underlying data in `.nchw` and `.frameMajorLogMel` layouts, asserts both produce identical evaluations. Pins `vDSP_mtrans` correctness against the by-hand transpose. Test count post-patch = 400 (AC #11 ceiling).
+- [x] [Chunk 2][Codex refutation of #1] **Acknowledged**: `BNNSGraphDestroy` doesn't exist in macOS 15 SDK. The `free(graph.data)` deinit primitive is the only visible cleanup; comment at `BNNSTechnique.swift:749-756` documents this with allocator-probe evidence. **No patch needed.**
+- [x] [Chunk 2][Codex refutation of #2] **Acknowledged**: workspace uses `UnsafeMutableRawPointer.allocate(byteCount:alignment:)` + `.deallocate()`, NOT `posix_memalign` — the original finding misread the diff. **No patch needed.**
+- [x] [Chunk 2][Codex C3 refuted by maintainer] **`vDSP_normalize` not banned**: project-context.md (`_bmad-output/project-context.md:64`) lists allowed vDSP functions as examples (`vDSP_vmul, vDSP_vadd, vDSP_vsdiv, vDSP_vthres, vDSP_vswsum, vDSP_rmsqv, vDSP_meanv, vDSP_dotpr, vDSP_vsq, vDSP_vramp, etc.`) — `vDSP_normalize` is also a vDSP function and IS the correct primitive for the z-score-normalize-in-one-pass operation. The rule bans manual `for i in 0..<count` loops over sample arrays; calling any vDSP function is fine. **No patch needed.**
+
+### Decision-needed (8)
+
+- [ ] [Chunk 2][Codex C1] **Per-call BNNS context + workspace allocation** `[BNNSTechnique.swift:265, 314, 320, 346, 378, 393, 394, 409]` — `evaluate` allocates a fresh `bnns_graph_context_t`, workspace, input copy, output, args array, mel-major buffer, control vector, and resampled tensor on every call. Codex C1 recommends a reusable slot pool owned by `BNNSGraphHandle` with semaphore-leased slots. Scope: cross-cutting refactor touching the public concurrency contract (Shape A-prime DD #15). **Recommendation:** defer to a follow-up story (4-7?) — current patches eliminate the worst offender (256 transient arrays in resample) and the per-call context+workspace pattern is what makes concurrent fan-out work.
+- [ ] [Chunk 2][Codex C5] **Missing input/output stride validation in `validateContract`** `[BNNSTechnique.swift:592-639, 643-690]` — shape and dtype are validated but stride is not. A model with matching shape but unexpected strides could read wrong elements at `BNNSGraphContextExecute` time. **Recommendation:** add stride validation against expected contiguous strides `[M*W, M*W, W, 1]` for input and `[1]` for output rank-1, or assert post-`BNNSGraphTensorFillStrides`. Defer to a follow-up patch; today no shipped fixture exercises stride drift.
+- [ ] [Chunk 2][#9 algorithmic part] **Full `vDSP_vlint` boundary re-derivation** `[BNNSTechnique.swift]` — the `.nextDown` clamp defuses the immediate OOB read at F==32 but the resampling distribution is now slightly asymmetric (last frame in destination is `nextDown(F-1)` rather than exactly `F-1`). Alternative formulations: (a) pad source by 1 zero element, (b) scale = `(F-1)/W` with `(w+0.5)*scale - 0.5` control values (proper resampling boundaries), (c) use `vDSP_vlint` with explicit M-bound clamping. **Recommendation:** keep current clamp for Story 4-5; sweep alternative formulations in a follow-up that includes corpus-grain accuracy regression check.
+- [ ] [Chunk 2][#7] **Fake URL in `modelResourceMissing` on nil-bundle path** `[BNNSTechnique.swift:164-166]` — `URL(fileURLWithPath: "<bundled giantsteps_v1.mlmodelc — missing>")` is a sentinel value, not a real URL. **Decision needed:** add a dedicated `MLTechniqueError.bundleResourceUnavailable` case (5→6 cases; ripples to exhaustive switch in `MLTechniqueProtocolTests.mlTechniqueErrorCases`), OR keep current diagnostic-string approach with a `bundledURLUnavailable` static constant. **Recommendation:** keep current approach pre-1.0; surface decision in a follow-up if a consumer reports confusion.
+- [ ] [Chunk 2][#8] **TOCTOU: `FileManager.fileExists` before `BNNSGraphCompileFromFile`** `[BNNSTechnique.swift:167-169]` — the file-exists check is advisory; the compile call is authoritative and would throw `.modelLoadFailed` on a non-existent path. Removing the check would push file-not-found errors into the `.modelLoadFailed` category, which is a breaking change for consumers pattern-matching on `.modelResourceMissing`. **Recommendation:** keep current shape pre-1.0 (defensive UX trumps theoretical TOCTOU); document the dual-error-precedence in init's docstring.
+- [ ] [Chunk 2][#12 Codex refinement] **`rawAPIGuards` vacuous-pass risk** `[BNNSTechniqueTests.swift:261-329]` — current test passes if the BNNSGraph banned-API list yields zero hits, but does NOT assert that the source directory enumeration found ANY .swift files. If `FileManager.enumerator` returns empty (typo in path, sandbox restriction), the test passes vacuously. **Recommendation:** add an `#expect(!allFiles.isEmpty, "rawAPIGuards must scan at least one .swift file")` guard at line ~278.
+- [ ] [Chunk 2][#13 Codex refinement] **Concurrent test only checks output equality, not data races** `[BNNSTechniqueTests.swift:344-379]` — `concurrentEvaluateIsContextLocal` asserts that 16 concurrent `evaluate` calls produce the same BPM, which is a correctness check. It does NOT exercise data races (no `Thread Sanitizer` annotations, no `OSAtomic`-style probing of shared mutable state). **Recommendation:** add a TSan-annotated CI lane for ML tests, OR add a `nonisolated(unsafe)` write probe to a shared counter from inside `evaluate` and assert exact-count via the test. Defer.
+- [ ] [Chunk 2][AA #1 spec amendment] **Test rename `cancellationBeforeMLEvaluateThrows` vs spec AC #9** — applied this rename, but should AC #9's *wording* be amended in the story spec to match the canonical test name (currently says "cancellation on the active-ML path"). Cosmetic; spec doc and test stay aligned.
+
+### Deferred (6)
+
+- [x] [Chunk 2][Defer] **`@unchecked Sendable` on `BNNSTechnique`** `[BNNSTechnique.swift:84]` — required because `bnns_graph_t` is C-imported; the per-call `BNNSGraphContextMake` + `defer destroy` pattern makes this safe in practice. Annotation acknowledges this and matches axiom-concurrency precedent.
+- [x] [Chunk 2][Defer] **`@unchecked Sendable` on `BNNSGraphHandle`** `[BNNSTechnique.swift:732]` — same rationale; required for the RAII wrapper to be storable in a `Sendable` struct.
+- [x] [Chunk 2][Defer] **`@unchecked Sendable` on `OneShotLatch`** `[BNNSTechnique.swift:768]` — NSLock-backed, canonical pattern.
+- [x] [Chunk 2][Defer] **`assert` for shape import-type drift** `[BNNSTechnique.swift:627-630, 663-666]` — debug-only sanity check on `BNNSTensor.shape` rebound to `Int`. Documented in adjacent comment; the shape-vs-expected comparison catches the realistic failure modes.
+- [x] [Chunk 2][Defer] **`weak var weakHandle: BNNSGraphHandle?` deinit witness uses `autoreleasepool`** `[BNNSTechniqueTests.swift:563-602]` — canonical Swift Testing pattern for ARC-deterministic verification; documented in the test's docstring.
+- [x] [Chunk 2][Defer] **rawAPIGuards block-comment depth tracker** `[BNNSTechniqueTests.swift:280-326]` — known limitations documented in the test comment (codex 019e28bb thread). Mitigations: project style + code review.
+
+### Dismissed as noise (3)
+
+- BH (Codex refutation #1): `BNNSGraphDestroy` non-existence — verified against macOS 15 SDK; the current `free(graph.data)` deinit is the only available primitive.
+- BH (Codex refutation #2): `posix_memalign` accusation — misread; the diff uses `UnsafeMutableRawPointer.allocate`/`.deallocate`.
+- BH (Codex C3 maintainer-refuted): `vDSP_normalize` ban — false positive against project-context.md (vDSP_normalize is a valid vDSP function; the rule bans manual `for i in 0..<count` loops).
+
+### Summary (Chunk 2)
+
+| Bucket | Count |
+|---|---|
+| Patches applied | 8 |
+| Decision-needed | 8 |
+| Deferred | 6 |
+| Dismissed (incl. Codex refutations) | 3 |
+| **Total raw findings (Chunk 2)** | **25** |
+
+**Build + test status:** `swift build` clean, `swift test --parallel` 398/398 passing, `@Test(` count = 400 (at AC #11 ceiling of 400). No regression of any pre-existing test.
+
+**Chunks 3/4** to follow: Chunk 3 covers impact / regression evidence (`BNNSImpactTests.swift`, `4-dnb-triplet-targets.json`, `bnns-impact-report.json`, `regression-snapshot.json`); Chunk 4 is a mechanical skim of spec doc, deferred-work, README, Makefile additions.
+
+---
+
+## Review Findings (v3, multi-chunk adversarial — Chunk 3: Impact / Regression Evidence)
+
+Chunk 3 covers the artifacts that prove (or fail to prove) Story 4-5's central claim: that BNNS recovers DnB triplet failures from the DSP-only path without regressing the rest of the OA300 corpus.
+
+Reviewed by Codex (independent agent, model `019e2949-a6dd685d77c4f4b03`). Findings verified directly against on-disk artifacts via `jq` + `git log`.
+
+### ⚠️ HALT-level finding: motivating-case claim contradicted by evidence
+
+**Verified against `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json`:**
+
+```
+summary.dsp_acc1                              = 58
+summary.ml_acc1                               = 0          ← ML scored ZERO across 82 tracks
+summary.ensemble_acc1                         = 58         ← trivially equal to dsp_acc1 (100% ML abstain)
+summary.named_dnb_resolved                    = 0          ← (target ≥ regression_threshold.min_resolved = 2)
+summary.named_dnb_resolved_via_dsp_fallback   = 0
+all_tracks | map(select(.dsp_winner != .ensemble_winner)) | length  = 0
+```
+
+All four named DnB tracks remain stuck at the half-tempo failure mode:
+
+| Track | GT BPM | Ensemble BPM | abs_error | resolved? |
+|---|---|---|---|---|
+| 1. The Faraday_Bunker (D-Struct Remix).wav | 170 | 113.47 | 56.53 | false |
+| 4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav | 170 | 113.24 | 56.76 | false |
+| 9. HEFT_Anagram 6 (Owl Remix).wav | 170 | 113.37 | 56.63 | false |
+| The Prodigy - 160 Experience - 06 Charly.aiff | 160 | 106.25 | 53.75 | false |
+
+**The story's central claim (BNNS recovers DnB triplets) is currently UNSUPPORTED by the artifact on disk.** Either BNNS abstained on 100% of tracks (model is too conservative for real DnB content), or the wiring between the impact-report harness and the BNNS evaluate path is broken. Either way the story cannot be marked `done` against the current evidence.
+
+### Patches applied (0)
+
+Chunk 3 is evidence/process — there are no source patches to apply here. The findings are about story-readiness and process discipline, not code.
+
+### Decision-needed (3 — story-readiness blockers)
+
+- [ ] [Chunk 3][C1 — HALT] **Impact report shows zero ML signal** `[4-5-bnns-impact-report.json]` — `ml_acc1=0`, `named_dnb_resolved=0`, all 82 tracks have `dsp_winner == ensemble_winner`. AC #7 is not satisfied by the current artifact. **Decision required:**
+  1. Investigate why BNNS abstained on 100% of tracks (debug the two-gate threshold, the model's softmax distribution on real DnB audio, or the wiring at `intensity=.thorough + ensemblePolicy=.mlOnly`). Re-run `make bnns-impact-report` until the report demonstrates ≥ 2/4 DnB resolved.
+  2. OR explicitly mark Story 4-5 as "BNNS infrastructure ships; impact deferred to Story 4-7+" — accept that this story delivers the wiring without the accuracy win, and defer DnB recovery to a follow-up that fixes the model.
+  3. OR (least preferred) accept the no-impact result and re-scope AC #7's success criteria. This is the worst option because it changes the contract after the fact.
+
+- [ ] [Chunk 3][C2] **Impact report git-sha is `-dirty`** `[4-5-bnns-impact-report.json]` — `snapshot_sha: "0b2d8dc-dirty"`. The report was generated against an unreproducible source state. The Makefile's `-dirty` suffix is doing what it's supposed to (correctly flagging the issue), but the dirty marker invalidates the report as audit evidence. **Decision required:** land any regenerated `_bmad-output/` artifact (like the regression-snapshot rewrite in 4027b34) as a standalone commit, then in a follow-up CLEAN-WORKTREE commit run `make bnns-impact-report` and check in the result with a clean 7-char SHA. If the regenerated report still shows `ml_acc1=0`, no amount of provenance cleanup salvages it — see C1.
+
+- [ ] [Chunk 3][C3] **Frozen Task-1 regression snapshot was rewritten post-Task-1** `[4-5-regression-snapshot.json]` — `git log` shows two commits:
+  ```
+  4027b34 Story 4-5 review pass v2: regenerate post-fix artifacts    ← REWROTE the snapshot
+  c446069 Story 4-5 Task 1: pre-source-change baseline artifacts     ← original frozen baseline
+  ```
+  The whole point of a Task-1 pre-source-change baseline is that it gets captured BEFORE source touches and is frozen thereafter. The schema rewrite happened AFTER Story 4-5 source changes landed. **Decision required:**
+  1. Restore the original `c446069` content and acknowledge the rewrite was a mistake. The Task-1 baseline IS the byte-identity gate.
+  2. OR delete `4-5-regression-snapshot.json` outright and rely solely on `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json` for the byte-identity gate (which IS frozen on disk and consumed by `MLPolicySweepTests::dspOnlyMatchesStory4_3Baseline`). The current `_bmad-output/` snapshot is then decorative; remove it to avoid confusion.
+
+### Major findings (4)
+
+- [ ] [Chunk 3][M1] **DnB target list is 4 cherry-picked tracks** `[Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json]` — all 4 are tracks the DSP-only path is *known* to fail on (`current_predicted_bpm` ~113 BPM half-tempo, `current_abs_error` ~56 BPM). No control set of DnB tracks the DSP gets right is included. The impact report cannot detect regressions on the DnB class as a whole — only on the cherry-picked-failures subset. **Recommendation:** add ≥ 4 DnB tracks the DSP gets right as a control group; rename "named_dnb" to "named_dsp_failures" if the control group can't be assembled, so the story spec language stops claiming "DnB triplet recovery" when it really measures "DSP-known-failures recovery on hand-picked targets."
+
+- [ ] [Chunk 3][M2] **`Issue.record` for HALT (b) gate is develop-only** `[BNNSImpactTests.swift:420-428]` — the gate fires when someone runs `make bnns-impact-report` (env-gated develop-only benchmark; NOT in CI's `make test`). CI never observes the failure. Combined with C1, this is how a 100%-abstain artifact lands as "story 4-5 ready." **Recommendation:** add a CI lane that runs `make bnns-impact-report` and fails on `ml_acc1=0`, OR move the impact-report HALT to a hard-gated `swift test --filter` target that CI exercises with the OA300 corpus mounted.
+
+- [ ] [Chunk 3][M3 — known] **Under `.mlOnly` + 100% abstain, `ensemble_acc1 = dsp_acc1` trivially** `[BNNSImpactTests.swift:277]` — `bnnsResult?.bpm ?? dspBPM` collapses to `dspBPM` for every track when ML abstains. The "ensemble doesn't regress DSP" claim under `.mlOnly` is mathematically guaranteed in the all-abstain case, not measured. **Recommendation:** add a `summary.ml_abstain_count` field so reviewers can immediately see whether equality is because ML matched DSP or because ML never fired. Currently inferable from `ml_winner = null` count, but not summarized.
+
+- [ ] [Chunk 3][M6] **Per-row `ground_truth` overrides bias corpus-wide Acc1** `[BNNSImpactTests.swift:295-303]` — for named-DnB tracks, the test substitutes `dnbTarget.ground_truth_bpm` (e.g., 170) for `track.bpm` (OA300 ground truth, which lists these at 85). `dspAcc1` / `ensembleAcc1` are then computed against the substituted GT. Corpus-wide Acc1 in `4-5-bnns-impact-report.json` is NOT comparable to OA300 benchmark Acc1 elsewhere in the codebase, because 4 tracks use a non-OA300 ground truth. **Recommendation:** compute two corpus-wide Acc1 columns: `oa300_acc1` (always uses `track.bpm`) and `dnb_promoted_acc1` (uses overrides for named DnB).
+
+### Deferred (3)
+
+- [x] [Chunk 3][Defer] **M4 — Per-track timeout/memory budget absent** `[BNNSImpactTests.swift:215-333]` — per-track timeout is a real gap but the impact-report harness is develop-only (not CI-blocking). Acceptable to defer to a follow-up.
+- [x] [Chunk 3][Defer] **M5 — Concurrency check missing** — Story 4-5 spec only requires serial run; concurrent BNNS coverage is in `BNNSTechniqueTests.concurrentEvaluateIsContextLocal` (chunked-test scope, not impact-report scope).
+- [x] [Chunk 3][Defer] **N1-N4 — Minor diagnostic / display nits** — print summary determinism, `ml_abstained: Bool` per row, `bnns_latency_ms` separation. Cosmetic; defer.
+
+### Summary (Chunk 3)
+
+| Bucket | Count |
+|---|---|
+| Patches applied | 0 (Chunk 3 is evidence/process; no source patches) |
+| Decision-needed | 3 (all story-readiness blockers) |
+| Major | 4 |
+| Deferred | 3 |
+| **Total raw findings (Chunk 3)** | **10** |
+
+**Story-readiness verdict for Chunk 3: ⚠️ HALT** — the artifact on disk does not support the central AC #7 claim. The story cannot be moved from `review` to `done` until C1 is resolved (either by demonstrating actual BNNS impact or by re-scoping the story explicitly). C2 and C3 are subsidiary process issues that flow from the same underlying problem (the impact-report ratchet was treated as advisory rather than gate-blocking).
+
+**Next step:** Chunks 1, 2, 4 findings are mostly code patches that are now applied or deferred. Chunk 3's findings escalate to the user — they require a product/scoping decision before merge.
+
+---
+
+## Review Findings (v3, multi-chunk adversarial — Chunk 4: Mechanical artifacts + docs)
+
+Chunk 4 is the SKIM PASS — `.gitignore`, `Makefile`, `Package.swift`, `README.md` additions, `tools/coreml-convert/README.md`, develop-only audit-trail logs, and the `bnns-probe` develop CLI. Reviewed by Codex (independent agent, thread `019e2958-1c28-7f21-949b-bf1065f463c5`).
+
+### Patches applied (8)
+
+- [x] [Chunk 4][N1] **Story-spec commentary in main-shipping `Package.swift`** `[Package.swift:31-38, 44-46]` — replaced 13 lines of story-spec / AC-history commentary with 1-line neutral comments (`// Tests cover the ML sibling target's public conformances.`). CLAUDE.md release discipline: main-shipping files must not leak BMAD/story-spec language.
+- [x] [Chunk 4][N2] **"Story 4-5 review pass" in `.gitignore`** `[.gitignore:54]` — reworded to `# Local review scratch output (NOT shipped)`. Same discipline.
+- [x] [Chunk 4][N4] **`make help` exposes develop-only path** `[Makefile:129]` — `## bnns-impact-report: Generate per-track BNNS impact JSON to _bmad-output/implementation-artifacts/4-5-bnns-impact-report.json` → `Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)`. The help text shown to consumers via `make help` should not hardcode the develop tree's `_bmad-output/` path.
+- [x] [Chunk 4][C5 / M-load-bearing] **Factual error in consumer-facing README** `[tools/coreml-convert/README.md:130]` — claim "The bundled reference acts as the default when `options.mlTechnique = nil`" was FALSE. Verified against `Sources/BoomBoomBoomKit/AudioAnalysisService.swift:153` (`public var mlTechnique: (any MLTechnique)?` — defaults to nil, in which case no ML runs at all). Rewrote to: `When options.mlTechnique = nil (the default), no ML model is loaded and the pipeline runs DSP-only. To opt in to the bundled reference, construct BNNSTechnique() (no arguments)...`. This was an actual behavior bug in consumer docs, not just wording.
+- [x] [Chunk 4][N6] **Story-spec commentary at README:219** `[tools/coreml-convert/README.md:219]` — removed `(Story 4-5 DD #18 / DD #19 — finalized 2026-05-09 cohesion review)`. Consumer docs should not reference internal story / DD numbers.
+- [x] [Chunk 4][C5 / M repeated] **Same factual error at README:221** `[tools/coreml-convert/README.md:221]` — rewrote the runtime wiring summary bullet list to reflect the actual nil-default behavior: `nil → DSP-only`, `try? BNNSTechnique() → opt in to bundled`, `BNNSTechnique(modelURL: ...) → same-arch override`, `MyCustomTechnique() → custom-arch override`.
+- [x] [Chunk 4][N8] **"Story 4.1 BoomBoomBoomKit convention" at README:244** `[tools/coreml-convert/README.md:244]` — replaced with neutral `Core ML model bundle (a directory tree under this name; xcrun coremlc compile accepts it as input)`.
+- [x] [Chunk 4][N9] **"Story 4-5's runtime consumer" at README:247** `[tools/coreml-convert/README.md:247]` — replaced with `BNNSGraph reads MIL + weights directly and ignores the runtime hint.`
+- [x] [Chunk 4][N10] **`_bmad-output/ml-training/` referenced in consumer docs** `[tools/coreml-convert/README.md:301]` — replaced with neutral `Use your own training pipeline; this tool only converts an already-trained PyTorch checkpoint into Core ML.`
+
+### Decision-needed (1)
+
+- [ ] [Chunk 4][N3] **`BNNS_IMPACT_OUT_DIR` Makefile default points at develop tree** `[Makefile:8]` — `BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts`. Codex recommends defaulting to `$(CURDIR)/.build/reports` (neutral public scratch) and overriding via env on develop. **Counter-recommendation:** keep the develop default. The `bnns-impact-report` target is a develop-only benchmark (per CLAUDE.md "fail loudly on a main-only checkout, which is intentional — consumers shouldn't run them"). Changing the default would change the develop workflow for negligible benefit; the help-text fix above already addresses the consumer-visible leak. Defer.
+
+### Deferred / Verified clean (no patch needed)
+
+- [x] **No frozen-baseline tampering in Chunk 4** — `4-5-baseline-logs/*` entries are added from `/dev/null` (NEW files), not modified. Unlike `4-5-regression-snapshot.json` (Chunk 3 C3), the baseline logs were correctly captured at Task 1 and have not been rewritten.
+- [x] **`sprint-status.yaml` correctly shows Story 4-5 at `review`, not `done`** — the ml_acc1=0 / 0-of-4 DnB regression is NOT being mis-deferred or hidden in the sprint state.
+- [x] **`deferred-work.md`** — entries are appropriately classified as follow-up work; no critical findings being punted to "deferred" to make the story appear complete.
+
+### Summary (Chunk 4)
+
+| Bucket | Count |
+|---|---|
+| Patches applied | 8 (1 was load-bearing factual error in consumer docs) |
+| Decision-needed | 1 (Makefile default — recommend defer) |
+| Verified clean | 3 |
+| **Total raw findings (Chunk 4)** | **12** |
+
+**Story-readiness verdict for Chunk 4:** ✅ Clean after patches. None of the Chunk 4 findings are story-readiness blockers; they were release-discipline violations (now fixed) and one factual error in consumer docs (now fixed).
+
+The story-readiness blocker remains Chunk 3 C1/C2/C3 — Chunk 4's cleanliness reinforces the asymmetry: the *infrastructure and discipline* shipped well, but the *accuracy claim* did not.
+
+---
+
+## Cross-chunk triage summary (all 4 chunks)
+
+| Chunk | Patches applied | Decision-needed | Deferred | Dismissed | Verdict |
+|---|---|---|---|---|---|
+| 1 — Contract / End-to-End ML | 14 | 8 | 20 | 3 | ✅ Patched |
+| 2 — BNNS Implementation + Tests | 8 | 8 | 6 | 3 | ✅ Patched |
+| 3 — Impact / Regression Evidence | 0 | 3 (HALT) | 3 | 0 | ⚠️ HALT |
+| 4 — Mechanical artifacts + docs | 8 | 1 | 3 (verified clean) | 0 | ✅ Patched |
+| **TOTAL** | **30** | **20** | **32** | **6** | ⚠️ Chunk 3 blocks merge |
+
+### Story-readiness verdict
+
+**Story 4-5 CANNOT be moved from `review` → `done` until Chunk 3 C1/C2/C3 are resolved.**
+
+The code/contract/test infrastructure is solid (Chunks 1, 2, 4 are clean after patches). What's blocking is that the AC #7 evidence (impact report) does not support the AC #7 claim — `ml_acc1 = 0`, `named_dnb_resolved = 0/4`. Either:
+
+1. **Debug and re-run.** Find why BNNS abstained on 100% of tracks under `intensity=.thorough + ensemblePolicy=.mlOnly`. Likely candidates: two-gate threshold (0.50/0.10) too aggressive for real DnB; the bundled `giantsteps_v1.mlmodelc` is undertrained on DnB triplets; the wiring from `captureMLFeatures` flag to `BPMDiagnosticTrace.mlFeatures` to `BNNSTechnique.evaluate` has a gap that the unit tests don't cover. Re-run `make bnns-impact-report` on a clean worktree once the abstain is fixed.
+
+2. **Re-scope the story.** Move "BNNS recovers DnB triplets" to Story 4-6 or later; mark Story 4-5 as "BNNS infrastructure ships; impact deferred." This is the honest path if the bundled model is fundamentally too weak for the motivating case.
+
+3. **Both** — ship 4-5 as infrastructure-only, open 4-6 explicitly for "BNNS impact validation on DnB triplets," and update the story spec and `sprint-status.yaml` to reflect the actual delivery.
+
+Build + test status after Chunks 1/2/4 patches: `swift build` clean, `swift test --parallel` 398/398, `@Test(` count = 400 (at AC #11 ceiling of 400).

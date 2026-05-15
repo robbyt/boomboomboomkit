@@ -602,6 +602,16 @@ struct ArchitectureInvariantsTests {
     #expect(EnsemblePolicy.allCases == [.dspOnly, .mlOnly, .highestConfidence])
   }
 
+  /// Story 4.5 DD #14: `TensorLayout.allCases.count == 2` is unit-test-locked
+  /// in the canonical invariant venue (review fix AA2 — the assertion
+  /// originally lived in `MLFeatureFramesTests` which is the wrong location
+  /// for `.allCases.count == N` invariants per the Story 4-4 close-out PSI).
+  @Test("TensorLayout has exactly two cases (Story 4.5 DD #14)")
+  func tensorLayoutCases() {
+    #expect(TensorLayout.allCases.count == 2)
+    #expect(Set(TensorLayout.allCases) == Set([.frameMajorLogMel, .nchw]))
+  }
+
   @Test("MetadataPolicy.default enables all sources, valueRange 30-300")
   func defaultPolicyShape() {
     let p = MetadataPolicy.default

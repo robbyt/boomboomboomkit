@@ -16,13 +16,11 @@ import Testing
 struct MLFeatureFramesTests {
 
   // MARK: - TensorLayout invariants (DD #14)
-
-  @Test("TensorLayout.allCases.count == 2 (Story 4.5 review pass added .frameMajorLogMel)")
-  func tensorLayoutInitialCaseSet() {
-    #expect(TensorLayout.allCases.count == 2)
-    #expect(TensorLayout.allCases.contains(.nchw))
-    #expect(TensorLayout.allCases.contains(.frameMajorLogMel))
-  }
+  //
+  // The `TensorLayout.allCases.count == 2` invariant lives in the canonical
+  // architecture-invariant venue (`ArchitectureInvariantsTests` in
+  // `MetadataCorroborationTests.swift`) per the Story 4-4 close-out PSI —
+  // see `tensorLayoutCases()` there. This file's local invariants live below.
 
   // MARK: - Equatable + description
 
@@ -66,7 +64,10 @@ struct MLFeatureFramesTests {
     #expect(desc.contains("melBands: 4"))
     #expect(desc.contains("frames: 8"))
     #expect(desc.contains("logMelData.count: 32"))
-    #expect(desc.contains("featureSetVersion: v1"))
+    // featureSetVersion is quoted in description (review pass v3 / ECH13)
+    // so machine-parseable separators in the version tag don't ambiguate
+    // diagnostic output.
+    #expect(desc.contains("featureSetVersion: \"v1\""))
     // Payload itself is NOT in the description — keep the diagnostic
     // string bounded.
     #expect(!desc.contains("0.123456"))
@@ -136,6 +137,148 @@ struct MLFeatureFramesTests {
     #expect(
       smallButOverTestCap != nil,
       "production cap should be restored after _withTestingMaximumLogMelDataCount exits")
+  }
+
+  // MARK: - Story 4-5 review pass v3: semantic-metadata + payload finiteness
+
+  @Test("init throws when logMelData contains NaN (review pass v3 / Codex CX3)")
+  func initThrowsOnNaNPayload() {
+    var payload = [Float](repeating: 0.0, count: 32)
+    payload[5] = .nan
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: payload, sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+  }
+
+  @Test("init throws when logMelData contains +inf (review pass v3 / ECH5)")
+  func initThrowsOnInfinityPayload() {
+    var payload = [Float](repeating: 0.0, count: 32)
+    payload[12] = .infinity
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: payload, sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+  }
+
+  @Test("init throws when sampleRate is NaN / Inf / non-positive (review pass v3 / CX4)")
+  func initThrowsOnInvalidSampleRate() {
+    for badRate in [Double.nan, .infinity, 0.0, -44_100.0] {
+      #expect(throws: MLTechniqueError.self) {
+        _ = try MLFeatureFrames(
+          melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+          logMelData: [Float](repeating: 0.0, count: 32),
+          sampleRate: badRate, fftSize: 2048, hopSize: 441,
+          melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+          featureSetVersion: "v1")
+      }
+    }
+  }
+
+  @Test("init throws when fftSize or hopSize is non-positive (review pass v3 / CX4)")
+  func initThrowsOnInvalidSTFTSizing() {
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [Float](repeating: 0.0, count: 32),
+        sampleRate: 44_100, fftSize: 0, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [Float](repeating: 0.0, count: 32),
+        sampleRate: 44_100, fftSize: 2048, hopSize: -1,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+  }
+
+  @Test("init throws when melFmax <= melFmin or bounds are non-finite (review pass v3 / CX4)")
+  func initThrowsOnInvalidMelBounds() {
+    // melFmax <= melFmin
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [Float](repeating: 0.0, count: 32),
+        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 16_000.0, melFmax: 30.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+    // Non-finite melFmin
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [Float](repeating: 0.0, count: 32),
+        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: .nan, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+    // Negative melFmin
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [Float](repeating: 0.0, count: 32),
+        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: -100.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "v1")
+    }
+  }
+
+  @Test("init throws when logCompressionScale is NaN / Inf / non-positive (review pass v3 / CX4)")
+  func initThrowsOnInvalidLogCompressionScale() {
+    for badScale: Float in [.nan, .infinity, 0.0, -100.0] {
+      #expect(throws: MLTechniqueError.self) {
+        _ = try MLFeatureFrames(
+          melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+          logMelData: [Float](repeating: 0.0, count: 32),
+          sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+          melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: badScale,
+          featureSetVersion: "v1")
+      }
+    }
+  }
+
+  @Test("init throws when featureSetVersion is empty (review pass v3 / CX4 / ECH14)")
+  func initThrowsOnEmptyFeatureSetVersion() {
+    #expect(throws: MLTechniqueError.self) {
+      _ = try MLFeatureFrames(
+        melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+        logMelData: [Float](repeating: 0.0, count: 32),
+        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+        featureSetVersion: "")
+    }
+  }
+
+  @Test("try? on invalid input returns nil — graceful-degradation contract (review pass v3 / CX6)")
+  func tryQuestionMarkOnInvalidInputReturnsNil() {
+    // DD #5 graceful-degradation: consumers use `try?` to convert a failing
+    // construction into a nil sentinel. Exercise the bridging end-to-end so
+    // the protocol's `Sendable` `MLTechniqueError -> nil` contract has a
+    // direct unit-test witness (not just a metatype check).
+    let nilOnNaN = try? MLFeatureFrames(
+      melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+      logMelData: [Float](repeating: .nan, count: 32),
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: "v1")
+    #expect(nilOnNaN == nil)
+
+    let nilOnEmptyVersion = try? MLFeatureFrames(
+      melBands: 4, frames: 8, tensorLayout: .frameMajorLogMel,
+      logMelData: [Float](repeating: 0.0, count: 32),
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: "")
+    #expect(nilOnEmptyVersion == nil)
   }
 
   @Test("init accepts .frameMajorLogMel and .nchw layouts")

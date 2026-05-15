@@ -657,18 +657,31 @@ struct BPMAnalyzer {
     // `maxSeconds = 1800`) could trip Int overflow on the reserveCapacity
     // computation; abstain via `mlFeatures = nil` rather than trap.
     //
-    // Review fix N1: `try?` blanket-swallow replaced with typed catch on
-    // `MLTechniqueError.invalidFeatureShape` (the documented abstain path);
-    // any other error is a programmer bug — `assertionFailure` traps in
-    // debug, no-ops in release, both branches still produce nil so prod
-    // callers gracefully degrade to DSP-only.
+    // Review fix N1 + Story 4-5 review pass v3:
+    // - `try?` blanket-swallow replaced with typed catch on
+    //   `MLTechniqueError.invalidFeatureShape` (the documented abstain path).
+    // - Size cap is enforced BEFORE `reserveCapacity`/`flatMap` so the
+    //   retention path doesn't allocate a multi-hundred-MB intermediate
+    //   buffer only to throw on the cap inside the init (review fix BH2).
+    // - Defensive `catch` simply returns nil rather than `assertionFailure`-ing
+    //   because a future init extension could legitimately throw additional
+    //   `MLTechniqueError` cases; trapping in DEBUG on the retention path
+    //   would mean every CI run dies the moment validation tightens (ECH2).
     let retainedMLFeatures: MLFeatureFrames? = {
-      guard captureMLFeatures else { return nil }
-      guard logMelFrames.count > 0, melBands <= Int.max / logMelFrames.count else {
-        return nil
-      }
+      guard captureMLFeatures, logMelFrames.count > 0 else { return nil }
+      // Boundary defense matching `MLFeatureFrames` init invariants.
+      // Use `multipliedReportingOverflow` to avoid the integer-division
+      // approximation in the previous `melBands <= Int.max / count` shape
+      // (dead-code guard at melBands=128 / ECH3) and to surface the same
+      // overflow path the init takes — when `melBands * frames` overflows
+      // `Int`, the producer abstains BEFORE any allocation.
+      let (expectedCount, overflow) =
+        melBands.multipliedReportingOverflow(by: logMelFrames.count)
+      guard !overflow,
+        expectedCount <= MLFeatureFrames.maximumLogMelDataCount
+      else { return nil }
       var flat = [Float]()
-      flat.reserveCapacity(melBands * logMelFrames.count)
+      flat.reserveCapacity(expectedCount)
       for frame in logMelFrames {
         flat.append(contentsOf: frame)
       }
@@ -686,12 +699,11 @@ struct BPMAnalyzer {
           logCompressionScale: logCompressionScale,
           featureSetVersion: "v1"
         )
-      } catch MLTechniqueError.invalidFeatureShape {
-        return nil
       } catch {
-        assertionFailure(
-          "BPMAnalyzer retention path constructed an MLFeatureFrames with unexpected error: \(error)"
-        )
+        // Any thrown error — `.invalidFeatureShape` (documented abstain)
+        // or any future-added `MLTechniqueError` case — routes through
+        // graceful degradation to DSP-only. The retention path is best-
+        // effort; ML inference will abstain on `trace.mlFeatures == nil`.
         return nil
       }
     }()

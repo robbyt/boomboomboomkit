@@ -380,28 +380,39 @@ public struct AudioAnalysisService {
 
   /// Story 4-5 / DD #11 / AC #9 — evaluates `options.mlTechnique` against
   /// `trace` only when ML is active (policy != `.dspOnly` AND
-  /// `mlTechnique != nil` AND a trace was built), with a pre-call
-  /// cancellation check that throws `CancellationError` instead of
-  /// quietly running expensive inference on a cancelled task.
+  /// `mlTechnique != nil` AND a trace was built), with cancellation
+  /// checks on either side of the call that throw `CancellationError`
+  /// instead of quietly running expensive inference on a cancelled task
+  /// or returning a stale ML evaluation to a caller that has already
+  /// given up.
   ///
-  /// **ML-only cancellation checkpoint (spec-canonical semantic — post-review-pass
-  /// fix C2):** the policy/ml/trace guard fires FIRST. When the helper would not
-  /// run `evaluate(trace:)` anyway — because `.dspOnly` is set, no trace was
-  /// built, or no technique is wired up — the function returns `nil` silently
-  /// regardless of cancellation state. Cancellation is observed only on the
-  /// path that would actually call `evaluate(trace:)`. This preserves Story 4-4
-  /// AC #14's `RecordingMockMLTechnique.callCount == 0` invariant on `.dspOnly`
-  /// and avoids surfacing cancellation noise to callers who deliberately opted
-  /// out of the ML pipeline phase.
+  /// **ML-only cancellation checkpoint.** The policy/ml/trace guard
+  /// fires FIRST. When the helper would not run `evaluate(trace:)`
+  /// anyway — because `.dspOnly` is set, no trace was built, or no
+  /// technique is wired up — the function returns `nil` silently
+  /// regardless of cancellation state. Cancellation is observed only on
+  /// the path that would actually call `evaluate(trace:)`. This preserves
+  /// Story 4-4 AC #14's `RecordingMockMLTechnique.callCount == 0`
+  /// invariant on `.dspOnly` and avoids surfacing cancellation noise to
+  /// callers who deliberately opted out of the ML pipeline phase.
   ///
-  /// Cancellation latency contract (axiom-concurrency audit): once
-  /// `ml.evaluate(trace:)` is called, the helper does NOT thread a
-  /// cancellation closure into the conformance — BNNSGraph inference is
-  /// atomic from the consumer's perspective. A cancelled task will wait
-  /// the full inference wall-clock (50-1000 ms) before observing
-  /// cancellation. ADR-1's per-window granularity is satisfied (checks
-  /// fire BEFORE each window AND BEFORE each evaluate call); finer
-  /// mid-inference cancellation is documented as deferred-work.
+  /// Cancellation latency contract (axiom-concurrency audit + Story 4-5
+  /// review pass v3). Two checks bracket `ml.evaluate(trace:)`:
+  ///
+  /// 1. **Pre-evaluate check** — fires before any inference work runs.
+  /// 2. **Post-evaluate check** — fires after `evaluate(trace:)` returns
+  ///    so that cancellation flipping DURING the atomic call still
+  ///    surfaces to the caller. The ML evaluation is discarded if
+  ///    cancellation was observed; the caller sees `CancellationError`
+  ///    just as if the entire call had been pre-empted.
+  ///
+  /// The helper still does NOT thread a cancellation closure into the
+  /// conformance — BNNSGraph inference is atomic from the consumer's
+  /// perspective. A cancelled task will wait the full inference wall-
+  /// clock (50-1000 ms) before observing cancellation. ADR-1's per-
+  /// window granularity is satisfied (checks fire BEFORE each window
+  /// AND BEFORE+AFTER each evaluate call); finer mid-inference
+  /// cancellation is documented as deferred-work.
   private static func evaluateMLIfActive(
     options: Options, trace: BPMDiagnosticTrace?
   ) throws -> MLEvaluation? {
@@ -410,7 +421,9 @@ public struct AudioAnalysisService {
       let trace
     else { return nil }
     if options.isCancelled() { throw CancellationError() }
-    return ml.evaluate(trace: trace)
+    let evaluation = ml.evaluate(trace: trace)
+    if options.isCancelled() { throw CancellationError() }
+    return evaluation
   }
 
   // MARK: - Story 4.4: ML ensemble combiner promoted to EnsembleCombiner.swift

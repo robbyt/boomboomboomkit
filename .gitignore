@@ -51,5 +51,5 @@ _bmad-output/ml-training/swift_feature_extractor/out/
 _bmad-output/ml-training/benchmark-oa300-pre.log
 _bmad-output/ml-training/benchmark-giantsteps-pre.log
 
-# Story 4-5 review pass — local working tree diff dumps (NOT shipped)
+# Local review scratch output (NOT shipped)
 _bmad-output/implementation-artifacts/review-tmp/
