@@ -44,6 +44,7 @@ Ground-truth files:
 | `make oracle` | 3-way diagnostic: ours vs Rekordbox vs DAW | ~3 s | stdout | Disagreement table (small; diagnostic-only) |
 | `make ablation` | 64-combination DSP ablation + per-track impact | ~9 min (parallel) | stdout | Sorted Acc1 by preset |
 | `make perf-benchmark` | Wall-clock timing (serial OA300) + OA300 + GiantSteps accuracy snapshot | ~40 s | stdout **and** `_bmad-output/perf-baselines/<Chip>-<OSMajor>--<BuildConfig>--<recordedAt>--<gitSHA>--<uuid>.json` | Mean 0.2-0.25s on M5 Max; same accuracy counts as `make benchmark` + `make benchmark-giantsteps` |
+| `make bnns-impact-report` | Per-track ML-vs-DSP impact snapshot + 7-bucket failure-stage histogram + corpus-distribution stats | ~50 s | stdout **and** `_bmad-output/perf-baselines/bnns-impact/<Chip>-<OSMajor>--<BuildConfig>--<recordedAt>--<gitSHA>--<uuid>.json` (schema v3 — see "bnns-impact-report JSON schema" below) | Bundled-model build: `ml_acc1 = 0/82` at production thresholds (Story 4-6 Branch C: model pulled, infra retained); BYOW builds produce a different distribution |
 
 All four corpus-gated targets fail loudly on unset or empty `OA300_CORPUS_PATH` / `GIANTSTEPS_CORPUS_PATH`. There is no soft-skip — an unset required env var is a test failure.
 
@@ -115,6 +116,74 @@ Separating segments with `--` (double-hyphen) allows safe splitting even though 
 ```
 
 Committed baselines are Debug-mode (current convention). A Debug run and a Release run produce separate file sets because `{buildConfig}` is part of the filename — the reader filters by `{fingerprint}--{buildConfig}--` prefix, so the two sets never mix.
+
+## bnns-impact-report JSON schema (v3)
+
+The `make bnns-impact-report` target (Story 4-5 onward) writes a *different* record kind to a *sibling subdirectory* of `perf-baselines/`. It is NOT a wall-clock baseline — it is a per-run impact snapshot for the ML augmentation path, capturing per-track BPM decisions plus diagnostic + corpus-distribution stats. The two record kinds share the same filename template and write discipline but live in disjoint directories so the perf-baselines reader's prefix filter doesn't collide with impact records.
+
+Output location: `_bmad-output/perf-baselines/bnns-impact/` (subdirectory of the canonical perf-baselines lane). Override the target dir with `BNNS_IMPACT_OUT_DIR=...`. Same filename template as perf-baselines records:
+
+```
+{fingerprint}--{buildConfig}--{recordedAt}--{gitSHA}--{shortUUID}.json
+```
+
+Full example: `Apple_M5_Max-26--Debug--20260515T034521Z--5e08319--abc12345.json`
+
+The legacy story-tagged filenames (`4-5-bnns-impact-report.json`, `4-6-bnns-impact-report-sweep-0.10-0.02.json`, etc.) were retired when v3 schema landed — the threshold values and story tags move *inside* the file (as `applied_thresholds` and `pinned_config`), not into the filename. Per-run files are still immutable once published; a bad record may be deleted only with an explicit reason cited in the commit.
+
+```json
+{
+  "schema_version": 3,
+  "recorded_at": "2026-05-15T03:45:21Z",
+  "git_sha": "5e08319",
+  "build_configuration": "Debug",
+  "swift_package_version": "BoomBoomBoomKit (workspace HEAD)",
+  "hardware": {
+    "chip": "Apple M5 Max", "cores": 18,
+    "physical_memory_gib": 128, "os_version": "Version 26.5 (Build ...)"
+  },
+  "model_identifier": "bnns_tempo_v1",
+  "pinned_config": { "intensity": 8, "ensemble_policy": "mlOnly" },
+  "applied_thresholds": { "confidence": 0.5, "margin": 0.1 },
+  "summary": {
+    "total_tracks": 82,
+    "dsp_acc1": 58, "ml_acc1": 0, "ensemble_acc1": 58,
+    "named_dnb_resolved": 0, "named_dnb_resolved_via_dsp_fallback": 0,
+    "named_dnb_total": 4,
+    "dsp_correct_controls_preserved": 4, "dsp_correct_controls_total": 4
+  },
+  "named_dnb_track_results": [/* 4 rows: ensemble_winner_bpm, ground_truth_bpm, abs_error, resolved_within_05 */],
+  "dsp_correct_control_results": [/* 4 rows: same shape, "did ML break what DSP got right?" preservation oracle */],
+  "all_tracks": [/* 82 rows: per-track dsp_winner, ml_winner, ensemble_winner, ml_diagnostic_snapshot */],
+  "failure_stage_histogram": { /* 7-bucket: noAbstain, featuresAbsent, featureVersionMismatch, featurizeRejected, graphFailed, decodeRejected, confidenceGateRejected */ },
+  "corpus_distribution": {
+    "wrong_non_abstain_count": 54, "decoded_bpm_total_count": 82,
+    "decoded_bpm_histogram_5bpm_bins": [/* 28 bins */],
+    "decoded_bpm_in_range_fraction": 1.0,
+    "decoded_bpm_matches_dsp_within_4pct_fraction": 0.049,
+    "softmax_max_p50": 0.085, "softmax_max_p95": 0.294,
+    "softmax_margin_p50": 0.010, "softmax_margin_p95": 0.051,
+    "input_feature_checksum_unique_count": 82
+  }
+}
+```
+
+Threshold-sweep workflow: invoke `make bnns-impact-report` multiple times with different `BNNS_THRESHOLD_OVERRIDE_CONFIDENCE` / `BNNS_THRESHOLD_OVERRIDE_MARGIN` env vars. Each run produces one canonical file with its own `recorded_at` + UUID. Compare across runs by reading the `applied_thresholds` field — no out-of-band sweep summary JSON is needed because the data lives in the files themselves.
+
+**jq recipe — show all impact runs at SHA `5e08319` sorted by `confidence` threshold (sweep review):**
+```bash
+jq -s --arg sha "5e08319" '[.[] | select(.git_sha == $sha)] |
+  sort_by(.applied_thresholds.confidence) |
+  map({ thresholds: .applied_thresholds, summary: .summary, recorded: .recorded_at })' \
+  _bmad-output/perf-baselines/bnns-impact/Apple_M5_Max-26--Debug--*.json
+```
+
+**jq recipe — most recent default-threshold (`confidence=0.5`, `margin=0.1`) run:**
+```bash
+jq -s 'map(select(.applied_thresholds.confidence == 0.5 and .applied_thresholds.margin == 0.1)) |
+  sort_by(.recorded_at) | last' \
+  _bmad-output/perf-baselines/bnns-impact/Apple_M5_Max-26--Debug--*.json
+```
 
 ## jq recipes for review
 

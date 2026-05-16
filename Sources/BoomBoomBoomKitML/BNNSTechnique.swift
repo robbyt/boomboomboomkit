@@ -20,6 +20,7 @@ import Accelerate
 import BoomBoomBoomKit
 import Darwin
 import Foundation
+import Synchronization
 import os.log
 
 // MARK: - BNNSTechnique
@@ -95,13 +96,48 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// lossy 96 kbps GiantSteps training distribution; consumers retraining
   /// on a HiFi corpus should sweep this threshold against a held-out set
   /// (deferred-work entry).
-  private static let confidenceThreshold: Double = 0.50
+  ///
+  /// Story 4-6 Task 7: the Story 4-6 threshold-sweep harness can
+  /// temporarily override this value via the
+  /// ``thresholdOverride`` test seam below. Production reads come through
+  /// ``effectiveConfidenceThreshold`` which honors the override.
+  internal static let confidenceThreshold: Double = 0.50
 
   /// Gate 2 abstain threshold — DD #10. The margin between softmax-max
   /// and softmax-second-max must be `≥ 0.10`. Catches Epic 4's motivating
   /// adjacent-bin half-tempo / triplet confusion that softmax-max alone
   /// misses.
-  private static let marginConfidenceThreshold: Double = 0.10
+  ///
+  /// Story 4-6 Task 7: overridable via ``thresholdOverride`` (read through
+  /// ``effectiveMarginThreshold``).
+  internal static let marginConfidenceThreshold: Double = 0.10
+
+  /// Story 4-6 Task 7 threshold-sweep testing seam. INTERNAL access only —
+  /// settable via `@testable import BoomBoomBoomKitML` from the
+  /// impact-report harness; consumer-facing public API is unchanged.
+  /// Mutex-wrapped per Siri's Apple-platform audit: parallel-test safety,
+  /// no `nonisolated(unsafe)` permanent escape hatch.
+  ///
+  /// Production behavior: ``confidenceThreshold`` / ``marginConfidenceThreshold``
+  /// constants remain the source of truth; this override only fires when
+  /// set by a test harness. The override is global — concurrent tests in
+  /// the same process see the same value. Tests sweeping the override
+  /// MUST run under `.serialized` or reset the override in `defer { ... }`.
+  internal static let thresholdOverride =
+    Mutex<(confidence: Double, margin: Double)?>(nil)
+
+  /// Production read for the Gate 1 threshold. Returns
+  /// ``confidenceThreshold`` unless ``thresholdOverride`` has been set.
+  internal static var effectiveConfidenceThreshold: Double {
+    thresholdOverride.withLock { $0?.confidence ?? confidenceThreshold }
+  }
+
+  /// Production read for the Gate 2 threshold. Returns
+  /// ``marginConfidenceThreshold`` unless ``thresholdOverride`` has been
+  /// set.
+  internal static var effectiveMarginThreshold: Double {
+    thresholdOverride.withLock { $0?.margin ?? marginConfidenceThreshold }
+  }
 
   /// Number of mel bands the bundled model expects on input. Surfaced as
   /// a constant for parity with `BPMAnalyzer.melBands == 128` and for the
@@ -206,31 +242,198 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
 
   // MARK: - MLTechnique
 
+  /// Story 4-6: thin wrapper around ``evaluateInternal(trace:)``. The
+  /// protocol-public ``MLTechnique/evaluate(trace:)`` discards the
+  /// diagnostic snapshot — consumers wanting it adopt
+  /// ``MLDiagnosticTechnique`` (which this type also conforms to; see
+  /// the trailing extension) and call ``evaluateWithDiagnostic(trace:)``.
   public func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
+    evaluateInternal(trace: trace).evaluation
+  }
+
+  /// Story 4-6 internal helper. Shared by both the protocol-public
+  /// ``evaluate(trace:)`` (which discards the snapshot) and the
+  /// ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)`` capability
+  /// path (which returns both). Mapping per Story 4-6 Task 4.5:
+  ///
+  /// - `trace.mlFeatures == nil` → `(nil, nil)` (pre-featurize abstain;
+  ///   no checksum possible). The defensive `logNilFeaturesOnce` from
+  ///   Story 4-5 (HALT (g) inheritance) still fires here.
+  /// - `featureSetVersion != "v1"` → `(nil, nil)` (pre-featurize
+  ///   abstain; no checksum on a version mismatch since the feature
+  ///   pipeline itself is suspect).
+  /// - `featurize` returned nil → `(nil, snapshot)` with
+  ///   `failureStage = .featurizeRejected`; `inputFeatureChecksum` is
+  ///   computed over the source `MLFeatureFrames.logMelData` (the data
+  ///   featurize received), per Task 4.7.
+  /// - `inferLogits` returned nil → `(nil, snapshot)` with
+  ///   `failureStage = .graphFailed`; `inputFeatureChecksum` is computed
+  ///   over the post-featurize input tensor.
+  /// - `decodeLogitsWithDiagnostic` returned `.nonFiniteLogits` →
+  ///   `(nil, snapshot)` with `failureStage = .decodeRejected` and all
+  ///   decode fields nil.
+  /// - `decodeLogitsWithDiagnostic` returned `.outOfRangeArgmax` →
+  ///   `(nil, snapshot)` with `failureStage = .decodeRejected` and
+  ///   decode fields populated (the raw out-of-range BPM is reported —
+  ///   the snapshot says what the model said, not what the library
+  ///   accepted).
+  /// - Gate 1 fail (`confidence < Self.confidenceThreshold`) →
+  ///   `(nil, snapshot)` with `failureStage = .confidenceGateRejected`
+  ///   and `gateFired = .gate1Softmax`.
+  /// - Gate 2 fail (`margin < Self.marginConfidenceThreshold`) →
+  ///   `(nil, snapshot)` with `failureStage = .confidenceGateRejected`
+  ///   and `gateFired = .gate2Margin`.
+  /// - Win → `(MLEvaluation, snapshot)` with `failureStage = nil`.
+  private func evaluateInternal(
+    trace: BPMDiagnosticTrace
+  ) -> (evaluation: MLEvaluation?, snapshot: MLDiagnosticSnapshot?) {
     guard let features = trace.mlFeatures else {
       logNilFeaturesOnce()
-      return nil
+      return (nil, nil)
     }
     guard features.featureSetVersion == Self.supportedFeatureSetVersion else {
-      return nil
+      return (nil, nil)
     }
-    guard let inputTensor = featurize(features) else { return nil }
-    guard let decoded = inferTempoCNN(inputTensor) else { return nil }
-    // Two-gate abstain (DD #10).
-    guard decoded.confidence >= Self.confidenceThreshold else { return nil }
-    let margin = decoded.confidence - decoded.secondMax
-    guard margin >= Self.marginConfidenceThreshold else { return nil }
+    guard let inputTensor = featurize(features) else {
+      // featurize received features but rejected them (frame count <
+      // 32, mel-band mismatch, or layout case unhandled). Checksum
+      // over the source payload is still meaningful — it characterizes
+      // the features Swift produced, which is what DD #6 cross-checks
+      // against Python.
+      let cksum = Self.computeInputFeatureChecksum(features.logMelData)
+      return (
+        nil,
+        MLDiagnosticSnapshot(
+          decodedBPM: nil,
+          softmaxMax: nil,
+          softmaxSecondMax: nil,
+          inputFeatureChecksum: cksum,
+          failureStage: .featurizeRejected,
+          gateFired: nil)
+      )
+    }
+    // From here on the post-featurize tensor is the canonical input —
+    // checksum over the resampled `[Float]` of length 65536 per
+    // Task 4.7. This is the byte stream Python's parity harness can
+    // reproduce by replicating Swift's featurize.
+    let cksum = Self.computeInputFeatureChecksum(inputTensor)
+    guard let logits = inferLogits(inputTensor) else {
+      return (
+        nil,
+        MLDiagnosticSnapshot(
+          decodedBPM: nil,
+          softmaxMax: nil,
+          softmaxSecondMax: nil,
+          inputFeatureChecksum: cksum,
+          failureStage: .graphFailed,
+          gateFired: nil)
+      )
+    }
+    switch Self.decodeLogitsWithDiagnostic(logits) {
+    case .nonFiniteLogits:
+      return (
+        nil,
+        MLDiagnosticSnapshot(
+          decodedBPM: nil,
+          softmaxMax: nil,
+          softmaxSecondMax: nil,
+          inputFeatureChecksum: cksum,
+          failureStage: .decodeRejected,
+          gateFired: nil)
+      )
+    case .outOfRangeArgmax(let bpm, let confidence, let secondMax):
+      return (
+        nil,
+        MLDiagnosticSnapshot(
+          decodedBPM: bpm,
+          softmaxMax: confidence,
+          softmaxSecondMax: secondMax,
+          inputFeatureChecksum: cksum,
+          failureStage: .decodeRejected,
+          gateFired: nil)
+      )
+    case .success(let bpm, let confidence, let secondMax):
+      // Two-gate abstain (DD #10). Each gate populates a snapshot
+      // reflecting the path that fired — the threshold-sweep harness
+      // reads `gateFired` to distinguish gate-1 (low max) from gate-2
+      // (low margin) on the same configuration. Story 4-6 Task 7:
+      // thresholds read through the `effective*` computed properties
+      // so the `thresholdOverride` Mutex seam is honored when set.
+      if confidence < Self.effectiveConfidenceThreshold {
+        return (
+          nil,
+          MLDiagnosticSnapshot(
+            decodedBPM: bpm,
+            softmaxMax: confidence,
+            softmaxSecondMax: secondMax,
+            inputFeatureChecksum: cksum,
+            failureStage: .confidenceGateRejected,
+            gateFired: .gate1Softmax)
+        )
+      }
+      let margin = confidence - secondMax
+      if margin < Self.effectiveMarginThreshold {
+        return (
+          nil,
+          MLDiagnosticSnapshot(
+            decodedBPM: bpm,
+            softmaxMax: confidence,
+            softmaxSecondMax: secondMax,
+            inputFeatureChecksum: cksum,
+            failureStage: .confidenceGateRejected,
+            gateFired: .gate2Margin)
+        )
+      }
+      // Win path. `confidence` is clamped defensively per Story 4-4
+      // DD #4 — softmax-max in principle is in [0, 1] but
+      // `vDSP_vsdiv` precision can produce values fractionally
+      // outside the range. The snapshot reports the raw decoded
+      // value (un-clamped) so threshold sweeps can observe the true
+      // softmax distribution; `MLEvaluation` carries the clamped
+      // value for public-API stability.
+      let clampedConfidence = min(max(confidence, 0.0), 1.0)
+      return (
+        MLEvaluation(
+          bpm: bpm, confidence: clampedConfidence,
+          modelIdentifier: "bnns_tempo_v1"),
+        MLDiagnosticSnapshot(
+          decodedBPM: bpm,
+          softmaxMax: confidence,
+          softmaxSecondMax: secondMax,
+          inputFeatureChecksum: cksum,
+          failureStage: nil,
+          gateFired: nil)
+      )
+    }
+  }
 
-    // `decodeLogits` already abstains for BPM outside 60-200 (review
-    // fix m13), so `decoded.bpm` is guaranteed in-range here.
-    // `confidence` is still clamped defensively per Story 4-4 DD #4 —
-    // softmax-max in principle is in [0, 1] but `vDSP_vsdiv` precision
-    // can produce values fractionally outside the range; clamp for
-    // public-API stability.
-    let confidence = min(max(decoded.confidence, 0.0), 1.0)
-    return MLEvaluation(
-      bpm: decoded.bpm, confidence: confidence,
-      modelIdentifier: "bnns_tempo_v1")
+  // MARK: - inputFeatureChecksum (DD #6 cheap-first featurize-drift detector)
+
+  /// FNV-1a 64-bit hash over the byte representation of a `[Float]`
+  /// buffer. Story 4-6 Task 4.7. Used by ``MLDiagnosticSnapshot/inputFeatureChecksum``.
+  ///
+  /// FNV-1a is chosen for portability: the Python reference pipeline at
+  /// `_bmad-output/ml-training/` can produce a bit-identical hash by
+  /// iterating the same byte sequence with the same constants. The
+  /// per-byte iteration is slow on paper (~1.3 ms for a 262 KB buffer)
+  /// but dwarfed by BNNS inference (~250 ms per call).
+  ///
+  /// Determinism: the FNV-1a constants (offset basis + prime) are
+  /// universal; there is no seed to randomize. The same `[Float]`
+  /// bytes always produce the same `UInt64` across runs and machines.
+  internal static func computeInputFeatureChecksum(_ buffer: [Float]) -> UInt64 {
+    var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+    let prime: UInt64 = 0x0000_0100_0000_01B3
+    buffer.withUnsafeBufferPointer { fbuf in
+      guard let base = fbuf.baseAddress else { return }
+      let rawBuf = UnsafeRawBufferPointer(
+        start: base, count: fbuf.count * MemoryLayout<Float>.size)
+      for byte in rawBuf {
+        hash ^= UInt64(byte)
+        hash &*= prime
+      }
+    }
+    return hash
   }
 
   // MARK: - featurize
@@ -349,16 +552,25 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     return resampled
   }
 
-  // MARK: - inferTempoCNN
+  // MARK: - inferLogits
 
   /// Per-call BNNSGraph inference. Builds a new `bnns_graph_context_t`,
-  /// runs `BNNSGraphContextExecute`, applies a host-side softmax to the
-  /// raw logits, and returns `(bpm, softmax_max, softmax_second_max)` —
-  /// or nil if any BNNS call fails or the softmax produces non-finite
-  /// values.
-  private func inferTempoCNN(
+  /// runs `BNNSGraphContextExecute`, and returns the raw logit `[Float]`
+  /// (length ``expectedBinCount``) — or nil if any BNNS API call fails.
+  ///
+  /// Story 4-6 split from the original `inferTempoCNN` which folded the
+  /// host-side softmax + decode into the same function. The split lets
+  /// ``evaluateInternal(trace:)`` distinguish
+  /// ``MLDiagnosticSnapshot/FailureStage/graphFailed`` (this function
+  /// returns nil) from
+  /// ``MLDiagnosticSnapshot/FailureStage/decodeRejected``
+  /// (``decodeLogitsWithDiagnostic(_:)`` reports the decode-time
+  /// outcome). Per Codex finding #2, those were folded into a single
+  /// `inferenceFailed` case in the pre-review story spec; the split is
+  /// the load-bearing remediation.
+  private func inferLogits(
     _ inputTensor: [Float]
-  ) -> (bpm: Double, confidence: Double, secondMax: Double)? {
+  ) -> [Float]? {
     let context = BNNSGraphContextMake(handle.graph)
     defer { BNNSGraphContextDestroy(context) }
     guard context.data != nil, context.size != 0 else { return nil }
@@ -447,7 +659,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     outputTensorDesc.data_size_in_bytes = 0
     guard execStatus == 0 else { return nil }
 
-    return Self.decodeLogits(output)
+    return output
   }
 
   // MARK: - Host-side softmax + top-2 decode
@@ -473,12 +685,37 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   internal static func decodeLogits(
     _ logits: [Float]
   ) -> (bpm: Double, confidence: Double, secondMax: Double)? {
-    guard !logits.isEmpty else { return nil }
+    switch decodeLogitsWithDiagnostic(logits) {
+    case .success(let bpm, let confidence, let secondMax):
+      return (bpm, confidence, secondMax)
+    case .nonFiniteLogits, .outOfRangeArgmax:
+      return nil
+    }
+  }
+
+  /// Story 4-6 diagnostic decode. Returns the same evidence the existing
+  /// ``decodeLogits(_:)`` produces, but discriminates between the three
+  /// outcomes — successful decode, non-finite logits, or out-of-range
+  /// argmax — instead of folding the two failure modes into `nil`.
+  /// ``evaluateInternal(trace:)`` reads this discriminator to populate
+  /// the ``MLDiagnosticSnapshot/FailureStage/decodeRejected`` snapshot
+  /// with the correct decode field values (nil for non-finite, raw
+  /// out-of-range values for out-of-range argmax).
+  ///
+  /// Per DD #2 doc-comment on ``MLDiagnosticSnapshot/decodedBPM``: the
+  /// snapshot reports what the model said, not what the library
+  /// accepted. So the ``outOfRangeArgmax`` case carries the raw decoded
+  /// BPM (below 60 or above 200) — the consumer of the snapshot sees the
+  /// model's actual prediction even though the library abstains.
+  internal static func decodeLogitsWithDiagnostic(
+    _ logits: [Float]
+  ) -> BNNSDecodeOutcome {
+    guard !logits.isEmpty else { return .nonFiniteLogits }
     // Reject non-finite logits up front: NaN through `vDSP_maxv` is
     // unspecified, +Inf produces NaN after subtract-max, -Inf produces
     // sum == 0 which the post-exp guard catches — but explicit
     // rejection here is faster and more diagnosable (review fix M26).
-    guard logits.allSatisfy({ $0.isFinite }) else { return nil }
+    guard logits.allSatisfy({ $0.isFinite }) else { return .nonFiniteLogits }
     var shifted = logits
     var maxLogit: Float = 0
     vDSP_maxv(shifted, 1, &maxLogit, vDSP_Length(shifted.count))
@@ -490,7 +727,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
 
     var sum: Float = 0
     vDSP_sve(expanded, 1, &sum, vDSP_Length(expanded.count))
-    guard sum > 0, sum.isFinite else { return nil }
+    guard sum > 0, sum.isFinite else { return .nonFiniteLogits }
 
     var probs = [Float](repeating: 0, count: expanded.count)
     var divisor = sum
@@ -512,17 +749,18 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     let secondMax = secondMaxVal.isFinite ? secondMaxVal : 0
     let confidence = maxVal.isFinite ? maxVal : 0
     let bpm = bpmBinOffset + Double(maxIdx)
-    // Abstain when argmax maps outside the BPM range. The pipeline-wide
-    // contract is 60-200 BPM; an out-of-range bin is either model
-    // misconfiguration (wrong bin offset) or genuine OOD prediction,
-    // both of which deserve abstain over silent clamp-to-boundary
-    // (review fix m13).
-    guard (60.0...200.0).contains(bpm) else { return nil }
-    return (
-      bpm: bpm,
-      confidence: Double(confidence),
-      secondMax: Double(secondMax)
-    )
+    // Out-of-range argmax — Story 4-6 reports the raw value so the
+    // diagnostic snapshot can carry it. The legacy ``decodeLogits(_:)``
+    // wrapper above still treats this as abstain (`nil`) for any caller
+    // that doesn't want the rich diagnostic.
+    if !(60.0...200.0).contains(bpm) {
+      return .outOfRangeArgmax(
+        bpm: bpm, confidence: Double(confidence),
+        secondMax: Double(secondMax))
+    }
+    return .success(
+      bpm: bpm, confidence: Double(confidence),
+      secondMax: Double(secondMax))
   }
 
   // MARK: - validateContract
@@ -804,4 +1042,49 @@ internal final class OneShotLatch: @unchecked Sendable {
 private struct BNNSCompileFailure: Error, LocalizedError {
   let message: String
   var errorDescription: String? { message }
+}
+
+// MARK: - BNNSDecodeOutcome (Story 4-6 diagnostic decode)
+
+/// Discriminated decode outcome surfaced by
+/// ``BNNSTechnique/decodeLogitsWithDiagnostic(_:)``. Internal because the
+/// type is purely a wiring helper between ``BNNSTechnique/evaluateInternal(trace:)``
+/// and the host-side softmax — consumers see the equivalent information
+/// via ``MLDiagnosticSnapshot/failureStage`` (`.decodeRejected`) plus the
+/// decoded numeric fields.
+@available(macOS 15.0, *)
+internal enum BNNSDecodeOutcome: Sendable {
+  /// Argmax mapped to a BPM in the library's `60.0...200.0` range.
+  case success(bpm: Double, confidence: Double, secondMax: Double)
+  /// Logits contained non-finite values (NaN / Inf) OR the post-softmax
+  /// sum was non-positive / non-finite — no argmax was meaningfully
+  /// computable.
+  case nonFiniteLogits
+  /// Argmax mapped to a BPM outside `60.0...200.0`. The raw decoded
+  /// values are carried so the diagnostic snapshot can report what the
+  /// model said.
+  case outOfRangeArgmax(bpm: Double, confidence: Double, secondMax: Double)
+}
+
+// MARK: - BNNSTechnique: MLDiagnosticTechnique (Story 4-6 capability protocol)
+
+/// Story 4-6 adds the ``MLDiagnosticTechnique`` capability protocol to
+/// ``BNNSTechnique``. The bundled conformance enables
+/// ``AudioAnalysisService``'s runtime narrowing in
+/// `evaluateMLIfActive` to route the call through
+/// ``evaluateWithDiagnostic(trace:)`` and attach the returned snapshot
+/// to ``BPMDiagnosticTrace/mlDiagnosticSnapshot``.
+///
+/// The protocol-public method forwards to ``BNNSTechnique/evaluateInternal(trace:)``
+/// — the same helper the legacy ``BNNSTechnique/evaluate(trace:)``
+/// uses. Inference and decode logic are shared; the two-tuple return is
+/// the only consumer-visible difference between the two entry points.
+@available(macOS 15.0, *)
+extension BNNSTechnique: MLDiagnosticTechnique {
+
+  public func evaluateWithDiagnostic(
+    trace: BPMDiagnosticTrace
+  ) -> (evaluation: MLEvaluation?, snapshot: MLDiagnosticSnapshot?) {
+    evaluateInternal(trace: trace)
+  }
 }
