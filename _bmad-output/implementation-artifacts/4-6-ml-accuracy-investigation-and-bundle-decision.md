@@ -3,7 +3,7 @@
 Story ID: 4.6
 Story Key: 4-6-ml-accuracy-investigation-and-bundle-decision
 Epic: 4 — ML-Augmented Detection
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -1172,3 +1172,79 @@ One thing nobody's said: if Branch C fires, the honest framing is not "ML doesn'
 All 5 reviewers converge: the story is `ready-for-dev` post-patch. The structural compile-blocker (Codex #1) is resolved. The evidence model (Codex #2, #3) is strengthened to corpus-wide stats + always-on numeric snapshot. The Branch A/C governance + gate definitions are unambiguous. The architecture rule "cross-target narrowing through upstream protocol" is captured for project-wide elevation.
 
 Codex thread `019e29dc-23ef-7b92-8f72-dbc74658aa5d` remains open if the dev needs to drill in on specific patches during implementation.
+
+---
+
+## Completion Notes (2026-05-16, Branch C close-out)
+
+### Branch identifier
+
+**Branch C — bundle pulled.** The previously-bundled `giantsteps_v1.mlmodelc` is removed from the main-shipping path; the `BNNSTechnique` infrastructure stays unchanged and ready to consume a higher-quality model when one is trained. CoreML conformance is DROPPED from Epic 4 (no bundled model warrants a second runtime per DD #10/#11); the follow-on `4-8-coreml-mltechnique-conformance` story is unblocked only if a future Branch-A retrain delivers a bundle-worthy model.
+
+### Evidence (AC #11 — exact integers)
+
+Captured at HEAD `8d932da` + this close-out commit's source state:
+
+- **Pre-fix histogram** (Story 4-5 era, before diagnostic instrumentation landed): `ml_acc1 = 0/82`, `named_dnb_resolved = 0/4`, every track collapsed to a single undifferentiated `nil` from `BNNSTechnique.evaluate(trace:)` — see `_bmad-output/implementation-artifacts/4-5-bnns-mltechnique-conformance.md` close-out section for the original five-way ambiguity.
+- **Post-fix histogram** (Story 4-6 threshold sweep at `0.00 / 0.00`): `failure_stage_histogram = { noAbstain: 82, featuresAbsent: 0, featureVersionMismatch: 0, featurizeRejected: 0, graphFailed: 0, decodeRejected: 0, confidenceGateRejected: 0 }`. Disambiguation complete: every track reached decode; the bundled model produced finite predictions for all 82, but only `ml_acc1 = 2/82` correct, with `wrong_non_abstain_count = 54/82` (66% wrong-confident). At production thresholds (`0.50 / 0.10`), `confidenceGateRejected = 82` instead — the gate was correctly suppressing low-confidence garbage. There was no wiring bug; the model itself doesn't generalize.
+- **Corpus distribution at 0.00 / 0.00**: `softmax_max_p50 = 0.085`, `softmax_max_p95 = 0.294`, `softmax_margin_p50 = 0.010`, `softmax_margin_p95 = 0.051`, bimodal predictions at ~125 BPM and ~175 BPM regardless of ground-truth content, `decoded_bpm_matches_dsp_within_4pct_fraction = 4.88%`.
+- **DSP-correct controls preservation**: `dsp_correct_controls_preserved = 4/4` at production thresholds (the gates DO protect the safe-fallback) but collapses to `0/4` once the gates are disabled — proves lowering thresholds is not a recovery path.
+- **Swift/Python featurize parity**: `make ml-parity` PASSES across all 4 stages, ruling out a featurize bug.
+- **Test count**: 415 `@Test(` occurrences across `Tests/` (unchanged by this close-out — only DocC + comment edits).
+- **OA300 Acc1/Acc2 at default config (`mlTechnique = nil`)**: byte-identical to `4-6-regression-snapshot.json` pre-source baseline (see Task 12.4 gate output in the diff-scope proof).
+- **GiantSteps Acc1/Acc2 at default config**: same — byte-identical to baseline (see Task 12.5 gate output).
+- **BNNS-on Acc1 post-fix at production config**: 0/82 (the bundle is no longer present; `BNNSTechnique()` no-arg throws `.modelResourceMissing` and the impact-report harness gracefully skips).
+- **Named-DnB resolved post-fix**: 0/4 (same — Branch C means BNNS doesn't fire in main).
+- **BNNS inference p50/p95**: N/A under Branch C (no production ML runs in main without an explicit `modelURL:`).
+
+### Branch C fix description — file-by-file
+
+- `git mv Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/ _bmad-output/ml-models/giantsteps_v1.mlmodelc/` + deleted empty `Sources/BoomBoomBoomKitML/Resources/` directory (including `.gitkeep`).
+- `Package.swift`: removed `resources: [.copy("Resources")]` from the `BoomBoomBoomKitML` target.
+- `Sources/BoomBoomBoomKitML/BNNSTechnique.swift`: `bundledReferenceURL` hardcoded to `nil` literal (was `Bundle.module.url(forResource:withExtension:)` — would have compile-broken once the manifest line was removed). DocC at lines 29-34, 87-104, 170-177, 203-219 rewritten to Branch C / BYOW voice. Sentinel-URL message at modelResourceMissing throw-path tightened.
+- `Sources/BoomBoomBoomKit/AudioAnalysisService.swift` line 144: consumer-intent table row reframed — `try? BNNSTechnique()` documented as returning nil under Branch C.
+- `Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift` lines 469-477: doc-comment block reframed to remove Path A and update melBands reference framing.
+- Tests (`BNNSTechniqueTests.swift`, `BNNSTechniqueAbstainFloorTests.swift`, `BNNSImpactTests.swift`): comments reframed; ZERO test logic changes. `.disabled(if: bundledModelMissing())` traits and `try? BNNSTechnique()` guards continue to work because the predicate now resolves to true.
+- Consumer docs: `README.md` (BYOW-only framing), `tools/coreml-convert/README.md` (Path A reframed as BYOW; Path D wiring summary updated), `MODEL_CARD.md` (new Status section prepended with Task 16's "*this* reference model doesn't generalize" verbatim framing), `CLAUDE.md:21` ("Ships to main" row + new "Stays on develop" entry for `_bmad-output/ml-models/giantsteps_v1.mlmodelc/`).
+- `Makefile`: `ML_MODEL_OUT_DIR` retargeted from `Sources/BoomBoomBoomKitML/Resources` to `_bmad-output/ml-models` (develop-only).
+
+### Re-open trigger (Task 15 verbatim)
+
+> If a future ablation pass shows >5% Acc1 regression on the previously-passing control set (`dsp_correct_controls` in `4-dnb-triplet-targets.json` v3), or if any additional control regresses (preserved → not-preserved), Story 4-6's bundle decision re-opens and Branch C is reconsidered with a follow-on story.
+
+Filed in `_bmad-output/implementation-artifacts/deferred-work.md` as the live re-open entry alongside the squash-merge invariant from John ("post-squash diff against main must NOT include `Sources/BoomBoomBoomKitML/Resources/`"; under Branch C also must NOT include `_bmad-output/ml-models/giantsteps_v1.mlmodelc/`).
+
+### Diff-scope proof (HALT-(g) reference)
+
+See `_bmad-output/implementation-artifacts/4-6-diff-scope-proof.txt` for the full 6-section artifact: (1) `git diff --stat` from the Task-1 pre-source SHA, (2) `git status -- Sources/` showing only expected files, (3) `grep` for deprecated BNNSFilter* / Swift overlay APIs (zero matches), (4) trace-field audit recipes A-E (zero matches outside the `mlDiagnosticSnapshot` field landed in Story 4-6 Task 3), (5) SPM external-deps count (zero), (6) **Branch-C addendum** — `test ! -d Sources/BoomBoomBoomKitML/Resources` prints `directory absent`, AND `grep -nE '\.copy\("Resources"\)' Package.swift` scoped to the BoomBoomBoomKitML target block returns zero matches.
+
+### Deferred-work entries — resolved or created
+
+**Resolved (cite this Story 4-6 close-out as the resolution):**
+
+- deferred-work.md "MODEL_CARD GiantSteps split sums to 661" entry — obsolete as a current shipping risk because no model ships in main; the discrepancy survives in the historical MODEL_CARD section but no longer affects consumer-facing claims.
+- deferred-work.md "README 'non-recommended accuracy default' framing" entry — superseded by Branch C; the bundled-model paragraph is gone entirely from README.md.
+- deferred-work.md "Bundle-pull decision deferred to Story 4-6" entry (the live one filed during Story 4-5 close-out) — RESOLVED with Branch C outcome. Bundle pulled, infrastructure retained, BYOW path documented.
+
+**Kept (live entries):**
+
+- deferred-work.md "Corpus quality: GiantSteps train+val is 96kbps MP3" entry — the genuine retrain lesson for a future Branch-A-on-better-corpus story. A higher-quality training corpus (320kbps source or PCM, optionally augmented with simulated MP3-codec round-trips) is the prerequisite for a future bundled model that might satisfy the Story 4-6 re-open trigger.
+
+**Created:**
+
+- John's squash-merge invariant — filed verbatim as a deferred-work entry. CLAUDE.md release protocol relies on operator vigilance; this entry names the specific paths to audit pre-squash.
+
+### Status flip
+
+`sprint-status.yaml` `4-6-ml-accuracy-investigation-and-bundle-decision: in-progress → review`. Final flip to `done` waits on the `/bmad-code-review` pass per Task 12.11.
+
+### Out-of-scope side effects this close-out did NOT make
+
+- No `BNNSTechnique` logic changes. Init / featurize / evaluate / decodeLogits / validateContract / extension surfaces all byte-identical (only DocC strings changed, one sentinel-URL message, the `bundledReferenceURL` static literal flip).
+- No `MLTechnique` / `MLDiagnosticTechnique` / `MLDiagnosticSnapshot` / `BPMDiagnosticTrace.mlDiagnosticSnapshot` API changes — all already landed in commit `8d932da`.
+- No test logic changes. Comments only.
+- No CoreMLTechnique work — that placeholder is unaffected; the product decision to drop CoreML from Epic 4 is recorded above + in DD #10/#11.
+
+### Codex review thread
+
+The Branch C plan was reviewed by Codex (thread `019e3167-6132-7bb0-9e2e-f763307002bc`) before execution. Codex's eight findings — including the compile-break risk at `BNNSTechnique.swift:91-92` (`Bundle.module` lookup would fail once `resources:` was removed from the manifest) — were all addressed in the executed plan at `/Users/rterhaar/.claude/plans/valiant-growing-deer.md`.

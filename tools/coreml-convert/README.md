@@ -2,13 +2,13 @@
 
 Standalone PyTorch → CoreML conversion CLI for BoomBoomBoomKit's `MLTechnique` plug-in surface. Self-contained `uv`-managed Python project; ships with the Swift package on `main` so consumers can convert their own tempo models without cloning the dev-only training pipeline.
 
-> **Important context before you use this tool:** BoomBoomBoomKit's default analysis path is DSP-first. The bundled reference model at `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc` is a **smoke-test fixture** — it validates the `MLTechnique` plug-in end-to-end but is measurably less accurate than the DSP pipeline on the project's held-out test corpus. Before bundling an ML model in your app, validate against your own corpus and confirm it improves over DSP on your distribution. See [MODEL_CARD.md](../../MODEL_CARD.md) for measured numbers + known failure modes.
+> **Important context before you use this tool:** BoomBoomBoomKit's default analysis path is DSP-first. **No reference model is bundled with the library** — Story 4-6 (2026-05-16, Branch C close-out) removed the previously-bundled `giantsteps_v1.mlmodelc` because it abstained on 100% of the OA300 test corpus at production thresholds. The `BNNSTechnique` infrastructure is unchanged and ready to consume a higher-quality model when one is trained; this tool is the BYOW (bring-your-own-weights) entry point. See [MODEL_CARD.md](../../MODEL_CARD.md) for the Status section + the threshold-sweep evidence behind the bundle pull.
 
 ## Licensing (read first)
 
 | Path                          | Licensor          | Consumer obligation                                          |
 |-------------------------------|-------------------|--------------------------------------------------------------|
-| A. Bundled default            | BoomBoomBoomKit   | None — BBBKit license applies (MIT-compatible)               |
+| A. (removed in Story 4-6)     | —                 | No bundled default ships; see MODEL_CARD.md                  |
 | B. Your custom weights        | You               | Your app's license terms apply to your weights               |
 | C. Third-party (e.g., AGPL)   | Upstream author   | May impose AGPL §13 obligations on your app, including the   |
 |                               |                   | network-use trigger; consult counsel before distributing     |
@@ -19,12 +19,11 @@ Standalone PyTorch → CoreML conversion CLI for BoomBoomBoomKit's `MLTechnique`
 
 | Scenario | Path | Tool |
 |---|---|---|
-| Use the bundled reference model for adapter smoke tests | A — bundled fixture | None (opt-in via `BNNSTechnique`; not a recommended accuracy default — see [MODEL_CARD.md](../../MODEL_CARD.md)) |
-| Use your own weights, same architecture | A | This tool, `--arch reference` |
+| Use your own weights, same architecture as the historical reference | A | This tool, `--arch reference` |
 | Use your own architecture (transformer / Deep-Rhythm / etc) | B | This tool, `--arch custom` |
 | Use a third-party model with non-permissive license (e.g., AGPL) | C | This tool — but bundle the artifact in YOUR app, not the library |
 
-The "bundled fixture" exists so consumers can verify `BNNSTechnique` loads + predicts end-to-end without needing Python or your own checkpoint. Most production consumers will use Path A (with their own weights) or Path B (with their own architecture).
+Story 4-6 removed the previously-bundled `giantsteps_v1.mlmodelc` from the library; the no-arg `BNNSTechnique()` form now throws `.modelResourceMissing`. Consumers wanting ML must pass an explicit `modelURL:` — train your own checkpoint, run this tool to produce a compatible `.mlmodelc`, bundle it in your app.
 
 Detailed worked examples follow.
 
@@ -85,16 +84,18 @@ BPMAnalyzer ---> MLFeatureFrames ---> BNNSTechnique.evaluate(trace:)
 EnsembleCombiner --> AudioAnalysisResult
 ```
 
-The library's bundled `giantsteps_v1.mlmodelc` is reachable via
-`Options.mlTechnique = try? BNNSTechnique()` (no `modelURL`). The
-diagram above shows the consumer-override (BYOW) variant; the bundled
-path is identical except `convert.py` is skipped.
+Story 4-6 (Branch C close-out) removed the previously-bundled reference
+model from the library. The no-arg `BNNSTechnique()` form now throws
+`.modelResourceMissing`; the BYOW variant the diagram above shows is the
+sole consumer-facing flow. Train your own checkpoint, run `convert.py`
+to produce a compatible `.mlmodelc`, bundle it in YOUR app, pass the URL
+to `BNNSTechnique(modelURL:)`.
 
 ## Worked examples
 
-### Path A — same architecture, different weights
+### Path A — same architecture, your own weights
 
-You trained a tempo classifier with the same `TempoCNN` architecture as the reference (3 conv blocks, 256-bin BPM softmax, NCHW input `(1,1,128,512)`) on your own corpus. Convert and bundle into your app:
+You trained a tempo classifier with the same `TempoCNN` architecture as the historical reference (3 conv blocks, 256-bin BPM softmax, NCHW input `(1,1,128,512)`) on your own corpus. **Note:** Story 4-6 removed the previously-bundled reference checkpoint from the library; this path is now BYOW-only (the historical `giantsteps_v1.mlmodelc` is no longer in `Sources/`). Convert and bundle into your app:
 
 ```bash
 # 1. Convert
@@ -106,7 +107,7 @@ uv run python convert.py \
 
 # 2. Bundle your_model.mlpackage in YOUR app (not BoomBoomBoomKit's bundle)
 
-# 3. At runtime, override the bundled reference:
+# 3. At runtime, point BNNSTechnique at your model URL:
 ```
 
 ```swift
@@ -127,7 +128,7 @@ options.mlTechnique = try? BNNSTechnique(modelURL: yourModelURL)
 // .binCountMismatch(expected: Int, actual: Int).
 ```
 
-When `options.mlTechnique = nil` (the default), no ML model is loaded and the pipeline runs DSP-only. To opt in to the bundled reference, construct `BNNSTechnique()` (no arguments) and assign it to `options.mlTechnique`. Your custom-URL override replaces the bundled-reference fallback for the same-arch path.
+When `options.mlTechnique = nil` (the default), no ML model is loaded and the pipeline runs DSP-only. Story 4-6 (Branch C) removed the previously-bundled reference model; calling `BNNSTechnique()` (no arguments) now throws `.modelResourceMissing` because `BNNSTechnique.bundledReferenceURL` is `nil` in the current ship. The only supported ML path is the BYOW form: pass an explicit `modelURL:` pointing at a `.mlmodelc` you bundled in YOUR app.
 
 ### Path B — different architecture
 
@@ -194,7 +195,7 @@ var options = AudioAnalysisService.Options()
 options.mlTechnique = MyDeepRhythmTechnique(model: try MLModel(contentsOf: yourModelURL))
 ```
 
-License compliance for your weights is your responsibility — BoomBoomBoomKit ships only the protocol + bundled reference; your weights live in your app's bundle under your app's license terms.
+License compliance for your weights is your responsibility — BoomBoomBoomKit ships only the `MLTechnique` protocol surface (no bundled model as of Story 4-6); your weights live in your app's bundle under your app's license terms.
 
 ### Path C — third-party model with non-permissive license (e.g., AGPL)
 
@@ -219,9 +220,9 @@ Wire via Path B's custom `MLTechnique` conformance.
 The override surface is `Options.mlTechnique`:
 
 - `Options.mlTechnique = nil` (default) → DSP-only; no ML model is loaded.
-- `Options.mlTechnique = try? BNNSTechnique()` → opt in to the bundled reference.
-- `Options.mlTechnique = try? BNNSTechnique(modelURL: ...)` → same-arch override.
-- `Options.mlTechnique = MyCustomTechnique()` → custom-arch override.
+- `Options.mlTechnique = try? BNNSTechnique()` → returns nil (no-arg form throws `.modelResourceMissing` under Story 4-6 Branch C — no bundled model in main).
+- `Options.mlTechnique = try? BNNSTechnique(modelURL: ...)` → BYOW same-arch path. The supported way to use ML.
+- `Options.mlTechnique = MyCustomTechnique()` → custom-arch path.
 
 There are no convenience APIs (`useMLModel(at:)` / `setMLTechnique(_:)`) — `Options.mlTechnique` is the sole surface.
 
@@ -234,7 +235,7 @@ uv run python convert.py \
   --module <path/to/model.py:ClassName>  Required when --arch=custom.
   --input-shape "N,C,H,W"             Default: "1,1,128,512" (matches reference).
   --output <path.mlpackage|.mlmodel|.mlmodelc>  REQUIRED. Output destination.
-  --target macOS14|macOS15|iOS17|iOS18 Default: macOS15 (matches BoomBoomBoomKit's .macOS(.v15) package target and the bundled reference's metadata.json availability).
+  --target macOS14|macOS15|iOS17|iOS18 Default: macOS15 (matches BoomBoomBoomKit's .macOS(.v15) package target).
   --validate / --no-validate          Default: --validate. --no-validate emits a stderr warning.
   --module-args '{"key": value}'      JSON object of constructor kwargs for --arch custom (ignored when --arch=reference).
   --atol <float>                      Default: 1e-3. Tolerance for eager-vs-traced + roundtrip.

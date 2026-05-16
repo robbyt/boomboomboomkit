@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: 2026-05-15 (Story 4-6 in-progress — dev started. Story scope re-cast from the original epics.md "Story 4.6: CoreML MLTechnique Conformance (Production)" framing to "BNNS ML Accuracy Investigation and Bundle Decision" per the Story 4-5 close-out handoff. Driven by the 4-5 review-pass v3 Chunk 3 finding that `4-5-bnns-impact-report.json` shows ml_acc1=0/82 (100% abstain) and named_dnb_resolved=0/4. Story 4-6 adds diagnostic instrumentation (5-failure-mode `MLAbstainReason` on the trace), expands the DnB target set with ≥4 DSP-correct controls (Codex C5), runs a threshold-disabled smoke + optional Swift-vs-Python featurize differential, applies the indicated remediation, and either retains the bundle (Branch A — fix landed, ≥2/4 named + ≥4/4 controls preserved) or pulls it from `Sources/BoomBoomBoomKitML/Resources/` (Branch C — bundle moved to develop-only `_bmad-output/ml-models/`; `BNNSTechnique()` no-arg throws `.modelResourceMissing`; consumers BYOW). Story-key renamed from `4-6-coreml-mltechnique-conformance` to `4-6-ml-accuracy-investigation-and-bundle-decision` to match scope. CoreML conformance is OUT OF SCOPE regardless of branch; a Branch-A follow-on story `4-8-coreml-mltechnique-conformance` is unblocked only if Branch A fires.)
+last_updated: 2026-05-16 (Story 4-6 Branch C close-out. Diagnostic instrumentation (MLDiagnosticSnapshot + MLDiagnosticTechnique capability protocol + BNNSTechnique conformance + threshold-override seam + 5 new test files) resolved Story 4-5's 100%-abstain mystery: Outcome D — model genuinely too weak. Forced-accept at 0.00/0.00 gave ml_acc1=2/82, wrong_non_abstain_count=54/82, softmax_max_p95=0.294 (below 0.50 gate), bimodal at 125/175 BPM; make ml-parity PASSES (Swift/Python featurize agree); lowering thresholds collapses dsp_correct_controls_preserved 4/4→0/4. Branch C bundle pull executed: Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/ moved via git mv to _bmad-output/ml-models/ (develop-only); BoomBoomBoomKitML target's resources: [.copy("Resources")] line removed from Package.swift; BNNSTechnique.bundledReferenceURL hardcoded to nil literal; DocC + MODEL_CARD + README + tools/coreml-convert/README + CLAUDE.md updated to BYOW-only framing per Task 16's "*this* reference model doesn't generalize past its training distribution" verbatim. Re-open trigger (Task 15) filed in Completion Notes + deferred-work.md. Epic 4 CoreML conformance DROPPED per Story 4-6 DD #10/#11 (no bundled model warrants a second runtime); Story 4-8 not needed. Status flips review→done after /bmad-code-review per Task 12.11. Build clean, tests passing (bundled-model tests skip via .disabled(if: bundledModelMissing()) which now resolves to true).)
 project: BoomBoomBoomKit
 project_key: NOKEY
 tracking_system: file-system
@@ -81,7 +81,7 @@ development_status:
   4-4-configurable-ml-ensemble-voting-policy: done
   4-4b-tempo-classifier-training: done
   4-5-bnns-mltechnique-conformance: done
-  4-6-ml-accuracy-investigation-and-bundle-decision: in-progress
+  4-6-ml-accuracy-investigation-and-bundle-decision: review
   4-7-spectral-flux-onset-dsp-variant: backlog
   epic-4-retrospective: optional
 

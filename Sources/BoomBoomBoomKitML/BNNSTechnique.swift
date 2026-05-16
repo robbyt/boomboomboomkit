@@ -26,12 +26,14 @@ import os.log
 // MARK: - BNNSTechnique
 
 /// Default `MLTechnique` implementation backed by Apple's BNNSGraph
-/// CPU-only inference path. The library ships a bundled reference model
-/// at `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/`,
-/// trained by Story 4-4b against the GiantSteps tempo corpus. Consumers
-/// who want to use their own weights can pass a custom URL via
-/// `init(modelURL:)` (BYOW path) or implement a fully custom
-/// `MLTechnique` conformance from scratch.
+/// CPU-only inference path. **No bundled model ships** as of Story 4-6
+/// (Branch C close-out, 2026-05-16) — the previously-bundled
+/// `giantsteps_v1.mlmodelc` was removed because it abstained on 100% of
+/// OA300 audio at production thresholds. See `MODEL_CARD.md` for the
+/// full Status section + threshold-sweep evidence. Consumers using ML
+/// today MUST pass a `.mlmodelc` URL explicitly via `init(modelURL:)` —
+/// see `tools/coreml-convert/README.md` for the bring-your-own-model
+/// (BYOW) flow, or implement a fully custom `MLTechnique` conformance.
 ///
 /// ## Lifecycle (Shape A-prime, DD #15)
 ///
@@ -84,12 +86,23 @@ import os.log
 @available(macOS 15.0, *)
 public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
 
-  /// Default URL for the library's bundled reference model. `Optional`
-  /// (not force-unwrapped) so the resource-missing case can throw
-  /// `MLTechniqueError.modelResourceMissing` cleanly at init time
-  /// rather than crashing at module load.
-  public static let bundledReferenceURL: URL? =
-    Bundle.module.url(forResource: "giantsteps_v1", withExtension: "mlmodelc")
+  /// Default URL for a library-bundled reference model. **Always `nil`
+  /// in the current ship.** Story 4-6 (Branch C close-out, 2026-05-16)
+  /// removed the previously-bundled `giantsteps_v1.mlmodelc` from the
+  /// main-shipping path because it abstained on 100% of OA300 audio at
+  /// production thresholds (see `MODEL_CARD.md` for the full status +
+  /// the threshold-sweep evidence). The training pipeline at
+  /// `_bmad-output/ml-training/` remains operational; the
+  /// `BNNSTechnique` infrastructure (load, featurize, inference,
+  /// two-gate, diagnostic capability) is unchanged and ready to consume
+  /// a higher-quality model when one is trained.
+  ///
+  /// Reserved as a `nil` literal so the `init(modelURL:)` default-arg
+  /// signature stays stable across a future story that re-bundles a
+  /// model. Consumers wanting to use ML today MUST pass a `modelURL:`
+  /// explicitly — see ``init(modelURL:)`` + `tools/coreml-convert/README.md`
+  /// for the bring-your-own-model (BYOW) flow.
+  public static let bundledReferenceURL: URL? = nil
 
   /// Gate 1 abstain threshold — DD #10. Softmax-max must be `≥ 0.50` for
   /// `evaluate(trace:)` to return non-nil. `0.50` is calibrated for the
@@ -154,10 +167,13 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// BPM offset for the bin-center decode (DD #18): `bpm = 30 + argmax`.
   private static let bpmBinOffset: Double = 30.0
 
-  /// Feature-set version the bundled `giantsteps_v1.mlmodelc` was
-  /// trained against. `MLFeatureFrames` payloads with a different
-  /// version (e.g., post-Story-4.7) cause `evaluate(trace:)` to abstain
-  /// — preventing silent feature-distribution drift.
+  /// Feature-set version the historical `giantsteps_v1.mlmodelc` was
+  /// trained against (Story 4-4b training corpus). `MLFeatureFrames`
+  /// payloads with a different version (e.g., post-Story-4.7) cause
+  /// `evaluate(trace:)` to abstain — preventing silent
+  /// feature-distribution drift. Held as the reference value because
+  /// BYOW consumers targeting the same architecture inherit the same
+  /// featurize contract.
   private static let supportedFeatureSetVersion = "v1"
 
   /// Compiled graph + workspace ownership. Final class so its `deinit`
@@ -184,21 +200,27 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// `@testable import BoomBoomBoomKitML`. Not intended for production.
   internal var __handleForTesting: BNNSGraphHandle { handle }
 
-  /// Loads and compiles the model at `modelURL`. Default is the library's
-  /// bundled reference at `Bundle.module/giantsteps_v1.mlmodelc`. Throws
-  /// when the URL is unreadable, the compile fails, the tensor contract
-  /// doesn't match the library's expectations, or the bin count differs
-  /// from 256.
+  /// Loads and compiles the model at `modelURL`. The default-arg
+  /// (`Self.bundledReferenceURL`) is **always `nil` in the current ship**
+  /// — Story 4-6 (Branch C close-out) removed the previously-bundled
+  /// `giantsteps_v1.mlmodelc` from the main-shipping path. Calling the
+  /// no-arg form `BNNSTechnique()` therefore throws
+  /// `MLTechniqueError.modelResourceMissing` against a sentinel URL.
+  /// Throws also when the URL is unreadable, the compile fails, the
+  /// tensor contract doesn't match the library's expectations, or the
+  /// bin count differs from 256.
   ///
-  /// Consumer apps wanting graceful degradation should use `try?`:
+  /// Consumer apps wanting graceful degradation should use `try?` and
+  /// pass an explicit `modelURL:`:
   /// ```
+  /// let url = Bundle.main.url(forResource: "your_model", withExtension: "mlmodelc")!
   /// var opts = AudioAnalysisService.Options()
-  /// opts.mlTechnique = try? BNNSTechnique()
+  /// opts.mlTechnique = try? BNNSTechnique(modelURL: url)
   /// ```
   public init(modelURL: URL? = Self.bundledReferenceURL) throws {
     guard let modelURL else {
       throw MLTechniqueError.modelResourceMissing(
-        URL(fileURLWithPath: "<bundled giantsteps_v1.mlmodelc — missing>"))
+        URL(fileURLWithPath: "<no bundled model in this build; pass modelURL: explicitly>"))
     }
     guard FileManager.default.fileExists(atPath: modelURL.path()) else {
       throw MLTechniqueError.modelResourceMissing(modelURL)

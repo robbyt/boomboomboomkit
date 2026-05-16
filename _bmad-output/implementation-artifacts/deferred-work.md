@@ -304,13 +304,13 @@ Replaces an earlier same-day defer list; supersedes items now reclassified as `p
 
 ## Deferred from: code review of 4-4b-tempo-classifier-training (2026-05-09) — chunk 3 of 4
 
-- **MODEL_CARD GiantSteps split sums to 661 not the 664 cited in CLAUDE.md** — `MODEL_CARD.md:43-44` lists 595 train + 66 val from GiantSteps folds 02-10 / fold 01 (= 661). CLAUDE.md cites the GiantSteps Tempo Dataset as 664 EDM tracks. The 3-track delta is the labeled subset (3 tracks have malformed/missing labels). Doc polish only; CLAUDE.md does not ship to main, so consumer-only readers do not see the discrepancy. **Re-open trigger:** any external consumer questions corpus arithmetic in MODEL_CARD; OR Story X bumps to a new GiantSteps revision and the count drifts again.
+- **MODEL_CARD GiantSteps split sums to 661 not the 664 cited in CLAUDE.md** — `MODEL_CARD.md:43-44` lists 595 train + 66 val from GiantSteps folds 02-10 / fold 01 (= 661). CLAUDE.md cites the GiantSteps Tempo Dataset as 664 EDM tracks. The 3-track delta is the labeled subset (3 tracks have malformed/missing labels). Doc polish only. **RESOLVED 2026-05-16 by Story 4-6 Branch C close-out:** the bundled `giantsteps_v1.mlmodelc` was removed; the GiantSteps split arithmetic now lives in MODEL_CARD's historical section below the new Status block. No current shipping claim relies on this count. A future Branch-A retrain that re-bundles a higher-quality model should refresh the arithmetic in a new Status entry.
 - **MODEL_CARD OA300 row shows 82 tracks under a corpus named "OA300" without explaining the 218 unused** — `MODEL_CARD.md:45`. OA300 = 300 onset audio tracks of which only 82 carry ground-truth labels (project-internal corpus). Doc polish; consumers cloning main see 82 with no explanation of the corpus name. **Re-open trigger:** consumer issue/PR asking what OA300 is; OR Story X expands the labeled subset and the count changes.
 - **License posture for trained-weights derivative work on GiantSteps + OA300 corpora needs counsel review** — `MODEL_CARD.md:134-138`. The bundled `giantsteps_v1.mlmodelc` is a derivative work; the "distributed under the same license as BoomBoomBoomKit" claim assumes the corpus licenses permit weight redistribution. GiantSteps is research-use; OA300 is project-internal. Out of code-review scope. **Re-open trigger:** pre-1.0 legal review (Epic 4 retrospective or pre-release counsel pass); OR a consumer files a license question on the bundled model.
 
 ## Deferred from: code review of 4-4b-tempo-classifier-training (2026-05-09) — chunk 2 of 4 (`tools/coreml-convert/`)
 
-- **README "non-recommended accuracy default" framing too negative vs spec's "sensible default" posture** — `tools/coreml-convert/README.md:11,17`. README characterizes the bundled `giantsteps_v1.mlmodelc` as "measurably less accurate than the DSP pipeline" and "not a recommended accuracy default"; spec DD #0 / DD #11 frame it more neutrally as a "sanity demonstrator + sensible default" that consumers replace via BYOM. Framing call. **Re-open trigger:** consumer issue/PR reports the wording feels hostile, OR Story 4-5 lands and the consumer-onboarding flow benefits from softer language.
+- **README "non-recommended accuracy default" framing too negative vs spec's "sensible default" posture** — `tools/coreml-convert/README.md:11,17`. README characterizes the bundled `giantsteps_v1.mlmodelc` as "measurably less accurate than the DSP pipeline" and "not a recommended accuracy default"; spec DD #0 / DD #11 frame it more neutrally as a "sanity demonstrator + sensible default" that consumers replace via BYOM. Framing call. **RESOLVED 2026-05-16 by Story 4-6 Branch C close-out:** superseded — the bundled-model framing is gone entirely from `tools/coreml-convert/README.md` (intro + Path A rewritten to BYOW-only voice). No "non-recommended accuracy default" wording survives.
 - **`ReLU(inplace=True)` on sliced (non-contiguous) view in `MultiKernelConvBlock.forward`** — `tools/coreml-convert/reference_arch.py:694-705`. Even-kernel convs with `k//2` padding produce off-by-one widths that get cropped to a view; in-place ReLU on a view risks subtle eager-vs-traced numerical drift. Speculative until measured. **Re-open trigger:** numerical-equivalence test (P13 in chunk 2 review) catches drift, OR consumer reports trace/eager mismatch on a custom architecture.
 - **`weights_only=True` rejects PyTorch 2.4-2.5 checkpoints containing schedulers / custom transforms / dataclasses** — `tools/coreml-convert/convert.py:369`. No fallback is the conservative security posture. Common research/training checkpoints (Lightning + custom Lambda transforms) hit `UnpicklingError`. **Re-open trigger:** multiple consumer reports of `UnpicklingError` on common training-framework outputs, OR a security model emerges that lets us safely fall back to `weights_only=False` (signed checkpoints, content-addressable storage, etc.).
 - **README Path D is a Story 4-5 cross-link, not the MLX-trained worked example originally listed in DD #13 line 158** — `tools/coreml-convert/README.md:149-157`. Spec line 390 (later revision) explicitly accepts the cross-link form so this matches spec-as-written, but the original DD #13 line 158 promise of "MLX-trained" is not delivered. Listed for tracking only. **Re-open trigger:** Story 4-X lands an MLX-trained reference architecture and the README acquires a fourth genuine consumer path.
@@ -417,8 +417,13 @@ Story 4-6 picks up the accuracy work with hard AC.
   two-gate rejected). Raw decoded BPM/confidence/secondMax/margin EXIST
   inside `BNNSTechnique.decodeLogits` at `:475-525` but are NOT surfaced
   through any diagnostic API. Cannot distinguish which mode is firing
-  without instrumentation. **Trigger:** Story 4-6 entry. **Blocks 4-6:
-  yes** — first task of 4-6 is the diagnostic instrumentation pass.
+  without instrumentation. **RESOLVED 2026-05-16 by Story 4-6 Branch C
+  close-out:** diagnostic instrumentation landed (MLDiagnosticSnapshot +
+  MLDiagnosticTechnique capability protocol + BNNSTechnique conformance).
+  Threshold sweep at 0.00/0.00 disambiguated: every track reaches decode;
+  `wrong_non_abstain_count = 54/82`; `softmax_max_p95 = 0.294`; bimodal
+  predictions at 125/175 BPM regardless of input — Outcome D, model is
+  genuinely too weak. Bundle pulled.
 
 - **C2 — Bundle-pull decision deferred to Story 4-6.** Per Codex
   consult (thread `019e2975-7b50-78b1-80d2-d01b6eb73d2c`), if Story 4-6
@@ -427,12 +432,12 @@ Story 4-6 picks up the accuracy work with hard AC.
   be REMOVED from the main-shipping path (moved to develop-only
   `_bmad-output/ml-models/`). Codex's framing: "Pre-1.0 is exactly
   when to be strict about not shipping an ineffective bundled binary."
-  This decision is gated on the diagnostic results — if the abstain is
-  a wiring/featurize bug (recoverable), the bundle stays. If the model
-  itself is too weak on real DnB content, the bundle is pulled and
-  `BNNSTechnique()` no-arg form throws `.modelResourceMissing`.
-  **Trigger:** Story 4-6 diagnostic completes. **Blocks 4-6: yes** —
-  bundle status must be decided before 4-6 merges.
+  **RESOLVED 2026-05-16 by Story 4-6 Branch C close-out:** Branch C
+  fired. Bundle moved via `git mv` to `_bmad-output/ml-models/giantsteps_v1.mlmodelc/`;
+  `Package.swift` BoomBoomBoomKitML target's `resources: [.copy("Resources")]`
+  removed; `BNNSTechnique.bundledReferenceURL` hardcoded to nil literal.
+  No bundled model ships in main as of this close-out. Re-open trigger
+  filed below.
 
 - **C3 — `_bmad-output/implementation-artifacts/4-5-regression-snapshot.json`
   naming and lifecycle are muddy.** Original c446069 captured a
@@ -465,3 +470,11 @@ Story 4-6 picks up the accuracy work with hard AC.
   losses" but cannot detect "ML quietly broke 30 DnB tracks DSP got
   right." **Trigger:** Story 4-6. **Blocks 4-6: yes** — expand target
   set BEFORE re-running the impact report.
+
+## Deferred from: Story 4-6 Branch C close-out (2026-05-16)
+
+- **Story 4-6 re-open trigger (Task 15 verbatim).** If a future ablation pass shows >5% Acc1 regression on the previously-passing control set (`dsp_correct_controls` in `4-dnb-triplet-targets.json` v3), or if any additional control regresses (preserved → not-preserved), Story 4-6's bundle decision re-opens and Branch C is reconsidered with a follow-on story. Filed live for the entire pre-1.0 window. **Re-open trigger:** the literal condition above, OR a future Branch-A retrain story re-introduces a bundle (in which case this trigger gets archived as historical and a new symmetric trigger replaces it). The infrastructure path stays open because BNNSTechnique infrastructure shipped successfully — the gap is the model, not the integration architecture.
+
+- **Squash-merge to main invariant — verify bundled-model path absence pre-merge.** Story 4-6 Branch C moved `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` to `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` (develop-only) and removed the `resources: [.copy("Resources")]` line from `Package.swift`'s BoomBoomBoomKitML target. The CLAUDE.md release protocol relies on operator vigilance for the squash-merge to main. **Pre-squash check:** verify `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` is NOT in the main-bound diff, AND verify `Sources/BoomBoomBoomKitML/Resources/` is absent in the main-bound tree. **Re-open trigger:** any future squash-merge to main that accidentally includes either path (would invalidate the Branch C close-out and ship an ineffective bundled binary back to main); OR a maintainer accidentally re-creates the Resources directory locally before squash-merge.
+
+- **CoreML conformance dropped from Epic 4 (DD #10/#11).** Story 4-8 (`4-8-coreml-mltechnique-conformance`) was the planned follow-on if Branch A had fired. Under Branch C, no bundled model warrants a second runtime, and `CoreMLTechnique` symmetric-infra-with-consumer-supplied-URL adds no value over `BNNSTechnique` with consumer-supplied URL. The Story 4.1 `Sources/BoomBoomBoomKitML/CoreMLTechnique.swift` placeholder remains untouched on disk; Epic 4's scope ends at Story 4-7 (`4-7-spectral-flux-onset-dsp-variant`) + this close-out. **Re-open trigger:** a future Branch-A retrain that re-bundles a high-quality model AND a documented consumer ask for CoreML/ANE acceleration; under that combined condition, Story 4-8 unblocks and gets authored against the post-Branch-A baseline.
