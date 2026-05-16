@@ -325,10 +325,24 @@ public struct AudioAnalysisService {
     // binding `ml` (so `evaluate(trace:)` is unreachable when ML is off).
     // Resolves the `deferred-work.md` cancellation entry filed at Story
     // 4-3 close-out.
+    //
+    // Story 4-6 AC #4: helper signature is `trace: inout BPMDiagnosticTrace?`
+    // so the diagnostic snapshot from ``MLDiagnosticTechnique`` conformers
+    // is written back to the trace under STRICT mutation-after-cancellation
+    // ordering. `BPMResult.trace` is a `let` field on the corroborated
+    // struct, so we pull it into a local `var` and reconstruct the result
+    // post-helper. Single-window paths and DSP-only short-circuit return
+    // identical bytes — the trace is unchanged on those paths.
+    var localTrace = corroborated.trace
     let mlEvaluation = try Self.evaluateMLIfActive(
-      options: options, trace: corroborated.trace)
+      options: options, trace: &localTrace)
+    let corroboratedWithSnapshot = BPMResult(
+      bpm: corroborated.bpm,
+      confidence: corroborated.confidence,
+      candidates: corroborated.candidates,
+      trace: localTrace)
     let combined = EnsembleCombiner.combine(
-      dspWinner: corroborated,
+      dspWinner: corroboratedWithSnapshot,
       mlEvaluation: mlEvaluation,
       policy: options.ensemblePolicy)
 
@@ -413,17 +427,71 @@ public struct AudioAnalysisService {
   /// window granularity is satisfied (checks fire BEFORE each window
   /// AND BEFORE+AFTER each evaluate call); finer mid-inference
   /// cancellation is documented as deferred-work.
+  ///
+  /// **Story 4-6 — diagnostic snapshot via capability-protocol narrowing.**
+  /// When the active ``MLTechnique`` conformer ALSO adopts
+  /// ``MLDiagnosticTechnique`` (Story 4-6's bundled ``BNNSTechnique``
+  /// does), the helper routes the call through
+  /// ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)`` and writes
+  /// the returned ``MLDiagnosticSnapshot?`` into
+  /// ``BPMDiagnosticTrace/mlDiagnosticSnapshot`` on the inout trace.
+  /// Consumer-supplied plain ``MLTechnique`` types that do NOT adopt
+  /// the diagnostic capability fall back to the original
+  /// ``MLTechnique/evaluate(trace:)`` path and leave the trace field
+  /// nil — documented as `wontfix pre-1.0` (forwarding wrappers must
+  /// re-conform to ``MLDiagnosticTechnique`` if they want diagnostics).
+  ///
+  /// **STRICT mutation-after-cancellation ordering (AC #4 revised; Codex
+  /// finding #4).** The evaluation runs into LOCALS first; the
+  /// post-evaluate cancellation check fires BEFORE any trace mutation;
+  /// only on the no-cancellation path does the snapshot get written.
+  /// A cancellation observed AFTER `evaluate` returned but BEFORE the
+  /// snapshot landed produces `CancellationError` from this helper with
+  /// `trace.mlDiagnosticSnapshot` left at whatever the caller passed in
+  /// (nil for a fresh trace). The
+  /// ``AudioAnalysisServiceInoutTraceTests/inoutTraceMutationAfterCancellation``
+  /// test locks this ordering.
+  ///
+  /// The capability narrowing additionally requires
+  /// ``Options/enableTrace`` to be `true` — diagnostic snapshots are
+  /// consumer-visible only when the consumer asked for the trace. Without
+  /// that gate, the plain `evaluate(trace:)` path runs and no snapshot is
+  /// written. (Internally the ML feature pipeline still runs because
+  /// `shouldBuildTrace` upstream of the helper does its own ML-active
+  /// gating; the diagnostic-snapshot visibility is a separate consumer
+  /// gate.)
   private static func evaluateMLIfActive(
-    options: Options, trace: BPMDiagnosticTrace?
+    options: Options, trace: inout BPMDiagnosticTrace?
   ) throws -> MLEvaluation? {
     guard options.ensemblePolicy != .dspOnly,
       let ml = options.mlTechnique,
-      let trace
+      let unwrappedTrace = trace
     else { return nil }
     if options.isCancelled() { throw CancellationError() }
-    let evaluation = ml.evaluate(trace: trace)
+    // Evaluate into locals — NO trace mutation yet (Codex finding #4
+    // strict ordering).
+    let localEvaluation: MLEvaluation?
+    let localSnapshot: MLDiagnosticSnapshot?
+    if let diag = ml as? MLDiagnosticTechnique, options.enableTrace {
+      let result = diag.evaluateWithDiagnostic(trace: unwrappedTrace)
+      localEvaluation = result.evaluation
+      localSnapshot = result.snapshot
+    } else {
+      localEvaluation = ml.evaluate(trace: unwrappedTrace)
+      localSnapshot = nil
+    }
+    // Post-evaluate cancellation check BEFORE any trace mutation. A
+    // cancellation flipping at this point throws CancellationError; the
+    // snapshot is discarded so the caller never sees a stale snapshot
+    // stranded in a trace it has already given up on.
     if options.isCancelled() { throw CancellationError() }
-    return evaluation
+    // Mutation strictly last — only on the no-cancellation path.
+    if localSnapshot != nil {
+      var mutableTrace = unwrappedTrace
+      mutableTrace.mlDiagnosticSnapshot = localSnapshot
+      trace = mutableTrace
+    }
+    return localEvaluation
   }
 
   // MARK: - Story 4.4: ML ensemble combiner promoted to EnsembleCombiner.swift

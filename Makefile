@@ -5,7 +5,7 @@ OA300_CORPUS_PATH ?= /Users/rterhaar/Dropbox/OA300_OnsetAudio300
 GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset
 ML_MODEL_INPUT ?= _bmad-output/ml-models/giantsteps_v1.mlmodel
 ML_MODEL_OUT_DIR ?= Sources/BoomBoomBoomKitML/Resources
-BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts
+BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/perf-baselines/bnns-impact
 
 .PHONY: all
 all: help

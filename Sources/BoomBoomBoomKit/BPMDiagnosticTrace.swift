@@ -147,6 +147,51 @@ public struct BPMDiagnosticTrace: Sendable {
   /// See ``EnsembleDecision`` for the population matrix.
   public var ensembleDecision: EnsembleDecision?
 
+  // MARK: - Story 4.6: ML Diagnostic Snapshot
+
+  /// Per-evaluation diagnostic snapshot of the most recent
+  /// ``MLTechnique/evaluate(trace:)`` call when the conformer adopts the
+  /// ``MLDiagnosticTechnique`` capability protocol. Carries the load-bearing
+  /// numeric evidence (decoded BPM, top-2 softmax probabilities, input
+  /// feature checksum) AND a categorical ``MLDiagnosticSnapshot/FailureStage``
+  /// summary that identifies which abstain path fired (or `nil` on the
+  /// win path). See ``MLDiagnosticSnapshot`` for the full population matrix.
+  ///
+  /// **Population rules.** Non-nil only when ALL of these hold:
+  /// 1. ``AudioAnalysisService/Options/mlTechnique`` is non-nil AND
+  ///    conforms to ``MLDiagnosticTechnique`` (consumer-supplied plain
+  ///    ``MLTechnique`` wrappers without the diagnostic conformance fall
+  ///    back to ``MLTechnique/evaluate(trace:)`` and leave this nil — the
+  ///    documented `wontfix pre-1.0` consumer-wrapper limitation).
+  /// 2. ``AudioAnalysisService/Options/ensemblePolicy`` is not
+  ///    ``EnsemblePolicy/dspOnly`` (DSP-only short-circuits before the ML
+  ///    helper runs at all).
+  /// 3. A trace was built (`shouldBuildTrace` predicate fired upstream).
+  /// 4. ``AudioAnalysisService/Options/enableTrace`` is `true`
+  ///    (consumer-facing visibility gate).
+  /// 5. The conformer's ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)``
+  ///    actually returned a non-nil snapshot — i.e., the inference reached
+  ///    at least the featurize step. The two pre-featurize abstain paths
+  ///    (``MLDiagnosticSnapshot/FailureStage/featuresAbsent`` and
+  ///    ``MLDiagnosticSnapshot/FailureStage/featureVersionMismatch``)
+  ///    return `(nil, nil)` from the conformance per the tuple invariant,
+  ///    so this field stays nil on those paths. The reporting harness
+  ///    derives the histogram bucket for those tracks from
+  ///    `MLEvaluation == nil && mlDiagnosticSnapshot == nil` + trace
+  ///    state.
+  ///
+  /// **Diagnostic, not load-bearing.** Consumers can ignore this field
+  /// without losing functionality — it surfaces inference internals for
+  /// debugging and threshold-sweep analysis (Story 4-6 DD #5). The
+  /// production library never reads it; the impact-report harness at
+  /// `Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift` is the
+  /// primary consumer.
+  ///
+  /// **See also.** ``MLDiagnosticSnapshot`` (typed-evidence shape),
+  /// ``MLDiagnosticTechnique`` (capability protocol that produces it),
+  /// ``BNNSTechnique`` (Story 4-6 reference conformer).
+  public var mlDiagnosticSnapshot: MLDiagnosticSnapshot?
+
   // MARK: - Story 4.5: ML Feature Frames
 
   /// Log-mel spectrogram frames retained from the DSP onset pipeline,
