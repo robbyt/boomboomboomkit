@@ -43,15 +43,10 @@ struct BNNSTechniqueDiagnosticTests {
     arguments: PreFeaturizeAbstainCase.allCases)
   func preFeaturizeAbstain(_ caseArg: PreFeaturizeAbstainCase) throws {
     if #available(macOS 15.0, *) {
-      guard let bnns = try? BNNSTechnique() else {
-        Issue.record(
-          Comment(
-            rawValue:
-              "Skipped — BNNSTechnique() failed (bundled model absent; "
-              + "Branch C build). The pre-featurize abstain paths are "
-              + "still exercised by the impact-report harness."))
-        return
-      }
+      // Suite-level `.disabled(if:)` guards the no-bundled-model path;
+      // `try #require` treats a still-failing init as a real bug rather
+      // than an Issue.record-as-skip anti-pattern (Story 4-6 P4).
+      let bnns = try #require(try? BNNSTechnique())
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = caseArg.makeFeatures()
       let result = bnns.evaluateWithDiagnostic(trace: trace)
@@ -66,11 +61,7 @@ struct BNNSTechniqueDiagnosticTests {
   @Test("featurizeRejected populates snapshot with checksum only")
   func featurizeRejected() throws {
     if #available(macOS 15.0, *) {
-      guard let bnns = try? BNNSTechnique() else {
-        Issue.record(
-          Comment(rawValue: "Skipped — BNNSTechnique() failed (Branch C build)"))
-        return
-      }
+      let bnns = try #require(try? BNNSTechnique())
       var trace = BPMDiagnosticTrace()
       // 16 frames < 32 frame DD #9 guard → featurize returns nil.
       trace.mlFeatures = try MLFeatureFrames(
@@ -112,11 +103,9 @@ struct BNNSTechniqueDiagnosticTests {
   @Test("traceAttachmentInvariants — snapshot lands when ML active + enableTrace true")
   func traceAttachmentInvariants() throws {
     if #available(macOS 15.0, *) {
-      guard (try? BNNSTechnique()) != nil else {
-        Issue.record(
-          Comment(rawValue: "Skipped — BNNSTechnique() failed (Branch C build)"))
-        return
-      }
+      // Suite-level `.disabled(if:)` guards the no-model path; the
+      // `try #require` below would surface a real-bug failure rather
+      // than skip-via-Issue.record.
       // The test is structural — verifying the wiring works. Since
       // exercising AudioAnalysisService with real audio is an
       // integration concern handled by impact-report tests, we just
@@ -156,11 +145,7 @@ struct BNNSTechniqueDiagnosticTests {
   @Test("evaluate(trace:) discards snapshot and matches evaluateWithDiagnostic")
   func evaluateMatchesDiagnostic() throws {
     if #available(macOS 15.0, *) {
-      guard let bnns = try? BNNSTechnique() else {
-        Issue.record(
-          Comment(rawValue: "Skipped — BNNSTechnique() failed (Branch C build)"))
-        return
-      }
+      let bnns = try #require(try? BNNSTechnique())
       // Use a featurize-rejected case for determinism.
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = try MLFeatureFrames(

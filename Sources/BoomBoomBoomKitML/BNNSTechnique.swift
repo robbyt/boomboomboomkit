@@ -141,15 +141,36 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
 
   /// Production read for the Gate 1 threshold. Returns
   /// ``confidenceThreshold`` unless ``thresholdOverride`` has been set.
+  ///
+  /// Convenience accessor — calls ``effectiveThresholds`` and returns
+  /// just the confidence value. Per-call sites that need BOTH gates
+  /// (e.g., ``evaluateInternal(trace:)``) MUST use ``effectiveThresholds``
+  /// directly so the two values are observed from the same atomic
+  /// snapshot of the override; otherwise a concurrent test that resets
+  /// the override between the two reads will see mixed-state thresholds
+  /// (Story 4-6 code review P13).
   internal static var effectiveConfidenceThreshold: Double {
-    thresholdOverride.withLock { $0?.confidence ?? confidenceThreshold }
+    effectiveThresholds.confidence
   }
 
-  /// Production read for the Gate 2 threshold. Returns
-  /// ``marginConfidenceThreshold`` unless ``thresholdOverride`` has been
-  /// set.
+  /// Production read for the Gate 2 threshold. Convenience accessor —
+  /// see ``effectiveConfidenceThreshold`` for the atomicity caveat.
   internal static var effectiveMarginThreshold: Double {
-    thresholdOverride.withLock { $0?.margin ?? marginConfidenceThreshold }
+    effectiveThresholds.margin
+  }
+
+  /// Single atomic read of BOTH gate thresholds. Story 4-6 code review
+  /// P13: a single `withLock` returns a `(confidence, margin)` tuple so
+  /// the two gate decisions in ``evaluateInternal(trace:)`` cannot
+  /// observe mixed-state thresholds when a concurrent test mutates the
+  /// override between reads.
+  internal static var effectiveThresholds: (confidence: Double, margin: Double) {
+    thresholdOverride.withLock { override in
+      if let o = override {
+        return (o.confidence, o.margin)
+      }
+      return (confidenceThreshold, marginConfidenceThreshold)
+    }
   }
 
   /// Number of mel bands the bundled model expects on input. Surfaced as
@@ -174,7 +195,13 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// feature-distribution drift. Held as the reference value because
   /// BYOW consumers targeting the same architecture inherit the same
   /// featurize contract.
-  private static let supportedFeatureSetVersion = "v1"
+  ///
+  /// `internal` (Story 4-6 close-out P3): the BNNSImpactTests harness's
+  /// pre-featurize bucket-classification logic must reference this
+  /// constant rather than hardcoding the string literal "v1" — otherwise
+  /// a future version bump silently drifts the report's bucketing from
+  /// the evaluator's actual abstain criterion.
+  internal static let supportedFeatureSetVersion = "v1"
 
   /// Compiled graph + workspace ownership. Final class so its `deinit`
   /// runs when the last `BNNSTechnique` reference drops.
@@ -194,6 +221,21 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// graph with auxiliary arguments doesn't cause OOB writes when
   /// `srcIndex` / `dstIndex` exceed 1 (review fix C1).
   private let argumentCount: Int
+
+  /// Identifier surfaced on every win-path ``MLEvaluation``. Derived
+  /// from the `modelURL.deletingPathExtension().lastPathComponent` at
+  /// init time so BYOW consumers see their own model name in the
+  /// ensemble decision (Story 4-6 code review P6 — previously hardcoded
+  /// to `"bnns_tempo_v1"` which lied about every consumer-supplied
+  /// model). Defaults to `"bnns"` if the URL is malformed, but the
+  /// `init(modelURL:)` fileExists guard makes that branch unreachable
+  /// in practice.
+  ///
+  /// `internal` (not `private`) so the BNNSImpactTests harness can
+  /// surface the same identifier as the report's top-level
+  /// `model_identifier` field — otherwise the report would lie when
+  /// emitting from a BYOW build.
+  internal let modelIdentifier: String
 
   /// Test-only seam exposing the handle reference for the deinit witness
   /// test (`BNNSTechniqueDeinitWitnessTests`, Task 8). Reachable only via
@@ -260,6 +302,12 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     self.srcIndex = validation.src
     self.dstIndex = validation.dst
     self.argumentCount = validation.argumentCount
+    // Derive identifier from the URL's basename (e.g.,
+    // `giantsteps_v1.mlmodelc` → `giantsteps_v1`). Fallback to `"bnns"`
+    // if the URL is malformed — the fileExists guard above makes that
+    // unreachable in practice but the fallback keeps the field non-nil.
+    let basename = modelURL.deletingPathExtension().lastPathComponent
+    self.modelIdentifier = basename.isEmpty ? "bnns" : basename
   }
 
   // MARK: - MLTechnique
@@ -379,9 +427,13 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       // reflecting the path that fired — the threshold-sweep harness
       // reads `gateFired` to distinguish gate-1 (low max) from gate-2
       // (low margin) on the same configuration. Story 4-6 Task 7:
-      // thresholds read through the `effective*` computed properties
-      // so the `thresholdOverride` Mutex seam is honored when set.
-      if confidence < Self.effectiveConfidenceThreshold {
+      // thresholds read through the `effectiveThresholds` atomic
+      // accessor so the `thresholdOverride` Mutex seam is observed
+      // consistently across both gates in a single evaluation — code
+      // review P13 closed the two-read race where a test resetting the
+      // override between gates could yield mixed-state thresholds.
+      let thresholds = Self.effectiveThresholds
+      if confidence < thresholds.confidence {
         return (
           nil,
           MLDiagnosticSnapshot(
@@ -394,7 +446,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
         )
       }
       let margin = confidence - secondMax
-      if margin < Self.effectiveMarginThreshold {
+      if margin < thresholds.margin {
         return (
           nil,
           MLDiagnosticSnapshot(
@@ -417,7 +469,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       return (
         MLEvaluation(
           bpm: bpm, confidence: clampedConfidence,
-          modelIdentifier: "bnns_tempo_v1"),
+          modelIdentifier: modelIdentifier),
         MLDiagnosticSnapshot(
           decodedBPM: bpm,
           softmaxMax: confidence,

@@ -34,8 +34,12 @@ private struct BNNSImpactReport: Codable, Sendable {
   /// field from v2 is removed — `git_sha` carries that signal at the
   /// canonical layer instead.
   let schema_version: Int
-  /// ISO-8601 UTC timestamp of when this record was written (basic form,
-  /// seconds precision). Matches the perf-baselines convention.
+  /// ISO-8601 UTC timestamp of when this record was written (extended
+  /// form with `-` and `:` separators, seconds precision). The filename
+  /// segment uses ISO-8601 basic form (no separators) so the two views of
+  /// the same instant are intentionally different — extended for
+  /// human-readable JSON bodies, basic for filesystem-safe filenames.
+  /// See the `running-benchmarks` skill for the double-form rule.
   let recorded_at: String
   /// Git short SHA at the time of the run. May include a `-dirty` suffix
   /// when the working tree had uncommitted changes — see the
@@ -346,18 +350,22 @@ struct BNNSImpactTests {
     .enabled(if: ProcessInfo.processInfo.environment["BNNS_IMPACT"] == "1"),
     .disabled(
       if: {
-        // Story 4-6 Branch C: when no model is bundled,
-        // `BNNSTechnique.bundledReferenceURL` is nil and the no-arg
-        // construction throws `.modelResourceMissing`. The impact-report
-        // body has nothing meaningful to record under that state, so
-        // skip cleanly rather than fire `Issue.record` from the
-        // BNNSTechnique-construction catch block. A future Branch-A
-        // retrain story re-bundles a model and this trait flips back.
+        // Story 4-6 Branch C: when no model is bundled AND no
+        // `BNNS_MODEL_URL` env var is provided, there's nothing to
+        // evaluate against. Skip cleanly.
+        //
+        // The `BNNS_MODEL_URL` BYOW seam (Story 4-6 code review P19)
+        // lets develop-only paths (e.g., re-running impact-report
+        // against `_bmad-output/ml-models/giantsteps_v1.mlmodelc/`)
+        // unblock the harness without re-bundling.
         if #available(macOS 15.0, *) {
-          return BNNSTechnique.bundledReferenceURL == nil
-        } else {
-          return true
+          let bundleAvailable = BNNSTechnique.bundledReferenceURL != nil
+          let envURL =
+            ProcessInfo.processInfo.environment["BNNS_MODEL_URL"]
+            .flatMap { $0.isEmpty ? nil : $0 }
+          return !bundleAvailable && envURL == nil
         }
+        return true
       }())
   )
   func bnnsImpactReport() async throws {
@@ -367,7 +375,7 @@ struct BNNSImpactTests {
       // without re-compiling. Both vars MUST be set together; partial
       // override is rejected to avoid mixing default + override states.
       let envConf =
-        ProcessInfo.processInfo.environment["BNNS_THRESHOLD_OVERRIDE_CONF"]
+        ProcessInfo.processInfo.environment["BNNS_THRESHOLD_OVERRIDE_CONFIDENCE"]
       let envMargin =
         ProcessInfo.processInfo.environment["BNNS_THRESHOLD_OVERRIDE_MARGIN"]
       let appliedThresholds: (confidence: Double, margin: Double)
@@ -380,8 +388,8 @@ struct BNNSImpactTests {
         Issue.record(
           Comment(
             rawValue:
-              "BNNS_THRESHOLD_OVERRIDE_CONF and BNNS_THRESHOLD_OVERRIDE_MARGIN "
-              + "must be set together (got conf=\(envConf ?? "nil"), "
+              "BNNS_THRESHOLD_OVERRIDE_CONFIDENCE and BNNS_THRESHOLD_OVERRIDE_MARGIN "
+              + "must be set together (got confidence=\(envConf ?? "nil"), "
               + "margin=\(envMargin ?? "nil"))"))
         return
       } else {
@@ -395,21 +403,32 @@ struct BNNSImpactTests {
       }
       // Hoist `BNNSTechnique()` out of the per-track loop so the graph
       // compiles ONCE per benchmark run, not 82× (review fix M7).
-      // `try BNNSTechnique()` (not `try?`) — when the artifact is missing
-      // the test fails loudly with `Issue.record + return` (review fix
-      // M8); silent DSP-fallback is the bug we're fixing.
+      //
+      // Story 4-6 code review P19 — `BNNS_MODEL_URL` BYOW seam: when
+      // set, load the .mlmodelc at that filesystem path. Otherwise
+      // fall back to the bundled reference (nil under Branch C, which
+      // makes the no-arg construction throw and the `.disabled(if:)`
+      // trait above skips cleanly).
       let bnnsTechnique: BNNSTechnique
       do {
-        bnnsTechnique = try BNNSTechnique()
+        let envModelURL =
+          ProcessInfo.processInfo.environment["BNNS_MODEL_URL"]
+          .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        if let envURL = envModelURL {
+          bnnsTechnique = try BNNSTechnique(modelURL: envURL)
+        } else {
+          bnnsTechnique = try BNNSTechnique()
+        }
       } catch {
         let msg =
           "BNNSTechnique unavailable — under Story 4-6 Branch C the bundled"
           + " model is no longer shipped from `Sources/BoomBoomBoomKitML/Resources/`"
           + " (relocated to develop-only `_bmad-output/ml-models/giantsteps_v1.mlmodelc/`)."
-          + " Pass an explicit `modelURL:` to `BNNSTechnique(modelURL:)` to run this"
-          + " benchmark against a BYOW model; the no-arg form will throw"
-          + " `.modelResourceMissing` until a future story re-bundles a higher-quality"
-          + " model. Underlying error: \(error.localizedDescription)"
+          + " Pass an explicit `modelURL:` to `BNNSTechnique(modelURL:)` or set"
+          + " `BNNS_MODEL_URL=<path>` to run this benchmark against a BYOW model;"
+          + " the no-arg form will throw `.modelResourceMissing` until a future"
+          + " story re-bundles a higher-quality model."
+          + " Underlying error: \(error.localizedDescription)"
         Issue.record(Comment(rawValue: msg))
         return
       }
@@ -432,7 +451,16 @@ struct BNNSImpactTests {
       // counter surfaces the alternative scenario diagnostically.
       var namedDnBResolvedViaDSPFallback = 0
       // Story 4-6 AC #7: failure-stage histogram across all 82 tracks.
-      // 7 buckets: 6 failure stages + `noAbstain` (win path).
+      // 9 buckets: 6 failure stages + `noAbstain` (win path) + two
+      // accountability buckets introduced by Story 4-6 code review
+      // P18 / Codex Option B: `mlNotRun` (BNNS conformance threw or
+      // the path returned no trace at all) and
+      // `diagnosticSnapshotMissing` (trace exists, mlFeatures present
+      // and supported version, but the conformer did NOT adopt
+      // ``MLDiagnosticTechnique`` so no snapshot was attached). Both
+      // are real-world outcomes the v3 schema must surface honestly so
+      // the conservation invariant `histogramSum == allRows.count`
+      // holds without an out-of-band skip counter.
       var failureStageHistogram: [String: Int] = [
         "featuresAbsent": 0,
         "featureVersionMismatch": 0,
@@ -441,6 +469,8 @@ struct BNNSImpactTests {
         "decodeRejected": 0,
         "confidenceGateRejected": 0,
         "noAbstain": 0,
+        "mlNotRun": 0,
+        "diagnosticSnapshotMissing": 0,
       ]
       // Story 4-6 AC #7: per-control results accumulated alongside the
       // named-DnB results. Different metric: PRESERVATION (DSP was
@@ -517,6 +547,7 @@ struct BNNSImpactTests {
         bnnsOpts.intensity = .thorough  // intensity 8 — activates ML path
         bnnsOpts.ensemblePolicy = .mlOnly
         bnnsOpts.enableTrace = true  // trace.ensembleDecision needed for ml_winner
+        bnnsOpts.enableMLDiagnostics = true  // P17: required for trace.mlDiagnosticSnapshot
         bnnsOpts.mlTechnique = bnnsTechnique
 
         let startTime = clock.now
@@ -600,11 +631,15 @@ struct BNNSImpactTests {
           snapshotJSON = DiagnosticSnapshotJSON(from: snapshot)
           bucketKey = snapshot.failureStage?.rawValue ?? "noAbstain"
         } else if trace == nil {
-          // ML did not run for this track (e.g., BNNS-on path threw or
-          // the conformance did not adopt MLDiagnosticTechnique). Skip
-          // histogram contribution; do NOT default to a bucket.
-          snapshotJSON = nil
-          bucketKey = ""
+          // ML did not run for this track at all — `bnnsResult` is nil
+          // (analyzer threw / returned no result) or trace was never
+          // attached. Story 4-6 code review P18 / Codex Option B
+          // refinement: this is a real accountability outcome, not a
+          // silent skip — bucket it explicitly so the conservation
+          // invariant holds.
+          snapshotJSON = DiagnosticSnapshotJSON(
+            preFeaturizeAbstain: "mlNotRun")
+          bucketKey = "mlNotRun"
         } else if trace?.mlFeatures == nil {
           // Pre-featurize abstain: featuresAbsent. No snapshot was
           // constructed; harness emits a synthetic JSON record so the
@@ -612,23 +647,31 @@ struct BNNSImpactTests {
           snapshotJSON = DiagnosticSnapshotJSON(
             preFeaturizeAbstain: "featuresAbsent")
           bucketKey = "featuresAbsent"
-        } else if trace?.mlFeatures?.featureSetVersion != "v1" {
+        } else if trace?.mlFeatures?.featureSetVersion
+          != BNNSTechnique.supportedFeatureSetVersion
+        {
           // Pre-featurize abstain: featureVersionMismatch.
           snapshotJSON = DiagnosticSnapshotJSON(
             preFeaturizeAbstain: "featureVersionMismatch")
           bucketKey = "featureVersionMismatch"
         } else {
-          // Trace exists, mlFeatures present and v1, but no snapshot —
-          // implies the conformer did NOT adopt MLDiagnosticTechnique
-          // (a consumer wrapper would land here). Bundled BNNSTechnique
-          // always adopts the protocol, so this case is expected only
-          // for BYOW consumers.
-          snapshotJSON = nil
-          bucketKey = ""
+          // Trace exists, mlFeatures present and supported version,
+          // but no snapshot — implies the conformer did NOT adopt
+          // ``MLDiagnosticTechnique`` (a consumer wrapper or custom
+          // BYOW implementation would land here). Bundled
+          // `BNNSTechnique` always adopts the protocol, so this case
+          // is expected only for BYOW consumers using a non-diagnostic
+          // technique. Story 4-6 code review P18 / Codex Option B:
+          // distinct from `mlNotRun` (which is "ML attempted, failed
+          // upstream") — this is "ML ran, diagnostics opted out".
+          snapshotJSON = DiagnosticSnapshotJSON(
+            preFeaturizeAbstain: "diagnosticSnapshotMissing")
+          bucketKey = "diagnosticSnapshotMissing"
         }
-        if !bucketKey.isEmpty {
-          failureStageHistogram[bucketKey, default: 0] += 1
-        }
+        // Conservation invariant: every track lands in exactly one
+        // bucket. No silent-skip branches remain (Story 4-6 code review
+        // P18 / Codex Option B).
+        failureStageHistogram[bucketKey, default: 0] += 1
 
         // Story 4-6 DD #5: corpus-wide distribution stats per track.
         // Accumulate the decoded BPM, softmax max/secondMax, and the
@@ -646,7 +689,13 @@ struct BNNSImpactTests {
             if (60.0...200.0).contains(bpm) {
               decodedBpmInRangeCount += 1
               // 5-BPM bins from 60 to 200. Bin index = floor((bpm-60)/5).
-              // Clamp to [0, 27] for safety.
+              // Inclusive upper bound: exactly 200.0 BPM (which the
+              // (60.0...200.0).contains() filter above admits) goes into
+              // bin 27 ([195.0, 200.0]) rather than overflowing bin 28.
+              // The 5-BPM aggregation is descriptive; consumers reading
+              // bin 27 should treat it as "195 ≤ bpm ≤ 200" not the
+              // half-open "[195, 200)" that floor() would imply on a
+              // wider value range.
               let binIdx = max(0, min(27, Int((bpm - 60.0) / 5.0)))
               decodedBpmHistogram5bpmBins[binIdx] += 1
               // DSP-vs-ML match: 4% Acc1 tolerance. Only meaningful when
@@ -693,7 +742,8 @@ struct BNNSImpactTests {
         // truth? Branch A strict gate requires all controls preserved.
         if let control = dnbControl(for: track.filename) {
           let absErr = abs(ensembleBPM - control.ground_truth_bpm)
-          let preserved = absErr < 0.5
+          // Inclusive: comment says "within ±0.5 BPM" — boundary is preserved.
+          let preserved = absErr <= 0.5
           if preserved { controlsPreserved += 1 }
           controlResults.append(
             DnBControlResult(
@@ -788,7 +838,7 @@ struct BNNSImpactTests {
           cores: ProcessInfo.processInfo.processorCount,
           physical_memory_gib: physicalMemoryGiB,
           os_version: osVersion),
-        model_identifier: "bnns_tempo_v1",
+        model_identifier: bnnsTechnique.modelIdentifier,
         pinned_config: PinnedConfig(
           intensity: AnalysisIntensity.thorough.rawValue,
           ensemble_policy: String(describing: EnsemblePolicy.mlOnly)),
@@ -809,7 +859,10 @@ struct BNNSImpactTests {
           named_dnb_resolved_via_dsp_fallback: namedDnBResolvedViaDSPFallback,
           named_dnb_total: namedRows.count,
           dsp_correct_controls_preserved: controlsPreserved,
-          dsp_correct_controls_total: controlResults.count))
+          // Story 4-6 code review P7: denominator is FIXTURE count, not
+          // appended count. The drift-detection Issue.record above fires
+          // separately when the two diverge.
+          dsp_correct_controls_total: dnbControls.count))
 
       // Resolve output path. Canonical convention (`running-benchmarks`
       // skill): records live under `_bmad-output/perf-baselines/bnns-impact/`
@@ -844,14 +897,14 @@ struct BNNSImpactTests {
       print(
         """
 
-        === BNNS Impact Report (Story 4-6 schema v2) ===
+        === BNNS Impact Report (Story 4-6 schema v3) ===
         Output: \(outPath)
         Total tracks: \(allRows.count)
         DSP-only Acc1:    \(dspAcc1)/\(allRows.count)
         ML-only Acc1:     \(mlAcc1)/\(allRows.count)
         Ensemble Acc1:    \(ensembleAcc1)/\(allRows.count)
         Named DnB resolved (±0.5 BPM): \(namedDnBResolved)/\(namedRows.count)
-        Controls preserved (±0.5 BPM): \(controlsPreserved)/\(controlResults.count)
+        Controls preserved (±0.5 BPM): \(controlsPreserved)/\(dnbControls.count) (encountered \(controlResults.count) of \(dnbControls.count) on disk)
         """)
       for r in namedResults {
         let line =
@@ -863,18 +916,17 @@ struct BNNSImpactTests {
       for key in [
         "noAbstain", "featuresAbsent", "featureVersionMismatch",
         "featurizeRejected", "graphFailed", "decodeRejected",
-        "confidenceGateRejected",
+        "confidenceGateRejected", "mlNotRun", "diagnosticSnapshotMissing",
       ] {
         let count = failureStageHistogram[key] ?? 0
         print("  \(key.padding(toLength: 26, withPad: " ", startingAt: 0)) \(count)")
       }
 
       // Story 4-6 AC #7: histogram conservation invariant — every track
-      // that ran through the ML path contributes exactly one bucket.
-      // Tracks where ML didn't run at all (e.g., BNNS init failed) are
-      // excluded from the histogram. The harness skips this assert when
-      // bnnsTechnique unavailable above; on the success path the
-      // histogram MUST account for every track in allRows.
+      // in allRows contributes to exactly one bucket. Story 4-6 code
+      // review P18 / Codex Option B added `mlNotRun` and
+      // `diagnosticSnapshotMissing` explicit buckets so this invariant
+      // holds unconditionally — no out-of-band skip counter required.
       let histogramSum = failureStageHistogram.values.reduce(0, +)
       #expect(
         histogramSum == allRows.count,
@@ -896,18 +948,41 @@ struct BNNSImpactTests {
         Issue.record(Comment(rawValue: msg))
       }
 
+      // Story 4-6 code review P7: assert the control denominator first
+      // — the gate measures preservation against the FIXTURE count, not
+      // against the count we happened to encounter on disk. If a
+      // control track is missing from the corpus directory (renamed,
+      // moved, removed), `controlResults.count` shrinks silently and a
+      // "4/4 preserved" claim becomes "3/3 preserved" against a
+      // 4-element fixture — the gate still passes but the metric is a
+      // lie. Loud failure on encounter count drift is the correct
+      // surface for this class of corpus-state drift.
+      if controlResults.count != dnbControls.count {
+        Issue.record(
+          Comment(
+            rawValue:
+              "Control-set drift: encountered \(controlResults.count) of "
+              + "\(dnbControls.count) DSP-correct controls on disk. The "
+              + "preservation gate is meaningless when the denominator "
+              + "shrinks — confirm 4-dnb-triplet-targets.json's "
+              + "dsp_correct_controls entries still exist in the corpus "
+              + "directory at \(corpusPath)."))
+      }
+
       // Story 4-6 DD #8 + AC #10: symmetric control-preservation gate.
       // Branch A strict requires controls_preserved == controls.count
       // (4/4). Soft-record below the threshold so the JSON still lands;
       // the test result still fails for ratchet enforcement. The branch
       // decision is human-applied at close-out time (per DD #8) — this
       // gate fires the alarm; the dev decides Branch A-conditional vs
-      // Branch C based on the surrounding investigation evidence.
-      if controlsPreserved < controlResults.count {
+      // Branch C based on the surrounding investigation evidence. The
+      // denominator is the FIXTURE count (see assertion above) so the
+      // gate is robust against corpus-state drift.
+      if controlsPreserved < dnbControls.count {
         let msg =
-          "Control regression: \(controlsPreserved) of \(controlResults.count) "
+          "Control regression: \(controlsPreserved) of \(dnbControls.count) "
           + "DSP-correct controls preserved within ±0.5 BPM. Branch A strict "
-          + "gate requires \(controlResults.count)/\(controlResults.count). "
+          + "gate requires \(dnbControls.count)/\(dnbControls.count). "
           + "See \(outPath) for per-control failure modes."
         Issue.record(Comment(rawValue: msg))
       }

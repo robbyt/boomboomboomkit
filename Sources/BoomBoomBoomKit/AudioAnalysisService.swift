@@ -200,6 +200,33 @@ public struct AudioAnalysisService {
     /// When `true`, populates `result.trace` with per-step diagnostic data.
     public var enableTrace: Bool = false
 
+    /// When `true`, the service routes ``mlTechnique`` calls through the
+    /// ``MLDiagnosticTechnique`` capability path (when the conformer
+    /// adopts it) and writes the resulting ``MLDiagnosticSnapshot`` to
+    /// ``BPMDiagnosticTrace/mlDiagnosticSnapshot``.
+    ///
+    /// **Default `false`** — opt-in feature. ML diagnostics surface
+    /// inference internals (decoded BPM, softmax probabilities, input
+    /// feature checksum, abstain-path categorization) that the
+    /// `BNNSImpactTests` harness consumes for threshold sweeps. Production
+    /// consumers can leave this off; setting it has no functional effect
+    /// beyond populating the trace field.
+    ///
+    /// **Independent of ``enableTrace``.** This flag controls whether
+    /// the diagnostic capability path runs and writes a snapshot;
+    /// ``enableTrace`` controls whether the entire ``BPMDiagnosticTrace``
+    /// is surfaced on ``AudioAnalysisResult/trace`` at all. With
+    /// ``enableMLDiagnostics == true`` and ``enableTrace == false``, the
+    /// snapshot is constructed internally for ensemble decision-making
+    /// but is not externally visible.
+    ///
+    /// Story 4-6 code review P17: split out of ``enableTrace`` because
+    /// the previous wiring tied snapshot visibility to a trace flag
+    /// whose name didn't say "ML diagnostics" — two paths to the same
+    /// conformer with different observability gated by a flag with
+    /// misleading naming.
+    public var enableMLDiagnostics: Bool = false
+
     /// When `true` (default), the duration-derived BPM hint runs at step 9.7 of the BPM
     /// pipeline.
     ///
@@ -453,13 +480,15 @@ public struct AudioAnalysisService {
   /// test locks this ordering.
   ///
   /// The capability narrowing additionally requires
-  /// ``Options/enableTrace`` to be `true` — diagnostic snapshots are
-  /// consumer-visible only when the consumer asked for the trace. Without
-  /// that gate, the plain `evaluate(trace:)` path runs and no snapshot is
-  /// written. (Internally the ML feature pipeline still runs because
-  /// `shouldBuildTrace` upstream of the helper does its own ML-active
-  /// gating; the diagnostic-snapshot visibility is a separate consumer
-  /// gate.)
+  /// ``Options/enableMLDiagnostics`` to be `true` (Story 4-6 code
+  /// review P17; was ``Options/enableTrace`` pre-review). Splitting
+  /// the gate out of `enableTrace` resolved the second-route
+  /// observability hole where two paths to the same conformer used
+  /// different observability — and `enableTrace`'s name didn't
+  /// signal that flipping it turned ML diagnostics on/off. Now
+  /// ``enableTrace`` governs whether the trace itself is returned to
+  /// the caller; ``enableMLDiagnostics`` governs whether the snapshot
+  /// is written into it. The two are independent.
   private static func evaluateMLIfActive(
     options: Options, trace: inout BPMDiagnosticTrace?
   ) throws -> MLEvaluation? {
@@ -472,7 +501,7 @@ public struct AudioAnalysisService {
     // strict ordering).
     let localEvaluation: MLEvaluation?
     let localSnapshot: MLDiagnosticSnapshot?
-    if let diag = ml as? MLDiagnosticTechnique, options.enableTrace {
+    if let diag = ml as? MLDiagnosticTechnique, options.enableMLDiagnostics {
       let result = diag.evaluateWithDiagnostic(trace: unwrappedTrace)
       localEvaluation = result.evaluation
       localSnapshot = result.snapshot
@@ -485,12 +514,18 @@ public struct AudioAnalysisService {
     // snapshot is discarded so the caller never sees a stale snapshot
     // stranded in a trace it has already given up on.
     if options.isCancelled() { throw CancellationError() }
-    // Mutation strictly last — only on the no-cancellation path.
-    if localSnapshot != nil {
-      var mutableTrace = unwrappedTrace
-      mutableTrace.mlDiagnosticSnapshot = localSnapshot
-      trace = mutableTrace
-    }
+    // Mutation strictly last — only on the no-cancellation path. Story
+    // 4-6 code review P5: write BOTH branches so the trace field
+    // always reflects THIS evaluation. Previously a non-diagnostic
+    // conformer (or the plain `evaluate(trace:)` fallback) left
+    // `localSnapshot == nil` and skipped the mutation, which meant a
+    // caller reusing a trace across two evaluations could observe a
+    // snapshot from the FIRST eval persisting through the second.
+    // Trace doc-comment promises "most recent evaluation"; the explicit
+    // nil write upholds that contract.
+    var mutableTrace = unwrappedTrace
+    mutableTrace.mlDiagnosticSnapshot = localSnapshot
+    trace = mutableTrace
     return localEvaluation
   }
 
