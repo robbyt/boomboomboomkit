@@ -17,9 +17,37 @@ import Testing
 
 @testable import BoomBoomBoomKitML
 
+/// Story 4-6 code review P4: suite-level `.disabled(if:)` predicate
+/// resolves to `true` under Branch C (no bundled model). The previous
+/// `guard let bnns = try? BNNSTechnique() else { Issue.record(...); return }`
+/// pattern recorded a test FAILURE on every CI run because
+/// `Issue.record` is not a skip primitive — Story 4-5 review finding
+/// M12 explicitly called this out. The suite-level disabled trait skips
+/// cleanly without recording any per-test issues.
+@available(macOS 15.0, *)
+private func abstainFloorSuiteShouldSkip() -> Bool {
+  BNNSTechnique.bundledReferenceURL == nil
+}
+
 @Suite(
   "BNNSTechnique abstain floor on real audio (AC #9 revised)",
-  .enabled(if: ProcessInfo.processInfo.environment["BNNS_IMPACT"] == "1")
+  .enabled(if: ProcessInfo.processInfo.environment["BNNS_IMPACT"] == "1"),
+  .disabled(
+    if: {
+      if #available(macOS 15.0, *) { return abstainFloorSuiteShouldSkip() }
+      return true
+    }()),
+  // Story 4-6 P13 follow-up (Codex post-patch review): both tests in
+  // this suite mutate `BNNSTechnique.thresholdOverride` globally. The
+  // atomic `effectiveThresholds` accessor (P13) closed the
+  // within-evaluation two-read race, but tests still need .serialized
+  // because Swift Testing's default parallel execution can have one
+  // test's `defer { ... = nil }` fire while another test is mid-run,
+  // resetting the override to nil and causing the running test to read
+  // production defaults instead of the (0.0, 0.0) sweep value. The
+  // serialized trait keeps both tests in this suite executing one at a
+  // time so the override is owned by a single test at a time.
+  .serialized
 )
 struct BNNSTechniqueAbstainFloorTests {
 
@@ -69,23 +97,15 @@ struct BNNSTechniqueAbstainFloorTests {
   @Test("abstainFloorOnRealAudio_DspCorrectControls")
   func abstainFloorOnRealAudio() async throws {
     if #available(macOS 15.0, *) {
-      guard let bnns = try? BNNSTechnique() else {
-        Issue.record(
-          Comment(
-            rawValue:
-              "Skipped — BNNSTechnique() failed (Branch C build; bundled "
-              + "model absent). The abstain-floor regression cannot fire "
-              + "without a model to evaluate against."))
-        return
-      }
-      guard
-        let corpusPath = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"],
-        !corpusPath.isEmpty
-      else {
-        Issue.record(
-          Comment(rawValue: "Skipped — OA300_CORPUS_PATH not set"))
-        return
-      }
+      // Suite-level `.disabled(if:)` guards against the no-bundled-model
+      // path; `try #require` here treats a still-failing init as a real
+      // bug (not a skip) per the Swift Testing semantic distinction
+      // between Issue.record (failure) and trait-driven skip.
+      let bnns = try #require(try? BNNSTechnique())
+      let corpusPath = try #require(
+        ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"]
+          .flatMap { $0.isEmpty ? nil : $0 },
+        "OA300_CORPUS_PATH must be set under BNNS_IMPACT=1 (AC #9 requires real audio)")
       // Override thresholds to 0.0/0.0 for the duration of this test.
       BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
       defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
@@ -111,11 +131,18 @@ struct BNNSTechniqueAbstainFloorTests {
         let mlWon = result?.trace?.ensembleDecision?.winner == .ml
         if !mlWon { abstainCount += 1 }
       }
-      guard ranCount > 0 else {
-        Issue.record(
-          Comment(rawValue: "Skipped — no DSP-correct tracks resolved on disk"))
-        return
+      // Story 4-6 code review P4: zero resolved tracks is a corpus-drift
+      // bug, not a skip — the static `dspCorrectTracks` list and the
+      // corpus directory at OA300_CORPUS_PATH must remain in sync.
+      if ranCount == 0 {
+        let driftMsg =
+          "Zero DSP-correct tracks resolved on disk — the static list "
+          + "in BNNSTechniqueAbstainFloorTests has drifted from the corpus at "
+          + "\(corpusPath); update either the list or the corpus."
+        Issue.record(Comment(rawValue: driftMsg))
       }
+      #expect(ranCount > 0, "Corpus drift — see Issue.record above for details")
+      guard ranCount > 0 else { return }
       let abstainRate = Double(abstainCount) / Double(ranCount)
       // AC #9 revised: abstain_rate <= 0.30 (≤ 6 of 20 abstain).
       // `Testing.Comment` is `ExpressibleByStringLiteral` only — surface the
@@ -149,18 +176,14 @@ struct BNNSTechniqueAbstainFloorTests {
   @Test("wrongNonAbstainCeiling_DspCorrectControls")
   func wrongNonAbstainCeiling() async throws {
     if #available(macOS 15.0, *) {
-      guard let bnns = try? BNNSTechnique() else {
-        Issue.record(
-          Comment(rawValue: "Skipped — BNNSTechnique() failed (Branch C build)"))
-        return
-      }
-      guard
-        let corpusPath = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"],
-        !corpusPath.isEmpty
-      else {
-        Issue.record(Comment(rawValue: "Skipped — OA300_CORPUS_PATH not set"))
-        return
-      }
+      // Suite-level `.disabled(if:)` (Story 4-6 P4) guards the
+      // no-bundled-model path so `try #require` here is a real-bug
+      // surface, not a skip.
+      let bnns = try #require(try? BNNSTechnique())
+      let corpusPath = try #require(
+        ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"]
+          .flatMap { $0.isEmpty ? nil : $0 },
+        "OA300_CORPUS_PATH must be set under BNNS_IMPACT=1 (AC #9 requires real audio)")
       BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
       defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
 
@@ -196,6 +219,14 @@ struct BNNSTechniqueAbstainFloorTests {
           wrongCount += 1
         }
       }
+      if ranCount == 0 {
+        let driftMsg =
+          "Zero DSP-correct tracks resolved on disk for "
+          + "wrong-non-abstain check — corpus drift; update either the static "
+          + "list or the corpus at \(corpusPath)."
+        Issue.record(Comment(rawValue: driftMsg))
+      }
+      #expect(ranCount > 0, "Corpus drift — see Issue.record above for details")
       guard ranCount > 0 else { return }
       // `Testing.Comment` is `ExpressibleByStringLiteral` only — surface the
       // runtime numbers via Issue.record before the assert.

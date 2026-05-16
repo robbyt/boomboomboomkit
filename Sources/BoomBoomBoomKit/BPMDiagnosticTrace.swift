@@ -167,8 +167,16 @@ public struct BPMDiagnosticTrace: Sendable {
   ///    ``EnsemblePolicy/dspOnly`` (DSP-only short-circuits before the ML
   ///    helper runs at all).
   /// 3. A trace was built (`shouldBuildTrace` predicate fired upstream).
-  /// 4. ``AudioAnalysisService/Options/enableTrace`` is `true`
-  ///    (consumer-facing visibility gate).
+  /// 4. ``AudioAnalysisService/Options/enableMLDiagnostics`` is `true`
+  ///    (ML-diagnostic-specific visibility gate; Story 4-6 code review
+  ///    P17 split this out of ``enableTrace`` because two paths
+  ///    converged on the same flag and the gate naming hid the ML
+  ///    semantics). Note: ``enableTrace`` controls whether the trace
+  ///    itself surfaces on ``AudioAnalysisResult/trace``; even with
+  ///    ``enableMLDiagnostics == true``, a consumer who keeps
+  ///    ``enableTrace == false`` will not receive the trace and
+  ///    therefore won't see the snapshot externally — `enableTrace`
+  ///    remains the master gate on trace visibility.
   /// 5. The conformer's ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)``
   ///    actually returned a non-nil snapshot — i.e., the inference reached
   ///    at least the featurize step. The two pre-featurize abstain paths

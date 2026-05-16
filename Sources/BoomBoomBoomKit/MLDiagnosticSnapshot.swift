@@ -65,7 +65,7 @@ import Foundation
 /// - ``MLDiagnosticTechnique`` — capability protocol that produces the snapshot.
 /// - ``BPMDiagnosticTrace/mlDiagnosticSnapshot`` — trace field that carries it.
 /// - ``BNNSTechnique`` — Story 4-6's reference conformer.
-public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible, Equatable {
+public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible {
 
   /// Decoded argmax-derived BPM. `nil` only when the inference path failed
   /// BEFORE producing a logit vector (graph compile/execute/workspace
