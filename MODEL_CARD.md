@@ -1,8 +1,29 @@
 # Bundled Reference Models — Model Card
 
-This document is the authoritative source for accuracy, training-corpus, and limitations data on every Core ML model bundled with `BoomBoomBoomKit`. Update one entry per model whenever a new bundled artifact ships under `Sources/BoomBoomBoomKitML/Resources/`.
+This document is the authoritative source for accuracy, training-corpus, and limitations data for any Core ML model bundled with `BoomBoomBoomKit`. Update one entry per model whenever a new bundled artifact ships under `Sources/BoomBoomBoomKitML/Resources/`.
 
-> **Reading this card before enabling ML?** Short version: **the bundled reference models are not the recommended accuracy default.** They exist to validate the `MLTechnique` plug-in surface and provide a known tensor/metadata contract for bring-your-own-model (BYOM) workflows. Production tempo accuracy should come from the DSP pipeline (default `Options.intensity = .default`) or from a model you trained or selected yourself.
+## Status (as of Story 4-6, 2026-05-16)
+
+**No bundled model ships in `BoomBoomBoomKit`.** Story 4-6 (BNNS ML Accuracy Investigation and Bundle Decision) removed the previously-bundled `giantsteps_v1.mlmodelc` from `Sources/BoomBoomBoomKitML/Resources/` after the diagnostic instrumentation pass confirmed:
+
+- `ml_acc1 = 0/82` at production thresholds (`confidence ≥ 0.50`, `margin ≥ 0.10`)
+- `ml_acc1 = 2/82` even with the two-gate abstain disabled (`0.00/0.00`); `wrong_non_abstain_count = 54/82`
+- `softmax_max_p95 = 0.294` — 95th percentile of model confidence falls below the production gate
+- bimodal predictions clustered at 125 and 175 BPM regardless of input
+- `make ml-parity` PASSES — Swift/Python featurize agree, so the failure is the model itself, not the featurize step
+- lowering thresholds destroys safe behavior: `dsp_correct_controls_preserved` collapses 4/4 → 0/4
+
+**The framing here matters.** This is not "ML doesn't work for BPM detection" — it is **this reference model (`giantsteps_v1.mlmodelc` trained on lossy 96 kbps GiantSteps MP3) doesn't generalize past its training distribution.** The BNNSTechnique infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. The training pipeline at `_bmad-output/ml-training/` (develop-only) remains operational; the previous checkpoint is preserved at `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` for historical reproduction.
+
+**What this means for consumers today:**
+
+- `Options.mlTechnique = nil` (default) → DSP-only. Recommended for production until a higher-quality bundled model returns.
+- `try? BNNSTechnique()` → returns `nil` because the no-arg form throws `.modelResourceMissing` (the static `bundledReferenceURL` is now `nil`).
+- `try? BNNSTechnique(modelURL: yourURL)` → BYOW (bring-your-own-weights). Train against the same NCHW `(1, 1, 128, 512)` tensor contract or implement a custom `MLTechnique` conformance from scratch. See `tools/coreml-convert/README.md`.
+
+**Re-open trigger.** A future Branch-A retrain story re-bundles a higher-quality model (≥ 2/4 named DnB triplets resolved AND 4/4 DSP-correct controls preserved at production thresholds, per Story 4-6 Task 15). At that point `BNNSTechnique.bundledReferenceURL` flips back to a non-nil `Bundle.module.url(...)` lookup and this Status section gets a new entry below the historical one.
+
+The pre-Story-4-6 model-card content is preserved below for historical accuracy and as the architectural reference for BYOW consumers targeting the same `TempoCNN` shape.
 
 ---
 

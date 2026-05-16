@@ -157,16 +157,16 @@ options.mlTechnique = MyDeepRhythmTechnique()
 let result = try await AudioAnalysisService.analyzeBPM(url: trackURL, options: options)
 ```
 
-**A small reference model is bundled** at `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` to validate the adapter pipeline end-to-end and provide a known tensor/metadata contract for BYOM workflows. **It is not a recommended accuracy default** — on the held-out OA300 corpus it scores 39.0% within ±2% BPM tolerance, while the DSP pipeline scores 70.7% on the same corpus + tolerance. See [MODEL_CARD.md](MODEL_CARD.md) for the full per-model accuracy table, known failure modes (bin collapse, half-tempo doubling on slow material), and guidance on when to enable ML vs stick with DSP-only.
+**No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of OA300 audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
 
-To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project; no need to clone the dev-only training pipeline). It supports the bundled reference architecture as well as fully custom architectures via your own `nn.Module` class.
+To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project). It supports the reference architecture (the one the historical `giantsteps_v1` was trained on) as well as fully custom architectures via your own `nn.Module` class.
 
 ## References
 
 - Davies, M.E.P. & Plumbley, M.D. (2007). "Context-dependent beat tracking of musical audio"
 - ITU-R BS.1770-5 — Algorithms to measure audio programme loudness
 - O'Shaughnessy, D. (1987). Mel-frequency scale conversion
-- Schreiber, H. & Müller, M. (2018). "A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network" — architecture reference for the bundled `giantsteps_v1` model
+- Schreiber, H. & Müller, M. (2018). "A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network" — architecture reference for the historical `giantsteps_v1` checkpoint (pulled from the bundle in Story 4-6; remains the reference architecture for BYOW)
 
 ## License
 

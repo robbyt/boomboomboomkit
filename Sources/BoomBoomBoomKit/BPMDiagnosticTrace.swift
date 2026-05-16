@@ -467,13 +467,17 @@ public enum TensorLayout: String, Sendable, Hashable, CaseIterable {
 /// MUST bump the version (DD #2 + DD #14 bump-trigger checklist).
 ///
 /// See `tools/coreml-convert/README.md` for the canonical consumer-onboarding
-/// flow — Paths A (bundled reference model), B (your converted weights), and
-/// C (third-party / AGPL caveats). The README's worked examples show how a
-/// custom ``MLTechnique`` conformance consumes this struct.
+/// flow — Path B (your converted weights) and Path C (third-party / AGPL
+/// caveats). Story 4-6 removed the historical Path A (library-bundled
+/// reference model); the README documents the BYOW-only paths now. The
+/// worked examples show how a custom ``MLTechnique`` conformance
+/// consumes this struct.
 public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
 
-  /// Number of mel bands per frame. Equals `128` for the Story 4.5
-  /// bundled `giantsteps_v1.mlmodelc` model.
+  /// Number of mel bands per frame. Equals `128` for the reference
+  /// architecture trained by Story 4-4b (the previously-bundled
+  /// `giantsteps_v1.mlmodelc` was 128-mel; BYOW consumers converting
+  /// against the same architecture inherit the same value).
   public let melBands: Int
 
   /// Pre-resample source frame count along the time axis. The

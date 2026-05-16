@@ -343,7 +343,22 @@ struct BNNSImpactTests {
 
   @Test(
     "bnnsImpactReport (BNNS_IMPACT=1)",
-    .enabled(if: ProcessInfo.processInfo.environment["BNNS_IMPACT"] == "1")
+    .enabled(if: ProcessInfo.processInfo.environment["BNNS_IMPACT"] == "1"),
+    .disabled(
+      if: {
+        // Story 4-6 Branch C: when no model is bundled,
+        // `BNNSTechnique.bundledReferenceURL` is nil and the no-arg
+        // construction throws `.modelResourceMissing`. The impact-report
+        // body has nothing meaningful to record under that state, so
+        // skip cleanly rather than fire `Issue.record` from the
+        // BNNSTechnique-construction catch block. A future Branch-A
+        // retrain story re-bundles a model and this trait flips back.
+        if #available(macOS 15.0, *) {
+          return BNNSTechnique.bundledReferenceURL == nil
+        } else {
+          return true
+        }
+      }())
   )
   func bnnsImpactReport() async throws {
     if #available(macOS 15.0, *) {
@@ -388,9 +403,13 @@ struct BNNSImpactTests {
         bnnsTechnique = try BNNSTechnique()
       } catch {
         let msg =
-          "BNNSTechnique unavailable — model artifact missing at"
-          + " Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc"
-          + " (underlying: \(error.localizedDescription))"
+          "BNNSTechnique unavailable — under Story 4-6 Branch C the bundled"
+          + " model is no longer shipped from `Sources/BoomBoomBoomKitML/Resources/`"
+          + " (relocated to develop-only `_bmad-output/ml-models/giantsteps_v1.mlmodelc/`)."
+          + " Pass an explicit `modelURL:` to `BNNSTechnique(modelURL:)` to run this"
+          + " benchmark against a BYOW model; the no-arg form will throw"
+          + " `.modelResourceMissing` until a future story re-bundles a higher-quality"
+          + " model. Underlying error: \(error.localizedDescription)"
         Issue.record(Comment(rawValue: msg))
         return
       }

@@ -57,10 +57,15 @@ struct BNNSTechniqueAbstainFloorTests {
   /// MUST be ≤ 30% (`abstain_rate <= 0.30`).
   ///
   /// The Story 4-5 100%-abstain regression would produce abstain_rate ~=
-  /// 1.0 here — caught instantly. Story 4-6 ships against the bundled
-  /// `giantsteps_v1.mlmodelc` which, when run at threshold 0.0/0.0,
-  /// emits a confident prediction for every track (abstain_rate ≈ 0.0
-  /// even though those predictions are mostly wrong).
+  /// 1.0 here — caught instantly. The historical `giantsteps_v1.mlmodelc`
+  /// (bundled pre-Story-4-6; pulled to develop in the Branch C close-out)
+  /// emitted a confident prediction for every track at threshold 0.0/0.0
+  /// (abstain_rate ≈ 0.0) even though those predictions were mostly
+  /// wrong — this asymmetry is what motivated the symmetric
+  /// `wrongNonAbstainCeiling` companion test below. Under Branch C, the
+  /// no-arg `BNNSTechnique()` construction throws and this test skips
+  /// gracefully; BYOW retrain stories that pass a real `modelURL:` will
+  /// re-activate the assertion.
   @Test("abstainFloorOnRealAudio_DspCorrectControls")
   func abstainFloorOnRealAudio() async throws {
     if #available(macOS 15.0, *) {
@@ -130,17 +135,17 @@ struct BNNSTechniqueAbstainFloorTests {
   /// non-abstaining tracks, ≤ 4 are wrong (outside 4% Acc1 tolerance
   /// of DSP's correct value).
   ///
-  /// **NOTE for Branch C (Story 4-6 close-out 2026-05-15):** the bundled
-  /// model produces 54/82 wrong-non-abstain predictions at threshold
-  /// 0.0/0.0 across the FULL corpus (per `4-6-threshold-sweep.json`).
-  /// On the DSP-correct subset specifically, the ceiling of 4 is
-  /// expected to be exceeded — this assertion is therefore expected
-  /// to fire under the bundled model and is the SYMMETRIC complement
-  /// to the abstain-floor: it catches "model emits confidently-wrong
-  /// predictions instead of abstaining". Under Branch C (bundle
-  /// removed), `BNNSTechnique()` throws and the test skips gracefully.
-  /// A future Branch A retrain story will ship a model where this
-  /// assertion holds without skipping.
+  /// **Branch C historical note (Story 4-6 close-out, 2026-05-16):** the
+  /// previously-bundled `giantsteps_v1.mlmodelc` produced 54/82
+  /// wrong-non-abstain predictions at threshold 0.0/0.0 across the FULL
+  /// OA300 corpus — that finding is what triggered Branch C (bundle
+  /// pulled). On the DSP-correct subset the ceiling of 4 was exceeded,
+  /// proving this assertion is the SYMMETRIC complement to the
+  /// abstain-floor: it catches "model emits confidently-wrong
+  /// predictions instead of abstaining". Under Branch C (no bundled
+  /// model in main), `BNNSTechnique()` throws and the test skips
+  /// gracefully. A future Branch A retrain story will ship a model
+  /// where this assertion holds without skipping.
   @Test("wrongNonAbstainCeiling_DspCorrectControls")
   func wrongNonAbstainCeiling() async throws {
     if #available(macOS 15.0, *) {
@@ -196,7 +201,7 @@ struct BNNSTechniqueAbstainFloorTests {
       // runtime numbers via Issue.record before the assert.
       if wrongCount > 4 {
         Issue.record(
-          "wrong_non_abstain_count \(wrongCount) > 4 ceiling (\(ranCount) DSP-correct tracks evaluated at thresholds 0.0/0.0). The bundled model's bimodal-prediction failure mode trips this ceiling; Branch C close-out documents this expected failure."
+          "wrong_non_abstain_count \(wrongCount) > 4 ceiling (\(ranCount) DSP-correct tracks evaluated at thresholds 0.0/0.0). Under Branch C (Story 4-6 close-out) the no-arg construction throws and this branch is unreachable in main; a BYOW model retrained for accuracy should hold this ceiling. The historical bundled model tripped this via bimodal-prediction at 125/175 BPM — that's what Story 4-6 documented and pulled."
         )
       }
       #expect(

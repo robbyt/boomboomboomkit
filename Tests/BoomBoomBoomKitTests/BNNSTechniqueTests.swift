@@ -7,17 +7,22 @@
 //  guards. All new tests live in this NEW file per AC #10 — no edits to
 //  existing test files.
 //
-//  Tests that require the bundled `giantsteps_v1.mlmodelc` artifact use
-//  `@Test(.disabled(if: bundledModelMissing, "..."))` for genuine
-//  Swift-Testing skip (post-Story-4-5 review pass M12 — replaces the prior
-//  `Issue.record + return` pattern, which Codex flagged as a doc-vs-behavior
-//  mismatch: `Issue.record` records a failure, it doesn't skip).
+//  Tests that historically required the bundled `giantsteps_v1.mlmodelc`
+//  artifact use `@Test(.disabled(if: bundledModelMissing, "..."))` for
+//  genuine Swift-Testing skip (post-Story-4-5 review pass M12 — replaces
+//  the prior `Issue.record + return` pattern, which Codex flagged as a
+//  doc-vs-behavior mismatch: `Issue.record` records a failure, it doesn't
+//  skip).
 //
-//  Locally the bundled model is committed (Story 4-4b shipped it under
-//  `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc`). The skip
-//  predicate fires only on pathological checkouts where the artifact is
-//  removed or corrupted; that's a developer-machine state and shouldn't
-//  fail the test suite.
+//  Story 4-6 (Branch C close-out, 2026-05-16) REMOVED the bundled model
+//  from the main-shipping path; `BNNSTechnique.bundledReferenceURL` is
+//  now a `nil` literal. The `bundledModelMissing()` predicate below
+//  therefore resolves to `true` at compile time, and every
+//  `.disabled(if: bundledModelMissing())` test skips cleanly. The skip
+//  path is now the EXPECTED state in main — no BYOW URL is plumbed
+//  through these tests. Future Branch-A retrain stories that re-bundle
+//  a higher-quality model will see `bundledReferenceURL` flip back to
+//  non-nil and these tests will run again automatically.
 //
 
 import BoomBoomBoomKitTestSupport
@@ -27,10 +32,13 @@ import Testing
 @testable import BoomBoomBoomKit
 @testable import BoomBoomBoomKitML
 
-/// `.disabled(if:)` predicate for tests that require the bundled
-/// `giantsteps_v1.mlmodelc`. Evaluated when Swift Testing collects traits;
-/// the macOS-15 gate uses an inline `if #available` because
-/// `BNNSTechnique.bundledReferenceURL` is itself macOS-15-only.
+/// `.disabled(if:)` predicate for tests that historically required the
+/// bundled `giantsteps_v1.mlmodelc`. Under Story 4-6 Branch C this
+/// predicate ALWAYS returns true in main (the static is now a `nil`
+/// literal); the trait-skip path is the expected state. Evaluated when
+/// Swift Testing collects traits; the macOS-15 gate uses an inline
+/// `if #available` because `BNNSTechnique.bundledReferenceURL` is itself
+/// macOS-15-only.
 private func bundledModelMissing() -> Bool {
   if #available(macOS 15.0, *) {
     return BNNSTechnique.bundledReferenceURL == nil
@@ -598,7 +606,11 @@ struct BNNSTechniqueTests {
   func initAcceptsCustomModelURL_constructionOnly() throws {
     // Review fix N12: renamed from `initAcceptsCustomModelURL` to make the
     // construction-only scope explicit. The fixture is a verbatim copy of
-    // the bundled `giantsteps_v1.mlmodelc` at
+    // the historical `giantsteps_v1.mlmodelc` (Story 4-4b training output;
+    // bundle pulled from main in Story 4-6 Branch C) committed to
+    // `Tests/.../Fixtures/` so the construction path stays exercised
+    // independently of whether a runtime model bundle exists. The fixture
+    // path is at
     // `Tests/BoomBoomBoomKitTests/Fixtures/CustomBundled.mlmodelc/` —
     // proves the consumer-override path (`Options.mlTechnique =
     // try? BNNSTechnique(modelURL: myURL)`) WORKS AT CONSTRUCTION TIME. It

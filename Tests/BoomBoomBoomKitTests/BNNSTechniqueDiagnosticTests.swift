@@ -7,8 +7,9 @@
 //
 //  Model-independent stages are exercised in pure unit tests; model-
 //  dependent stages (graphFailed, decodeRejected, confidenceGateRejected,
-//  win) require the bundled `.mlmodelc` and are gracefully skipped via
-//  `Issue.record` when the model is absent (Branch C build).
+//  win) require a runnable `BNNSTechnique` and skip cleanly via the
+//  suite-level `.disabled(if: bundledModelMissing())` trait when no
+//  bundle is present (Branch C build).
 //
 
 import Foundation
@@ -17,7 +18,21 @@ import Testing
 @testable import BoomBoomBoomKit
 @testable import BoomBoomBoomKitML
 
-@Suite("BNNSTechnique diagnostic paths (Story 4-6 AC #3)")
+/// Suite-level `.disabled(if:)` predicate. Under Story 4-6 Branch C the
+/// `bundledReferenceURL` static is hardcoded `nil` and this predicate
+/// resolves to compile-time-true; the entire suite skips cleanly without
+/// recording per-test `Issue.record` failures. A future Branch-A retrain
+/// story that re-bundles a higher-quality model will flip the static
+/// back to non-nil and the suite will run again automatically.
+@available(macOS 15.0, *)
+private func diagnosticSuiteShouldSkip() -> Bool {
+  BNNSTechnique.bundledReferenceURL == nil
+}
+
+@Suite(
+  "BNNSTechnique diagnostic paths (Story 4-6 AC #3)",
+  .disabled(if: { if #available(macOS 15.0, *) { diagnosticSuiteShouldSkip() } else { true } }())
+)
 struct BNNSTechniqueDiagnosticTests {
 
   /// Story 4-6 Task 4.5 mapping case 1+2: pre-featurize abstain paths

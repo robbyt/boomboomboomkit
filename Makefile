@@ -4,7 +4,7 @@ PROJECT := BoomBoomBoomKit
 OA300_CORPUS_PATH ?= /Users/rterhaar/Dropbox/OA300_OnsetAudio300
 GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset
 ML_MODEL_INPUT ?= _bmad-output/ml-models/giantsteps_v1.mlmodel
-ML_MODEL_OUT_DIR ?= Sources/BoomBoomBoomKitML/Resources
+ML_MODEL_OUT_DIR ?= _bmad-output/ml-models
 BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/perf-baselines/bnns-impact
 
 .PHONY: all
@@ -140,7 +140,7 @@ bnns-impact-report:
 	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.BNNSImpactTests/bnnsImpactReport
 
-## compile-model: Compile $(ML_MODEL_INPUT) (.mlmodel or .mlpackage directory bundle) into $(ML_MODEL_OUT_DIR)/<name>.mlmodelc via xcrun coremlc; override path with ML_MODEL_INPUT=...
+## compile-model: Compile $(ML_MODEL_INPUT) (.mlmodel or .mlpackage directory bundle) into $(ML_MODEL_OUT_DIR)/<name>.mlmodelc via xcrun coremlc. Develop-only — Story 4-6 retargeted the default output to _bmad-output/ml-models/ (was Sources/BoomBoomBoomKitML/Resources/ pre-Branch-C). Override path with ML_MODEL_INPUT=... or ML_MODEL_OUT_DIR=...; consumers don't run this target.
 .PHONY: compile-model
 compile-model:
 	@if [ ! -e "$(ML_MODEL_INPUT)" ]; then \

@@ -18,7 +18,7 @@ Run a single test: `swift test --filter BPMAnalyzer120BPMTests/detect120BPM`
 | Path | Why |
 |---|---|
 | `Package.swift` | SPM manifest |
-| `Sources/` | All three SPM targets (`BoomBoomBoomKit`, `BoomBoomBoomKitTestSupport`, `BoomBoomBoomKitML`), including the bundled `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` reference model |
+| `Sources/` | All three SPM targets (`BoomBoomBoomKit`, `BoomBoomBoomKitTestSupport`, `BoomBoomBoomKitML`). Story 4-6 (Branch C close-out, 2026-05-16) removed the previously-bundled `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` reference model; it now lives at `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` (develop-only). The `BoomBoomBoomKitML` target ships without `resources: [.copy("Resources")]` until a higher-quality bundled model returns |
 | `Tests/` | Unit tests + the env-gated benchmark target |
 | `tools/coreml-convert/` | Consumer-facing PyTorch → CoreML conversion CLI. This is **the only Python tooling that ships to main** (Story 4-4b DD #13 exception, recorded in `_bmad-output/implementation-artifacts/4-4b-tempo-classifier-training.md`) |
 | `README.md` | Public-facing readme |
@@ -39,7 +39,7 @@ These are the LLM-aided-development scaffolding directories. They MUST be exclud
 - **`_bmad-output/`** — every BMAD output:
   - `_bmad-output/implementation-artifacts/` — story specs, regression snapshots, diff-scope proofs, sprint-status.yaml
   - `_bmad-output/ml-training/` — Python training pipeline + Swift CLI fixture extractor + parity harness + reports + `model.pt`
-  - `_bmad-output/ml-models/` — uncompiled `.mlmodel` source bundle (the input to `make compile-model`; the *compiled* output `.mlmodelc` ships under `Sources/`)
+  - `_bmad-output/ml-models/` — uncompiled `.mlmodel` source bundle (the input to `make compile-model`) AND, post-Story-4-6 Branch C, the compiled `giantsteps_v1.mlmodelc/` itself (relocated from `Sources/BoomBoomBoomKitML/Resources/`). Pre-squash-merge to main: VERIFY this directory is NOT in the main-bound diff. The compiled bundle returns to `Sources/` only when a future Branch-A retrain story re-bundles a higher-quality model.
   - `_bmad-output/perf-baselines/` — performance benchmark history
   - `_bmad-output/planning-artifacts/` — epics + architecture docs
   - `_bmad-output/project-context.md` — internal AI-agent context

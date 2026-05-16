@@ -141,13 +141,13 @@ public struct AudioAnalysisService {
     /// | Consumer intent | Code |
     /// |---|---|
     /// | Disable ML entirely (default — DSP-only) | `Options.mlTechnique = nil` |
-    /// | Use library's bundled reference model | `Options.mlTechnique = try? BNNSTechnique()` |
+    /// | Use a bundled reference model | _no bundled model ships as of Story 4-6; see `MODEL_CARD.md` for the Branch C close-out rationale. `try? BNNSTechnique()` returns nil because the no-arg form throws `.modelResourceMissing`_ |
     /// | Use your converted weights, same architecture | `Options.mlTechnique = try? BNNSTechnique(modelURL: myURL)` |
     /// | Use a custom architecture or different framework | `Options.mlTechnique = MyCustomMLTechnique()` |
     ///
     /// See `tools/coreml-convert/README.md` for the consumer-onboarding
-    /// flow that converts PyTorch / Core ML weights against the bundled
-    /// tensor contract.
+    /// flow that converts PyTorch / Core ML weights against the same
+    /// tensor contract `BNNSTechnique` validates at `init(modelURL:)`.
     ///
     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
     public var mlTechnique: (any MLTechnique)?
