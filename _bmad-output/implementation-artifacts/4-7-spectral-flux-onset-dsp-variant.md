@@ -267,15 +267,15 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
   - [x] 1.5: Confirm 4-dnb-triplet-targets.json fixture is at `schema_version: 3` (Story 4-6 v3 with controls partition); confirm SHA `1c8e274` `current_predicted_bpm` values for the 4 named tracks (Charly, Faraday_Bunker, Yin Yang, HEFT_Anagram 6) — these are the brutal-gate baseline values
   - [x] 1.6: Commit baselines + snapshot artifacts + initial story spec touch: `Story 4-7 Task 1: pre-source-change baseline artifacts`
 
-- [ ] **Task 2 — DSPTechnique enum extension + 10 invariant updates (AC #1)** [single commit; HALT-(a) fires if any site missed]
-  - [ ] 2.1: Append `case superFluxOnset` to `Sources/BoomBoomBoomKit/DSPTechnique.swift` (LAST position, preserving stable-identifier convention)
-  - [ ] 2.2: Update doc-comment in same file: "2^7 = 128 combinations" → "2^8 = 256 combinations"
-  - [ ] 2.3: Update `Tests/BoomBoomBoomKitTests/MetadataCorroborationTests.swift` — both `DSPTechnique.allCases.count == 7` (→ 8) and `TechniqueSet.allDSPCombinations().count == 128` (→ 256) assertions
-  - [ ] 2.4: Update `Tests/BoomBoomBoomKitTests/AblationQuickTests.swift` — both invariant assertions
-  - [ ] 2.5: Update `CLAUDE.md` — `DSPTechnique` description "7 cases" → "8 cases" and "2^7=128 combos" → "2^8=256 combos"; add `.superFluxOnset` to the enumerated case list with brief description
-  - [ ] 2.6: Update `_bmad-output/project-context.md` — 4 sites (lines 41, 88, 101, 160 per AC #1); preserve the "Add another DSPTechnique case to fix accuracy is no longer viable without architecture change" rule (Story 4-7 is the documented exception, not a deletion of the rule)
-  - [ ] 2.7: Run `make test` — assert the unit-test invariants pin both numbers to 8 / 256
-  - [ ] 2.8: Commit: `Story 4-7 Task 2: DSPTechnique.superFluxOnset case + 10 invariant updates`
+- [x] **Task 2 — DSPTechnique enum extension + 10 invariant updates (AC #1)** [single commit; HALT-(a) fires if any site missed]
+  - [x] 2.1: Append `case superFluxOnset` to `Sources/BoomBoomBoomKit/DSPTechnique.swift` (LAST position, preserving stable-identifier convention)
+  - [x] 2.2: Update doc-comment in same file: "2^7 = 128 combinations" → "2^8 = 256 combinations"
+  - [x] 2.3: Update `Tests/BoomBoomBoomKitTests/MetadataCorroborationTests.swift` — both `DSPTechnique.allCases.count == 7` (→ 8) and `TechniqueSet.allDSPCombinations().count == 128` (→ 256) assertions
+  - [x] 2.4: Update `Tests/BoomBoomBoomKitTests/AblationQuickTests.swift` — both invariant assertions
+  - [x] 2.5: Update `CLAUDE.md` — `DSPTechnique` description "7 cases" → "8 cases" and "2^7=128 combos" → "2^8=256 combos"; add `.superFluxOnset` to the enumerated case list with brief description
+  - [x] 2.6: Update `_bmad-output/project-context.md` — 4 sites (lines 41, 88, 101, 160 per AC #1); preserve the "Add another DSPTechnique case to fix accuracy is no longer viable without architecture change" rule (Story 4-7 is the documented exception, not a deletion of the rule)
+  - [x] 2.7: Run `make test` — assert the unit-test invariants pin both numbers to 8 / 256
+  - [x] 2.8: Commit: `Story 4-7 Task 2: DSPTechnique.superFluxOnset case + 10 invariant updates`
 
 - [ ] **Task 3 — Implement `computeSuperFluxOnsetEnvelope` (AC #2, DDs #2, #3)** [pure vDSP, no new dependencies]
   - [ ] 3.1: Add new internal function `computeSuperFluxOnsetEnvelope(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:captureMLFeatures:) -> OnsetEnvelopes` to `Sources/BoomBoomBoomKit/BPMAnalyzer.swift` adjacent to `computeMelOnsetEnvelopeWithSubBands`. Use the verbatim DocC template below (sourced from project Swift-doc convention; explicitly NO `- Throws` per project-context.md:39 "BPMAnalyzer ... return nil for no-result, never throw"):

@@ -16,15 +16,15 @@ import Testing
 @Suite("Ablation — Quick (presets vs click tracks)")
 struct AblationQuickTests {
 
-  @Test("TechniqueSet.allDSPCombinations generates 128 combinations")
+  @Test("TechniqueSet.allDSPCombinations generates 256 combinations (2^8; Story 4-7)")
   func allCombinationsCount() {
     let combos = TechniqueSet.allDSPCombinations()
-    #expect(combos.count == 128)
+    #expect(combos.count == 256)
   }
 
-  @Test("DSPTechnique.allCases has 7 cases")
+  @Test("DSPTechnique.allCases has 8 cases (Story 4-7 added .superFluxOnset)")
   func allCasesCount() {
-    #expect(DSPTechnique.allCases.count == 7)
+    #expect(DSPTechnique.allCases.count == 8)
   }
 
   @Test("preset properties")

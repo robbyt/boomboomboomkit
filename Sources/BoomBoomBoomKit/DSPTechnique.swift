@@ -61,6 +61,17 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
   /// Impact: TBD (validated by ablation in Story 3-3, Task 3).
   case clickTrackCorrelation
 
+  /// SuperFlux onset detection (Böck & Widmer 2013, DAFx).
+  /// Replaces the baseline log-mel spectral flux reference frame `M[t-1][k]` with a
+  /// frequency-neighborhood maximum `max(M[t-1][k-r:k+r])` (r=1, window=3 mel bins) before
+  /// per-frame differencing. Targets vibrato suppression on pitched-instrument onsets;
+  /// secondary hypothesis (Story 4-7) is that the widened reference helps on heavily-mastered
+  /// material where limiter-flattened transients confuse the baseline differencing.
+  /// Cost: one extra `vDSP_vswmax` pass per frame at the onset-envelope step (~3% of step 3).
+  /// Impact: gated through the Story 4-7 brutal-corpus gate; case ships available for
+  /// consumer experimentation regardless of gate outcome.
+  case superFluxOnset
+
   /// Short label used in ablation output (e.g., "sharp", "vote").
   var shortName: String {
     switch self {
@@ -71,6 +82,7 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
     case .fineGridRefinement: return "fine"
     case .subBandVoting: return "vote"
     case .clickTrackCorrelation: return "click"
+    case .superFluxOnset: return "superFlux"
     }
   }
 }
@@ -161,7 +173,9 @@ public struct TechniqueSet: Sendable, Hashable {
 
   // MARK: - Ablation
 
-  /// Generates all 2^7 = 128 DSP technique combinations (power set).
+  /// Generates all 2^8 = 256 DSP technique combinations (power set).
+  /// Grew from 2^6 = 64 (pre-Story-3-3) to 2^7 = 128 (Story 3-3 added `.clickTrackCorrelation`)
+  /// to 2^8 = 256 (Story 4-7 added `.superFluxOnset`).
   public static func allDSPCombinations() -> [TechniqueSet] {
     let allCases = DSPTechnique.allCases
     let count = allCases.count
