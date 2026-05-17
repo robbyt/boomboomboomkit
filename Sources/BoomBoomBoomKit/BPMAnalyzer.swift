@@ -226,12 +226,26 @@ struct BPMAnalyzer {
     let hopSize = Int(sampleRate / 100)
     let onsetRate = sampleRate / Double(hopSize)
 
-    // Step 3: Mel-spectrogram onset detection with sub-band envelopes
-    let onsetResult = computeMelOnsetEnvelopeWithSubBands(
-      samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
-      computeSubBands: techniqueSet.contains(.subBandVoting),
-      normalizeSubBands: techniqueSet.contains(.subBandNormalization),
-      captureMLFeatures: options.captureMLFeatures)
+    // Step 3: Mel-spectrogram onset detection with sub-band envelopes.
+    // Story 4-7 gate: `.superFluxOnset` swaps the baseline log-mel spectral flux
+    // for Böck & Widmer 2013 SuperFlux (frequency-axis max-filter reference frame,
+    // r=1). Same step number (3), same downstream contract (`OnsetEnvelopes`),
+    // same callers — only the per-frame reference construction differs. See
+    // `computeSuperFluxOnsetEnvelope` and Story 4-7 DD #2 / AC #2.
+    let onsetResult: OnsetEnvelopes
+    if techniqueSet.contains(.superFluxOnset) {
+      onsetResult = computeSuperFluxOnsetEnvelope(
+        samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
+        computeSubBands: techniqueSet.contains(.subBandVoting),
+        normalizeSubBands: techniqueSet.contains(.subBandNormalization),
+        captureMLFeatures: options.captureMLFeatures)
+    } else {
+      onsetResult = computeMelOnsetEnvelopeWithSubBands(
+        samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
+        computeSubBands: techniqueSet.contains(.subBandVoting),
+        normalizeSubBands: techniqueSet.contains(.subBandNormalization),
+        captureMLFeatures: options.captureMLFeatures)
+    }
     var onsetEnvelope = onsetResult.fullBand
     guard !onsetEnvelope.isEmpty else { return nil }
 
