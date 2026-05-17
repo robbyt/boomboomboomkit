@@ -126,6 +126,20 @@ ml-policy-sweep:
 	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.MLPolicySweepTests/policySweepReport
 
+## super-flux-impact-report: Generate per-track SuperFlux impact JSON to _bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json
+.PHONY: super-flux-impact-report
+super-flux-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	SPECTRAL_FLUX_IMPACT=1 \
+	SUPER_FLUX_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests/superFluxImpactReport
+
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
 .PHONY: bnns-impact-report
 bnns-impact-report:
