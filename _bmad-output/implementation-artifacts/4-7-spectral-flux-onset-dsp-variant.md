@@ -414,7 +414,7 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
     - **Why this matters:** Parameterized tests run each argument as a separate test case (per `swift-testing.md:220-228`). A failing per-fixture `#expect` on 3-of-4 named tracks would mark the test red even when Branch A succeeded with 1-of-4 resolved. Keep the per-fixture / OR-aggregate semantics in different test files: per-fixture in `SuperFluxOnsetEnvelopeTests.swift`; OR-aggregate in `SuperFluxImpactTests.swift` (the benchmark-target harness).
   - [ ] 3.8: Commit: `Story 4-7 Task 3: computeSuperFluxOnsetEnvelope + unit tests`
 
-- [ ] **Task 4 — Integrate at BPMAnalyzer step 3 with gating (AC #2)**
+- [x] **Task 4 — Integrate at BPMAnalyzer step 3 with gating (AC #2)**
   - [ ] 4.1: At `Sources/BoomBoomBoomKit/BPMAnalyzer.swift:230-235`, branch the onset-construction call on `techniqueSet.contains(.superFluxOnset)`:
     ```swift
     let onsetResult: OnsetEnvelopes
