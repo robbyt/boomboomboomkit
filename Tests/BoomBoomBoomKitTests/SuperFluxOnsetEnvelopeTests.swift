@@ -75,8 +75,8 @@ struct SuperFluxOnsetEnvelopeTests {
       "Expected onset peaks well above median (got p95=\(p95), median=\(median))")
   }
 
-  @Test("SuperFlux returns sentinel-empty envelopes for silent input")
-  func sentinelOnSilentInput() {
+  @Test("SuperFlux produces finite all-zero envelopes for silent input")
+  func silentInputProducesFiniteZeros() {
     let sampleRate: Double = 44100
     let hopSize = Int(sampleRate / 100)
     let samples = [Float](repeating: 0, count: Int(sampleRate))  // 1 s silence
@@ -84,10 +84,35 @@ struct SuperFluxOnsetEnvelopeTests {
     let result = BPMAnalyzer.computeSuperFluxOnsetEnvelope(
       samples: samples, sampleRate: sampleRate, hopSize: hopSize)
 
-    // Silent input → all-zero log-mel envelope → all-zero flux. Should not crash.
-    // (Frame count likely still > 2, so fullBand is non-empty but all zeros.)
+    // Contract (per BPMAnalyzer.swift:617 doc-comment, post-Story-4-7 P3 fix):
+    // silent buffer with ≥ 2 frames → finite all-zero envelopes (NOT the
+    // empty-sentinel contract; that's tested by sentinelOnTooShortInput).
+    //
+    // Codex review 2026-05-17 ADJUST P2: assert the full documented contract —
+    // !empty + 4 sub-bands + shape match + finite + exactly 0.0 — not just
+    // finiteness. A wrong-but-finite result (e.g., NaN-scrubbed-to-zero, or a
+    // subtle ML-features leak that emits non-zero frames) is now caught.
+    #expect(
+      !result.fullBand.isEmpty,
+      "1s of silence should produce ≥ 2 frames; got empty fullBand")
+    #expect(result.subBands.count == 4, "SuperFlux must produce exactly 4 sub-bands")
     for value in result.fullBand {
-      #expect(value.isFinite, "SuperFlux should not produce NaN/Inf for silent input")
+      #expect(value.isFinite, "SuperFlux fullBand should be finite for silent input")
+      #expect(
+        value == 0.0,
+        "SuperFlux fullBand on silent input must be exactly zero (got \(value))")
+    }
+    for (i, band) in result.subBands.enumerated() {
+      #expect(
+        band.count == result.fullBand.count,
+        "SuperFlux subBand[\(i)].count must match fullBand.count")
+      for value in band {
+        #expect(
+          value.isFinite, "SuperFlux subBand[\(i)] should be finite for silent input")
+        #expect(
+          value == 0.0,
+          "SuperFlux subBand[\(i)] on silent input must be exactly zero (got \(value))")
+      }
     }
   }
 
@@ -147,41 +172,114 @@ struct SuperFluxOnsetEnvelopeTests {
     )
     // The two variants differ in reference-frame construction. For broadband click
     // tracks, the SuperFlux max-filter widens the reference, which generally
-    // SUPPRESSES per-frame onset magnitudes vs the baseline. Assert that at
-    // least one frame differs in bit pattern — proves the algorithm change took
-    // effect at the binary level, not just notional.
+    // SUPPRESSES per-frame onset magnitudes vs the baseline. Codex review
+    // 2026-05-17 ADJUST P4: bit-different on ONE frame is not algorithm-level
+    // distinctness — assert ≥1% differing frames AND a meaningful mean abs diff.
+    // (The 1% floor is empirically ~25× the bare-minimum 1-frame, well above
+    // numerical noise; clicks have sparse transients so a 10% requirement would
+    // be too strict — P5's purpose-built boundary fixture uses 10% because it's
+    // synthesized to engage the max-filter at every burst by construction.)
     var differingFrames = 0
+    var sumAbsDiff: Double = 0
     for (sf, bl) in zip(superFlux.fullBand, baseline.fullBand) {
       if sf.bitPattern != bl.bitPattern { differingFrames += 1 }
+      sumAbsDiff += Double(abs(sf - bl))
     }
+    let totalFrames = min(superFlux.fullBand.count, baseline.fullBand.count)
+    let differingFraction = Double(differingFrames) / Double(max(totalFrames, 1))
+    let meanAbsDiff = sumAbsDiff / Double(max(totalFrames, 1))
     #expect(
-      differingFrames > 0,
-      "SuperFlux output should differ from baseline on at least one frame (got 0 differing frames)")
+      differingFraction >= 0.01,
+      "SuperFlux should differ from baseline on ≥1% of frames (got \(differingFrames)/\(totalFrames) = \(differingFraction))"
+    )
+    #expect(
+      meanAbsDiff > 1e-6,
+      "SuperFlux mean-absolute-diff vs baseline should exceed 1e-6 (got \(meanAbsDiff))")
   }
 
-  @Test("SuperFlux replicate-pad does not collapse first/last mel-band contributions")
-  func replicatePadPreservesBoundaryBins() {
-    // Use a low-frequency click that primarily activates the kick band (0..<20)
-    // and verify the SuperFlux kick sub-band carries non-zero energy. If
-    // replicate-pad on bin 0 were collapsing kick energy, the kick sub-band
-    // would be silent.
+  @Test("SuperFlux replicate-pad preserves first/last mel-band contributions")
+  func replicatePadPreservesBoundaryBins() throws {
+    // Codex review 2026-05-17 BLOCK P5: a generic 100-BPM click is NOT a
+    // boundary-discriminating fixture (baseline path passes the same kick/hi-hat
+    // max checks). Use windowed narrowband bursts centered near the actual
+    // boundary-filter centers, then assert that mel-bin 0 and mel-bin 127 are
+    // genuinely energized BEFORE testing SuperFlux distinctness.
     let sampleRate: Double = 44100
     let hopSize = Int(sampleRate / 100)
-    let samples = generateClickTrack(bpm: 100, sampleRate: sampleRate, durationSeconds: 5)
+    let samples = synthesizeBoundaryBurstFixture(
+      sampleRate: sampleRate,
+      durationSeconds: 4,
+      lowCenterHz: 48,
+      highCenterHz: 15_600,
+      burstIntervalSeconds: 0.05)
 
-    let result = BPMAnalyzer.computeSuperFluxOnsetEnvelope(
+    // PRECONDITION: the fixture must actually energize boundary mel-bins.
+    // Run baseline with captureMLFeatures to inspect the log-mel matrix; if
+    // bin 0 or bin 127 are below the energy floor, the fixture is wrong and
+    // the downstream gate test would be inconclusive.
+    let baselineWithFeatures = BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(
+      samples: samples, sampleRate: sampleRate, hopSize: hopSize,
+      computeSubBands: true, normalizeSubBands: false, captureMLFeatures: true)
+    let mlFeatures = try #require(
+      baselineWithFeatures.mlFeatures,
+      "captureMLFeatures should produce mlFeatures on a non-degenerate input")
+    let melBands = mlFeatures.melBands
+    let frames = mlFeatures.frames
+    let data = mlFeatures.logMelData
+    #expect(
+      melBands == 128, "Story 4-7 P5 assumes 128 mel bands; got \(melBands)")
+
+    // Energy floor: log(1 + 1e6 * 0) = 0, so any value > 0 means real energy.
+    let bin0EnergyFloor: Float = 0.1
+    let bin127EnergyFloor: Float = 0.1
+    var bin0Max: Float = 0
+    var bin127Max: Float = 0
+    for f in 0..<frames {
+      bin0Max = max(bin0Max, data[f * melBands + 0])
+      bin127Max = max(bin127Max, data[f * melBands + (melBands - 1)])
+    }
+    #expect(
+      bin0Max > bin0EnergyFloor,
+      "Fixture precondition: mel-bin 0 must be energized (got max \(bin0Max), need > \(bin0EnergyFloor))"
+    )
+    #expect(
+      bin127Max > bin127EnergyFloor,
+      "Fixture precondition: mel-bin 127 must be energized (got max \(bin127Max), need > \(bin127EnergyFloor))"
+    )
+
+    // ACTUAL GATE TEST: SuperFlux at the boundary bins must differ from baseline.
+    // By construction the fixture energizes the replicate-pad-reached bins; if
+    // SuperFlux/baseline are byte-identical here, the max-filter isn't engaging.
+    let superFlux = BPMAnalyzer.computeSuperFluxOnsetEnvelope(
       samples: samples, sampleRate: sampleRate, hopSize: hopSize)
+    let baseline = BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(
+      samples: samples, sampleRate: sampleRate, hopSize: hopSize)
+    let kickSF = superFlux.subBands[0]
+    let kickBL = baseline.subBands[0]
+    let hiHatSF = superFlux.subBands[3]
+    let hiHatBL = baseline.subBands[3]
+    let kickDiffFrac = fractionOfDifferingFrames(kickSF, kickBL)
+    let hiHatDiffFrac = fractionOfDifferingFrames(hiHatSF, hiHatBL)
+    #expect(
+      kickDiffFrac >= 0.10,
+      "Kick band (bin 0 boundary) must show max-filter effect vs baseline (got \(kickDiffFrac))"
+    )
+    #expect(
+      hiHatDiffFrac >= 0.10,
+      "Hi-hat band (bin 127 boundary) must show max-filter effect vs baseline (got \(hiHatDiffFrac))"
+    )
+  }
 
-    let kickEnvelope = result.subBands[0]  // kickBandRange = 0..<20
-    let hiHatEnvelope = result.subBands[3]  // hiHatRange = 80..<128
-    let kickMax = kickEnvelope.max() ?? 0
-    let hiHatMax = hiHatEnvelope.max() ?? 0
-    #expect(
-      kickMax > 0,
-      "Kick band (includes bin 0, exercised by replicate-pad left edge) should carry energy")
-    #expect(
-      hiHatMax > 0,
-      "Hi-hat band (includes bin 127, exercised by replicate-pad right edge) should carry energy")
+  // MARK: - Internal helpers
+
+  /// Bit-pattern-aware fraction of frames where two envelopes differ.
+  /// Used by P4a (distinctness threshold) and P5 (boundary gate-engagement).
+  private func fractionOfDifferingFrames(_ a: [Float], _ b: [Float]) -> Double {
+    let total = min(a.count, b.count)
+    guard total > 0 else { return 0 }
+    var diff = 0
+    for (x, y) in zip(a, b) where x.bitPattern != y.bitPattern { diff += 1 }
+    return Double(diff) / Double(total)
   }
 }
 

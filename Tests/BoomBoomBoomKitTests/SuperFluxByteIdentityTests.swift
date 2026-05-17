@@ -162,4 +162,53 @@ struct SuperFluxByteIdentityTests {
       baseline path. See Story 4-7 HALT-(g).
       """)
   }
+
+  /// Codex review 2026-05-17 ADJUST P4b: the bundled-fixture test above is a
+  /// "gate is wired in some direction" smoke check, NOT proof that SuperFlux
+  /// engages at the replicate-pad-exercised boundary mel-bins. This test uses
+  /// a purpose-built fixture (`synthesizeBoundaryBurstFixture`, P5) where the
+  /// max-filter MUST produce different output by construction; identical output
+  /// here means the gate composition with the rest of the pipeline is broken.
+  ///
+  /// Runs at the `BPMAnalyzer.estimateBPM` level (one level deeper than the
+  /// bundled-fixture smoke test above) because the synthesized fixture is a
+  /// `[Float]` sample buffer, not a file. The check is still at the analyzer
+  /// scope — gate engagement at the same layer the AC targets.
+  @Test("dspOnlyDifferentOnDiscriminatingFixture — purpose-built max-filter engagement")
+  func dspOnlyDifferentOnDiscriminatingFixture() async throws {
+    let sampleRate: Double = 44100
+    let samples = synthesizeBoundaryBurstFixture(
+      sampleRate: sampleRate,
+      durationSeconds: 8,
+      lowCenterHz: 48,
+      highCenterHz: 15_600,
+      burstIntervalSeconds: 0.05)
+
+    let baselineOpts = BPMAnalyzer.Options(techniqueSet: .optimal)
+    let variantOpts = BPMAnalyzer.Options(
+      techniqueSet: TechniqueSet.optimal.inserting(.superFluxOnset))
+
+    let baselineResult = try #require(
+      BPMAnalyzer.estimateBPM(
+        samples: samples, sampleRate: sampleRate, options: baselineOpts),
+      "baseline BPMAnalyzer.estimateBPM returned nil on synthesized boundary fixture"
+    )
+    let variantResult = try #require(
+      BPMAnalyzer.estimateBPM(
+        samples: samples, sampleRate: sampleRate, options: variantOpts),
+      "variant BPMAnalyzer.estimateBPM returned nil on synthesized boundary fixture"
+    )
+
+    #expect(
+      baselineResult.bpm.bitPattern != variantResult.bpm.bitPattern
+        || baselineResult.confidence.bitPattern != variantResult.confidence.bitPattern,
+      """
+      AC #8 STRICT: on a purpose-built boundary-discriminating fixture, the
+      SuperFlux variant MUST produce bit-different output from baseline.
+      Identical output here means the max-filter is not engaging at the
+      replicate-pad boundaries (mel-bin 0 / mel-bin 127) under the rest of the
+      analyzer pipeline. P5 validates the fixture energizes these bins; if this
+      test fails, the bug is in gate composition, not the fixture.
+      """)
+  }
 }

@@ -89,25 +89,50 @@ struct SuperFluxImpactTests {
     let namedDnBSet = Set(namedDnB.map(\.track_id))
     let dspControlsSet = Set(dspControls.map(\.track_id))
 
+    // P7 (Codex review 2026-05-17): Row.baselineBPM / variantBPM are non-optional.
+    // A silent analyzer abstain on a known-good fixture is a gate failure, not a
+    // legitimate alternative outcome — both sides must produce a BPM or the task
+    // throws ImpactReportError.analyzerAbstained.
     struct Row: Sendable {
       let track: String
-      let baselineBPM: Double?
-      let variantBPM: Double?
+      let baselineBPM: Double
+      let variantBPM: Double
       let groundTruth: Double
       let namedDnB: Bool
       let dspControl: Bool
     }
 
-    let urls: [(String, URL, Double)] = groundTruth.compactMap { track in
+    // P1a (Codex review 2026-05-17): preflight missing fixtures into an inventory
+    // and surface the full list via Issue.record. Continue with whatever resolved
+    // so the rest of the gate can run on the surviving subset.
+    var resolvedUrls: [(String, URL, Double)] = []
+    var missingFixtures: [(filename: String, expectedAt: String)] = []
+    for track in groundTruth {
       let url = trackURL(track, corpusPath: corpusPath)
-      guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-      return (track.filename, url, track.bpm)
+      if FileManager.default.fileExists(atPath: url.path) {
+        resolvedUrls.append((track.filename, url, track.bpm))
+      } else {
+        missingFixtures.append((track.filename, url.path))
+      }
     }
+    if !missingFixtures.isEmpty {
+      let inventory = missingFixtures.map { "\($0.filename) @ \($0.expectedAt)" }
+        .joined(separator: "; ")
+      Issue.record(
+        "Brutal-corpus gate fixture inventory failed: \(missingFixtures.count) missing files. \(inventory)"
+      )
+    }
+    let urls = resolvedUrls
 
     let baseline = baselineTechniqueSet
     let variant = variantTechniqueSet
 
-    let rows: [Row] = await withTaskGroup(of: Row?.self) { group in
+    // P1b: collect-then-fail. Each task returns Result<Row, ImpactReportError>
+    // so analyzer failures are inventoried as a group rather than throwing on the
+    // first race winner.
+    let taskResults: [Result<Row, ImpactReportError>] = await withTaskGroup(
+      of: Result<Row, ImpactReportError>.self
+    ) { group in
       for (filename, url, gtBPM) in urls {
         group.addTask {
           do {
@@ -119,41 +144,66 @@ struct SuperFluxImpactTests {
             let on = BPMAnalyzer.estimateBPM(
               samples: samples, sampleRate: sampleRate,
               options: .init(techniqueSet: variant))
+            // P7: a silent abstain on a corpus fixture is a gate failure.
+            guard let baselineBPM = off?.bpm else {
+              return .failure(.analyzerAbstained(track: filename, side: "baseline"))
+            }
+            guard let variantBPM = on?.bpm else {
+              return .failure(.analyzerAbstained(track: filename, side: "variant"))
+            }
             let trackIDStem = (filename as NSString).deletingPathExtension
-            return Row(
-              track: filename,
-              baselineBPM: off?.bpm,
-              variantBPM: on?.bpm,
-              groundTruth: gtBPM,
-              namedDnB: namedDnBSet.contains(trackIDStem)
-                || namedDnBSet.contains(filename),
-              dspControl: dspControlsSet.contains(trackIDStem)
-                || dspControlsSet.contains(filename))
+            return .success(
+              Row(
+                track: filename,
+                baselineBPM: baselineBPM,
+                variantBPM: variantBPM,
+                groundTruth: gtBPM,
+                namedDnB: namedDnBSet.contains(trackIDStem)
+                  || namedDnBSet.contains(filename),
+                dspControl: dspControlsSet.contains(trackIDStem)
+                  || dspControlsSet.contains(filename)))
           } catch {
-            return nil
+            return .failure(.analyzerFailure(track: filename, underlying: error))
           }
         }
       }
-      var collected: [Row] = []
-      for await row in group { if let row = row { collected.append(row) } }
+      var collected: [Result<Row, ImpactReportError>] = []
+      for await item in group { collected.append(item) }
       return collected
     }
+
+    var rows: [Row] = []
+    var analyzerFailures: [ImpactReportError] = []
+    for r in taskResults {
+      switch r {
+      case .success(let row): rows.append(row)
+      case .failure(let err): analyzerFailures.append(err)
+      }
+    }
+    rows.sort { $0.track < $1.track }  // P12: deterministic JSON ordering
+    if !analyzerFailures.isEmpty {
+      let inventory = analyzerFailures.map(\.description).joined(separator: "; ")
+      Issue.record(
+        "Brutal-corpus gate analyzer failures: \(analyzerFailures.count). \(inventory)")
+    }
+    let inventoryFailuresRecorded = !missingFixtures.isEmpty || !analyzerFailures.isEmpty
 
     #expect(
       rows.count > 0,
       "SuperFlux impact report analyzed zero tracks; check OA300_CORPUS_PATH (\(corpusPath))")
 
     // DD #7 schema — per-track rows + aggregate counts.
-    func acc1Correct(detected: Double?, expected: Double) -> Bool {
-      guard let d = detected, expected > 0 else { return false }
-      return abs(d - expected) / expected <= 0.02
-    }
-    func absErr(detected: Double?, expected: Double) -> Double {
-      guard let d = detected else { return Double.infinity }
-      return abs(d - expected)
+    func acc1Correct(detected: Double, expected: Double) -> Bool {
+      guard expected > 0 else { return false }
+      return abs(detected - expected) / expected <= 0.02
     }
 
-    var changedRanking = 0
+    // P6 (Codex review 2026-05-17): drop fake `changedRanking` counter. The
+    // earlier code incremented it under the same predicate as changedFinalBPM,
+    // producing duplicate telemetry. If a future story wants real ranking
+    // semantics (pre-vs-post-disambiguation winner), it must introduce a new
+    // field with real distinction (re-run with `enableTrace: true` and compare
+    // `trace.rawCandidates`).
     var changedFinalBPM = 0
     var namedDnBImproved = 0
     var controlsPreserved = 0
@@ -165,17 +215,9 @@ struct SuperFluxImpactTests {
     for r in rows {
       let baselineCorrect = acc1Correct(detected: r.baselineBPM, expected: r.groundTruth)
       let variantCorrect = acc1Correct(detected: r.variantBPM, expected: r.groundTruth)
-      let absErrBaseline = absErr(detected: r.baselineBPM, expected: r.groundTruth)
-      let absErrVariant = absErr(detected: r.variantBPM, expected: r.groundTruth)
+      let absErrBaseline = abs(r.baselineBPM - r.groundTruth)
+      let absErrVariant = abs(r.variantBPM - r.groundTruth)
 
-      // changedRanking proxy: any BPM change at all (post-disambiguation winner
-      // changed). Mirrors the Story 3-3 click-impact pattern (changedRanking =
-      // any pre-disambiguation winner change). For SuperFlux at the .optimal-set
-      // level the same heuristic is appropriate — non-zero == "the variant
-      // moved something".
-      if r.baselineBPM != r.variantBPM {
-        changedRanking += 1
-      }
       if r.baselineBPM != r.variantBPM {
         changedFinalBPM += 1
       }
@@ -192,15 +234,18 @@ struct SuperFluxImpactTests {
         controlsTotal += 1
         // "preserved" per Story 4-6 / AC #4 second clause: variant remains
         // within ±0.5 BPM of ground truth (strict control-set tolerance).
-        if let v = r.variantBPM, abs(v - r.groundTruth) <= 0.5 {
+        if abs(r.variantBPM - r.groundTruth) <= 0.5 {
           controlsPreserved += 1
         }
       }
 
+      // P11 (post-P7): baseline_bpm and with_variant_bpm are plain Double now;
+      // no `as Any` cast or NSNull fallback needed. abs_error_* retain
+      // isFinite ? value : NSNull() in case of future ground-truth changes.
       perTrackRows.append([
         "track": r.track,
-        "baseline_bpm": r.baselineBPM as Any,
-        "with_variant_bpm": r.variantBPM as Any,
+        "baseline_bpm": r.baselineBPM,
+        "with_variant_bpm": r.variantBPM,
         "ground_truth": r.groundTruth,
         "baseline_correct": baselineCorrect,
         "variant_correct": variantCorrect,
@@ -211,8 +256,34 @@ struct SuperFluxImpactTests {
       ])
     }
 
+    // P1c (Codex review 2026-05-17): assert fixture-ID coverage AFTER row
+    // classification so the counters/sets are populated. Gated on no prior
+    // inventory failures so one root cause doesn't fan out into multiple
+    // assertions firing.
+    if !inventoryFailuresRecorded {
+      let actualNamedDnBIDs = Set(rows.filter(\.namedDnB).map(\.track))
+      let actualControlIDs = Set(rows.filter(\.dspControl).map(\.track))
+      let actualNamedDnBStems = Set(
+        actualNamedDnBIDs.map { ($0 as NSString).deletingPathExtension })
+      let actualControlStems = Set(
+        actualControlIDs.map { ($0 as NSString).deletingPathExtension })
+      let expectedNamedDnBIDs = Set(namedDnB.map(\.track_id))
+      let expectedControlIDs = Set(dspControls.map(\.track_id))
+      let missingNamedDnB = expectedNamedDnBIDs.subtracting(actualNamedDnBStems)
+        .subtracting(actualNamedDnBIDs)
+      let missingControls = expectedControlIDs.subtracting(actualControlStems)
+        .subtracting(actualControlIDs)
+      #expect(
+        missingNamedDnB.isEmpty,
+        "Brutal-corpus gate fixture coverage: \(missingNamedDnB.count) named-DnB IDs missing from rows: \(missingNamedDnB.sorted()). Check 4-dnb-triplet-targets.json filename-matching logic."
+      )
+      #expect(
+        missingControls.isEmpty,
+        "Brutal-corpus gate fixture coverage: \(missingControls.count) DSP-control IDs missing from rows: \(missingControls.sorted())."
+      )
+    }
+
     let aggregate: [String: Any] = [
-      "changedRanking": changedRanking,
       "changedFinalBPM": changedFinalBPM,
       "namedDnBImproved": namedDnBImproved,
       "namedDnBTotal": namedDnBTotal,
@@ -220,7 +291,8 @@ struct SuperFluxImpactTests {
       "controlsTotal": controlsTotal,
       "total": groundTruth.count,
       "analyzed": rows.count,
-      "failed": groundTruth.count - rows.count,
+      "missing_fixtures": missingFixtures.count,
+      "analyzer_failures": analyzerFailures.count,
     ]
 
     // Build provenance block matching Story 4-6 fixture conventions.
@@ -233,6 +305,8 @@ struct SuperFluxImpactTests {
       "captured_by": "Story 4-7 SuperFluxImpactTests",
       "git_sha": gitSHA,
       "macos_version": ProcessInfo.processInfo.operatingSystemVersionString,
+      "xcode_version": env["XCODE_VERSION"] ?? "unknown",
+      "swift_version": env["SWIFT_VERSION"] ?? "unknown",
       "tool": "swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests",
     ]
 
@@ -252,8 +326,8 @@ struct SuperFluxImpactTests {
     print("\n=== Per-Track SuperFlux Impact Report (OA300) ===")
     print("Total tracks (ground truth): \(groundTruth.count)")
     print("Tracks analyzed:             \(rows.count)")
-    print("Tracks failed/missing:       \(groundTruth.count - rows.count)")
-    print("changedRanking:              \(changedRanking)")
+    print("Missing fixtures:            \(missingFixtures.count)")
+    print("Analyzer failures:           \(analyzerFailures.count)")
     print("changedFinalBPM:             \(changedFinalBPM)")
     print("namedDnBImproved:            \(namedDnBImproved) / \(namedDnBTotal)")
     print("controlsPreserved:           \(controlsPreserved) / \(controlsTotal)")
@@ -277,6 +351,25 @@ struct SuperFluxImpactTests {
         .appendingPathComponent(track.filename)
     }
     return URL(fileURLWithPath: corpusPath).appendingPathComponent(track.filename)
+  }
+}
+
+// MARK: - Impact-report failure inventory (Codex review 2026-05-17 P1)
+
+/// Failure carried inside `Result<Row, ImpactReportError>` from each task in
+/// the impact-report task group. Collect-then-fail semantics let the operator
+/// see every failure in one inventory rather than whichever task lost the race.
+private enum ImpactReportError: Error, CustomStringConvertible {
+  case analyzerFailure(track: String, underlying: any Error)
+  case analyzerAbstained(track: String, side: String)
+
+  var description: String {
+    switch self {
+    case .analyzerFailure(let track, let err):
+      return "analyzerFailure(\(track)): \(err)"
+    case .analyzerAbstained(let track, let side):
+      return "analyzerAbstained(\(track), side=\(side))"
+    }
   }
 }
 
