@@ -65,11 +65,19 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
   /// Replaces the baseline log-mel spectral flux reference frame `M[t-1][k]` with a
   /// frequency-neighborhood maximum `max(M[t-1][k-r:k+r])` (r=1, window=3 mel bins) before
   /// per-frame differencing. Targets vibrato suppression on pitched-instrument onsets;
-  /// secondary hypothesis (Story 4-7) is that the widened reference helps on heavily-mastered
+  /// secondary hypothesis (Story 4-7) was that the widened reference helps on heavily-mastered
   /// material where limiter-flattened transients confuse the baseline differencing.
   /// Cost: one extra `vDSP_vswmax` pass per frame at the onset-envelope step (~3% of step 3).
-  /// Impact: gated through the Story 4-7 brutal-corpus gate; case ships available for
-  /// consumer experimentation regardless of gate outcome.
+  ///
+  /// **Story 4-7 brutal-corpus-gate outcome: Branch B (inert-ship).** Per
+  /// `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json`, the variant
+  /// changes per-track output on 82/82 OA300 tracks but resolves zero of the four named DnB
+  /// triplet failures (Charly, Faraday_Bunker, Yin Yang, HEFT_Anagram 6) and regresses two
+  /// of four DSP-correct controls (Hellacopta, Darkgray Heart) outside the ±0.5 BPM
+  /// tolerance. The case is NOT included in any production preset (`.optimal`,
+  /// `.dnbOptimized`, `.clickAugmented`); `.full` auto-includes via `Set(allCases)`
+  /// construction (per AC #4 Branch B). Available for consumer experimentation:
+  /// `var opts = AudioAnalysisService.Options(); opts.techniqueSet = TechniqueSet.optimal.inserting(.superFluxOnset)`.
   case superFluxOnset
 
   /// Short label used in ablation output (e.g., "sharp", "vote").
