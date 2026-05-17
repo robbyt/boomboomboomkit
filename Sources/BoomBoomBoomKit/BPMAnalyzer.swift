@@ -515,6 +515,13 @@ struct BPMAnalyzer {
   /// but also produces 4 independent sub-band onset envelopes by summing within
   /// each band's mel bin range.
   ///
+  /// Story 4-7: the FFT + Hann window + mel-filterbank + log + retention chain
+  /// (formerly inline) is now factored into the private helper
+  /// `computeLogMelFramesAndRetention(samples:sampleRate:hopSize:captureMLFeatures:onPostVvlogf:)`
+  /// so both this baseline log-mel spectral-flux variant AND the new
+  /// `computeSuperFluxOnsetEnvelope` SuperFlux variant share it without duplication
+  /// (Story 4-7 Task 3.2 explicit "do NOT duplicate that code" requirement).
+  ///
   /// - Parameter onPostVvlogf: Test-only seam. When non-nil, invoked exactly once
   ///   immediately AFTER the per-frame `vvlogf` loop completes and BEFORE the
   ///   retention block builds `mlFeatures`. The closure receives the raw
@@ -534,10 +541,245 @@ struct BPMAnalyzer {
     onPostVvlogf: (([[Float]]) -> Void)? = nil
   ) -> OnsetEnvelopes {
     guard
+      let helper = computeLogMelFramesAndRetention(
+        samples: samples, sampleRate: sampleRate, hopSize: hopSize,
+        captureMLFeatures: captureMLFeatures, onPostVvlogf: onPostVvlogf)
+    else {
+      return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
+    }
+    let logMelFrames = helper.logMelFrames
+    let retainedMLFeatures = helper.mlFeatures
+
+    let n = vDSP_Length(melBands)
+    let frameCount = logMelFrames.count - 1
+    var fullBandEnvelope = [Float](repeating: 0, count: frameCount)
+    var subBandEnvelopes: [[Float]] = Array(
+      repeating: [Float](repeating: 0, count: frameCount), count: 4)
+    var diff = [Float](repeating: 0, count: melBands)
+    var rectified = [Float](repeating: 0, count: melBands)
+
+    let bandRanges = [kickBandRange, snareLowRange, snareCrackRange, hiHatRange]
+
+    for i in 1..<logMelFrames.count {
+      logMelFrames[i - 1].withUnsafeBufferPointer { prevPtr in
+        logMelFrames[i].withUnsafeBufferPointer { currPtr in
+          vDSP_vsub(prevPtr.baseAddress!, 1, currPtr.baseAddress!, 1, &diff, 1, n)
+        }
+      }
+
+      var threshold: Float = 0
+      vDSP_vthres(diff, 1, &threshold, &rectified, 1, n)
+
+      // Full-band sum
+      var sum: Float = 0
+      vDSP_sve(rectified, 1, &sum, n)
+      fullBandEnvelope[i - 1] = sum
+
+      // Sub-band sums (skipped when computeSubBands is false)
+      if computeSubBands {
+        rectified.withUnsafeBufferPointer { rectPtr in
+          for (bandIdx, range) in bandRanges.enumerated() {
+            var bandSum: Float = 0
+            vDSP_sve(
+              rectPtr.baseAddress! + range.lowerBound, 1,
+              &bandSum, vDSP_Length(range.count))
+            subBandEnvelopes[bandIdx][i - 1] = bandSum
+          }
+        }
+      }
+    }
+
+    normalizeSubBandsInPlace(
+      &subBandEnvelopes, frameCount: frameCount,
+      apply: computeSubBands && normalizeSubBands)
+
+    let resultSubBands = computeSubBands ? subBandEnvelopes : []
+    return OnsetEnvelopes(
+      fullBand: fullBandEnvelope, subBands: resultSubBands, mlFeatures: retainedMLFeatures)
+  }
+
+  // MARK: - SuperFlux Onset Detection (Story 4-7)
+
+  /// Computes the SuperFlux onset envelope from raw PCM samples.
+  ///
+  /// Per Böck & Widmer (2013) "Maximum Filter Vibrato Suppression for
+  /// Onset Detection" (DAFx-13), SuperFlux extends spectral flux by
+  /// replacing the temporal reference value `M[t-1][k]` with a
+  /// frequency-neighborhood maximum `max(M[t-1][k-r:k+r])` (r=1, window
+  /// = 3 mel bins) before per-frame differencing. The widened reference
+  /// trajectory suppresses vibrato — energy sloshing between adjacent
+  /// mel bins frame-to-frame no longer registers as a new onset.
+  ///
+  /// Formula: `SF_super[t] = Σ_k max(0, M[t][k] - max(M[t-1][k-r:k+r]))`
+  /// where `M` is the post-`vvlogf` log-mel matrix and `r = 1`.
+  ///
+  /// Algorithmic distinction from the baseline at
+  /// ``computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:captureMLFeatures:onPostVvlogf:)``
+  /// (which uses `M[t-1][k]` directly as the reference): only the
+  /// reference-frame construction differs. The `vDSP_vsub` →
+  /// `vDSP_vthres` → `vDSP_sve` chain is byte-identical.
+  ///
+  /// **Composition with `.subBandNormalization`.** When both `.superFluxOnset` and
+  /// `.subBandNormalization` are in the technique set, the SuperFlux variant runs
+  /// first and `.subBandNormalization` applies per-band max-normalization to the
+  /// SuperFlux-derived sub-bands. This composition was NOT empirically validated
+  /// before Story 4-7 — the 256-combination ablation matrix covers the cell.
+  ///
+  /// **Pipeline step number** stays at 3 (same as the baseline). Per
+  /// project-context.md:75 "Pipeline step numbers are stable identifiers" — the
+  /// variant occupies the same logical position with a different algorithm.
+  ///
+  /// - Parameters:
+  ///   - samples: Mono PCM `[Float]`, normalized to `[-1.0, 1.0]`.
+  ///   - sampleRate: Hz (44.1k, 48k, 96k supported per `MelFilterbank`).
+  ///   - hopSize: FFT hop in samples (typically 441 at 44.1k).
+  ///   - computeSubBands: Gate for 4 sub-band envelope extraction (mirrors
+  ///     `computeMelOnsetEnvelopeWithSubBands`'s contract).
+  ///   - normalizeSubBands: Gate for per-band max normalization, applied
+  ///     after sub-band extraction.
+  ///   - captureMLFeatures: Gate for retaining the log-mel matrix in
+  ///     ``OnsetEnvelopes/mlFeatures``.
+  /// - Returns: An ``OnsetEnvelopes`` with `fullBand` (frame-count), four
+  ///   `subBands` (each frame-count), and optional `mlFeatures`. Returns
+  ///   sentinel-empty envelopes for degenerate inputs (silent buffer,
+  ///   frame count < 2). **Does not throw** — sentinel-return semantics
+  ///   per project-context.md:39.
+  /// - Note: Variant of
+  ///   ``computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:captureMLFeatures:onPostVvlogf:)``.
+  ///   Gated by ``DSPTechnique/superFluxOnset`` in the technique set. Frequency-axis
+  ///   max-filter (canonical Böck 2013); time-axis variant is reserved for a future
+  ///   story per Codex 2026-05-17 thread `019e36de`.
+  /// - SeeAlso:
+  ///   - ``computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:captureMLFeatures:onPostVvlogf:)``
+  ///   - ``DSPTechnique/superFluxOnset``
+  ///   - Böck & Widmer (2013), DAFx-13 — https://phenicx.upf.edu/system/files/publications/Boeck_DAFx-13.pdf
+  static func computeSuperFluxOnsetEnvelope(
+    samples: [Float],
+    sampleRate: Double,
+    hopSize: Int,
+    computeSubBands: Bool = true,
+    normalizeSubBands: Bool = false,
+    captureMLFeatures: Bool = false
+  ) -> OnsetEnvelopes {
+    guard
+      let helper = computeLogMelFramesAndRetention(
+        samples: samples, sampleRate: sampleRate, hopSize: hopSize,
+        captureMLFeatures: captureMLFeatures)
+    else {
+      return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
+    }
+    let logMelFrames = helper.logMelFrames
+    let retainedMLFeatures = helper.mlFeatures
+
+    let n = vDSP_Length(melBands)
+    // Codex 2026-05-17 locked r=1, replicate-pad. r=1 → window = 3 mel bins.
+    // Larger radii reserved for a future ablation if SuperFlux clears the
+    // brutal-corpus gate.
+    let r = 1
+    let windowLength = vDSP_Length(2 * r + 1)
+    let paddedLength = melBands + (2 * r)
+
+    let frameCount = logMelFrames.count - 1
+    var fullBandEnvelope = [Float](repeating: 0, count: frameCount)
+    var subBandEnvelopes: [[Float]] = Array(
+      repeating: [Float](repeating: 0, count: frameCount), count: 4)
+    var paddedRef = [Float](repeating: 0, count: paddedLength)
+    var maxFilteredRef = [Float](repeating: 0, count: melBands)
+    var diff = [Float](repeating: 0, count: melBands)
+    var rectified = [Float](repeating: 0, count: melBands)
+
+    let bandRanges = [kickBandRange, snareLowRange, snareCrackRange, hiHatRange]
+
+    for i in 1..<logMelFrames.count {
+      let refFrame = logMelFrames[i - 1]
+      // 1. Build replicate-padded reference frame from M[t-1].
+      //    Codex 2026-05-17 rationale: replicate "preserves edge locality and
+      //    avoids reflecting interior energy into the kick/hi-hat boundaries"
+      //    (load-bearing for the 4 named DnB tracks). Zero-pad was rejected
+      //    outright; reflect-pad would over-count edges.
+      for k in 0..<r { paddedRef[k] = refFrame[0] }
+      for k in 0..<melBands { paddedRef[r + k] = refFrame[k] }
+      for k in 0..<r { paddedRef[r + melBands + k] = refFrame[melBands - 1] }
+
+      // 2. Frequency-axis max-filter on the padded reference frame.
+      //    vDSP_vswmax: C[n] = max(A[n], A[n+1], ..., A[n+WindowLength-1])
+      //    A must contain N+WindowLength-1 elements (paddedRef satisfies this).
+      //    A and C may NOT overlap — paddedRef and maxFilteredRef are distinct.
+      //    Apple verbatim: developer.apple.com/documentation/accelerate/vdsp_vswmax
+      vDSP_vswmax(paddedRef, 1, &maxFilteredRef, 1, n, windowLength)
+
+      // 3. SuperFlux temporal difference: diff = M[t] - max_filter(M[t-1])
+      //    vDSP_vsub parameter ORDER (B, A, C) computes C = A - B. Pass
+      //    maxFilteredRef as B (subtrahend), currFrame as A (minuend).
+      //    This is the ONLY step that differs in shape from the baseline at
+      //    computeMelOnsetEnvelopeWithSubBands — baseline passes prevFrame
+      //    directly as B; SuperFlux passes its max-filter.
+      logMelFrames[i].withUnsafeBufferPointer { currPtr in
+        vDSP_vsub(maxFilteredRef, 1, currPtr.baseAddress!, 1, &diff, 1, n)
+      }
+
+      // 4. Half-wave rectify: rectified = max(diff, 0) — byte-identical to baseline.
+      var threshold: Float = 0
+      vDSP_vthres(diff, 1, &threshold, &rectified, 1, n)
+
+      // 5. Sum across mel bands (full-band) and per-sub-band — identical to baseline.
+      var sum: Float = 0
+      vDSP_sve(rectified, 1, &sum, n)
+      fullBandEnvelope[i - 1] = sum
+
+      if computeSubBands {
+        rectified.withUnsafeBufferPointer { rectPtr in
+          for (bandIdx, range) in bandRanges.enumerated() {
+            var bandSum: Float = 0
+            vDSP_sve(
+              rectPtr.baseAddress! + range.lowerBound, 1,
+              &bandSum, vDSP_Length(range.count))
+            subBandEnvelopes[bandIdx][i - 1] = bandSum
+          }
+        }
+      }
+    }
+
+    normalizeSubBandsInPlace(
+      &subBandEnvelopes, frameCount: frameCount,
+      apply: computeSubBands && normalizeSubBands)
+
+    let resultSubBands = computeSubBands ? subBandEnvelopes : []
+    return OnsetEnvelopes(
+      fullBand: fullBandEnvelope, subBands: resultSubBands, mlFeatures: retainedMLFeatures)
+  }
+
+  // MARK: - Shared Onset-Envelope Helpers (Story 4-7 refactor)
+
+  /// Shared FFT + Hann window + mel-filterbank + log + MLFeatures-retention chain.
+  /// Story 4-7 extracted this from `computeMelOnsetEnvelopeWithSubBands` so the
+  /// baseline log-mel spectral-flux variant and the new SuperFlux variant share it
+  /// without code duplication (Task 3.2 requirement).
+  ///
+  /// Returns `nil` for either sentinel condition:
+  /// - FFT init fails (caller returns empty `OnsetEnvelopes`)
+  /// - `logMelFrames.count < 2` (caller returns empty `OnsetEnvelopes`)
+  ///
+  /// The byte-identity contract from `Tests/.../4-3-baseline-bpms.json`
+  /// (consumed by `dspOnlyMatchesStory4_3Baseline`) is preserved by this refactor:
+  /// the function body below is the exact sequence of vDSP/Swift operations from
+  /// pre-Story-4-7 `computeMelOnsetEnvelopeWithSubBands`, unchanged in order or
+  /// argument values. Story 4-7 Task 7 / AC #3 verifies byte-identity against the
+  /// Task-1 snapshot.
+  ///
+  /// - Parameter onPostVvlogf: Test-only seam (M2). Production callers pass `nil`.
+  private static func computeLogMelFramesAndRetention(
+    samples: [Float],
+    sampleRate: Double,
+    hopSize: Int,
+    captureMLFeatures: Bool,
+    onPostVvlogf: (([[Float]]) -> Void)? = nil
+  ) -> (logMelFrames: [[Float]], mlFeatures: MLFeatureFrames?)? {
+    guard
       let fft = vDSP.FFT(
         log2n: log2n, radix: .radix2, ofType: DSPSplitComplex.self)
     else {
-      return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
+      return nil
     }
 
     let window = vDSP.window(
@@ -628,53 +870,21 @@ struct BPMAnalyzer {
     }
 
     guard logMelFrames.count >= 2 else {
-      return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
+      return nil
     }
 
     // Story 4-5 review fix M2: test-only seam fires here, AFTER the per-frame
     // `vvlogf` loop completes and BEFORE the retention block reads
-    // `logMelFrames`. Production callers pass `nil`; tests pass a closure
-    // that deep-copies via `frames.map { Array($0) }` so the captured value
-    // is independent of any downstream mutation.
+    // `logMelFrames`. Production callers pass `nil`.
     onPostVvlogf?(logMelFrames)
 
     // Story 4-5 / DD #2 / AC #4 — retain the post-`vvlogf` per-frame log-mel
     // matrix BEFORE the temporal-difference loop below mutates intermediate
-    // state. The retention happens here so the byte-identity test (HALT (h))
-    // can compare against the exact post-vvlogf state. When the flag is off,
-    // the heavy [Float] payload is never allocated.
-    //
-    // Storage order: source-natural frame-major flat layout —
-    // [frame0_mel0, frame0_mel1, ..., frame0_melLast, frame1_mel0, ...] —
-    // matching `logMelFrames.flatMap { $0 }`. The `tensorLayout` tag
-    // accurately reports `.frameMajorLogMel` so third-party consumers
-    // don't need to know the producer's internal convention. The
-    // `BNNSTechnique` conformance transposes frame-major → mel-major
-    // before feeding the graph (DD #16-equivalent contract).
-    //
-    // Overflow guard before the `melBands * logMelFrames.count`
-    // multiplication: a multi-hour analysis window (consumer with
-    // `maxSeconds = 1800`) could trip Int overflow on the reserveCapacity
-    // computation; abstain via `mlFeatures = nil` rather than trap.
-    //
-    // Review fix N1 + Story 4-5 review pass v3:
-    // - `try?` blanket-swallow replaced with typed catch on
-    //   `MLTechniqueError.invalidFeatureShape` (the documented abstain path).
-    // - Size cap is enforced BEFORE `reserveCapacity`/`flatMap` so the
-    //   retention path doesn't allocate a multi-hundred-MB intermediate
-    //   buffer only to throw on the cap inside the init (review fix BH2).
-    // - Defensive `catch` simply returns nil rather than `assertionFailure`-ing
-    //   because a future init extension could legitimately throw additional
-    //   `MLTechniqueError` cases; trapping in DEBUG on the retention path
-    //   would mean every CI run dies the moment validation tightens (ECH2).
+    // state. Storage order: source-natural frame-major flat layout.
+    // Overflow guard via `multipliedReportingOverflow`; size cap enforced
+    // BEFORE allocation per review fix BH2.
     let retainedMLFeatures: MLFeatureFrames? = {
       guard captureMLFeatures, logMelFrames.count > 0 else { return nil }
-      // Boundary defense matching `MLFeatureFrames` init invariants.
-      // Use `multipliedReportingOverflow` to avoid the integer-division
-      // approximation in the previous `melBands <= Int.max / count` shape
-      // (dead-code guard at melBands=128 / ECH3) and to surface the same
-      // overflow path the init takes — when `melBands * frames` overflows
-      // `Int`, the producer abstains BEFORE any allocation.
       let (expectedCount, overflow) =
         melBands.multipliedReportingOverflow(by: logMelFrames.count)
       guard !overflow,
@@ -700,77 +910,36 @@ struct BPMAnalyzer {
           featureSetVersion: "v1"
         )
       } catch {
-        // Any thrown error — `.invalidFeatureShape` (documented abstain)
-        // or any future-added `MLTechniqueError` case — routes through
-        // graceful degradation to DSP-only. The retention path is best-
-        // effort; ML inference will abstain on `trace.mlFeatures == nil`.
         return nil
       }
     }()
 
-    let n = vDSP_Length(melBands)
-    let frameCount = logMelFrames.count - 1
-    var fullBandEnvelope = [Float](repeating: 0, count: frameCount)
-    var subBandEnvelopes: [[Float]] = Array(
-      repeating: [Float](repeating: 0, count: frameCount), count: 4)
-    var diff = [Float](repeating: 0, count: melBands)
-    var rectified = [Float](repeating: 0, count: melBands)
+    return (logMelFrames, retainedMLFeatures)
+  }
 
-    let bandRanges = [kickBandRange, snareLowRange, snareCrackRange, hiHatRange]
-
-    for i in 1..<logMelFrames.count {
-      logMelFrames[i - 1].withUnsafeBufferPointer { prevPtr in
-        logMelFrames[i].withUnsafeBufferPointer { currPtr in
-          vDSP_vsub(prevPtr.baseAddress!, 1, currPtr.baseAddress!, 1, &diff, 1, n)
-        }
-      }
-
-      var threshold: Float = 0
-      vDSP_vthres(diff, 1, &threshold, &rectified, 1, n)
-
-      // Full-band sum
-      var sum: Float = 0
-      vDSP_sve(rectified, 1, &sum, n)
-      fullBandEnvelope[i - 1] = sum
-
-      // Sub-band sums (skipped when computeSubBands is false)
-      if computeSubBands {
-        rectified.withUnsafeBufferPointer { rectPtr in
-          for (bandIdx, range) in bandRanges.enumerated() {
-            var bandSum: Float = 0
-            vDSP_sve(
-              rectPtr.baseAddress! + range.lowerBound, 1,
-              &bandSum, vDSP_Length(range.count))
-            subBandEnvelopes[bandIdx][i - 1] = bandSum
-          }
-        }
-      }
+  /// Per-sub-band max normalization (Story 4-7 refactor — shared by baseline and
+  /// SuperFlux variants). Normalizes each band to `[0,1]` and skips bands with
+  /// negligible energy (max < 1% of strongest band) to avoid amplifying noise
+  /// in near-silent bands. No-op when `apply == false`.
+  private static func normalizeSubBandsInPlace(
+    _ subBandEnvelopes: inout [[Float]], frameCount: Int, apply: Bool
+  ) {
+    guard apply else { return }
+    var bandMaxes = [Float](repeating: 0, count: subBandEnvelopes.count)
+    for bandIdx in 0..<subBandEnvelopes.count {
+      vDSP_maxv(subBandEnvelopes[bandIdx], 1, &bandMaxes[bandIdx], vDSP_Length(frameCount))
     }
+    var overallMax: Float = 0
+    vDSP_maxv(bandMaxes, 1, &overallMax, vDSP_Length(bandMaxes.count))
+    let energyThreshold = overallMax * 0.01  // 1% of strongest band
 
-    // Per-sub-band max normalization: normalize each band to [0,1] before returning.
-    // Skip bands with negligible energy (max < 1% of strongest band) to avoid
-    // amplifying noise in near-silent bands.
-    if computeSubBands && normalizeSubBands {
-      var bandMaxes = [Float](repeating: 0, count: subBandEnvelopes.count)
-      for bandIdx in 0..<subBandEnvelopes.count {
-        vDSP_maxv(subBandEnvelopes[bandIdx], 1, &bandMaxes[bandIdx], vDSP_Length(frameCount))
-      }
-      var overallMax: Float = 0
-      vDSP_maxv(bandMaxes, 1, &overallMax, vDSP_Length(bandMaxes.count))
-      let energyThreshold = overallMax * 0.01  // 1% of strongest band
-
-      for bandIdx in 0..<subBandEnvelopes.count {
-        guard bandMaxes[bandIdx] > energyThreshold else { continue }
-        var maxVal = bandMaxes[bandIdx]
-        vDSP_vsdiv(
-          subBandEnvelopes[bandIdx], 1, &maxVal,
-          &subBandEnvelopes[bandIdx], 1, vDSP_Length(frameCount))
-      }
+    for bandIdx in 0..<subBandEnvelopes.count {
+      guard bandMaxes[bandIdx] > energyThreshold else { continue }
+      var maxVal = bandMaxes[bandIdx]
+      vDSP_vsdiv(
+        subBandEnvelopes[bandIdx], 1, &maxVal,
+        &subBandEnvelopes[bandIdx], 1, vDSP_Length(frameCount))
     }
-
-    let resultSubBands = computeSubBands ? subBandEnvelopes : []
-    return OnsetEnvelopes(
-      fullBand: fullBandEnvelope, subBands: resultSubBands, mlFeatures: retainedMLFeatures)
   }
 
   // MARK: - ACF Buffers (Story 1.1)
