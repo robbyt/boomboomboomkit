@@ -37,9 +37,57 @@ public func synthesizeBoundaryBurstFixture(
   burstDurationSeconds: Double = 0.020,
   seed: UInt64 = 0xC0FF_EE_C0FF_EE
 ) -> [Float] {
+  // Codex diff-review follow-up C1 (thread 019e3817-...): guard against
+  // parameter combinations that would hang or poison the fixture instead of
+  // failing loudly. precondition() is the project's idiom for "programmer
+  // error in test infrastructure" (matches BPMAnalyzer.swift's sample-rate
+  // and array-shape preconditions).
+  precondition(
+    sampleRate > 0,
+    "synthesizeBoundaryBurstFixture: sampleRate must be > 0 (got \(sampleRate))")
+  precondition(
+    durationSeconds > 0,
+    "synthesizeBoundaryBurstFixture: durationSeconds must be > 0 (got \(durationSeconds))"
+  )
+  precondition(
+    burstIntervalSeconds > 0,
+    "synthesizeBoundaryBurstFixture: burstIntervalSeconds must be > 0 (got \(burstIntervalSeconds))"
+  )
+  precondition(
+    burstDurationSeconds > 0,
+    "synthesizeBoundaryBurstFixture: burstDurationSeconds must be > 0 (got \(burstDurationSeconds))"
+  )
+  let nyquist = sampleRate / 2
+  precondition(
+    lowCenterHz > 0 && lowCenterHz < nyquist,
+    "synthesizeBoundaryBurstFixture: lowCenterHz must be in (0, \(nyquist)) Hz (got \(lowCenterHz))"
+  )
+  precondition(
+    highCenterHz > 0 && highCenterHz < nyquist,
+    "synthesizeBoundaryBurstFixture: highCenterHz must be in (0, \(nyquist)) Hz (got \(highCenterHz))"
+  )
+
   let totalSamples = Int(sampleRate * durationSeconds)
   let burstSamples = Int(sampleRate * burstDurationSeconds)
   let burstStride = Int(sampleRate * burstIntervalSeconds)
+
+  // Derived-value preconditions: catch sub-fractional inputs that round to
+  // zero/one and would otherwise produce non-terminating loops (stride=0),
+  // div-by-zero in the Hann denominator (burstSamples=1), or trap-on-Array-init
+  // (totalSamples<=0).
+  precondition(
+    totalSamples > 0,
+    "synthesizeBoundaryBurstFixture: derived totalSamples must be > 0 (got \(totalSamples) — check sampleRate × durationSeconds)"
+  )
+  precondition(
+    burstSamples >= 2,
+    "synthesizeBoundaryBurstFixture: derived burstSamples must be ≥ 2 (got \(burstSamples) — Hann denominator is burstSamples-1; check sampleRate × burstDurationSeconds)"
+  )
+  precondition(
+    burstStride > 0,
+    "synthesizeBoundaryBurstFixture: derived burstStride must be > 0 (got \(burstStride) — would non-terminate; check sampleRate × burstIntervalSeconds)"
+  )
+
   var output = [Float](repeating: 0, count: totalSamples)
 
   // Biquad bandpass coefficients (Robert Bristow-Johnson cookbook, BPF — constant

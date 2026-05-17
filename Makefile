@@ -139,14 +139,15 @@ super-flux-impact-report:
 	  echo "$$SHA$$DIRTY" \
 	) \
 	XCODE_VERSION=$$( \
+	  V=""; \
 	  if command -v xcodebuild >/dev/null 2>&1; then \
-	    xcodebuild -version 2>/dev/null | head -n1 | awk '{print $$2}' || echo unknown; \
-	  else \
-	    echo unknown; \
-	  fi \
+	    V=$$(xcodebuild -version 2>/dev/null | awk '/^Xcode/ {print $$2; exit}'); \
+	  fi; \
+	  if [ -z "$$V" ]; then echo unknown; else echo "$$V"; fi \
 	) \
 	SWIFT_VERSION=$$( \
-	  swift --version 2>/dev/null | head -n1 | sed -E 's/.*Swift version ([^ ]+).*/\1/' || echo unknown \
+	  V=$$(swift --version 2>/dev/null | sed -nE 's/.*Swift version ([^ ]+).*/\1/p' | head -n1); \
+	  if [ -z "$$V" ]; then echo unknown; else echo "$$V"; fi \
 	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests/superFluxImpactReport
 

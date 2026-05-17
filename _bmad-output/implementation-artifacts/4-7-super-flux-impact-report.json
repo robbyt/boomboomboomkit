@@ -12,9 +12,9 @@
   },
   "baseline_techniqueSet" : "optimal",
   "captured_with" : {
-    "captured_at" : "2026-05-17T22:32:14Z",
+    "captured_at" : "2026-05-17T23:19:20Z",
     "captured_by" : "Story 4-7 SuperFluxImpactTests",
-    "git_sha" : "2960737-dirty",
+    "git_sha" : "0800398-dirty",
     "macos_version" : "Version 26.5 (Build 25F71)",
     "swift_version" : "6.3.2",
     "tool" : "swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests",

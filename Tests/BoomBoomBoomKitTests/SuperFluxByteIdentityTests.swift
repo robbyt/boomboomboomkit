@@ -163,18 +163,26 @@ struct SuperFluxByteIdentityTests {
       """)
   }
 
-  /// Codex review 2026-05-17 ADJUST P4b: the bundled-fixture test above is a
-  /// "gate is wired in some direction" smoke check, NOT proof that SuperFlux
-  /// engages at the replicate-pad-exercised boundary mel-bins. This test uses
-  /// a purpose-built fixture (`synthesizeBoundaryBurstFixture`, P5) where the
-  /// max-filter MUST produce different output by construction; identical output
-  /// here means the gate composition with the rest of the pipeline is broken.
+  /// Codex review 2026-05-17 ADJUST P4b + follow-up C2 (thread 019e3817-...):
+  /// **analyzer-level** gate-engagement proof on a purpose-built discriminating
+  /// fixture. The fixture (`synthesizeBoundaryBurstFixture`, P5) excites the
+  /// replicate-pad-reached mel bins; whether mel-bin 0 / mel-bin 127 are
+  /// genuinely energized is validated separately by
+  /// `SuperFluxOnsetEnvelopeTests.replicatePadPreservesBoundaryBins`, which
+  /// also asserts per-bin SuperFlux-reference divergence at exactly the
+  /// boundary bins.
+  ///
+  /// This test does NOT localize the cause to specific mel bins — proof of
+  /// boundary-bin engagement lives at the envelope level. Here we only assert
+  /// that the analyzer produces bit-different output with `.superFluxOnset`
+  /// inserted; identical output on this fixture means gate composition with
+  /// the rest of the pipeline is broken (the variant either short-circuits
+  /// or its envelope changes get washed out downstream).
   ///
   /// Runs at the `BPMAnalyzer.estimateBPM` level (one level deeper than the
   /// bundled-fixture smoke test above) because the synthesized fixture is a
-  /// `[Float]` sample buffer, not a file. The check is still at the analyzer
-  /// scope — gate engagement at the same layer the AC targets.
-  @Test("dspOnlyDifferentOnDiscriminatingFixture — purpose-built max-filter engagement")
+  /// `[Float]` sample buffer, not a file.
+  @Test("dspOnlyDifferentOnDiscriminatingFixture — analyzer-level gate engagement")
   func dspOnlyDifferentOnDiscriminatingFixture() async throws {
     let sampleRate: Double = 44100
     let samples = synthesizeBoundaryBurstFixture(
@@ -203,12 +211,13 @@ struct SuperFluxByteIdentityTests {
       baselineResult.bpm.bitPattern != variantResult.bpm.bitPattern
         || baselineResult.confidence.bitPattern != variantResult.confidence.bitPattern,
       """
-      AC #8 STRICT: on a purpose-built boundary-discriminating fixture, the
-      SuperFlux variant MUST produce bit-different output from baseline.
-      Identical output here means the max-filter is not engaging at the
-      replicate-pad boundaries (mel-bin 0 / mel-bin 127) under the rest of the
-      analyzer pipeline. P5 validates the fixture energizes these bins; if this
-      test fails, the bug is in gate composition, not the fixture.
+      AC #8 analyzer-level smoke: on the purpose-built discriminating fixture,
+      the SuperFlux variant must produce bit-different analyzer output. This
+      test does NOT localize the cause to boundary mel-bins — that proof lives
+      in SuperFluxOnsetEnvelopeTests.replicatePadPreservesBoundaryBins (P5),
+      which asserts per-bin SuperFlux-reference divergence at bin 0 and bin 127
+      via the captured log-mel matrix. Identical output here means gate
+      composition with the rest of the pipeline is broken.
       """)
   }
 }
