@@ -453,22 +453,15 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
   - [ ] 6.5: Run `make super-flux-impact-report` against full OA300 — verify JSON shape, named-DnB and control flags correct, aggregate counts present
   - [ ] 6.6: Commit: `Story 4-7 Task 6: per-track spectral-flux impact-report harness + Makefile target`
 
-- [ ] **Task 7 — Run brutal-corpus gate (AC #4)** [CRITICAL — this task decides Branch A vs Branch B]
-  - [ ] 7.1: Run `make super-flux-impact-report` against full OA300 (post-Task-6 implementation)
-  - [ ] 7.2: Parse the JSON: count `namedDnBImproved` (named-DnB tracks where `variant_correct == true && baseline_correct == false`); count `controlsPreserved` (controls where `variant_correct == true`)
-  - [ ] 7.3: Decide branch:
-    - **Branch A**: `namedDnBImproved >= 1 && controlsPreserved == 4` → proceed to Task 8 (preset addition decision)
-    - **Branch B**: otherwise → proceed to Task 9 (inert-ship close-out)
-  - [ ] 7.4: Run `make benchmark` and `make benchmark-giantsteps` with `.superFluxOnset` enabled in the preset path — confirm aggregate floors still hold (AC #3 second clause for the variant-on case)
-  - [ ] 7.5: If Branch A: confirm at default `Options()` (variant absent) the aggregate floors still hold AND byte-identity holds against Task-1 snapshot. The variant gates correctly; default users see no change.
-  - [ ] 7.6: Commit (Branch A or B): `Story 4-7 Task 7: brutal-corpus-gate outcome — Branch <A|B>`
+- [x] **Task 7 — Run brutal-corpus gate (AC #4)** [CRITICAL — this task decides Branch A vs Branch B]
+  - [x] 7.1: Run `make super-flux-impact-report` against full OA300 (post-Task-6 implementation)
+  - [x] 7.2: Parse the JSON: count `namedDnBImproved` (named-DnB tracks where `variant_correct == true && baseline_correct == false`); count `controlsPreserved` (controls where `variant_correct == true`)
+  - [x] 7.3: Decide branch: **Branch B** (`namedDnBImproved=0/4 < 1` AND `controlsPreserved=2/4 < 4`)
+  - [x] 7.4: AC #3 second clause N/A for Branch B (no preset path includes `.superFluxOnset`); aggregate floors at default `Options()` (variant absent) confirmed: OA300 Acc1=58/82 Acc2=74/82, GiantSteps Acc1=537/661 Acc2=546/661 (>= floors 57/73 + 537/546)
+  - [x] 7.5: Branch A skipped — see Task 8 (skipped) and Task 9 (Branch B inert-ship close-out)
+  - [x] 7.6: Commit (Branch B): `Story 4-7 Task 7: brutal-corpus-gate outcome — Branch B`
 
-- [ ] **Task 8 — Preset addition (Branch A ONLY; skip if Branch B)**
-  - [ ] 8.1: Decide which preset(s) gain `.superFluxOnset` based on impact-report evidence — likely a new `.superFluxOptimal = .optimal ∪ {.superFluxOnset}` preset rather than mutating `.optimal` itself (preserves Story 3-2 / Story 3-3 default-preset Acc1 ceiling discipline). Document the decision rationale in the new preset's doc-comment.
-  - [ ] 8.2: Update `Sources/BoomBoomBoomKit/DSPTechnique.swift` with the new preset
-  - [ ] 8.3: Run full ablation matrix (`make ablation`) — confirm 256 combos complete; verify the new preset's Acc1 against the ablation evidence
-  - [ ] 8.4: Add unit test asserting the new preset's `dspTechniques` set composition is exactly the expected case set
-  - [ ] 8.5: Commit: `Story 4-7 Task 8: Branch A preset addition + ablation re-run`
+- [ ] **Task 8 — Preset addition (Branch A ONLY; skip if Branch B)** SKIPPED — Branch B outcome.
 
 - [ ] **Task 9 — Inert-ship close-out (Branch B ONLY; skip if Branch A)**
   - [ ] 9.1: Confirm no preset was mutated — `.optimal`, `.dnbOptimized`, `.clickAugmented` are byte-identical to pre-Story-4-7 state (`.full` auto-includes the new case by `Set(allCases)` construction — that's the only preset that changes, and the change is mechanical)
