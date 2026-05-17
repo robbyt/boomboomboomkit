@@ -463,11 +463,11 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
 
 - [ ] **Task 8 — Preset addition (Branch A ONLY; skip if Branch B)** SKIPPED — Branch B outcome.
 
-- [ ] **Task 9 — Inert-ship close-out (Branch B ONLY; skip if Branch A)**
-  - [ ] 9.1: Confirm no preset was mutated — `.optimal`, `.dnbOptimized`, `.clickAugmented` are byte-identical to pre-Story-4-7 state (`.full` auto-includes the new case by `Set(allCases)` construction — that's the only preset that changes, and the change is mechanical)
-  - [ ] 9.2: Add a doc-comment to `DSPTechnique.superFluxOnset` noting "Available for consumer experimentation. Story 4-7 brutal-corpus gate (2026-05-XX) did not clear; case is NOT in any production preset. See `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json` for per-track evidence."
-  - [ ] 9.3: File a deferred-work entry: "Story 4-7 spectral-flux variant shipped inert. Re-open trigger: a future story produces a DnB-targeted refinement (sub-band flux, SuperFlux-derived complex domain method) that EITHER resolves ≥1 named track WITH controls preserved, OR an external community contribution shows improvement on a different corpus. Until then, the case is a building block for future onset-detection research."
-  - [ ] 9.4: Commit: `Story 4-7 Task 9: Branch B inert-ship close-out`
+- [x] **Task 9 — Inert-ship close-out (Branch B ONLY; skip if Branch A)**
+  - [x] 9.1: Confirmed no preset was mutated — `.optimal`, `.dnbOptimized`, `.clickAugmented` byte-identical to pre-Story-4-7 state; `.full` auto-includes via `Set(allCases)` (mechanical)
+  - [x] 9.2: Added inert-ship doc-comment to `DSPTechnique.superFluxOnset` citing the impact-report JSON as evidence
+  - [x] 9.3: Filed deferred-work entry with re-open trigger
+  - [x] 9.4: Commit: `Story 4-7 Task 9: Branch B inert-ship close-out`
 
 - [ ] **Task 10 — Smoke-lane verification (AC #5, HALT-(e))**
   - [ ] 10.1: Read `AblationFullMatrixTests.smokeAblation` body — enumerate the 16 combos
