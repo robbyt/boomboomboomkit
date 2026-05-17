@@ -2,8 +2,9 @@
 //  AblationFullMatrixTests.swift
 //  BoomBoomBoomKitBenchmarkTests
 //
-//  Full 128-combination ablation matrix vs OA300 corpus.
-//  Story 3-3 grew the matrix from 2^6 = 64 to 2^7 = 128 by adding `.clickTrackCorrelation`.
+//  Full 256-combination ablation matrix vs OA300 corpus.
+//  Story 3-3 grew the matrix from 2^6 = 64 to 2^7 = 128 by adding `.clickTrackCorrelation`;
+//  Story 4-7 grew it from 2^7 = 128 to 2^8 = 256 by adding `.superFluxOnset`.
 //  Wall-clock on M5 Max (82-track corpus, post benchmark-infra-ablation-parallelism):
 //  ~77 s at the Makefile default ABLATION_PARALLELISM=16; ~81 s unbatched (cap=128);
 //  ~130 s at cap=8; ~230 s at cap=4. Per-chunk barrier cost is small at cap≥16.
@@ -59,12 +60,12 @@ struct AblationMatrixTests {
     groundTruth = try JSONDecoder().decode([OA300Track].self, from: data)
   }
 
-  @Test("full 128-combination ablation matrix", .timeLimit(.minutes(60)))
+  @Test("full 256-combination ablation matrix", .timeLimit(.minutes(60)))
   func fullAblationMatrix() async throws {
     let allCombos = TechniqueSet.allDSPCombinations()
 
     let (parallelism, source) = Self.resolvedParallelism()
-    print("\n=== Full 128-Combination Ablation Matrix ===")
+    print("\n=== Full 256-Combination Ablation Matrix ===")
     print("Ablation parallelism cap: \(parallelism) (source: \(source))")
     print(
       "Configuration".padding(toLength: 40, withPad: " ", startingAt: 0)
@@ -91,7 +92,7 @@ struct AblationMatrixTests {
       }
     }
 
-    // AC #4 (Story 3-3): all 128 combinations must complete without crashing.
+    // AC #4 (Story 3-3 / Story 4-7): all 256 combinations must complete without crashing.
     let failedCombos = results.filter { $0.label.hasPrefix("FAILED:") }
     let failedSummary = failedCombos.map(\.label).joined(separator: "; ")
     #expect(

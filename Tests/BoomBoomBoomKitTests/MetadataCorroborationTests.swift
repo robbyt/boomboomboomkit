@@ -571,14 +571,15 @@ struct MetadataCorroborationOA300Tests {
 @Suite("Architecture Invariants — Story 3.6 regression guards")
 struct ArchitectureInvariantsTests {
 
-  @Test("DSPTechnique.allCases.count == 7 (no metadata case added)")
+  @Test(
+    "DSPTechnique.allCases.count == 8 (no metadata case added; Story 4-7 added .superFluxOnset)")
   func dspTechniqueCount() {
-    #expect(DSPTechnique.allCases.count == 7)
+    #expect(DSPTechnique.allCases.count == 8)
   }
 
-  @Test("TechniqueSet.allDSPCombinations().count == 128 (2^7)")
+  @Test("TechniqueSet.allDSPCombinations().count == 256 (2^8; Story 4-7 grew from 2^7)")
   func techniqueCombinationsCount() {
-    #expect(TechniqueSet.allDSPCombinations().count == 128)
+    #expect(TechniqueSet.allDSPCombinations().count == 256)
   }
 
   @Test("MetadataSource has exactly three cases")
