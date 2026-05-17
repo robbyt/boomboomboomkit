@@ -138,6 +138,16 @@ super-flux-impact-report:
 	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
 	  echo "$$SHA$$DIRTY" \
 	) \
+	XCODE_VERSION=$$( \
+	  if command -v xcodebuild >/dev/null 2>&1; then \
+	    xcodebuild -version 2>/dev/null | head -n1 | awk '{print $$2}' || echo unknown; \
+	  else \
+	    echo unknown; \
+	  fi \
+	) \
+	SWIFT_VERSION=$$( \
+	  swift --version 2>/dev/null | head -n1 | sed -E 's/.*Swift version ([^ ]+).*/\1/' || echo unknown \
+	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests/superFluxImpactReport
 
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)

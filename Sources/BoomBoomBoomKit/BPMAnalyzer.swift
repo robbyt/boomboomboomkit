@@ -522,6 +522,16 @@ struct BPMAnalyzer {
       self.subBands = subBands
       self.mlFeatures = mlFeatures
     }
+
+    /// Sentinel-empty envelope returned by the helper short-circuit path when
+    /// the input has fewer than 2 frames. Used by both
+    /// `computeMelOnsetEnvelopeWithSubBands` and `computeSuperFluxOnsetEnvelope`
+    /// to avoid duplicating the empty-envelope literal at the early-exit sites
+    /// (Codex review 2026-05-17 P8). `static let` is thread-safe (Swift 6 strict
+    /// concurrency) because all field types are `Sendable` and the value is
+    /// immutable.
+    static let empty = OnsetEnvelopes(
+      fullBand: [], subBands: [[], [], [], []], mlFeatures: nil)
   }
 
   /// Computes onset envelopes for both full-band and 4 sub-bands from mel-spectrogram.
@@ -559,7 +569,7 @@ struct BPMAnalyzer {
         samples: samples, sampleRate: sampleRate, hopSize: hopSize,
         captureMLFeatures: captureMLFeatures, onPostVvlogf: onPostVvlogf)
     else {
-      return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
+      return .empty
     }
     let logMelFrames = helper.logMelFrames
     let retainedMLFeatures = helper.mlFeatures
@@ -655,9 +665,14 @@ struct BPMAnalyzer {
   ///     ``OnsetEnvelopes/mlFeatures``.
   /// - Returns: An ``OnsetEnvelopes`` with `fullBand` (frame-count), four
   ///   `subBands` (each frame-count), and optional `mlFeatures`. Returns
-  ///   sentinel-empty envelopes for degenerate inputs (silent buffer,
-  ///   frame count < 2). **Does not throw** — sentinel-return semantics
-  ///   per project-context.md:39.
+  ///   sentinel-empty envelopes (empty `fullBand`, four empty `subBands`)
+  ///   when the input has fewer than 2 frames. For silent inputs with
+  ///   ≥ 2 frames, returns finite all-zero envelopes (`fullBand.count ==
+  ///   frameCount`, every element exactly `0.0`). Both contracts are
+  ///   tested by `SuperFluxOnsetEnvelopeTests.sentinelOnTooShortInput`
+  ///   and `SuperFluxOnsetEnvelopeTests.silentInputProducesFiniteZeros`
+  ///   respectively. **Does not throw** — sentinel-return semantics per
+  ///   project-context.md:39.
   /// - Note: Variant of
   ///   ``computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:captureMLFeatures:onPostVvlogf:)``.
   ///   Gated by ``DSPTechnique/superFluxOnset`` in the technique set. Frequency-axis
@@ -680,7 +695,7 @@ struct BPMAnalyzer {
         samples: samples, sampleRate: sampleRate, hopSize: hopSize,
         captureMLFeatures: captureMLFeatures)
     else {
-      return OnsetEnvelopes(fullBand: [], subBands: [[], [], [], []])
+      return .empty
     }
     let logMelFrames = helper.logMelFrames
     let retainedMLFeatures = helper.mlFeatures

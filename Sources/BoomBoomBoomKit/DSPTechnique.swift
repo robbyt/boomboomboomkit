@@ -74,7 +74,10 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
   /// changes per-track output on 82/82 OA300 tracks but resolves zero of the four named DnB
   /// triplet failures (Charly, Faraday_Bunker, Yin Yang, HEFT_Anagram 6) and regresses two
   /// of four DSP-correct controls (Hellacopta, Darkgray Heart) outside the ±0.5 BPM
-  /// tolerance. The case is NOT included in any production preset (`.optimal`,
+  /// tolerance. Enabling this case on top of `.optimal` regresses OA300 DSP-only Acc1
+  /// by 4 tracks (55 → 51); see
+  /// `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json` for
+  /// per-track impact. The case is NOT included in any production preset (`.optimal`,
   /// `.dnbOptimized`, `.clickAugmented`); `.full` auto-includes via `Set(allCases)`
   /// construction (per AC #4 Branch B). Available for consumer experimentation:
   /// `var opts = AudioAnalysisService.Options(); opts.techniqueSet = TechniqueSet.optimal.inserting(.superFluxOnset)`.
