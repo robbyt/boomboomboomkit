@@ -438,12 +438,12 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
   - [ ] 4.4: Run `make test` — all 420+ tests should still pass with `.superFluxOnset` absent from default `Options.techniqueSet`
   - [ ] 4.5: Commit: `Story 4-7 Task 4: BPMAnalyzer step 3 spectral-flux gating`
 
-- [ ] **Task 5 — Byte-equality opt-out test (AC #3, AC #8)**
-  - [ ] 5.1: Create `Tests/BoomBoomBoomKitTests/SuperFluxByteIdentityTests.swift`
-  - [ ] 5.2: First test: `dspOnlyByteIdenticalWithSuperFluxAbsent` — analyze each fixture in `AudioFixtures` with default `Options` (no `.superFluxOnset`); compare to Task-1 baseline using `Double.bitPattern` equality on `bpm`/`confidence`, element-wise on `candidates`; SHOULD pass (variant is gated correctly)
-  - [ ] 5.3: Second test: `dspOnlyDifferentWithSuperFluxPresent` — analyze same fixtures with `options.techniqueSet = TechniqueSet([.superFluxOnset, ...optimal])`; compare to baseline; SHOULD FAIL byte-identity (proves the variant actually does something — if this test passes byte-identity, the gate is broken)
-  - [ ] 5.4: Run via `make test` — both tests pass according to their respective contracts
-  - [ ] 5.5: Commit: `Story 4-7 Task 5: byte-equality opt-out tests for spectral-flux variant`
+- [x] **Task 5 — Byte-equality opt-out test (AC #3, AC #8)**
+  - [x] 5.1: Create `Tests/BoomBoomBoomKitTests/SuperFluxByteIdentityTests.swift`
+  - [x] 5.2: First test: `dspOnlyByteIdenticalWithSuperFluxAbsent` — analyze each fixture in `AudioFixtures` with default `Options` (no `.superFluxOnset`); compare to Task-1 baseline using `Double.bitPattern` equality on `bpm`/`confidence`, element-wise on `candidates`; SHOULD pass (variant is gated correctly)
+  - [x] 5.3: Second test: `dspOnlyDifferentWithSuperFluxPresent` — analyze same fixtures with `options.techniqueSet = TechniqueSet([.superFluxOnset, ...optimal])`; compare to baseline; SHOULD FAIL byte-identity (proves the variant actually does something — if this test passes byte-identity, the gate is broken)
+  - [x] 5.4: Run via `make test` — both tests pass according to their respective contracts
+  - [x] 5.5: Commit: `Story 4-7 Task 5: byte-equality opt-out tests for spectral-flux variant`
 
 - [ ] **Task 6 — Per-track impact report harness + Makefile target (AC #6, DD #7)**
   - [ ] 6.1: Create `Tests/BoomBoomBoomKitBenchmarkTests/SuperFluxImpactTests.swift` modeled after Story 3-3 `ClickImpactTests` and Story 3-4 `DurationImpactTests`
