@@ -445,7 +445,7 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
   - [x] 5.4: Run via `make test` — both tests pass according to their respective contracts
   - [x] 5.5: Commit: `Story 4-7 Task 5: byte-equality opt-out tests for spectral-flux variant`
 
-- [ ] **Task 6 — Per-track impact report harness + Makefile target (AC #6, DD #7)**
+- [x] **Task 6 — Per-track impact report harness + Makefile target (AC #6, DD #7)**
   - [ ] 6.1: Create `Tests/BoomBoomBoomKitBenchmarkTests/SuperFluxImpactTests.swift` modeled after Story 3-3 `ClickImpactTests` and Story 3-4 `DurationImpactTests`
   - [ ] 6.2: Suite trait `.enabled(if: ProcessInfo.processInfo.environment["SPECTRAL_FLUX_IMPACT"] == "1")` so it doesn't fire during `make test`
   - [ ] 6.3: Test body: for each OA300 fixture, run two analyses (baseline `Options()` and variant `Options()` with `.optimal ∪ {.superFluxOnset}`); accumulate per-track row per DD #7 schema; emit JSON to env-overridable path (default `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json`)
