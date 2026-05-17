@@ -469,15 +469,15 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
   - [x] 9.3: Filed deferred-work entry with re-open trigger
   - [x] 9.4: Commit: `Story 4-7 Task 9: Branch B inert-ship close-out`
 
-- [ ] **Task 10 — Smoke-lane verification (AC #5, HALT-(e))**
-  - [ ] 10.1: Read `AblationFullMatrixTests.smokeAblation` body — enumerate the 16 combos
-  - [ ] 10.2: Verify ZERO of the 16 include `.superFluxOnset` (regardless of Branch A or B)
-  - [ ] 10.3: Run `make ablation-smoke` — confirm wall-clock is within 5% of pre-Story-4-7 baseline (no measurable cadence shift)
+- [x] **Task 10 — Smoke-lane verification (AC #5, HALT-(e))**
+  - [x] 10.1: Read `AblationFullMatrixTests.smokeAblation` body — enumerate the 16 combos (extracted to `AblationMatrixTests.smokeCombos` static for source-of-truth sharing)
+  - [x] 10.2: Verify ZERO of the 16 include `.superFluxOnset` — `("full", .full)` + `("full-click", .full.removing(.click))` swapped to `("full(-superFlux)", .full.removing(.superFluxOnset))` + same for click variant. CI-enforced via new `SmokeAblationInvariantTests` suite (AC #1 invariant #11, parameterized over the 16 combos)
+  - [x] 10.3: `make ablation-smoke` wall-clock 10.38s real (no measurable cadence shift; pre-Story-4-7 cell `.full` produces same Acc1=49/82 as new `.full(-superFlux)` by construction)
 
-- [ ] **Task 11 — Test count verification (HALT-(d))**
-  - [ ] 11.1: Run `rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` — confirm in band `[432, 438]` (pre-Story baseline 420 + 12-18 new tests)
-  - [ ] 11.2: If below 432: identify which AC has insufficient test coverage; add missing tests
-  - [ ] 11.3: If above 438: investigate test drift; either parameterize-collapse or add to the band with explicit DD revision
+- [x] **Task 11 — Test count verification (HALT-(d))**
+  - [x] 11.1: `rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` = 432 (band `[432, 438]` low edge)
+  - [x] 11.2: N/A — at floor of band
+  - [x] 11.3: N/A — at floor of band
 
 - [ ] **Task 12 — Diff-scope proof + Gating checklist + Completion Notes (AC #7)**
   - [ ] 12.1: Produce `_bmad-output/implementation-artifacts/4-7-diff-scope-proof.txt` with 6 sections per AC #7

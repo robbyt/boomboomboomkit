@@ -44,6 +44,51 @@ struct AblationMatrixTests {
   private let corpusPath: String
   private let groundTruth: [OA300Track]
 
+  /// File-scope source-of-truth for the 16-combo smoke ablation lane.
+  /// Consumed by `smokeAblation` (corpus runner) and `SmokeAblationInvariantTests`
+  /// (CI-enforced HALT-(e) gate for Story 4-7 — verifies that `.superFluxOnset`
+  /// never enters the smoke combos by accident).
+  ///
+  /// Story 4-7 swap: the "full" and "full-click" entries pre-Story-4-7 used
+  /// `TechniqueSet.full` directly. Post-Story-4-7 `.full = Set(allCases)`
+  /// auto-includes `.superFluxOnset`, so the two entries use
+  /// `TechniqueSet.full.removing(.superFluxOnset)` (`= preStory47Full`) to keep
+  /// the smoke lane on the pre-Story-4-7 7-technique footprint per AC #5.
+  static let smokeCombos: [(String, TechniqueSet)] = {
+    let preStory47Full = TechniqueSet.full.removing(.superFluxOnset)
+    let preStory47FullMinusClick = preStory47Full.removing(.clickTrackCorrelation)
+    let optimalPlusClick = TechniqueSet.optimal.inserting(.clickTrackCorrelation)
+    let optimalMinusFinePlusClick = TechniqueSet.optimal
+      .removing(.fineGridRefinement)
+      .inserting(.clickTrackCorrelation)
+    let optimalPlusClickPlusNorm = optimalPlusClick.inserting(.subBandNormalization)
+    let baselinePlusClick = TechniqueSet.baseline.inserting(.clickTrackCorrelation)
+    let voteOnly = TechniqueSet(dspTechniques: [.subBandVoting, .fineGridRefinement])
+    let voteFineClick = voteOnly.inserting(.clickTrackCorrelation)
+    let sharpVote = TechniqueSet(
+      dspTechniques: [.acfSharpening, .subBandVoting, .fineGridRefinement])
+    let sharpVoteClick = sharpVote.inserting(.clickTrackCorrelation)
+    let dnbPlusClick = TechniqueSet.dnbOptimized.inserting(.clickTrackCorrelation)
+    return [
+      ("baseline", .baseline),
+      ("optimal", .optimal),
+      ("optimal+click", optimalPlusClick),
+      ("full(-superFlux)", preStory47Full),
+      ("full(-superFlux)-click", preStory47FullMinusClick),
+      ("dnbOptimized", .dnbOptimized),
+      ("baseline+click", baselinePlusClick),
+      ("vote+fine", voteOnly),
+      ("vote+fine+click", voteFineClick),
+      ("sharp+vote+fine", sharpVote),
+      ("sharp+vote+fine+click", sharpVoteClick),
+      ("optimal-fine+click", optimalMinusFinePlusClick),
+      ("optimal+click+norm", optimalPlusClickPlusNorm),
+      ("dnbOptimized+click", dnbPlusClick),
+      ("just sharp", TechniqueSet(dspTechniques: [.acfSharpening])),
+      ("click only", TechniqueSet(dspTechniques: [.clickTrackCorrelation])),
+    ]
+  }()
+
   init() throws {
     guard let path = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"], !path.isEmpty
     else {
@@ -292,6 +337,15 @@ struct AblationMatrixTests {
   /// Task 3.1). Includes `optimal` and `optimal+click` so click-technique regressions
   /// are caught without a 30-min wait. Gated by `ABLATION_SMOKE=1` so it doesn't run
   /// during ordinary `swift test --filter BoomBoomBoomKitBenchmarkTests`.
+  ///
+  /// **Story 4-7 invariant: zero of the 16 combos may contain `.superFluxOnset`** (per
+  /// AC #5 / HALT-(e) / DD #6). The two combos that would otherwise auto-include the
+  /// new case via `TechniqueSet.full = Set(DSPTechnique.allCases)` —
+  /// `("full", .full)` and `("full-click", .full.removing(.clickTrackCorrelation))` —
+  /// are swapped for pre-Story-4-7-equivalent variants computed via
+  /// `TechniqueSet.full.removing(.superFluxOnset)`. The wall-clock impact of the swap
+  /// is zero by construction (same 7-technique footprint as pre-Story-4-7 `.full`).
+  /// The CI-enforced invariant lives in `SmokeAblationInvariantTests` below.
   @Test(
     "smoke ablation — 16 curated combos including optimal and optimal+click",
     .timeLimit(.minutes(10)))
@@ -301,41 +355,7 @@ struct AblationMatrixTests {
       return
     }
 
-    // Curated set: presets + 10 ablation-relevant pairs that exercise the new
-    // .clickTrackCorrelation in combination with the high-impact techniques.
-    let optimalPlusClick = TechniqueSet.optimal.inserting(.clickTrackCorrelation)
-    let optimalMinusFinePlusClick = TechniqueSet.optimal
-      .removing(.fineGridRefinement)
-      .inserting(.clickTrackCorrelation)
-    let optimalPlusClickPlusNorm = optimalPlusClick.inserting(.subBandNormalization)
-    let fullMinusClick = TechniqueSet.full.removing(.clickTrackCorrelation)
-    let baselinePlusClick = TechniqueSet.baseline.inserting(.clickTrackCorrelation)
-    let voteOnly = TechniqueSet(dspTechniques: [.subBandVoting, .fineGridRefinement])
-    let voteFineClick = voteOnly.inserting(.clickTrackCorrelation)
-    let sharpVote = TechniqueSet(
-      dspTechniques: [.acfSharpening, .subBandVoting, .fineGridRefinement])
-    let sharpVoteClick = sharpVote.inserting(.clickTrackCorrelation)
-    let dnbPlusClick = TechniqueSet.dnbOptimized.inserting(.clickTrackCorrelation)
-
-    let curated: [(String, TechniqueSet)] = [
-      ("baseline", .baseline),
-      ("optimal", .optimal),
-      ("optimal+click", optimalPlusClick),
-      ("full", .full),
-      ("full-click", fullMinusClick),
-      ("dnbOptimized", .dnbOptimized),
-      ("baseline+click", baselinePlusClick),
-      ("vote+fine", voteOnly),
-      ("vote+fine+click", voteFineClick),
-      ("sharp+vote+fine", sharpVote),
-      ("sharp+vote+fine+click", sharpVoteClick),
-      ("optimal-fine+click", optimalMinusFinePlusClick),
-      ("optimal+click+norm", optimalPlusClickPlusNorm),
-      ("dnbOptimized+click", dnbPlusClick),
-      ("just sharp", TechniqueSet(dspTechniques: [.acfSharpening])),
-      ("click only", TechniqueSet(dspTechniques: [.clickTrackCorrelation])),
-    ]
-
+    let curated = Self.smokeCombos
     let gt = groundTruth
     let path = corpusPath
     let (parallelism, source) = Self.resolvedParallelism()
@@ -901,4 +921,44 @@ struct AblationMatrixTests {
 private enum AblationError: Error {
   case groundTruthNotFound
   case corpusPathNotSet
+}
+
+// MARK: - Story 4-7 AC #1 invariant #11 — CI-enforced smoke-lane gate
+
+/// Parameterized invariant test that converts Story 4-7 HALT-(e) from a
+/// manual code-review checkpoint into a CI-enforced gate. The test runs
+/// against every entry in `AblationMatrixTests.smokeCombos` and asserts
+/// none of them contain `.superFluxOnset`. The suite intentionally has
+/// NO `init() throws` corpus-path dependency so the invariant fires on
+/// every benchmark-target invocation, not only when OA300_CORPUS_PATH is
+/// set.
+///
+/// Parameterized form (per `axiom-testing/skills/swift-testing.md:220-228`):
+/// each combo is its own test case, so the failure message names the
+/// offending combo and a developer can re-run a single failing argument
+/// in isolation.
+@Suite("Story 4-7 — Smoke ablation invariants (AC #1 invariant #11 / HALT-(e))")
+struct SmokeAblationInvariantTests {
+
+  @Test(
+    "smoke combo does NOT include .superFluxOnset",
+    arguments: AblationMatrixTests.smokeCombos.map(\.1))
+  func smokeComboDoesNotIncludeSuperFlux(_ combo: TechniqueSet) {
+    #expect(
+      !combo.contains(.superFluxOnset),
+      """
+      Smoke combo \(combo.label) includes .superFluxOnset — Story 4-7 HALT-(e).
+      The smoke lane MUST stay on the pre-Story-4-7 7-technique footprint per
+      AC #5 / DD #6. If a smoke combo legitimately needs SuperFlux, propose a
+      follow-up story per DD #6's "Smoke addition path (future story authorization)".
+      """)
+  }
+
+  /// Defensive cross-check that AC #1 invariant #11 itself stays at 16 combos.
+  /// If the smoke lane shrinks/grows by accident, this fires before
+  /// `smokeComboDoesNotIncludeSuperFlux` would surface combo-level drift.
+  @Test("smoke ablation lane is exactly 16 combos")
+  func smokeLaneSize() {
+    #expect(AblationMatrixTests.smokeCombos.count == 16)
+  }
 }
