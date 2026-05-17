@@ -170,6 +170,50 @@ The legacy story-tagged filenames (`4-5-bnns-impact-report.json`, `4-6-bnns-impa
 
 Threshold-sweep workflow: invoke `make bnns-impact-report` multiple times with different `BNNS_THRESHOLD_OVERRIDE_CONFIDENCE` / `BNNS_THRESHOLD_OVERRIDE_MARGIN` env vars. Each run produces one canonical file with its own `recorded_at` + UUID. Compare across runs by reading the `applied_thresholds` field — no out-of-band sweep summary JSON is needed because the data lives in the files themselves.
 
+### Multi-run sweep without `-dirty` self-contamination
+
+A subtle gotcha: the Makefile's `GIT_SHA` detection runs `git status --porcelain` before each invocation and appends `-dirty` to the SHA in the filename if the working tree has any uncommitted state. When you run a multi-point threshold sweep against the canonical output directory, the FIRST run produces an untracked JSON file under `_bmad-output/perf-baselines/bnns-impact/` — the working tree is no longer clean from that point on, so every subsequent run in the sweep tags itself `-dirty` even though the underlying source SHA is unchanged. The first record has a clean SHA, the rest don't.
+
+**The right pattern: redirect output to `/tmp/` for the duration of the sweep, then move the files in atomically at the end.**
+
+```bash
+# 1. Verify the working tree is clean before starting.
+git status --porcelain  # must print nothing
+
+# 2. Stage all the runs to a temp dir so the working tree stays clean.
+mkdir -p /tmp/bnns-impact-fresh
+for pair in "0.50 0.10" "0.00 0.00" "0.10 0.02" "0.20 0.04" "0.30 0.05" "0.40 0.08" "0.65 0.20"; do
+  read conf margin <<< "$pair"
+  if [ "$conf" = "0.50" ]; then
+    # The default-threshold run skips the override env vars entirely so it
+    # records production defaults in `applied_thresholds`.
+    BNNS_MODEL_URL="$(pwd)/_bmad-output/ml-models/giantsteps_v1.mlmodelc" \
+    BNNS_IMPACT_OUT_DIR=/tmp/bnns-impact-fresh \
+      make bnns-impact-report
+  else
+    BNNS_MODEL_URL="$(pwd)/_bmad-output/ml-models/giantsteps_v1.mlmodelc" \
+    BNNS_IMPACT_OUT_DIR=/tmp/bnns-impact-fresh \
+    BNNS_THRESHOLD_OVERRIDE_CONFIDENCE="$conf" \
+    BNNS_THRESHOLD_OVERRIDE_MARGIN="$margin" \
+      make bnns-impact-report
+  fi
+done
+
+# 3. Confirm every captured file has a clean SHA (no `-dirty` substring).
+ls /tmp/bnns-impact-fresh/
+
+# 4. Move them all into the canonical location at once.
+mv /tmp/bnns-impact-fresh/*.json _bmad-output/perf-baselines/bnns-impact/
+
+# 5. Stage and commit. The next sweep will start from a clean tree again.
+git add _bmad-output/perf-baselines/bnns-impact/
+git commit -m "Story X-Y: regenerate bnns-impact baselines at post-fix SHA"
+```
+
+Same principle applies to `make perf-benchmark` and any other corpus-gated benchmark that writes to `_bmad-output/perf-baselines/`: if you're doing a multi-run capture, write the runs to `/tmp/` first, then move them in. Single-run captures don't need the temp redirect.
+
+`BNNS_MODEL_URL` (the BYOW seam introduced by Story 4-6) lets the impact-report harness load the develop-only `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` model when no bundle ships from `Sources/`. Story 4-6's Branch C close-out pulled the bundle from `main`; the develop-only copy at `_bmad-output/ml-models/` is what makes baseline regeneration reproducible on `develop` without re-bundling.
+
 **jq recipe — show all impact runs at SHA `5e08319` sorted by `confidence` threshold (sweep review):**
 ```bash
 jq -s --arg sha "5e08319" '[.[] | select(.git_sha == $sha)] |
