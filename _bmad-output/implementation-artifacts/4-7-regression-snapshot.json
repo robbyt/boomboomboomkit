@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "source_baseline_sha": "61d6161",
+  "source_baseline_sha_full": "61d6161da1664795d4964789870ee1073f4a127f",
+  "captured_at": "2026-05-17T21:05:00Z",
+  "captured_by": "Story 4-7 dev agent (Task 1 pre-source-change baseline)",
+  "generated_for_ac": "4-7/AC-3",
+  "host": {
+    "macos_version": "26.5 (Build 25F71)",
+    "xcode_version": "Xcode 26.5 (17F42)",
+    "swift_version": "Apple Swift version 6.3.2 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)",
+    "hardware": "Apple M5 Max, 18 cores, 128 GiB"
+  },
+  "note": "Per-track byte-identity anchor for Story 4-7 AC #3 (variant absent must produce byte-identical output to pre-source SHA). Following Story 4-6 precedent, the canonical fixture Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json IS the per-track byte-identity baseline (consumed by the existing dspOnlyMatchesStory4_3Baseline byte-identity gate test). Story 4-7 inherits that gate unchanged; the new SuperFluxByteIdentityTests.dspOnlyByteIdenticalWithSuperFluxAbsent test (Task 5) consumes the same fixture. The aggregate counts below were captured live by re-running make benchmark + make benchmark-giantsteps + make perf-benchmark at SHA 61d6161 on 2026-05-17.",
+  "byte_identity_baseline_fixture": "Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json",
+  "aggregate": {
+    "oa300_benchmark_test_path": {
+      "tool": "make benchmark (OA300BenchmarkTests, maxConfidence default merge)",
+      "acc1_correct": 57,
+      "acc2_correct": 73,
+      "total": 82,
+      "tolerance": 0.02,
+      "note": "Matches OA300BenchmarkTests.swift:104,108 unconditional #expect floors (Acc1 >= 57, Acc2 >= 73)."
+    },
+    "giantsteps_benchmark_test_path": {
+      "tool": "make benchmark-giantsteps (GiantStepsBenchmarkTests, intensity 7 default)",
+      "acc1_correct": 537,
+      "acc2_correct": 546,
+      "total": 661,
+      "tolerance": 0.02,
+      "note": "Matches GiantStepsBenchmarkTests.swift:82,86 unconditional #expect floors (Acc1 >= 537, Acc2 >= 546)."
+    },
+    "perf_benchmark_accuracy_snapshot": {
+      "tool": "make perf-benchmark (PerformanceBenchmarkTests accuracy snapshot path)",
+      "oa300_acc1_correct": 58,
+      "oa300_acc2_correct": 74,
+      "oa300_total": 82,
+      "giantsteps_acc1_correct": 537,
+      "giantsteps_acc2_correct": 546,
+      "giantsteps_total": 661,
+      "tolerance": 0.02,
+      "perf_baseline_file": "_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260517T205800Z--61d6161--28dd4fe8.json",
+      "wall_clock_mean_seconds": 0.17306862814814808,
+      "wall_clock_p95_seconds": 0.241365167,
+      "note": "perf-benchmark accuracy snapshot path uses a slightly different invocation; reports 58/74 vs the OA300BenchmarkTests 57/73. Both are stable values for SHA 61d6161 and are unrelated to Story 4-7's source changes (no source touched at this point)."
+    },
+    "unit_test_count": {
+      "tool": "rg '@Test\\(' Tests/BoomBoomBoomKitTests | wc -l",
+      "count": 420,
+      "ran": 418,
+      "skipped_env_gated": 2,
+      "note": "Story 4-7 HALT-(d) band: [432, 438] (baseline 420 + 12-18 new tests)."
+    }
+  },
+  "named_dnb_targets_fixture": {
+    "path": "Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json",
+    "schema_version_confirmed": 3,
+    "captured_with_git_sha": "1c8e274",
+    "named_failures": [
+      {"track_id": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework)", "ground_truth_bpm": 160.0, "current_predicted_bpm": 106.24575536776753},
+      {"track_id": "1. The Faraday_Bunker (D-Struct Remix)", "ground_truth_bpm": 170.0, "current_predicted_bpm": 113.47141575050482},
+      {"track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)", "ground_truth_bpm": 170.0, "current_predicted_bpm": 113.23972280701754},
+      {"track_id": "9. HEFT_Anagram 6 (Owl Remix)", "ground_truth_bpm": 170.0, "current_predicted_bpm": 113.36578128040475}
+    ],
+    "dsp_correct_controls_count": 4,
+    "controls_tolerance_bpm": 0.5
+  },
+  "gating_baseline": {
+    "make_fmt": "clean (no diff produced)",
+    "make_lint": "fails with the canonical pre-existing LUFSAnalyzer.swift:94 TODO violation. _bmad-output/ml-training/.venv/lib/python3.13/site-packages/coremltools/modelrunner/ModelService.swift produces additional noise unrelated to Story 4-7 (Python venv accidentally linted; pre-existing condition). Sources/ violation count: 1 (LUFSAnalyzer:94 TODO).",
+    "make_test": "418 tests in 91 suites pass"
+  }
+}
