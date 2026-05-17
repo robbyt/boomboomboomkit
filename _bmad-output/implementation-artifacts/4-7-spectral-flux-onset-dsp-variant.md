@@ -277,7 +277,7 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
   - [x] 2.7: Run `make test` — assert the unit-test invariants pin both numbers to 8 / 256
   - [x] 2.8: Commit: `Story 4-7 Task 2: DSPTechnique.superFluxOnset case + 10 invariant updates`
 
-- [ ] **Task 3 — Implement `computeSuperFluxOnsetEnvelope` (AC #2, DDs #2, #3)** [pure vDSP, no new dependencies]
+- [x] **Task 3 — Implement `computeSuperFluxOnsetEnvelope` (AC #2, DDs #2, #3)** [pure vDSP, no new dependencies]
   - [ ] 3.1: Add new internal function `computeSuperFluxOnsetEnvelope(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:captureMLFeatures:) -> OnsetEnvelopes` to `Sources/BoomBoomBoomKit/BPMAnalyzer.swift` adjacent to `computeMelOnsetEnvelopeWithSubBands`. Use the verbatim DocC template below (sourced from project Swift-doc convention; explicitly NO `- Throws` per project-context.md:39 "BPMAnalyzer ... return nil for no-result, never throw"):
 
     ```swift
