@@ -43,7 +43,7 @@ swift build -c release --build-tests -Xswiftc -enable-testing
 echo "[2/4] Locating xctest bundle host and helper..."
 # SPM emits the .xctest bundle under the platform-specific build dir
 # (.build/arm64-apple-macosx/release/), not .build/release/.
-XCTEST_BUNDLE=$(find .build -path '*/release/*.xctest' -type d 2>/dev/null | head -1)
+XCTEST_BUNDLE=$(find .build -path '*/release/*.xctest' -type d -print -quit 2>/dev/null)
 if [[ -z "$XCTEST_BUNDLE" ]]; then
   echo "ERROR: no .xctest bundle found under .build/*/release/" >&2
   exit 1
@@ -67,8 +67,18 @@ echo "       helper: $HELPER"
 # Inject DYLD_FRAMEWORK_PATH so dyld resolves @rpath/Testing.framework.
 TESTING_FRAMEWORK_DIR="/Applications/Xcode.app/Contents/SharedFrameworks"
 if [[ ! -d "$TESTING_FRAMEWORK_DIR/Testing.framework" ]]; then
-  # Fallback search if Xcode is at a non-default path.
-  TESTING_FRAMEWORK_DIR="$(dirname "$(find /Applications -maxdepth 6 -name 'Testing.framework' -type d 2>/dev/null | grep SharedFrameworks | head -1)")"
+  # Fallback search if Xcode is at a non-default path. Use `find -print -quit`
+  # instead of `find | grep | head -1`: under `set -o pipefail`, a head-closed
+  # pipe can hit EPIPE on subsequent `find` writes and abort the script when
+  # there are multiple matches (multi-Xcode-install machines). Hard-fail with
+  # a diagnostic if no match exists rather than silently using `dirname ""`
+  # which would resolve to `.` and point DYLD_FRAMEWORK_PATH at the cwd.
+  FOUND_TESTING_FRAMEWORK="$(find /Applications -maxdepth 6 -path '*SharedFrameworks*' -name 'Testing.framework' -type d -print -quit 2>/dev/null)"
+  if [[ -z "$FOUND_TESTING_FRAMEWORK" ]]; then
+    echo "ERROR: could not locate Testing.framework under */SharedFrameworks/ in /Applications. Install Xcode or set TESTING_FRAMEWORK_DIR explicitly." >&2
+    exit 1
+  fi
+  TESTING_FRAMEWORK_DIR="$(dirname "$FOUND_TESTING_FRAMEWORK")"
 fi
 echo "       Testing.framework dir: $TESTING_FRAMEWORK_DIR"
 

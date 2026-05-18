@@ -2,14 +2,22 @@
 //  BNNSTechniqueDiagnosticTests.swift
 //  BoomBoomBoomKitTests
 //
-//  Story 4-6 Task 10 + AC #3: parameterized coverage of the 6 failure
-//  stages + win path via `MLDiagnosticTechnique.evaluateWithDiagnostic(trace:)`.
+//  Story 4-6 Task 10 + AC #3: parameterized coverage of diagnostic stages
+//  via `MLDiagnosticTechnique.evaluateWithDiagnostic(trace:)`.
 //
-//  Model-independent stages are exercised in pure unit tests; model-
-//  dependent stages (graphFailed, decodeRejected, confidenceGateRejected,
-//  win) require a runnable `BNNSTechnique` and skip cleanly via the
-//  suite-level `.disabled(if: bundledModelMissing())` trait when no
-//  bundle is present (Branch C build).
+//  PR #2 round 2 (N5/N6): construction now goes through the committed
+//  `Fixtures/CustomBundled.mlmodelc` fixture (a runnable graph captured
+//  from the historical giantsteps_v1 checkpoint, retained in
+//  `Tests/BoomBoomBoomKitTests/Fixtures/` after Story 4-6 Branch C pulled
+//  the bundle from `Sources/`). The previous gate on
+//  `BNNSTechnique.bundledReferenceURL == nil` skipped this entire suite
+//  under Branch C builds, hiding the diagnostic-path coverage that
+//  doesn't actually need a trained model — it only needs a successfully-
+//  constructed `BNNSTechnique`. The fixture validates the graph contract
+//  (256 BPM bins, "input"/"output" tensor names) at init time; it does
+//  NOT validate trained-model semantics (decode/gate/win value
+//  assertions remain a future follow-up if/when a higher-quality model
+//  returns to the main-bound path).
 //
 
 import Foundation
@@ -18,20 +26,34 @@ import Testing
 @testable import BoomBoomBoomKit
 @testable import BoomBoomBoomKitML
 
-/// Suite-level `.disabled(if:)` predicate. Under Story 4-6 Branch C the
-/// `bundledReferenceURL` static is hardcoded `nil` and this predicate
-/// resolves to compile-time-true; the entire suite skips cleanly without
-/// recording per-test `Issue.record` failures. A future Branch-A retrain
-/// story that re-bundles a higher-quality model will flip the static
-/// back to non-nil and the suite will run again automatically.
+/// Resolves the bundled-with-tests `CustomBundled.mlmodelc` fixture URL.
+/// `.mlmodelc` is a directory, not a file, so `Bundle.module.url(for…)`
+/// (which targets files) can't be used; the canonical pattern is the one
+/// established by `BNNSTechniqueTests.swift` — build from
+/// `Bundle.module.resourceURL`. Returns nil if the resourceURL itself is
+/// missing (off-build-system access path); under normal `swift test` /
+/// `make test` invocations this is never nil.
 @available(macOS 15.0, *)
-private func diagnosticSuiteShouldSkip() -> Bool {
-  BNNSTechnique.bundledReferenceURL == nil
+private func fixtureURL() -> URL? {
+  guard let resourceURL = Bundle.module.resourceURL else { return nil }
+  let url =
+    resourceURL
+    .appendingPathComponent("Fixtures")
+    .appendingPathComponent("CustomBundled.mlmodelc")
+  return FileManager.default.fileExists(atPath: url.path) ? url : nil
+}
+
+/// Suite-level `.disabled(if:)` predicate. Returns `true` only when the
+/// committed fixture is unreachable — under `swift test` / `make test`
+/// it never fires and the suite runs.
+@available(macOS 15.0, *)
+private func fixtureMissing() -> Bool {
+  fixtureURL() == nil
 }
 
 @Suite(
-  "BNNSTechnique diagnostic paths (Story 4-6 AC #3)",
-  .disabled(if: { if #available(macOS 15.0, *) { diagnosticSuiteShouldSkip() } else { true } }())
+  "BNNSTechnique diagnostic paths (Story 4-6 AC #3 / PR #2 N5)",
+  .disabled(if: { if #available(macOS 15.0, *) { fixtureMissing() } else { true } }())
 )
 struct BNNSTechniqueDiagnosticTests {
 
@@ -43,10 +65,11 @@ struct BNNSTechniqueDiagnosticTests {
     arguments: PreFeaturizeAbstainCase.allCases)
   func preFeaturizeAbstain(_ caseArg: PreFeaturizeAbstainCase) throws {
     if #available(macOS 15.0, *) {
-      // Suite-level `.disabled(if:)` guards the no-bundled-model path;
+      // Suite-level `.disabled(if:)` guards the no-fixture path;
       // `try #require` treats a still-failing init as a real bug rather
       // than an Issue.record-as-skip anti-pattern (Story 4-6 P4).
-      let bnns = try #require(try? BNNSTechnique())
+      let url = try #require(fixtureURL())
+      let bnns = try BNNSTechnique(modelURL: url)
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = caseArg.makeFeatures()
       let result = bnns.evaluateWithDiagnostic(trace: trace)
@@ -61,7 +84,8 @@ struct BNNSTechniqueDiagnosticTests {
   @Test("featurizeRejected populates snapshot with checksum only")
   func featurizeRejected() throws {
     if #available(macOS 15.0, *) {
-      let bnns = try #require(try? BNNSTechnique())
+      let url = try #require(fixtureURL())
+      let bnns = try BNNSTechnique(modelURL: url)
       var trace = BPMDiagnosticTrace()
       // 16 frames < 32 frame DD #9 guard → featurize returns nil.
       trace.mlFeatures = try MLFeatureFrames(
@@ -97,25 +121,18 @@ struct BNNSTechniqueDiagnosticTests {
   /// to `trace.mlDiagnosticSnapshot`. The trace propagates back to
   /// the caller via `AudioAnalysisResult.trace`.
   ///
-  /// This test runs only if the bundled model is available (Branch A
-  /// build) — under Branch C the bundle is absent and BNNSTechnique()
-  /// throws.
+  /// Runs against the committed `CustomBundled.mlmodelc` fixture; the
+  /// `snapshot != nil` assertion only requires featurize to have run
+  /// (post-featurize paths always construct a snapshot), so the
+  /// fixture's logits don't matter for this test's contract — only
+  /// that `BNNSTechnique(modelURL:)` constructs successfully and the
+  /// graph reaches inference. Which `failureStage` lands is a function
+  /// of the fixture's logits and is intentionally not asserted here.
   @Test("traceAttachmentInvariants — snapshot lands when ML active + enableTrace true")
   func traceAttachmentInvariants() throws {
     if #available(macOS 15.0, *) {
-      // Suite-level `.disabled(if:)` guards the no-model path; the
-      // `try #require` below would surface a real-bug failure rather
-      // than skip-via-Issue.record.
-      // The test is structural — verifying the wiring works. Since
-      // exercising AudioAnalysisService with real audio is an
-      // integration concern handled by impact-report tests, we just
-      // verify the protocol routing returns a snapshot for a trace
-      // that reaches featurize.
       var trace = BPMDiagnosticTrace()
-      // 48 frames passes the DD #9 short-clip guard; randomized
-      // features are unlikely to trigger out-of-range argmax so this
-      // typically lands on `confidenceGateRejected` against the
-      // bundled model's two-gate thresholds.
+      // 48 frames passes the DD #9 short-clip guard.
       trace.mlFeatures = try MLFeatureFrames(
         melBands: 128,
         frames: 48,
@@ -130,7 +147,8 @@ struct BNNSTechniqueDiagnosticTests {
         melFmax: 16000.0,
         logCompressionScale: 100.0,
         featureSetVersion: "v1")
-      let bnns = try BNNSTechnique()
+      let url = try #require(fixtureURL())
+      let bnns = try BNNSTechnique(modelURL: url)
       let result = bnns.evaluateWithDiagnostic(trace: trace)
       // Snapshot must be non-nil because featurize ran (post-featurize
       // paths always construct a snapshot).
@@ -145,7 +163,8 @@ struct BNNSTechniqueDiagnosticTests {
   @Test("evaluate(trace:) discards snapshot and matches evaluateWithDiagnostic")
   func evaluateMatchesDiagnostic() throws {
     if #available(macOS 15.0, *) {
-      let bnns = try #require(try? BNNSTechnique())
+      let url = try #require(fixtureURL())
+      let bnns = try BNNSTechnique(modelURL: url)
       // Use a featurize-rejected case for determinism.
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = try MLFeatureFrames(

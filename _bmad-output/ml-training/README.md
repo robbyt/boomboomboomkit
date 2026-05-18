@@ -2,7 +2,7 @@
 
 Dev-only training pipeline for the reference tempo classifier `giantsteps_v1.mlmodelc` consumed by Story 4-5's `BNNSTechnique`. Local PyTorch + MPS training on M5 Max against GiantSteps (train/val) + OA300 (held-out test).
 
-**This directory lives ONLY on `develop` — it does NOT ship to `main`.** The release process (project-context.md §"Development Workflow Rules" — "What goes to main") excludes `_bmad-output/` from squash-merges. Only the produced `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` artifact ships to `main`. The consumer-facing convert tool that DOES ship to `main` lives at `tools/coreml-convert/` (Story 4-4b DD #13).
+**This directory lives ONLY on `develop` — it does NOT ship to `main`.** The release process (project-context.md §"Development Workflow Rules" — "What goes to main") excludes `_bmad-output/` from squash-merges. As of Story 4-6 Branch C, no bundled `.mlmodelc` ships to `main`; the develop-only training pipeline still produces `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` for BYOW benchmarks and impact-report runs (`BNNS_MODEL_URL=` seam in `Makefile`). Re-bundling is a future Branch-A retrain story; consumers today must pass `modelURL:` explicitly to `BNNSTechnique`. The consumer-facing convert tool that DOES ship to `main` lives at `tools/coreml-convert/` (Story 4-4b DD #13).
 
 ## Setup
 
