@@ -444,63 +444,84 @@ struct PerformanceBenchmarkTests {
   /// the empirical investigation that established this floor (Branch B —
   /// trace-build cost is structurally diffuse across 18 trace writes; no
   /// individual hotspot is reducible without architectural change).
-  @Test("ML mock-on-abstain wall-clock ≤ 1.20x baseline at intensity 7 (Story 4-3b tightened)")
+  @Test("ML mock-on-abstain wall-clock ≤ 1.60x baseline at intensity 7 (PR #2 F2/F17 rebaseline)")
   func mlMockOnAbstainPerf() async throws {
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
     }
     try #require(!availableTracks.isEmpty, "OA300 corpus is empty or paths are wrong")
 
-    // Per-track per-pass result: nil duration means analyzeBPM threw.
-    // Capturing the first error so an empty-corpus failure surfaces the
-    // root cause instead of a "no tracks succeeded" tautology
-    // (Story 4.3 review patch 2026-05-05).
-    func runPass(
-      mlTechnique: (any MLTechnique)?
-    ) -> (perTrack: [Double?], firstError: Error?) {
-      let clock = ContinuousClock()
-      var perTrack: [Double?] = []
-      var firstError: Error?
-      for track in availableTracks {
-        let url = trackURL(track)
-        let start = clock.now
-        do {
-          _ = try AudioAnalysisService.analyzeBPM(
-            url: url,
-            options: {
-              var o = AudioAnalysisService.Options()
-              o.intensity = .default
-              o.mlTechnique = mlTechnique
-              return o
-            }())
-          let elapsed = clock.now - start
-          perTrack.append(Self.durationSeconds(elapsed))
-        } catch {
-          if firstError == nil { firstError = error }
-          perTrack.append(nil)
-        }
+    // Counterbalanced per-track measurement (PR #2 follow-up F17): the
+    // historical shape `runPass(nil); runPass(mock)` left mock always running
+    // second per track, biased toward mock by OS filesystem-cache warmth from
+    // the just-finished baseline read. We now interleave AND counterbalance:
+    // even index (0, 2, 4 ...) measures baseline FIRST then mock; odd index
+    // (1, 3, 5 ...) measures mock FIRST then baseline. The downstream metric
+    // (`mockMean / baselineMean` over paired durations, with `dropFirst()`
+    // symmetric warmup) is intact, so the historical 1.20x threshold still
+    // means the same thing — only the per-track ordering changes.
+    //
+    // F2: ensemblePolicy = .mlOnly is required to actually invoke the mock.
+    // Default `.dspOnly` short-circuits MLTechnique.evaluate(trace:) at
+    // AudioAnalysisService.swift:333 even when `mlTechnique != nil`; the
+    // gate before F2 was therefore comparing two DSP-only passes.
+    let clock = ContinuousClock()
+    func measureOne(
+      url: URL, mlTechnique: (any MLTechnique)?, firstError: inout Error?
+    ) -> Double? {
+      let start = clock.now
+      do {
+        _ = try AudioAnalysisService.analyzeBPM(
+          url: url,
+          options: {
+            var o = AudioAnalysisService.Options()
+            o.intensity = .default
+            o.mlTechnique = mlTechnique
+            // Real ML invocation path (PR #2 follow-up F2). With the mock
+            // returning nil (abstain) the combiner falls back to DSP, so
+            // analysis result bytes stay DSP-derived; only the perf
+            // measurement covers the actual abstain-path overhead.
+            o.ensemblePolicy = .mlOnly
+            return o
+          }())
+        return Self.durationSeconds(clock.now - start)
+      } catch {
+        if firstError == nil { firstError = error }
+        return nil
       }
-      return (perTrack, firstError)
     }
 
-    let baseline = runPass(mlTechnique: nil)
-    let mockRun = runPass(mlTechnique: MockMLTechnique(returning: nil))
+    var baselinePerTrack: [Double?] = []
+    var mockPerTrack: [Double?] = []
+    var firstError: Error?
+    for (i, track) in availableTracks.enumerated() {
+      let url = trackURL(track)
+      if i % 2 == 0 {
+        let b = measureOne(url: url, mlTechnique: nil, firstError: &firstError)
+        let m = measureOne(
+          url: url, mlTechnique: MockMLTechnique(returning: nil),
+          firstError: &firstError)
+        baselinePerTrack.append(b)
+        mockPerTrack.append(m)
+      } else {
+        let m = measureOne(
+          url: url, mlTechnique: MockMLTechnique(returning: nil),
+          firstError: &firstError)
+        let b = measureOne(url: url, mlTechnique: nil, firstError: &firstError)
+        mockPerTrack.append(m)
+        baselinePerTrack.append(b)
+      }
+    }
 
-    // Symmetric warmup: aggregate ONLY over tracks that succeeded in
-    // BOTH passes (preserves A/B pairing under transient failures), then
-    // drop the first such index from BOTH passes (matches
-    // `benchmarkWallClockTime`'s warmup discipline). Story 4.3 review
-    // patch 2026-05-05: the prior per-pass `warmupAssigned` flag could
-    // exclude DIFFERENT first-successful tracks from baseline vs mock
-    // when failures diverged, breaking comparability.
+    // Pair zipping + symmetric warmup unchanged from the previous shape.
     var pairedDurations: [(baseline: Double, mock: Double)] = []
-    for (b, m) in zip(baseline.perTrack, mockRun.perTrack) {
+    for (b, m) in zip(baselinePerTrack, mockPerTrack) {
       if let b = b, let m = m { pairedDurations.append((b, m)) }
     }
 
     if pairedDurations.count < 2 {
       let diag: String
-      if let err = baseline.firstError ?? mockRun.firstError {
+      if let err = firstError {
         diag = "first analyzeBPM error: \(err)"
       } else {
         diag = "no analyzeBPM errors recorded — check OA300 corpus contents"
@@ -533,13 +554,23 @@ struct PerformanceBenchmarkTests {
     )
   }
 
-  /// Story 4-3b AC #4 (2026-05-05): tightened from Story 4.3's 1.30x
-  /// (unmeasured) to **1.20x** against the measured floor 1.083x (median
-  /// of 5 `make perf-benchmark` mock-injected runs on Apple M5 Max,
-  /// vector `[1.042, 1.083, 1.100, 1.093, 1.083]`). Per AC #4 formula
-  /// `safeThreshold(measured)`:
-  /// `ceil((1.083 + 0.10) / 0.05) * 0.05` = `ceil(23.66) * 0.05` = `1.20`.
-  private static let mlMockOnAbstainMaxRatio: Double = 1.20
+  /// PR #2 follow-up F2/F17 rebaseline (2026-05-18): widened to **1.60x**
+  /// against a real measurement (the prior 1.20x was set against a
+  /// degenerate gate that didn't actually invoke `MLTechnique.evaluate`
+  /// — both passes ran DSP-only because the default `.dspOnly` policy
+  /// short-circuited the mock at AudioAnalysisService.swift:333).
+  ///
+  /// New floor: 1.547x (mock 0.267s / baseline 0.173s over 81 OA300 tracks
+  /// under counterbalanced per-track ordering on Apple M5 Max). Headroom
+  /// 0.053 (~3% of floor). The historical 1.083x floor and Story 4-3b
+  /// formula no longer apply — that measurement was of the wrong path.
+  ///
+  /// Story 4-3b AC #4 history (now superseded): tightened from Story
+  /// 4.3's 1.30x (unmeasured) to 1.20x against a measured floor of 1.083x
+  /// across `[1.042, 1.083, 1.100, 1.093, 1.083]`. Both numbers measured
+  /// the degenerate gate; the 1.083x median was of `.dspOnly` vs
+  /// `.dspOnly`, not of `.mlOnly` vs no-ML.
+  private static let mlMockOnAbstainMaxRatio: Double = 1.60
 
   // MARK: - Helpers
 

@@ -24,15 +24,14 @@ Block 2's `out_per_branch=24` (yielding 72ch concat, not 96) is a deliberate
 deviation from spec DD #6's stated (32, 32, 32) — needed to land param count
 in the [150k, 350k] budget. See the inline comment in `TempoCNN.__init__`.
 
-Total parameters: ~150-300k expected (DD #6 budget). Verified at instantiation
-time by the `verify_param_budget()` helper.
+Total parameters: ~150-350k expected (DD #6 budget; verified by
+`verify_param_budget()` below — current implementation reports 315,096 params).
 """
 
 from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 # BPM bin schema per DD #7 — 256 integer bins from 30 to 285 BPM inclusive.
 BPM_BIN_MIN = 30
@@ -138,8 +137,8 @@ class TempoCNN(nn.Module):
         # x: (N, 1, n_mels, T)
         x = self.block1(x)  # (N, 48, n_mels, T)
         x = self.pool1(x)  # (N, 48, n_mels, T/5)
-        x = self.block2(x)  # (N, 96, n_mels, T/5)
-        x = self.pool2(x)  # (N, 96, n_mels, T/20)
+        x = self.block2(x)  # (N, 72, n_mels, T/5) — 24ch × 3 branches per __init__
+        x = self.pool2(x)  # (N, 72, n_mels, T/20)
         x = self.block3(x)  # (N, 96, n_mels, T/20)
         x = self.gap(x)  # (N, 96, 1, 1)
         x = x.flatten(1)  # (N, 96)
