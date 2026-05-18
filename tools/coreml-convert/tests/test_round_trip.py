@@ -408,3 +408,123 @@ def test_module_with_arch_reference_warns(
     assert rc == 0
     err = capsys.readouterr().err
     assert "ignored because --arch=reference" in err
+
+
+# --- F12 (PR #2 follow-up) bin-count validation tests ---
+
+
+def test_custom_without_expected_bin_count_prints_info(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """F12: --arch custom without --expected-bin-count emits a stdout INFO
+    diagnostic but does NOT fail. The custom fixture happens to output 256
+    bins (matches BPM_BIN_COUNT), but the contract is permissive in this
+    branch — the test asserts the BYOM workflow is not blocked.
+    """
+    fixture_path = THIS_DIR / "fixtures" / "custom_arch.py"
+    torch.manual_seed(0)
+    spec = importlib.util.spec_from_file_location("custom_arch_fixture", fixture_path)
+    custom_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(custom_mod)
+    model = custom_mod.CustomTempoCNN()
+    ckpt = tmp_path / "custom_noflag.pt"
+    torch.save(model.state_dict(), ckpt)
+    output = tmp_path / "custom_noflag.mlpackage"
+
+    rc = _run_convert([
+        "--checkpoint", str(ckpt),
+        "--arch", "custom",
+        "--module", f"{fixture_path}:CustomTempoCNN",
+        "--input-shape", "1,1,64,256",
+        "--output", str(output),
+        "--validate",
+    ])
+    assert rc == 0
+    captured = capsys.readouterr()
+    # Stdout, not stderr — stderr would imply warning/error to BYOM users.
+    assert "INFO" in captured.out and "per-sample elements" in captured.out
+    assert "Pass --expected-bin-count" in captured.out
+
+
+def test_custom_with_matching_expected_bin_count_passes(tmp_path: Path) -> None:
+    """F12: --arch custom + correct --expected-bin-count succeeds."""
+    fixture_path = THIS_DIR / "fixtures" / "custom_arch.py"
+    torch.manual_seed(0)
+    spec = importlib.util.spec_from_file_location("custom_arch_fixture", fixture_path)
+    custom_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(custom_mod)
+    model = custom_mod.CustomTempoCNN()
+    ckpt = tmp_path / "custom_match.pt"
+    torch.save(model.state_dict(), ckpt)
+    output = tmp_path / "custom_match.mlpackage"
+
+    rc = _run_convert([
+        "--checkpoint", str(ckpt),
+        "--arch", "custom",
+        "--module", f"{fixture_path}:CustomTempoCNN",
+        "--input-shape", "1,1,64,256",
+        "--expected-bin-count", "256",  # matches fixture
+        "--output", str(output),
+        "--validate",
+    ])
+    assert rc == 0
+    assert output.exists()
+
+
+def test_custom_with_wrong_expected_bin_count_halts(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """F12: --arch custom + WRONG --expected-bin-count hard-fails with HALT (g)."""
+    fixture_path = THIS_DIR / "fixtures" / "custom_arch.py"
+    torch.manual_seed(0)
+    spec = importlib.util.spec_from_file_location("custom_arch_fixture", fixture_path)
+    custom_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(custom_mod)
+    model = custom_mod.CustomTempoCNN()
+    ckpt = tmp_path / "custom_mismatch.pt"
+    torch.save(model.state_dict(), ckpt)
+    output = tmp_path / "custom_mismatch.mlpackage"
+
+    rc = _run_convert([
+        "--checkpoint", str(ckpt),
+        "--arch", "custom",
+        "--module", f"{fixture_path}:CustomTempoCNN",
+        "--input-shape", "1,1,64,256",
+        "--expected-bin-count", "128",  # fixture produces 256
+        "--output", str(output),
+        "--validate",
+    ])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "HALT" in err and "256 bins per sample" in err
+    assert not output.exists()
+
+
+def test_reference_arch_bin_count_enforced_via_monkeypatch(
+    synthetic_checkpoint: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """F12: reference path enforces BPM_BIN_COUNT. The reference always
+    produces 256 outputs; force the gate to fire by monkeypatching the
+    BPM_BIN_COUNT constant inside convert.py to 128. The model still emits
+    256 outputs but the gate compares against the patched value.
+    """
+    import convert as convert_mod
+
+    monkeypatch.setattr(convert_mod, "BPM_BIN_COUNT", 128)
+
+    output = tmp_path / "ref_bin_mismatch.mlpackage"
+    rc = _run_convert([
+        "--checkpoint", str(synthetic_checkpoint),
+        "--arch", "reference",
+        "--output", str(output),
+    ])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "HALT" in err
+    assert "256 bins per sample" in err and "expected 128" in err
+    assert not output.exists()

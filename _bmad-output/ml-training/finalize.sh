@@ -74,9 +74,16 @@ trap 'rm -rf "${COREML_TMP1}" "${COREML_TMP2}"' EXIT
   echo "    drop the sha-comparison and rely on model.mil diff alone."
   xcrun coremlc compile _bmad-output/ml-models/giantsteps_v1.mlmodel "${COREML_TMP1}/"
   xcrun coremlc compile _bmad-output/ml-models/giantsteps_v1.mlmodel "${COREML_TMP2}/"
-  diff "${COREML_TMP1}/giantsteps_v1.mlmodelc/model.mil" \
-       "${COREML_TMP2}/giantsteps_v1.mlmodelc/model.mil" \
-    && echo "PASS: model.mil identical"
+  # `diff X Y && echo PASS` is exempt from `set -e` (commands on the LHS of
+  # `&&` don't trigger errexit on non-zero), so a real diff failure would
+  # silently skip PASS and continue. Use explicit if/else to enforce the gate.
+  if diff "${COREML_TMP1}/giantsteps_v1.mlmodelc/model.mil" \
+          "${COREML_TMP2}/giantsteps_v1.mlmodelc/model.mil"; then
+    echo "PASS: model.mil identical"
+  else
+    echo "FAIL: model.mil differs between two coremlc compiles"
+    exit 1
+  fi
   h1=$(shasum -a 256 "${COREML_TMP1}/giantsteps_v1.mlmodelc/weights/weight.bin" | cut -d' ' -f1)
   h2=$(shasum -a 256 "${COREML_TMP2}/giantsteps_v1.mlmodelc/weights/weight.bin" | cut -d' ' -f1)
   if [ "$h1" = "$h2" ]; then

@@ -39,7 +39,7 @@ import torch
 import torch.nn as nn
 
 # Local imports
-from reference_arch import build_reference_model  # noqa: E402
+from reference_arch import BPM_BIN_COUNT, build_reference_model  # noqa: E402
 from validate import (  # noqa: E402
     validate_roundtrip_equivalence,
     validate_tensor_names,
@@ -78,7 +78,15 @@ def load_custom(module_spec: str, kwargs: dict | None = None) -> nn.Module:
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot load module spec for {mod_path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Prepend the user's module directory to sys.path so sibling imports
+    # inside `model.py` resolve without forcing the consumer to set
+    # PYTHONPATH or run from a specific cwd. try/finally guarantees restore
+    # even if exec_module raises (pytest harness loads multiple modules).
+    sys.path.insert(0, str(mod_path.parent))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
     cls = getattr(module, cls_name, None)
     if cls is None:
         raise AttributeError(f"Class {cls_name!r} not found in {mod_path}")
@@ -150,6 +158,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="Skip eager-vs-traced + tensor-name + roundtrip checks. NOT RECOMMENDED.",
     )
     p.add_argument("--atol", type=float, default=1e-3)
+    p.add_argument(
+        "--expected-bin-count",
+        type=int,
+        default=None,
+        help="Optional output bin-count enforcement for --arch custom. "
+             "When supplied with --arch custom, hard-fails on per-sample "
+             "output element count != value. With --arch reference, the "
+             "bin count is always enforced at BPM_BIN_COUNT (256) — this "
+             "flag is ignored to keep the reference contract stable.",
+    )
     return p.parse_args(argv)
 
 
@@ -185,7 +203,16 @@ def promote_directory(candidate: Path, final: Path) -> None:
                 # Restore prior good artifact before re-raising.
                 os.rename(old, final)
                 raise
-            shutil.rmtree(old, ignore_errors=True)
+            # `old` may be a directory (typical: .mlpackage / .mlmodelc) or a
+            # single-file .mlmodel left by an older toolchain. shutil.rmtree
+            # silently no-ops on files, so split the cleanup explicitly.
+            if old.is_dir():
+                shutil.rmtree(old, ignore_errors=True)
+            elif old.exists():
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
         else:
             os.rename(candidate, final)
     except OSError as e:
@@ -365,6 +392,53 @@ def main(argv: Optional[list[str]] = None) -> int:
                 file=sys.stderr,
             )
             return 1
+
+    # --- 4.5 Output bin-count validation ---
+    # Per-sample output element count, batch dim factored out. Matches the
+    # contract BNNSTechnique actually validates (total output elements per
+    # sample, not just `shape[-1]`).
+    with torch.no_grad():
+        _eager_out = model(example)
+    if _eager_out.shape[0] == 0:
+        print(
+            "ERROR: model produced a zero-batch output; cannot validate bin count.",
+            file=sys.stderr,
+        )
+        return 1
+    actual_bins = _eager_out.numel() // _eager_out.shape[0]
+    if args.arch == "reference":
+        if actual_bins != BPM_BIN_COUNT:
+            print(
+                f"*** HALT (g): --arch reference output has {actual_bins} bins per "
+                f"sample, expected {BPM_BIN_COUNT}. BNNSTechnique will reject this "
+                f"artifact. Check that the loaded checkpoint matches the canonical "
+                f"reference architecture in reference_arch.py. ***",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"Output bin count: {actual_bins} (matches BPM_BIN_COUNT={BPM_BIN_COUNT})")
+    else:  # --arch custom
+        if args.expected_bin_count is not None:
+            if actual_bins != args.expected_bin_count:
+                print(
+                    f"*** HALT (g): --arch custom output has {actual_bins} bins "
+                    f"per sample, expected {args.expected_bin_count} per "
+                    f"--expected-bin-count. ***",
+                    file=sys.stderr,
+                )
+                return 1
+            print(
+                f"Output bin count: {actual_bins} "
+                f"(matches --expected-bin-count={args.expected_bin_count})"
+            )
+        else:
+            # BYOM informational diagnostic — stdout (NOT stderr) so it
+            # doesn't look like a warning to consumers shipping non-standard
+            # bin counts. Pass --expected-bin-count to opt into enforcement.
+            print(
+                f"INFO: --arch custom output has {actual_bins} per-sample elements. "
+                f"Pass --expected-bin-count to enforce."
+            )
 
     # --- 5. Convert via coremltools ---
     try:

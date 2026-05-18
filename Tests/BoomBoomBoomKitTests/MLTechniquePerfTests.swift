@@ -54,6 +54,12 @@ struct MLTechniquePerfTests {
     var withMockOpts = AudioAnalysisService.Options()
     withMockOpts.intensity = .fastest
     withMockOpts.mlTechnique = MockMLTechnique(returning: nil)
+    // `.mlOnly` actually invokes MockMLTechnique.evaluate(trace:); the default
+    // `.dspOnly` short-circuits at AudioAnalysisService.swift:333 even when
+    // `mlTechnique != nil`. With the mock returning nil (abstain), the
+    // combiner falls back to DSP unchanged, so result bytes stay DSP-derived
+    // while the perf measurement covers the real abstain-path overhead.
+    withMockOpts.ensemblePolicy = .mlOnly
 
     let warmupIterations = 2
     let measuredIterations = 6
@@ -116,6 +122,10 @@ struct MLTechniquePerfTests {
     var withMockOpts = AudioAnalysisService.Options()
     withMockOpts.intensity = .fastest
     withMockOpts.mlTechnique = MockMLTechnique(returning: nil)
+    // See wiringPlumbingPaths for the .mlOnly rationale. Required here so
+    // xctrace captures the real abstain-path CPU samples, not a DSP-only
+    // pass that doesn't even reach MLTechnique.evaluate(trace:).
+    withMockOpts.ensemblePolicy = .mlOnly
 
     // 200 iterations × ~12 ms/iter = ~2.4 s of analyzer work. Override via
     // PROFILE_LOOPS_ITERS for longer captures.

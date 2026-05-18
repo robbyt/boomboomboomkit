@@ -43,12 +43,25 @@ def validate_roundtrip_equivalence(
     example: torch.Tensor,
     atol: float = 1e-3,
 ) -> tuple[bool, float]:
-    """Returns (passed, max_abs_diff)."""
+    """Returns (passed, max_abs_diff).
+
+    Shape contract is strict: BNNSTechnique consumes the raw CoreML output
+    shape, so the converter must not silently reshape. A `(1, 256)` PyTorch
+    output and a `(256,)` CoreML output have matching element counts but are
+    NOT the same artifact at the BNNS layer. Raise ValueError on mismatch
+    instead of reshaping (the caller treats this as HALT (g)).
+    """
     pytorch_model.eval()
     with torch.no_grad():
         eager_out = pytorch_model(example).numpy()
     pred = mlmodel.predict({"input": example.numpy()})
     out_key = "output" if "output" in pred else next(iter(pred.keys()))
-    cml_out = np.asarray(pred[out_key]).reshape(eager_out.shape)
+    cml_out = np.asarray(pred[out_key])
+    if cml_out.shape != eager_out.shape:
+        raise ValueError(
+            f"CoreML output shape {cml_out.shape} does not match "
+            f"PyTorch eager shape {eager_out.shape}. The converter must not "
+            f"silently reshape — BNNSTechnique consumes the raw output shape."
+        )
     max_abs = float(np.abs(eager_out - cml_out).max())
     return max_abs <= atol, max_abs

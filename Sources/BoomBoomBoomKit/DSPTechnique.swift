@@ -161,7 +161,10 @@ public struct TechniqueSet: Sendable, Hashable {
     dspTechniques: [.acfSharpening, .subBandVoting, .fineGridRefinement]
   )
 
-  /// All 7 techniques enabled, 5 candidates. NOT recommended as default.
+  /// All 8 techniques enabled, 5 candidates. NOT recommended as default.
+  /// As of Story 4-7, `Set(DSPTechnique.allCases)` auto-includes `.superFluxOnset`,
+  /// which regressed OA300 Acc1 by 4 tracks on top of `.optimal` per the brutal-corpus
+  /// gate — see `DSPTechnique.superFluxOnset` doc for context.
   public static let full = TechniqueSet(
     dspTechniques: Set(DSPTechnique.allCases)
   )

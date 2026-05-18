@@ -14,7 +14,7 @@ import Foundation
 /// at the post-corroboration stage of the analysis pipeline. The selected
 /// policy is configured through ``AudioAnalysisService/Options/ensemblePolicy``,
 /// per ADR-11's Options-first public configuration rule. It is NOT a
-/// ``DSPTechnique`` (no DSP changes; no expansion of the 128-combo ablation
+/// ``DSPTechnique`` (no DSP changes; no expansion of the 256-combo ablation
 /// matrix) and NOT a ``CandidateMergeStrategy`` case (still 8 cases). The
 /// policy is orthogonal to ``AnalysisIntensity`` — a `.dspOnly` policy is
 /// valid at every intensity level, with or without an ``MLTechnique``

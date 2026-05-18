@@ -154,7 +154,13 @@ options.mlTechnique = try? BNNSTechnique(modelURL: yourModel)
 // Path B — different architecture, your own MLTechnique conformance:
 options.mlTechnique = MyDeepRhythmTechnique()
 
-let result = try await AudioAnalysisService.analyzeBPM(url: trackURL, options: options)
+// Ensemble policy is `.dspOnly` by default — explicit opt-in is required
+// before MLTechnique.evaluate(trace:) is invoked. `.highestConfidence`
+// returns whichever of DSP or ML self-reports a higher confidence; ML
+// abstains (returns nil) fall back to DSP unchanged.
+options.ensemblePolicy = .highestConfidence
+
+let result = try AudioAnalysisService.analyzeBPM(url: trackURL, options: options)
 ```
 
 **No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of OA300 audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
