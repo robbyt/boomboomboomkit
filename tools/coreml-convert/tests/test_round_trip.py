@@ -302,6 +302,78 @@ def test_existing_mlpackage_survives_validation_failure(
     assert report["validation"]["roundtrip_passed"] is False
 
 
+def test_roundtrip_shape_contract_violation_is_halt(
+    synthetic_checkpoint: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """N2 (PR #2 round 2): when validate_roundtrip_equivalence raises
+    ValueError on a shape-contract violation, convert.main must catch it,
+    take the HALT (g) report+exit path, and preserve the failed artifact
+    at the .failed sibling — NOT escape as an uncaught Python traceback.
+
+    Monkeypatches validate_roundtrip_equivalence to raise; asserts:
+      - rc == 1 (validation-failure branch, not promotion)
+      - stderr carries the "Roundtrip equiv: FAIL — shape contract violation"
+        message
+      - convert_report.json has roundtrip_passed=false, roundtrip_max_abs=null
+        (JSON null, not Infinity / NaN), roundtrip_error=<message>
+      - the failed artifact lives at the .failed sibling path; out_path is
+        NOT promoted; no orphan staging dirs remain
+    """
+    import convert as convert_mod
+
+    raised_msg = "contrived 1x256 vs 1x128 shape diff"
+
+    def raising_validator(*_args, **_kwargs):
+        raise ValueError(raised_msg)
+
+    monkeypatch.setattr(
+        convert_mod, "validate_roundtrip_equivalence", raising_validator
+    )
+
+    output = tmp_path / "halt_test.mlpackage"
+    rc = _run_convert([
+        "--checkpoint", str(synthetic_checkpoint),
+        "--arch", "reference",
+        "--output", str(output),
+        "--validate",
+    ])
+    assert rc == 1, "shape-contract violation must take the validation-failure exit"
+
+    captured = capsys.readouterr()
+    assert f"Roundtrip equiv: FAIL — shape contract violation: {raised_msg}" in captured.err, (
+        f"expected FAIL-line on stderr; got stderr:\n{captured.err}"
+    )
+
+    # out_path NOT promoted (no prior artifact in this test setup).
+    assert not output.exists(), "out_path should not be promoted on shape-violation HALT"
+
+    # Failed artifact at .failed sibling path.
+    failed = output.parent / "halt_test.failed.mlpackage"
+    assert failed.exists(), f"expected failed sibling at {failed}"
+
+    failed_report = output.parent / "halt_test.failed.mlpackage.convert_report.json"
+    assert failed_report.exists()
+    report = json.loads(failed_report.read_text())
+    assert report["promoted"] is False
+    assert report["validation"]["roundtrip_passed"] is False
+    assert report["validation"]["roundtrip_max_abs"] is None, (
+        "roundtrip_max_abs must be JSON null on shape-violation, not Infinity/NaN"
+    )
+    assert report["validation"]["roundtrip_error"] == (
+        f"shape contract violation: {raised_msg}"
+    )
+
+    # No orphan staging dir.
+    leftover = [
+        s.name for s in tmp_path.iterdir()
+        if s.name.startswith(".coreml-convert.")
+    ]
+    assert not leftover, f"orphan staging dirs: {leftover}"
+
+
 def test_no_orphan_staging_dir_after_failure(tmp_path: Path) -> None:
     """P10/P18: no .coreml-convert.*.staging dirs remain after a failed conversion."""
     bad = tmp_path / "bad.pt"

@@ -424,26 +424,19 @@ struct PerformanceBenchmarkTests {
     try Self.handleBaselinePersistence(record: record, hardware: hardware)
   }
 
-  /// Story 4.3 AC #7 second-gate (post Codex C-modified, 2026-05-05),
-  /// tightened by Story 4-3b: the mock-on-abstaining ML path's wall-clock
-  /// at intensity 7 must complete within `mlMockOnAbstainMaxRatio` of the
-  /// `mlTechnique=nil` baseline recorded in this same suite invocation.
-  /// Hard-fail.
+  /// Story 4.3 AC #7 second-gate: the mock-on-abstaining ML path's
+  /// wall-clock at intensity 7 must complete within
+  /// `mlMockOnAbstainMaxRatio` of the `mlTechnique=nil` baseline recorded
+  /// in this same suite invocation. Hard-fail.
   ///
   /// Both passes run within a single test invocation so the comparison is
   /// against the same machine state, same warm/cold-cache profile, same
   /// system load — no cross-run noise. Each pass excludes its first
   /// successful track as warmup (matches `benchmarkWallClockTime`).
   ///
-  /// Threshold tightened to **1.20x** by Story 4-3b (2026-05-05) against
-  /// a measured floor of 1.083x (median of 5 mock-injected `make perf-benchmark`
-  /// runs on Apple M5 Max; 5-run vector `[1.042, 1.083, 1.100, 1.093, 1.083]`,
-  /// range (max-min) = 0.058 ≤ 0.10 bound). Computed via the AC #4 formula
-  /// `safeThreshold(measured)` = `ceil((1.083 + 0.10) / 0.05) * 0.05` = 1.20.
-  /// See `_bmad-output/implementation-artifacts/4-3b-trace-profile.md` for
-  /// the empirical investigation that established this floor (Branch B —
-  /// trace-build cost is structurally diffuse across 18 trace writes; no
-  /// individual hotspot is reducible without architectural change).
+  /// Threshold history and current floor are documented on
+  /// ``mlMockOnAbstainMaxRatio`` below (PR #2 F2/F17 rebaseline supersedes
+  /// the prior Story 4-3b tightening).
   @Test("ML mock-on-abstain wall-clock ≤ 1.60x baseline at intensity 7 (PR #2 F2/F17 rebaseline)")
   func mlMockOnAbstainPerf() async throws {
     let availableTracks = groundTruth.filter { track in
@@ -550,7 +543,7 @@ struct PerformanceBenchmarkTests {
 
     #expect(
       ratio <= Self.mlMockOnAbstainMaxRatio,
-      "Story 4-3b AC #4: mock-on-abstain ratio \(String(format: "%.3f", ratio))x exceeds tightened threshold \(String(format: "%.2f", Self.mlMockOnAbstainMaxRatio))x (inclusive) — investigate trace-build cost (4-3b-trace-profile.md establishes the structural floor)"
+      "PR #2 F2/F17: mock-on-abstain ratio \(String(format: "%.3f", ratio))x exceeds threshold \(String(format: "%.2f", Self.mlMockOnAbstainMaxRatio))x (rebaselined to real ML path in be26fa5). If this fires on a clean tree, the abstain-path cost has structurally regressed — do NOT silently widen the threshold."
     )
   }
 

@@ -515,23 +515,36 @@ def main(argv: Optional[list[str]] = None) -> int:
         # gets a separate structural check below in step 8.
         tensor_ok = True
         roundtrip_ok = True
-        roundtrip_max = 0.0
+        roundtrip_max: float | None = 0.0
+        roundtrip_error: str | None = None
         in_names_actual: list[str] = []
         out_names_actual: list[str] = []
         if args.validate:
             loaded = ct.models.MLModel(str(staging_pkg))
             tensor_ok, in_names_actual, out_names_actual = validate_tensor_names(loaded)
-            roundtrip_ok, roundtrip_max = validate_roundtrip_equivalence(
-                model, loaded, example, atol=args.atol
-            )
             print(
                 f"Tensor names:    {'OK' if tensor_ok else 'FAIL'} "
                 f"(input={in_names_actual}, output={out_names_actual})"
             )
-            print(
-                f"Roundtrip equiv: {'OK' if roundtrip_ok else 'FAIL'} "
-                f"(max abs diff {roundtrip_max:.6e}, atol {args.atol:.0e})"
-            )
+            try:
+                roundtrip_ok, roundtrip_max = validate_roundtrip_equivalence(
+                    model, loaded, example, atol=args.atol
+                )
+                print(
+                    f"Roundtrip equiv: {'OK' if roundtrip_ok else 'FAIL'} "
+                    f"(max abs diff {roundtrip_max:.6e}, atol {args.atol:.0e})"
+                )
+            except ValueError as e:
+                # validate.py raises ValueError on shape-contract violation per
+                # its docstring; main() owns the HALT (g) report+exit path. Set
+                # roundtrip_max=None (JSON null) — avoids json.dumps Infinity /
+                # NaN portability issues — and preserve the reason in
+                # roundtrip_error so it survives stderr scrollback. The numeric
+                # `:.6e` print above is reachable only on the no-exception path.
+                roundtrip_ok = False
+                roundtrip_max = None
+                roundtrip_error = f"shape contract violation: {e}"
+                print(f"Roundtrip equiv: FAIL — {roundtrip_error}", file=sys.stderr)
 
         # --- 8. Dispatch within staging dir to produce staged_final ---
         structural_ok = True
@@ -604,6 +617,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "tensor_names_output": out_names_actual,
                 "roundtrip_max_abs": roundtrip_max,
                 "roundtrip_passed": roundtrip_ok,
+                "roundtrip_error": roundtrip_error,
                 "structural_passed": structural_ok,
                 "structural_missing": structural_missing,
             })

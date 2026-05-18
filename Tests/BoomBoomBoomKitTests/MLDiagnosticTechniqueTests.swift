@@ -13,13 +13,25 @@ import Testing
 
 /// Story 4-6 code review P15: the compile-time witness test is
 /// model-independent and ALWAYS runs. The existential runtime test
-/// depends on a successful `BNNSTechnique()` construction, so it skips
-/// cleanly via this suite-level predicate when the bundled model is
-/// absent (Branch C). The previous `catch { return }` pattern was
-/// performative — the test passed whether anything ran or not.
+/// depends on a successful `BNNSTechnique` construction; PR #2 round 2
+/// (N6) routes that through the committed `CustomBundled.mlmodelc`
+/// fixture (matches the BNNSTechniqueTests.swift convention) instead of
+/// gating on `bundledReferenceURL`, which is hardcoded `nil` under
+/// Story 4-6 Branch C and would otherwise leave the existential cast
+/// permanently untested.
 @available(macOS 15.0, *)
-private func diagnosticTechniqueSuiteShouldSkip() -> Bool {
-  BNNSTechnique.bundledReferenceURL == nil
+private func fixtureURL() -> URL? {
+  guard let resourceURL = Bundle.module.resourceURL else { return nil }
+  let url =
+    resourceURL
+    .appendingPathComponent("Fixtures")
+    .appendingPathComponent("CustomBundled.mlmodelc")
+  return FileManager.default.fileExists(atPath: url.path) ? url : nil
+}
+
+@available(macOS 15.0, *)
+private func fixtureMissing() -> Bool {
+  fixtureURL() == nil
 }
 
 @Suite("MLDiagnosticTechnique (Story 4-6 AC #3)")
@@ -44,16 +56,16 @@ struct MLDiagnosticTechniqueTests {
   /// conformer satisfies both. Without inheritance, runtime narrowing
   /// `as? MLDiagnosticTechnique` would lose the `evaluate(trace:)` slot.
   ///
-  /// Skipped via `.disabled(if:)` when the bundled model is absent
-  /// (Branch C); a still-failing `BNNSTechnique()` under the suite-
-  /// enabled path is a real bug surfaced via `try #require`. Story 4-6
-  /// code review P15 replaced the `catch { return }` pattern that
-  /// silently passed regardless of whether anything ran.
+  /// PR #2 N6: gated on `fixtureMissing()` (always false under normal
+  /// `swift test` / `make test`) and constructs `BNNSTechnique` from
+  /// the committed `CustomBundled.mlmodelc` fixture. Story 4-6 P15
+  /// previously gated on `bundledReferenceURL == nil`, which left the
+  /// existential cast permanently untested under Branch C builds.
   @Test(
     "MLDiagnosticTechnique inherits MLTechnique (existential witness)",
     .disabled(
       if: {
-        if #available(macOS 15.0, *) { return diagnosticTechniqueSuiteShouldSkip() }
+        if #available(macOS 15.0, *) { return fixtureMissing() }
         return true
       }())
   )
@@ -66,8 +78,9 @@ struct MLDiagnosticTechniqueTests {
       // existential. The compile-time witness above proves the type
       // relationship; this body proves the existential cast resolves
       // at runtime — fails (via try #require) rather than silently
-      // returning if `BNNSTechnique()` cannot construct.
-      let bnns: any MLDiagnosticTechnique = try #require(try? BNNSTechnique())
+      // returning if construction fails.
+      let url = try #require(fixtureURL())
+      let bnns: any MLDiagnosticTechnique = try BNNSTechnique(modelURL: url)
       let asMLTechnique: any MLTechnique = bnns
       _ = asMLTechnique  // Use the upcast result so the compiler retains it.
     }

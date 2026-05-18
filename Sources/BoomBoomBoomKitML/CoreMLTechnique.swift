@@ -2,27 +2,28 @@
 //  CoreMLTechnique.swift
 //  BoomBoomBoomKit
 //
-//  Placeholder for the CoreML-backed MLTechnique conformance (Story 4.6).
+//  Non-conforming placeholder type — does NOT adopt `MLTechnique`.
+//  Retained so `BoomBoomBoomKitML`'s `Bundle.module` symbol resolves
+//  and so the public-API surface remains stable. Use `BNNSTechnique`
+//  (same module) for ML augmentation today.
 //
 
 import CoreML
 
-/// Placeholder for the CoreML-backed `MLTechnique` conformance.
+/// Non-conforming placeholder type. **Does NOT adopt `MLTechnique`** and
+/// therefore cannot be assigned to ``AudioAnalysisService/Options/mlTechnique``.
 ///
-/// Story 4.6 wires this to `MLModel.init(contentsOf:configuration:)` reading
-/// `Bundle.module.url(forResource: "tempo_classifier", withExtension: "mlmodelc")`
-/// — `Bundle.module` resolves to `BoomBoomBoomKitML`'s bundle, NEVER
-/// `BoomBoomBoomKit`'s (which does not exist; the core target has no
-/// `resources:` declaration). Story 4.6 also adds `MLTechnique` conformance
-/// against the post-Story-4.3 protocol shape (`MLEvaluation` Sendable
-/// struct return, `BPMDiagnosticTrace` input).
+/// The production ML conformer is ``BNNSTechnique`` (same module) — load a
+/// `.mlmodelc` via `BNNSTechnique(modelURL:)` and assign that to
+/// `Options.mlTechnique`. See [MODEL_CARD.md](../../MODEL_CARD.md) and
+/// [tools/coreml-convert/](../../tools/coreml-convert/) for the BYOW
+/// (bring-your-own-weights) flow.
 ///
-/// Story 4.1 ships only the type stub so the package compiles and the
-/// `BoomBoomBoomKitML` target's `Bundle.module` symbol resolves.
-///
-/// **Pre-1.0 / no-BC notice:** Story 4.6 will change `init()` to
-/// `init() throws` when adding model load (per ADR-4). This signature
-/// change is pre-authorized — no deprecation cycle required.
+/// This type exists only so this module compiles and exposes a public
+/// symbol the package layout depends on. Re-introducing a CoreML-backed
+/// `MLTechnique` conformer is a future-epic concern with no scheduled
+/// story; if/when it returns, it will likely be a new type, not a
+/// retroactive conformance on this one.
 public struct CoreMLTechnique: Sendable {
   public init() {}
 }
