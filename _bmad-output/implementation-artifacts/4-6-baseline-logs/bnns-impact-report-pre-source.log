@@ -1,0 +1,104 @@
+OA300_CORPUS_PATH="/Users/rterhaar/Dropbox/OA300_OnsetAudio300" \
+	BNNS_IMPACT=1 \
+	BNNS_IMPACT_OUT_DIR="/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$( SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown); DIRTY=$( [ -n "$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); echo "$SHA$DIRTY" ) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.BNNSImpactTests/bnnsImpactReport
+[0/1] Planning build
+Building for debugging...
+[0/5] Write sources
+[1/5] Copying Fixtures
+[2/5] Write swift-version--58304C5D6DBC2206.txt
+[4/7] Emitting module BoomBoomBoomKit
+[5/7] Compiling BoomBoomBoomKit MLDiagnosticSnapshot.swift
+[6/12] Emitting module BoomBoomBoomKitTestSupport
+[7/12] Compiling BoomBoomBoomKitTestSupport GenreAccuracyReporter.swift
+[8/12] Compiling BoomBoomBoomKitTestSupport MockMLTechnique.swift
+[9/12] Emitting module BoomBoomBoomKitML
+[10/12] Compiling BoomBoomBoomKitML BNNSTechnique.swift
+[11/38] Compiling BoomBoomBoomKitBenchmarkTests AblationFullMatrixTests.swift
+/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:397:75: warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+395 |   /// runs under `.serialized` because env mutation is process-global and would race
+396 |   /// with concurrent click-using tests in the same suite.
+397 |   @Test("α-sweep over .optimal-family combos", .timeLimit(.minutes(10)), .serialized)
+    |                                                                          `- warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+398 |   func alphaSweep() async throws {
+399 |     guard ProcessInfo.processInfo.environment["ALPHA_SWEEP"] == "1" else { return }
+[12/38] Compiling BoomBoomBoomKitBenchmarkTests PerformanceBenchmarkTests.swift
+[13/38] Compiling BoomBoomBoomKitBenchmarkTests DAWOracleBenchmarkTests.swift
+[14/38] Emitting module BoomBoomBoomKitBenchmarkTests
+/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:397:75: warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+395 |   /// runs under `.serialized` because env mutation is process-global and would race
+396 |   /// with concurrent click-using tests in the same suite.
+397 |   @Test("α-sweep over .optimal-family combos", .timeLimit(.minutes(10)), .serialized)
+    |                                                                          `- warning: Trait '.serialized' has no effect when used with a non-parameterized test function (from macro 'Test')
+398 |   func alphaSweep() async throws {
+399 |     guard ProcessInfo.processInfo.environment["ALPHA_SWEEP"] == "1" else { return }
+[15/38] Compiling BoomBoomBoomKitBenchmarkTests BNNSImpactTests.swift
+[16/38] Compiling BoomBoomBoomKitBenchmarkTests OA300BenchmarkTests.swift
+[17/38] Compiling BoomBoomBoomKitBenchmarkTests MLPolicySweepTests.swift
+[18/38] Compiling BoomBoomBoomKitBenchmarkTests GiantStepsBenchmarkTests.swift
+[19/38] Compiling BoomBoomBoomKitTests MLFeatureFramesTests.swift
+/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Tests/BoomBoomBoomKitTests/MLFeatureFramesTests.swift:118:21: warning: result of call to '_withTestingMaximumLogMelDataCount' is unused [#no-usage]
+116 |     // helper temporarily lowers the cap so we can construct a small but
+117 |     // over-cap payload, then restores the production cap on scope exit.
+118 |     MLFeatureFrames._withTestingMaximumLogMelDataCount(100) {
+    |                     `- warning: result of call to '_withTestingMaximumLogMelDataCount' is unused [#no-usage]
+119 |       #expect(throws: MLTechniqueError.self) {
+120 |         _ = try MLFeatureFrames(
+[20/38] Compiling BoomBoomBoomKitTests MetadataCorroborationTests.swift
+[21/38] Emitting module BoomBoomBoomKitTests
+[22/38] Compiling BoomBoomBoomKitTests EnsemblePolicyTests.swift
+[23/39] Compiling BoomBoomBoomKitTests BPMDiagnosticTraceTests.swift
+[24/39] Compiling BoomBoomBoomKitTests GenreAccuracyReporterTests.swift
+[25/39] Compiling BoomBoomBoomKitTests LUFSAnalyzerTests.swift
+[26/39] Compiling BoomBoomBoomKitTests FileMetadataReaderTests.swift
+[27/39] Compiling BoomBoomBoomKitTests PCMBufferReaderTests.swift
+[28/39] Compiling BoomBoomBoomKitTests MLTechniquePerfTests.swift
+[29/39] Compiling BoomBoomBoomKitTests MelFilterbankTests.swift
+[30/39] Compiling BoomBoomBoomKitTests BPMAnalyzerDurationHintTests.swift
+[31/39] Compiling BoomBoomBoomKitTests BPMAnalyzerClickTrackTests.swift
+[32/39] Compiling BoomBoomBoomKitTests EnsembleCombinerTests.swift
+[33/39] Compiling BoomBoomBoomKitTests AudioAnalysisServiceTests.swift
+/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Tests/BoomBoomBoomKitTests/AudioAnalysisServiceTests.swift:310:25: warning: result of call to 'next(isolation:)' is unused [#no-usage]
+308 |         }
+309 |         group.cancelAll()
+310 |         try await group.next()
+    |                         `- warning: result of call to 'next(isolation:)' is unused [#no-usage]
+311 |       }
+312 |       Issue.record("Expected CancellationError")
+[34/39] Compiling BoomBoomBoomKitTests MLTechniqueProtocolTests.swift
+[35/39] Compiling BoomBoomBoomKitTests AblationQuickTests.swift
+[36/39] Compiling BoomBoomBoomKitTests BNNSTechniqueTests.swift
+[37/39] Compiling BoomBoomBoomKitTests BPMAnalyzerTests.swift
+[37/39] Write Objects.LinkFileList
+[38/39] Linking BoomBoomBoomKitPackageTests
+Build complete! (4.15s)
+Test Suite 'Selected tests' started at 2026-05-15 01:56:05.254.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' started at 2026-05-15 01:56:05.255.
+Test Suite 'BoomBoomBoomKitPackageTests.xctest' passed at 2026-05-15 01:56:05.255.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.000) seconds
+Test Suite 'Selected tests' passed at 2026-05-15 01:56:05.255.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite "Story 4-5 BNNSImpact" started.
+◇ Test "bnnsImpactReport (BNNS_IMPACT=1)" started.
+
+=== BNNS Impact Report ===
+Output: /Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json
+Total tracks: 82
+DSP-only Acc1:    58/82
+ML-only Acc1:     0/82
+Ensemble Acc1:    58/82
+Named DnB resolved (±0.5 BPM): 0/4
+  - 1. The Faraday_Bunker (D-Struct Remix).wav: ensemble=113.47141575050482 gt=170.0 abs_err=56.52858424949518 resolved=false
+  - 4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav: ensemble=113.23972280701754 gt=170.0 abs_err=56.76027719298246 resolved=false
+  - 9. HEFT_Anagram 6 (Owl Remix).wav: ensemble=113.36578128040475 gt=170.0 abs_err=56.63421871959525 resolved=false
+  - The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff: ensemble=106.24575536776753 gt=160.0 abs_err=53.75424463223247 resolved=false
+✘ Test "bnnsImpactReport (BNNS_IMPACT=1)" recorded an issue at BNNSImpactTests.swift:427:21: Issue recorded
+↳ HALT (b): only 0 of 4 named DnB triplets resolved within ±0.5 BPM (required ≥ 2; DSP-fallback resolved another 0 — does not count). See /Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json for per-track failure modes.
+✘ Test "bnnsImpactReport (BNNS_IMPACT=1)" failed after 36.676 seconds with 1 issue.
+✘ Suite "Story 4-5 BNNSImpact" failed after 36.676 seconds with 1 issue.
+✘ Test run with 1 test in 1 suite failed after 36.677 seconds with 1 issue.
+make: *** [bnns-impact-report] Error 1

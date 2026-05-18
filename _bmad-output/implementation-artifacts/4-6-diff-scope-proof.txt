@@ -1,0 +1,156 @@
+Story 4-6 Branch C diff-scope proof
+Generated: 2026-05-16T16:03:20Z
+Task-1 pre-source SHA: 5e08319 (commit: Story 4-6 Task 1: pre-source-change baseline artifacts)
+Close-out commit: WORKING TREE (uncommitted, this proof captured pre-stage)
+
+============================================================
+Section 1 — git diff --stat $TASK1_SHA..HEAD-with-WT (Source + Tests scope)
+============================================================
+ Package.swift                                      |   8 +-
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  86 ++-
+ Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift   |  59 +-
+ Sources/BoomBoomBoomKit/MLDiagnosticSnapshot.swift | 278 +++++++++
+ .../BoomBoomBoomKit/MLDiagnosticTechnique.swift    | 114 ++++
+ Sources/BoomBoomBoomKitML/BNNSTechnique.swift      | 437 +++++++++++---
+ Sources/BoomBoomBoomKitML/Resources/.gitkeep       |   0
+ .../analytics/coremldata.bin                       | Bin 243 -> 0 bytes
+ .../giantsteps_v1.mlmodelc/coremldata.bin          | Bin 374 -> 0 bytes
+ .../Resources/giantsteps_v1.mlmodelc/metadata.json |  68 ---
+ .../Resources/giantsteps_v1.mlmodelc/model.mil     | 156 -----
+ .../giantsteps_v1.mlmodelc/weights/weight.bin      | Bin 1261952 -> 0 bytes
+ .../BNNSImpactTests.swift                          | 660 ++++++++++++++++++++-
+ .../Fixtures/4-dnb-triplet-targets.json            |  45 +-
+ .../BNNSTechniqueAbstainFloorTests.swift           | 212 +++++++
+ .../BNNSTechniqueDiagnosticTests.swift             | 189 ++++++
+ .../BoomBoomBoomKitTests/BNNSTechniqueTests.swift  |  42 +-
+ .../DnBTargetsFileLoadingTests.swift               |  88 +++
+ .../MLDiagnosticSnapshotTests.swift                | 137 +++++
+ .../MLDiagnosticTechniqueTests.swift               |  60 ++
+ 20 files changed, 2285 insertions(+), 354 deletions(-)
+
+============================================================
+Section 2 — git status -- Sources/ Tests/ Package.swift
+============================================================
+On branch rterhaar/epic-4
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	deleted:    Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/analytics/coremldata.bin
+	deleted:    Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/coremldata.bin
+	deleted:    Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/metadata.json
+	deleted:    Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/model.mil
+	deleted:    Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/weights/weight.bin
+
+Changes not staged for commit:
+  (use "git add/rm <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   Package.swift
+	modified:   Sources/BoomBoomBoomKit/AudioAnalysisService.swift
+	modified:   Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift
+	modified:   Sources/BoomBoomBoomKitML/BNNSTechnique.swift
+	deleted:    Sources/BoomBoomBoomKitML/Resources/.gitkeep
+	modified:   Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift
+	modified:   Tests/BoomBoomBoomKitTests/BNNSTechniqueAbstainFloorTests.swift
+	modified:   Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift
+
+
+============================================================
+Section 3 — Raw-BNNS-API guards (deprecated BNNSFilter* / Swift overlay BNNSGraph.* under BoomBoomBoomKitML)
+Expect zero NON-COMMENT matches (Story 4-5 invariant inherited). Comment mentions are doc references and are excluded.
+============================================================
+(no non-comment matches — PASS)
+
+Excluded comment-only mentions (informational):
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:8://  raw C API on macOS 15 (Swift overlay `BNNSGraph.Context` is locked out
+
+============================================================
+Section 4 — Trace-field audit recipes A-E (typed-evidence skill)
+Expect zero matches OUTSIDE the AC #2 added `mlDiagnosticSnapshot` field declaration.
+============================================================
+--- Recipe A: stringly-typed key constants under Sources/ ---
+(no matches)
+--- Recipe B: %.1f / %.2f / %.3f formatted-string trace inserts ---
+(no matches)
+--- Recipe C: dynamic Dictionary<String,Any> on trace ---
+(no matches outside *Detail typed structs)
+--- Recipe D: NSNumber/AnyObject boxed values on trace ---
+(no matches)
+--- Recipe E: String(format:) lines assigning into trace.* ---
+(no matches)
+
+============================================================
+Section 5 — Swift package external-deps count
+Expect 0 (zero-external-deps invariant).
+============================================================
+0
+
+============================================================
+Section 6 — Branch-C addendum (HALT-(g) gate)
+============================================================
+--- Subsection 6.1: Resources directory absent ---
+PASS — Sources/BoomBoomBoomKitML/Resources/ does not exist
+
+--- Subsection 6.2: Package.swift BoomBoomBoomKitML target has no live `.copy("Resources")` declaration ---
+BoomBoomBoomKitML .target block:
+    .target(
+      name: "BoomBoomBoomKit",
+      path: "Sources/BoomBoomBoomKit"
+    ),
+
+      name: "BoomBoomBoomKitML",
+      dependencies: ["BoomBoomBoomKit"],
+      path: "Sources/BoomBoomBoomKitML"
+        // Story 4-6 Branch C: `resources: [.copy("Resources")]` removed.
+        // The previously-bundled `giantsteps_v1.mlmodelc` was moved to
+        // `_bmad-output/ml-models/` (develop-only); see MODEL_CARD.md
+        // Status section for the full rationale. Re-add this line when a
+        // higher-quality bundled model returns.
+    ),
+
+
+Live (non-comment) grep for .copy("Resources") inside the block:
+(no live matches — PASS)
+
+Excluded comment mentions inside the block (informational):
+9:        // Story 4-6 Branch C: `resources: [.copy("Resources")]` removed.
+
+--- Subsection 6.3: Bundle moved to _bmad-output/ml-models/ ---
+PASS — _bmad-output/ml-models/giantsteps_v1.mlmodelc/ exists with 5 files
+_bmad-output/ml-models/giantsteps_v1.mlmodelc/analytics/coremldata.bin
+_bmad-output/ml-models/giantsteps_v1.mlmodelc/coremldata.bin
+_bmad-output/ml-models/giantsteps_v1.mlmodelc/metadata.json
+_bmad-output/ml-models/giantsteps_v1.mlmodelc/model.mil
+_bmad-output/ml-models/giantsteps_v1.mlmodelc/weights/weight.bin
+
+============================================================
+Section 7 — Release-doc grep (no current-shipping bundled-model claims; historical/Branch-C voice only)
+============================================================
+CLAUDE.md:| `Sources/` | All three SPM targets (`BoomBoomBoomKit`, `BoomBoomBoomKitTestSupport`, `BoomBoomBoomKitML`). Story 4-6 (Branch C close-out, 2026-05-16) removed the previously-bundled `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` reference model; it now lives at `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` (develop-only). The `BoomBoomBoomKitML` target ships without `resources: [.copy("Resources")]` until a higher-quality bundled model returns |
+CLAUDE.md:| `MODEL_CARD.md` | Authoritative bundled-model accuracy disclosure (per Story 4-4b party-mode follow-up) |
+tools/coreml-convert/README.md:> **Important context before you use this tool:** BoomBoomBoomKit's default analysis path is DSP-first. **No reference model is bundled with the library** — Story 4-6 (2026-05-16, Branch C close-out) removed the previously-bundled `giantsteps_v1.mlmodelc` because it abstained on 100% of the OA300 test corpus at production thresholds. The `BNNSTechnique` infrastructure is unchanged and ready to consume a higher-quality model when one is trained; this tool is the BYOW (bring-your-own-weights) entry point. See [MODEL_CARD.md](../../MODEL_CARD.md) for the Status section + the threshold-sweep evidence behind the bundle pull.
+tools/coreml-convert/README.md:| A. (removed in Story 4-6)     | —                 | No bundled default ships; see MODEL_CARD.md                  |
+tools/coreml-convert/README.md:Story 4-6 removed the previously-bundled `giantsteps_v1.mlmodelc` from the library; the no-arg `BNNSTechnique()` form now throws `.modelResourceMissing`. Consumers wanting ML must pass an explicit `modelURL:` — train your own checkpoint, run this tool to produce a compatible `.mlmodelc`, bundle it in your app.
+tools/coreml-convert/README.md:Story 4-6 (Branch C close-out) removed the previously-bundled reference
+tools/coreml-convert/README.md:You trained a tempo classifier with the same `TempoCNN` architecture as the historical reference (3 conv blocks, 256-bin BPM softmax, NCHW input `(1,1,128,512)`) on your own corpus. **Note:** Story 4-6 removed the previously-bundled reference checkpoint from the library; this path is now BYOW-only (the historical `giantsteps_v1.mlmodelc` is no longer in `Sources/`). Convert and bundle into your app:
+tools/coreml-convert/README.md:When `options.mlTechnique = nil` (the default), no ML model is loaded and the pipeline runs DSP-only. Story 4-6 (Branch C) removed the previously-bundled reference model; calling `BNNSTechnique()` (no arguments) now throws `.modelResourceMissing` because `BNNSTechnique.bundledReferenceURL` is `nil` in the current ship. The only supported ML path is the BYOW form: pass an explicit `modelURL:` pointing at a `.mlmodelc` you bundled in YOUR app.
+tools/coreml-convert/README.md:License compliance for your weights is your responsibility — BoomBoomBoomKit ships only the protocol + bundled reference; your weights live in your app's bundle under your app's license terms.
+tools/coreml-convert/README.md:- `Options.mlTechnique = try? BNNSTechnique()` → returns nil (no-arg form throws `.modelResourceMissing` under Story 4-6 Branch C — no bundled model in main).
+tools/coreml-convert/README.md:  --target macOS14|macOS15|iOS17|iOS18 Default: macOS15 (matches BoomBoomBoomKit's .macOS(.v15) package target and the bundled reference's metadata.json availability).
+README.md:**No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of OA300 audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:/// CPU-only inference path. **No bundled model ships** as of Story 4-6
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:///    `[1, 1, 128, 512]` NCHW input. The bundled model emits LOGITS
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:  /// Default URL for a library-bundled reference model. **Always `nil`
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:  /// removed the previously-bundled `giantsteps_v1.mlmodelc` from the
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:  /// Number of mel bands the bundled model expects on input. Surfaced as
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:        URL(fileURLWithPath: "<no bundled model in this build; pass modelURL: explicitly>"))
+Sources/BoomBoomBoomKitML/BNNSTechnique.swift:  /// the bundled model emits logits, NOT softmax probabilities; this is
+MODEL_CARD.md:# Bundled Reference Models — Model Card
+MODEL_CARD.md:This document is the authoritative source for accuracy, training-corpus, and limitations data for any Core ML model bundled with `BoomBoomBoomKit`. Update one entry per model whenever a new bundled artifact ships under `Sources/BoomBoomBoomKitML/Resources/`.
+MODEL_CARD.md:**No bundled model ships in `BoomBoomBoomKit`.** Story 4-6 (BNNS ML Accuracy Investigation and Bundle Decision) removed the previously-bundled `giantsteps_v1.mlmodelc` from `Sources/BoomBoomBoomKitML/Resources/` after the diagnostic instrumentation pass confirmed:
+MODEL_CARD.md:- `Options.mlTechnique = nil` (default) → DSP-only. Recommended for production until a higher-quality bundled model returns.
+MODEL_CARD.md:Bundled models are named `<corpus>_v<version>.mlmodelc` where:
+MODEL_CARD.md:| Metric | Bundled model | DSP pipeline (`intensity = 7`) | Δ |
+MODEL_CARD.md:**The bundled reference model is meaningfully WEAKER than the existing DSP pipeline on the same held-out corpus at the same tolerance.** Do not enable ML expecting an accuracy improvement over DSP-only without first validating against your own corpus.
+MODEL_CARD.md:   The model has effectively learned "DnB-shaped audio ≈ 170 BPM" and applies it bluntly. This is the same failure mode the DSP pipeline exhibits on a smaller subset, so the bundled model does not help on the cases where help is most needed.
+MODEL_CARD.md:If you want to ship a different bundled model (or replace this one), see "Adding a new bundled model" below.
+MODEL_CARD.md:## When NOT to use the bundled model
+MODEL_CARD.md:- You target half-tempo or non-Western-electronic content. The bundled model is corpus-biased toward the GiantSteps EDM distribution.

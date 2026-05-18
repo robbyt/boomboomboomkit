@@ -1,0 +1,143 @@
+Story 4-7 — Diff scope proof
+=============================
+
+Story:           4-7 SuperFlux Onset Detection DSP Variant
+Pre-source SHA:  3c6a1b2 (Task 1 baseline commit — preceded by 61d6161)
+Close-out SHA:   74150b1 (Task 10+11 commit, this proof generated at HEAD)
+Branch outcome:  B (Codex-authorized inert-ship)
+Generated at:    2026-05-17
+
+Section 1 — `git diff --stat 3c6a1b2~1 HEAD -- Sources/ Tests/ Makefile CLAUDE.md _bmad-output/ Package.swift`
+-----------------------------------------------------------------------------------------------------------
+
+ CLAUDE.md                                          |    6 +-
+ Makefile                                           |   14 +
+ Sources/BoomBoomBoomKit/BPMAnalyzer.swift          |  397 +++++---
+ Sources/BoomBoomBoomKit/DSPTechnique.swift         |   24 +-
+ .../AblationFullMatrixTests.swift                  |  141 ++-
+ .../SuperFluxImpactTests.swift                     |  303 ++++++
+ .../BoomBoomBoomKitTests/AblationQuickTests.swift  |    8 +-
+ .../Fixtures/4-7-byte-identity-baseline.json       |   37 +
+ .../MetadataCorroborationTests.swift               |    9 +-
+ .../SuperFluxByteIdentityTests.swift               |  165 ++++
+ .../SuperFluxOnsetEnvelopeTests.swift              |  252 +++++
+ .../4-7-regression-snapshot.json                   |   73 ++
+ .../4-7-spectral-flux-onset-dsp-variant.md         |  678 +++++++++++++
+ .../4-7-super-flux-impact-report.json              | 1011 ++++++++++++++++++++
+ .../implementation-artifacts/deferred-work.md      |    6 +
+ .../implementation-artifacts/sprint-status.yaml    |    7 +-
+ ...Debug--20260517T205800Z--61d6161--28dd4fe8.json |   40 +
+ _bmad-output/project-context.md                    |    8 +-
+ 18 files changed, 3014 insertions(+), 165 deletions(-)
+
+Section 2 — `git status -- Sources/` (working tree clean post-close-out)
+------------------------------------------------------------------------
+
+On branch rterhaar/epic-4
+nothing to commit, working tree clean
+
+Story 4-7 modified exactly 2 files under Sources/:
+ - Sources/BoomBoomBoomKit/BPMAnalyzer.swift    (helper extraction + SuperFlux function + step-3 gate)
+ - Sources/BoomBoomBoomKit/DSPTechnique.swift   (new case + doc-comment + 2^7 -> 2^8 invariant note + inert-ship doc)
+
+No other Sources/ files touched. No `BoomBoomBoomKitML` target changes.
+No `BPMDiagnosticTrace.swift` changes (per DD #12: no new trace fields).
+
+Section 3 — Deprecated DSP API check
+------------------------------------
+
+Recipe: `rg "(NSImage|NSPoint|legacyAPI|deprecatedDSP)" Sources/`
+Result: zero matches (vacuous — Story 4-7 uses only the canonical vDSP_vswmax,
+vDSP_vsub, vDSP_vthres, vDSP_sve primitives, all of which are non-deprecated
+and macOS 10.10+ availability per axiom-apple-docs validation 2026-05-17).
+
+Section 4 — Trace-field audit recipes A-E (per .claude/skills/bpm-diagnostic-trace/SKILL.md)
+--------------------------------------------------------------------------------------------
+
+Recipe A — banned `[String: T]` trace field shapes:
+  $ grep -nE 'public var [a-zA-Z]+Detail: \[String: (Float|String|Int|Double|Bool)\]' Sources/BoomBoomBoomKit/ Tests/
+  -> zero matches
+
+Recipe B — `%.1f` stringified BPM keys:
+  $ grep -nE 'String\(format: ?"%\.1f", ?[a-zA-Z]+\.bpm\)' Sources/BoomBoomBoomKit/ Tests/
+  -> zero matches
+
+Recipe C — CSV serialization in trace writes:
+  $ grep -nE 'trace\?\.[a-zA-Z]+Detail.*joined\(separator:' Sources/BoomBoomBoomKit/ Tests/
+  -> zero matches
+
+Recipe D — test consumer leftovers:
+  (vacuous — Story 4-7 adds no new trace fields per DD #12)
+
+Recipe E — non-Sendable evidence types in BPMDiagnosticTrace:
+  $ grep -nrE 'public struct [A-Z][a-zA-Z]*Evidence' Sources/BoomBoomBoomKit/
+  -> MetadataBPMEvidence, HarmonicRatioEvidence, SubBandVoteEvidence, DurationHintEvidence
+     ALL declare `Sendable` (pre-existing — Story 4-7 added nothing here)
+
+Section 5 — SPM external-deps count (still zero per AC #8)
+----------------------------------------------------------
+
+Recipe: `rg "\.package\(" Package.swift`
+Result: zero matches.
+
+The BoomBoomBoomKit, BoomBoomBoomKitTestSupport, BoomBoomBoomKitML, and the
+two test targets all use intra-package dependencies only. Story 4-7 added
+NO new SPM dependencies (pure vDSP — Accelerate framework is already a
+system framework).
+
+Section 6 — Story 4-7 addendum
+------------------------------
+
+(a) Ablation matrix count growth: 128 -> 256 (2^7 -> 2^8) — driven by the
+    new `.superFluxOnset` case in `DSPTechnique`. Verified via
+    `TechniqueSet.allDSPCombinations().count == 256` in
+    MetadataCorroborationTests + AblationQuickTests (unit-test pinned).
+
+(b) Smoke-lane combo count: unchanged at 16. Two combos that would
+    auto-include `.superFluxOnset` via `.full = Set(allCases)` were swapped:
+       ("full", .full)              -> ("full(-superFlux)", .full.removing(.superFluxOnset))
+       ("full-click", fullMinusClick) -> ("full(-superFlux)-click", same with .click also removed)
+    The two swap targets have the EXACT pre-Story-4-7 7-technique
+    membership, so wall-clock and per-combo Acc1/Acc2 are byte-identical
+    to pre-Story-4-7. AC #5 / HALT-(e) is CI-enforced via the new
+    `SmokeAblationInvariantTests` suite (parameterized over the 16
+    combos; fires per-combo without requiring OA300_CORPUS_PATH).
+
+(c) Byte-equality opt-out test:
+       Tests/BoomBoomBoomKitTests/SuperFluxByteIdentityTests.swift
+    consumes
+       Tests/BoomBoomBoomKitTests/Fixtures/4-7-byte-identity-baseline.json
+    captured at SHA 48483af (Task 4 — variant gated at step 3 but ABSENT
+    from default Options). Three @Tests:
+       - dspOnlyByteIdenticalWithSuperFluxAbsent (AC #3)
+       - optimalEqualsDefault                    (default == explicit .optimal)
+       - dspOnlyDifferentWithSuperFluxPresent    (AC #8 — gate does something)
+
+(d) DSP-helper refactor byte-identity proof:
+    Task 3 extracted `computeLogMelFramesAndRetention` + `normalizeSubBandsInPlace`
+    out of `computeMelOnsetEnvelopeWithSubBands`. The corpus-grain byte-
+    identity gate `MLPolicySweepTests.dspOnlyMatchesStory4_3Baseline`
+    PASSES at the post-Task-3 SHA, confirming the refactor preserved
+    bit-exact analyzer output across all 82 OA300 tracks.
+
+(e) Per-track impact report file scope:
+    `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json`
+    is a story-tagged artifact (schema_version 1), NOT a v3 harmonized
+    perf+ml-impact baseline (which lives under
+    `_bmad-output/perf-baselines/bnns-impact/`). Per DD #7.
+
+(f) File scope discipline (AC #8) — verified file list matches spec:
+    Modified source: BPMAnalyzer.swift, DSPTechnique.swift
+    Modified docs:   CLAUDE.md, _bmad-output/project-context.md
+    Modified tests:  MetadataCorroborationTests.swift, AblationQuickTests.swift,
+                     AblationFullMatrixTests.swift
+    Modified infra:  Makefile (new super-flux-impact-report target)
+    New test files:  SuperFluxByteIdentityTests.swift,
+                     SuperFluxOnsetEnvelopeTests.swift,
+                     SuperFluxImpactTests.swift
+    New fixtures:    Tests/.../Fixtures/4-7-byte-identity-baseline.json
+    Develop-only:    _bmad-output/implementation-artifacts/{spec, regression-snapshot,
+                     impact-report, diff-scope-proof, deferred-work,
+                     sprint-status}, _bmad-output/perf-baselines/...61d6161...json
+    NO new SPM products, NO new external dependencies, NO BoomBoomBoomKitML
+    changes, NO BPMDiagnosticTrace field additions.

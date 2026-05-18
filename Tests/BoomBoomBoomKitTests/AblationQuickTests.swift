@@ -16,15 +16,15 @@ import Testing
 @Suite("Ablation — Quick (presets vs click tracks)")
 struct AblationQuickTests {
 
-  @Test("TechniqueSet.allDSPCombinations generates 128 combinations")
+  @Test("TechniqueSet.allDSPCombinations generates 256 combinations (2^8; Story 4-7)")
   func allCombinationsCount() {
     let combos = TechniqueSet.allDSPCombinations()
-    #expect(combos.count == 128)
+    #expect(combos.count == 256)
   }
 
-  @Test("DSPTechnique.allCases has 7 cases")
+  @Test("DSPTechnique.allCases has 8 cases (Story 4-7 added .superFluxOnset)")
   func allCasesCount() {
-    #expect(DSPTechnique.allCases.count == 7)
+    #expect(DSPTechnique.allCases.count == 8)
   }
 
   @Test("preset properties")
@@ -109,19 +109,14 @@ struct AblationQuickTests {
   @Test("MLTechnique protocol can be conformed to")
   func mlTechniqueConformance() {
     struct NoOpML: MLTechnique {
-      let name = "noop"
-      func evaluate(
-        candidates: [(bpm: Double, score: Float)],
-        trace: BPMDiagnosticTrace
-      ) -> (bpm: Double, confidence: Double)? {
+      func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
         return nil
       }
     }
 
     let ml = NoOpML()
-    #expect(ml.name == "noop")
     let trace = BPMDiagnosticTrace()
-    let result = ml.evaluate(candidates: [(bpm: 120.0, score: 0.9)], trace: trace)
+    let result = ml.evaluate(trace: trace)
     #expect(result == nil)
   }
 }

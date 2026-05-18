@@ -2,8 +2,10 @@
 //  DSPTechnique.swift
 //  BoomBoomBoomKit
 //
-//  Closed enum of DSP pipeline techniques, composable TechniqueSet,
-//  and open MLTechnique protocol for future CoreML integration.
+//  Closed enum of DSP pipeline techniques and the composable TechniqueSet.
+//  The MLTechnique protocol + MLEvaluation return type live in
+//  MLTechnique.swift (relocated by Story 4.5 chunk-4 review 2026-05-13;
+//  Story 4.3 wired the path, Stories 4.5/4.6 ship BNNS/CoreML conformances).
 //
 
 import Foundation
@@ -59,6 +61,28 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
   /// Impact: TBD (validated by ablation in Story 3-3, Task 3).
   case clickTrackCorrelation
 
+  /// SuperFlux onset detection (Böck & Widmer 2013, DAFx).
+  /// Replaces the baseline log-mel spectral flux reference frame `M[t-1][k]` with a
+  /// frequency-neighborhood maximum `max(M[t-1][k-r:k+r])` (r=1, window=3 mel bins) before
+  /// per-frame differencing. Targets vibrato suppression on pitched-instrument onsets;
+  /// secondary hypothesis (Story 4-7) was that the widened reference helps on heavily-mastered
+  /// material where limiter-flattened transients confuse the baseline differencing.
+  /// Cost: one extra `vDSP_vswmax` pass per frame at the onset-envelope step (~3% of step 3).
+  ///
+  /// **Story 4-7 brutal-corpus-gate outcome: Branch B (inert-ship).** Per
+  /// `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json`, the variant
+  /// changes per-track output on 82/82 OA300 tracks but resolves zero of the four named DnB
+  /// triplet failures (Charly, Faraday_Bunker, Yin Yang, HEFT_Anagram 6) and regresses two
+  /// of four DSP-correct controls (Hellacopta, Darkgray Heart) outside the ±0.5 BPM
+  /// tolerance. Enabling this case on top of `.optimal` regresses OA300 DSP-only Acc1
+  /// by 4 tracks (55 → 51); see
+  /// `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json` for
+  /// per-track impact. The case is NOT included in any production preset (`.optimal`,
+  /// `.dnbOptimized`, `.clickAugmented`); `.full` auto-includes via `Set(allCases)`
+  /// construction (per AC #4 Branch B). Available for consumer experimentation:
+  /// `var opts = AudioAnalysisService.Options(); opts.techniqueSet = TechniqueSet.optimal.inserting(.superFluxOnset)`.
+  case superFluxOnset
+
   /// Short label used in ablation output (e.g., "sharp", "vote").
   var shortName: String {
     switch self {
@@ -69,6 +93,7 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
     case .fineGridRefinement: return "fine"
     case .subBandVoting: return "vote"
     case .clickTrackCorrelation: return "click"
+    case .superFluxOnset: return "superFlux"
     }
   }
 }
@@ -136,7 +161,10 @@ public struct TechniqueSet: Sendable, Hashable {
     dspTechniques: [.acfSharpening, .subBandVoting, .fineGridRefinement]
   )
 
-  /// All 7 techniques enabled, 5 candidates. NOT recommended as default.
+  /// All 8 techniques enabled, 5 candidates. NOT recommended as default.
+  /// As of Story 4-7, `Set(DSPTechnique.allCases)` auto-includes `.superFluxOnset`,
+  /// which regressed OA300 Acc1 by 4 tracks on top of `.optimal` per the brutal-corpus
+  /// gate — see `DSPTechnique.superFluxOnset` doc for context.
   public static let full = TechniqueSet(
     dspTechniques: Set(DSPTechnique.allCases)
   )
@@ -159,7 +187,9 @@ public struct TechniqueSet: Sendable, Hashable {
 
   // MARK: - Ablation
 
-  /// Generates all 2^7 = 128 DSP technique combinations (power set).
+  /// Generates all 2^8 = 256 DSP technique combinations (power set).
+  /// Grew from 2^6 = 64 (pre-Story-3-3) to 2^7 = 128 (Story 3-3 added `.clickTrackCorrelation`)
+  /// to 2^8 = 256 (Story 4-7 added `.superFluxOnset`).
   public static func allDSPCombinations() -> [TechniqueSet] {
     let allCases = DSPTechnique.allCases
     let count = allCases.count
@@ -177,25 +207,4 @@ public struct TechniqueSet: Sendable, Hashable {
     }
     return combinations
   }
-}
-
-// MARK: - MLTechnique
-
-/// Extension point for future ML-based BPM estimation (Phase 3).
-///
-/// ML techniques evaluate candidates post-pipeline — they do not modify DSP stages.
-/// Conformances receive a `BPMDiagnosticTrace` (not raw samples) to avoid
-/// duplicating DSP computation inside the ML model.
-///
-/// **Note:** Callers must pass `enableTrace: true` when ML techniques are present.
-/// Auto-enabling trace is deferred to Phase 3.
-public protocol MLTechnique: Sendable {
-  var name: String { get }
-
-  /// Evaluate pipeline candidates and optionally return an alternative BPM estimate.
-  /// Returns `nil` to defer to the DSP result.
-  func evaluate(
-    candidates: [(bpm: Double, score: Float)],
-    trace: BPMDiagnosticTrace
-  ) -> (bpm: Double, confidence: Double)?
 }

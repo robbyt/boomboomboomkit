@@ -1,0 +1,20 @@
+[project]
+name = "boomboomboomkit-tempo-training"
+version = "0.1.0"
+description = "Story 4-4b dev-only training pipeline for the reference tempo classifier (S&M-style shallow CNN). NOT shipped to main; lives in _bmad-output/."
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "torch>=2.4",
+  "torchaudio>=2.4",
+  "librosa>=0.10",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "coremltools>=8.0",
+  "tqdm>=4.66",
+  "torchinfo>=1.8",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]

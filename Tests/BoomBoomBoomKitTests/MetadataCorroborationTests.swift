@@ -433,7 +433,7 @@ struct MetadataCorroborationServiceTests {
     // is precisely that metadata I/O produces no evidence.
     let baseline = try #require(
       try AudioAnalysisService.runPreCorroborationPipeline(
-        url: url, options: optsDisabled
+        url: url, options: optsDisabled, enableTrace: optsDisabled.enableTrace
       ).result)
     #expect(resultDisabled.metadataEvidence.isEmpty)
     #expect(resultDisabled.bpm.bitPattern == baseline.bpm.bitPattern)
@@ -571,20 +571,46 @@ struct MetadataCorroborationOA300Tests {
 @Suite("Architecture Invariants — Story 3.6 regression guards")
 struct ArchitectureInvariantsTests {
 
-  @Test("DSPTechnique.allCases.count == 7 (no metadata case added)")
+  @Test(
+    "DSPTechnique.allCases.count == 8 (no metadata case added; Story 4-7 added .superFluxOnset)")
   func dspTechniqueCount() {
-    #expect(DSPTechnique.allCases.count == 7)
+    #expect(DSPTechnique.allCases.count == 8)
   }
 
-  @Test("TechniqueSet.allDSPCombinations().count == 128 (2^7)")
+  @Test("TechniqueSet.allDSPCombinations().count == 256 (2^8; Story 4-7 grew from 2^7)")
   func techniqueCombinationsCount() {
-    #expect(TechniqueSet.allDSPCombinations().count == 128)
+    #expect(TechniqueSet.allDSPCombinations().count == 256)
   }
 
   @Test("MetadataSource has exactly three cases")
   func metadataSourceCases() {
     #expect(MetadataSource.allCases.count == 3)
     #expect(Set(MetadataSource.allCases) == Set([.iTunesTmpo, .id3TBPM, .vorbisBPM]))
+  }
+
+  /// Story 4.4 AC #9: `EnsemblePolicy.allCases.count == 3` is unit-test-locked
+  /// alongside the existing five architecture invariants. Pre-1.0 / no-BC
+  /// framing (DD #13) allows breaking this invariant in a follow-up story
+  /// — but accidental drift fails this test loudly rather than silently.
+  @Test("EnsemblePolicy has exactly three cases (Story 4.4 AC #9)")
+  func ensemblePolicyCases() {
+    #expect(EnsemblePolicy.allCases.count == 3)
+    // Ordered comparison locks the iteration order so benchmark sweeps
+    // consuming `EnsemblePolicy.allCases` produce stable, reproducible
+    // policy-row order across runs (and so the JSON artifacts emitted by
+    // `make ml-policy-sweep` have a fixed row order regardless of how a
+    // future maintainer reorders the case definitions).
+    #expect(EnsemblePolicy.allCases == [.dspOnly, .mlOnly, .highestConfidence])
+  }
+
+  /// Story 4.5 DD #14: `TensorLayout.allCases.count == 2` is unit-test-locked
+  /// in the canonical invariant venue (review fix AA2 — the assertion
+  /// originally lived in `MLFeatureFramesTests` which is the wrong location
+  /// for `.allCases.count == N` invariants per the Story 4-4 close-out PSI).
+  @Test("TensorLayout has exactly two cases (Story 4.5 DD #14)")
+  func tensorLayoutCases() {
+    #expect(TensorLayout.allCases.count == 2)
+    #expect(Set(TensorLayout.allCases) == Set([.frameMajorLogMel, .nchw]))
   }
 
   @Test("MetadataPolicy.default enables all sources, valueRange 30-300")

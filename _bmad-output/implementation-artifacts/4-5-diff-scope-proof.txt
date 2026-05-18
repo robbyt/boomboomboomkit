@@ -1,0 +1,186 @@
+===========================================================
+Story 4-5 diff-scope proof — refreshed at 2026-05-14T05:04:18Z
+                              (post-review-pass — includes Unit 1-7 patches)
+===========================================================
+
+## Pre-Story-4-5 SHA: 9c48629 (tony corpus commit; HEAD before Story 4-5 began)
+## Story-4-5 close-out SHA: dedd53b (initial close-out commit)
+## Current HEAD: dedd53b + uncommitted post-review patches (Units 1-7)
+
+## Section: Full Story 4-5 diff (9c48629..HEAD + working-tree) — includes review patches
+
+ Makefile                                           |  11 +
+ Package.swift                                      |  15 +-
+ README.md                                          |   4 +-
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  94 ++-
+ Sources/BoomBoomBoomKit/BPMAnalyzer.swift          |  84 +-
+ Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift   | 218 ++++++
+ Sources/BoomBoomBoomKit/DSPTechnique.swift         | 116 +--
+ Sources/BoomBoomBoomKit/MLTechnique.swift          | 177 +++++
+ Sources/BoomBoomBoomKitML/BNNSTechnique.swift      | 753 +++++++++++++++++-
+ .../BNNSImpactTests.swift                          | 396 ++++++++++
+ .../BoomBoomBoomKitTests/BNNSTechniqueTests.swift  | 480 ++++++++++++
+ .../MLFeatureFramesTests.swift                     | 311 ++++++++
+ .../MLTechniqueProtocolTests.swift                 |  84 ++
+ .../4-5-allocator-probe.log                        |  30 +
+ .../4-5-baseline-logs/benchmark-giantsteps.log     | 185 +++++
+ .../4-5-baseline-logs/benchmark-oa300.log          | 293 +++++++
+ .../4-5-baseline-logs/perf-benchmark.log           | 136 ++++
+ .../4-5-bnns-header-grep.txt                       | 231 ++++++
+ .../4-5-bnns-impact-report.json                    | 869 +++++++++++++++++++++
+ .../4-5-bnns-mltechnique-conformance.md            | 532 ++++++++++---
+ .../4-5-diff-scope-proof.txt                       |  11 +
+ .../4-5-regression-snapshot.json                   |  94 +++
+ .../implementation-artifacts/deferred-work.md      |   5 +
+ .../implementation-artifacts/sprint-status.yaml    |   4 +-
+ .../swift_feature_extractor/Package.swift          |  10 +
+ .../Sources/bnns-probe/main.swift                  | 356 +++++++++
+ ...Debug--20260513T212552Z--9c48629--9de4446f.json |  40 +
+ tools/coreml-convert/README.md                     |  52 +-
+ 28 files changed, 5341 insertions(+), 250 deletions(-)
+
+## Section: Working-tree only (Units 1-7 patches, uncommitted)
+
+ README.md                                          |   4 +-
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  10 +-
+ Sources/BoomBoomBoomKit/BPMAnalyzer.swift          |  27 +-
+ Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift   | 101 ++++--
+ Sources/BoomBoomBoomKit/MLTechnique.swift          |  15 +
+ Sources/BoomBoomBoomKitML/BNNSTechnique.swift      | 347 ++++++++++++++++-----
+ .../BNNSImpactTests.swift                          | 159 ++++++++--
+ .../BoomBoomBoomKitTests/BNNSTechniqueTests.swift  | 299 +++++++++++++-----
+ .../MLFeatureFramesTests.swift                     | 122 +++++++-
+ .../MLTechniqueProtocolTests.swift                 |   6 +-
+ .../4-5-bnns-impact-report.json                    | 178 +++++------
+ .../4-5-bnns-mltechnique-conformance.md            | 154 +++++++++
+ .../4-5-diff-scope-proof.txt                       | 119 ++-----
+ .../implementation-artifacts/deferred-work.md      |   5 +
+ tools/coreml-convert/README.md                     |  11 +
+ 15 files changed, 1141 insertions(+), 416 deletions(-)
+
+## Section: AC #10 untouched-files verification (post-amendment 2026-05-14)
+
+AC #10 originally prohibited modifications to: EnsembleCombiner.swift,
+EnsemblePolicy.swift, EnsembleDecision.swift, CandidateMergeStrategy.swift,
+VotingPolicy.swift, LUFSAnalyzer.swift, MelFilterbank.swift,
+PCMBufferReader.swift, FileMetadataReader.swift, MetadataPolicy.swift,
+MetadataCorroborator.swift, ProgressUpdate.swift, CoreMLTechnique.swift,
+Package.swift.
+
+Post-review-pass amendments (story Change Log 2026-05-14):
+  - DSPTechnique.swift IS authorized (relocation removal only) — chunk-4
+  - Package.swift modification IS authorized (sibling test-target deps;
+    zero new external deps; review-pass DN1 amendment)
+
+  ✓ Sources/BoomBoomBoomKit/EnsembleCombiner.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/EnsemblePolicy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/EnsembleDecision.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/CandidateMergeStrategy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/VotingPolicy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/LUFSAnalyzer.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/MelFilterbank.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/PCMBufferReader.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/FileMetadataReader.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/MetadataPolicy.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/MetadataCorroborator.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKit/ProgressUpdate.swift — UNTOUCHED
+  ✓ Sources/BoomBoomBoomKitML/CoreMLTechnique.swift — UNTOUCHED
+
+## Section: AC #1 raw-API guard greps (with comment-line exclusion per review fix m17)
+
+### grep BNNSFilterCreate|BNNSFilterApply in BoomBoomBoomKitML/ (excluding // and /// lines):
+(no matches)
+
+### grep BNNSGraph.Builder|BNNSGraph.Context|BNNSGraph.makeContext in BoomBoomBoomKitML/ (excluding // and /// lines):
+(no matches)
+
+## Section: External-deps invariant
+
+swift package show-dependencies --format json | jq '.dependencies | length':
+0
+
+## Section: Banned trace-field shapes audit (recipes A-E)
+
+### Recipe A — banned trace field types:
+Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:149:          var row: [String: Any] = [
+Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:169:        let regressionGate: [String: Any] = [
+Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:181:        let payload: [String: Any] = [
+Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:624:    let payload: [String: Any] = [
+Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift:752:    let payload: [String: Any] = [
+
+## Section: Review-pass test count band update (post-review-pass-v2)
+
+Pre-story baseline:   355 (DD #13)
+Story 4-5 original:   379 (close-out at dedd53b)
+Review-pass v1:       388 (post-Units-1-7)
+Review-pass v2:       391 (post C1-C4 + M1-M7 + N1-N13; SHA pending)
+Canonical band:       [386, 400] per DD #13 / AC #11 (review fix C4 —
+                      -5/+9 envelope from measured count, asymmetric to
+                      catch deletions tighter than churn).
+
+Stale figures superseded: [370, 378] (v0), [385, 410] (v0 close-out),
+                          [395, 410] (Unit 9 sync — also stale).
+
+## Section: Review-pass v2 staged-diff summary (commit #1)
+
+Source/test/spec edits applied per `/Users/rterhaar/.claude/plans/create-a-plan-and-async-pearl.md`:
+
+  C1 — renamed-tensor fixture + initThrowsOnMismatchedTensorNames (HALT (i))
+  C2 — cancellation guard reordered to spec-canonical ML-only checkpoint
+  C3 — typed Int casts on size_t imports + sanity asserts on shape rebinds
+  C4 — spec contradictions resolved (C6 covered/deferred + band arithmetic)
+  M1 — deferred-work cancellation entry marked RESOLVED
+  M2 — onPostVvlogf closure + deep-copy byte-identity test (HALT (h) literal)
+  M3 — REGENERATE 4-5-regression-snapshot.json (commit #2)
+  M4 — single clock-read latency in BNNSImpactTests
+  M5 — auto-trace test uses RecordingMockMLTechnique + full assertions
+  M6 — .disabled(if: bundledModelMissing()) on deinit witness; try (not try?)
+  M7 — Makefile bnns-impact-report stamps -dirty suffix when working tree dirty
+  N1 — typed catch in BPMAnalyzer retention (assertionFailure for unexpected)
+  N2 — Core ML example uses do/catch with os_log instead of silent try?
+  N3 — AC #3 / DD #20 spec text amended for TensorLayout, init throws, 5 cases
+  N4 — DocC links to tools/coreml-convert/README.md on MLFeatureFrames/TensorLayout
+  N5 — @TaskLocal _testingMaximumLogMelDataCount + _withTestingMaximumLogMelDataCount
+  N6 — exact base-name match for canonical DnB target lookup
+  N7 — dead isNamedDnB helper deleted
+  N8 — DnBTargetsFile validates schema_version + decodes regression_threshold
+  N9 — named_dnb_resolved_via_dsp_fallback diagnostic counter in Summary
+  N10 — PCMBufferReaderError typed catch; other errors propagate
+  N11 — block-comment depth tracking in raw-API guard
+  N12 — initAcceptsCustomModelURL renamed to _constructionOnly
+  N13 — retention-vs-boundary defense doc-comment on cap
+
+Staged file list (per `git diff --cached --stat`):
+
+ .gitignore                                         |   3 +
+ Makefile                                           |   6 +-
+ README.md                                          |   4 +-
+ Sources/BoomBoomBoomKit/AudioAnalysisService.swift |  13 +-
+ Sources/BoomBoomBoomKit/BPMAnalyzer.swift          |  80 +++-
+ Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift   | 145 ++++++-
+ Sources/BoomBoomBoomKit/MLTechnique.swift          |  26 +-
+ Sources/BoomBoomBoomKitML/BNNSTechnique.swift      | 386 ++++++++++++++----
+ .../MockMLTechnique.swift                          |   7 +
+ .../BNNSImpactTests.swift                          | 257 ++++++++++--
+ .../Fixtures/4-dnb-triplet-targets.json            |  47 +++
+ .../BoomBoomBoomKitTests/BNNSTechniqueTests.swift  | 434 ++++++++++++++++-----
+ .../analytics/coremldata.bin                       | Bin 0 -> 243 bytes
+ .../Fixtures/CustomBundled.mlmodelc/coremldata.bin | Bin 0 -> 374 bytes
+ .../Fixtures/CustomBundled.mlmodelc/metadata.json  |  68 ++++
+ .../Fixtures/CustomBundled.mlmodelc/model.mil      | 156 ++++++++
+ .../CustomBundled.mlmodelc/weights/weight.bin      | Bin 0 -> 1261952 bytes
+ .../analytics/coremldata.bin                       | Bin 0 -> 243 bytes
+ .../RenamedTensors.mlmodelc/coremldata.bin         | Bin 0 -> 374 bytes
+ .../Fixtures/RenamedTensors.mlmodelc/metadata.json |  68 ++++
+ .../Fixtures/RenamedTensors.mlmodelc/model.mil     | 156 ++++++++
+ .../RenamedTensors.mlmodelc/weights/weight.bin     | Bin 0 -> 1261952 bytes
+ .../MLFeatureFramesTests.swift                     | 181 ++++++++-
+ .../MLTechniqueProtocolTests.swift                 |   6 +-
+ .../4-5-bnns-impact-report.json                    | 178 ++++-----
+ .../4-5-bnns-mltechnique-conformance.md            | 231 ++++++++++-
+ .../4-5-diff-scope-proof.txt                       | 130 +++---
+ .../implementation-artifacts/deferred-work.md      |  83 +++-
+ .../implementation-artifacts/sprint-status.yaml    |   2 +-
+ .../scripts/build-renamed-tensor-fixture.py        | 161 ++++++++
+ tools/coreml-convert/README.md                     |  42 +-
+ 31 files changed, 2436 insertions(+), 434 deletions(-)

@@ -1,0 +1,905 @@
+{
+  "advisory_halts": {
+    "_advisory_only": "below threshold blocks Story 4-5 signoff, not Story 4-4b production",
+    "named_dnb_strict_0_5_>=_2_of_4": false
+  },
+  "metadata": {
+    "captured_at": "2026-05-10T01:28:58Z",
+    "checkpoint": "model.pt",
+    "eval_wall_clock_seconds": 33.49824094772339,
+    "feature_set_version": "v1",
+    "inference_source": "both",
+    "max_roundtrip_diff_bpm": 0.0,
+    "mlmodel": "../ml-models/tempo_classifier.mlmodel"
+  },
+  "metrics": {
+    "acc_2pct_count": 32,
+    "acc_2pct_percent": 39.02439024390244,
+    "acc_4pct_count": 40,
+    "acc_4pct_percent": 48.78048780487805,
+    "finite_softmax_count": 82,
+    "finite_softmax_percent": 100.0,
+    "strict_0_5_count": 7,
+    "strict_0_5_percent": 8.536585365853659
+  },
+  "named_dnb_results": [
+    {
+      "abs_error_bpm": 8.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 5.0,
+      "strict_0_5": false,
+      "track_id": "Charly (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 6.0,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 176.0,
+      "rel_error_pct": 3.5294117647058822,
+      "strict_0_5": false,
+      "track_id": "1. The Faraday_Bunker (D-Struct Remix)"
+    },
+    {
+      "abs_error_bpm": 6.0,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 176.0,
+      "rel_error_pct": 3.5294117647058822,
+      "strict_0_5": false,
+      "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)"
+    },
+    {
+      "abs_error_bpm": 10.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 180.0,
+      "rel_error_pct": 5.88235294117647,
+      "strict_0_5": false,
+      "track_id": "9. HEFT_Anagram 6 (Owl Remix)"
+    }
+  ],
+  "per_track_predictions": [
+    {
+      "abs_error_bpm": 3.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 150.0,
+      "predicted_bpm": 147.0,
+      "rel_error_pct": 2.0,
+      "strict_0_5": false,
+      "track_id": "8. Jonah K_Shadow Work (Esthetic Remix)"
+    },
+    {
+      "abs_error_bpm": 2.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 1.1764705882352942,
+      "strict_0_5": false,
+      "track_id": "6. HEFT_Fuyu (Akinsa Remix)"
+    },
+    {
+      "abs_error_bpm": 91.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 85.0,
+      "predicted_bpm": 176.0,
+      "rel_error_pct": 107.05882352941177,
+      "strict_0_5": false,
+      "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 169.0,
+      "rel_error_pct": 0.5882352941176471,
+      "strict_0_5": false,
+      "track_id": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)"
+    },
+    {
+      "abs_error_bpm": 86.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 86.0,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 100.0,
+      "strict_0_5": false,
+      "track_id": "11. Sorse_Remorse (Jonah K Remix)"
+    },
+    {
+      "abs_error_bpm": 87.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 85.0,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 102.35294117647058,
+      "strict_0_5": false,
+      "track_id": "2. Ahmad_The Wrong Place (Artilect Remix)"
+    },
+    {
+      "abs_error_bpm": 2.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 1.1764705882352942,
+      "strict_0_5": false,
+      "track_id": "10. Hellacopta_Assemby (Xi\u00fba Remix)"
+    },
+    {
+      "abs_error_bpm": 36.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 81.0,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 44.44444444444444,
+      "strict_0_5": false,
+      "track_id": "Cut and Dried"
+    },
+    {
+      "abs_error_bpm": 4.0,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 164.0,
+      "rel_error_pct": 2.5,
+      "strict_0_5": false,
+      "track_id": "Your Love (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 4.0,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 164.0,
+      "rel_error_pct": 2.5,
+      "strict_0_5": false,
+      "track_id": "Jericho (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 16.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 144.0,
+      "rel_error_pct": 10.0,
+      "strict_0_5": false,
+      "track_id": "Claustrophobic Sting (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 2.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 150.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 1.3333333333333335,
+      "strict_0_5": false,
+      "track_id": "More Hardcore"
+    },
+    {
+      "abs_error_bpm": 48.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 95.0,
+      "predicted_bpm": 143.0,
+      "rel_error_pct": 50.526315789473685,
+      "strict_0_5": false,
+      "track_id": "Minority Industrial"
+    },
+    {
+      "abs_error_bpm": 4.0,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 164.0,
+      "rel_error_pct": 2.5,
+      "strict_0_5": false,
+      "track_id": "Speedway (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 1.9399999999999977,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 153.94,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 1.26023125893205,
+      "strict_0_5": false,
+      "track_id": "Release - The Jungle (Remaster ope)"
+    },
+    {
+      "abs_error_bpm": 8.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 5.0,
+      "strict_0_5": false,
+      "track_id": "Full Throttle (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 8.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 5.0,
+      "strict_0_5": false,
+      "track_id": "Fire (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 43.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 26.875,
+      "strict_0_5": false,
+      "track_id": "Skylined (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 15.990000000000009,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 159.99,
+      "predicted_bpm": 144.0,
+      "rel_error_pct": 9.994374648415532,
+      "strict_0_5": false,
+      "track_id": "The Heat (The Energy) (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 43.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 26.875,
+      "strict_0_5": false,
+      "track_id": "Amor Satyr & Fetus - Baby Check"
+    },
+    {
+      "abs_error_bpm": 0.9900000000000091,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.99,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 0.5722874154575461,
+      "strict_0_5": false,
+      "track_id": "BiosFear"
+    },
+    {
+      "abs_error_bpm": 0.960000000000008,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.96,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 0.5550416281221138,
+      "strict_0_5": false,
+      "track_id": "Altitude"
+    },
+    {
+      "abs_error_bpm": 5.849999999999994,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 157.85,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 3.706050047513459,
+      "strict_0_5": false,
+      "track_id": "Ironik - The Calling (Remaster)"
+    },
+    {
+      "abs_error_bpm": 8.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 5.0,
+      "strict_0_5": false,
+      "track_id": "Break & Enter (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 37.010000000000005,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 79.99,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 46.26828353544194,
+      "strict_0_5": false,
+      "track_id": "Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss)"
+    },
+    {
+      "abs_error_bpm": 89.52,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 86.48,
+      "predicted_bpm": 176.0,
+      "rel_error_pct": 103.51526364477334,
+      "strict_0_5": false,
+      "track_id": "Spider Monkey"
+    },
+    {
+      "abs_error_bpm": 16.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 144.0,
+      "rel_error_pct": 10.0,
+      "strict_0_5": false,
+      "track_id": "Hyperspeed (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 8.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 5.0,
+      "strict_0_5": false,
+      "track_id": "Everybody In The Place (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 0.960000000000008,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.96,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 0.5550416281221138,
+      "strict_0_5": false,
+      "track_id": "So Confused"
+    },
+    {
+      "abs_error_bpm": 84.08,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 84.92,
+      "predicted_bpm": 169.0,
+      "rel_error_pct": 99.01083372585963,
+      "strict_0_5": false,
+      "track_id": "Dream World"
+    },
+    {
+      "abs_error_bpm": 0.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 140.0,
+      "predicted_bpm": 140.0,
+      "rel_error_pct": 0.0,
+      "strict_0_5": true,
+      "track_id": "Trapped (Original Mix)"
+    },
+    {
+      "abs_error_bpm": 4.949999999999989,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.95,
+      "predicted_bpm": 168.0,
+      "rel_error_pct": 2.862098872506498,
+      "strict_0_5": false,
+      "track_id": "Straight Jacket"
+    },
+    {
+      "abs_error_bpm": 87.08,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 84.92,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 102.54357041921809,
+      "strict_0_5": false,
+      "track_id": "Ya Don't Stop"
+    },
+    {
+      "abs_error_bpm": 2.9099999999999966,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 154.91,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 1.8785101026402407,
+      "strict_0_5": false,
+      "track_id": "Skanna - Nightstalker (Remaster)"
+    },
+    {
+      "abs_error_bpm": 2.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 150.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 1.3333333333333335,
+      "strict_0_5": false,
+      "track_id": "Ron Mercy - Junkin Da Trunk"
+    },
+    {
+      "abs_error_bpm": 41.31999999999999,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.32,
+      "predicted_bpm": 119.0,
+      "rel_error_pct": 25.77345309381237,
+      "strict_0_5": false,
+      "track_id": "Scienide (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 43.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 26.875,
+      "strict_0_5": false,
+      "track_id": "Music Reach (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 3.9799999999999898,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 155.98,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 2.5516091806641814,
+      "strict_0_5": false,
+      "track_id": "Aeon Flux - Reality (Repitch Remaster)"
+    },
+    {
+      "abs_error_bpm": 0.960000000000008,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.96,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 0.5550416281221138,
+      "strict_0_5": false,
+      "track_id": "Decoy"
+    },
+    {
+      "abs_error_bpm": 45.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 162.0,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 27.77777777777778,
+      "strict_0_5": false,
+      "track_id": "Slower Violence"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 140.0,
+      "predicted_bpm": 139.0,
+      "rel_error_pct": 0.7142857142857143,
+      "strict_0_5": false,
+      "track_id": "BAMF"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 166.0,
+      "predicted_bpm": 167.0,
+      "rel_error_pct": 0.6024096385542169,
+      "strict_0_5": false,
+      "track_id": "Lies"
+    },
+    {
+      "abs_error_bpm": 100.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 80.0,
+      "predicted_bpm": 180.0,
+      "rel_error_pct": 125.0,
+      "strict_0_5": false,
+      "track_id": "Their Law (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 83.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 84.0,
+      "predicted_bpm": 167.0,
+      "rel_error_pct": 98.80952380952381,
+      "strict_0_5": false,
+      "track_id": "The Still"
+    },
+    {
+      "abs_error_bpm": 0.03999999999999204,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 149.04,
+      "predicted_bpm": 149.0,
+      "rel_error_pct": 0.026838432635528747,
+      "strict_0_5": true,
+      "track_id": "Release - The Jungle 155bpm (Remaster)"
+    },
+    {
+      "abs_error_bpm": 43.099999999999994,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.1,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 26.920674578388503,
+      "strict_0_5": false,
+      "track_id": "Weather Experience (Neekeetone 160 Rework)"
+    },
+    {
+      "abs_error_bpm": 48.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 162.0,
+      "predicted_bpm": 114.0,
+      "rel_error_pct": 29.629629629629626,
+      "strict_0_5": false,
+      "track_id": "Red Scare"
+    },
+    {
+      "abs_error_bpm": 43.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 85.0,
+      "predicted_bpm": 128.0,
+      "rel_error_pct": 50.588235294117645,
+      "strict_0_5": false,
+      "track_id": "Wind It Up (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 58.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 85.0,
+      "predicted_bpm": 143.0,
+      "rel_error_pct": 68.23529411764706,
+      "strict_0_5": false,
+      "track_id": "The Observatory"
+    },
+    {
+      "abs_error_bpm": 41.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 119.0,
+      "rel_error_pct": 25.624999999999996,
+      "strict_0_5": false,
+      "track_id": "Out Of Space (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 0.9699999999999989,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.97,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 0.560790888593397,
+      "strict_0_5": false,
+      "track_id": "Isolation"
+    },
+    {
+      "abs_error_bpm": 5.840000000000003,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 157.84,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 3.6999493157627996,
+      "strict_0_5": false,
+      "track_id": "Ironik - The Calling (Remaster)"
+    },
+    {
+      "abs_error_bpm": 85.52,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 86.48,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 98.88991674375576,
+      "strict_0_5": false,
+      "track_id": "Clockwork"
+    },
+    {
+      "abs_error_bpm": 45.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 162.0,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 27.77777777777778,
+      "strict_0_5": false,
+      "track_id": "Twice Removed"
+    },
+    {
+      "abs_error_bpm": 0.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 140.0,
+      "predicted_bpm": 140.0,
+      "rel_error_pct": 0.0,
+      "strict_0_5": true,
+      "track_id": "Empty Inside (Original Mix)"
+    },
+    {
+      "abs_error_bpm": 41.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 82.0,
+      "predicted_bpm": 123.0,
+      "rel_error_pct": 50.0,
+      "strict_0_5": false,
+      "track_id": "We Eat Rhythm (Neekeetone Dub Rework) (Bonus)"
+    },
+    {
+      "abs_error_bpm": 84.34,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 83.66,
+      "predicted_bpm": 168.0,
+      "rel_error_pct": 100.81281377002152,
+      "strict_0_5": false,
+      "track_id": "After Hours"
+    },
+    {
+      "abs_error_bpm": 0.960000000000008,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.96,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 0.5550416281221138,
+      "strict_0_5": false,
+      "track_id": "TImelines"
+    },
+    {
+      "abs_error_bpm": 42.849999999999994,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 159.85,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 26.80638098217078,
+      "strict_0_5": false,
+      "track_id": "Legal Offence - Burnin' Up (Piano Mix) (Remaster)"
+    },
+    {
+      "abs_error_bpm": 1.9499999999999886,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 150.95,
+      "predicted_bpm": 149.0,
+      "rel_error_pct": 1.291818482941364,
+      "strict_0_5": false,
+      "track_id": "Aeon Flux - Reality (Remaster)"
+    },
+    {
+      "abs_error_bpm": 1.8600000000000136,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 162.14,
+      "predicted_bpm": 164.0,
+      "rel_error_pct": 1.1471567780930145,
+      "strict_0_5": false,
+      "track_id": "Living for the Night"
+    },
+    {
+      "abs_error_bpm": 0.960000000000008,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 172.96,
+      "predicted_bpm": 172.0,
+      "rel_error_pct": 0.5550416281221138,
+      "strict_0_5": false,
+      "track_id": "9000 Series"
+    },
+    {
+      "abs_error_bpm": 8.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 152.0,
+      "rel_error_pct": 5.0,
+      "strict_0_5": false,
+      "track_id": "Charly (Neekeetone Jungle Rework)"
+    },
+    {
+      "abs_error_bpm": 16.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 144.0,
+      "rel_error_pct": 10.0,
+      "strict_0_5": false,
+      "track_id": "Death Of The Prodigy Dancers (Neekeetone Dub Rework)"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 169.0,
+      "rel_error_pct": 0.5882352941176471,
+      "strict_0_5": false,
+      "track_id": "3. D3Z_Axons (Offish Remix)"
+    },
+    {
+      "abs_error_bpm": 95.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 85.0,
+      "predicted_bpm": 180.0,
+      "rel_error_pct": 111.76470588235294,
+      "strict_0_5": false,
+      "track_id": "9. HEFT_Anagram 6 (Owl Remix)"
+    },
+    {
+      "abs_error_bpm": 1.2199999999999989,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 164.78,
+      "predicted_bpm": 166.0,
+      "rel_error_pct": 0.7403811142128892,
+      "strict_0_5": false,
+      "track_id": "Boymerang - Autumnal (Leaf)"
+    },
+    {
+      "abs_error_bpm": 41.95,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 102.05,
+      "predicted_bpm": 144.0,
+      "rel_error_pct": 41.10730034296914,
+      "strict_0_5": false,
+      "track_id": "Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces"
+    },
+    {
+      "abs_error_bpm": 0.09000000000000341,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 135.91,
+      "predicted_bpm": 136.0,
+      "rel_error_pct": 0.06622029284085307,
+      "strict_0_5": true,
+      "track_id": "New York - Punk To Funk - I'm Sick"
+    },
+    {
+      "abs_error_bpm": 0.15000000000000568,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 135.85,
+      "predicted_bpm": 136.0,
+      "rel_error_pct": 0.11041589988958829,
+      "strict_0_5": true,
+      "track_id": "Smalltown Boy (12\" Version)"
+    },
+    {
+      "abs_error_bpm": 85.14,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 82.86,
+      "predicted_bpm": 168.0,
+      "rel_error_pct": 102.75162925416366,
+      "strict_0_5": false,
+      "track_id": "Boymerang - Rules (Leaf)"
+    },
+    {
+      "abs_error_bpm": 6.0,
+      "acc_2pct": false,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 176.0,
+      "rel_error_pct": 3.5294117647058822,
+      "strict_0_5": false,
+      "track_id": "1. The Faraday_Bunker (D-Struct Remix)"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 170.0,
+      "predicted_bpm": 169.0,
+      "rel_error_pct": 0.5882352941176471,
+      "strict_0_5": false,
+      "track_id": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 130.0,
+      "predicted_bpm": 131.0,
+      "rel_error_pct": 0.7692307692307693,
+      "strict_0_5": false,
+      "track_id": "Conundrum"
+    },
+    {
+      "abs_error_bpm": 0.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 128.0,
+      "predicted_bpm": 128.0,
+      "rel_error_pct": 0.0,
+      "strict_0_5": true,
+      "track_id": "Makara"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 130.0,
+      "predicted_bpm": 131.0,
+      "rel_error_pct": 0.7692307692307693,
+      "strict_0_5": false,
+      "track_id": "TVR"
+    },
+    {
+      "abs_error_bpm": 16.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 144.0,
+      "rel_error_pct": 10.0,
+      "strict_0_5": false,
+      "track_id": "Chakra"
+    },
+    {
+      "abs_error_bpm": 0.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 126.0,
+      "predicted_bpm": 126.0,
+      "rel_error_pct": 0.0,
+      "strict_0_5": true,
+      "track_id": "Icicle - Condense"
+    },
+    {
+      "abs_error_bpm": 41.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 119.0,
+      "rel_error_pct": 25.624999999999996,
+      "strict_0_5": false,
+      "track_id": "The Mummy"
+    },
+    {
+      "abs_error_bpm": 16.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 144.0,
+      "rel_error_pct": 10.0,
+      "strict_0_5": false,
+      "track_id": "Echtoo - Chakra"
+    },
+    {
+      "abs_error_bpm": 1.0,
+      "acc_2pct": true,
+      "acc_4pct": true,
+      "ground_truth_bpm": 126.0,
+      "predicted_bpm": 127.0,
+      "rel_error_pct": 0.7936507936507936,
+      "strict_0_5": false,
+      "track_id": "Self Immolation"
+    },
+    {
+      "abs_error_bpm": 43.0,
+      "acc_2pct": false,
+      "acc_4pct": false,
+      "ground_truth_bpm": 160.0,
+      "predicted_bpm": 117.0,
+      "rel_error_pct": 26.875,
+      "strict_0_5": false,
+      "track_id": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix)"
+    }
+  ],
+  "promotion_warnings": {
+    "_signoff_required_if_false": "Project Lead must acknowledge in Completion Notes",
+    "oa300_acc_4pct_>=_25pct": true
+  },
+  "sanity_halts": {
+    "convert_roundtrip_within_1e3": true,
+    "non_nan_outputs_100pct": true,
+    "oa300_acc_4pct_>=_5pct": true
+  },
+  "soft_targets": {
+    "giantsteps_val_acc_4pct_>=_55pct": null,
+    "named_dnb_strict_0_5_>=_3_of_4": false,
+    "oa300_acc_4pct_>=_40pct": true
+  },
+  "test_corpus": "oa300",
+  "test_size": 82
+}
