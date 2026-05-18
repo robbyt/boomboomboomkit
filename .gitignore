@@ -4,8 +4,8 @@
 Package.resolved
 
 # Xcode
-*.xcodeproj/
-*.xcworkspace/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
 xcuserdata/
 DerivedData/
 *.pbxuser
@@ -14,6 +14,10 @@ DerivedData/
 *.perspectivev3
 *.xccheckout
 *.moved-aside
+
+# Demo app build artifacts (Story 5-1: scaffold)
+Demo/**/build/
+Demo/**/*.xcuserstate
 
 # macOS
 .DS_Store
