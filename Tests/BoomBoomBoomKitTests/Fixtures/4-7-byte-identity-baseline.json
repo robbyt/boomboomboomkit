@@ -1,0 +1,37 @@
+{
+  "capturedAtSHA": "48483af",
+  "capturedAt": "2026-05-17T21:30:00Z",
+  "note": "Per-fixture bpm/confidence bitPatterns captured at Story 4-7 Task 5 authoring time via BBBK_CAPTURE_SUPERFLUX_BASELINE=1 on the SuperFluxBaselineCaptureHelper one-shot. Pre-source SHA 61d6161 + Task 1 (3c6a1b2) + Task 2 (44123bb) + Task 3 (bad2c04) + Task 4 (48483af). The Task 3 helper-extraction refactor is byte-clean against the OA300-grain dspOnlyMatchesStory4_3Baseline gate, so the .superFluxOnset-absent path here is byte-identical to pre-Story-4-7. Story 4-7 AC #3 + #8 consume this fixture for the unit-target byte-equality opt-out tests.",
+  "fixtures": [
+    {
+      "fixture": "bpm-85-click",
+      "extension": "wav",
+      "bpmBits": 4635672648140164504,
+      "confidenceBits": 4606580583148398476
+    },
+    {
+      "fixture": "bpm-120-click",
+      "extension": "wav",
+      "bpmBits": 4638144671583686020,
+      "confidenceBits": 4606496282376802604
+    },
+    {
+      "fixture": "bpm-120-downbeat",
+      "extension": "wav",
+      "bpmBits": 4638144670854479425,
+      "confidenceBits": 4606493570062980380
+    },
+    {
+      "fixture": "bpm-140-click",
+      "extension": "wav",
+      "bpmBits": 4639129850062220947,
+      "confidenceBits": 4606458906219926810
+    },
+    {
+      "fixture": "bpm-170-click",
+      "extension": "wav",
+      "bpmBits": 4640203910383746596,
+      "confidenceBits": 4606443950055768241
+    }
+  ]
+}

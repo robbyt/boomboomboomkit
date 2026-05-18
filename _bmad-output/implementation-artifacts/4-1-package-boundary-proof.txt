@@ -1,0 +1,35 @@
+# Section: swift package show-dependencies
+{
+    "identity": "boomboomboomkit",
+    "name": "BoomBoomBoomKit",
+    "url": "/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit",
+    "version": "unspecified",
+    "path": "/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit",
+    "traits": [
+        "default"
+    ],
+    "dependencies": []
+}
+
+# Section: import-grep
+Command: grep -RE "^import CoreML|\bBNNS[A-Z][A-Za-z0-9]*|BoomBoomBoomKitML" Sources/BoomBoomBoomKit/
+(zero matches — boundary clean)
+
+# Section: swift build --target BoomBoomBoomKit
+[0/1] Planning build
+Building for debugging...
+[0/1] Write swift-version--58304C5D6DBC2206.txt
+Build of target: 'BoomBoomBoomKit' complete! (0.14s)
+
+# Section: swift build --target BoomBoomBoomKitML
+Building for debugging...
+[0/1] Write swift-version--58304C5D6DBC2206.txt
+Build of target: 'BoomBoomBoomKitML' complete! (0.10s)
+
+# Section: ls Sources/BoomBoomBoomKitML/
+Resources
+BNNSTechnique.swift
+CoreMLTechnique.swift
+
+# Section: ls Sources/BoomBoomBoomKitML/Resources/
+.gitkeep

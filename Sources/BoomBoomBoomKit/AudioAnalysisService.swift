@@ -25,10 +25,44 @@ public struct AudioAnalysisResult: Sendable {
   /// per parsed tag — including parse-phase and corroboration rejections — so callers
   /// can audit which tags were read and what the library did with them.
   public let metadataEvidence: [MetadataBPMEvidence]
+  /// The effective DSP-level depth reported for this analysis.
+  ///
+  /// Equals ``AudioAnalysisService/Options/intensity`` for requests in 1-7 (DSP-only
+  /// range) and for requests in 8-10 when ``AudioAnalysisService/Options/mlTechnique``
+  /// is non-nil. When intensity 8-10 is requested without an ``MLTechnique``
+  /// conformance, this is reported as ``AnalysisIntensity/default`` (7) and
+  /// ``degradationReason`` carries the explanation.
+  ///
+  /// Note: today the pipeline runs at the requested intensity unchanged — levels 8-10
+  /// currently produce identical DSP output to level 7 by switch-default coincidence
+  /// in ``AnalysisIntensity``; future stories may change level 8-10 semantics, in
+  /// which case this field will continue to report what was effectively achieved.
+  public let effectiveIntensity: AnalysisIntensity
+  /// A display-oriented explanation when the requested intensity was not honoured
+  /// (e.g., when 8-10 was requested but no ``MLTechnique`` conformance was supplied).
+  /// `nil` when no degradation occurred.
+  ///
+  /// Today's message format is `"Requested intensity \(requested) requires
+  /// BoomBoomBoomKitML package. Running at intensity \(effective) (DSP-only)."` —
+  /// this exact text is asserted by Story 4.2's regression tests, but consumers
+  /// should treat it as display text; pre-1.0 / no-BC framing allows wording revision
+  /// in a future story.
+  ///
+  /// **For control flow, do NOT string-parse this field — call
+  /// ``AudioAnalysisService/maximumSupportedIntensity(mlTechnique:)`` BEFORE
+  /// analysis to query whether the configuration supports the requested intensity.**
+  public let degradationReason: String?
 }
 
 /// Stateless service that coordinates PCM reading and BPM estimation.
 public struct AudioAnalysisService {
+
+  /// Single source of truth for the DSP-only intensity ceiling. Intensities
+  /// 8-10 are reserved for ML augmentation; without an ``MLTechnique``
+  /// conformance the effective ceiling is ``AnalysisIntensity/default`` (7).
+  /// Reused by ``analyzeBPM(url:options:)``, the degradation message builder,
+  /// and ``maximumSupportedIntensity(mlTechnique:)``.
+  private static let dspOnlyMaxIntensity: AnalysisIntensity = .default
 
   /// Configuration options for BPM analysis.
   ///
@@ -76,14 +110,46 @@ public struct AudioAnalysisService {
 
     /// Optional ML technique consulted post-pipeline to refine the DSP estimate.
     ///
-    /// When non-nil, the pipeline runs as usual and the resulting candidates plus
-    /// ``BPMDiagnosticTrace`` are passed to ``MLTechnique/evaluate(candidates:trace:)``
-    /// for an alternative estimate. When `nil` (default), the feature is inactive and
-    /// the DSP result is returned unchanged.
+    /// When non-`nil` AND ``ensemblePolicy`` is not ``EnsemblePolicy/dspOnly``,
+    /// the pipeline runs as usual and the resulting populated
+    /// ``BPMDiagnosticTrace`` (with DSP candidates carried in
+    /// ``BPMDiagnosticTrace/candidatesAfterBoost``) is passed to
+    /// ``MLTechnique/evaluate(trace:)`` for an alternative estimate. The
+    /// ``MLEvaluation?`` return value flows through the internal
+    /// ``EnsembleCombiner`` alongside the DSP winner; the resulting BPM and
+    /// confidence depend on ``ensemblePolicy``. When `nil` (default), the
+    /// feature is inactive and the DSP result is returned unchanged.
+    ///
+    /// **Story 4.4 A1 short-circuit.** Under
+    /// ``EnsemblePolicy/dspOnly`` (the default policy), setting `mlTechnique`
+    /// has NO effect: ``MLTechnique/evaluate(trace:)`` is NOT invoked, and the
+    /// ML-feeding ``BPMDiagnosticTrace`` branch is NOT constructed internally
+    /// (`shouldBuildTrace` falls back to ``enableTrace`` alone). To exercise
+    /// `mlTechnique`, pair it with ``EnsemblePolicy/mlOnly`` or
+    /// ``EnsemblePolicy/highestConfidence``.
+    ///
+    /// **Public-trace gating.** The internal ML-feeding trace and the public
+    /// ``AudioAnalysisResult/trace`` are distinct: the public surface stays
+    /// gated by ``enableTrace`` regardless of `mlTechnique` or
+    /// ``ensemblePolicy``. Set ``enableTrace`` to `true` if you want the
+    /// trace (and any attached ``EnsembleDecision``) returned to your caller.
+    ///
+    /// **Story 4-5 BYOW selection (DD #19).** Consumers pick exactly one
+    /// of the four ML options below; there is no implicit fallback or
+    /// precedence chain.
+    ///
+    /// | Consumer intent | Code |
+    /// |---|---|
+    /// | Disable ML entirely (default — DSP-only) | `Options.mlTechnique = nil` |
+    /// | Use a bundled reference model | _no bundled model ships as of Story 4-6; see `MODEL_CARD.md` for the Branch C close-out rationale. `try? BNNSTechnique()` returns nil because the no-arg form throws `.modelResourceMissing`_ |
+    /// | Use your converted weights, same architecture | `Options.mlTechnique = try? BNNSTechnique(modelURL: myURL)` |
+    /// | Use a custom architecture or different framework | `Options.mlTechnique = MyCustomMLTechnique()` |
+    ///
+    /// See `tools/coreml-convert/README.md` for the consumer-onboarding
+    /// flow that converts PyTorch / Core ML weights against the same
+    /// tensor contract `BNNSTechnique` validates at `init(modelURL:)`.
     ///
     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
-    /// The evaluation path itself is wired by Story 4.3; setting this field today is
-    /// a no-op against the shipped pipeline.
     public var mlTechnique: (any MLTechnique)?
 
     /// Strategy for combining candidates across analysis windows (default: `.maxConfidence`).
@@ -107,8 +173,59 @@ public struct AudioAnalysisService {
     /// threshold without recompiling.
     public var votingThreshold: Double = 0.0
 
+    /// Resolution policy for the DSP+ML ensemble combiner (Story 4.4).
+    ///
+    /// Selects how ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``
+    /// reconciles the post-corroboration DSP candidate with an optional
+    /// ``MLEvaluation`` from ``mlTechnique``. Always-present configuration
+    /// per ADR-11 (`_bmad-output/planning-artifacts/architecture.md`) — the
+    /// field is non-optional with a sensible default and is mutated rather
+    /// than threaded as a method parameter on
+    /// ``analyzeBPM(url:options:)``.
+    ///
+    /// Default ``EnsemblePolicy/dspOnly`` is operation-inert: when this
+    /// policy is selected, ``MLTechnique/evaluate(trace:)`` is NOT invoked
+    /// even if ``mlTechnique`` is non-nil (Story 4-4 short-circuit at the
+    /// call site). This makes the configuration `Options.mlTechnique != nil`
+    /// + `Options.ensemblePolicy = .dspOnly` valid for users who load a model
+    /// but want to disable the ensemble per-call without dropping the model.
+    /// Output is byte-identical to the no-ML pipeline under this default.
+    ///
+    /// Set ``EnsemblePolicy/mlOnly`` or ``EnsemblePolicy/highestConfidence``
+    /// to opt into ML-influenced final BPM. See ``EnsemblePolicy`` for the
+    /// per-case selection logic and the tag-bias caveat on
+    /// ``EnsemblePolicy/highestConfidence``.
+    public var ensemblePolicy: EnsemblePolicy = .dspOnly
+
     /// When `true`, populates `result.trace` with per-step diagnostic data.
     public var enableTrace: Bool = false
+
+    /// When `true`, the service routes ``mlTechnique`` calls through the
+    /// ``MLDiagnosticTechnique`` capability path (when the conformer
+    /// adopts it) and writes the resulting ``MLDiagnosticSnapshot`` to
+    /// ``BPMDiagnosticTrace/mlDiagnosticSnapshot``.
+    ///
+    /// **Default `false`** — opt-in feature. ML diagnostics surface
+    /// inference internals (decoded BPM, softmax probabilities, input
+    /// feature checksum, abstain-path categorization) that the
+    /// `BNNSImpactTests` harness consumes for threshold sweeps. Production
+    /// consumers can leave this off; setting it has no functional effect
+    /// beyond populating the trace field.
+    ///
+    /// **Independent of ``enableTrace``.** This flag controls whether
+    /// the diagnostic capability path runs and writes a snapshot;
+    /// ``enableTrace`` controls whether the entire ``BPMDiagnosticTrace``
+    /// is surfaced on ``AudioAnalysisResult/trace`` at all. With
+    /// ``enableMLDiagnostics == true`` and ``enableTrace == false``, the
+    /// snapshot is constructed internally for ensemble decision-making
+    /// but is not externally visible.
+    ///
+    /// Story 4-6 code review P17: split out of ``enableTrace`` because
+    /// the previous wiring tied snapshot visibility to a trace flag
+    /// whose name didn't say "ML diagnostics" — two paths to the same
+    /// conformer with different observability gated by a flag with
+    /// misleading naming.
+    public var enableMLDiagnostics: Bool = false
 
     /// When `true` (default), the duration-derived BPM hint runs at step 9.7 of the BPM
     /// pipeline.
@@ -205,7 +322,18 @@ public struct AudioAnalysisService {
     url: URL,
     options: Options
   ) throws -> AudioAnalysisResult? {
-    let pre = try Self.runPreCorroborationPipeline(url: url, options: options)
+    // Story 4.3 + ADR-6 reconciled by Story 4.4 DD #2: trace is built when
+    // `mlTechnique != nil` AND the selected policy can consume the
+    // evaluation. Under `.dspOnly` the trace ML branch is moot because
+    // `MLTechnique.evaluate(trace:)` is short-circuited below — building the
+    // trace there would be wasted work and would also create the false
+    // expectation that ML inference is running.
+    let shouldBuildTrace =
+      options.enableTrace
+      || (options.mlTechnique != nil && options.ensemblePolicy != .dspOnly)
+
+    let pre = try Self.runPreCorroborationPipeline(
+      url: url, options: options, enableTrace: shouldBuildTrace)
     guard let merged = pre.result else { return nil }
 
     // Story 3.6: post-merge metadata corroboration. Runs unconditionally so
@@ -214,10 +342,213 @@ public struct AudioAnalysisService {
     let (corroborated, evidence) = MetadataCorroborator.apply(
       to: merged, input: pre.metadataInput)
 
+    // Story 4-5 / DD #11 / AC #9: ML evaluation runs AFTER metadata
+    // corroboration via a private throws helper that checks cancellation
+    // BEFORE calling evaluate. Replaces the Story 4-4 IIFE-`guard` shape
+    // because the IIFE couldn't `throw CancellationError()` cleanly while
+    // returning `MLEvaluation?`. Story 4-4 AC #14 invariant
+    // (`RecordingMockMLTechnique.callCount == 0` on `.dspOnly`) is
+    // preserved by the helper's first guard, which returns nil before
+    // binding `ml` (so `evaluate(trace:)` is unreachable when ML is off).
+    // Resolves the `deferred-work.md` cancellation entry filed at Story
+    // 4-3 close-out.
+    //
+    // Story 4-6 AC #4: helper signature is `trace: inout BPMDiagnosticTrace?`
+    // so the diagnostic snapshot from ``MLDiagnosticTechnique`` conformers
+    // is written back to the trace under STRICT mutation-after-cancellation
+    // ordering. `BPMResult.trace` is a `let` field on the corroborated
+    // struct, so we pull it into a local `var` and reconstruct the result
+    // post-helper. Single-window paths and DSP-only short-circuit return
+    // identical bytes — the trace is unchanged on those paths.
+    var localTrace = corroborated.trace
+    let mlEvaluation = try Self.evaluateMLIfActive(
+      options: options, trace: &localTrace)
+    let corroboratedWithSnapshot = BPMResult(
+      bpm: corroborated.bpm,
+      confidence: corroborated.confidence,
+      candidates: corroborated.candidates,
+      trace: localTrace)
+    let combined = EnsembleCombiner.combine(
+      dspWinner: corroboratedWithSnapshot,
+      mlEvaluation: mlEvaluation,
+      policy: options.ensemblePolicy)
+
+    // Story 4.2: post-pipeline reporting of effective intensity + degradation
+    // reason. Computed AFTER both `runPreCorroborationPipeline` and
+    // `MetadataCorroborator.apply` return — pure reporting, no DSP mutation.
+    let effective = computeEffectiveIntensity(
+      requested: options.intensity, mlTechnique: options.mlTechnique)
+    let reason = degradationMessage(
+      requested: options.intensity, effective: effective)
+
     return AudioAnalysisResult(
-      bpm: corroborated.bpm, confidence: corroborated.confidence,
-      candidates: corroborated.candidates, trace: corroborated.trace,
-      metadataEvidence: evidence)
+      bpm: combined.bpm, confidence: combined.confidence,
+      candidates: combined.candidates,
+      trace: options.enableTrace ? combined.trace : nil,
+      metadataEvidence: evidence,
+      effectiveIntensity: effective, degradationReason: reason)
+  }
+
+  // MARK: - Story 4.2: effective intensity reporting + maximum supported query
+
+  /// Returns the effective DSP-level depth for a (requested intensity,
+  /// ML technique) pair. Caps requests in 8-10 to ``dspOnlyMaxIntensity``
+  /// when no ``MLTechnique`` conformance is supplied; otherwise returns
+  /// the requested intensity unchanged.
+  private static func computeEffectiveIntensity(
+    requested: AnalysisIntensity, mlTechnique: (any MLTechnique)?
+  ) -> AnalysisIntensity {
+    if requested.rawValue <= dspOnlyMaxIntensity.rawValue { return requested }
+    if mlTechnique != nil { return requested }
+    return dspOnlyMaxIntensity
+  }
+
+  /// Returns a display-oriented degradation message when ``requested`` was
+  /// not honoured (i.e., ``effective`` is the DSP-only cap), or `nil` when
+  /// no degradation occurred. Uses the integer `rawValue` of each intensity
+  /// so the message does NOT leak named-constant identifiers (`.thorough`,
+  /// `.maximum`) into developer-facing text.
+  private static func degradationMessage(
+    requested: AnalysisIntensity, effective: AnalysisIntensity
+  ) -> String? {
+    if requested == effective { return nil }
+    return
+      "Requested intensity \(requested.rawValue) requires BoomBoomBoomKitML "
+      + "package. Running at intensity \(effective.rawValue) (DSP-only)."
+  }
+
+  // MARK: - Story 4.5: Cancellation cooperation helper
+
+  /// Story 4-5 / DD #11 / AC #9 — evaluates `options.mlTechnique` against
+  /// `trace` only when ML is active (policy != `.dspOnly` AND
+  /// `mlTechnique != nil` AND a trace was built), with cancellation
+  /// checks on either side of the call that throw `CancellationError`
+  /// instead of quietly running expensive inference on a cancelled task
+  /// or returning a stale ML evaluation to a caller that has already
+  /// given up.
+  ///
+  /// **ML-only cancellation checkpoint.** The policy/ml/trace guard
+  /// fires FIRST. When the helper would not run `evaluate(trace:)`
+  /// anyway — because `.dspOnly` is set, no trace was built, or no
+  /// technique is wired up — the function returns `nil` silently
+  /// regardless of cancellation state. Cancellation is observed only on
+  /// the path that would actually call `evaluate(trace:)`. This preserves
+  /// Story 4-4 AC #14's `RecordingMockMLTechnique.callCount == 0`
+  /// invariant on `.dspOnly` and avoids surfacing cancellation noise to
+  /// callers who deliberately opted out of the ML pipeline phase.
+  ///
+  /// Cancellation latency contract (axiom-concurrency audit + Story 4-5
+  /// review pass v3). Two checks bracket `ml.evaluate(trace:)`:
+  ///
+  /// 1. **Pre-evaluate check** — fires before any inference work runs.
+  /// 2. **Post-evaluate check** — fires after `evaluate(trace:)` returns
+  ///    so that cancellation flipping DURING the atomic call still
+  ///    surfaces to the caller. The ML evaluation is discarded if
+  ///    cancellation was observed; the caller sees `CancellationError`
+  ///    just as if the entire call had been pre-empted.
+  ///
+  /// The helper still does NOT thread a cancellation closure into the
+  /// conformance — BNNSGraph inference is atomic from the consumer's
+  /// perspective. A cancelled task will wait the full inference wall-
+  /// clock (50-1000 ms) before observing cancellation. ADR-1's per-
+  /// window granularity is satisfied (checks fire BEFORE each window
+  /// AND BEFORE+AFTER each evaluate call); finer mid-inference
+  /// cancellation is documented as deferred-work.
+  ///
+  /// **Story 4-6 — diagnostic snapshot via capability-protocol narrowing.**
+  /// When the active ``MLTechnique`` conformer ALSO adopts
+  /// ``MLDiagnosticTechnique`` (Story 4-6's bundled ``BNNSTechnique``
+  /// does), the helper routes the call through
+  /// ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)`` and writes
+  /// the returned ``MLDiagnosticSnapshot?`` into
+  /// ``BPMDiagnosticTrace/mlDiagnosticSnapshot`` on the inout trace.
+  /// Consumer-supplied plain ``MLTechnique`` types that do NOT adopt
+  /// the diagnostic capability fall back to the original
+  /// ``MLTechnique/evaluate(trace:)`` path and leave the trace field
+  /// nil — documented as `wontfix pre-1.0` (forwarding wrappers must
+  /// re-conform to ``MLDiagnosticTechnique`` if they want diagnostics).
+  ///
+  /// **STRICT mutation-after-cancellation ordering (AC #4 revised; Codex
+  /// finding #4).** The evaluation runs into LOCALS first; the
+  /// post-evaluate cancellation check fires BEFORE any trace mutation;
+  /// only on the no-cancellation path does the snapshot get written.
+  /// A cancellation observed AFTER `evaluate` returned but BEFORE the
+  /// snapshot landed produces `CancellationError` from this helper with
+  /// `trace.mlDiagnosticSnapshot` left at whatever the caller passed in
+  /// (nil for a fresh trace). The
+  /// ``AudioAnalysisServiceInoutTraceTests/inoutTraceMutationAfterCancellation``
+  /// test locks this ordering.
+  ///
+  /// The capability narrowing additionally requires
+  /// ``Options/enableMLDiagnostics`` to be `true` (Story 4-6 code
+  /// review P17; was ``Options/enableTrace`` pre-review). Splitting
+  /// the gate out of `enableTrace` resolved the second-route
+  /// observability hole where two paths to the same conformer used
+  /// different observability — and `enableTrace`'s name didn't
+  /// signal that flipping it turned ML diagnostics on/off. Now
+  /// ``enableTrace`` governs whether the trace itself is returned to
+  /// the caller; ``enableMLDiagnostics`` governs whether the snapshot
+  /// is written into it. The two are independent.
+  private static func evaluateMLIfActive(
+    options: Options, trace: inout BPMDiagnosticTrace?
+  ) throws -> MLEvaluation? {
+    guard options.ensemblePolicy != .dspOnly,
+      let ml = options.mlTechnique,
+      let unwrappedTrace = trace
+    else { return nil }
+    if options.isCancelled() { throw CancellationError() }
+    // Evaluate into locals — NO trace mutation yet (Codex finding #4
+    // strict ordering).
+    let localEvaluation: MLEvaluation?
+    let localSnapshot: MLDiagnosticSnapshot?
+    if let diag = ml as? MLDiagnosticTechnique, options.enableMLDiagnostics {
+      let result = diag.evaluateWithDiagnostic(trace: unwrappedTrace)
+      localEvaluation = result.evaluation
+      localSnapshot = result.snapshot
+    } else {
+      localEvaluation = ml.evaluate(trace: unwrappedTrace)
+      localSnapshot = nil
+    }
+    // Post-evaluate cancellation check BEFORE any trace mutation. A
+    // cancellation flipping at this point throws CancellationError; the
+    // snapshot is discarded so the caller never sees a stale snapshot
+    // stranded in a trace it has already given up on.
+    if options.isCancelled() { throw CancellationError() }
+    // Mutation strictly last — only on the no-cancellation path. Story
+    // 4-6 code review P5: write BOTH branches so the trace field
+    // always reflects THIS evaluation. Previously a non-diagnostic
+    // conformer (or the plain `evaluate(trace:)` fallback) left
+    // `localSnapshot == nil` and skipped the mutation, which meant a
+    // caller reusing a trace across two evaluations could observe a
+    // snapshot from the FIRST eval persisting through the second.
+    // Trace doc-comment promises "most recent evaluation"; the explicit
+    // nil write upholds that contract.
+    var mutableTrace = unwrappedTrace
+    mutableTrace.mlDiagnosticSnapshot = localSnapshot
+    trace = mutableTrace
+    return localEvaluation
+  }
+
+  // MARK: - Story 4.4: ML ensemble combiner promoted to EnsembleCombiner.swift
+
+  // The internal `combine(dspWinner:mlEvaluation:)` helper that lived here in
+  // Story 4.3 has been promoted to ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``.
+  // The call site now lives inline in ``analyzeBPM(url:options:)`` (above)
+  // alongside the A1 short-circuit IIFE that decides whether ML inference
+  // runs at all.
+
+  /// Maximum analysis intensity supported by the current configuration.
+  ///
+  /// - Parameter mlTechnique: The ML technique that will be supplied via
+  ///   ``Options/mlTechnique`` — pass `nil` to ask "what's the ceiling without
+  ///   the BoomBoomBoomKitML package?" or pass a real conformance to ask
+  ///   "what's the ceiling with my chosen ML model?"
+  /// - Returns: ``AnalysisIntensity/default`` (7) when `mlTechnique` is `nil`;
+  ///   ``AnalysisIntensity/maximum`` (10) when non-nil.
+  public static func maximumSupportedIntensity(
+    mlTechnique: (any MLTechnique)?
+  ) -> AnalysisIntensity {
+    mlTechnique == nil ? dspOnlyMaxIntensity : .maximum
   }
 
   // MARK: - Story 3-6b: pre-corroboration pipeline (test-shareable)
@@ -253,13 +584,20 @@ public struct AudioAnalysisService {
   ///   - url: Path to the audio file.
   ///   - options: Configuration controlling read length, intensity, merge,
   ///     cancellation, and progress.
+  ///   - enableTrace: Whether ``BPMAnalyzer`` should populate a
+  ///     ``BPMDiagnosticTrace`` for each window. Computed by the caller
+  ///     (Story 4.3, ADR-6: trace is forced on whenever
+  ///     ``Options/mlTechnique`` is non-nil so ``MLTechnique`` always
+  ///     receives a populated trace) — the helper does not consult
+  ///     ``Options/enableTrace`` directly so that pre-corroboration code
+  ///     stays free of post-corroboration concerns.
   /// - Returns: ``PreCorroborationOutput`` carrying the merged DSP
   ///   candidate (nil for silence/too-short/no-result) and the metadata
   ///   input destined for ``MetadataCorroborator/apply(to:input:)``.
   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
   ///   `CancellationError` if cancelled via `options.isCancelled`.
   static func runPreCorroborationPipeline(
-    url: URL, options: Options
+    url: URL, options: Options, enableTrace: Bool
   ) throws -> PreCorroborationOutput {
     // Early cancellation check — avoid ~10MB PCM read on pre-cancelled calls.
     if options.isCancelled() { throw CancellationError() }
@@ -291,6 +629,15 @@ public struct AudioAnalysisService {
     // pipeline actually extracted.
     let resolvedTechniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
 
+    // Story 4-5 / AC #4 / DD #4: capture log-mel features for `MLTechnique.evaluate`
+    // ONLY when the trace will actually feed an ML conformance. Mirror of the
+    // `shouldBuildTrace` predicate at the analyzeBPM call site so the DSP-only
+    // path stays bit-exact to pre-Story-4.5 (HALT (e) byte-identity contract).
+    let captureMLFeatures =
+      enableTrace
+      && options.mlTechnique != nil
+      && options.ensemblePolicy != .dspOnly
+
     // Collect results from all windows.
     var windowResults: [BPMResult] = []
     let windowSizes = options.intensity.windowSizes
@@ -308,9 +655,10 @@ public struct AudioAnalysisService {
             analysisWindowSeconds: windowSeconds,
             intensity: options.intensity,
             techniqueSet: options.techniqueSet,
-            enableTrace: options.enableTrace,
+            enableTrace: enableTrace,
             fileDurationSeconds: fileDurationSeconds,
-            durationHintMinFileSeconds: options.durationHintMinFileSeconds)
+            durationHintMinFileSeconds: options.durationHintMinFileSeconds,
+            captureMLFeatures: captureMLFeatures)
         )
       else {
         completed += 1

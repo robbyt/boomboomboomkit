@@ -1,0 +1,30 @@
+================================================================
+bnns-probe @ 2026-05-13T21:16:20Z
+mlmodelc: /Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc
+================================================================
+BNNSGraphCompileFromFile succeeded: graph.data=0x0000000a78800000, graph.size=1438044 bytes
+
+-- Task 1.5b: allocator zone probe -----------------------------
+malloc_zone_from_ptr(graph.data) returned: 0x00000001ee2fc000
+malloc_get_zone_name(zone)          = DefaultMallocZone
+malloc_default_zone()               = Optional(0x00000001ee2fc000)
+pointer is in default zone          = true
+VERDICT: graph.data is default-zone malloc'd; `free(graph.data)` is the correct destructor.
+
+-- Task 1.5d: logit-vs-probability verification ----------------
+BNNSGraphGetArgumentPosition(input)  = 1
+BNNSGraphGetArgumentPosition(output) = 0
+BNNSGraphContextMake succeeded: context.size=1368
+BNNSGraphContextSetArgumentType(.Tensor) = 0
+BNNSGraphContextGetWorkspaceSize = 25165824 bytes
+BNNSGraphContextGetTensor(input)  status=0 rank=4 shape=[1, 1, 128, 512]
+BNNSGraphContextGetTensor(output) status=0 rank=2 shape=[1, 256]
+BNNSGraphContextExecute status = 0
+output[0..<8]   = -1.75910, -1.86855, -1.78748, -1.87590, -1.88610, -1.86685, -1.93545, -1.92580
+output.sum      = -347.873299
+output.min      = -1.985540
+output.max      = 0.007172
+output.argmax   = 140  → predicted_bpm = 30 + argmax = 170.0
+VERDICT: output is LOGITS (sum ≠ 1 or values outside [0,1]).
+         BNNSTechnique.evaluate(trace:) MUST insert a host-side softmax
+         (vForce.exp + vDSP.sum + vDSP.divide, with subtract-max-for-stability).

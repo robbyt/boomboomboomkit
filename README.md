@@ -103,7 +103,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `CandidateMergeStrategy` | How multi-window candidates are combined (8 strategies) |
 | `DSPTechnique` | Individual DSP technique enum (closed set, `CaseIterable`) |
 | `TechniqueSet` | Composable technique set with named presets (`.optimal`, `.clickAugmented`, `.full`, …) |
-| `MLTechnique` | Protocol for future ML-based estimation (slot reserved on `Options.mlTechnique`) |
+| `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Optional ML Models" section + [MODEL_CARD.md](MODEL_CARD.md) |
 | `BPMDiagnosticTrace` | Per-step pipeline diagnostic state |
 | `ProgressUpdate` | Per-window progress payload for the `Options.onProgress` callback |
 
@@ -135,11 +135,44 @@ let clickTrack = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds
 9. **Octave Disambiguation** — Sub-band voting resolves 2:1 ambiguity
 10. **Progressive Analysis** — Multi-window analysis at 30s/60s/90s with configurable merge strategy
 
+## Using your own tempo model
+
+BoomBoomBoomKit's production BPM path is **DSP-first**. The default analysis pipeline does not require or enable ML, and on the project's regression corpora the DSP pipeline currently outperforms every model the project has trained (see [MODEL_CARD.md](MODEL_CARD.md) for measured comparisons).
+
+The optional `BoomBoomBoomKitML` target adds an `MLTechnique` plug-in surface for consumers who want to **bring their own tempo classifier** (BYOM) and ensemble it with the DSP results — for example, if you have a domain-specific model trained on your own corpus that beats the DSP on your distribution. See [`tools/coreml-convert/README.md`](tools/coreml-convert/README.md) for the full PyTorch → CoreML conversion flow and the license-matrix for bundling third-party weights.
+
+```swift
+import BoomBoomBoomKit
+import BoomBoomBoomKitML
+
+var options = AudioAnalysisService.Options()
+
+// Path A — same architecture, your own weights:
+let yourModel = Bundle.main.url(forResource: "your_model", withExtension: "mlmodelc")!
+options.mlTechnique = try? BNNSTechnique(modelURL: yourModel)
+
+// Path B — different architecture, your own MLTechnique conformance:
+options.mlTechnique = MyDeepRhythmTechnique()
+
+// Ensemble policy is `.dspOnly` by default — explicit opt-in is required
+// before MLTechnique.evaluate(trace:) is invoked. `.highestConfidence`
+// returns whichever of DSP or ML self-reports a higher confidence; ML
+// abstains (returns nil) fall back to DSP unchanged.
+options.ensemblePolicy = .highestConfidence
+
+let result = try AudioAnalysisService.analyzeBPM(url: trackURL, options: options)
+```
+
+**No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of OA300 audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
+
+To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project). It supports the reference architecture (the one the historical `giantsteps_v1` was trained on) as well as fully custom architectures via your own `nn.Module` class.
+
 ## References
 
 - Davies, M.E.P. & Plumbley, M.D. (2007). "Context-dependent beat tracking of musical audio"
 - ITU-R BS.1770-5 — Algorithms to measure audio programme loudness
 - O'Shaughnessy, D. (1987). Mel-frequency scale conversion
+- Schreiber, H. & Müller, M. (2018). "A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network" — architecture reference for the historical `giantsteps_v1` checkpoint (pulled from the bundle in Story 4-6; remains the reference architecture for BYOW)
 
 ## License
 

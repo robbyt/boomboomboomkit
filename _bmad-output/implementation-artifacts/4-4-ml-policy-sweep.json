@@ -1,0 +1,31 @@
+{
+  "mock_evaluation" : {
+    "bpm" : 128,
+    "confidence" : 0.92
+  },
+  "results" : [
+    {
+      "acc1" : 58,
+      "acc2" : 74,
+      "default" : true,
+      "policy" : "dspOnly",
+      "total" : 82
+    },
+    {
+      "acc1" : 5,
+      "acc2" : 5,
+      "default" : false,
+      "policy" : "mlOnly",
+      "total" : 82
+    },
+    {
+      "acc1" : 10,
+      "acc2" : 12,
+      "default" : false,
+      "policy" : "highestConfidence",
+      "total" : 82
+    }
+  ],
+  "schema_version" : 1,
+  "snapshot_sha" : "16e03e0"
+}

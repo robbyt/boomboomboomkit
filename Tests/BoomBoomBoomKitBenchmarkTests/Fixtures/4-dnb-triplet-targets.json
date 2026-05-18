@@ -1,0 +1,82 @@
+{
+  "schema_version": 3,
+  "captured_with": {
+    "captured_at": "2026-05-15T00:00:00Z",
+    "captured_by": "Story 4-6 author (Robert Terhaar)",
+    "git_sha": "1c8e274",
+    "macos_version": "26.5",
+    "xcode_version": "Xcode 26.4.1",
+    "swift_version": "Apple Swift version 6.3.1 (swiftlang-6.3.1.1.2 clang-2100.0.123.102)",
+    "note": "schema_version 3 introduces dsp_correct_controls partition per Story 4-6 DD #4. Named-failure entries unchanged from schema v2. Control entries' current_predicted_bpm values frozen from 4-5-bnns-impact-report.json."
+  },
+  "targets": [
+    {
+      "track_id": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework)",
+      "ground_truth_bpm": 160.0,
+      "source": "dawproject",
+      "current_predicted_bpm": 106.24575536776753,
+      "current_abs_error": 53.75424463223247
+    },
+    {
+      "track_id": "1. The Faraday_Bunker (D-Struct Remix)",
+      "ground_truth_bpm": 170.0,
+      "source": "dawproject",
+      "current_predicted_bpm": 113.47141575050482,
+      "current_abs_error": 56.52858424949518
+    },
+    {
+      "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)",
+      "ground_truth_bpm": 170.0,
+      "source": "daw_oracle",
+      "current_predicted_bpm": 113.23972280701754,
+      "current_abs_error": 56.76027719298246
+    },
+    {
+      "track_id": "9. HEFT_Anagram 6 (Owl Remix)",
+      "ground_truth_bpm": 170.0,
+      "source": "daw_oracle",
+      "current_predicted_bpm": 113.36578128040475,
+      "current_abs_error": 56.63421871959525
+    }
+  ],
+  "dsp_correct_controls": [
+    {
+      "track_id": "10. Hellacopta_Assemby (Xiûa Remix).wav",
+      "ground_truth_bpm": 170.0,
+      "source": "oa300_ground_truth",
+      "current_predicted_bpm": 169.99288260456274,
+      "current_abs_error": 0.00711739543726,
+      "rationale": "DSP-correct DnB control — same release family (Remixes Vol) as Story 4-5 named failures (D-Struct/Acid Lab/Owl Remixes); heavily-mastered, in 155-175 BPM band, ML half-tempo failure mode mechanically possible"
+    },
+    {
+      "track_id": "3. D3Z_Axons (Offish Remix).wav",
+      "ground_truth_bpm": 170.0,
+      "source": "oa300_ground_truth",
+      "current_predicted_bpm": 170.17556333406256,
+      "current_abs_error": 0.17556333406256,
+      "rationale": "DSP-correct DnB control — same release family as named failures; DnB-genre, in 155-175 BPM band"
+    },
+    {
+      "track_id": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav",
+      "ground_truth_bpm": 170.0,
+      "source": "oa300_ground_truth",
+      "current_predicted_bpm": 170.3974243278812,
+      "current_abs_error": 0.3974243278812,
+      "rationale": "DSP-correct DnB control — same release family as named failures; DnB-genre, in 155-175 BPM band"
+    },
+    {
+      "track_id": "6. HEFT_Fuyu (Akinsa Remix).wav",
+      "ground_truth_bpm": 170.0,
+      "source": "oa300_ground_truth",
+      "current_predicted_bpm": 169.56191195091068,
+      "current_abs_error": 0.43808804908932,
+      "rationale": "DSP-correct DnB control — same release family as named failures; DnB-genre, in 155-175 BPM band"
+    }
+  ],
+  "regression_threshold": {
+    "min_resolved": 2,
+    "tolerance_bpm": 0.5,
+    "min_oa300_acc1": 58,
+    "min_giantsteps_acc1": 537
+  }
+}

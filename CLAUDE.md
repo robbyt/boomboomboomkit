@@ -9,6 +9,67 @@ See @Makefile for all targets (`make help`). Key ones: `make build`, `make test`
 Run a single test suite: `swift test --filter BPMAnalyzer120BPMTests`
 Run a single test: `swift test --filter BPMAnalyzer120BPMTests/detect120BPM`
 
+## Release Process — what ships to `main` vs stays on `develop`
+
+**This repo is multi-branch.** `main` is the public open-source release target; `develop` carries everything else, including all LLM-aided-development tooling. Read this section before authoring or moving any file. **When in doubt, default to develop.**
+
+### Ships to `main` (the public open-source library)
+
+| Path | Why |
+|---|---|
+| `Package.swift` | SPM manifest |
+| `Sources/` | All three SPM targets (`BoomBoomBoomKit`, `BoomBoomBoomKitTestSupport`, `BoomBoomBoomKitML`). Story 4-6 (Branch C close-out, 2026-05-16) removed the previously-bundled `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` reference model; it now lives at `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` (develop-only). The `BoomBoomBoomKitML` target ships without `resources: [.copy("Resources")]` until a higher-quality bundled model returns |
+| `Tests/` | Unit tests + the env-gated benchmark target |
+| `tools/coreml-convert/` | Consumer-facing PyTorch → CoreML conversion CLI. This is **the only Python tooling that ships to main** (Story 4-4b DD #13 exception, recorded in `_bmad-output/implementation-artifacts/4-4b-tempo-classifier-training.md`) |
+| `README.md` | Public-facing readme |
+| `MODEL_CARD.md` | Authoritative bundled-model accuracy disclosure (per Story 4-4b party-mode follow-up) |
+| `LICENSE` | License text |
+| `.swiftlint.yml` | Lint config |
+| `.gitignore` | Ignored-path rules (must include the develop-only patterns so they don't accidentally land on main) |
+| `Makefile` | Build/test targets. `ml-*` shortcut targets remain in the file even though their underlying scripts live in `_bmad-output/`; they fail loudly on a main-only checkout, which is intentional — consumers shouldn't run them |
+
+### Stays on `develop` ONLY — NEVER shipped to `main`
+
+These are the LLM-aided-development scaffolding directories. They MUST be excluded from the squash-merge to main.
+
+- **`CLAUDE.md`** — this file. Public consumers do not need it; shipping it advertises the AI-agent workflow inappropriately and exposes internal conventions
+- **`.claude/`** — Claude Code configuration: settings, skills, projects, scheduled tasks, worktrees
+- **`.agents/`** — agent skill directory
+- **`_bmad/`** — BMAD framework installation: `bmm` module, hooks, config TOMLs, scripts
+- **`_bmad-output/`** — every BMAD output:
+  - `_bmad-output/implementation-artifacts/` — story specs, regression snapshots, diff-scope proofs, sprint-status.yaml
+  - `_bmad-output/ml-training/` — Python training pipeline + Swift CLI fixture extractor + parity harness + reports + `model.pt`
+  - `_bmad-output/ml-models/` — uncompiled `.mlmodel` source bundle (the input to `make compile-model`) AND, post-Story-4-6 Branch C, the compiled `giantsteps_v1.mlmodelc/` itself (relocated from `Sources/BoomBoomBoomKitML/Resources/`). Pre-squash-merge to main: VERIFY this directory is NOT in the main-bound diff. The compiled bundle returns to `Sources/` only when a future Branch-A retrain story re-bundles a higher-quality model.
+  - `_bmad-output/perf-baselines/` — performance benchmark history
+  - `_bmad-output/planning-artifacts/` — epics + architecture docs
+  - `_bmad-output/project-context.md` — internal AI-agent context
+- **`scripts/`** — non-shipping Python utilities (e.g., `scripts/dawproject-bpm.py` for DAW oracle ground-truth generation)
+
+### Squash-merge protocol (`develop` → `main`)
+
+Manual; the release operator does this by hand. There is no automation.
+
+1. `git checkout main`
+2. `git merge --squash develop`
+3. **Before committing, `git rm --cached -r` every path in the "Stays on `develop` ONLY" list above**, plus any other develop-only artifact that landed (`*.trace`, etc. — see `.gitignore`)
+4. Verify with `git status` that the staged tree contains only paths from the "Ships to `main`" table
+5. Commit with a clean public release message — no references to BMAD, Claude Code, party mode, story specs, AI agents, or any LLM-aided-development concept
+
+**`main`'s history must never reflect the LLM-aided development workflow.** No story-spec commit messages. No `Story 4-4b: ...` subjects. The release commit on main is one squash with a public-facing message; the audit trail of *how* the work happened lives on develop.
+
+### Why this matters
+
+- **Consumers cloning from `main`** should see a clean Swift package + a consumer convert tool. Seeing `.claude/`, `_bmad/`, or `CLAUDE.md` would be confusing, would expose internal workflow, and would create an implicit commitment to support development tooling that is project-internal.
+- **`develop` is the audit trail.** Story specs, regression evidence, training reproducibility, and AI-agent collaboration history all live there. That's intentional and should remain so.
+- **Pre-1.0 framing.** This discipline applies *now*, even pre-1.0; it tightens further at 1.0. Don't let main drift.
+
+### Authoring a new file — decision tree
+
+1. **Does it ship with the library?** → `Sources/` or `Tests/`. Lands on main.
+2. **Is it consumer-facing infrastructure** that consumers need at clone time (e.g., a CLI for converting their own ML models)? → `tools/coreml-convert/` (currently the only such directory). Lands on main *only* with explicit story-spec authorization (DD #13 was the precedent — do not add more without one).
+3. **Is it project planning, training, ML reproducibility, or AI-agent tooling?** → `_bmad-output/`, `_bmad/`, `.claude/`, `.agents/`, or `scripts/`. Stays on develop.
+4. **Anything else?** Default to develop. Ask before promoting.
+
 ## Architecture
 
 BoomBoomBoomKit is a standalone audio analysis library for BPM estimation and LUFS loudness measurement. Pure Swift, zero external dependencies — only Apple system frameworks (Accelerate/vDSP, AVFoundation, Foundation). Swift 6.0 strict concurrency, macOS 15+.
@@ -28,9 +89,9 @@ All types are stateless structs/enums with static methods. Shared currency type 
 - **ProgressUpdate** — Public struct (`Sendable`) with `windowsCompleted: Int` and `windowsTotal: Int`. Emitted before each analysis window begins.
 - **CandidateMergeStrategy** — Public enum (8 cases): `maxConfidence` (default), `dedup`, `quorum`, `average`, `median`, `weightedAverage`, `union`, `windowVoting`. Controls how candidates from multiple analysis windows are combined. `windowVoting` votes on each window's final disambiguated BPM (post-disambiguation) instead of raw candidates; falls back to `maxConfidence` when no consensus. `windowVoting` is parameterizable via `VotingPolicy` (`.simpleMajority` default; `.confidenceWeighted`, `.thresholdGated` for benchmark sweeps) — see `VotingPolicy.swift`. `CaseIterable` for ablation.
 - **VotingPolicy** — Public enum (3 cases): `simpleMajority` (default), `confidenceWeighted`, `thresholdGated`. Resolution policy used ONLY when `mergeStrategy == .windowVoting` (the `CandidateMergeStrategy` value held by `AudioAnalysisService.Options`). It is NOT a `DSPTechnique` (no DSP changes; no ablation matrix expansion) and NOT a new `CandidateMergeStrategy` case (still 8 cases). Future stories must not promote it into either family without explicit story authorization. Threshold (`Options.votingThreshold`, range `[0.0, 1.0]`, silently clamped, NaN/Inf normalize to 0.0) is consulted only by `.thresholdGated`. `CaseIterable, Sendable, Hashable`.
-- **AnalysisIntensity** — Public struct (1-10) controlling pipeline depth via `techniqueSet: TechniqueSet`. Named constants: `.fastest` (1), `.default` (7), `.thorough` (8), `.maximum` (10). Levels 1-7 are DSP-only; 8-10 reserved for future ML. Intensity mapping validated by 128-combination ablation matrix.
-- **DSPTechnique** — Public enum (7 cases): `acfSharpening`, `adaptiveThreshold`, `subBandNormalization`, `expandedCandidates`, `fineGridRefinement`, `subBandVoting`, `clickTrackCorrelation`. Closed set, `CaseIterable`.
-- **TechniqueSet** — Public struct composing `Set<DSPTechnique>` with named presets: `.baseline` (vote+fine), `.optimal` (sharp+vote+fine, Acc1=67.1%), `.dnbOptimized` (sharp+norm+vote+fine), `.clickAugmented` (optimal + click, opt-in rhythmic-alignment rescoring), `.full` (all 7). `allDSPCombinations()` generates 2^7=128 combos for ablation.
+- **AnalysisIntensity** — Public struct (1-10) controlling pipeline depth via `techniqueSet: TechniqueSet`. Named constants: `.fastest` (1), `.default` (7), `.thorough` (8), `.maximum` (10). Levels 1-7 are DSP-only; 8-10 reserved for future ML. Intensity mapping validated by 256-combination ablation matrix (Story 4-7 grew from 128).
+- **DSPTechnique** — Public enum (8 cases): `acfSharpening`, `adaptiveThreshold`, `subBandNormalization`, `expandedCandidates`, `fineGridRefinement`, `subBandVoting`, `clickTrackCorrelation`, `superFluxOnset`. Closed set, `CaseIterable`. Story 4-7 added `.superFluxOnset` (Böck & Widmer 2013 frequency-neighborhood max-filter onset detection) — gated by the brutal-corpus gate; case ships available for consumer experimentation regardless of gate outcome.
+- **TechniqueSet** — Public struct composing `Set<DSPTechnique>` with named presets: `.baseline` (vote+fine), `.optimal` (sharp+vote+fine, Acc1=67.1%), `.dnbOptimized` (sharp+norm+vote+fine), `.clickAugmented` (optimal + click, opt-in rhythmic-alignment rescoring), `.full` (all 8). `allDSPCombinations()` generates 2^8=256 combos for ablation.
 - **MLTechnique** — Public protocol for future CoreML integration (Phase 3). Evaluates candidates post-pipeline via `BPMDiagnosticTrace`. Definition only, no conformances yet.
 - **BPMDiagnosticTrace** — Public struct capturing per-step pipeline intermediate state. Populated when `enableTrace: true`. Evolving API.
 - **BPMAnalyzer** — 10-step DSP pipeline with technique-gated stages: energy scan → silence check → mel-spectrogram onset (with optional sub-band normalization) → adaptive thresholding → autocorrelation (with optional ACF sharpening) → Fourier tempogram → periodicity fusion → peak selection → range normalization (60-200 BPM) → step 9b: click-track cross-correlation (optional, rescores candidates) → step 9.7: duration-derived BPM hint (optional, default-on via `Options.durationHint`, boosts candidates matching common bar-count BPMs when file duration ≥ `Options.durationHintMinFileSeconds`) → sub-band voting octave disambiguation → fine-grid refinement. Internal type (not public). Uses three internal buffer structs (`PipelineBuffers`, `ACFBuffers`, `TempogramBuffers`) following ADR-3 allocate/deallocate pattern to avoid per-step heap allocations. All buffer lifetimes are scoped to a single `estimateBPM()` invocation.

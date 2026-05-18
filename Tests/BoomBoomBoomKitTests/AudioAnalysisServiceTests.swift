@@ -377,34 +377,19 @@ struct AudioAnalysisServiceProgressTests {
   }
 }
 
-// MARK: - MLTechnique Slot (Story 3-3a / ADR-11)
-
-/// Test-target-only mock conformance for ``MLTechnique``. Lives in the test target
-/// per architecture.md:482 — the public package ships no MLTechnique conformances.
-private struct MockMLTechnique: MLTechnique {
-  let name: String
-  init(name: String = "Mock") { self.name = name }
-
-  func evaluate(
-    candidates: [(bpm: Double, score: Float)],
-    trace: BPMDiagnosticTrace
-  ) -> (bpm: Double, confidence: Double)? {
-    // Sentinel: 999 BPM is outside the public 60-200 output range, so a future
-    // wired-but-not-Story-4.3 read of `options.mlTechnique` that surfaced this
-    // value would break `mlTechniqueNonNilIsIgnoredPreStory43`'s identity assertion.
-    (bpm: 999.0, confidence: 1.0)
-  }
-}
+// MARK: - MLTechnique Slot (Story 3-3a / ADR-11; wired by Story 4.3)
 
 @Suite("AudioAnalysisService — MLTechnique Slot")
 struct MLTechniqueSlotTests {
 
-  /// AC#2: `Options` accepts a real `MLTechnique` conformance and round-trips it.
+  /// AC#2 (Story 3-3a): `Options` accepts a real `MLTechnique` conformance and
+  /// round-trips it. Post-Story-4.3 the protocol no longer requires a `name`
+  /// channel; round-trip is proven by non-nil identity alone.
   @Test("mlTechnique slot accepts conformance and round-trips")
   func mlTechniqueSlotAcceptsConformance() {
     var opts = AudioAnalysisService.Options()
-    opts.mlTechnique = MockMLTechnique(name: "Probe")
-    #expect(opts.mlTechnique?.name == "Probe")
+    opts.mlTechnique = MockMLTechnique()
+    #expect(opts.mlTechnique != nil)
   }
 
   /// AC#2: A fresh `Options()` defaults `mlTechnique` to nil per the implicit-nil rule.
@@ -414,12 +399,14 @@ struct MLTechniqueSlotTests {
     #expect(opts.mlTechnique == nil)
   }
 
-  /// AC#2: With Story 4.3 not yet landed, setting `mlTechnique` to a non-nil mock
-  /// MUST produce results identical to the baseline (proves the field is inert).
-  /// When Story 4.3 wires the evaluation path, this test will fail and must be
-  /// updated to reflect the new ML-influenced behavior.
-  @Test("mlTechnique non-nil produces results identical to baseline (slot is inert pre-Story-4.3)")
-  func mlTechniqueNonNilIsIgnoredPreStory43() throws {
+  /// Post-Story-4.3 invariant (DD #5): the default ensemble policy is
+  /// "DSP wins regardless." An injected `MLEvaluation` — even one carrying a
+  /// sentinel BPM outside the public 60-200 output range — must NOT change
+  /// the final BPM/confidence vs the baseline. Story 4.4 introduces the
+  /// public `EnsemblePolicy` enum that switches the combiner; until then the
+  /// ML path is wired-but-inert at the result layer.
+  @Test("mlEvaluation does not change DSP result under default policy (Story 4.3 DD #5)")
+  func mlEvaluationDoesNotChangeDSPResultUnderDefaultPolicy() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
 
     var baseline = AudioAnalysisService.Options()
@@ -429,13 +416,29 @@ struct MLTechniqueSlotTests {
 
     var withMock = AudioAnalysisService.Options()
     withMock.intensity = .fastest
-    withMock.mlTechnique = MockMLTechnique()
+    // 999 BPM is outside the public 60-200 output range. If a future change
+    // accidentally promoted ML output to the ensemble result, this sentinel
+    // would surface in `mockResult.bpm` and break the bitPattern equality.
+    withMock.mlTechnique = MockMLTechnique(
+      returning: MLEvaluation(bpm: 999.0, confidence: 1.0))
     let mockResult = try #require(
       try AudioAnalysisService.analyzeBPM(url: url, options: withMock))
 
     #expect(baselineResult.bpm == mockResult.bpm)
     #expect(baselineResult.confidence == mockResult.confidence)
   }
+
+  // Story 4-3's `evaluateIsInvokedWithNonNilTraceWhenEnableTraceFalse`
+  // wiring proof was removed in Story 4-4: its premise ("ML always runs
+  // when mlTechnique != nil") is exactly what the A1 short-circuit
+  // deliberately broke under the default `.dspOnly` policy. The post-4-4
+  // invariants are covered by `EnsemblePolicyTests`:
+  //   - callCount==0 under `.dspOnly` (AC #14)
+  //   - callCount==1 under `.mlOnly` / `.highestConfidence` (AC #14
+  //     contrapositive)
+  //   - trace.ensembleDecision population matrix (AC #13)
+  //   - the inertness proofs against sentinel ML evaluations (AC #5)
+  // Pre-1.0 / no-BC posture per project-context.md "Public API Discipline".
 }
 
 // MARK: - Duration Hint Tests (Story 3-4)
@@ -725,4 +728,147 @@ private func createClickTrackWAV(
   }
 
   try file.write(from: buffer)
+}
+
+// MARK: - Story 4.2: Effective Intensity Reporting
+
+/// Story 4.2 ACs #2-#4: `AudioAnalysisResult.effectiveIntensity` reflects the
+/// effective DSP-level depth and `degradationReason` carries an actionable
+/// explanation when intensity 8-10 is requested without an `MLTechnique`.
+/// Reuses ``BoomBoomBoomKitTestSupport/MockMLTechnique`` (Story 4.3 Task 5.2
+/// promotion; DD #7).
+@Suite("AudioAnalysisService — Effective Intensity")
+struct EffectiveIntensityTests {
+
+  /// AC #2: requests in 1-7 with `mlTechnique = nil` round-trip the requested
+  /// intensity and emit no degradation reason.
+  @Test("intensity 1-7 (no ML) reports requested, no reason")
+  func intensity1ToDefaultReportsRequestedNoReason() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    // Equivalence-class sampling: lower boundary, representative middle, ceiling.
+    for raw in [1, 4, 7] {
+      var opts = AudioAnalysisService.Options()
+      opts.intensity = AnalysisIntensity(rawValue: raw)
+      let result = try #require(
+        try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+      #expect(result.effectiveIntensity.rawValue == raw)
+      #expect(result.degradationReason == nil)
+    }
+  }
+
+  /// AC #2: requests in 1-7 with a non-nil `mlTechnique` still report the
+  /// requested intensity (intensity 1-7 never engages ML).
+  @Test("intensity 1-7 with mock ML reports requested, no reason")
+  func intensity1ToDefaultWithMockMLReportsRequestedNoReason() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = .default
+    opts.mlTechnique = MockMLTechnique()
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    #expect(result.effectiveIntensity == .default)
+    #expect(result.degradationReason == nil)
+  }
+
+  /// AC #3: requests in 8-10 without `mlTechnique` cap at `.default` (7) and
+  /// emit a non-nil degradation reason.
+  @Test("intensity 8-10 (no ML) caps at 7 with reason")
+  func intensity8To10NoMLCapsAt7WithReason() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    for raw in [8, 9, 10] {
+      var opts = AudioAnalysisService.Options()
+      opts.intensity = AnalysisIntensity(rawValue: raw)
+      let result = try #require(
+        try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+      #expect(result.effectiveIntensity == .default)
+      #expect(result.degradationReason != nil)
+    }
+  }
+
+  /// AC #3: degradation message exact-string format for `rawValue: 9`.
+  /// Asserts the message uses the integer rawValue, not the named-constant
+  /// identifier.
+  @Test("degradationReason exact-string for intensity 9")
+  func degradationReasonExactStringForIntensity9() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = AnalysisIntensity(rawValue: 9)
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    #expect(
+      result.degradationReason
+        == "Requested intensity 9 requires BoomBoomBoomKitML package. "
+        + "Running at intensity 7 (DSP-only).")
+  }
+
+  /// AC #3: degradation message exact-string format for `.maximum` (== 10).
+  /// Asserts that `.maximum` interpolates as `10`, NOT as `"maximum"`.
+  @Test("degradationReason exact-string for .maximum (10)")
+  func degradationReasonExactStringForMaximum() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    var opts = AudioAnalysisService.Options()
+    opts.intensity = .maximum
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    #expect(
+      result.degradationReason
+        == "Requested intensity 10 requires BoomBoomBoomKitML package. "
+        + "Running at intensity 7 (DSP-only).")
+  }
+
+  /// AC #4: requests in 8-10 with a non-nil `mlTechnique` round-trip the
+  /// requested intensity and emit no degradation reason.
+  @Test("intensity 8-10 with mock ML reports requested, no reason")
+  func intensity8To10WithMockMLReportsRequestedNoReason() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    for raw in [8, 9, 10] {
+      var opts = AudioAnalysisService.Options()
+      opts.intensity = AnalysisIntensity(rawValue: raw)
+      opts.mlTechnique = MockMLTechnique()
+      let result = try #require(
+        try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+      #expect(result.effectiveIntensity.rawValue == raw)
+      #expect(result.degradationReason == nil)
+    }
+  }
+}
+
+// MARK: - Story 4.2: Maximum Supported Intensity
+
+/// Story 4.2 AC #6: `AudioAnalysisService.maximumSupportedIntensity(mlTechnique:)`
+/// returns `.default` (7) when `nil`, `.maximum` (10) when non-nil.
+@Suite("AudioAnalysisService — Maximum Supported Intensity")
+struct MaximumSupportedIntensityTests {
+
+  /// AC #6: `nil` mlTechnique returns the DSP-only ceiling (`.default` == 7).
+  @Test("maximumSupportedIntensity(nil) returns .default")
+  func maximumSupportedIntensityNilReturnsDefault() {
+    #expect(
+      AudioAnalysisService.maximumSupportedIntensity(mlTechnique: nil)
+        == .default)
+    // Pin the rawValue invariant — guards against silent drift if `.default`
+    // is ever relocated. `dspOnlyMaxIntensity` (DD #3 single source of truth)
+    // is private; this assertion verifies the contract via the public API.
+    #expect(
+      AudioAnalysisService.maximumSupportedIntensity(mlTechnique: nil).rawValue == 7,
+      "DSP-only ceiling must remain 7 — guards against silent drift if .default rawValue is relocated"
+    )
+  }
+
+  /// AC #6: a non-nil mlTechnique conformance returns `.maximum` (10).
+  @Test("maximumSupportedIntensity(mock) returns .maximum")
+  func maximumSupportedIntensityWithMockReturnsMaximum() {
+    #expect(
+      AudioAnalysisService.maximumSupportedIntensity(
+        mlTechnique: MockMLTechnique())
+        == .maximum)
+    // Pin the rawValue invariant — guards against silent drift if `.maximum`
+    // is ever relocated.
+    #expect(
+      AudioAnalysisService.maximumSupportedIntensity(
+        mlTechnique: MockMLTechnique()
+      ).rawValue == 10,
+      ".maximum ceiling must remain 10 — guards against silent drift if .maximum rawValue is relocated"
+    )
+  }
 }

@@ -1,0 +1,104 @@
+Parsing /tmp/4-3b-time-profile.xml…
+
+Total samples: 14175
+Total weight:  14.175 s
+
+=== Top 30 leaf functions (top of stack, exclusive cost) ===
+   42.7%   6046.0 ms  0x190b4fff0
+    8.0%   1140.0 ms  0x19e6f3340
+    4.4%    628.0 ms  _platform_memmove
+    4.4%    618.0 ms  0x19e7885dc
+    4.3%    607.0 ms  0x19e788960
+    3.6%    513.0 ms  vDSP_ctoz
+    3.5%    503.0 ms  __bzero
+    2.8%    395.0 ms  0x19e6e1170
+    2.3%    331.0 ms  pread
+    2.1%    303.0 ms  vDSP_zvmags
+    1.5%    215.0 ms  0x19e789114
+    1.5%    214.0 ms  swift_release
+    1.5%    209.0 ms  0x190b4e69c
+    1.4%    202.0 ms  VVLOGF
+    1.0%    147.0 ms  0x19e6d9f48
+    1.0%    146.0 ms  vDSP_svesq
+    0.7%    106.0 ms  VVCOSF
+    0.7%    105.0 ms  0x19e788e2c
+    0.7%     93.0 ms  VVSINF
+    0.6%     90.0 ms  xzm_malloc_zone_size
+    0.6%     87.0 ms  0x19e6e91a0
+    0.6%     86.0 ms  __munmap
+    0.6%     85.0 ms  0x190b4d9e8
+    0.5%     76.0 ms  0x19e6f0d50
+    0.5%     66.0 ms  _xzm_xzone_malloc_tiny
+    0.4%     62.0 ms  0x19f8570f4
+    0.4%     62.0 ms  __open
+    0.4%     51.0 ms  __sincos_stret
+    0.3%     48.0 ms  0x19e78751c
+    0.3%     44.0 ms  _xzm_free
+
+=== Top 30 ancestor functions (anywhere in stack, inclusive cost) ===
+  100.0%  14169.0 ms  <deduplicated_symbol>
+   99.9%  14158.0 ms  completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*)
+   99.9%  14155.0 ms  withTaskCancellationHandler<A>(operation:onCancel:isolation:)
+   99.9%  14155.0 ms  specialized closure #1 in TestCancellable.withCancellationHandling<A>(_:)
+   99.9%  14155.0 ms  TaskLocal.withValueImpl<A>(_:operation:isolation:file:line:)
+   99.9%  14155.0 ms  TaskLocal.withValue<A>(_:operation:isolation:file:line:)
+   99.9%  14155.0 ms  specialized TestCancellable.withCancellationHandling<A>(_:)
+   99.9%  14154.0 ms  specialized MLTechniquePerfTests.profileLongLoop()
+   99.9%  14154.0 ms  MLTechniquePerfTests.profileLongLoop()
+   99.9%  14154.0 ms  closure #1 in closure #1 in static Runner._runTestCase(_:within:context:)
+   99.9%  14154.0 ms  specialized static Issue.withErrorRecording(at:configuration:isolation:_:)
+   99.9%  14154.0 ms  closure #1 in static Runner._runTestCase(_:within:context:)
+   99.9%  14154.0 ms  specialized static Test.Case.withCurrent<A>(_:perform:)
+   99.9%  14154.0 ms  specialized static Runner._runTestCase(_:within:context:)
+   99.9%  14154.0 ms  closure #4 in static Runner._runTestCases<A>(_:within:context:)
+   99.9%  14154.0 ms  specialized closure #1 in closure #1 in static Runner._forEach<A, B>(in:namingTasksWith:_:)
+   99.8%  14142.0 ms  static AudioAnalysisService.analyzeBPM(url:options:)
+   99.7%  14138.0 ms  static AudioAnalysisService.runPreCorroborationPipeline(url:options:enableTrace:)
+   91.3%  12940.0 ms  specialized static AudioAnalysisService.runPreCorroborationPipeline(url:options:enableTrace:)
+   85.4%  12105.0 ms  static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+   45.0%   6384.0 ms  closure #1 in closure #3 in static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+   45.0%   6381.0 ms  vDSP_mmul
+   44.9%   6366.0 ms  cblas_sgemm
+   44.7%   6340.0 ms  0x190b4d9e8
+   42.7%   6046.0 ms  0x190b4fff0
+   21.9%   3110.0 ms  specialized static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+   20.6%   2917.0 ms  vDSP.FFT.forward(input:output:)
+   20.5%   2907.0 ms  vDSP.FFT.transform<A>(input:output:direction:)
+   20.5%   2902.0 ms  withUnsafePointer<A, B, C>(to:_:)
+   20.4%   2893.0 ms  partial apply for closure #1 in static vDSP_FFTFunctions.fftTransform<A>(fftSetup:log2n:source:destination:direction:)
+
+=== Top 30 BoomBoomBoomKit-prefixed functions (leaf) ===
+    0.0%      6.0 ms  specialized static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+    0.0%      2.0 ms  specialized static MelFilterbank.buildFilterbank(melBands:fftSize:sampleRate:fmin:fmax:)
+    0.0%      2.0 ms  specialized static BPMAnalyzer.applyTPS2Enhancement(periodicity:bpmMin:bpmMax:)
+    0.0%      2.0 ms  closure #1 in closure #3 in static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+    0.0%      1.0 ms  specialized static BPMAnalyzer.extractTopCandidates(enhanced:bpmMin:count:)
+    0.0%      1.0 ms  static BPMAnalyzer.rangeNormalize(_:)
+    0.0%      1.0 ms  static AudioAnalysisService.analyzeBPM(url:options:)
+
+=== Top 30 BoomBoomBoomKit-prefixed functions (ancestor / inclusive) ===
+   99.8%  14142.0 ms  static AudioAnalysisService.analyzeBPM(url:options:)
+   99.7%  14138.0 ms  static AudioAnalysisService.runPreCorroborationPipeline(url:options:enableTrace:)
+   91.3%  12940.0 ms  specialized static AudioAnalysisService.runPreCorroborationPipeline(url:options:enableTrace:)
+   85.4%  12105.0 ms  static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+   45.0%   6384.0 ms  closure #1 in closure #3 in static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+   21.9%   3110.0 ms  specialized static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+    3.6%    512.0 ms  closure #1 in closure #2 in static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+    2.8%    390.0 ms  closure #1 in static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+    1.8%    251.0 ms  static BPMAnalyzer.computeAutocorrelation(_:acfBuffers:)
+    0.7%    104.0 ms  static BPMAnalyzer.extractTopPeaks(from:count:)
+    0.7%     96.0 ms  specialized static BPMAnalyzer.extractTopPeaks(from:count:)
+    0.7%     95.0 ms  closure #1 in static BPMAnalyzer.findEnergyTransition(samples:sampleRate:)
+    0.7%     95.0 ms  static BPMAnalyzer.findEnergyTransition(samples:sampleRate:)
+    0.4%     51.0 ms  static BPMAnalyzer.isSilent(_:)
+    0.2%     35.0 ms  static BPMAnalyzer.computeFourierTempogram(onsetEnvelope:onsetRate:bpmMin:bpmMax:pipelineBuffers:)
+    0.1%     16.0 ms  closure #1 in closure #4 in static BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(samples:sampleRate:hopSize:computeSubBands:normalizeSubBands:)
+    0.1%     13.0 ms  specialized static BPMAnalyzer.computeAutocorrelation(_:acfBuffers:)
+    0.1%     10.0 ms  static MelFilterbank.buildFilterbank(melBands:fftSize:sampleRate:fmin:fmax:)
+    0.0%      6.0 ms  static AudioAnalysisService.buildMetadataInput(url:policy:)
+    0.0%      3.0 ms  static BPMAnalyzer.extractTopCandidates(enhanced:bpmMin:count:)
+    0.0%      3.0 ms  closure #1 in closure #2 in static BPMAnalyzer.computeAutocorrelation(_:acfBuffers:)
+    0.0%      2.0 ms  specialized static MelFilterbank.buildFilterbank(melBands:fftSize:sampleRate:fmin:fmax:)
+    0.0%      2.0 ms  specialized static BPMAnalyzer.applyTPS2Enhancement(periodicity:bpmMin:bpmMax:)
+    0.0%      2.0 ms  static BPMAnalyzer.applyTPS2Enhancement(periodicity:bpmMin:bpmMax:)
+    0.0%      1.0 ms  implicit closure #1 in closure #1 in variable initialization expression of static BPMDiagnosticTraceTests.$s04BoomaA8KitTests018BPMDiagnosticTraceC0V50clickCorrelationEntriesPreserveCandidateIndexOrder4TestfMp_24accessor9becd88bbed550defMu_

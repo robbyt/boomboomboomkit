@@ -3,6 +3,9 @@
 PROJECT := BoomBoomBoomKit
 OA300_CORPUS_PATH ?= /Users/rterhaar/Dropbox/OA300_OnsetAudio300
 GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-dataset
+ML_MODEL_INPUT ?= _bmad-output/ml-models/giantsteps_v1.mlmodel
+ML_MODEL_OUT_DIR ?= _bmad-output/ml-models
+BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/perf-baselines/bnns-impact
 
 .PHONY: all
 all: help
@@ -113,6 +116,69 @@ duration-impact-report:
 	DURATION_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/durationImpactReport
 
+## ml-policy-sweep: Generate per-policy ml-policy-sweep JSON to _bmad-output/implementation-artifacts/4-4-ml-policy-sweep.json
+.PHONY: ml-policy-sweep
+ml-policy-sweep:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	ML_POLICY_SWEEP=1 \
+	ML_POLICY_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.MLPolicySweepTests/policySweepReport
+
+## super-flux-impact-report: Generate per-track SuperFlux impact JSON to _bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json
+.PHONY: super-flux-impact-report
+super-flux-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	SPECTRAL_FLUX_IMPACT=1 \
+	SUPER_FLUX_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	XCODE_VERSION=$$( \
+	  V=""; \
+	  if command -v xcodebuild >/dev/null 2>&1; then \
+	    V=$$(xcodebuild -version 2>/dev/null | awk '/^Xcode/ {print $$2; exit}'); \
+	  fi; \
+	  if [ -z "$$V" ]; then echo unknown; else echo "$$V"; fi \
+	) \
+	SWIFT_VERSION=$$( \
+	  V=$$(swift --version 2>/dev/null | sed -nE 's/.*Swift version ([^ ]+).*/\1/p' | head -n1); \
+	  if [ -z "$$V" ]; then echo unknown; else echo "$$V"; fi \
+	) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests/superFluxImpactReport
+
+## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
+.PHONY: bnns-impact-report
+bnns-impact-report:
+	@mkdir -p "$(BNNS_IMPACT_OUT_DIR)"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	BNNS_IMPACT=1 \
+	BNNS_IMPACT_OUT_DIR="$(BNNS_IMPACT_OUT_DIR)" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.BNNSImpactTests/bnnsImpactReport
+
+## compile-model: Compile $(ML_MODEL_INPUT) (.mlmodel or .mlpackage directory bundle) into $(ML_MODEL_OUT_DIR)/<name>.mlmodelc via xcrun coremlc. Develop-only — Story 4-6 retargeted the default output to _bmad-output/ml-models/ (was Sources/BoomBoomBoomKitML/Resources/ pre-Branch-C). Override path with ML_MODEL_INPUT=... or ML_MODEL_OUT_DIR=...; consumers don't run this target.
+.PHONY: compile-model
+compile-model:
+	@if [ ! -e "$(ML_MODEL_INPUT)" ]; then \
+		echo "Error: ML_MODEL_INPUT not found at $(ML_MODEL_INPUT)."; \
+		echo "Override with: make compile-model ML_MODEL_INPUT=path/to/model.mlmodel"; \
+		exit 1; \
+	fi
+	@mkdir -p "$(ML_MODEL_OUT_DIR)"
+	@MODEL_NAME=$$(basename "$(ML_MODEL_INPUT)"); \
+	MODEL_BASE=$${MODEL_NAME%.*}; \
+	rm -rf "$(ML_MODEL_OUT_DIR)/$$MODEL_BASE.mlmodelc"
+	xcrun coremlc compile "$(ML_MODEL_INPUT)" "$(ML_MODEL_OUT_DIR)"
+
 ## oracle: Run three-way DAW oracle comparison (ours vs Rekordbox vs DAW-verified)
 .PHONY: oracle
 oracle:
@@ -156,3 +222,144 @@ deps:
 .PHONY: deps-update
 deps-update:
 	swift package update
+
+# ---------------------------------------------------------------------------
+# ML training pipeline + tools/coreml-convert/ shortcuts.
+#
+# The ml-train / ml-eval / ml-export / ml-pipeline targets require the
+# develop-only _bmad-output/ml-training/ directory and fail loudly on a
+# main-only checkout — consumers shouldn't run them. The ml-convert /
+# ml-convert-tests targets drive the consumer-facing tools/coreml-convert/
+# CLI, which DOES ship to main.
+# ---------------------------------------------------------------------------
+
+ML_TRAINING_DIR := _bmad-output/ml-training
+TOOLS_CONVERT_DIR := tools/coreml-convert
+TRAIN_SEED ?= 42
+TRAIN_EPOCHS ?= 60
+TRAIN_BATCH ?= 32
+TRAIN_WORKERS ?= 4
+
+## ml-train-deps: Sync Python deps for the training pipeline (idempotent)
+.PHONY: ml-train-deps
+ml-train-deps:
+	cd $(ML_TRAINING_DIR) && uv sync --locked
+
+## ml-dump-fixture: Build feature_pipeline_v1.npz from Swift CLI + Python wrapper
+.PHONY: ml-dump-fixture
+ml-dump-fixture:
+	cd $(ML_TRAINING_DIR)/swift_feature_extractor && swift run dump-fixture
+	cd $(ML_TRAINING_DIR) && uv run python build_fixture.py
+
+## ml-parity: Run 4-stage Swift/Python feature-pipeline parity harness
+.PHONY: ml-parity
+ml-parity:
+	cd $(ML_TRAINING_DIR) && uv run python test_feature_parity.py
+
+## ml-splits: Build corpus_splits.json with leak and DnB-triplet checks
+.PHONY: ml-splits
+ml-splits:
+	cd $(ML_TRAINING_DIR) && uv run python dataset.py
+
+## ml-summary: Regenerate model_summary.txt and model_metadata.json
+.PHONY: ml-summary
+ml-summary:
+	cd $(ML_TRAINING_DIR) && uv run python model.py
+
+## ml-train-smoke: Smoke train (1 epoch, 32 tracks; should complete in <2 min — slower means MPS likely fell back to CPU)
+.PHONY: ml-train-smoke
+ml-train-smoke:
+	cd $(ML_TRAINING_DIR) && uv run python train.py \
+		--seed $(TRAIN_SEED) --epochs 1 --subset 32 --num-workers $(TRAIN_WORKERS)
+
+## ml-train: Full training run (60 epochs default). Override TRAIN_EPOCHS / TRAIN_SEED / TRAIN_BATCH / TRAIN_WORKERS as needed.
+.PHONY: ml-train
+ml-train:
+	cd $(ML_TRAINING_DIR) && uv run python train.py \
+		--seed $(TRAIN_SEED) --epochs $(TRAIN_EPOCHS) \
+		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS)
+
+## ml-train-resume: Resume training from a checkpoint (CHECKPOINT=path/to/epoch_N.pt; project-root-relative paths are resolved automatically)
+.PHONY: ml-train-resume
+ml-train-resume:
+ifndef CHECKPOINT
+	$(error CHECKPOINT is not set. Usage: make ml-train-resume CHECKPOINT=$(ML_TRAINING_DIR)/checkpoints/epoch_044.pt)
+endif
+	@RESUME_PATH=$$(cd $(CURDIR) && python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" $(CHECKPOINT)) && \
+	cd $(ML_TRAINING_DIR) && uv run python train.py \
+		--seed $(TRAIN_SEED) --epochs $(TRAIN_EPOCHS) \
+		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS) \
+		--resume "$$RESUME_PATH"
+
+## ml-eval: Evaluate trained model on OA300 held-out test set
+.PHONY: ml-eval
+ml-eval:
+	cd $(ML_TRAINING_DIR) && uv run python eval.py \
+		--checkpoint model.pt --test-corpus oa300
+
+## ml-export: Export trained checkpoint to CoreML .mlmodel
+.PHONY: ml-export
+ml-export:
+	@mkdir -p "$(CURDIR)/_bmad-output/ml-models"
+	cd $(ML_TRAINING_DIR) && uv run python export.py \
+		--checkpoint model.pt --output ../ml-models/giantsteps_v1.mlmodel
+
+## ml-convert: Run the consumer-facing convert tool on the dev-only reference checkpoint as a smoke test
+.PHONY: ml-convert
+ml-convert:
+	cd $(TOOLS_CONVERT_DIR) && uv sync --locked
+	@TMPOUT=$$(mktemp -d)/coreml-convert-test.mlmodelc && \
+	cd $(TOOLS_CONVERT_DIR) && uv run python convert.py \
+		--checkpoint $(CURDIR)/$(ML_TRAINING_DIR)/model.pt \
+		--arch reference \
+		--output "$$TMPOUT" \
+		--validate
+
+## ml-convert-tests: Run pytest suite for tools/coreml-convert/
+.PHONY: ml-convert-tests
+ml-convert-tests:
+	cd $(TOOLS_CONVERT_DIR) && uv run pytest tests/
+
+## ml-pipeline: Post-training gate run — fixture → parity → eval → export → compile (assumes ml-train has already produced model.pt)
+.PHONY: ml-pipeline
+ml-pipeline: ml-dump-fixture ml-parity ml-eval ml-export compile-model
+
+# ---------------------------------------------------------------------------
+# Tony's private corpus (Rekordbox XML export + on-disk audio under
+# /Users/rterhaar/Dropbox/tony-tunes/). Develop-only.
+# ---------------------------------------------------------------------------
+
+TONY_XML ?= /Users/rterhaar/Dropbox/tony-tunes/05092026.xml
+TONY_AUDIO_ROOT ?= /Users/rterhaar/Dropbox/tony-tunes
+TONY_CORPUS_DIR := _bmad-output/ml-training/tony-corpus
+TONY_MISSING_TXT ?= $(TONY_AUDIO_ROOT)/missing-tracks.txt
+
+## tony-survey: Parse Rekordbox XML, resolve on-disk paths, dump survey JSON + missing-tracks.txt
+.PHONY: tony-survey
+tony-survey:
+	@mkdir -p "$(CURDIR)/$(TONY_CORPUS_DIR)"
+	uv run scripts/tony-tunes-survey.py "$(TONY_XML)" \
+		--audio-root "$(TONY_AUDIO_ROOT)" \
+		--write-missing "$(TONY_MISSING_TXT)" \
+		> "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-survey.json"
+
+## tony-dsp-prepass: Run BoomBoomBoomKit DSP against each resolved track and dump per-track bpm/confidence
+.PHONY: tony-dsp-prepass
+tony-dsp-prepass:
+	@mkdir -p "$(CURDIR)/$(TONY_CORPUS_DIR)"
+	cd $(ML_TRAINING_DIR)/swift_feature_extractor && \
+		swift run -c release tony-dsp-prepass \
+			--survey-json "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-survey.json" \
+			--output "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-dsp-prepass.json"
+
+## tony-labels: Derive bpm_truth labels from the 5 noisy signals (Codex strategy 4+6)
+.PHONY: tony-labels
+tony-labels:
+	uv run scripts/tony-tunes-labels.py \
+		--survey-json "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-survey.json" \
+		--dsp-json    "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-dsp-prepass.json" \
+		--output      "$(CURDIR)/$(TONY_CORPUS_DIR)/tony-truth-labels.json"
+
+## tony-corpus: Full pipeline — survey → DSP prepass → labeler
+.PHONY: tony-corpus
+tony-corpus: tony-survey tony-dsp-prepass tony-labels
