@@ -50,7 +50,10 @@ final class AnalysisViewModel {
   // leak where N-2 prior detached tasks each captured their own
   // cancelFlag and could not be reached by a single-handle cancel).
   // Tasks self-remove from this set via a separate awaiting Task when
-  // they complete.
+  // they complete. @ObservationIgnored because this is operational
+  // state, never read by a view — observation tracking would be noise
+  // (PR #3 Copilot review 2026-05-19, plan section 1a).
+  @ObservationIgnored
   private var inFlightTasks: Set<Task<Void, Never>> = []
 
   // Single Options bag — Story 5-3 mutates this from sliders/pickers.
@@ -153,6 +156,22 @@ final class AnalysisViewModel {
     Task { [weak self] in
       _ = await task.value
       self?.inFlightTasks.remove(task)
+    }
+  }
+
+  deinit {
+    // Defensive cancellation backstop (PR #3 Copilot review 2026-05-19;
+    // Codex thread 019e4257 validated the pattern). Cancels every
+    // in-flight task when the view model deallocates — e.g., sheet
+    // dismissal or multi-window close in Story 5-2+. Without this,
+    // the detached DSP work continues to completion on a dead view,
+    // wasting CPU and I/O. Plain non-isolated deinit is safe here:
+    // Task<Void, Never> is Sendable and Task.cancel() is nonisolated,
+    // so iteration of the Set from deinit on a @MainActor class
+    // crosses no isolation boundary that would require an `isolated
+    // deinit` (SE-0371, Swift 6.2+).
+    for task in inFlightTasks {
+      task.cancel()
     }
   }
 }

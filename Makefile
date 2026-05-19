@@ -54,7 +54,7 @@ demo-test:
 		CODE_SIGN_IDENTITY="" \
 		test
 
-## demo-build-sandboxed: Build the BoomBoomBoomKitDemo macOS app with signing enabled so the app-sandbox entitlements actually attach at launch (Story 5-1 code review D4). Requires a configured signing identity (Xcode > Settings > Accounts, or DEVELOPMENT_TEAM env var); does NOT pass CODE_SIGNING_ALLOWED=NO. Use to reproduce sandbox bugs that demo-build cannot exercise; not for fresh-clone CI.
+## demo-build-sandboxed: Build the BoomBoomBoomKitDemo macOS app with signing enabled so the app-sandbox entitlements actually attach at launch (Story 5-1 code review D4). Requires a configured signing identity (Xcode > Settings > Accounts, OR invoke with DEVELOPMENT_TEAM=<your-team-id> make demo-build-sandboxed — the env var is threaded into xcodebuild per PR #3 Copilot review 2026-05-19 / W14 closure); does NOT pass CODE_SIGNING_ALLOWED=NO. Use to reproduce sandbox bugs that demo-build cannot exercise; not for fresh-clone CI.
 .PHONY: demo-build-sandboxed
 demo-build-sandboxed:
 	xcodebuild \
@@ -62,6 +62,7 @@ demo-build-sandboxed:
 		-scheme BoomBoomBoomKitDemo \
 		-destination 'platform=macOS' \
 		-configuration Debug \
+		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		build
 
 ## test: Run unit tests only (excludes benchmark target; no corpus env required)
