@@ -65,6 +65,23 @@ demo-build-sandboxed:
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		build
 
+## demo-fmt: Format Swift source code under Demo/ (sibling of `fmt`, which covers Sources/Tests only)
+.PHONY: demo-fmt
+demo-fmt:
+	swift format --recursive --in-place Demo/
+
+## demo-lint: Guard against DEVELOPMENT_TEAM leak across all Demo/.pbxproj files (Story 5-2 W16 close-out — regex covers both quoted and unquoted Xcode-emitted team-ID forms)
+.PHONY: demo-lint
+demo-lint:
+	@if grep -rnE 'DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*"?[A-Z0-9]{10}"?[[:space:]]*;' Demo/ --include='project.pbxproj'; then \
+		echo "ERROR: DEVELOPMENT_TEAM leak detected in Demo/ .pbxproj — must be empty for public release."; \
+		exit 1; \
+	fi
+
+## pre-commit: Run all pre-PR gates (library + demo fmt + lint). NOT a git hook — runs on demand
+.PHONY: pre-commit
+pre-commit: fmt demo-fmt lint demo-lint
+
 ## test: Run unit tests only (excludes benchmark target; no corpus env required)
 .PHONY: test
 test:
