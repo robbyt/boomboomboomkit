@@ -6,7 +6,8 @@ struct ContentView: View {
   @State private var isDropTargeted: Bool = false
 
   var body: some View {
-    VStack(spacing: 12) {
+    VStack(spacing: 16) {
+      controlsSection
       primaryStateView
       bannerView
     }
@@ -14,7 +15,10 @@ struct ContentView: View {
     .padding()
     // Axiom A2 — `.contentShape(Rectangle())` must come AFTER `.frame()`
     // and BEFORE `.dropDestination` so padded margins register drops at
-    // the visible border edge (`transferable-ref.md:622-635`).
+    // the visible border edge (`transferable-ref.md:622-635`). The drop
+    // region thus covers the controls section AND the result area
+    // uniformly — a user dragging onto the slider still drops
+    // successfully (Story 5-3 Task 2.8).
     .contentShape(Rectangle())
     .dropDestination(for: URL.self) { urls, _ in
       viewModel.handleDrop(urls)
@@ -38,28 +42,132 @@ struct ContentView: View {
     }
   }
 
-  // MARK: - State-Driven Render (DD #10, #16)
+  // MARK: - Parameter Controls (Story 5-3)
+
+  // Two-way `Binding<Double>` bridging `AnalysisIntensity.rawValue: Int`
+  // and SwiftUI Slider's Double-only value type (Story 5-3 DD #2).
+  // `Int($0.rounded())` — NOT `Int($0)` — because Apple's docs do NOT
+  // guarantee the setter has been called with the snapped value before
+  // `onEditingChanged: false` fires; `Int(6.999) == 6` would silently
+  // downgrade by one step. `AnalysisIntensity.init(rawValue:)` clamps
+  // to `1...10` for free.
+  private var intensityBinding: Binding<Double> {
+    Binding(
+      get: { Double(viewModel.options.intensity.rawValue) },
+      set: { newValue in
+        viewModel.options.intensity = AnalysisIntensity(rawValue: Int(newValue.rounded()))
+      }
+    )
+  }
+
+  // Label suffix for the 4 named intensity constants (DD #2). Helps
+  // the user understand the 1-10 scale without reading docs.
+  private var intensityLabelText: String {
+    let raw = viewModel.options.intensity.rawValue
+    let suffix: String
+    switch raw {
+    case 1: suffix = " (fastest)"
+    case 7: suffix = " (default)"
+    case 8: suffix = " (thorough)"
+    case 10: suffix = " (maximum)"
+    default: suffix = ""
+    }
+    return "\(raw)\(suffix)"
+  }
+
+  // Re-run trigger (DD #1 chosen semantics: edit-end + selection-change,
+  // NOT continuous on-change). Slider's `onEditingChanged: false`
+  // callback fires once at drag-release; Picker's `.onChange` fires
+  // once per selection. Both call this helper, which fires a re-analyze
+  // ONLY when a file has previously been dropped (`selectedFileURL !=
+  // nil`). Edit-end / selection-change with no file still mutates
+  // `viewModel.options` so the Copy Config snippet reflects the
+  // choices, but no analyze fires.
+  private func triggerReanalyze() {
+    guard let url = viewModel.selectedFileURL else { return }
+    viewModel.analyze(url: url, autoStarted: false)
+  }
+
+  @ViewBuilder
+  private var controlsSection: some View {
+    GroupBox("Parameters") {
+      VStack(alignment: .leading, spacing: 12) {
+        // Intensity row — label + slider. The slider's
+        // `onEditingChanged: { editing in if !editing { ... } }` is
+        // SwiftUI's natural debounce (DD #1 (B)): one trigger per
+        // user-completed drag, not 10-30 per drag tick.
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Intensity: \(intensityLabelText)")
+            .font(.callout)
+          Slider(
+            value: intensityBinding,
+            in: 1.0...10.0,
+            step: 1.0,
+            onEditingChanged: { editing in
+              if !editing {
+                triggerReanalyze()
+              }
+            }
+          )
+        }
+
+        // Merge strategy row. `.menu` picker style is the macOS default
+        // dropdown (DD #3); `.segmented` or `.wheel` would consume
+        // excessive horizontal space for 8 options. The `.onChange`
+        // fires once per selection — no drag jitter, re-run on every
+        // change is safe.
+        Picker("Merge strategy", selection: $viewModel.options.mergeStrategy) {
+          ForEach(CandidateMergeStrategy.allCases, id: \.self) { strategy in
+            Text(strategy.rawValue).tag(strategy)
+          }
+        }
+        .pickerStyle(.menu)
+        .onChange(of: viewModel.options.mergeStrategy) { _, _ in
+          triggerReanalyze()
+        }
+
+        // Button row — Cancel / Re-analyze / Copy Config. Visibility
+        // predicates per DD #4 + DD #5: Cancel shown only when
+        // analyzing (hidden-via-`if`, NOT `.disabled(true)`);
+        // Re-analyze shown only when a file is dropped AND not
+        // analyzing (mutually exclusive with Cancel); Copy Config
+        // always visible (snippet is independent of analysis state).
+        HStack {
+          if viewModel.isAnalyzing {
+            Button(viewModel.isCancelling ? "Cancelling…" : "Cancel") {
+              viewModel.cancelInFlight()
+            }
+            .disabled(viewModel.isCancelling)
+          }
+          if viewModel.selectedFileURL != nil && !viewModel.isAnalyzing {
+            Button("Re-analyze") {
+              triggerReanalyze()
+            }
+          }
+          Button("Copy Config") {
+            viewModel.copyConfigToPasteboard()
+          }
+        }
+      }
+      .padding(.vertical, 4)
+    }
+  }
+
+  // MARK: - State-Driven Render (Story 5-2 DD #10, DD #16)
 
   // Four primary states + a secondary banner that overlays when an
   // `errorMessage` co-exists with `analyzing` or `result` (DD #16).
   private enum DisplayState {
     case empty
     case analyzing(filename: String?, cancelling: Bool)
-    case result(BPMResultRow)
+    case result(AnalysisViewModel.BPMResultRow)
     case errorOnly(String)
   }
 
-  // Pre-formatted strings for the 5 result rows. Format choices per
-  // DD #10: BPM `%.1f BPM`, confidence as percentage `%.0f%%`, elapsed
-  // `%.2fs`, intensity raw integer.
-  private struct BPMResultRow {
-    let fileName: String
-    let bpm: String
-    let confidence: String
-    let intensity: String
-    let elapsed: String
-  }
-
+  // Delegates to `AnalysisViewModel.formatResultRow` (Story 5-3 DD #15
+  // / AC #7). The static helper is the testable boundary: smoke tests
+  // exercise NaN/Inf and missing-fields without SwiftUI view-test
+  // infrastructure. View remains lint-clean.
   private var displayState: DisplayState {
     if viewModel.isAnalyzing {
       return .analyzing(
@@ -67,19 +175,24 @@ struct ContentView: View {
         cancelling: viewModel.isCancelling
       )
     }
-    if let bpm = viewModel.detectedBPM,
-      let confidence = viewModel.confidence,
-      let intensity = viewModel.effectiveIntensity,
-      let elapsed = viewModel.elapsedSeconds
-    {
-      let row = BPMResultRow(
-        fileName: viewModel.fileName ?? "—",
-        bpm: String(format: "%.1f BPM", bpm),
-        confidence: String(format: "%.0f%%", confidence * 100),
-        intensity: "\(intensity.rawValue)",
-        elapsed: String(format: "%.2fs", elapsed)
-      )
+    switch AnalysisViewModel.formatResultRow(
+      fileName: viewModel.fileName,
+      bpm: viewModel.detectedBPM,
+      confidence: viewModel.confidence,
+      effectiveIntensity: viewModel.effectiveIntensity,
+      elapsedSeconds: viewModel.elapsedSeconds
+    ) {
+    case .success(let row):
       return .result(row)
+    case .failure(.nonFinite):
+      return .errorOnly(
+        "Internal error: analysis returned a non-finite value. This is a library bug — please file an issue."
+      )
+    case .failure(.missingFields):
+      // Fall through to errorMessage / empty per existing semantics —
+      // a partial-state read during analysis transitions, or a
+      // never-run state pre-drop.
+      break
     }
     if let message = viewModel.errorMessage {
       return .errorOnly(message)
@@ -146,7 +259,7 @@ struct ContentView: View {
   }
 
   @ViewBuilder
-  private func resultView(_ row: BPMResultRow) -> some View {
+  private func resultView(_ row: AnalysisViewModel.BPMResultRow) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       resultRow("File", row.fileName)
       resultRow("BPM", row.bpm)

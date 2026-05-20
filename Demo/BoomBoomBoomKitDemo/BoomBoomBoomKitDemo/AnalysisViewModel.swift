@@ -1,3 +1,4 @@
+import AppKit
 import BoomBoomBoomKit
 import Foundation
 import Observation
@@ -31,6 +32,32 @@ final class AnalysisViewModel {
     case empty
     case multipleFiles
     case unsupportedType(extension: String)
+  }
+
+  // Pre-formatted strings for the 5 result rows (Story 5-3 DD #15).
+  // Promoted from ContentView's private struct to AnalysisViewModel so
+  // the static `formatResultRow` helper can return it via `Result<...>`
+  // and the demo smoke test can exercise the formatting boundary
+  // without SwiftUI view-test infrastructure. Format choices per
+  // Story 5-2 DD #10: BPM `%.1f BPM`, confidence as percentage `%.0f%%`,
+  // elapsed `%.2fs`, intensity raw integer.
+  struct BPMResultRow: Equatable {
+    let fileName: String
+    let bpm: String
+    let confidence: String
+    let intensity: String
+    let elapsed: String
+  }
+
+  // `formatResultRow` failure modes (Story 5-3 DD #15). `nonFinite` is
+  // the W20 close — NaN/Inf in any of bpm/confidence/elapsed renders a
+  // hard error message rather than "nan BPM"/"nan%". `missingFields`
+  // means the 4 result fields are not all populated (partial state
+  // during analysis, or never-run); callers fall through to their
+  // existing empty/errorMessage logic.
+  enum FormatError: Error, Equatable {
+    case missingFields
+    case nonFinite
   }
 
   // Observed state — populated post-analysis, drives UI.
@@ -341,6 +368,157 @@ final class AnalysisViewModel {
     case .success:
       analyze(url: url, autoStarted: true)
     }
+  }
+
+  // MARK: - Parameter Controls (Story 5-3)
+
+  // Pure function on (intensity, mergeStrategy) — testable from the
+  // smoke test via `@testable import` without constructing a view model
+  // (Story 5-3 DD #7, mirrors Story 5-2 DD #11 `validateDropPayload`
+  // pattern). Emits a 4-line Swift snippet reflecting the supplied
+  // parameters plus an `analyzeBPM(url:options:)` call shape so the
+  // user can paste-and-reproduce a winning configuration verbatim.
+  //
+  // Intensity formatting rules (DD #7):
+  //   - rawValue == 1 → `.fastest`
+  //   - rawValue == 7 → `.default`
+  //   - rawValue == 8 → `.thorough`
+  //   - rawValue == 10 → `.maximum`
+  //   - All others (2-6, 9) → `AnalysisIntensity(rawValue: N)`
+  //
+  // Merge-strategy formatting (DD #7): always `.\(strategy.rawValue)`
+  // — `CandidateMergeStrategy: String` rawValue strings match the case
+  // names exactly, so this works for all 8 cases without a switch.
+  //
+  // The literal `yourURL` placeholder (NOT `viewModel.selectedFileURL`,
+  // NOT a real file path) signals to the user that they should
+  // substitute their own URL; per Story 5-1 DD #16-D the demo MUST NOT
+  // export sandbox URLs outside the view model.
+  //
+  // Snippet has NO leading whitespace and NO trailing newline — the
+  // pasteboard receives the exact 4-line block; a leading blank line
+  // or trailing whitespace would surprise the user on paste.
+  static func generateConfigSnippet(
+    intensity: AnalysisIntensity,
+    mergeStrategy: CandidateMergeStrategy
+  ) -> String {
+    let intensityLiteral: String
+    switch intensity.rawValue {
+    case 1: intensityLiteral = ".fastest"
+    case 7: intensityLiteral = ".default"
+    case 8: intensityLiteral = ".thorough"
+    case 10: intensityLiteral = ".maximum"
+    default: intensityLiteral = "AnalysisIntensity(rawValue: \(intensity.rawValue))"
+    }
+    let line1 = "var opts = AudioAnalysisService.Options()"
+    let line2 = "opts.intensity = \(intensityLiteral)"
+    let line3 = "opts.mergeStrategy = .\(mergeStrategy.rawValue)"
+    let line4 = "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
+    return "\(line1)\n\(line2)\n\(line3)\n\(line4)"
+  }
+
+  // Copy the current `options` configuration as a Swift snippet to the
+  // system pasteboard (Story 5-3 DD #8). Always available — works even
+  // before any file is dropped (the snippet is a function of `options`,
+  // not of analysis state). `@discardableResult` lets button-action
+  // call sites ignore the Bool while the smoke test asserts success.
+  //
+  // `NSPasteboard.general.clearContents()` BEFORE `setString` is
+  // mandatory per AppKit's contract — without it, mixed-payload
+  // pasteboards (e.g., the user previously copied an image) can retain
+  // stale data of other types and pasted-into-text consumers may pick
+  // the wrong type.
+  //
+  // Returns false only on theoretical AppKit failure (pasteboard is
+  // in-process, not a network resource); when that happens, surface
+  // `errorMessage` so the user sees a coherent message rather than a
+  // silently-empty paste.
+  @discardableResult
+  func copyConfigToPasteboard() -> Bool {
+    let snippet = Self.generateConfigSnippet(
+      intensity: options.intensity,
+      mergeStrategy: options.mergeStrategy
+    )
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    let didCopy = pasteboard.setString(snippet, forType: .string)
+    if !didCopy {
+      errorMessage = "Could not copy to clipboard"
+    }
+    return didCopy
+  }
+
+  // Cancel every in-flight analysis task (Story 5-3 DD #4, W12 close).
+  // Mirrors the cancel-all-prior cascade in `analyze(url:autoStarted:)`:
+  // iterate `inFlightTasks`, insert each task's UUID into
+  // `pendingCancellations` BEFORE invoking `task.cancel()` so the
+  // "Cancelling previous analysis…" copy renders during the multi-second
+  // window-boundary cancel propagation.
+  //
+  // CRITICAL INVARIANT (Story 5-3 DD #12): MUST NOT reassign or mint
+  // `currentTaskID`. Branch A (pure Cancel): the cancelled current
+  // task's `.failure(is CancellationError)` arm relies on
+  // `currentTaskID == taskID` to reset `isAnalyzing = false`. Branch B
+  // (Cancel-then-Re-analyze): the subsequent `analyze(url:)` call
+  // reassigns `currentTaskID = newTaskID`, the cancelled task sees the
+  // inequality and returns without mutating state, and the successor
+  // task owns the UI. Reassigning here breaks Branch A and leaves the
+  // UI stuck on the activity indicator forever.
+  //
+  // No-op when `inFlightTasks` is empty (the for-loop body never runs);
+  // safe to call from idle states.
+  func cancelInFlight() {
+    for (priorTaskID, prior) in inFlightTasks {
+      pendingCancellations.insert(priorTaskID)
+      prior.cancel()
+    }
+  }
+
+  // Format the 5 result-row fields for display, or surface a typed
+  // failure (Story 5-3 DD #15, W20 close). Static helper so the smoke
+  // test can exercise it via `@testable import` without SwiftUI
+  // view-test infrastructure.
+  //
+  // Returns:
+  //   - `.failure(.missingFields)` when any of bpm/confidence/
+  //     effectiveIntensity/elapsedSeconds is nil (partial or never-run
+  //     state — callers fall through to their existing empty /
+  //     errorMessage logic).
+  //   - `.failure(.nonFinite)` when any of bpm/confidence/elapsedSeconds
+  //     is NaN or ±Infinity. The library is expected to emit finite
+  //     values or nil; non-finite here is a library bug, and the
+  //     caller renders a hard error rather than "nan BPM" / "nan%".
+  //   - `.success(BPMResultRow)` when all four are finite — format
+  //     strings per Story 5-2 DD #10.
+  //
+  // `fileName` is optional with "—" fallback; it is NOT part of the
+  // missingFields contract because it can legitimately be nil before
+  // a file drop (the result row still renders the "—" placeholder).
+  static func formatResultRow(
+    fileName: String?,
+    bpm: Double?,
+    confidence: Double?,
+    effectiveIntensity: AnalysisIntensity?,
+    elapsedSeconds: Double?
+  ) -> Result<BPMResultRow, FormatError> {
+    guard let bpm,
+      let confidence,
+      let effectiveIntensity,
+      let elapsedSeconds
+    else {
+      return .failure(.missingFields)
+    }
+    guard bpm.isFinite, confidence.isFinite, elapsedSeconds.isFinite else {
+      return .failure(.nonFinite)
+    }
+    let row = BPMResultRow(
+      fileName: fileName ?? "—",
+      bpm: String(format: "%.1f BPM", bpm),
+      confidence: String(format: "%.0f%%", confidence * 100),
+      intensity: "\(effectiveIntensity.rawValue)",
+      elapsed: String(format: "%.2fs", elapsedSeconds)
+    )
+    return .success(row)
   }
 
   deinit {
