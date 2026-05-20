@@ -372,6 +372,132 @@ struct AnalysisViewModelSmokeTest {
     #expect(result == .failure(.missingFields))
   }
 
+  // MARK: - formatResultRow range guards (P4 + P5, Story 5-3 code review 2026-05-20)
+
+  // P5: bpm must be > 0. Library contract is "positive finite BPM"; a
+  // zero or negative bpm passes isFinite but is physically nonsensical
+  // and routes through .nonFinite to the same "Internal error" UI path
+  // as NaN/Inf. Slot encodes the bpm value to test.
+  //   0 -> bpm == 0
+  //   1 -> bpm == -1
+  @Test(
+    "formatResultRow rejects non-positive bpm",
+    arguments: [0, 1]
+  )
+  @MainActor
+  func formatResultRowBPMRangeGuard(_ slot: Int) {
+    let bpmValues: [Double] = [0.0, -1.0]
+    let result = AnalysisViewModel.formatResultRow(
+      fileName: "test.wav",
+      bpm: bpmValues[slot],
+      confidence: 0.8,
+      effectiveIntensity: .default,
+      elapsedSeconds: 1.23
+    )
+    #expect(result == .failure(.nonFinite))
+  }
+
+  // P5: confidence must be in [0, 1]. Library contract is "[0, 1]
+  // inclusive"; out-of-range silently rendered as "105%" / "-1%" pre-
+  // patch. Slot encodes the confidence value:
+  //   0 -> confidence == 1.5  (above range)
+  //   1 -> confidence == -0.1 (below range)
+  @Test(
+    "formatResultRow rejects out-of-range confidence",
+    arguments: [0, 1]
+  )
+  @MainActor
+  func formatResultRowConfidenceRangeGuard(_ slot: Int) {
+    let confidenceValues: [Double] = [1.5, -0.1]
+    let result = AnalysisViewModel.formatResultRow(
+      fileName: "test.wav",
+      bpm: 120.0,
+      confidence: confidenceValues[slot],
+      effectiveIntensity: .default,
+      elapsedSeconds: 1.23
+    )
+    #expect(result == .failure(.nonFinite))
+  }
+
+  // P4: elapsedSeconds must be >= 0. Negative elapsed (clock skew,
+  // monotonic-clock anomaly, library bug) rendered as "-0.50s" pre-
+  // patch; now routes through .nonFinite.
+  @Test("formatResultRow rejects negative elapsedSeconds")
+  @MainActor
+  func formatResultRowElapsedNegativeGuard() {
+    let result = AnalysisViewModel.formatResultRow(
+      fileName: "test.wav",
+      bpm: 120.0,
+      confidence: 0.8,
+      effectiveIntensity: .default,
+      elapsedSeconds: -0.5
+    )
+    #expect(result == .failure(.nonFinite))
+  }
+
+  // P5 boundary values: confidence == 0.0 and confidence == 1.0 are
+  // INCLUSIVE per the library contract; both should succeed.
+  @Test(
+    "formatResultRow accepts confidence boundary values 0.0 and 1.0",
+    arguments: [0, 1]
+  )
+  @MainActor
+  func formatResultRowConfidenceBoundaryAccepts(_ slot: Int) {
+    let confidenceValues: [Double] = [0.0, 1.0]
+    let result = AnalysisViewModel.formatResultRow(
+      fileName: "test.wav",
+      bpm: 120.0,
+      confidence: confidenceValues[slot],
+      effectiveIntensity: .default,
+      elapsedSeconds: 1.23
+    )
+    if case .failure = result {
+      Issue.record("Expected .success for confidence \(confidenceValues[slot]) but got \(result)")
+    }
+  }
+
+  // MARK: - copyConfigToPasteboard errorMessage lifecycle (P1, Story 5-3 code review 2026-05-20)
+
+  // P1: a stale "Could not copy to clipboard" banner from a prior
+  // failed attempt must be cleared by the next successful copy.
+  // Pre-patch the errorMessage persisted indefinitely until the next
+  // successful analyze cleared it (DD #16 semantic).
+  //
+  // Pre-conditions for "success" cleanup: errorMessage must equal the
+  // exact pasteboard-failure string. Other errorMessage sources (drop
+  // rejection copy, sandbox-denied) are NOT cleared — they have
+  // different lifecycles (DD #16 banner-clearing semantics apply on
+  // analyze-success path).
+  @Test("copyConfigToPasteboard clears stale pasteboard errorMessage on success")
+  @MainActor
+  func copyConfigToPasteboardClearsStaleError() {
+    let viewModel = AnalysisViewModel()
+    // Seed a stale pasteboard-failure banner as if a prior copy
+    // returned false.
+    viewModel.errorMessage = "Could not copy to clipboard"
+    // Subsequent successful copy clears it.
+    let didCopy = viewModel.copyConfigToPasteboard()
+    // setString on in-process NSPasteboard.general is expected to
+    // return true on developer machines; if the run environment has
+    // restricted pasteboard access the test would correctly fail at
+    // this expectation.
+    #expect(didCopy == true)
+    #expect(viewModel.errorMessage == nil)
+  }
+
+  // P1 negative case: a non-pasteboard errorMessage (e.g., from a
+  // drop-validation rejection) must NOT be cleared by a successful
+  // copy — different lifecycle, different clearing path.
+  @Test("copyConfigToPasteboard preserves unrelated errorMessage on success")
+  @MainActor
+  func copyConfigToPasteboardPreservesUnrelatedError() {
+    let viewModel = AnalysisViewModel()
+    viewModel.errorMessage = "No audio file detected in drop."
+    let didCopy = viewModel.copyConfigToPasteboard()
+    #expect(didCopy == true)
+    #expect(viewModel.errorMessage == "No audio file detected in drop.")
+  }
+
   // MARK: - Pasteboard round-trip (Story 5-3 AC #10 / Task 3.8)
 
   // Env-gated because NSPasteboard.general is process-wide and writing

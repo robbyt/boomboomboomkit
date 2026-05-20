@@ -442,7 +442,16 @@ final class AnalysisViewModel {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
     let didCopy = pasteboard.setString(snippet, forType: .string)
-    if !didCopy {
+    if didCopy {
+      // P1 (Story 5-3 code review 2026-05-20): clear any stale
+      // "Could not copy to clipboard" banner from a prior failed
+      // attempt. Pasteboard-specific errors otherwise persist until
+      // the next successful analyze clears errorMessage (DD #16
+      // semantic), which is non-obvious.
+      if errorMessage == "Could not copy to clipboard" {
+        errorMessage = nil
+      }
+    } else {
       errorMessage = "Could not copy to clipboard"
     }
     return didCopy
@@ -485,11 +494,18 @@ final class AnalysisViewModel {
   //     state — callers fall through to their existing empty /
   //     errorMessage logic).
   //   - `.failure(.nonFinite)` when any of bpm/confidence/elapsedSeconds
-  //     is NaN or ±Infinity. The library is expected to emit finite
-  //     values or nil; non-finite here is a library bug, and the
-  //     caller renders a hard error rather than "nan BPM" / "nan%".
-  //   - `.success(BPMResultRow)` when all four are finite — format
-  //     strings per Story 5-2 DD #10.
+  //     is NaN or ±Infinity, OR when any value is out of physical
+  //     range: `bpm <= 0`, `confidence` outside `[0, 1]`, or
+  //     `elapsedSeconds < 0` (P4 + P5, Story 5-3 code review
+  //     2026-05-20). The library is expected to emit finite, in-range
+  //     values or nil; out-of-range here is a library bug, and the
+  //     caller renders a hard error rather than "nan BPM" / "105%" /
+  //     "-0.50s". The `.nonFinite` case name is slightly inaccurate
+  //     post-P5 — it now covers "non-finite OR out-of-range" — but
+  //     renaming to `.invalidRange` would churn the W20 deferred-work
+  //     entry and 9 test cases without behavioral gain.
+  //   - `.success(BPMResultRow)` when all four are finite + in-range —
+  //     format strings per Story 5-2 DD #10.
   //
   // `fileName` is optional with "—" fallback; it is NOT part of the
   // missingFields contract because it can legitimately be nil before
@@ -508,7 +524,10 @@ final class AnalysisViewModel {
     else {
       return .failure(.missingFields)
     }
-    guard bpm.isFinite, confidence.isFinite, elapsedSeconds.isFinite else {
+    guard bpm.isFinite, bpm > 0,
+      confidence.isFinite, (0.0...1.0).contains(confidence),
+      elapsedSeconds.isFinite, elapsedSeconds >= 0
+    else {
       return .failure(.nonFinite)
     }
     let row = BPMResultRow(

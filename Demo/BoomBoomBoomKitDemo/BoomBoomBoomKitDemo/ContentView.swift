@@ -51,10 +51,17 @@ struct ContentView: View {
   // `onEditingChanged: false` fires; `Int(6.999) == 6` would silently
   // downgrade by one step. `AnalysisIntensity.init(rawValue:)` clamps
   // to `1...10` for free.
+  //
+  // P2 (Story 5-3 code review 2026-05-20): `Int(newValue.rounded())`
+  // traps if `newValue` is NaN or ±Infinity. Not reachable via
+  // SwiftUI's constrained Slider in normal use, but matches the W20
+  // hardening philosophy applied to the read side (formatResultRow).
+  // Defensive symmetry — guard non-finite at the binding boundary.
   private var intensityBinding: Binding<Double> {
     Binding(
       get: { Double(viewModel.options.intensity.rawValue) },
       set: { newValue in
+        guard newValue.isFinite else { return }
         viewModel.options.intensity = AnalysisIntensity(rawValue: Int(newValue.rounded()))
       }
     )
@@ -114,8 +121,14 @@ struct ContentView: View {
         // Merge strategy row. `.menu` picker style is the macOS default
         // dropdown (DD #3); `.segmented` or `.wheel` would consume
         // excessive horizontal space for 8 options. The `.onChange`
-        // fires once per selection — no drag jitter, re-run on every
-        // change is safe.
+        // fires once per value change with no drag jitter, so re-run
+        // on every change is safe. Note (P3, Story 5-3 code review
+        // 2026-05-20): `.onChange(of:)` fires for ANY mutation,
+        // including programmatic writes — a future preset / state-
+        // restoration feature that sets `viewModel.options.mergeStrategy`
+        // programmatically will also trigger a re-analyze. Today the
+        // value is only mutated via this Picker, so the firing
+        // coincides with user selection.
         Picker("Merge strategy", selection: $viewModel.options.mergeStrategy) {
           ForEach(CandidateMergeStrategy.allCases, id: \.self) { strategy in
             Text(strategy.rawValue).tag(strategy)
@@ -185,8 +198,14 @@ struct ContentView: View {
     case .success(let row):
       return .result(row)
     case .failure(.nonFinite):
+      // Post-P5 (Story 5-3 code review 2026-05-20): copy says
+      // "invalid numeric value" because the `.nonFinite` case now
+      // also covers finite-but-out-of-range values (bpm <= 0,
+      // confidence outside [0, 1], elapsedSeconds < 0) in addition
+      // to NaN/±Infinity. Enum case name retained for low-churn —
+      // see AnalysisViewModel.formatResultRow for the rationale.
       return .errorOnly(
-        "Internal error: analysis returned a non-finite value. This is a library bug — please file an issue."
+        "Internal error: analysis returned an invalid numeric value. This is a library bug — please file an issue."
       )
     case .failure(.missingFields):
       // Fall through to errorMessage / empty per existing semantics —
