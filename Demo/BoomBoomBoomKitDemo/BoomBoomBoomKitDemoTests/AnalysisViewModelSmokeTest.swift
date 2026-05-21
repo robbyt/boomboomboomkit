@@ -259,6 +259,13 @@ struct AnalysisViewModelSmokeTest {
   // wiring; that's verified in the manual smoke (AC #11). Numeric
   // equality is NOT asserted — .dedup may produce slightly different
   // output than .maxConfidence.
+  //
+  // Story 5-4 AC #8 — tightened assertion: after the re-run completes,
+  // `lastRunSnapshot.runOptions.mergeStrategy == .dedup`. Without the
+  // atomic snapshot, the test could not distinguish "the run used
+  // `.dedup`" from "the run used a stale `.maxConfidence` and silently
+  // honored the snapshot from a prior call." With the snapshot, the
+  // assertion fires post-success and pins the contract (closes W30).
   @Test("manual re-run with mutated options completes to a non-nil BPM")
   @MainActor
   func manualReRunUsesCurrentOptions() async throws {
@@ -284,6 +291,10 @@ struct AnalysisViewModelSmokeTest {
     }
     try #require(!viewModel.isAnalyzing, "re-run analyze did not complete within 30s")
     #expect(viewModel.detectedBPM != nil)
+    // Story 5-4 AC #8 — the atomic snapshot's runOptions snapshot reflects
+    // the options the run actually used, NOT the current `viewModel.options`
+    // state (which could have been mutated again post-analyze).
+    #expect(viewModel.lastRunSnapshot?.runOptions.mergeStrategy == .dedup)
   }
 
   // MARK: - formatResultRow (Story 5-3 AC #7 / DD #15 / Task 3.7)
@@ -474,7 +485,7 @@ struct AnalysisViewModelSmokeTest {
     let viewModel = AnalysisViewModel()
     // Seed a stale pasteboard-failure banner as if a prior copy
     // returned false.
-    viewModel.errorMessage = "Could not copy to clipboard"
+    viewModel.error = .clipboardCopy
     // Subsequent successful copy clears it.
     let didCopy = viewModel.copyConfigToPasteboard()
     // setString on in-process NSPasteboard.general is expected to
@@ -482,7 +493,7 @@ struct AnalysisViewModelSmokeTest {
     // restricted pasteboard access the test would correctly fail at
     // this expectation.
     #expect(didCopy == true)
-    #expect(viewModel.errorMessage == nil)
+    #expect(viewModel.error == nil)
   }
 
   // P1 negative case: a non-pasteboard errorMessage (e.g., from a
@@ -492,9 +503,10 @@ struct AnalysisViewModelSmokeTest {
   @MainActor
   func copyConfigToPasteboardPreservesUnrelatedError() {
     let viewModel = AnalysisViewModel()
-    viewModel.errorMessage = "No audio file detected in drop."
+    viewModel.error = .dropEmpty
     let didCopy = viewModel.copyConfigToPasteboard()
     #expect(didCopy == true)
+    #expect(viewModel.error == .dropEmpty)
     #expect(viewModel.errorMessage == "No audio file detected in drop.")
   }
 
@@ -530,5 +542,651 @@ struct AnalysisViewModelSmokeTest {
       mergeStrategy: .median
     )
     #expect(readBack == expected)
+  }
+
+  // MARK: - Story 5-4 — Trace Export (Tasks 5.1-5.11)
+
+  // Helper — analyze the click fixture and return the populated view
+  // model. Used by tests that need a real, populated snapshot.
+  @MainActor
+  private static func analyzeFixture() async throws -> AnalysisViewModel {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let viewModel = AnalysisViewModel()
+    viewModel.analyze(url: url)
+    let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+    while viewModel.isAnalyzing && ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    try #require(!viewModel.isAnalyzing, "analyze did not complete within 30s")
+    return viewModel
+  }
+
+  // 5.1 — projection round-trips through JSON.
+  //
+  // `generatedAt` is normalized to a fixed sentinel (`.distantPast`) on
+  // both sides before comparison — ISO 8601 string encoding truncates
+  // `Date()`'s sub-millisecond precision, so a raw round-trip would
+  // diff on the fractional seconds.
+  @Test("traceProjectionRoundTripsJSON: TraceExport encodes + decodes to equal value")
+  @MainActor
+  func traceProjectionRoundTripsJSON() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let snapshot = try #require(viewModel.lastRunSnapshot)
+    let original = TraceExport.from(
+      trace: snapshot.trace,
+      runOptions: snapshot.runOptions,
+      result: snapshot.result,
+      fileName: snapshot.fileName,
+      metadataEvidence: snapshot.metadataEvidence,
+      elapsedSeconds: viewModel.elapsedSeconds ?? 0
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try encoder.encode(original)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let decoded = try decoder.decode(TraceExport.self, from: data)
+    let normalizedOriginal = Self.normalizeForRoundTrip(original)
+    let normalizedDecoded = Self.normalizeForRoundTrip(decoded)
+    #expect(normalizedDecoded == normalizedOriginal)
+  }
+
+  // Normalize the two known volatile fields (per AC #7): `generatedAt`
+  // (ISO 8601 millisecond truncation) and `run.elapsedSeconds`
+  // (wall-clock noise across runs).
+  @MainActor
+  private static func normalizeForRoundTrip(_ export: TraceExport) -> TraceExport {
+    let normalizedRun = RunInfo(
+      fileName: export.run.fileName,
+      intensityRequested: export.run.intensityRequested,
+      intensityEffective: export.run.intensityEffective,
+      mergeStrategy: export.run.mergeStrategy,
+      votingPolicy: export.run.votingPolicy,
+      votingThreshold: export.run.votingThreshold,
+      metadataPolicyEnabledSources: export.run.metadataPolicyEnabledSources,
+      durationHint: export.run.durationHint,
+      durationHintMinFileSeconds: export.run.durationHintMinFileSeconds,
+      ensemblePolicy: export.run.ensemblePolicy,
+      enableTrace: export.run.enableTrace,
+      enableMLDiagnostics: export.run.enableMLDiagnostics,
+      maxSeconds: export.run.maxSeconds,
+      elapsedSeconds: 0,
+      bpm: export.run.bpm,
+      confidence: export.run.confidence,
+      degradationReason: export.run.degradationReason
+    )
+    return TraceExport(
+      schemaVersion: export.schemaVersion,
+      generatedAt: Date(timeIntervalSince1970: 0),
+      run: normalizedRun,
+      selection: export.selection,
+      pipeline: export.pipeline,
+      metadata: export.metadata,
+      ml: export.ml
+    )
+  }
+
+  // 5.2 — final-step derivation cascade.
+  //
+  // Each scenario constructs a real trace (via analyzeFixture) and then
+  // mutates specific fields to set up the cascade arm under test.
+  // The base trace's actual final-step attribution is unknown for the
+  // synthetic click fixture; the test relies on mutation to force a
+  // deterministic answer.
+  enum CascadeScenario: String, CaseIterable {
+    case mlEnsembleWin
+    case metadataPromoted
+    case fineGridChanged
+    case subBandVoteChanged
+    case durationHintMatched
+    case clickRescoreReordered
+    case baselineDisambiguation
+    case mlAndFineGridConflict  // mlEnsemble should win
+    case fineGridAndSubBandConflict  // fineGrid should win
+  }
+
+  @Test(
+    "finalSelectionStepDerivation: each cascade arm fires for its scenario",
+    arguments: CascadeScenario.allCases
+  )
+  @MainActor
+  func finalSelectionStepDerivation(_ scenario: CascadeScenario) async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let snapshot = try #require(viewModel.lastRunSnapshot)
+    var trace = snapshot.trace
+
+    // Reset all post-disambiguation evidence to a baseline state so each
+    // scenario can layer its specific mutation without interference.
+    trace.subBandVoteDetail = nil
+    trace.refinedBPM = nil
+    trace.ensembleDecision = nil
+    trace.durationHintDetail = nil
+    trace.clickCorrelationDetail = nil
+    trace.candidatesBeforeBoost = [(bpm: 120.0, score: 1.0)]
+    trace.candidatesAfterBoost = [(bpm: 120.0, score: 1.0)]
+    trace.disambiguationResult = (bpm: 120.0, score: 1.0)
+    trace.rawCandidates = [(bpm: 120.0, score: 1.0)]
+
+    let lastBPM: Double
+    let expected: FinalSelectionStep
+    switch scenario {
+    case .mlEnsembleWin:
+      trace.ensembleDecision = EnsembleDecision(
+        policy: .highestConfidence,
+        winner: .ml,
+        dspConfidence: 0.5,
+        mlConfidence: 0.9,
+        mlAbstained: false,
+        selectedBPM: 128.0
+      )
+      lastBPM = 128.0
+      expected = .mlEnsemble
+
+    case .metadataPromoted:
+      trace.candidatesBeforeBoost = [(bpm: 120.0, score: 1.0)]
+      trace.candidatesAfterBoost = [(bpm: 60.0, score: 1.25)]
+      lastBPM = 60.0
+      expected = .metadataCorroboration
+
+    case .fineGridChanged:
+      trace.disambiguationResult = (bpm: 120.0, score: 1.0)
+      trace.refinedBPM = 120.5
+      lastBPM = 120.5
+      expected = .fineGridRefinement
+
+    case .subBandVoteChanged:
+      trace.subBandVoteDetail = SubBandVoteEvidence(
+        preVoteBPM: 60.0,
+        postVoteBPM: 120.0,
+        changed: true
+      )
+      lastBPM = 120.0
+      expected = .subBandVoting
+
+    case .durationHintMatched:
+      trace.durationHintDetail = DurationHintEvidence(
+        fileDurationSeconds: 180.0,
+        barCandidates: [BarCandidate(bars: 96, bpm: 128.0)],
+        boostedCandidates: [128.0]
+      )
+      lastBPM = 128.0
+      expected = .durationHint
+
+    case .clickRescoreReordered:
+      trace.rawCandidates = [(bpm: 60.0, score: 1.0), (bpm: 120.0, score: 0.5)]
+      trace.clickCorrelationDetail = [
+        ClickCorrelationEntry(candidateIndex: 0, bpm: 60.0, normalizedClickScore: 0.2),
+        ClickCorrelationEntry(candidateIndex: 1, bpm: 120.0, normalizedClickScore: 0.9),
+      ]
+      lastBPM = 120.0
+      expected = .clickRescore
+
+    case .baselineDisambiguation:
+      lastBPM = 120.0
+      expected = .baselineDisambiguation
+
+    case .mlAndFineGridConflict:
+      // BOTH ML ensemble win AND fine-grid refinement fired. Highest
+      // priority (mlEnsemble) wins.
+      trace.refinedBPM = 122.0
+      trace.disambiguationResult = (bpm: 120.0, score: 1.0)
+      trace.ensembleDecision = EnsembleDecision(
+        policy: .highestConfidence,
+        winner: .ml,
+        dspConfidence: 0.5,
+        mlConfidence: 0.9,
+        mlAbstained: false,
+        selectedBPM: 128.0
+      )
+      lastBPM = 128.0
+      expected = .mlEnsemble
+
+    case .fineGridAndSubBandConflict:
+      // BOTH fine-grid and sub-band-vote fired. Fine-grid (higher
+      // priority — runs later in pipeline) wins.
+      trace.refinedBPM = 120.5
+      trace.disambiguationResult = (bpm: 120.0, score: 1.0)
+      trace.subBandVoteDetail = SubBandVoteEvidence(
+        preVoteBPM: 60.0,
+        postVoteBPM: 120.0,
+        changed: true
+      )
+      lastBPM = 120.5
+      expected = .fineGridRefinement
+    }
+
+    let derived = FinalSelectionStep.derive(from: trace, lastBPM: lastBPM)
+    #expect(
+      derived == expected,
+      "scenario \(scenario.rawValue): expected \(expected.rawValue), got \(derived.rawValue)")
+  }
+
+  // 5.3 — NaN/Inf in trace export encode throws.
+  enum NonFiniteSite: String, CaseIterable {
+    case disambiguationBPMNaN
+    case disambiguationBPMInfinity
+    case rawCandidateBPMNaN
+    case subBandEnergyInfinity
+  }
+
+  @Test(
+    "nanInTraceExportThrows: non-finite Float/Double in TraceExport aborts encode",
+    arguments: NonFiniteSite.allCases
+  )
+  @MainActor
+  func nanInTraceExportThrows(_ site: NonFiniteSite) throws {
+    let baseDisambiguationBPM: Double
+    let baseDisambiguationScore: Float
+    let baseRawCandidates: [CandidateScore]
+    let baseSubBandEnergies: SubBandEnergiesJSON
+
+    switch site {
+    case .disambiguationBPMNaN:
+      baseDisambiguationBPM = .nan
+      baseDisambiguationScore = 1.0
+      baseRawCandidates = [CandidateScore(bpm: 120.0, score: 1.0)]
+      baseSubBandEnergies = SubBandEnergiesJSON(from: .zero)
+    case .disambiguationBPMInfinity:
+      baseDisambiguationBPM = .infinity
+      baseDisambiguationScore = 1.0
+      baseRawCandidates = [CandidateScore(bpm: 120.0, score: 1.0)]
+      baseSubBandEnergies = SubBandEnergiesJSON(from: .zero)
+    case .rawCandidateBPMNaN:
+      baseDisambiguationBPM = 120.0
+      baseDisambiguationScore = 1.0
+      baseRawCandidates = [CandidateScore(bpm: .nan, score: 1.0)]
+      baseSubBandEnergies = SubBandEnergiesJSON(from: .zero)
+    case .subBandEnergyInfinity:
+      baseDisambiguationBPM = 120.0
+      baseDisambiguationScore = 1.0
+      baseRawCandidates = [CandidateScore(bpm: 120.0, score: 1.0)]
+      baseSubBandEnergies = SubBandEnergiesJSON(
+        from: SubBandEnergies(kick: .infinity, snare: 0, crack: 0, hihat: 0))
+    }
+
+    let export = TraceExport(
+      schemaVersion: "v1",
+      generatedAt: Date(timeIntervalSince1970: 0),
+      run: RunInfo(
+        fileName: "test.wav",
+        intensityRequested: 7,
+        intensityEffective: 7,
+        mergeStrategy: "maxConfidence",
+        votingPolicy: "simpleMajority",
+        votingThreshold: 0,
+        metadataPolicyEnabledSources: [],
+        durationHint: true,
+        durationHintMinFileSeconds: 180,
+        ensemblePolicy: "dspOnly",
+        enableTrace: true,
+        enableMLDiagnostics: false,
+        maxSeconds: 120,
+        elapsedSeconds: 1,
+        bpm: 120,
+        confidence: 0.8,
+        degradationReason: nil
+      ),
+      selection: SelectionInfo(finalStep: "baseline-disambiguation", reasoning: "test"),
+      pipeline: PipelineInfo(
+        energyTransitionOffset: 0,
+        analysisWindowDuration: 60,
+        onsetEnvelopeLength: 6000,
+        subBandEnergies: baseSubBandEnergies,
+        acfTopLags: [],
+        tempogramTopBPMs: [],
+        fusedTopBPMs: [],
+        tps2TopBPMs: [],
+        rawCandidates: baseRawCandidates,
+        disambiguation: CandidateScore(
+          bpm: baseDisambiguationBPM, score: baseDisambiguationScore),
+        clickCorrelation: nil,
+        durationHint: nil,
+        harmonicRatio: nil,
+        subBandVote: nil,
+        refinedBPM: nil
+      ),
+      metadata: MetadataInfo(
+        evidence: [],
+        candidatesBeforeBoost: [],
+        candidatesAfterBoost: []
+      ),
+      ml: nil
+    )
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    #expect(throws: EncodingError.self) {
+      _ = try encoder.encode(export)
+    }
+  }
+
+  // 5.5 — snapshot resets to nil at the synchronous prologue of the
+  // next analyze() call.
+  @Test("lastRunSnapshotResetOnAnalyzePrologue: new analyze clears prior snapshot")
+  @MainActor
+  func lastRunSnapshotResetOnAnalyzePrologue() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    #expect(viewModel.lastRunSnapshot != nil)
+    // Immediately re-launch — the synchronous prologue clears the
+    // snapshot before the Task body runs. Inspecting at this point
+    // (before yield) catches the synchronous reset.
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    viewModel.analyze(url: url)
+    #expect(viewModel.lastRunSnapshot == nil, "prologue should clear snapshot synchronously")
+    // Drain the in-flight task so the test doesn't leak a Task.
+    let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+    while viewModel.isAnalyzing && ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(50))
+    }
+  }
+
+  // 5.6 — `opts.enableTrace = true` override at the prologue defeats
+  // user-supplied `enableTrace: false`.
+  @Test("enableTraceOverrideAtPrologue: override defeats user-supplied false")
+  @MainActor
+  func enableTraceOverrideAtPrologue() async throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let viewModel = AnalysisViewModel()
+    viewModel.options.enableTrace = false  // user asked false
+    viewModel.analyze(url: url)
+    let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+    while viewModel.isAnalyzing && ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    try #require(!viewModel.isAnalyzing, "analyze did not complete within 30s")
+    // The override fired post-snapshot, so the run actually used
+    // enableTrace=true, which is what the snapshot's runOptions reflects.
+    let snapshot = try #require(viewModel.lastRunSnapshot, "snapshot should be populated")
+    #expect(snapshot.runOptions.enableTrace == true)
+  }
+
+  // 5.7 — golden-file schema test (R2 mitigation).
+  //
+  // Builds a deterministic, fully-populated TraceExport (every optional
+  // populated to a non-default value, every array non-empty). Encodes
+  // with [.sortedKeys, .prettyPrinted]. Compares byte-equal against
+  // checked-in `Fixtures/5-4-trace-export-golden.json`.
+  //
+  // If the fixture is missing (first author run), writes it and emits
+  // an Issue.record asking for commit. CI/regression runs must find
+  // the fixture or the test fails loudly.
+  @Test("traceExportSchemaMatchesGolden: encoded TraceExport matches checked-in fixture")
+  @MainActor
+  func traceExportSchemaMatchesGolden() throws {
+    let export = Self.canonicalTraceExport()
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try encoder.encode(export)
+
+    let testFile = URL(fileURLWithPath: #filePath)
+    let fixtureURL =
+      testFile
+      .deletingLastPathComponent()
+      .appendingPathComponent("Fixtures")
+      .appendingPathComponent("5-4-trace-export-golden.json")
+
+    if !FileManager.default.fileExists(atPath: fixtureURL.path) {
+      try data.write(to: fixtureURL, options: .atomic)
+      let message =
+        "golden fixture did not exist; wrote initial version at \(fixtureURL.path). "
+        + "Commit the file and re-run."
+      Issue.record(Comment(rawValue: message))
+      return
+    }
+
+    let golden = try Data(contentsOf: fixtureURL)
+    if data != golden {
+      // Write the new bytes to a sibling .actual file so a human can
+      // diff and decide whether the divergence is intentional (update
+      // golden) or a regression (fix the projection).
+      let actualURL =
+        fixtureURL
+        .deletingLastPathComponent()
+        .appendingPathComponent("5-4-trace-export-golden.actual.json")
+      try data.write(to: actualURL, options: .atomic)
+      let message =
+        "encoded TraceExport diverges from golden; wrote actual to "
+        + "\(actualURL.path) for diff inspection. If intentional, replace "
+        + "the golden and commit."
+      Issue.record(Comment(rawValue: message))
+    }
+    #expect(data == golden)
+  }
+
+  // Canonical fully-populated TraceExport for the golden-file test.
+  // Every optional set, every array non-empty, every scalar at a
+  // distinct constant. NO non-finite floats (the encoder would reject).
+  //
+  // `@MainActor` because the projection-type `init(from:)` initializers
+  // (e.g., `MetadataEvidenceJSON.init(from:)`) inherit MainActor
+  // isolation from the `-default-isolation MainActor` build setting;
+  // calling them from a nonisolated static func would fail Swift 6
+  // strict-concurrency checks.
+  @MainActor
+  private static func canonicalTraceExport() -> TraceExport {
+    TraceExport(
+      schemaVersion: "v1",
+      generatedAt: Date(timeIntervalSince1970: 0),
+      run: RunInfo(
+        fileName: "golden-fixture.wav",
+        intensityRequested: 7,
+        intensityEffective: 7,
+        mergeStrategy: "maxConfidence",
+        votingPolicy: "simpleMajority",
+        votingThreshold: 0.5,
+        metadataPolicyEnabledSources: ["iTunesTmpo", "id3TBPM", "vorbisBPM"],
+        durationHint: true,
+        durationHintMinFileSeconds: 180,
+        ensemblePolicy: "dspOnly",
+        enableTrace: true,
+        enableMLDiagnostics: false,
+        maxSeconds: 120,
+        elapsedSeconds: 1.5,
+        bpm: 120.0,
+        confidence: 0.85,
+        degradationReason: nil
+      ),
+      selection: SelectionInfo(
+        finalStep: "fine-grid-refinement",
+        reasoning: "Fine-grid DFT refinement adjusted the BPM after disambiguation."
+      ),
+      pipeline: PipelineInfo(
+        energyTransitionOffset: 1024,
+        analysisWindowDuration: 60.0,
+        onsetEnvelopeLength: 6000,
+        subBandEnergies: SubBandEnergiesJSON(
+          from: SubBandEnergies(kick: 0.5, snare: 0.4, crack: 0.3, hihat: 0.2)),
+        acfTopLags: [LagStrength(lag: 50, strength: 0.9)],
+        tempogramTopBPMs: [BPMMagnitude(bpm: 120, magnitude: 0.8)],
+        fusedTopBPMs: [BPMScore(bpm: 120, score: 1.0)],
+        tps2TopBPMs: [BPMScore(bpm: 120, score: 0.95)],
+        rawCandidates: [CandidateScore(bpm: 120.0, score: 1.0)],
+        disambiguation: CandidateScore(bpm: 120.0, score: 1.0),
+        clickCorrelation: [
+          ClickCorrelationJSON(
+            from: ClickCorrelationEntry(
+              candidateIndex: 0, bpm: 120.0, normalizedClickScore: 0.95))
+        ],
+        durationHint: DurationHintJSON(
+          from: DurationHintEvidence(
+            fileDurationSeconds: 180.0,
+            barCandidates: [BarCandidate(bars: 96, bpm: 128.0)],
+            boostedCandidates: [120.0]
+          )),
+        harmonicRatio: HarmonicRatioJSON(
+          from: HarmonicRatioEvidence(
+            ratio: "2:1", fastBPM: 240.0, slowBPM: 120.0, winnerBPM: 120.0)),
+        subBandVote: SubBandVoteJSON(
+          from: SubBandVoteEvidence(preVoteBPM: 60.0, postVoteBPM: 120.0, changed: true)),
+        refinedBPM: 120.25
+      ),
+      metadata: MetadataInfo(
+        evidence: [
+          MetadataEvidenceJSON(
+            from: MetadataBPMEvidence(
+              source: .iTunesTmpo,
+              rawValue: "120",
+              parsedBPM: 120.0,
+              corroboratedWith: 120.0,
+              ratioMatched: .one,
+              boostApplied: 1.25,
+              rejectionReason: nil))
+        ],
+        candidatesBeforeBoost: [CandidateScore(bpm: 120.0, score: 0.8)],
+        candidatesAfterBoost: [CandidateScore(bpm: 120.0, score: 1.0)]
+      ),
+      ml: MLInfo(
+        ensembleDecision: EnsembleDecisionJSON(
+          from: EnsembleDecision(
+            policy: .dspOnly,
+            winner: .dsp,
+            dspConfidence: 0.85,
+            mlConfidence: nil,
+            mlAbstained: true,
+            selectedBPM: 120.0
+          )),
+        diagnosticSnapshot: nil,
+        featureFramesShape: nil
+      )
+    )
+  }
+
+  // 5.8 — atomic snapshot invariant: all four fields populated together.
+  @Test("lastRunSnapshotIsAtomic: all snapshot fields populated together")
+  @MainActor
+  func lastRunSnapshotIsAtomic() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let snapshot = try #require(viewModel.lastRunSnapshot)
+    // All four nested DD #5 fields plus the impl-added `result` are
+    // observable as populated together.
+    #expect(snapshot.fileName == "bpm-120-click.wav")
+    // runOptions has 11 fields; assert one of them (intensity) is set.
+    #expect(snapshot.runOptions.intensity.rawValue == AnalysisIntensity.default.rawValue)
+    // metadataEvidence may be empty for tag-free fixture, which is OK —
+    // the array exists (not nil-equivalent).
+    _ = snapshot.metadataEvidence
+    // result and trace are non-optional value types — accessing them
+    // proves they exist.
+    #expect(snapshot.result.bpm > 0)
+    _ = snapshot.trace.onsetEnvelopeLength
+  }
+
+  // 5.9 — Export Trace visibility predicate evaluates to false when
+  // `lastRunSnapshot == nil` (fresh init AND post-failure paths).
+  @Test("exportTraceVisibilityGatedOnSnapshot: lastRunSnapshot nil immediately after init")
+  @MainActor
+  func exportTraceVisibilityGatedOnSnapshot() {
+    let viewModel = AnalysisViewModel()
+    #expect(viewModel.lastRunSnapshot == nil)
+    // Failure-arm: an invalid drop populates errorMessage but leaves
+    // lastRunSnapshot nil (no DSP work ran).
+    let bogusURL = URL(fileURLWithPath: "/tmp/sample.txt")
+    _ = viewModel.handleDrop([bogusURL])
+    #expect(viewModel.lastRunSnapshot == nil)
+  }
+
+  // 5.10 — write-error path sets errorMessage and leaves snapshot
+  // unchanged (AC #14).
+  @Test("exportTraceWriteErrorSetsErrorMessage: unwritable URL surfaces errorMessage")
+  @MainActor
+  func exportTraceWriteErrorSetsErrorMessage() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let snapshotBefore = try #require(viewModel.lastRunSnapshot)
+    // Deliberately-unwritable URL: nonexistent intermediate directory.
+    // `.atomic` write fails — caught and surfaced via errorMessage.
+    let bogusURL = URL(fileURLWithPath: "/nonexistent-story-5-4-test-dir/trace.json")
+    let didWrite = viewModel.writeTraceJSON(to: bogusURL)
+    #expect(didWrite == false)
+    let message = try #require(viewModel.errorMessage)
+    #expect(message.hasPrefix("Could not export trace JSON:"))
+    // Snapshot unchanged — failed write doesn't invalidate it.
+    let snapshotAfter = try #require(viewModel.lastRunSnapshot)
+    #expect(snapshotAfter.fileName == snapshotBefore.fileName)
+  }
+
+  // 5.11 — DD #11 positive assertion: logMelData key is absent from
+  // the exported JSON even when mlFeatures is populated on the trace.
+  @Test("logMelDataOmittedFromExport: payload absent, shape present")
+  @MainActor
+  func logMelDataOmittedFromExport() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let snapshot = try #require(viewModel.lastRunSnapshot)
+    // Inject mlFeatures into a copy of the trace.
+    var trace = snapshot.trace
+    let melBands = 128
+    let frames = 100
+    let payloadCount = melBands * frames
+    let payload = [Float](repeating: 0.5, count: payloadCount)
+    trace.mlFeatures = try MLFeatureFrames(
+      melBands: melBands,
+      frames: frames,
+      tensorLayout: .frameMajorLogMel,
+      logMelData: payload,
+      sampleRate: 44100,
+      fftSize: 2048,
+      hopSize: 441,
+      melFmin: 30,
+      melFmax: 16000,
+      logCompressionScale: 100,
+      featureSetVersion: "v1"
+    )
+    // Attach an ensembleDecision so MLInfo is non-nil (it is also
+    // non-nil when only mlDiagnosticSnapshot or mlFeatures is present,
+    // but the test specifically asserts the ensembleDecision projection).
+    trace.ensembleDecision = EnsembleDecision(
+      policy: .dspOnly,
+      winner: .dsp,
+      dspConfidence: snapshot.result.confidence,
+      mlConfidence: nil,
+      mlAbstained: true,
+      selectedBPM: snapshot.result.bpm
+    )
+
+    let export = TraceExport.from(
+      trace: trace,
+      runOptions: snapshot.runOptions,
+      result: snapshot.result,
+      fileName: snapshot.fileName,
+      metadataEvidence: snapshot.metadataEvidence,
+      elapsedSeconds: viewModel.elapsedSeconds ?? 0
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+    let data = try encoder.encode(export)
+
+    // Positive shape assertion via decode.
+    let decoder = JSONDecoder()
+    let decoded = try decoder.decode(TraceExport.self, from: data)
+    try #require(decoded.ml != nil)
+    try #require(decoded.ml?.featureFramesShape != nil)
+    #expect(decoded.ml?.featureFramesShape?.melBands == 128)
+    #expect(decoded.ml?.featureFramesShape?.frames == 100)
+
+    // Negative absence assertion via JSONSerialization walk — no key
+    // named `logMelData` anywhere in the JSON.
+    let jsonObject = try JSONSerialization.jsonObject(with: data)
+    #expect(!Self.containsKey("logMelData", in: jsonObject))
+
+    // Size bound — shape-only export stays under 100 KB.
+    #expect(data.count < 100_000)
+  }
+
+  // Recursive helper for 5.11 — walks a JSONSerialization-decoded
+  // object and returns true if any nested dict contains the key.
+  private static func containsKey(_ target: String, in any: Any) -> Bool {
+    if let dict = any as? [String: Any] {
+      if dict[target] != nil { return true }
+      for (_, value) in dict {
+        if containsKey(target, in: value) { return true }
+      }
+    } else if let array = any as? [Any] {
+      for element in array {
+        if containsKey(target, in: element) { return true }
+      }
+    }
+    return false
   }
 }
