@@ -1,0 +1,139 @@
+{
+  "generatedAt" : "1970-01-01T00:00:00Z",
+  "metadata" : {
+    "candidatesAfterBoost" : [
+      {
+        "bpm" : 120,
+        "score" : 1
+      }
+    ],
+    "candidatesBeforeBoost" : [
+      {
+        "bpm" : 120,
+        "score" : 0.8
+      }
+    ],
+    "evidence" : [
+      {
+        "boostApplied" : 1.25,
+        "corroboratedWith" : 120,
+        "parsedBPM" : 120,
+        "ratioMatched" : "one",
+        "rawValue" : "120",
+        "source" : "iTunesTmpo"
+      }
+    ]
+  },
+  "ml" : {
+    "ensembleDecision" : {
+      "dspConfidence" : 0.85,
+      "mlAbstained" : true,
+      "policy" : "dspOnly",
+      "selectedBPM" : 120,
+      "winner" : "dsp"
+    }
+  },
+  "pipeline" : {
+    "acfTopLags" : [
+      {
+        "lag" : 50,
+        "strength" : 0.9
+      }
+    ],
+    "analysisWindowDuration" : 60,
+    "clickCorrelation" : [
+      {
+        "bpm" : 120,
+        "candidateIndex" : 0,
+        "normalizedClickScore" : 0.95
+      }
+    ],
+    "disambiguation" : {
+      "bpm" : 120,
+      "score" : 1
+    },
+    "durationHint" : {
+      "barCandidates" : [
+        {
+          "bars" : 96,
+          "bpm" : 128
+        }
+      ],
+      "boostedCandidates" : [
+        120
+      ],
+      "fileDurationSeconds" : 180
+    },
+    "energyTransitionOffset" : 1024,
+    "fusedTopBPMs" : [
+      {
+        "bpm" : 120,
+        "score" : 1
+      }
+    ],
+    "harmonicRatio" : {
+      "fastBPM" : 240,
+      "ratio" : "2:1",
+      "slowBPM" : 120,
+      "winnerBPM" : 120
+    },
+    "onsetEnvelopeLength" : 6000,
+    "rawCandidates" : [
+      {
+        "bpm" : 120,
+        "score" : 1
+      }
+    ],
+    "refinedBPM" : 120.25,
+    "subBandEnergies" : {
+      "crack" : 0.3,
+      "hihat" : 0.2,
+      "kick" : 0.5,
+      "snare" : 0.4
+    },
+    "subBandVote" : {
+      "changed" : true,
+      "postVoteBPM" : 120,
+      "preVoteBPM" : 60
+    },
+    "tempogramTopBPMs" : [
+      {
+        "bpm" : 120,
+        "magnitude" : 0.8
+      }
+    ],
+    "tps2TopBPMs" : [
+      {
+        "bpm" : 120,
+        "score" : 0.95
+      }
+    ]
+  },
+  "run" : {
+    "bpm" : 120,
+    "confidence" : 0.85,
+    "durationHint" : true,
+    "durationHintMinFileSeconds" : 180,
+    "elapsedSeconds" : 1.5,
+    "enableMLDiagnostics" : false,
+    "enableTrace" : true,
+    "ensemblePolicy" : "dspOnly",
+    "fileName" : "golden-fixture.wav",
+    "intensityEffective" : 7,
+    "intensityRequested" : 7,
+    "maxSeconds" : 120,
+    "mergeStrategy" : "maxConfidence",
+    "metadataPolicyEnabledSources" : [
+      "iTunesTmpo",
+      "id3TBPM",
+      "vorbisBPM"
+    ],
+    "votingPolicy" : "simpleMajority",
+    "votingThreshold" : 0.5
+  },
+  "schemaVersion" : "v1",
+  "selection" : {
+    "finalStep" : "fine-grid-refinement",
+    "reasoning" : "Fine-grid DFT refinement adjusted the BPM after disambiguation."
+  }
+}

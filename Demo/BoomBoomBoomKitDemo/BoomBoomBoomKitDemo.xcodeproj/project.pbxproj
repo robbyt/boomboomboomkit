@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		EE8EF10D20304884B83E3358 /* BoomBoomBoomKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC80BDB8C44C4D6CB5BDDC39 /* BoomBoomBoomKit */; };
-		14EC9E1377584C1A95F84620 /* BoomBoomBoomKitML in Frameworks */ = {isa = PBXBuildFile; productRef = 491F0616FB7E4121955E263E /* BoomBoomBoomKitML */; };
 		02DC72A1C88D4017B6C0FCEF /* BoomBoomBoomKitTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = 4C958F5C01774258A1A8F08B /* BoomBoomBoomKitTestSupport */; };
+		14EC9E1377584C1A95F84620 /* BoomBoomBoomKitML in Frameworks */ = {isa = PBXBuildFile; productRef = 491F0616FB7E4121955E263E /* BoomBoomBoomKitML */; };
+		EE8EF10D20304884B83E3358 /* BoomBoomBoomKit in Frameworks */ = {isa = PBXBuildFile; productRef = CC80BDB8C44C4D6CB5BDDC39 /* BoomBoomBoomKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,20 +54,20 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		DFDDD5475E5B4D42824AA632 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				02DC72A1C88D4017B6C0FCEF /* BoomBoomBoomKitTestSupport in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E80E2607EA4348A3BFBF822E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				EE8EF10D20304884B83E3358 /* BoomBoomBoomKit in Frameworks */,
 				14EC9E1377584C1A95F84620 /* BoomBoomBoomKitML in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		DFDDD5475E5B4D42824AA632 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				02DC72A1C88D4017B6C0FCEF /* BoomBoomBoomKitTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,6 +81,15 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		5BA7EA2EF94B47D78F93A0DD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0848465D51CB4967A32319B4 /* BoomBoomBoomKitDemo.app */,
+				32EA47B840544CC3AF42CEF2 /* BoomBoomBoomKitDemoTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		EF5CE63619DA4C44BBCB330B = {
 			isa = PBXGroup;
 			children = (
@@ -89,15 +98,6 @@
 				340BE5955A1740E99214065C /* Frameworks */,
 				5BA7EA2EF94B47D78F93A0DD /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		5BA7EA2EF94B47D78F93A0DD /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				0848465D51CB4967A32319B4 /* BoomBoomBoomKitDemo.app */,
-				32EA47B840544CC3AF42CEF2 /* BoomBoomBoomKitDemoTests.xctest */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -211,14 +211,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		352ADAB05CB84CC08D5DF89B /* Sources */ = {
+		28EA06376F1F4A17BF72E52E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28EA06376F1F4A17BF72E52E /* Sources */ = {
+		352ADAB05CB84CC08D5DF89B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -236,6 +236,83 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		29D297383340440E91719FDF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomKitDemoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BoomBoomBoomKitDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BoomBoomBoomKitDemo";
+			};
+			name = Release;
+		};
+		62E86B64D2DF4759B5CF5F73 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
 		67CF34E911C649A185BC2A32 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -300,62 +377,6 @@
 			};
 			name = Debug;
 		};
-		62E86B64D2DF4759B5CF5F73 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				SDKROOT = macosx;
-				SWIFT_COMPILATION_MODE = wholemodule;
-			};
-			name = Release;
-		};
 		91CC0E3CC2CC4B0784DB2802 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -370,7 +391,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BoomBoomBoomKitDemo/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -402,7 +423,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = BoomBoomBoomKitDemo/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -442,35 +463,14 @@
 			};
 			name = Debug;
 		};
-		29D297383340440E91719FDF /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomKitDemoTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BoomBoomBoomKitDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BoomBoomBoomKitDemo";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		FD04CACBAECF4547960DAA33 /* Build configuration list for PBXProject "BoomBoomBoomKitDemo" */ = {
+		07AC87D1A96549109DE96360 /* Build configuration list for PBXNativeTarget "BoomBoomBoomKitDemoTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				67CF34E911C649A185BC2A32 /* Debug */,
-				62E86B64D2DF4759B5CF5F73 /* Release */,
+				E994CE69C7DF4164B576E48F /* Debug */,
+				29D297383340440E91719FDF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -484,11 +484,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		07AC87D1A96549109DE96360 /* Build configuration list for PBXNativeTarget "BoomBoomBoomKitDemoTests" */ = {
+		FD04CACBAECF4547960DAA33 /* Build configuration list for PBXProject "BoomBoomBoomKitDemo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E994CE69C7DF4164B576E48F /* Debug */,
-				29D297383340440E91719FDF /* Release */,
+				67CF34E911C649A185BC2A32 /* Debug */,
+				62E86B64D2DF4759B5CF5F73 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -503,11 +503,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		CC80BDB8C44C4D6CB5BDDC39 /* BoomBoomBoomKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3A8CAA80BA4C480ABB3B4B8E /* XCLocalSwiftPackageReference "../../" */;
-			productName = BoomBoomBoomKit;
-		};
 		491F0616FB7E4121955E263E /* BoomBoomBoomKitML */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3A8CAA80BA4C480ABB3B4B8E /* XCLocalSwiftPackageReference "../../" */;
@@ -517,6 +512,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3A8CAA80BA4C480ABB3B4B8E /* XCLocalSwiftPackageReference "../../" */;
 			productName = BoomBoomBoomKitTestSupport;
+		};
+		CC80BDB8C44C4D6CB5BDDC39 /* BoomBoomBoomKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3A8CAA80BA4C480ABB3B4B8E /* XCLocalSwiftPackageReference "../../" */;
+			productName = BoomBoomBoomKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

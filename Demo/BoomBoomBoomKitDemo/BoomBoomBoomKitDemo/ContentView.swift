@@ -5,6 +5,11 @@ struct ContentView: View {
   @State private var viewModel = AnalysisViewModel()
   @State private var isDropTargeted: Bool = false
 
+  // Persisted via @SceneStorage so the inspector preference survives
+  // window-close / app-relaunch. Default true — the demo audience
+  // wants the diagnostic surface up. Toggle via Control-Command-I.
+  @SceneStorage("traceInspectorPresented") private var inspectorPresented: Bool = true
+
   var body: some View {
     VStack(spacing: 16) {
       controlsSection
@@ -13,12 +18,8 @@ struct ContentView: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .padding()
-    // Axiom A2 — `.contentShape(Rectangle())` must come AFTER `.frame()`
-    // and BEFORE `.dropDestination` so padded margins register drops at
-    // the visible border edge (`transferable-ref.md:622-635`). The drop
-    // region thus covers the controls section AND the result area
-    // uniformly — a user dragging onto the slider still drops
-    // successfully (Story 5-3 Task 2.8).
+    // `.contentShape` AFTER `.frame()` and BEFORE `.dropDestination` so
+    // padded margins register drops at the visible border edge.
     .contentShape(Rectangle())
     .dropDestination(for: URL.self) { urls, _ in
       viewModel.handleDrop(urls)
@@ -26,37 +27,47 @@ struct ContentView: View {
       isDropTargeted = targeted
     }
     .overlay(
-      // DD #12 — 1pt accent-color border on hover, lightest-touch
-      // valid drop-zone signal per Apple HIG conventions.
+      // `.allowsHitTesting(false)` because the right segment of this
+      // stroke ring sits over the inspector divider; without opting
+      // out, the decorative ring swallows the divider's resize-drag.
       RoundedRectangle(cornerRadius: 6)
         .stroke(Color.accentColor, lineWidth: 1)
         .opacity(isDropTargeted ? 1 : 0)
+        .allowsHitTesting(false)
     )
-    // DD #15 / Codex C2 — LaunchServices document-open events
-    // (Dock-icon drops, Finder Open With, `open -a`) flow through
-    // `.onOpenURL`, NOT `.dropDestination`. Reuses `handleOpenURL`
-    // which forwards to `analyze(url:autoStarted: true)` so the
-    // stop-only security-scoped resource bracket applies (DD #4).
+    // LaunchServices document-open events (Dock-icon drops, Finder
+    // Open With, `open -a`) flow through `.onOpenURL`, not
+    // `.dropDestination`.
     .onOpenURL { url in
       viewModel.handleOpenURL(url)
     }
+    // CRITICAL: `.inspectorColumnWidth(min:ideal:max:)` MUST be applied
+    // to the inspector CONTENT (inside the closure), NOT chained after
+    // `.inspector(...)`. Apple's documented usage:
+    //   https://developer.apple.com/documentation/swiftui/view/inspectorcolumnwidth(min:ideal:max:)
+    //   "Apply this modifier on the content of inspector(isPresented:content:)"
+    // Chaining outside silently leaves the inspector at its default
+    // non-resizable behavior — the divider renders but won't drag. The
+    // Group wrapper resolves the if/else to a single view so the
+    // modifier attaches unambiguously.
+    .inspector(isPresented: $inspectorPresented) {
+      Group {
+        if let snapshot = viewModel.lastRunSnapshot {
+          TraceView(snapshot: snapshot)
+        } else {
+          TraceInspectorEmptyView()
+        }
+      }
+      .inspectorColumnWidth(min: 240, ideal: 320, max: 480)
+    }
   }
 
-  // MARK: - Parameter Controls (Story 5-3)
+  // MARK: - Parameter Controls
 
-  // Two-way `Binding<Double>` bridging `AnalysisIntensity.rawValue: Int`
-  // and SwiftUI Slider's Double-only value type (Story 5-3 DD #2).
-  // `Int($0.rounded())` — NOT `Int($0)` — because Apple's docs do NOT
-  // guarantee the setter has been called with the snapped value before
-  // `onEditingChanged: false` fires; `Int(6.999) == 6` would silently
-  // downgrade by one step. `AnalysisIntensity.init(rawValue:)` clamps
-  // to `1...10` for free.
-  //
-  // P2 (Story 5-3 code review 2026-05-20): `Int(newValue.rounded())`
-  // traps if `newValue` is NaN or ±Infinity. Not reachable via
-  // SwiftUI's constrained Slider in normal use, but matches the W20
-  // hardening philosophy applied to the read side (formatResultRow).
-  // Defensive symmetry — guard non-finite at the binding boundary.
+  // `Int($0.rounded())`, NOT `Int($0)` — without rounding, `Int(6.999)`
+  // truncates to 6 and silently downgrades by one step. The non-finite
+  // guard defends against the trap `Int.init(_: Double)` would emit if
+  // a NaN/Inf somehow reached this setter.
   private var intensityBinding: Binding<Double> {
     Binding(
       get: { Double(viewModel.options.intensity.rawValue) },
@@ -67,8 +78,6 @@ struct ContentView: View {
     )
   }
 
-  // Label suffix for the 4 named intensity constants (DD #2). Helps
-  // the user understand the 1-10 scale without reading docs.
   private var intensityLabelText: String {
     let raw = viewModel.options.intensity.rawValue
     let suffix: String
@@ -82,14 +91,10 @@ struct ContentView: View {
     return "\(raw)\(suffix)"
   }
 
-  // Re-run trigger (DD #1 chosen semantics: edit-end + selection-change,
-  // NOT continuous on-change). Slider's `onEditingChanged: false`
-  // callback fires once at drag-release; Picker's `.onChange` fires
-  // once per selection. Both call this helper, which fires a re-analyze
-  // ONLY when a file has previously been dropped (`selectedFileURL !=
-  // nil`). Edit-end / selection-change with no file still mutates
-  // `viewModel.options` so the Copy Config snippet reflects the
-  // choices, but no analyze fires.
+  // Edit-end (slider drag-release) + selection-change (picker) — NOT
+  // continuous on-change. Only re-runs if a file has previously been
+  // dropped; options changes pre-drop still update Copy Config but
+  // don't kick off analyze.
   private func triggerReanalyze() {
     guard let url = viewModel.selectedFileURL else { return }
     viewModel.analyze(url: url, autoStarted: false)
@@ -99,10 +104,9 @@ struct ContentView: View {
   private var controlsSection: some View {
     GroupBox("Parameters") {
       VStack(alignment: .leading, spacing: 12) {
-        // Intensity row — label + slider. The slider's
-        // `onEditingChanged: { editing in if !editing { ... } }` is
-        // SwiftUI's natural debounce (DD #1 (B)): one trigger per
-        // user-completed drag, not 10-30 per drag tick.
+        // `onEditingChanged: { editing in if !editing }` is SwiftUI's
+        // natural drag-release debounce — one trigger per completed
+        // drag, not 10-30 per drag tick.
         VStack(alignment: .leading, spacing: 4) {
           Text("Intensity: \(intensityLabelText)")
             .font(.callout)
@@ -118,17 +122,10 @@ struct ContentView: View {
           )
         }
 
-        // Merge strategy row. `.menu` picker style is the macOS default
-        // dropdown (DD #3); `.segmented` or `.wheel` would consume
-        // excessive horizontal space for 8 options. The `.onChange`
-        // fires once per value change with no drag jitter, so re-run
-        // on every change is safe. Note (P3, Story 5-3 code review
-        // 2026-05-20): `.onChange(of:)` fires for ANY mutation,
-        // including programmatic writes — a future preset / state-
-        // restoration feature that sets `viewModel.options.mergeStrategy`
-        // programmatically will also trigger a re-analyze. Today the
-        // value is only mutated via this Picker, so the firing
-        // coincides with user selection.
+        // `.onChange(of:)` fires for any mutation, including
+        // programmatic writes — today only this Picker mutates the
+        // value, so a future preset feature could trigger unintended
+        // re-analyzes.
         Picker("Merge strategy", selection: $viewModel.options.mergeStrategy) {
           ForEach(CandidateMergeStrategy.allCases, id: \.self) { strategy in
             Text(strategy.rawValue).tag(strategy)
@@ -139,13 +136,11 @@ struct ContentView: View {
           triggerReanalyze()
         }
 
-        // Button row — Cancel / Re-analyze / Copy Config. Visibility
-        // predicates per DD #4 + DD #5: Cancel shown only when
-        // analyzing (hidden-via-`if`, NOT `.disabled(true)`);
-        // Re-analyze shown only when a file is dropped AND not
-        // analyzing (mutually exclusive with Cancel); Copy Config
-        // always visible (snippet is independent of analysis state).
-        HStack {
+        // Cancel / Re-analyze / Copy Config / Export Trace.
+        // Cancel + Re-analyze are mutually exclusive (analyzing vs
+        // idle); Copy Config is always visible; Export Trace requires
+        // a populated snapshot.
+        HStack(spacing: 8) {
           if viewModel.isAnalyzing {
             Button(viewModel.isCancelling ? "Cancelling…" : "Cancel") {
               viewModel.cancelInFlight()
@@ -156,9 +151,18 @@ struct ContentView: View {
             Button("Re-analyze") {
               triggerReanalyze()
             }
+            .buttonStyle(.borderedProminent)
+            Divider().frame(height: 16)
           }
           Button("Copy Config") {
             viewModel.copyConfigToPasteboard()
+          }
+          .buttonStyle(.bordered)
+          if viewModel.lastRunSnapshot != nil && !viewModel.isAnalyzing {
+            Button("Export Trace") {
+              viewModel.exportTrace()
+            }
+            .buttonStyle(.bordered)
           }
         }
       }
@@ -166,10 +170,10 @@ struct ContentView: View {
     }
   }
 
-  // MARK: - State-Driven Render (Story 5-2 DD #10, DD #16)
+  // MARK: - State-Driven Render
 
   // Four primary states + a secondary banner that overlays when an
-  // `errorMessage` co-exists with `analyzing` or `result` (DD #16).
+  // errorMessage co-exists with analyzing/result.
   private enum DisplayState {
     case empty
     case analyzing(filename: String?, cancelling: Bool)
@@ -177,10 +181,6 @@ struct ContentView: View {
     case errorOnly(String)
   }
 
-  // Delegates to `AnalysisViewModel.formatResultRow` (Story 5-3 DD #15
-  // / AC #7). The static helper is the testable boundary: smoke tests
-  // exercise NaN/Inf and missing-fields without SwiftUI view-test
-  // infrastructure. View remains lint-clean.
   private var displayState: DisplayState {
     if viewModel.isAnalyzing {
       return .analyzing(
@@ -198,19 +198,14 @@ struct ContentView: View {
     case .success(let row):
       return .result(row)
     case .failure(.nonFinite):
-      // Post-P5 (Story 5-3 code review 2026-05-20): copy says
-      // "invalid numeric value" because the `.nonFinite` case now
-      // also covers finite-but-out-of-range values (bpm <= 0,
-      // confidence outside [0, 1], elapsedSeconds < 0) in addition
-      // to NaN/±Infinity. Enum case name retained for low-churn —
-      // see AnalysisViewModel.formatResultRow for the rationale.
+      // `.nonFinite` covers NaN/Inf AND out-of-range; user-facing
+      // copy says "invalid numeric value" to fit both.
       return .errorOnly(
         "Internal error: analysis returned an invalid numeric value. This is a library bug — please file an issue."
       )
     case .failure(.missingFields):
-      // Fall through to errorMessage / empty per existing semantics —
-      // a partial-state read during analysis transitions, or a
-      // never-run state pre-drop.
+      // Partial state during analysis transitions, or never-run
+      // pre-drop. Fall through to errorMessage / empty.
       break
     }
     if let message = viewModel.errorMessage {
@@ -219,9 +214,9 @@ struct ContentView: View {
     return .empty
   }
 
-  // DD #16: banner appears only when an `errorMessage` is present AND
-  // the primary state is `analyzing` or `result`. In `errorOnly` the
-  // message IS the primary content (no duplicate banner).
+  // Banner appears only when an errorMessage is present AND the
+  // primary state is analyzing/result; in errorOnly the message IS the
+  // primary content (no duplicate banner).
   private var bannerError: String? {
     guard let message = viewModel.errorMessage else { return nil }
     switch displayState {
@@ -285,6 +280,17 @@ struct ContentView: View {
       resultRow("Confidence", row.confidence)
       resultRow("Intensity", row.intensity)
       resultRow("Elapsed", row.elapsed)
+      // Quiet caption showing the run config that produced this BPM.
+      // Stays pinned to the snapshot values so the user immediately
+      // sees divergence when a slider changes post-result.
+      if let snapshot = viewModel.lastRunSnapshot {
+        Text(
+          "Result captured at: intensity \(snapshot.runOptions.intensity.rawValue), "
+            + AnalysisViewModel.humanize(snapshot.runOptions.mergeStrategy)
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      }
     }
     .frame(maxWidth: 360)
   }
