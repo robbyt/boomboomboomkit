@@ -485,7 +485,7 @@ struct AnalysisViewModelSmokeTest {
     let viewModel = AnalysisViewModel()
     // Seed a stale pasteboard-failure banner as if a prior copy
     // returned false.
-    viewModel.errorMessage = "Could not copy to clipboard"
+    viewModel.error = .clipboardCopy
     // Subsequent successful copy clears it.
     let didCopy = viewModel.copyConfigToPasteboard()
     // setString on in-process NSPasteboard.general is expected to
@@ -493,7 +493,7 @@ struct AnalysisViewModelSmokeTest {
     // restricted pasteboard access the test would correctly fail at
     // this expectation.
     #expect(didCopy == true)
-    #expect(viewModel.errorMessage == nil)
+    #expect(viewModel.error == nil)
   }
 
   // P1 negative case: a non-pasteboard errorMessage (e.g., from a
@@ -503,9 +503,10 @@ struct AnalysisViewModelSmokeTest {
   @MainActor
   func copyConfigToPasteboardPreservesUnrelatedError() {
     let viewModel = AnalysisViewModel()
-    viewModel.errorMessage = "No audio file detected in drop."
+    viewModel.error = .dropEmpty
     let didCopy = viewModel.copyConfigToPasteboard()
     #expect(didCopy == true)
+    #expect(viewModel.error == .dropEmpty)
     #expect(viewModel.errorMessage == "No audio file detected in drop.")
   }
 

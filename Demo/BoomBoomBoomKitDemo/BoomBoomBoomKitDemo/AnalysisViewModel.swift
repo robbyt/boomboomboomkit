@@ -41,14 +41,60 @@ final class AnalysisViewModel {
     case nonFinite
   }
 
+  // Typed error displayed to the user. Replaces a raw `String?` so
+  // category-driven logic (e.g. "clear stale clipboard error on
+  // successful copy") can pattern-match on the case instead of
+  // matching the display string. The display string is derived via
+  // `LocalizedError.errorDescription`.
+  enum AppError: LocalizedError, Equatable {
+    case dropEmpty
+    case dropMultiple
+    case dropUnsupportedType(extension: String)
+    case fileReadFailed(filename: String, sandboxDenied: Bool)
+    case noBPMDetected
+    case unexpected(String)
+    case clipboardCopy
+    case traceExport(detail: String)
+
+    var errorDescription: String? {
+      switch self {
+      case .dropEmpty:
+        return "No audio file detected in drop."
+      case .dropMultiple:
+        return "Drop a single audio file (batch drop is not supported)."
+      case .dropUnsupportedType(let ext):
+        let displayExt = ext.isEmpty ? "(no extension)" : ext
+        return
+          "Unsupported file type: \(displayExt). Supported: WAV, AIFF, MP3, FLAC, M4A, CAF."
+      case .fileReadFailed(let filename, let sandboxDenied):
+        if sandboxDenied {
+          return "Could not read audio file: \(filename) (sandbox denied)"
+        }
+        return "Could not read audio file: \(filename)"
+      case .noBPMDetected:
+        return "No BPM detected (silence, too-short audio, or non-musical content)"
+      case .unexpected(let detail):
+        return "Unexpected error: \(detail)"
+      case .clipboardCopy:
+        return "Could not copy to clipboard"
+      case .traceExport(let detail):
+        return "Could not export trace JSON: \(detail)"
+      }
+    }
+  }
+
   // Observed state — populated post-analysis, drives UI.
   var fileName: String?
   var detectedBPM: Double?
   var confidence: Double?
   var effectiveIntensity: AnalysisIntensity?
   var elapsedSeconds: Double?
-  var errorMessage: String?
+  var error: AppError?
   var isAnalyzing: Bool = false
+
+  /// Display-layer convenience — derived from `error`. Read-only on
+  /// purpose; producers assign the typed `error` case directly.
+  var errorMessage: String? { error?.errorDescription }
 
   // Set rather than Bool — rapid drops leave N-2 prior tasks draining
   // while N is launching, so a single Bool toggles wrong.
@@ -103,7 +149,7 @@ final class AnalysisViewModel {
     fileName = url.lastPathComponent
 
     isAnalyzing = true
-    errorMessage = nil
+    error = nil
     detectedBPM = nil
     confidence = nil
     effectiveIntensity = nil
@@ -171,10 +217,10 @@ final class AnalysisViewModel {
 
       switch result {
       case .success(let value?):
-        // Clear any banner errorMessage from an invalid drop that
-        // arrived during analysis; without this, the red banner
-        // persists past the successful render until the next analyze.
-        self.errorMessage = nil
+        // Clear any banner from an invalid drop that arrived during
+        // analysis; without this it persists past the successful
+        // render until the next analyze.
+        self.error = nil
         self.detectedBPM = value.bpm
         self.confidence = value.confidence
         self.effectiveIntensity = value.effectiveIntensity
@@ -191,17 +237,20 @@ final class AnalysisViewModel {
           )
         }
       case .success(nil):
-        self.errorMessage =
-          "No BPM detected (silence, too-short audio, or non-musical content)"
-      case .failure(let error as PCMBufferReaderError):
-        if case .fileNotReadable = error, !autoStarted, !didStart {
-          self.errorMessage =
-            "Could not read audio file: \(url.lastPathComponent) (sandbox denied)"
+        self.error = .noBPMDetected
+      case .failure(let readerError as PCMBufferReaderError):
+        let sandboxDenied: Bool
+        if case .fileNotReadable = readerError, !autoStarted, !didStart {
+          sandboxDenied = true
         } else {
-          self.errorMessage = "Could not read audio file: \(url.lastPathComponent)"
+          sandboxDenied = false
         }
-      case .failure(let error):
-        self.errorMessage = "Unexpected error: \(error)"
+        self.error = .fileReadFailed(
+          filename: url.lastPathComponent,
+          sandboxDenied: sandboxDenied
+        )
+      case .failure(let other):
+        self.error = .unexpected("\(other)")
       }
       self.elapsedSeconds = secs
       self.isAnalyzing = false
@@ -252,17 +301,15 @@ final class AnalysisViewModel {
   func handleDrop(_ urls: [URL]) -> Bool {
     switch Self.validateDropPayload(urls) {
     case .failure(.empty):
-      errorMessage = "No audio file detected in drop."
+      error = .dropEmpty
       clearPriorResult()
       return false
     case .failure(.multipleFiles):
-      errorMessage = "Drop a single audio file (batch drop is not supported)."
+      error = .dropMultiple
       clearPriorResult()
       return false
     case .failure(.unsupportedType(let ext)):
-      let displayExt = ext.isEmpty ? "(no extension)" : ext
-      errorMessage =
-        "Unsupported file type: \(displayExt). Supported: WAV, AIFF, MP3, FLAC, M4A, CAF."
+      error = .dropUnsupportedType(extension: ext)
       clearPriorResult()
       return false
     case .success(let url):
@@ -277,15 +324,13 @@ final class AnalysisViewModel {
   func handleOpenURL(_ url: URL) {
     switch Self.validateDropPayload([url]) {
     case .failure(.empty):
-      errorMessage = "No audio file detected in drop."
+      error = .dropEmpty
       clearPriorResult()
     case .failure(.multipleFiles):
-      errorMessage = "Drop a single audio file (batch drop is not supported)."
+      error = .dropMultiple
       clearPriorResult()
     case .failure(.unsupportedType(let ext)):
-      let displayExt = ext.isEmpty ? "(no extension)" : ext
-      errorMessage =
-        "Unsupported file type: \(displayExt). Supported: WAV, AIFF, MP3, FLAC, M4A, CAF."
+      error = .dropUnsupportedType(extension: ext)
       clearPriorResult()
     case .success:
       analyze(url: url, autoStarted: true)
@@ -367,14 +412,13 @@ final class AnalysisViewModel {
     pasteboard.clearContents()
     let didCopy = pasteboard.setString(snippet, forType: .string)
     if didCopy {
-      // Clear any stale "Could not copy to clipboard" banner from a
-      // prior failed attempt — analyze() lifecycle wouldn't otherwise
-      // reach this category of error.
-      if errorMessage == "Could not copy to clipboard" {
-        errorMessage = nil
+      // Clear only if the currently displayed error is our own — don't
+      // stomp on a message produced by analyze() or a drop validator.
+      if case .clipboardCopy = error {
+        error = nil
       }
     } else {
-      errorMessage = "Could not copy to clipboard"
+      error = .clipboardCopy
     }
     return didCopy
   }
@@ -469,15 +513,20 @@ final class AnalysisViewModel {
         snapshot: snapshot,
         elapsedSeconds: elapsedSeconds ?? 0
       )
-    } catch {
-      errorMessage = "Could not export trace JSON: \(error.localizedDescription)"
+    } catch let encodeError {
+      error = .traceExport(detail: encodeError.localizedDescription)
       return false
     }
     do {
       try data.write(to: url, options: .atomic)
+      // Clear only if the currently displayed error is our own; don't
+      // stomp on a message from analyze() or a drop validator.
+      if case .traceExport = error {
+        error = nil
+      }
       return true
-    } catch {
-      errorMessage = "Could not export trace JSON: \(error.localizedDescription)"
+    } catch let writeError {
+      error = .traceExport(detail: writeError.localizedDescription)
       return false
     }
   }
