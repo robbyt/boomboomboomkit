@@ -99,6 +99,18 @@ public struct EnsembleDecision: Sendable {
   /// sanitized `bpm` (clamped to `60.0...200.0`) when `winner == .ml`.
   public let selectedBPM: Double
 
+  /// Creates a diagnostic record of an ensemble combiner decision.
+  ///
+  /// - Parameters:
+  ///   - policy: The ``EnsemblePolicy`` in effect when the decision was made.
+  ///   - winner: Which side (``Winner/dsp`` / ``Winner/ml`` / ``Winner/tie``) the policy selected.
+  ///   - dspConfidence: The DSP winner's confidence (post-corroboration, pre-clamp).
+  ///   - mlConfidence: ML's sanitized confidence (`nil` only on the sentinel-NaN
+  ///     abstain path where ``mlAbstained`` is `true`).
+  ///   - mlAbstained: `true` when the combiner's sanitization step triggered the
+  ///     bpm-sentinel abstain path; `winner` is forced to ``Winner/dsp`` in that case.
+  ///   - selectedBPM: The BPM that was written to ``BPMResult`` and surfaced as
+  ///     ``AudioAnalysisResult/bpm``.
   public init(
     policy: EnsemblePolicy,
     winner: Winner,

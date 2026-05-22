@@ -9,11 +9,22 @@
 import Accelerate
 import Foundation
 
-/// Errors thrown by PCMBufferReader operations.
+/// Errors thrown by ``PCMBufferReader`` operations.
 public enum PCMBufferReaderError: Error, Sendable {
+  /// The file at the supplied URL could not be opened. Covers the union of
+  /// `AVAudioFile(forReading:)` failure modes — file does not exist, lacks
+  /// read permission, is empty or corrupt, or carries a format AVFoundation
+  /// cannot decode (e.g., OGG/Vorbis on macOS). The case payload does not
+  /// distinguish among these causes.
   case fileNotReadable(URL)
+  /// AVFoundation refused to allocate a PCM buffer of the requested size.
+  /// Typically signals exhausted memory or a degenerate audio format.
   case bufferAllocationFailed(URL)
+  /// Reading audio samples from the file failed mid-stream. The associated
+  /// `underlyingDescription` carries the AVFoundation-reported failure detail.
   case readFailed(URL, underlyingDescription: String)
+  /// `AVAudioConverter` failed while downsampling to the requested
+  /// `targetSampleRate` or converting interleaved → mono float samples.
   case conversionFailed(URL)
 }
 

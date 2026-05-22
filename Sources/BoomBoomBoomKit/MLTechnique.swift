@@ -58,6 +58,17 @@ public struct MLEvaluation: Sendable {
   /// identifier or the consumer does not need to distinguish models.
   public let modelIdentifier: String?
 
+  /// Creates an immutable ML evaluation record.
+  ///
+  /// - Parameters:
+  ///   - bpm: The model's tempo estimate. Conformers should clamp to `60.0...200.0`;
+  ///     non-finite values are rejected by ``EnsembleCombiner`` and treated as a
+  ///     sentinel-NaN abstain.
+  ///   - confidence: The model's self-reported confidence in `[0.0, 1.0]`.
+  ///     Out-of-range and non-finite values are sanitized downstream — see
+  ///     ``EnsembleDecision/mlConfidence`` for the contract.
+  ///   - modelIdentifier: Optional stable tag for forensic logs when multiple
+  ///     conformers coexist. Defaults to `nil`.
   public init(bpm: Double, confidence: Double, modelIdentifier: String? = nil) {
     self.bpm = bpm
     self.confidence = confidence
