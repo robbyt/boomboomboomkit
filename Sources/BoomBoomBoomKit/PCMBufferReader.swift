@@ -23,8 +23,9 @@ public enum PCMBufferReaderError: Error, Sendable {
   /// Reading audio samples from the file failed mid-stream. The associated
   /// `underlyingDescription` carries the AVFoundation-reported failure detail.
   case readFailed(URL, underlyingDescription: String)
-  /// `AVAudioConverter` failed while downsampling to the requested
-  /// `targetSampleRate` or converting interleaved → mono float samples.
+  /// `AVAudioConverter` failed while resampling mono Float32 to the
+  /// requested `targetSampleRate`. Channel mixdown happens earlier via
+  /// vDSP and does not surface through this case.
   case conversionFailed(URL)
 }
 
