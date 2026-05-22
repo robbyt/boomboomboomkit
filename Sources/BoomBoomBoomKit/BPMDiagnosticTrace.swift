@@ -72,7 +72,7 @@ public struct BPMDiagnosticTrace: Sendable {
   /// Nil when no harmonic-ratio pair was detected.
   public var harmonicRatioDetail: HarmonicRatioEvidence?
 
-  // MARK: - Step 9.5: Click-Track Cross-Correlation
+  // MARK: - Step 9b: Click-Track Cross-Correlation
 
   /// Per-candidate normalized click correlation score (pre-blend, in `[0, 1]`).
   /// Each entry carries the original candidate index, its BPM at full `Double`
@@ -230,7 +230,7 @@ public struct BPMDiagnosticTrace: Sendable {
 // MARK: - Trace Evidence Types (Story 3-3b)
 
 /// Per-candidate click-track cross-correlation result emitted by
-/// ``BPMDiagnosticTrace/clickCorrelationDetail`` at Step 9.5.
+/// ``BPMDiagnosticTrace/clickCorrelationDetail`` at Step 9b.
 ///
 /// Replaces a legacy `[String: Float]` keyed by `String(format: "%.1f", bpm)`
 /// — that shape collapsed distinct candidates whose BPMs rounded to the same
@@ -256,6 +256,7 @@ public struct ClickCorrelationEntry: Sendable, CustomStringConvertible {
     self.normalizedClickScore = normalizedClickScore
   }
 
+  /// Compact textual representation: `ClickCorrelationEntry(idx: …, bpm: …, ncc: …)`.
   public var description: String {
     "ClickCorrelationEntry(idx: \(candidateIndex), bpm: \(bpm), ncc: \(normalizedClickScore))"
   }
@@ -289,6 +290,7 @@ public struct HarmonicRatioEvidence: Sendable, CustomStringConvertible {
     self.winnerBPM = winnerBPM
   }
 
+  /// Compact textual representation: `HarmonicRatioEvidence(ratio: …, fast: …, slow: …, winner: …)`.
   public var description: String {
     "HarmonicRatioEvidence(ratio: \(ratio), fast: \(fastBPM), slow: \(slowBPM), winner: \(winnerBPM))"
   }
@@ -316,6 +318,7 @@ public struct SubBandVoteEvidence: Sendable, CustomStringConvertible {
     self.changed = changed
   }
 
+  /// Compact textual representation: `SubBandVoteEvidence(pre: …, post: …, changed: …)`.
   public var description: String {
     "SubBandVoteEvidence(pre: \(preVoteBPM), post: \(postVoteBPM), changed: \(changed))"
   }
@@ -348,6 +351,7 @@ public struct DurationHintEvidence: Sendable, CustomStringConvertible {
     self.boostedCandidates = boostedCandidates
   }
 
+  /// Compact textual representation: `DurationHintEvidence(duration: …, bars: […], boosted: […])`.
   public var description: String {
     "DurationHintEvidence(duration: \(fileDurationSeconds), bars: \(barCandidates), boosted: \(boostedCandidates))"
   }
@@ -368,6 +372,7 @@ public struct BarCandidate: Sendable, CustomStringConvertible {
     self.bpm = bpm
   }
 
+  /// Compact textual representation: `BarCandidate(bars: …, bpm: …)`.
   public var description: String {
     "BarCandidate(bars: \(bars), bpm: \(bpm))"
   }
@@ -399,6 +404,13 @@ public struct SubBandEnergies: Sendable, CustomStringConvertible, Equatable {
   /// Maximum sub-band envelope energy attributed to the hi-hat band.
   public let hihat: Float
 
+  /// Creates a snapshot of per-band maximum envelope energies.
+  ///
+  /// - Parameters:
+  ///   - kick: Maximum onset-envelope energy in the kick band.
+  ///   - snare: Maximum onset-envelope energy in the snare band.
+  ///   - crack: Maximum onset-envelope energy in the crack / clap band.
+  ///   - hihat: Maximum onset-envelope energy in the hi-hat band.
   public init(kick: Float, snare: Float, crack: Float, hihat: Float) {
     self.kick = kick
     self.snare = snare
@@ -411,6 +423,7 @@ public struct SubBandEnergies: Sendable, CustomStringConvertible, Equatable {
   /// state as the pre-Story-4-3b `[String: Float] = [:]` shape.
   public static let zero = SubBandEnergies(kick: 0, snare: 0, crack: 0, hihat: 0)
 
+  /// Compact textual representation: `SubBandEnergies(kick: …, snare: …, crack: …, hihat: …)`.
   public var description: String {
     "SubBandEnergies(kick: \(kick), snare: \(snare), crack: \(crack), hihat: \(hihat))"
   }

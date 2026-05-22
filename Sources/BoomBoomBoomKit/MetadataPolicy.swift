@@ -128,6 +128,28 @@ public struct MetadataPolicy: Sendable, Hashable {
 
   // MARK: - Init
 
+  /// Creates a metadata corroboration policy with explicit overrides for any field.
+  ///
+  /// - Parameters:
+  ///   - enabledSources: Which container parsers are consulted. Defaults to all three
+  ///     (``MetadataSource``). Pass `[]` for byte-identical pre-Story-3.6 behavior — see ``MetadataPolicy/disabled``.
+  ///   - consensusTolerance: Absolute BPM window (default `0.5`) used to detect intra-file conflicts
+  ///     between two parsed tags claiming different tempos.
+  ///   - corroborationTolerance: Relative tolerance (default `0.03`) used when matching a tag's
+  ///     parsed BPM against a DSP candidate.
+  ///   - corroborationBoost: Multiplicative confidence boost (default `1.25`) applied to candidates
+  ///     a tag corroborates. Clamped by ``maxBoostedConfidence``.
+  ///   - maxBoostedConfidence: Upper bound (default `0.95`) for any boosted confidence. Never reaches
+  ///     `1.0` by construction — third-party taggers may share failure modes with the DSP, so
+  ///     correlated false positives must not pin confidence at maximum.
+  ///   - skepticismPenalty: Multiplicative confidence penalty (default `0.85`) applied when the DSP
+  ///     candidate disagrees with a unanimous tag consensus.
+  ///   - allowOctaveCorroboration: When `true` (default), 2:1 ratios are accepted as corroboration.
+  ///   - allowTripletCorroboration: When `true`, ``HarmonicRatio/threeHalf`` (3:2) and ``HarmonicRatio/twoThird`` (2:3) corroboration are accepted. Defaults to `false`
+  ///     pending validation by a follow-up story.
+  ///   - valueRange: Acceptable parsed-BPM range (default `30.0...300.0`); values outside are tagged
+  ///     `out-of-range`.
+  ///   - parsing: Per-tag string-parsing hygiene flags.
   public init(
     enabledSources: Set<MetadataSource> = Set(MetadataSource.allCases),
     consensusTolerance: Double = 0.5,
@@ -182,6 +204,14 @@ public struct MetadataPolicy: Sendable, Hashable {
     /// `rejectionReason == "non-numeric"`.
     public var rejectNonNumeric: Bool
 
+    /// Creates a parsing-options bag with all hygiene flags configurable.
+    ///
+    /// - Parameters:
+    ///   - stripWhitespaceAndBOM: Strip leading/trailing whitespace and a UTF-8/UTF-16 BOM.
+    ///   - acceptLocaleDecimalComma: Parse the locale comma form (`"128,5"` → `128.5`).
+    ///   - acceptRangeMidpoint: Parse ranges (`"120-125"`) as their midpoint.
+    ///   - treatZeroAsAbsent: Treat a parsed value of exactly zero as the iTunes `tmpo` "no BPM" sentinel.
+    ///   - rejectNonNumeric: Reject non-numeric strings (`"fast"`, `"?"`, empty after trimming).
     public init(
       stripWhitespaceAndBOM: Bool = true,
       acceptLocaleDecimalComma: Bool = true,
@@ -229,6 +259,17 @@ public struct MetadataBPMEvidence: Sendable {
   /// `"uncorroborated-single-tag"`. Nil for accepted, corroborated tags.
   public let rejectionReason: String?
 
+  /// Creates a per-source evidence record.
+  ///
+  /// - Parameters:
+  ///   - source: Which container parser produced this tag.
+  ///   - rawValue: Raw string read from the tag (post-encoding-decode, pre-hygiene).
+  ///   - parsedBPM: Numeric value after parse hygiene; `Double.nan` for parse-phase rejections.
+  ///   - corroboratedWith: DSP candidate BPM that this tag was credited as corroborating, or `nil`.
+  ///   - ratioMatched: Tempo ratio used for corroboration, or `nil` when same-tempo / not corroborated.
+  ///   - boostApplied: Effective confidence multiplier (`1.0` means neither boost nor penalty applied).
+  ///   - rejectionReason: Reason the tag was rejected (`sentinel-zero`, `out-of-range`, `non-numeric`,
+  ///     `intra-file-conflict`, `dsp-disagreement`, `uncorroborated-single-tag`), or `nil` if accepted.
   public init(
     source: MetadataSource,
     rawValue: String,

@@ -368,10 +368,10 @@ struct BPMAnalyzer {
     guard !candidates.isEmpty else { return nil }
 
     // Trace's rawCandidates always carries the pre-rescore array (DD#11) — this is
-    // the upstream signal before the optional click-track rescoring at step 9.5.
+    // the upstream signal before the optional click-track rescoring at step 9b.
     trace?.rawCandidates = candidates
 
-    // Step 9.5: Click-track cross-correlation rescoring (per Story 3-3, DD#3, DD#4).
+    // Step 9b: Click-track cross-correlation rescoring (per Story 3-3, DD#3, DD#4).
     // When .clickTrackCorrelation is active, each candidate's score is multiplied by
     // (alpha + (1 - alpha) * normalizedClickScore). The rescored array flows into both
     // step 10 disambiguation AND back out via BPMResult.candidates so multi-window
@@ -1337,7 +1337,7 @@ struct BPMAnalyzer {
   /// Refines coarse integer-BPM candidates to sub-BPM resolution.
   ///
   /// Note: when `.clickTrackCorrelation` is in the technique set, candidate scores
-  /// are rescored at step 9.5 (between candidate extraction and octave disambiguation)
+  /// are rescored at step 9b (between candidate extraction and octave disambiguation)
   /// via `clickRescore` before this refinement step ever runs.
   ///
   /// **Gated hybrid: a fused-score quadratic fit is the default refinement path; a
@@ -2463,7 +2463,7 @@ struct BPMAnalyzer {
   /// import BoomBoomBoomKit` — same access pattern as `clickRescore` and `subBandVote`.
   ///
   /// - Parameters:
-  ///   - candidates: Pre-hint candidate array (typically the output of step 9.5
+  ///   - candidates: Pre-hint candidate array (typically the output of step 9b
   ///     click rescore, or the raw extraction when click rescore is inactive).
   ///   - fileDurationSeconds: Full file duration in seconds.
   ///   - minFileSeconds: Threshold below which the helper produces no boosts (clip
