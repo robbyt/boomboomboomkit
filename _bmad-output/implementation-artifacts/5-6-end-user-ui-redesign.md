@@ -340,19 +340,19 @@ Floors: hero ≥ 3:1 (WCAG large text), metadata ≥ 4.5:1 (WCAG body). Any pair
 |------|----------|----|-----------|--------|------------|
 | F01 | blocker | — | `project.pbxproj:412` | deferred | → Story 5-7 §Carry-over (KDD #4); W33 in deferred-work.md |
 | F02 | major | AC #3 | `ContentView.swift:332` | wontfix (AC amended 2026-05-23) | User amended AC #3 + KDD #4 to drop `intensity` and `"Result captured at"` caption from the required metadata stack — both deemed developer-mode telemetry inappropriate for the end-user UI brief. Implementation now matches the amended AC. F02 is no longer a defect; the original finding was correct against the original AC, but the AC itself was over-spec'd for the consumer release. The snapshot-divergence signal Story 5-3 / 5-4 W2 introduced remains on `viewModel.lastRunSnapshot` for the Diagnostics inspector audience. |
-| F03 | major | AC #2 / KDD #4 | `ContentView.swift:327` | planned-fix → fixed (Phase 3) | commit `<sha>` |
+| F03 | major | AC #2 / KDD #4 | `ContentView.swift:327` | fixed | commit `6ca4ae8` |
 | F04 | major | AC #12 | `EmptyStateView.swift:23` | deferred (accepted AC violation) | → Story 5-6b; W34 in deferred-work.md |
 | F05 | blocker | — | `project.pbxproj` + `AppIcon.icon/` | deferred | → Story 5-7 §Carry-over (AC #1); W35 in deferred-work.md |
-| F06 | major | Story brief | `ContentView.swift:177` | planned-fix → fixed (Phase 3) | commit `<sha>` (also closes W28 — annotation lands inline in Story-5-3 ledger section) |
+| F06 | major | Story brief | `ContentView.swift:177` | fixed | commit `6ca4ae8` (also closes W28 — annotation inline in Story-5-3 ledger section) |
 | F07 | major | AC #6/#7 | `StrategyBackground.swift:66` | deferred (accepted AC violation) | → Story 5-6b; W36 in deferred-work.md |
 | F08 | blocker | — | `project.pbxproj` (6 configs) | accept-as-known-issue (user-authorized 2026-05-23) | User chose to enforce `MACOSX_DEPLOYMENT_TARGET = 15.6` on all 6 demo configs (overrides Codex's "revert to 15.0" recommendation). Demo binary distributed separately from library SPM (Package.swift stays at `.macOS(.v15)`), so the split is intentional — demo consumers need 15.6+; library SPM consumers unaffected. Story 5-7 KDD #9 reframed to document the demo/library platform decoupling. W37 in deferred-work.md updated accordingly. |
-| F09 | minor | AC #5 | `ContentView.swift:41` + `AnalysisViewModel.swift:157` | planned-fix → fixed (Phase 4) | commit `<sha>` (includes test rename in `AnalysisViewModelSmokeTest.swift:867`) |
+| F09 | minor | AC #5 | `AnalysisViewModel.swift:157` | fixed | commit `6ca4ae8` (includes test rename `lastRunSnapshotResetOnAnalyzePrologue` → `lastRunSnapshotPreservedAcrossReanalyze` in `AnalysisViewModelSmokeTest.swift:867`) |
 | F10 | minor | — | `project.pbxproj` (6 instances) | accept-as-known-issue (user-authorized 2026-05-23) | User chose to keep `DEAD_CODE_STRIPPING = YES` (Xcode-suggested setting) — overrides Codex's "Swift Testing reflection risk" concern. Theoretical risk only; current 78 demo-test invocation count matches Story 5-6 baseline post-Phase-2 (no observed regression). Re-open trigger: any future test-count drop attributable to dead-code stripping. W38 in deferred-work.md updated accordingly. |
 | F11 | minor | — | `ContentView.swift:55` | deferred | → Story 5-6b; W39 in deferred-work.md |
 | F12 | minor | — | `ContentView.swift:87` | deferred | → Story 5-6b; W40 in deferred-work.md |
 | F13 | minor | KDD #5 | `EmptyStateView.swift:21` | deferred (accepted AC violation) | → Story 5-6b; W41 in deferred-work.md |
 | F14 | minor | — | `EmptyStateView.swift:12` | deferred | → Story 5-6b; W42 in deferred-work.md |
-| F15 | nit | — | `TraceView.swift:325` | planned-fix → fixed (Phase 3) | commit `<sha>` |
+| F15 | nit | — | `TraceView.swift:325` | fixed | commit `6ca4ae8` |
 
 Status legend: `open` / `planned-fix` / `fixed` / `deferred` / `deferred (accepted AC violation)` / `accept-as-known-issue`.
 `planned-fix → fixed (Phase N)` is the Phase 1 (Paige) interim state for items Amelia will fix in Phases 2-4; Phase 5 (Paige SHA-fill) flips them to `fixed` with actual commit SHAs.
