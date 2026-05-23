@@ -15,9 +15,11 @@ DerivedData/
 *.xccheckout
 *.moved-aside
 
-# Demo app build artifacts (Story 5-1: scaffold)
+# Demo app build artifacts (Story 5-1: scaffold; Story 5-7 added *.xcarchive for make demo-archive output)
 Demo/**/build/
 Demo/**/*.xcuserstate
+build/
+*.xcarchive
 
 # macOS
 .DS_Store

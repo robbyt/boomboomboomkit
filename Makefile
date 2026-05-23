@@ -65,6 +65,22 @@ demo-build-sandboxed:
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		build
 
+## demo-archive: Produce a signed App Store archive at build/BoomBoomBoomKitDemo.xcarchive. Requires DEVELOPMENT_TEAM=<team-id> in the environment (Story 5-7 AC #3, mirrors the demo-build-sandboxed W14 pattern). Does NOT auto-upload; xcodebuild -exportArchive or Xcode Organizer handle the final submission step (user owns App Store Connect distribution per Story 5-7 OUT-OF-SCOPE). Failing fast on unset DEVELOPMENT_TEAM prevents an unsigned archive from being silently produced.
+.PHONY: demo-archive
+demo-archive:
+ifndef DEVELOPMENT_TEAM
+	$(error DEVELOPMENT_TEAM is not set. Invoke as: DEVELOPMENT_TEAM=ABC1234DEF make demo-archive)
+endif
+	xcodebuild \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-scheme BoomBoomBoomKitDemo \
+		-destination 'platform=macOS' \
+		-configuration Release \
+		-archivePath build/BoomBoomBoomKitDemo.xcarchive \
+		-allowProvisioningUpdates \
+		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
+		archive
+
 ## demo-fmt: Format Swift source code under Demo/ (sibling of `fmt`, which covers Sources/Tests only)
 .PHONY: demo-fmt
 demo-fmt:

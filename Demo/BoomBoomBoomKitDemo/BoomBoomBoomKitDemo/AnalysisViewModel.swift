@@ -128,10 +128,19 @@ final class AnalysisViewModel {
   var lastRunSnapshot: LastRunDiagnosticSnapshot?
 
   /// - Parameter autoStarted: `true` when the URL arrives via
-  ///   `.onOpenURL` (Dock drop, Finder Open With, `open -a`) — the
-  ///   system has already called `startAccessingSecurityScopedResource`
-  ///   on this URL; the defer must `stop` but NOT `start`. `false`
-  ///   (window-drop default) uses defensive start + balanced stop.
+  ///   `.onOpenURL` (Dock drop, Finder Open With, `open -a`); `false`
+  ///   (window-drop default) for `.dropDestination`-delivered URLs.
+  ///   The flag is consumed by the sandbox-denial heuristic (`!autoStarted
+  ///   && !didStart` → `.fileReadFailed(sandboxDenied: true)`) so the
+  ///   error-banner copy can distinguish "you dropped a file and we
+  ///   couldn't access it" from "system delivered this and analysis
+  ///   failed for some other reason." It does NOT gate the
+  ///   `startAccessingSecurityScopedResource()` call — both paths
+  ///   defensively call `start...` per Story 5-7 Carry-over Copilot C1
+  ///   (the refcounted contract means calling `start` even when the
+  ///   system has pre-granted access just increments a count that our
+  ///   `stop...` balances; calling `stop` without a matching `start`
+  ///   was the original imbalance Copilot flagged).
   func analyze(url: URL, autoStarted: Bool = false) {
     let taskID = UUID()
 
@@ -168,8 +177,18 @@ final class AnalysisViewModel {
     // reset() helper at the end of this file still clears it on
     // explicit clear-state transitions.
 
-    let didStart: Bool = autoStarted ? false : url.startAccessingSecurityScopedResource()
-    let shouldStop: Bool = autoStarted || didStart
+    // Story 5-7 Carry-over Copilot C1 (deferred-work W43, addressed in
+    // commit Story 5-7): defensive start/stop with refcount semantics.
+    // The autoStarted path previously forced didStart=false but
+    // shouldStop=true, calling stopAccessingSecurityScopedResource()
+    // without a matching start... Apple's documented contract requires
+    // every start to be balanced with one stop. Calling start
+    // defensively for autoStarted=true is safe: if the system already
+    // granted access (.onOpenURL / LaunchServices), start returns
+    // false (no refcount increment) and shouldStop=false; if start
+    // returns true we hold a refcount that our defer-stop balances.
+    let didStart: Bool = url.startAccessingSecurityScopedResource()
+    let shouldStop: Bool = didStart
 
     // Task.detached does NOT inherit cancellation, so the library's
     // default `Options.isCancelled = { Task.isCancelled }` would always
@@ -543,11 +562,18 @@ final class AnalysisViewModel {
     }
   }
 
-  // NSSavePanel auto-starts security-scoped READ access via PowerBox;
-  // the defer releases it on every exit path. WRITE capability is
-  // gated by `com.apple.security.files.user-selected.read-write` —
-  // without that entitlement the write fails with
-  // `NSFileWriteNoPermissionError`.
+  // NSSavePanel-returned URLs ship with PowerBox-managed access for the
+  // current launch; explicit start/stop is not strictly required, but
+  // calling them defensively makes the start/stop pair balanced under
+  // Apple's refcounted contract regardless of how PowerBox grants
+  // access. Story 5-7 Carry-over Copilot C2 (deferred-work W44,
+  // addressed in commit Story 5-7): prior code called stop... without
+  // a matching start... The defensive pattern fixes the imbalance —
+  // start returns false when PowerBox has already granted access (no
+  // refcount increment, no stop needed) or true when we acquired the
+  // refcount (matched by defer-stop). WRITE capability is gated by
+  // `com.apple.security.files.user-selected.read-write` — without that
+  // entitlement the write fails with `NSFileWriteNoPermissionError`.
   @discardableResult
   func exportTrace() -> Bool {
     guard let snapshot = lastRunSnapshot else { return false }
@@ -557,7 +583,12 @@ final class AnalysisViewModel {
     panel.canCreateDirectories = true
     let response = panel.runModal()
     guard response == .OK, let url = panel.url else { return false }
-    defer { url.stopAccessingSecurityScopedResource() }
+    let didStart = url.startAccessingSecurityScopedResource()
+    defer {
+      if didStart {
+        url.stopAccessingSecurityScopedResource()
+      }
+    }
     return writeTraceJSON(to: url)
   }
 
