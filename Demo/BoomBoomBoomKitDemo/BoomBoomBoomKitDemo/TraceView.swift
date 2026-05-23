@@ -322,7 +322,7 @@ struct TraceInspectorEmptyView: View {
     VStack(spacing: 8) {
       Text("Diagnostic Trace")
         .font(.title3)
-      Text("Drop an audio file to analyze.\nThe pipeline trace appears here.")
+      Text("Drop a track to analyze.\nThe pipeline trace appears here.")
         .font(.callout)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)

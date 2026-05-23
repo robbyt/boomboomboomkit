@@ -154,7 +154,19 @@ final class AnalysisViewModel {
     confidence = nil
     effectiveIntensity = nil
     elapsedSeconds = nil
-    lastRunSnapshot = nil
+    // F09 (Story 5-6 review): do NOT clear `lastRunSnapshot` at the
+    // analyze() prologue. ContentView.backgroundStrategy reads
+    // `lastRunSnapshot == nil ? nil : options.mergeStrategy`; clearing
+    // here would flip the gradient to neutral mid-run and produce a
+    // strategy→neutral→new-strategy crossfade instead of the AC #5
+    // single strategy→new-strategy crossfade. Acceptable side-effect:
+    // the inspector content shows the prior snapshot's TraceView during
+    // in-progress analyze (Export Trace button is gated by
+    // !viewModel.isAnalyzing at ContentView.swift:208 so stale export
+    // remains unreachable via normal UI). `lastRunSnapshot` still
+    // overwrites atomically when the new result arrives; the full
+    // reset() helper at the end of this file still clears it on
+    // explicit clear-state transitions.
 
     let didStart: Bool = autoStarted ? false : url.startAccessingSecurityScopedResource()
     let shouldStop: Bool = autoStarted || didStart

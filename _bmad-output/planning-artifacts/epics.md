@@ -1369,6 +1369,34 @@ So that I can integrate the library confidently without DSP knowledge.
 **When** reviewed
 **Then** every public declaration has inline `///` documentation with `- Parameters:` and `- Returns:` where applicable
 
+### Story 5.6: End-user UI Redesign and Collapsible Trace Inspector
+
+(Created post-initial-epic-planning via `/bmad-create-story` 2026-05-22.)
+
+As an end user dropping an audio file into the BoomBoomBoomKitDemo macOS app,
+I want a focused, polished window where the detected BPM is the visual hero and developer-facing knobs sit out of the way,
+So that the app feels like a consumer tool ready for App Store distribution rather than a developer evaluation harness.
+
+See `_bmad-output/implementation-artifacts/5-6-end-user-ui-redesign.md` for full spec, acceptance criteria, and §Review Findings table (15 F-IDs from 2026-05-23 code-review reconciliation).
+
+### Story 5.6b: Accessibility + Layout Polish Follow-up
+
+(Created 2026-05-23 to capture deferred findings from Story 5-6 code review.)
+
+Captures 6 SHOULD-FIX / accepted-AC-violation defects deferred from Story 5-6 review pass (F04, F07, F11, F12, F13, F14 — F10 was promoted to Bucket 1 in Story 5-6). Scope summary: F04 (AC #12 — EmptyStateView upper-half layout regression), F07 (AC #6/#7 — neutral gradient Dark Mode break + correct Color initializer spelling), F11 (drop-target safe-area mismatch), F12 (toolbar Button VoiceOver toggle state), F13 (KDD #5 — EmptyStateView caption .tertiary→.secondary), F14 (EmptyStateView accessibility-element combine + hint).
+
+See `_bmad-output/implementation-artifacts/5-6b-a11y-polish.md` for full spec, and `_bmad-output/implementation-artifacts/deferred-work.md` entries W34/W36/W39/W40/W41/W42 for the ledger snapshot. Estimated: ~25 LOC across 2 Swift files.
+
+### Story 5.7: App Store Submission Readiness Scaffold
+
+(Created post-initial-epic-planning via `/bmad-create-story` 2026-05-22.)
+
+As the maintainer preparing the BoomBoomBoomKitDemo app for free macOS App Store distribution,
+I want the in-repo prerequisites for a signed, App-Review-acceptable archive build to be in place — app icon, privacy manifest, signing-aware archive workflow, and a recorded category decision —
+So that the App Store Connect submission flow has zero in-tree blockers and the actual upload becomes a packaging-and-portal task rather than a project-restructure task.
+
+See `_bmad-output/implementation-artifacts/5-7-app-store-submission-readiness.md` for full spec, acceptance criteria, KDD #9 (Package.swift ↔ MACOSX_DEPLOYMENT_TARGET lockstep), AC #12 (deployment target stays at 15.0), and §Carry-over from Story 5-6 appendix (F01, F05, F08).
+
 ---
 
 ## References
