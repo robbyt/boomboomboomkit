@@ -85,6 +85,8 @@ public struct AnalysisIntensity: Sendable, Hashable, Comparable {
 
   // MARK: - Comparable
 
+  /// Returns `true` when `lhs` represents a shallower analysis than `rhs`.
+  /// Compares ``rawValue`` integers; intensities sort `1 < 2 < … < 10`.
   public static func < (lhs: AnalysisIntensity, rhs: AnalysisIntensity) -> Bool {
     lhs.rawValue < rhs.rawValue
   }
@@ -93,6 +95,10 @@ public struct AnalysisIntensity: Sendable, Hashable, Comparable {
 // MARK: - ExpressibleByIntegerLiteral
 
 extension AnalysisIntensity: ExpressibleByIntegerLiteral {
+  /// Creates an intensity from an integer literal such as `let opts: AnalysisIntensity = 7`.
+  /// The literal is clamped to the valid `1...10` range by ``init(rawValue:)``.
+  ///
+  /// - Parameter value: Integer literal in the range `1...10`. Values outside the range are clamped.
   public init(integerLiteral value: Int) {
     self.init(rawValue: value)
   }

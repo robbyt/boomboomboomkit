@@ -29,6 +29,59 @@ build:
 build-release:
 	swift build -c release
 
+## demo-build: Build the BoomBoomBoomKitDemo macOS app (Debug, no code signing — Story 5-1 DD #6)
+.PHONY: demo-build
+demo-build:
+	xcodebuild \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-scheme BoomBoomBoomKitDemo \
+		-destination 'platform=macOS' \
+		-configuration Debug \
+		CODE_SIGNING_ALLOWED=NO \
+		CODE_SIGNING_REQUIRED=NO \
+		CODE_SIGN_IDENTITY="" \
+		build
+
+## demo-test: Run the BoomBoomBoomKitDemoTests target (sibling of demo-build, optional dev cadence)
+.PHONY: demo-test
+demo-test:
+	xcodebuild \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-scheme BoomBoomBoomKitDemoTests \
+		-destination 'platform=macOS' \
+		CODE_SIGNING_ALLOWED=NO \
+		CODE_SIGNING_REQUIRED=NO \
+		CODE_SIGN_IDENTITY="" \
+		test
+
+## demo-build-sandboxed: Build the BoomBoomBoomKitDemo macOS app with signing enabled so the app-sandbox entitlements actually attach at launch (Story 5-1 code review D4). Requires a configured signing identity (Xcode > Settings > Accounts, OR invoke with DEVELOPMENT_TEAM=<your-team-id> make demo-build-sandboxed — the env var is threaded into xcodebuild per PR #3 Copilot review 2026-05-19 / W14 closure); does NOT pass CODE_SIGNING_ALLOWED=NO. Use to reproduce sandbox bugs that demo-build cannot exercise; not for fresh-clone CI.
+.PHONY: demo-build-sandboxed
+demo-build-sandboxed:
+	xcodebuild \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-scheme BoomBoomBoomKitDemo \
+		-destination 'platform=macOS' \
+		-configuration Debug \
+		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
+		build
+
+## demo-fmt: Format Swift source code under Demo/ (sibling of `fmt`, which covers Sources/Tests only)
+.PHONY: demo-fmt
+demo-fmt:
+	swift format --recursive --in-place Demo/
+
+## demo-lint: Guard against DEVELOPMENT_TEAM leak across all Demo/.pbxproj files (Story 5-2 W16 close-out — regex covers both quoted and unquoted Xcode-emitted team-ID forms)
+.PHONY: demo-lint
+demo-lint:
+	@if grep -rnE 'DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*"?[A-Z0-9]{10}"?[[:space:]]*;' Demo/ --include='project.pbxproj'; then \
+		echo "ERROR: DEVELOPMENT_TEAM leak detected in Demo/ .pbxproj — must be empty for public release."; \
+		exit 1; \
+	fi
+
+## pre-commit: Run all pre-PR gates (library + demo fmt + lint). NOT a git hook — runs on demand
+.PHONY: pre-commit
+pre-commit: fmt demo-fmt lint demo-lint
+
 ## test: Run unit tests only (excludes benchmark target; no corpus env required)
 .PHONY: test
 test:

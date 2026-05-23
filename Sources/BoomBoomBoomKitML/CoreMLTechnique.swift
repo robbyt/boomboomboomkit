@@ -25,5 +25,9 @@ import CoreML
 /// story; if/when it returns, it will likely be a new type, not a
 /// retroactive conformance on this one.
 public struct CoreMLTechnique: Sendable {
+  /// Creates an empty placeholder value. Construction is supported only so this
+  /// type's public symbol resolves; the resulting value has no functional use —
+  /// in particular it cannot be assigned to ``AudioAnalysisService/Options/mlTechnique``
+  /// because ``CoreMLTechnique`` does not adopt ``MLTechnique``.
   public init() {}
 }
