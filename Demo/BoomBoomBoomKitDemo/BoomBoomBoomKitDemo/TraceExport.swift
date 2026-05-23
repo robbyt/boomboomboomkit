@@ -113,15 +113,17 @@ enum FinalSelectionStep: String, Sendable, Equatable, CaseIterable {
       }
     }
 
+    // Click rescore is attributable when rescore ran AND the pre-rescore
+    // raw winner does not match lastBPM. Anchoring to lastBPM (rather than
+    // comparing "highest NCC" vs "highest raw") avoids labeling cases
+    // where rescoring reshuffled the ranking but the FINAL selected BPM
+    // still tracks the pre-rescore winner. ±0.5 BPM tolerance matches the
+    // .durationHint branch and accommodates any fine-grid shift.
     if let click = trace.clickCorrelationDetail, !click.isEmpty {
-      let highestNCC =
-        click
-        .filter { !$0.normalizedClickScore.isNaN }
-        .max(by: { $0.normalizedClickScore < $1.normalizedClickScore })
       let highestRaw = trace.rawCandidates
         .filter { !$0.score.isNaN }
         .max(by: { $0.score < $1.score })
-      if let ncc = highestNCC, let raw = highestRaw, ncc.bpm != raw.bpm {
+      if let raw = highestRaw, abs(lastBPM - raw.bpm) > 0.5 {
         return .clickRescore
       }
     }
@@ -145,7 +147,7 @@ enum FinalSelectionStep: String, Sendable, Equatable, CaseIterable {
     case .clickRescore:
       return "Click-track cross-correlation reshuffled the candidate ranking."
     case .baselineDisambiguation:
-      return "Baseline DSP disambiguation (step 9 range normalization) selected the final BPM."
+      return "Baseline DSP disambiguation (step 10 octave disambiguation) selected the final BPM."
     }
   }
 }
