@@ -65,12 +65,14 @@ demo-build-sandboxed:
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		build
 
-## demo-archive: Produce a signed App Store archive at build/BoomBoomBoomKitDemo.xcarchive. Requires DEVELOPMENT_TEAM=<team-id> in the environment (Story 5-7 AC #3, mirrors the demo-build-sandboxed W14 pattern). Does NOT auto-upload; xcodebuild -exportArchive or Xcode Organizer handle the final submission step (user owns App Store Connect distribution per Story 5-7 OUT-OF-SCOPE). Failing fast on unset DEVELOPMENT_TEAM prevents an unsigned archive from being silently produced.
+## demo-archive: Produce a signed App Store archive at build/BoomBoomBoomKitDemo.xcarchive. Requires DEVELOPMENT_TEAM=<team-id> in the environment (Story 5-7 AC #3, mirrors the demo-build-sandboxed W14 pattern; whitespace-only values are rejected via $(strip ...) per Story 5-7 review patch). Does NOT auto-upload; xcodebuild -exportArchive or Xcode Organizer handle the final submission step (user owns App Store Connect distribution per Story 5-7 OUT-OF-SCOPE). Failing fast on unset DEVELOPMENT_TEAM prevents an unsigned archive from being silently produced. Stale-archive preflight (rm -rf) added per Story 5-7 review patch to match sibling compile-model idempotency.
 .PHONY: demo-archive
+override DEVELOPMENT_TEAM := $(strip $(DEVELOPMENT_TEAM))
 demo-archive:
 ifndef DEVELOPMENT_TEAM
 	$(error DEVELOPMENT_TEAM is not set. Invoke as: DEVELOPMENT_TEAM=ABC1234DEF make demo-archive)
 endif
+	@rm -rf build/BoomBoomBoomKitDemo.xcarchive
 	xcodebuild \
 		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
 		-scheme BoomBoomBoomKitDemo \
@@ -80,6 +82,16 @@ endif
 		-allowProvisioningUpdates \
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		archive
+
+## demo-bump-build: Increment CURRENT_PROJECT_VERSION (CFBundleVersion) in pbxproj before the next archive. Closes the ITMS-90062 round-trip risk surfaced by Story 5-7 review — without this, the operator can forget to bump and discover the duplicate-build-number rejection only after a 5-15 min upload round-trip. Takes the MAX value across all 4 pbxproj configs (app + test + project, Debug + Release) then rewrites every CURRENT_PROJECT_VERSION line to MAX+1 — converges divergent values (e.g., if test=1 and app=3, both go to 4) per Codex post-patch review. Run as: `make demo-bump-build` (then `DEVELOPMENT_TEAM=<id> make demo-archive`).
+.PHONY: demo-bump-build
+demo-bump-build:
+	@PBXPROJ=Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj/project.pbxproj; \
+	MAX=$$(grep 'CURRENT_PROJECT_VERSION = ' $$PBXPROJ | sed -E 's/.*= ([0-9]+);.*/\1/' | sort -n | tail -1); \
+	if [ -z "$$MAX" ]; then echo "ERROR: could not parse CURRENT_PROJECT_VERSION from $$PBXPROJ"; exit 1; fi; \
+	NEXT=$$((MAX + 1)); \
+	sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = $$NEXT;/g" $$PBXPROJ; \
+	echo "Bumped CURRENT_PROJECT_VERSION (max across all configs $$MAX) -> $$NEXT, applied to $$(grep -c "CURRENT_PROJECT_VERSION = $$NEXT;" $$PBXPROJ) configs (all should be the same)"
 
 ## demo-fmt: Format Swift source code under Demo/ (sibling of `fmt`, which covers Sources/Tests only)
 .PHONY: demo-fmt

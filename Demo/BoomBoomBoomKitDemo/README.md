@@ -16,7 +16,7 @@ End-user macOS demo app for [BoomBoomBoomKit](../../README.md). Drop an audio fi
 - **Primary:** Music
 - **Secondary:** Developer Tools
 
-**Rationale:** the consumer audience this demo serves is musicians, DJs, and producers — Music's discovery surfaces (browse, search ranking) outperform Developer Tools for that audience. Developer Tools is preserved as secondary to reflect the library's heritage and to surface the demo for the audience that found the SPM library first. Category selection is set at App Store Connect listing creation, not in the bundle; this README records the decision for in-repo traceability.
+**Rationale:** the consumer audience this demo serves is musicians, DJs, and producers — Music's discovery surfaces (browse, search ranking) outperform Developer Tools for that audience. Developer Tools is preserved as secondary to reflect the library's heritage and to surface the demo for the audience that found the SPM library first. Primary category is declared **both in the bundle** (`Info.plist` key `LSApplicationCategoryType = public.app-category.music` — Spotlight, Activity Monitor, and Apple internal tools key off this) **and at App Store Connect listing creation** (where Apple validates and displays the category in the store listing). Secondary category is set only at App Store Connect — Info.plist has no key for the secondary slot.
 
 ## Versioning
 
@@ -25,12 +25,19 @@ End-user macOS demo app for [BoomBoomBoomKit](../../README.md). Drop an audio fi
 
 Both values are set via `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` build settings in `BoomBoomBoomKitDemo.xcodeproj`; `Info.plist` references them via `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)` placeholders.
 
-To bump:
+To bump build number (every archive upload — App Store Connect rejects duplicates with ITMS-90062):
 
 ```bash
-# Edit Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj/project.pbxproj
+make demo-bump-build
+```
+
+This increments `CURRENT_PROJECT_VERSION` across all 4 pbxproj configs. Run it before every `make demo-archive`.
+
+To bump marketing version (user-visible release — typically less frequent):
+
+```bash
+# Edit Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj/project.pbxproj manually:
 #   MARKETING_VERSION = 0.2;          (raise for user-visible release)
-#   CURRENT_PROJECT_VERSION = 2;      (raise for every archive upload)
 ```
 
 ## Archive workflow
@@ -74,6 +81,7 @@ These are portal-side items the operator handles via App Store Connect — none 
 - Empty `NSPrivacyTrackingDomains`
 - Empty `NSPrivacyCollectedDataTypes` (this app collects nothing)
 - `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1` (for `@SceneStorage`-backed inspector preference)
+- `NSPrivacyAccessedAPICategorySystemBootTime` reason `35F9.1` (for `ContinuousClock.now` elapsed-analysis-time measurement in `AnalysisViewModel.swift`)
 
 Required by Apple since May 2024 for any App Store submission. Auto-included in the bundle by Xcode 26+'s `PBXFileSystemSynchronizedRootGroup` (no project edits needed).
 
