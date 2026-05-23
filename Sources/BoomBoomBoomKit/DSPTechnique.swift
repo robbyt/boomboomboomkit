@@ -55,7 +55,7 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
   case subBandVoting
 
   /// Per-candidate cross-correlation between a synthetic click pattern at the candidate BPM
-  /// and the onset envelope. Rescoring runs at step 9.5, between candidate extraction and
+  /// and the onset envelope. Rescoring runs at step 9b, between candidate extraction and
   /// octave disambiguation, so candidates with strong rhythmic alignment are preferred.
   /// Cost: low (sparse normalized beat-search per candidate, ~3 candidates).
   /// Impact: TBD (validated by ablation in Story 3-3, Task 3).
@@ -105,6 +105,10 @@ public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
 /// Used by `BPMAnalyzer` to control which pipeline stages run,
 /// and by ablation tests to enumerate all 2^N combinations.
 public struct TechniqueSet: Sendable, Hashable {
+  /// The set of DSP techniques enabled in this configuration.
+  ///
+  /// Used by ``BPMAnalyzer`` to gate pipeline stages; used by the 256-combo
+  /// ablation matrix to enumerate every subset of ``DSPTechnique/allCases``.
   public var dspTechniques: Set<DSPTechnique>
 
   /// Number of top candidates to extract from the periodicity spectrum.
@@ -112,6 +116,13 @@ public struct TechniqueSet: Sendable, Hashable {
   /// Can be overridden (e.g., intensity 1 uses 1 candidate).
   public var candidateCount: Int
 
+  /// Creates a technique set with an optional explicit candidate count.
+  ///
+  /// - Parameters:
+  ///   - dspTechniques: The DSP technique cases to enable. Defaults to an empty set.
+  ///   - candidateCount: Optional override for the number of candidates the pipeline extracts.
+  ///     When `nil`, defaults to `5` if `dspTechniques` contains ``DSPTechnique/expandedCandidates``,
+  ///     otherwise `3`.
   public init(dspTechniques: Set<DSPTechnique> = [], candidateCount: Int? = nil) {
     self.dspTechniques = dspTechniques
     self.candidateCount = candidateCount ?? (dspTechniques.contains(.expandedCandidates) ? 5 : 3)
@@ -119,12 +130,21 @@ public struct TechniqueSet: Sendable, Hashable {
 
   // MARK: - Queries
 
+  /// Returns `true` if the given technique is enabled in this set.
+  ///
+  /// - Parameter technique: The technique to query.
+  /// - Returns: `true` when `technique` is in ``dspTechniques``.
   public func contains(_ technique: DSPTechnique) -> Bool {
     dspTechniques.contains(technique)
   }
 
   // MARK: - Builders
 
+  /// Returns a new set with `technique` added; ``candidateCount`` is recomputed
+  /// to reflect ``DSPTechnique/expandedCandidates`` membership.
+  ///
+  /// - Parameter technique: The technique to add.
+  /// - Returns: A new ``TechniqueSet`` containing `technique` in addition to the receiver's techniques.
   public func inserting(_ technique: DSPTechnique) -> TechniqueSet {
     var copy = self
     copy.dspTechniques.insert(technique)
@@ -132,6 +152,11 @@ public struct TechniqueSet: Sendable, Hashable {
     return copy
   }
 
+  /// Returns a new set with `technique` removed; ``candidateCount`` is
+  /// recomputed to reflect ``DSPTechnique/expandedCandidates`` membership.
+  ///
+  /// - Parameter technique: The technique to remove. A no-op when the receiver does not contain it.
+  /// - Returns: A new ``TechniqueSet`` with `technique` removed.
   public func removing(_ technique: DSPTechnique) -> TechniqueSet {
     var copy = self
     copy.dspTechniques.remove(technique)

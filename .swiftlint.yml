@@ -13,3 +13,6 @@ disabled_rules:
 
 excluded:
   - .build
+  - _bmad-output/ml-training/swift_feature_extractor/.build
+  - tools/coreml-convert/.venv
+  - _bmad-output/ml-training/.venv
