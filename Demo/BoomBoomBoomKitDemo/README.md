@@ -42,7 +42,7 @@ To bump marketing version (user-visible release — typically less frequent):
 
 ## Archive workflow
 
-`make demo-archive` produces a signed `.xcarchive` at `build/BoomBoomBoomKitDemo.xcarchive`. `DEVELOPMENT_TEAM` env var is required (fails fast if unset, matching the `make demo-build-sandboxed` pattern from Story 5-1 W14).
+`make demo-archive` produces a signed `.xcarchive` at `build/BoomBoomBoomKitDemo.xcarchive`. `DEVELOPMENT_TEAM` env var is required and is validated by an explicit `ifndef DEVELOPMENT_TEAM` guard in the Makefile recipe — invocation without it fails fast with an actionable error. (Sibling target `make demo-build-sandboxed` only *threads* `DEVELOPMENT_TEAM` into the xcodebuild command and will fail cryptically downstream if unset — the two targets are deliberately asymmetric: archive uploads must never silently produce an unsigned bundle, while iterative sandbox builds tolerate a less strict guard.)
 
 ```bash
 DEVELOPMENT_TEAM=ABC1234DEF make demo-archive
