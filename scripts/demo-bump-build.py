@@ -25,15 +25,18 @@ Invariants enforced:
 
 Exit codes:
     0  bumped successfully
-    1  parse/validation error (non-integer mix, zero matches, count mismatch)
-    2  invocation error (pbxproj not found)
+    1  parse/validation error (non-integer mix, zero matches, count mismatch,
+       UnicodeDecodeError reading the pbxproj)
+    2  invocation error (pbxproj not found, permission/TOCTOU/write OSError)
 """
 
 from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -68,7 +71,14 @@ def main() -> int:
         print(f"ERROR: pbxproj not found at {PBXPROJ}", file=sys.stderr)
         return 2
 
-    text = PBXPROJ.read_text(encoding="utf-8")
+    try:
+        text = PBXPROJ.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        print(f"ERROR: pbxproj is not valid UTF-8: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"ERROR: cannot read {PBXPROJ}: {exc}", file=sys.stderr)
+        return 2
 
     total = len(ANY_LINE_RE.findall(text))
     if total == 0:
@@ -111,11 +121,37 @@ def main() -> int:
         )
         return 1
 
-    # Atomic write: same-filesystem tempfile + os.replace prevents pbxproj
-    # corruption on SIGINT, disk-full, or crash mid-write (P1, 2026-05-24 review).
-    tmp = PBXPROJ.with_suffix(PBXPROJ.suffix + ".tmp")
-    tmp.write_text(new_text, encoding="utf-8")
-    os.replace(tmp, PBXPROJ)
+    # Atomic write via per-invocation tempfile + os.replace. Same-filesystem
+    # (dir=PBXPROJ.parent) is required so os.replace is atomic; delete=False
+    # because we hand the path to os.replace. Per-invocation NamedTemporaryFile
+    # prevents concurrent-invocation races on a shared fixed path (PR #11
+    # Copilot finding #1). shutil.copymode preserves the original pbxproj mode
+    # (0644) — NamedTemporaryFile defaults to 0600, which would narrow access
+    # on os.replace. try/finally cleans up the temp on any exception path.
+    # Acknowledged limitation: the full read-modify-write race (two invocations
+    # both reading N, both writing N+1) is not serialized; single-operator
+    # workflow doesn't exercise it.
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=PBXPROJ.parent,
+            prefix=".pbxproj.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+            tmp.write(new_text)
+        shutil.copymode(PBXPROJ, tmp_path)
+        os.replace(tmp_path, PBXPROJ)
+        tmp_path = None  # ownership transferred; nothing to clean up
+    except OSError as exc:
+        print(f"ERROR: cannot write {PBXPROJ}: {exc}", file=sys.stderr)
+        return 2
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink()
     print(
         f"Bumped CURRENT_PROJECT_VERSION (max across {total} configs was {max_val}) "
         f"-> {next_val}, applied to all {applied} configs"

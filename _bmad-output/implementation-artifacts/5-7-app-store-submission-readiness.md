@@ -333,6 +333,10 @@ Trigger: post-Python-extraction review pass over the highest-risk uncommitted as
 
 - [x] [Review][Defer] **xcscheme mixed-case `Yes` for `queueDebuggingEnableBacktraceRecording`** [xcscheme:87] — Blind Hunter. Every other boolean in the scheme uses `YES`; only this attribute uses `Yes`. Xcode tolerates both forms and normalizes to `YES` on next save, so this resolves itself on the operator's next interactive scheme edit. Deferred — cosmetic, self-healing.
 
+### PR #11 GitHub Copilot pass (2026-05-24, post-push to develop)
+
+GitHub Copilot's automated review of PR #11 (this branch) surfaced 4 inline comments on commit `3f9ceb9`. Three exactly matched W17/W19/W20 from the fourth-pass review above; one was new (race on the fixed `project.pbxproj.tmp` temp filename, missed by the fourth-pass). Codex plan-review (threadId `019e5bde-f555-7c22-9dd7-5c959ff2416f`) pushed back on deferring three one-liners and recommended patching all four; AskUserQuestion 2026-05-24 confirmed the cross-process RMW race stays unserialized (single-operator workflow). All four applied in PR #11 commit `<sha>`; W17/W19/W20 entries in deferred-work.md flipped to CLOSED; new W21 entry captures the race-condition closure with its acknowledged RMW limitation. Story 5-7 status (`done`) unchanged — this is post-status-flip polish.
+
 - [x] [Review][Dismiss] **Cosmetic quote-stripping on first bump — quoted-form values rewritten to unquoted** [scripts/demo-bump-build.py:96-100] — Edge Case Hunter. Intentional per the script's docstring (lines 20-22) — produces non-minimal diffs the first time a mixed-quote pbxproj is bumped, but the operator-authored quote-form is non-canonical to begin with. Not a defect.
 
 - [x] [Review][Dismiss] **Post-rewrite count verification compares `applied` against `total` (ANY_LINE_RE) instead of `integer_count` (LINE_RE) — brittle if early gate is relaxed** [scripts/demo-bump-build.py:105] — Acceptance Auditor. Currently correct because the gate at lines 83-90 asserts `total == integer_count`. Hypothetical-future-refactor concern; the current behavior satisfies the spec's "post-rewrite count verification" claim. Not a defect.
