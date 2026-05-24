@@ -74,28 +74,57 @@ enum FinalSelectionStep: String, Sendable, Equatable, CaseIterable {
     from trace: BPMDiagnosticTrace,
     lastBPM: Double
   ) -> FinalSelectionStep {
+    // P_D3 / D3 resolution — short-circuit non-finite lastBPM to the
+    // baseline arm. Without this, every `abs(lastBPM - …)` comparison
+    // below evaluates false (NaN propagates), silently mis-attributing
+    // to .baselineDisambiguation anyway — but via the wrong code path
+    // (e.g., the `.fineGridRefinement` arm would trip `refined != .nan`
+    // = true and falsely fire). Explicit early-return makes the intent
+    // legible.
+    guard lastBPM.isFinite else { return .baselineDisambiguation }
+
+    // .mlEnsemble — tolerance 0.5 BPM matches the cascade-wide convention
+    // (durationHint, clickRescore already use the same threshold). vDSP
+    // fan-out can introduce LSB-level differences between decision.selectedBPM
+    // and the final result.bpm even when the ML decision is what got selected.
     if let decision = trace.ensembleDecision,
       decision.winner == .ml,
-      decision.selectedBPM == lastBPM
+      decision.selectedBPM.isFinite,
+      abs(decision.selectedBPM - lastBPM) <= 0.5
     {
       return .mlEnsemble
     }
 
     // candidatesBefore/AfterBoost are NOT documented sort-stable across
     // MetadataCorroborator.apply, so reduce via max(by:), not [0]. Filter
-    // NaN scores first — `max(by:)` is unsafe with NaN (both lt/gt return
-    // false, so a NaN entry can win and corrupt attribution).
+    // non-finite scores AND non-finite bpms first — `max(by:)` is unsafe
+    // with NaN (both lt/gt return false, so a NaN entry can win and
+    // corrupt attribution); and ±Infinity (`!isNaN` but `!isFinite`) would
+    // win the reduce trivially, then trip `before.bpm != after.bpm` and
+    // falsely attribute to .metadataCorroboration. Tightened `!isNaN` →
+    // `isFinite` to match the `.mlEnsemble` (`decision.selectedBPM.isFinite`)
+    // and `.fineGridRefinement` (`refined.isFinite && disambiguation.bpm.isFinite`)
+    // arms below.
     let beforeWinner = trace.candidatesBeforeBoost
-      .filter { !$0.score.isNaN }
+      .filter { $0.score.isFinite && $0.bpm.isFinite }
       .max(by: { $0.score < $1.score })
     let afterWinner = trace.candidatesAfterBoost
-      .filter { !$0.score.isNaN }
+      .filter { $0.score.isFinite && $0.bpm.isFinite }
       .max(by: { $0.score < $1.score })
     if let before = beforeWinner, let after = afterWinner, before.bpm != after.bpm {
       return .metadataCorroboration
     }
 
-    if let refined = trace.refinedBPM, refined != trace.disambiguationResult.bpm {
+    // .fineGridRefinement — switch from exact-inequality to 0.5 BPM
+    // tolerance (P_D3). A legitimate fine-grid no-op refinement landing
+    // on the same BPM as disambiguation can produce a sub-LSB difference
+    // due to vDSP fan-out; without tolerance the cascade silently
+    // attributes to .fineGridRefinement when nothing meaningful changed.
+    if let refined = trace.refinedBPM,
+      refined.isFinite,
+      trace.disambiguationResult.bpm.isFinite,
+      abs(refined - trace.disambiguationResult.bpm) > 0.5
+    {
       return .fineGridRefinement
     }
 
@@ -474,10 +503,17 @@ struct MetadataEvidenceJSON: Codable, Sendable, Equatable {
   init(from evidence: MetadataBPMEvidence) {
     self.source = evidence.source.rawValue
     self.rawValue = evidence.rawValue
+    // Non-finite Double sentinels are nullified at the projection boundary
+    // (P_D2 / D2 resolution per Codex thread 019e5812-5ce7-7840-9aae-4825dccd98ab).
+    // Library types per CLAUDE.md may carry NaN/Inf in `parsedBPM` (parse
+    // rejection), `corroboratedWith` (no peer matched), and `boostApplied`
+    // (degenerate compute). The JSONEncoder stays at `.throw` so INTERNAL
+    // coding errors (a value written into RunInfo.elapsedSeconds, etc.)
+    // still abort the encode and surface the bug.
     self.parsedBPM = evidence.parsedBPM.isFinite ? evidence.parsedBPM : nil
-    self.corroboratedWith = evidence.corroboratedWith
+    self.corroboratedWith = evidence.corroboratedWith.flatMap { $0.isFinite ? $0 : nil }
     self.ratioMatched = evidence.ratioMatched.map(Self.humanize)
-    self.boostApplied = evidence.boostApplied
+    self.boostApplied = evidence.boostApplied.isFinite ? evidence.boostApplied : 0
     self.rejectionReason = evidence.rejectionReason
   }
 
@@ -506,10 +542,15 @@ struct EnsembleDecisionJSON: Codable, Sendable, Equatable {
   init(from decision: EnsembleDecision) {
     self.policy = decision.policy.rawValue
     self.winner = decision.winner.rawValue
-    self.dspConfidence = decision.dspConfidence
-    self.mlConfidence = decision.mlConfidence
+    // CLAUDE.md explicitly notes EnsembleDecision is "not Hashable
+    // (unsanitized Double.nan in DSP/ML values would break the hash
+    // invariant); used only as a value carrier" — meaning these three
+    // Double fields may legitimately carry sentinel NaN. Sanitize at the
+    // projection boundary (P_D2 / D2 resolution).
+    self.dspConfidence = decision.dspConfidence.isFinite ? decision.dspConfidence : 0
+    self.mlConfidence = decision.mlConfidence.flatMap { $0.isFinite ? $0 : nil }
     self.mlAbstained = decision.mlAbstained
-    self.selectedBPM = decision.selectedBPM
+    self.selectedBPM = decision.selectedBPM.isFinite ? decision.selectedBPM : 0
   }
 }
 
@@ -525,9 +566,14 @@ struct MLDiagnosticSnapshotJSON: Codable, Sendable, Equatable {
   let gateFired: String?
 
   init(from snapshot: MLDiagnosticSnapshot) {
-    self.decodedBPM = snapshot.decodedBPM
-    self.softmaxMax = snapshot.softmaxMax
-    self.softmaxSecondMax = snapshot.softmaxSecondMax
+    // Each of these Double? fields may legitimately be non-finite when
+    // the ML inference path emits sentinel values during a failure stage
+    // (degenerate softmax, decode rejection, etc.). Sanitize at the
+    // projection boundary (P_D2 / D2 resolution) so a single sentinel
+    // doesn't abort the entire trace export.
+    self.decodedBPM = snapshot.decodedBPM.flatMap { $0.isFinite ? $0 : nil }
+    self.softmaxMax = snapshot.softmaxMax.flatMap { $0.isFinite ? $0 : nil }
+    self.softmaxSecondMax = snapshot.softmaxSecondMax.flatMap { $0.isFinite ? $0 : nil }
     self.inputFeatureChecksum = snapshot.inputFeatureChecksum
     self.failureStage = snapshot.failureStage?.rawValue
     self.gateFired = snapshot.gateFired?.rawValue
@@ -554,12 +600,15 @@ struct MLFeatureFramesShapeJSON: Codable, Sendable, Equatable {
     self.melBands = frames.melBands
     self.frames = frames.frames
     self.tensorLayout = frames.tensorLayout.rawValue
-    self.sampleRate = frames.sampleRate
+    // Float/Double config fields are sanitized at the projection boundary
+    // (P_D2 / D2 resolution). A degenerate ML featurizer that emits NaN
+    // sampleRate or melFmin/melFmax shouldn't abort the trace export.
+    self.sampleRate = frames.sampleRate.isFinite ? frames.sampleRate : 0
     self.fftSize = frames.fftSize
     self.hopSize = frames.hopSize
-    self.melFmin = frames.melFmin
-    self.melFmax = frames.melFmax
-    self.logCompressionScale = frames.logCompressionScale
+    self.melFmin = frames.melFmin.isFinite ? frames.melFmin : 0
+    self.melFmax = frames.melFmax.isFinite ? frames.melFmax : 0
+    self.logCompressionScale = frames.logCompressionScale.isFinite ? frames.logCompressionScale : 0
     self.featureSetVersion = frames.featureSetVersion
   }
 }

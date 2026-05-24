@@ -563,11 +563,23 @@ struct AnalysisViewModelSmokeTest {
 
   // 5.1 — projection round-trips through JSON.
   //
-  // `generatedAt` is normalized to a fixed sentinel (`.distantPast`) on
-  // both sides before comparison — ISO 8601 string encoding truncates
-  // `Date()`'s sub-millisecond precision, so a raw round-trip would
-  // diff on the fractional seconds.
-  @Test("traceProjectionRoundTripsJSON: TraceExport encodes + decodes to equal value")
+  // `generatedAt` is normalized to a fixed sentinel
+  // (`Date(timeIntervalSince1970: 0)`, see `normalizeForRoundTrip` body
+  // below) on both sides before comparison — ISO 8601 string encoding
+  // truncates `Date()`'s sub-millisecond precision, so a raw round-trip
+  // would diff on the fractional seconds.
+  // P1 (code review 2026-05-23): rewritten to honor AC #7 step-by-step.
+  // The pre-patch version compared Swift-level Equatable; the rewritten
+  // version enforces the contract that actually catches LSB-level Float
+  // drift surfacing as a JSON regression:
+  //   1. encode → decode → normalize volatile fields on both sides
+  //   2. walk every floating-point field via `allFloats(_:)` and assert
+  //      each is `isFinite` (defends the encoder's `.throw` strategy
+  //      from silent regression where a sentinel-NaN sneaks through a
+  //      previously-finite path)
+  //   3. re-encode BOTH normalized instances with `.sortedKeys` and
+  //      assert byte-equality of the encoded `Data`
+  @Test("traceProjectionRoundTripsJSON: TraceExport round-trips byte-equal with finite floats")
   @MainActor
   func traceProjectionRoundTripsJSON() async throws {
     let viewModel = try await Self.analyzeFixture()
@@ -583,13 +595,108 @@ struct AnalysisViewModelSmokeTest {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
     encoder.dateEncodingStrategy = .iso8601
-    let data = try encoder.encode(original)
+    let originalData = try encoder.encode(original)
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
-    let decoded = try decoder.decode(TraceExport.self, from: data)
+    let decoded = try decoder.decode(TraceExport.self, from: originalData)
     let normalizedOriginal = Self.normalizeForRoundTrip(original)
     let normalizedDecoded = Self.normalizeForRoundTrip(decoded)
-    #expect(normalizedDecoded == normalizedOriginal)
+    // AC #7 step 4: walk every floating-point field and assert finite.
+    // Defends against a future projection regression that silently
+    // forwards a library NaN sentinel into a JSON `null`-typed field
+    // (which would round-trip clean despite being a real bug).
+    for value in try Self.allFloats(of: normalizedOriginal) {
+      #expect(value.isFinite, "found non-finite Double in TraceExport: \(value)")
+    }
+    // AC #7 step 3: re-encode both normalized instances and assert
+    // byte-equality of the encoded Data (NOT Swift-level Equatable —
+    // catches LSB drift that Equatable's Double == would mask).
+    let reEncodedOriginal = try encoder.encode(normalizedOriginal)
+    let reEncodedDecoded = try encoder.encode(normalizedDecoded)
+    #expect(reEncodedOriginal == reEncodedDecoded)
+  }
+
+  // P1 (code review 2026-05-23): AC #7's reproducibility-of-two-runs
+  // Given clause was never exercised pre-patch. Two analyze() invocations
+  // against the same fixture with identical Options should produce
+  // byte-equal exports (after normalization of generatedAt + elapsedSeconds).
+  // Catches per-window candidate-score drift that single-run round-trip
+  // tests cannot.
+  @Test(
+    "traceExportReproducibilityTwoRuns: same fixture analyzed twice produces byte-equal exports")
+  @MainActor
+  func traceExportReproducibilityTwoRuns() async throws {
+    let viewModel1 = try await Self.analyzeFixture()
+    let snapshot1 = try #require(viewModel1.lastRunSnapshot)
+    let export1 = TraceExport.from(
+      trace: snapshot1.trace,
+      runOptions: snapshot1.runOptions,
+      result: snapshot1.result,
+      fileName: snapshot1.fileName,
+      metadataEvidence: snapshot1.metadataEvidence,
+      elapsedSeconds: viewModel1.elapsedSeconds ?? 0
+    )
+    let viewModel2 = try await Self.analyzeFixture()
+    let snapshot2 = try #require(viewModel2.lastRunSnapshot)
+    let export2 = TraceExport.from(
+      trace: snapshot2.trace,
+      runOptions: snapshot2.runOptions,
+      result: snapshot2.result,
+      fileName: snapshot2.fileName,
+      metadataEvidence: snapshot2.metadataEvidence,
+      elapsedSeconds: viewModel2.elapsedSeconds ?? 0
+    )
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    let data1 = try encoder.encode(Self.normalizeForRoundTrip(export1))
+    let data2 = try encoder.encode(Self.normalizeForRoundTrip(export2))
+    #expect(data1 == data2)
+  }
+
+  // P1 helper (code review 2026-05-23): recursively collect every numeric
+  // value in the encoded JSON shape. Implementation route via
+  // JSONSerialization sidesteps the brittleness of hand-enumerating
+  // every Double/Float field across ~40 nested projection structs — any
+  // future field addition is automatically covered. Skips JSON booleans
+  // (which JSONSerialization also wraps as NSNumber).
+  @MainActor
+  private static func allFloats(of export: TraceExport) throws -> [Double] {
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(export)
+    let json = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+    var result: [Double] = []
+    Self.walkNumbers(json, into: &result)
+    return result
+  }
+
+  private static func walkNumbers(_ any: Any, into result: inout [Double]) {
+    if let dict = any as? [String: Any] {
+      for value in dict.values {
+        walkNumbers(value, into: &result)
+      }
+    } else if let array = any as? [Any] {
+      for value in array {
+        walkNumbers(value, into: &result)
+      }
+    } else if let number = any as? NSNumber {
+      // Skip NSNumber-as-Bool (JSONSerialization wraps JSON true/false
+      // as NSNumber backed by CFBoolean — doubleValue is 1.0/0.0 which
+      // would falsely register as a "finite float").
+      if CFGetTypeID(number as CFTypeRef) != CFBooleanGetTypeID() {
+        result.append(number.doubleValue)
+      }
+    } else if let str = any as? String,
+      str == "NaN" || str == "Infinity" || str == "-Infinity" || str == "+Infinity"
+    {
+      // JSONEncoder's `.convertToString(...)` non-conforming-float strategy
+      // emits these sentinel strings; the finite-walk contract should still
+      // trip in that hypothetical future, so flag them as non-finite via
+      // .nan. Current encoder uses `.throw` (see
+      // `AnalysisViewModel.swift:539-542`), so this branch is
+      // forward-defensive and not currently exercised on the happy path.
+      result.append(.nan)
+    }
   }
 
   // Normalize the two known volatile fields (per AC #7): `generatedAt`
@@ -690,9 +797,15 @@ struct AnalysisViewModelSmokeTest {
       expected = .metadataCorroboration
 
     case .fineGridChanged:
+      // P_D3 (code review 2026-05-23): refinedBPM/disambiguation delta
+      // bumped from 120.5 vs 120.0 (exactly at the new tolerance
+      // boundary `> 0.5`) to 121.0 vs 120.0 (unambiguously meaningful).
+      // The pre-patch test used `!=` exact-inequality; the new arm uses
+      // `abs(refined - disambiguation) > 0.5` to reject LSB drift, so
+      // tests must place fine-grid deltas above the tolerance.
       trace.disambiguationResult = (bpm: 120.0, score: 1.0)
-      trace.refinedBPM = 120.5
-      lastBPM = 120.5
+      trace.refinedBPM = 121.0
+      lastBPM = 121.0
       expected = .fineGridRefinement
 
     case .subBandVoteChanged:
@@ -744,15 +857,17 @@ struct AnalysisViewModelSmokeTest {
 
     case .fineGridAndSubBandConflict:
       // BOTH fine-grid and sub-band-vote fired. Fine-grid (higher
-      // priority — runs later in pipeline) wins.
-      trace.refinedBPM = 120.5
+      // priority — runs later in pipeline) wins. P_D3 (code review
+      // 2026-05-23): delta bumped 120.5→121.0 to clear the new `> 0.5`
+      // tolerance — same reason as `.fineGridChanged`.
+      trace.refinedBPM = 121.0
       trace.disambiguationResult = (bpm: 120.0, score: 1.0)
       trace.subBandVoteDetail = SubBandVoteEvidence(
         preVoteBPM: 60.0,
         postVoteBPM: 120.0,
         changed: true
       )
-      lastBPM = 120.5
+      lastBPM = 121.0
       expected = .fineGridRefinement
     }
 
@@ -862,6 +977,45 @@ struct AnalysisViewModelSmokeTest {
     }
   }
 
+  // 5.3b — P_D2 / D2 resolution (code review 2026-05-23): the projection
+  // boundary sanitizes non-finite Double sentinels for library types that
+  // CLAUDE.md documents as carrying NaN as a value-carrier (EnsembleDecision,
+  // MLDiagnosticSnapshot, MetadataBPMEvidence corroboratedWith/boostApplied,
+  // MLFeatureFrames config doubles). This test confirms the sanitization is
+  // load-bearing: a non-finite EnsembleDecision.dspConfidence projects to 0
+  // (not NaN), the encode succeeds (does NOT throw), and the round-tripped
+  // value is finite. Complements `nanInTraceExportThrows` which exercises
+  // the UNSANITIZED-path fields (PipelineInfo.disambiguation.bpm,
+  // rawCandidates[].bpm, SubBandEnergies kick/snare/etc.); the two tests
+  // together pin the boundary between "throws on internal coding error"
+  // vs "nullifies on documented library sentinel".
+  @Test("nanInSanitizedFieldsNullifies: non-finite EnsembleDecision fields project to 0")
+  @MainActor
+  func nanInSanitizedFieldsNullifies() throws {
+    let decision = EnsembleDecision(
+      policy: .dspOnly,
+      winner: .dsp,
+      dspConfidence: .nan,
+      mlConfidence: .infinity,
+      mlAbstained: false,
+      selectedBPM: .nan
+    )
+    let projected = EnsembleDecisionJSON(from: decision)
+    #expect(projected.dspConfidence == 0)
+    #expect(projected.mlConfidence == nil)
+    #expect(projected.selectedBPM == 0)
+    // Encode succeeds — sanitized fields are finite, so the encoder's
+    // `.throw` strategy doesn't fire. Pre-P_D2 this would have thrown
+    // because the raw .nan/.infinity reached the encoder.
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let data = try encoder.encode(projected)
+    let decoded = try JSONDecoder().decode(EnsembleDecisionJSON.self, from: data)
+    #expect(decoded.dspConfidence == 0)
+    #expect(decoded.mlConfidence == nil)
+    #expect(decoded.selectedBPM == 0)
+  }
+
   // 5.5 — F09 (Story 5-6 review, 2026-05-23): snapshot is PRESERVED
   // across reanalyze so ContentView's strategy-keyed background gradient
   // can crossfade strategy→new-strategy in a single transition (Story
@@ -921,9 +1075,17 @@ struct AnalysisViewModelSmokeTest {
   // with [.sortedKeys, .prettyPrinted]. Compares byte-equal against
   // checked-in `Fixtures/5-4-trace-export-golden.json`.
   //
-  // If the fixture is missing (first author run), writes it and emits
-  // an Issue.record asking for commit. CI/regression runs must find
-  // the fixture or the test fails loudly.
+  // If the fixture is missing (first author run OR an explicit
+  // regeneration via `BBBKIT_REGENERATE_TRACE_GOLDEN=1`), writes it and
+  // FAILS the test — that's how the operator knows to commit the new
+  // file and re-run. Pre-P5 (code review 2026-05-23), the missing-
+  // fixture path silently returned after `Issue.record`, so a fresh-
+  // clone CI run could pass without enforcing the schema invariant.
+  //
+  // Env-var-guarded regeneration (per Codex thread 019e5812-5ce7-7840):
+  // when `BBBKIT_REGENERATE_TRACE_GOLDEN=1` is set, the test overwrites
+  // the golden with the freshly-computed bytes AND fails loud — operator
+  // commits and removes the env var on the next run.
   @Test("traceExportSchemaMatchesGolden: encoded TraceExport matches checked-in fixture")
   @MainActor
   func traceExportSchemaMatchesGolden() throws {
@@ -940,16 +1102,42 @@ struct AnalysisViewModelSmokeTest {
       .appendingPathComponent("Fixtures")
       .appendingPathComponent("5-4-trace-export-golden.json")
 
-    if !FileManager.default.fileExists(atPath: fixtureURL.path) {
+    let regenerationRequested =
+      ProcessInfo.processInfo.environment["BBBKIT_REGENERATE_TRACE_GOLDEN"] == "1"
+    let fixtureMissing = !FileManager.default.fileExists(atPath: fixtureURL.path)
+
+    // P5 (code review 2026-05-23): regeneration path now writes AND
+    // fails so the operator can commit the freshly-written golden
+    // without ambiguity about whether the test passed by accident.
+    if regenerationRequested || fixtureMissing {
       try data.write(to: fixtureURL, options: .atomic)
+      let reason =
+        fixtureMissing
+        ? "golden fixture did not exist"
+        : "BBBKIT_REGENERATE_TRACE_GOLDEN=1 was set"
       let message =
-        "golden fixture did not exist; wrote initial version at \(fixtureURL.path). "
-        + "Commit the file and re-run."
+        "\(reason); wrote fresh bytes to \(fixtureURL.path). "
+        + "Commit the file, unset BBBKIT_REGENERATE_TRACE_GOLDEN (if set), and re-run."
       Issue.record(Comment(rawValue: message))
+      // Loud failure replaces the pre-P5 silent `return`. Without this,
+      // fresh-clone CI passes vacuously.
+      #expect(Bool(false), Comment(rawValue: message))
       return
     }
 
-    let golden = try Data(contentsOf: fixtureURL)
+    let goldenRaw = try Data(contentsOf: fixtureURL)
+    // P5 (code review 2026-05-23): strip a single trailing newline from
+    // the loaded golden before byte-compare. The committed golden carries
+    // a trailing `\n` for editor friendliness (most editors auto-add one
+    // on save; without it, an innocent edit-and-save would surface as a
+    // 1-byte diff every time). JSONEncoder.encode() does NOT emit a
+    // trailing newline, so we normalize by stripping at most one.
+    let golden: Data
+    if goldenRaw.last == 0x0A {  // ASCII '\n'
+      golden = goldenRaw.dropLast()
+    } else {
+      golden = goldenRaw
+    }
     if data != golden {
       // Write the new bytes to a sibling .actual file so a human can
       // diff and decide whether the divergence is intentional (update
@@ -961,8 +1149,8 @@ struct AnalysisViewModelSmokeTest {
       try data.write(to: actualURL, options: .atomic)
       let message =
         "encoded TraceExport diverges from golden; wrote actual to "
-        + "\(actualURL.path) for diff inspection. If intentional, replace "
-        + "the golden and commit."
+        + "\(actualURL.path) for diff inspection. If intentional, re-run with "
+        + "BBBKIT_REGENERATE_TRACE_GOLDEN=1 to overwrite the golden + commit."
       Issue.record(Comment(rawValue: message))
     }
     #expect(data == golden)
@@ -989,7 +1177,13 @@ struct AnalysisViewModelSmokeTest {
         mergeStrategy: "maxConfidence",
         votingPolicy: "simpleMajority",
         votingThreshold: 0.5,
-        metadataPolicyEnabledSources: ["iTunesTmpo", "id3TBPM", "vorbisBPM"],
+        // P5 (code review 2026-05-23): alphabetically sorted to match the
+        // production `RunOptionsSnapshot(from:)` `.sorted()` invariant.
+        // Pre-patch the literal order was ["iTunesTmpo", "id3TBPM",
+        // "vorbisBPM"] (insertion order from the `MetadataSource` enum),
+        // bypassing the production sort path — a regression that removed
+        // `.sorted()` would have passed this golden test.
+        metadataPolicyEnabledSources: ["id3TBPM", "iTunesTmpo", "vorbisBPM"],
         durationHint: true,
         durationHintMinFileSeconds: 180,
         ensemblePolicy: "dspOnly",
@@ -1066,24 +1260,73 @@ struct AnalysisViewModelSmokeTest {
     )
   }
 
-  // 5.8 — atomic snapshot invariant: all four fields populated together.
+  // 5.8 — atomic snapshot invariant: all five fields populated together.
+  //
+  // P2 test half (code review 2026-05-23): extended to assert non-default
+  // for `trace` (onsetEnvelopeLength > 0 — proves the DSP pipeline ran)
+  // and `metadataEvidence` (the array's existence + the production code
+  // path that populates it). The pre-patch version only checked fileName,
+  // runOptions.intensity, result.bpm — leaving 2 of the 5 DD #5 fields
+  // unverified.
   @Test("lastRunSnapshotIsAtomic: all snapshot fields populated together")
   @MainActor
   func lastRunSnapshotIsAtomic() async throws {
     let viewModel = try await Self.analyzeFixture()
     let snapshot = try #require(viewModel.lastRunSnapshot)
-    // All four nested DD #5 fields plus the impl-added `result` are
-    // observable as populated together.
+    // All five DD #5 nested fields are populated together.
     #expect(snapshot.fileName == "bpm-120-click.wav")
-    // runOptions has 11 fields; assert one of them (intensity) is set.
     #expect(snapshot.runOptions.intensity.rawValue == AnalysisIntensity.default.rawValue)
-    // metadataEvidence may be empty for tag-free fixture, which is OK —
-    // the array exists (not nil-equivalent).
+    // metadataEvidence is `[MetadataBPMEvidence]` — the array may be
+    // empty for the tag-free fixture, but the field's existence proves
+    // the production population path ran. (For tagged fixtures, future
+    // tests should assert evidence.count > 0.)
     _ = snapshot.metadataEvidence
-    // result and trace are non-optional value types — accessing them
-    // proves they exist.
     #expect(snapshot.result.bpm > 0)
-    _ = snapshot.trace.onsetEnvelopeLength
+    // trace.onsetEnvelopeLength > 0 proves the DSP pipeline actually ran
+    // and populated the trace — not a default-initialized empty trace.
+    #expect(snapshot.trace.onsetEnvelopeLength > 0)
+  }
+
+  // 5.8b — P2 test half (code review 2026-05-23): exercises P_D4's
+  // running-task failure-arm snapshot reset. AC #3's "subsequent reset
+  // clears all fields together" half was previously unverified. This
+  // test analyzes a real fixture (populates snapshot), then triggers
+  // the running-task failure path via writeTraceJSON to an unwritable
+  // URL — wait, that's the wrong trigger; that hits the write-error
+  // arm, not the analyze() failure arm. The clean trigger is a second
+  // analyze() against an unreadable URL — PCMBufferReaderError fires
+  // in the running task's .failure(PCMBufferReaderError) arm, which
+  // is exactly where P_D4 added `self.lastRunSnapshot = nil`.
+  //
+  // The test asserts: (a) snapshot is populated after the first
+  // analyze; (b) snapshot is nil after the failing second analyze;
+  // (c) the failure path also surfaces `error` (proving the
+  // observation-coupling contract per DD #10 — both the observed
+  // `error` write AND the @ObservationIgnored snapshot=nil write
+  // ride in the same MainActor turn).
+  @Test("lastRunSnapshotResetClearsAllFields: failing analyze clears prior snapshot")
+  @MainActor
+  func lastRunSnapshotResetClearsAllFields() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let priorSnapshot = try #require(viewModel.lastRunSnapshot)
+    _ = priorSnapshot  // sanity capture; we don't compare, we just assert reset.
+    // Drive a second analyze() against a deliberately-unreadable URL
+    // so the running task's .failure(PCMBufferReaderError) arm fires.
+    // That's where P_D4 inserted `self.lastRunSnapshot = nil`.
+    let unreadableURL = URL(fileURLWithPath: "/nonexistent-test-dir-5-4/missing.wav")
+    viewModel.analyze(url: unreadableURL, autoStarted: false)
+    // Drain: wait for the failing analyze to finish.
+    var spins = 0
+    while viewModel.isAnalyzing && spins < 500 {
+      try await Task.sleep(for: .milliseconds(10))
+      spins += 1
+    }
+    #expect(!viewModel.isAnalyzing, "analyze() did not finish within ~5s")
+    // P_D4 contract: snapshot reset to nil on failure arm.
+    #expect(viewModel.lastRunSnapshot == nil)
+    // DD #10 re-render coupling: an observed property was also written
+    // (error.errorDescription non-nil) in the same MainActor turn.
+    #expect(viewModel.error != nil)
   }
 
   // 5.9 — Export Trace visibility predicate evaluates to false when
@@ -1188,13 +1431,24 @@ struct AnalysisViewModelSmokeTest {
 
   // Recursive helper for 5.11 — walks a JSONSerialization-decoded
   // object and returns true if any nested dict contains the key.
-  private static func containsKey(_ target: String, in any: Any) -> Bool {
-    if let dict = any as? [String: Any] {
+  //
+  // P7 (code review 2026-05-23): parameter renamed `any:` → `value:` —
+  // `any` is a Swift 5.6+ contextual keyword used as a type marker (e.g.,
+  // `(any P)`); using it as a parameter name silently shadows in inner
+  // scopes and is a portability hazard if a future Swift version hard-
+  // promotes it. Also added explicit NSNull handling so JSON `null`s
+  // (which JSONSerialization wraps as NSNull) terminate the walk without
+  // false-passing through `as? [String: Any]` / `as? [Any]` (both fail
+  // on NSNull — the pre-patch behavior happened to be correct but only
+  // because both casts fail; explicit handling is legible.).
+  private static func containsKey(_ target: String, in value: Any) -> Bool {
+    if value is NSNull { return false }
+    if let dict = value as? [String: Any] {
       if dict[target] != nil { return true }
-      for (_, value) in dict {
-        if containsKey(target, in: value) { return true }
+      for (_, nested) in dict {
+        if containsKey(target, in: nested) { return true }
       }
-    } else if let array = any as? [Any] {
+    } else if let array = value as? [Any] {
       for element in array {
         if containsKey(target, in: element) { return true }
       }
