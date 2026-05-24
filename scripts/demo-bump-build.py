@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# ///
 """demo-bump-build.py — Increment CURRENT_PROJECT_VERSION in BoomBoomBoomKitDemo's pbxproj.
 
 Replaces the shell-pipeline-based ``demo-bump-build`` Makefile recipe. The shell
@@ -150,8 +153,11 @@ def main() -> int:
         print(f"ERROR: cannot write {PBXPROJ}: {exc}", file=sys.stderr)
         return 2
     finally:
-        if tmp_path is not None and tmp_path.exists():
-            tmp_path.unlink()
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass  # best-effort cleanup; do not override the script's exit
     print(
         f"Bumped CURRENT_PROJECT_VERSION (max across {total} configs was {max_val}) "
         f"-> {next_val}, applied to all {applied} configs"

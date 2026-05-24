@@ -24,7 +24,6 @@
 
 /* Begin PBXFileReference section */
 		0848465D51CB4967A32319B4 /* BoomBoomBoomKitDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BoomBoomBoomKitDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13BC4F9A2FC3865D0046D014 /* BoomBoomBoomKitDemo.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xctestplan; name = BoomBoomBoomKitDemo.xctestplan; path = BoomBoomBoomKitDemoTests/BoomBoomBoomKitDemo.xctestplan; sourceTree = "<group>"; };
 		32EA47B840544CC3AF42CEF2 /* BoomBoomBoomKitDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BoomBoomBoomKitDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -94,7 +93,6 @@
 		EF5CE63619DA4C44BBCB330B = {
 			isa = PBXGroup;
 			children = (
-				13BC4F9A2FC3865D0046D014 /* BoomBoomBoomKitDemo.xctestplan */,
 				18CD563CFA7747BC95911C77 /* BoomBoomBoomKitDemo */,
 				9C94DB39762342978C5CD688 /* BoomBoomBoomKitDemoTests */,
 				340BE5955A1740E99214065C /* Frameworks */,
