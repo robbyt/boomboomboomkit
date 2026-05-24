@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "FA3E4799-B762-41E5-8148-C943BEE98541",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:BoomBoomBoomKitDemo.xcodeproj",
+      "identifier" : "2FB1B49AED6042639BAAD059",
+      "name" : "BoomBoomBoomKitDemo"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:BoomBoomBoomKitDemo.xcodeproj",
+        "identifier" : "ED2B4E6380294593B2271D63",
+        "name" : "BoomBoomBoomKitDemoTests"
+      }
+    }
+  ],
+  "version" : 1
+}

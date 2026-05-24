@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: "2026-05-24 — Story 5-4 /bmad-code-review patch round complete (12 patches applied + 2 reclassified to defer per Codex). Status review → done. AC #11 manual GUI smoke remains operator-owned. Detail in comments below."
+last_updated: "2026-05-24 — Story 5-7 flipped `review → done` and Story 5-8 (demo-rename-and-app-store-submission) created via `/bmad-party-mode` rename-scoping discussion. Trigger: operator wanted to rename the demo from `BoomBoomBoomKitDemo` to `BoomBoomBoom` before first App Store submission. 4-voice party round (Amelia + Winston + John + Siri) surfaced the decision-critical fact (Siri): bundle IDs are permanently welded to App Store Connect App Records on first upload — submitting under the wrong identity is a one-way door. Operator chose to defer the App Store Connect submission cycle (which was always OUT-OF-SCOPE per Story 5-7's scope clarification) into Story 5-8, paired with the rename so the bundle ID commitment lands correctly. Story 5-7 was already AC-complete (every listed AC including AC #6.1-6.6 local ARCHIVE SUCCEEDED was met); the `review` hold was operator-discretion about portal validation, not a missing AC. W33 in deferred-work.md re-opened with cross-link to Story 5-8 (the successor App-Store-renaming story named in the W33 re-open trigger). Prior turn: Story 5-7 fourth-pass /bmad-code-review complete (narrow scope: scripts/demo-bump-build.py + Makefile + xcscheme + xctestplan); 5 patches applied, 4 deferred (W17-W20), 2 dismissed; demo-test rewritten to -scheme BoomBoomBoomKitDemo -testPlan BoomBoomBoomKitDemo; smoke-tested green (TEST SUCCEEDED, 81/81 passed)."
 
 # 2026-05-24 — Story 5-4 /bmad-code-review patch round complete.
 #
@@ -255,5 +255,6 @@ development_status:
   5-5-public-api-documentation-and-readme: done
   5-6-end-user-ui-redesign: done
   5-6b-a11y-polish: backlog
-  5-7-app-store-submission-readiness: review
+  5-7-app-store-submission-readiness: done
+  5-8-demo-rename-and-app-store-submission: backlog
   epic-5-retrospective: optional
