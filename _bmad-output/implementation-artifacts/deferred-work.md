@@ -647,3 +647,17 @@ Story 4-6 picks up the accuracy work with hard AC.
 - **W19 (CLOSED 2026-05-24) — xctestplan `PBXFileReference` uses `lastKnownFileType = text` instead of the canonical `wrapper.xctestplan`.** Closed in PR #11 commit `99ce476` (P3 patch) after GitHub Copilot re-flagged on its automated review pass and Codex plan-review pushed back on the defer rationale. `lastKnownFileType = wrapper.xctestplan` now set; Xcode-side normalization accepted the canonical value (verified by post-`make demo-test` git diff showing no rewrite to `text`). Xcode opens the file in the Test Plan editor on double-click instead of as raw JSON.
 
 - **W20 (CLOSED 2026-05-24) — xcscheme uses mixed-case `Yes` for `queueDebuggingEnableBacktraceRecording` while every other boolean in the file uses `YES`.** Closed in PR #11 commit `99ce476` (P4 patch) after GitHub Copilot re-flagged on its automated review pass and Codex plan-review pushed back on carrying a 1-character defer entry. Single-character edit `Yes` → `YES` applied.
+
+## Deferred from: code review of 5-6b-a11y-polish (2026-05-24)
+
+`/bmad-code-review` three-reviewer pass (Blind Hunter + Edge Case Hunter + Acceptance Auditor) over the 44-line uncommitted Demo-only diff for Story 5-6b. Auditor returned PASS on all six F-IDs and verified AC #3 (`git diff --stat Sources/ Tests/` both empty). 1 decision-needed surfaced to operator (F11 saturated-mode seam coverage in AC #4); 5 items deferred below.
+
+- **5-6b-D1 — F12 idiomatic toggle trait alternative (`ContentView.swift:112`).** Spec-authorized `.accessibilityValue(Text("Shown"/"Hidden"))` form works. More idiomatic VoiceOver would come from `.accessibilityAddTraits(.isToggle)` (native "on/off" phrasing) or migrating to `Toggle { ... }.toggleStyle(.button)`. Out of 5-6b scope; polish for a future a11y pass.
+
+- **5-6b-D2 — F12 verbose VoiceOver phrasing (`ContentView.swift:106-112`).** `.help` sets both tooltip AND VoiceOver hint on macOS; combined announcement is approximately "Diagnostics, Shown, button. Show / hide diagnostics, command shift D." Tightening would trade off the keyboard-shortcut tooltip discoverability. Polish for a future pass.
+
+- **5-6b-D3 — F07 inaccurate technical claim in code comment (`StrategyBackground.swift:65-68`).** Comment asserts the bare `Color(NSColor.foo)` resolves to the asset-catalog `Color(_ name:bundle:)` overload and "silently returns a placeholder." On macOS the bare form resolves to the unlabeled `Color.init(_ color: NSColor)`, not the asset overload — the "silent placeholder" warning is iOS-flavored lore. Chosen `nsColor:`-labeled API is still correct; only the rationale text is off. Fix in a future comment-cleanup pass.
+
+- **5-6b-D4 — Pre-existing: `resultView` `secondaryMetadataRow` has no `.lineLimit` (`ContentView.swift:372-376`).** With the new full-height `.topTrailing` anchoring, a sufficiently long `row.fileName` would wrap and push the BPM hero downward. The risk pre-dates 5-6b (rows have always been unbounded) and grows slightly with the new anchoring. A `.lineLimit(1).truncationMode(.middle)` would harden this; belongs in a 5-x polish story.
+
+- **5-6b-D5 — F14 VoiceOver drop-action dead-zone (`EmptyStateView.swift:24-25`).** The new hint "Drag an audio file here to analyze" promises an interaction VoiceOver-only users cannot perform (macOS VoiceOver has no drag-and-drop gesture). A ⌘O / File → Open menu equivalent would be the standard alternative. Pre-existing demo limitation; not in 5-6b scope.

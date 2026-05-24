@@ -3,197 +3,120 @@
 Story ID: 5.6b
 Story Key: 5-6b-a11y-polish
 Epic: 5 — Developer Experience (Demo App + Documentation)
-Status: backlog
-Created: 2026-05-23 (via `/bmad-correct-course` after Story 5-6 code-review reconciliation)
-Source: `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-23.md` (v3); Story 5-6 §Review Findings
+Status: done
+Created: 2026-05-23 (rewritten 2026-05-24 — kept short per operator brief; this is a simple demo, not a public ship)
+Source: Story 5-6 §Review Findings, F-IDs F04 / F07 / F11 / F12 / F13 / F14
 
 ## Story
 
-As an end user of BoomBoomBoomKitDemo with accessibility needs (Dark Mode, VoiceOver, increased contrast, larger text),
-I want the empty-state layout, neutral-gradient color, drop-target hit-region, toolbar toggle state announcement, caption contrast, and VoiceOver element grouping to honor the existing Story 5-6 acceptance criteria and platform conventions,
-So that the App-Store-bound demo passes WCAG floors, App Review accessibility checks, and macOS HIG accessibility expectations without requiring re-review of Story 5-6's stated design decisions.
+As an end user of BoomBoomBoomKitDemo with accessibility needs,
+I want the EmptyStateView, neutral gradient, drop-target hit-region, and toolbar Diagnostics button to behave correctly in Dark Mode + VoiceOver + Increased Contrast,
+So that the demo's accessibility floor matches what Story 5-6's spec already promised.
 
-**Scope clarification (read first).** Story 5-6b is a narrow polish follow-up to Story 5-6's end-user UI redesign. It closes 6 of the 15 F-IDs surfaced by Story 5-6's `/code-review` reconciliation pass (the other 9 either fixed in Story 5-6 itself or deferred to Story 5-7 carry-over). Three of the 6 are explicit accepted-AC-violation deferrals from Story 5-6 close-out: F04 violates AC #12, F07 violates AC #6/#7, F13 violates KDD #5. The remaining 3 are narrow defects (F11 safe-area mismatch, F12 toolbar VoiceOver toggle state, F14 EmptyStateView accessibility grouping).
+Six small fixes to three files in `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/`. No library changes. No tests.
 
-Six fixes ship:
+## The Six Fixes
 
-1. **F04 — EmptyStateView upper-half layout fix** (Story 5-6 AC #12 violation). `EmptyStateView.swift:23` currently declares `.frame(maxWidth: .infinity, maxHeight: .infinity)`. The parent `ContentView.swift:44-48` VStack also contains `Spacer()` with equal layout priority. SwiftUI splits available vertical space 50/50, leaving EmptyStateView occupying only the upper half. AC #12 promised "fills the main pane" — the App Store screenshot subject ships visually broken until this fix lands.
+1. **F04 — EmptyStateView centers in the full pane.** `EmptyStateView.swift:23` had `.frame(maxWidth: .infinity, maxHeight: .infinity)` competing with the parent `ContentView`'s `Spacer()` — they split 50/50 and the empty state landed in the upper half. The original short-spec fix (drop `maxHeight: .infinity`) regressed to "intrinsic height at the top of the pane" per Codex review 2026-05-24. **Actual fix:** restructure ContentView — drop the `Spacer()` between `bannerView` and `controlsSection`, apply `.frame(maxHeight: .infinity)` to `primaryStateView` so it claims the full pane height above intrinsic-height controls. EmptyStateView keeps `maxHeight: .infinity`; its VStack's default center alignment vertically centers content in the expanded frame. Result-view's `.frame(...alignment: .topTrailing)` gains `maxHeight: .infinity` so the BPM hero anchors top-right of the now-larger slot instead of centering vertically.
 
-2. **F07 — Neutral gradient Dark Mode break** (Story 5-6 AC #6/#7 violation). `StrategyBackground.swift:66` uses `Color(white: 0.95)` / `Color(white: 0.88)` static colors for the `.none` case. Every other strategy case uses dynamic semantic anchors (`.blue`, `.teal`, etc.). In Dark Mode the neutral case paints a near-white wash. AC #6 demands 4.5:1 metadata contrast in both Light and Dark mode; AC #7 demands solid-fill substitution when `colorSchemeContrast == .increased` (current `Color.<tint>.opacity(0.15)` is not actually solid). Apple-docs MCP correction (Story 5-6 v3): the original v1 fix proposal used `Color(NSColor.windowBackgroundColor)` which is the WRONG initializer spelling — it resolves to the asset-catalog overload `Color(_ name: String, bundle:)` and silently returns a placeholder. Use the labeled `Color(nsColor: .windowBackgroundColor)` form. Also: same color for both LinearGradient anchors = flat fill, not a gradient. Pair `.windowBackgroundColor` with `.underPageBackgroundColor` for a visible-but-subtle neutral gradient.
+2. **F07 — Neutral gradient adapts to Dark Mode.** `StrategyBackground.swift:66` uses `Color(white: 0.95)` / `Color(white: 0.88)` for the `.none` (pre-analysis) case — paints a near-white wash in Dark Mode. Swap to `Color(nsColor: .windowBackgroundColor)` and `Color(nsColor: .underPageBackgroundColor)`. **Argument label `nsColor:` is required** — bare `Color(NSColor.foo)` resolves to the asset-catalog overload `Color(_ name:bundle:)` and silently returns a placeholder.
 
-3. **F11 — Drop target safe-area mismatch.** `ContentView.swift:55` applies `.contentShape(Rectangle())` + `.dropDestination(for: URL.self)` to the outer ZStack which has no `.ignoresSafeArea()`. The child `StrategyBackground` DOES have `.ignoresSafeArea()`, so the gradient paints behind the title-bar safe area but drops on that strip silently fall through to the window chrome. Two fix options: (a) move `.ignoresSafeArea()` to the outer ZStack so visual + hit-test extents agree, or (b) stop the gradient at the safe area so the visual cue doesn't lie. Decide based on visual verification.
+3. **F11 — Drop-target safe-area mismatch.** `StrategyBackground` painted with `.ignoresSafeArea()` (`ContentView.swift:45`) but the `.dropDestination` on the outer ZStack (`ContentView.swift:63`) did NOT. The original short-spec fix (option a — add `.ignoresSafeArea()` to outer ZStack) regressed per Codex review 2026-05-24: `.ignoresSafeArea()` on the ZStack propagated to the content VStack and pushed the result-view BPM hero under the title bar. **Actual fix:** option b — remove `.ignoresSafeArea()` from `StrategyBackground` so both the gradient and the drop hit-region stop at the safe area, naturally agreeing at the same boundary. Drops on the title-bar strip won't register, but they also no longer appear visually drop-able.
 
-4. **F12 — Toolbar Diagnostics Button missing VoiceOver toggle-state announcement.** `ContentView.swift:87` Button has no `.accessibilityValue`. VoiceOver always announces "Diagnostics, button" regardless of whether the inspector is currently shown or hidden. AT users cannot determine state without invoking the button. Fix per Apple-docs MCP: `.accessibilityValue(Text(inspectorPresented ? "Shown" : "Hidden"))` — wrap in `Text(...)` because the currently-indexed Apple doc surface for `.accessibilityValue(_:)` only documents the `Text` overload (the `String` overload exists in the SDK and compiles, but `Text` matches the documented form for forward-compat).
+4. **F12 — Toolbar Diagnostics button announces state.** `ContentView.swift:88-96` Button has no `.accessibilityValue`. VoiceOver says "Diagnostics, button" with no toggle state. Add `.accessibilityValue(Text(inspectorPresented ? "Shown" : "Hidden"))`.
 
-5. **F13 — EmptyStateView caption contrast** (Story 5-6 KDD #5 violation). `EmptyStateView.swift:21` uses `.foregroundStyle(.tertiary)` for the supported-format caption. Story 5-6 KDD #5 explicitly specs `.secondary` — `.tertiary` is lower contrast and may drop below WCAG AA 4.5:1 floor on the (post-F07-fix) neutral background in Dark Mode. One-character fix.
+5. **F13 — EmptyStateView caption contrast.** `EmptyStateView.swift:21` `.foregroundStyle(.tertiary)` may drop below WCAG AA 4.5:1 in Dark Mode against the post-F07 neutral background. Change to `.secondary`.
 
-6. **F14 — EmptyStateView VoiceOver element grouping.** `EmptyStateView.swift:12` outer VStack has no `.accessibilityElement(children: .combine)` and no `.accessibilityHint`. VoiceOver announces "Drop a track" + "Supported: WAV, AIFF, MP3, FLAC, M4A, CAF" as two separate elements, with no explanation of the drag-from-Finder or File→Open affordance. Fix per Apple-docs MCP: `.accessibilityElement(children: .combine)` to merge into one announcement, plus `.accessibilityHint("Drag an audio file here to analyze")`. "Drag" verb (not "Drop") matches macOS HIG + AppKit drop-target VoiceOver vocabulary (Finder, Mail attachments, etc.).
-
-**What this story does NOT deliver** (explicitly OUT-OF-SCOPE):
-
-- **No F10 (DEAD_CODE_STRIPPING removal).** F10 was promoted from this story's original scope to Story 5-6 Bucket 1 per Codex v3 review (preserving then reverting was pointless churn). Already closed in Story 5-6 Phase 2.
-- **No new toolbar buttons or new view-model surface.** The VoiceOver fix (F12) reads existing `inspectorPresented` state; the EmptyStateView fixes (F04, F13, F14) are layout/style/accessibility-modifier additions to an existing view.
-- **No new strategy gradient artwork or palette tuning.** F07 swaps the `.none` case to dynamic colors; the other 8 strategy cases remain as Story 5-6 shipped them.
-- **No library Sources/Tests changes.** Demo/-only, matching Story 5-6's invariant.
-- **No App Store submission prep.** Privacy manifest, app icon, archive target — all Story 5-7.
-- **No new keyboard shortcuts, no new menu items, no new commands.** The existing toolbar Diagnostics button + ⌘⇧D + system View → Show Inspector + ⌃⌘I coverage from Story 5-6 is preserved verbatim.
-
-## Key Design Decisions
-
-1. **F04 fix is a single-line subtraction, not a layout restructure.** Drop `.frame(maxHeight: .infinity)` from EmptyStateView's outer VStack; the parent `Spacer()` in `ContentView.swift:44-48` will own vertical extent and naturally center EmptyStateView in the available pane. `maxWidth: .infinity` stays — horizontal centering is still desired. No changes to ContentView. Verified mechanism: SwiftUI gives Spacer all remaining vertical space when its sibling is intrinsic-height; EmptyStateView's intrinsic height (96pt symbol + 24pt + largeTitle + 24pt + callout ≈ 220pt) becomes the natural size.
-
-2. **F07 fix uses `Color(nsColor: .windowBackgroundColor)` paired with `Color(nsColor: .underPageBackgroundColor)`.** Apple-docs MCP validated (Story 5-6 sprint-change-proposal v3): the labeled `nsColor:` initializer (macOS 12+) is the correct bridge from AppKit dynamic colors to SwiftUI Color. The bare `Color(NSColor.windowBackgroundColor)` form resolves to `Color(_ name: String, bundle:)` and silently falls back to a placeholder. The two-color pairing produces a visible-but-subtle gradient that adapts to Light/Dark mode and increased-contrast settings. Same color for both anchors would render as a flat fill. SwiftUI does not ship `Color.systemBackground` on macOS (UIKit-only); the AppKit bridge IS the right answer.
-
-3. **F11 fix decision deferred to visual verification.** Two valid approaches: (a) move `.ignoresSafeArea()` from the StrategyBackground child to the outer ZStack so drops on the title-bar gradient strip register; (b) remove `.ignoresSafeArea()` from StrategyBackground so the gradient stops at the safe area and matches the actual drop hit-region. Visual judgment call — gradient-behind-titlebar may be a feature (more immersive) or a bug (visual cue lies about drop target). Dev agent picks during implementation based on which reads better in screenshots.
-
-4. **F12 fix uses `.accessibilityValue(Text(...))` not `.accessibilityValue(_:String)`.** Apple-docs MCP (Story 5-6 v3): current Apple-indexed doc surface for `.accessibilityValue(_:)` only documents the `Text` overload. The `String`/`LocalizedStringResource` overload exists in the SDK and compiles today (mirrors `accessibilityLabel` / `accessibilityHint`), but wrapping in `Text(...)` matches the documented form for forward-compat. Identical at runtime; doc-canonical at compile-site.
-
-5. **F14 hint text uses "Drag" verb, not "Drop".** Apple-docs MCP (Story 5-6 v3): macOS HIG and AppKit drop-target VoiceOver vocabulary (Finder, Mail attachments) consistently use "Drag" as the gesture verb. "Drop" is the consequence. The hint reads: `"Drag an audio file here to analyze"`. Story 5-6 EmptyStateView headline ("Drop a track") was not changed because the headline is shorter user-facing copy, not a hint; the hint announces the gesture.
-
-6. **No new tests for any of the 6 fixes.** All 6 are layout / styling / accessibility-modifier additions. Story 5-6's existing 78 demo test invocations exercise the view-model contract, not view binding. SwiftUI snapshot testing is out of scope (no snapshot harness in the project). Dev agent verifies manually by running the app, dropping `bpm-120-click.wav`, and walking through VoiceOver + Larger Text + Dark Mode + Increased Contrast accessibility settings per the visual verification AC below.
+6. **F14 — EmptyStateView VoiceOver grouping.** `EmptyStateView.swift:12` outer VStack has no `.accessibilityElement(children: .combine)` and no hint — VoiceOver reads it as multiple separate elements with no drag affordance. Add `.accessibilityElement(children: .combine)` + `.accessibilityHint("Drag an audio file here to analyze")`.
 
 ## Acceptance Criteria
 
-1. **F04 fix landed.** `EmptyStateView.swift:23` `.frame(maxWidth: .infinity, maxHeight: .infinity)` → `.frame(maxWidth: .infinity)`. Visual verification: drop no file; the EmptyStateView (96pt music.note.list + "Drop a track" largeTitle + caption) renders vertically centered in the main pane area (not jammed to the top half). Controls remain anchored at the bottom via the parent VStack's `Spacer()`. AC #12 of Story 5-6 is now satisfied.
+1. The six edits above are applied verbatim (or, for F11, the documented alternative).
+2. `make demo-fmt demo-lint demo-build demo-test pre-commit` all green.
+3. `git diff --stat Sources/` and `git diff --stat Tests/` both empty (Demo-only).
+4. Manual visual verification (operator, defer per Story 5-1+ precedent):
+    - Empty state vertically centered
+    - Pre-analysis gradient looks fine in Light and Dark mode
+    - Drop hit-region matches the gradient extent
+    - VoiceOver toolbar Diagnostics announces "Shown" / "Hidden"
+    - VoiceOver empty state reads as one element with the drag hint
+    - Dark Mode caption is readable (`.secondary` not `.tertiary`)
 
-2. **F07 fix landed.** `StrategyBackground.swift:66-67` `Color(white: 0.95)` / `Color(white: 0.88)` → `Color(nsColor: .windowBackgroundColor)` and `Color(nsColor: .underPageBackgroundColor)` respectively. The `nsColor:` argument label is REQUIRED — bare `Color(NSColor.windowBackgroundColor)` would silently resolve to the asset-catalog overload. The two-color pairing produces a visible neutral gradient that adapts to Light/Dark mode. AC #6/#7 of Story 5-6 are now satisfied.
+## Files Touched
 
-3. **F11 fix landed.** Either `.ignoresSafeArea()` is added to the outer ZStack in `ContentView.swift:55` so drop-target hit-region matches the gradient extent, OR `.ignoresSafeArea()` is removed from `StrategyBackground` so the gradient stops at the safe area. Decision recorded in Completion Notes with rationale (which option reads better in screenshots).
+- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/EmptyStateView.swift` (F04, F13, F14)
+- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/StrategyBackground.swift` (F07)
+- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/ContentView.swift` (F11, F12)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (status transitions)
 
-4. **F12 fix landed.** Diagnostics toolbar Button gains `.accessibilityValue(Text(inspectorPresented ? "Shown" : "Hidden"))`. VoiceOver announces "Diagnostics, button, Shown" or "Diagnostics, button, Hidden" depending on current state.
+## Apple Platform Notes (just the two non-obvious ones)
 
-5. **F13 fix landed.** `EmptyStateView.swift:21` `.foregroundStyle(.tertiary)` → `.foregroundStyle(.secondary)`. KDD #5 of Story 5-6 is now satisfied. Caption contrast clears WCAG AA 4.5:1 floor in both Light and Dark mode against the post-F07-fix neutral background.
-
-6. **F14 fix landed.** `EmptyStateView.swift:12` outer VStack gains `.accessibilityElement(children: .combine)` + `.accessibilityHint("Drag an audio file here to analyze")`. VoiceOver announces the empty state as one combined element with a drop-affordance hint (announced after 2s focus pause per macOS VoiceOver default).
-
-7. **`make demo-fmt demo-lint demo-build demo-test pre-commit` all green.** Test invocation count unchanged from Story 5-6 Phase 4 baseline (no new tests added).
-
-8. **Library gating gauntlet remains green.** `make build`, `make build-release`, `make test`, `make benchmark`, `make benchmark-giantsteps` — outcomes unchanged from Story 5-6 close-out baseline (OA300 Acc1=58/82+74/82, GiantSteps 537/661+546/661, library test count 431/94).
-
-9. **Diff scope is `Demo/**` only.** `git diff --stat Sources/` empty; `git diff --stat Tests/` empty. Within `Demo/`, only `ContentView.swift` (F11 + F12), `StrategyBackground.swift` (F07), and `EmptyStateView.swift` (F04 + F13 + F14) are edited. No pbxproj edits.
-
-10. **Visual verification at 1280×800 and 2560×1600 window sizes** per Story 5-6 KDD #10 screenshot-stability discipline. Run the app, drop `bpm-120-click.wav`, walk through:
-    - (a) Empty state renders centered, not upper-half (F04)
-    - (b) Drop a file — gradient cross-fade works; the strategy gradient now renders correctly on next drop in BOTH Light and Dark mode (F07 — neutral pre-analysis gradient adapts to appearance)
-    - (c) Try to drop onto the title-bar gradient strip — drop registers (F11 option a) OR the gradient stops at the safe area (F11 option b); record which option was chosen
-    - (d) VoiceOver enabled — focus the toolbar Diagnostics button, hear "Diagnostics, button, Shown" or "Hidden" matching current inspector state (F12)
-    - (e) VoiceOver enabled — focus the empty-state pane, hear one combined element with hint "Drag an audio file here to analyze" (F14)
-    - (f) Switch to Dark Mode + sample EmptyStateView caption contrast via Digital Color Meter against the F07-fixed neutral background — must clear 4.5:1 (F13)
-
-11. **Story 5-6 §Review Findings table updated.** F04, F07, F11, F12, F13, F14 rows flip from `deferred` / `deferred (accepted AC violation)` → `fixed (Story 5-6b)` with commit SHA from this story. The corresponding `_bmad-output/implementation-artifacts/deferred-work.md` entries W34, W36, W39-W42 flip to CLOSED inline annotations matching the project's existing ledger pattern.
-
-## Tasks / Subtasks
-
-- [ ] **Task 1 — F04 EmptyStateView layout fix** (AC #1).
-  - [ ] 1.1 Edit `EmptyStateView.swift:23`: drop `maxHeight: .infinity`.
-  - [ ] 1.2 Visual verify: empty state vertically centered, controls at bottom.
-
-- [ ] **Task 2 — F07 StrategyBackground Dark Mode fix** (AC #2).
-  - [ ] 2.1 Edit `StrategyBackground.swift:66-67`: `Color(white: 0.95)` → `Color(nsColor: .windowBackgroundColor)`; `Color(white: 0.88)` → `Color(nsColor: .underPageBackgroundColor)`.
-  - [ ] 2.2 Visual verify in Light AND Dark mode: neutral gradient adapts; metadata clears 4.5:1.
-  - [ ] 2.3 Verify NO compile error from initializer-overload ambiguity (the `nsColor:` argument label is required).
-
-- [ ] **Task 3 — F11 drop-target safe-area decision + fix** (AC #3).
-  - [ ] 3.1 Decide option (a) move `.ignoresSafeArea()` to ZStack OR option (b) remove from StrategyBackground.
-  - [ ] 3.2 Implement chosen option.
-  - [ ] 3.3 Record rationale in Completion Notes.
-
-- [ ] **Task 4 — F12 toolbar VoiceOver toggle state** (AC #4).
-  - [ ] 4.1 Add `.accessibilityValue(Text(inspectorPresented ? "Shown" : "Hidden"))` to Diagnostics Button at `ContentView.swift:87`.
-  - [ ] 4.2 Visual verify with VoiceOver enabled.
-
-- [ ] **Task 5 — F13 EmptyStateView caption contrast fix** (AC #5).
-  - [ ] 5.1 Edit `EmptyStateView.swift:21`: `.tertiary` → `.secondary`.
-  - [ ] 5.2 Digital Color Meter spot-check in Dark Mode against F07-fixed neutral background.
-
-- [ ] **Task 6 — F14 EmptyStateView accessibility-element combine + hint** (AC #6).
-  - [ ] 6.1 Add `.accessibilityElement(children: .combine)` to outer VStack at `EmptyStateView.swift:12`.
-  - [ ] 6.2 Add `.accessibilityHint("Drag an audio file here to analyze")` to same VStack.
-  - [ ] 6.3 Visual verify with VoiceOver enabled.
-
-- [ ] **Task 7 — Gating gauntlet + spec close-out** (AC #7, #8, #9, #10).
-  - [ ] 7.1 `make demo-fmt`, `make demo-lint`, `make demo-build`, `make demo-test`, `make pre-commit` — all green.
-  - [ ] 7.2 `make build`, `make build-release`, `make test`, `make benchmark`, `make benchmark-giantsteps` — outcomes match Story 5-6 close-out.
-  - [ ] 7.3 `git diff --stat Sources/` empty; `git diff --stat Tests/` empty.
-  - [ ] 7.4 AC #10 visual verification (a-f) at 1280×800 and 2560×1600 — defer to user per Story 5-1+ precedent.
-
-- [ ] **Task 8 — Update Story 5-6 §Review Findings + deferred-work.md** (AC #11).
-  - [ ] 8.1 Story 5-6 §Review Findings table: flip F04/F07/F11/F12/F13/F14 rows from `deferred` → `fixed (Story 5-6b)` with commit SHA.
-  - [ ] 8.2 `deferred-work.md` entries W34/W36/W39-W42: append CLOSED annotation inline per existing ledger pattern.
-  - [ ] 8.3 Update sprint-status.yaml: `5-6b-a11y-polish: backlog → in-progress → review → done`.
-  - [ ] 8.4 IF all of Story 5-6's 15 F-IDs now at terminal state: flip 5-6 status `review → done`.
-
-- [ ] **Task 9 — Final commit on 1Password GPG signer** per Story 5-1+ precedent.
-  - [ ] 9.1 Suggested message: `Story 5-6b: accessibility + layout polish — close F04/F07/F11/F12/F13/F14 from Story 5-6 review`.
-
-## Apple Platform Notes
-
-- **`Color(nsColor:)` initializer is available macOS 12+.** The labeled-argument form is REQUIRED; bare `Color(NSColor.foo)` resolves to `Color(_ name: String, bundle:)` (asset-catalog overload) and silently returns a placeholder. Apple ref: https://developer.apple.com/documentation/swiftui/color/init(nscolor:).
-- **`NSColor.windowBackgroundColor` + `NSColor.underPageBackgroundColor` are dynamic colors** that adapt to Light/Dark mode and Increased Contrast settings. SwiftUI does not ship a `Color.systemBackground` on macOS (UIKit-only) — the AppKit bridge IS the canonical approach. Apple ref: https://developer.apple.com/documentation/appkit/nscolor/windowbackgroundcolor.
-- **`.accessibilityValue(_:)`** currently indexed Apple doc surface documents only the `Text` overload (macOS 11+). The `String` overload exists in the SDK and compiles, but wrap in `Text(...)` for forward-compat alignment with the documented form. Apple ref: https://developer.apple.com/documentation/swiftui/view/accessibilityvalue(_:).
-- **`.accessibilityElement(children: .combine)`** merges child accessibility elements into one announcement (macOS 10.15+). `AccessibilityChildBehavior` is a struct with static-let properties `.ignore` / `.combine` / `.contain`. Apple's own doc example for `.combine` is literally a VStack of Image + Text + Button — matches EmptyStateView exactly. Apple ref: https://developer.apple.com/documentation/swiftui/accessibilitychildbehavior/combine.
-- **`.accessibilityHint(_:)`** (macOS 13+) announces after a 2s focus pause on macOS as on iOS. macOS HIG + AppKit drop-target VoiceOver vocabulary uses "Drag" as the gesture verb. Apple ref: https://developer.apple.com/documentation/swiftui/view/accessibilityhint(_:).
-
-## Risks
-
-- **R1 — `nsColor:` argument-label mistake.** The single biggest implementation risk per Apple-docs MCP (Story 5-6 v3 finding). If the dev agent writes `Color(NSColor.windowBackgroundColor)` without the `nsColor:` label, the result silently resolves to the asset-catalog overload and renders a placeholder color (typically magenta or transparent depending on debug build) — F07 fix appears to land but doesn't. Mitigation: explicit AC #2 test step verifies "NO compile error from initializer-overload ambiguity" by reading the implementation back during code review and confirming both anchors use the labeled form.
-
-- **R2 — F11 visual judgment.** The two safe-area options (gradient extends behind title bar with drop hit-region matching, vs gradient stops at safe area) are both defensible. Wrong choice ages poorly. Mitigation: dev agent screenshots both options before deciding, records rationale in Completion Notes.
-
-- **R3 — EmptyStateView reflow after `maxHeight: .infinity` removal.** Dropping the height constraint may cause subtle vertical position drift between EmptyStateView and DisplayState transitions (e.g., empty → analyzing → result). Mitigation: visual verification per AC #10(a) catches this; if observed, restore some explicit vertical-centering modifier on the parent VStack rather than re-introducing the conflict.
-
-## References
-
-### Previous Story Intelligence (PSI)
-
-1. **Story 5-6 (end-user UI redesign + collapsible trace inspector, 2026-05-23)** — the story that introduced EmptyStateView, StrategyBackground, the toolbar Diagnostics button, and the @SceneStorage default flip. Story 5-6's §Review Findings table is the source of the 6 F-IDs this story closes. Read Story 5-6 spec end-to-end before starting Story 5-6b.
-
-2. **Sprint Change Proposal v3** (`_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-23.md`) — the bridge document that triaged Story 5-6's code-review findings into Bucket 1 (fix in 5-6), Bucket 2 (defer to 5-7), and Bucket 3 (this story). Codex thread `019e5619-aa1b-7cc3-84e7-6579dd614712`. Apple-docs MCP validation is embedded in §4.3 / §4.4 (W36, W40, W42 entries).
-
-3. **Deferred-work ledger** (`_bmad-output/implementation-artifacts/deferred-work.md`) — W34 (F04), W36 (F07), W39 (F11), W40 (F12), W41 (F13), W42 (F14). Each entry has the fix sketch + Apple-docs MCP corrections folded in.
-
-4. **Story 5-3 (Parameter controls + Copy Config, 2026-05-20)** — establishes the `humanize(_:)` helper precedent that Story 5-6 F06 leveraged for the Picker fix; not directly used by this story but cited in case future a11y polish needs more user-facing string normalization.
-
-## Diff-scope Expectations
-
-**Files touched:**
-
-- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/EmptyStateView.swift` — F04, F13, F14 (~5 line net delta).
-- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/StrategyBackground.swift` — F07 (~2 line net delta).
-- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/ContentView.swift` — F11, F12 (~3 line net delta depending on F11 option chosen).
-- `_bmad-output/implementation-artifacts/5-6-end-user-ui-redesign.md` — §Review Findings table SHA fill.
-- `_bmad-output/implementation-artifacts/deferred-work.md` — W34/W36/W39-W42 CLOSED annotations.
-- `_bmad-output/implementation-artifacts/sprint-status.yaml` — status transitions.
-- `_bmad-output/implementation-artifacts/5-6b-a11y-polish.md` — this file (Dev Agent Record populated at close-out).
-
-**Files NOT touched:**
-
-- `Sources/**` — zero library changes.
-- `Tests/**` — zero library test changes.
-- `Demo/.../AnalysisViewModel.swift` — view-model surface unchanged.
-- `Demo/.../TraceView.swift` / `TraceExport.swift` — Story 5-4 territory.
-- `Demo/.../BoomBoomBoomKitDemoApp.swift` — `InspectorCommands()` wire preserved.
-- `Demo/.../project.pbxproj` — no build-setting changes (F10 was promoted to Story 5-6, not this story).
-- `Package.swift`, `Makefile`, `.swiftlint.yml`, `.gitignore` — no changes.
+- `Color(nsColor:)` — labeled `nsColor:` is required. The bare form silently resolves to the asset-catalog overload.
+- `NSColor.windowBackgroundColor` + `NSColor.underPageBackgroundColor` are dynamic colors (Light/Dark + Increased Contrast aware). SwiftUI has no `Color.systemBackground` on macOS — the AppKit bridge is the canonical answer.
 
 ## Dev Agent Record
 
 ### Implementation Plan
 
-(filled by dev agent)
+Six fixes to three Demo files in two passes:
+- **Pass 1**: applied the short-spec edits verbatim. `make demo-build` + `make demo-test` green.
+- **Pass 2 (Codex `/codex:diff-review` thread `019e5c10`)**: Codex flagged F04 and F11 as merge-blockers. F04's "drop `maxHeight: .infinity`" regressed EmptyStateView to "intrinsic height at the top of the pane" (parent `Spacer()` between bannerView and controlsSection doesn't center the upper view, just pushes controls down). F11's `.ignoresSafeArea()` on the outer ZStack propagated to the content VStack and threatened to push the result BPM hero under the title bar. Restructured: drop the parent `Spacer()` + give `primaryStateView` `.frame(maxHeight: .infinity)`; switch F11 to option b (remove `.ignoresSafeArea()` from `StrategyBackground` so visual and hit-region agree at the safe area). Pass-3 Codex follow-up caught that `resultView`'s `.frame(...alignment: .topTrailing)` only constrained width — added `maxHeight: .infinity` so the BPM hero anchors top-right of the new full-height slot instead of centering vertically. Three Codex rounds total, no remaining merge-blockers.
 
 ### Completion Notes
 
-(filled by dev agent)
+- **F04** — `EmptyStateView.swift:23` kept `.frame(maxWidth: .infinity, maxHeight: .infinity)` (its VStack default center alignment centers content inside the frame). `ContentView.swift` dropped the `Spacer()` between bannerView and controlsSection; `primaryStateView` now claims `.frame(maxWidth: .infinity, maxHeight: .infinity)` so controls anchor at the bottom by virtue of being the last intrinsic child after a flexible-height primary slot.
+- **F07** — `StrategyBackground.swift:66-67` swap landed with the **labeled `nsColor:`** initializer per AC #2 / R1 (verified by `BUILD SUCCEEDED` — bare-form ambiguity would have failed at compile-time). Codex confirmed the API names are correct and `underPageBackgroundColor` is a distinct semantic anchor from `windowBackgroundColor`, so the LinearGradient is not mathematically flat.
+- **F11** — option b: `.ignoresSafeArea()` removed from `StrategyBackground`. Gradient and drop hit-region naturally agree at the safe-area boundary. Drops on the title-bar strip won't register, but they also no longer appear visually drop-able. Codex flagged the original option-a attempt as risky (content under title bar) and endorsed option b as the safer macOS HIG default.
+- **F12** — `ContentView.swift` Diagnostics toolbar button gained `.accessibilityValue(Text(inspectorPresented ? "Shown" : "Hidden"))`. Codex confirmed `.accessibilityValue` is valid on any View; semantically a `Toggle(...).toggleStyle(.button)` would be stronger but is out of scope.
+- **F13** — `EmptyStateView.swift:21` `.foregroundStyle(.tertiary)` → `.foregroundStyle(.secondary)`. WCAG AA 4.5:1 caption-contrast floor honored.
+- **F14** — `EmptyStateView.swift:12` outer VStack gained `.accessibilityElement(children: .combine)` + `.accessibilityHint("Drag an audio file here to analyze")`. Codex confirmed `.accessibilityHidden(true)` on the decorative SF Symbol remains suppressed under `.combine` per Apple's `AccessibilityChildBehavior.combine` doc.
+- **Bonus follow-up** — `resultView` frame gained `maxHeight: .infinity` so the BPM hero anchors top-right of the new full-height primary slot (Codex caught this in pass 3; the original width-only frame would have centered the intrinsic-height result content vertically in the enlarged slot).
 
-### Debug Log
+**Gating gauntlet (all green after pass 3):**
+- `make demo-fmt` — clean
+- `make demo-lint` — exit 0
+- `make demo-build` — `** BUILD SUCCEEDED **`
+- `make demo-test` — `** TEST SUCCEEDED **`
+- `make pre-commit` — 1 violation (canonical `LUFSAnalyzer.swift:94 TODO` baseline preserved across Stories 5-1 through 5-7), 0 serious
+- `make build` — 0.12s, unchanged
+- `make test` — 431/94 in 1.573s, unchanged from Story 5-4/5-7 baseline
+- `git diff --stat Sources/ Tests/` — empty (AC #3 satisfied)
 
-(filled by dev agent)
+**Pending operator action:** AC #4 manual visual verification at 1280×800 and 2560×1600. Codex flagged these as the must-checks: (a) empty-state centering, (b) titlebar/gradient boundary appearance, (c) drop target extent matches visual cue, (d) VoiceOver phrasing for Diagnostics button toggle, (e) combined empty-state announcement reads correctly. Deferred per Story 5-1+ precedent — operator-owned GUI smoke test.
 
 ### File List
 
-(filled by dev agent)
+- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/EmptyStateView.swift` — F04 + F13 + F14
+- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/StrategyBackground.swift` — F07
+- `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/ContentView.swift` — F11 + F12
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` — status transitions
+- `_bmad-output/implementation-artifacts/5-6b-a11y-polish.md` — this file (Dev Agent Record)
 
 ### Change Log
 
-- 2026-05-23 — Story 5-6b spec created via `/bmad-correct-course` Phase 1 (Paige) following Story 5-6 code-review reconciliation per Sprint Change Proposal v3. Status: backlog. Scope: 6 fixes (F04, F07, F11, F12, F13, F14) — three accepted AC violations from Story 5-6 close-out (F04→AC #12, F07→AC #6/#7, F13→KDD #5) plus three narrow defects (F11, F12, F14). Apple-docs MCP validation embedded in KDD #2/#4/#5 + AC #2/#4/#6. F10 (DEAD_CODE_STRIPPING) NOT in scope — promoted to Story 5-6 Bucket 1 per Codex v3 review.
+- 2026-05-23 — Spec created via `/bmad-correct-course` after Story 5-6 code-review reconciliation.
+- 2026-05-24 — Rewritten short per operator brief ("simple demo, does not need to be complicated"). Same six fixes, ceremony stripped. Status flipped backlog → ready-for-dev.
+- 2026-05-24 — `/bmad-dev-story` initial implementation: 6 fixes applied per short spec. Gauntlet green, library benchmarks unchanged. F11 initially chose option a (`.ignoresSafeArea()` on outer ZStack).
+- 2026-05-24 — `/codex:diff-review` thread `019e5c10` flagged F04 and F11 as merge-blockers. Pass 2: restructured ContentView (dropped parent Spacer, gave `primaryStateView` `.frame(maxHeight: .infinity)`); F11 switched to option b (removed `.ignoresSafeArea()` from `StrategyBackground`). Pass 3: Codex caught result-view top-right anchoring regression caused by pass 2 — added `maxHeight: .infinity` to result frame so the BPM hero anchors top-right of the new full-height primary slot. Codex round-4 confirmed no remaining merge-blockers. Status: review.
+
+### Review Findings
+
+Triage of `/bmad-code-review` 2026-05-24 (Blind Hunter + Edge Case Hunter + Acceptance Auditor; Auditor returned PASS on all six F-IDs and AC #3 empty). 1 decision-needed, 0 patches, 5 deferred, ~10 dismissed as noise (verified false positives or covered by AC #4 operator visual verification).
+
+- [x] [Review][Decision] **F11 trade-off in 8 saturated strategy modes** — removing `.ignoresSafeArea()` from `StrategyBackground` collapses the ZStack to safe-area-respecting bounds. AC #4 visual-verification list covers only `.none` (pre-analysis) gradient. Post-analysis the gradient uses saturated colors (`.maxConfidence`=blue/indigo, `.windowVoting`=orange/pink, etc., per `StrategyBackground.swift:47-61`) and will now show a visible color boundary at the title-bar edge that the pre-F11 `.ignoresSafeArea()` version hid. **Resolved 2026-05-24 by operator: accept the seam, no AC change.** It is the deliberate cost of fixing the BPM-hero-under-title-bar bug; AC #4 stays scoped to `.none`.
+- [x] [Review][Defer] **F12 idiomatic toggle trait alternative** [`ContentView.swift:112`] — deferred, polish-only. `Button { ... }.accessibilityValue(Text("Shown"/"Hidden"))` is spec-authorized per Apple-docs MCP. A more idiomatic VoiceOver announcement would come from `.accessibilityAddTraits(.isToggle)` (gives native "on/off" phrasing) or migrating the control to `Toggle { ... }.toggleStyle(.button)`. Both are out of scope for 5-6b; the current form is correct and announces state.
+- [x] [Review][Defer] **F12 verbose VoiceOver phrasing** [`ContentView.swift:106-112`] — deferred, spec-compliant. `.help("Show / hide diagnostics (⌘⇧D)")` on macOS sets both tooltip AND VoiceOver hint; `.accessibilityValue(...)` adds value. Combined announcement is approximately "Diagnostics, Shown, button. Show / hide diagnostics, command shift D." Verbose but informative; tightening would mean trading off the keyboard-shortcut tooltip discoverability. Polish for a future pass.
+- [x] [Review][Defer] **F07 inaccurate technical claim in code comment** [`StrategyBackground.swift:65-68`] — deferred, comment-only. Comment asserts "bare `Color(NSColor.foo)` resolves to the asset-catalog overload `Color(_ name:bundle:)` and silently returns a placeholder." On macOS the bare form resolves to the unlabeled `Color.init(_ color: NSColor)`, not the `(_ name: String, bundle:)` asset overload — the "silent placeholder" warning is iOS-flavored lore that doesn't quite apply on macOS. The chosen `nsColor:`-labeled API is still correct and preferred per Apple docs; only the rationale text is off. Fix in a future comment-cleanup pass.
+- [x] [Review][Defer] **Pre-existing: `resultView` `secondaryMetadataRow` has no `.lineLimit`** [`ContentView.swift:372-376`] — deferred, not caused by 5-6b. With the new full-height `.topTrailing` anchoring, a sufficiently long `row.fileName` would wrap onto multiple lines and push the BPM hero downward. The risk pre-dates 5-6b (the rows have always been unbounded) and grows slightly with the new anchoring; a single-line truncation (`.lineLimit(1).truncationMode(.middle)`) would harden this but belongs in a 5-x polish story.
+- [x] [Review][Defer] **F14 VoiceOver drop-action dead-zone** [`EmptyStateView.swift:24-25`] — deferred, pre-existing demo limitation. The `.accessibilityHint("Drag an audio file here to analyze")` promises an interaction that VoiceOver-only users cannot perform (macOS VoiceOver has no drag-and-drop gesture). A ⌘O / File → Open menu equivalent would be the standard alternative; not in scope for 5-6b.
+
+**Dismissed as noise (not surfaced individually):**
+- SF Symbol leak via `.combine` — verified `.accessibilityHidden(true)` at `EmptyStateView.swift:16`. False positive.
+- Gradient mathematically flat after F07 — `gradientFill` applies asymmetric opacity (`0.18` vs `0.32`); two distinct NSColors. Visible gradient regardless.
+- Multiple `.frame(maxHeight: .infinity)` "competing" in the VStack — SwiftUI gives flexible children leftover space after intrinsic-height children; layout is well-defined.
+- Drop hit-region / overlay-stroke seam — both follow the ZStack's bounds, which now naturally agree with the gradient at the safe-area boundary. F11 fix is structurally correct.
+- Hardcoded English "Shown"/"Hidden" not localized — demo is not localized; consistent with the rest of the demo target.
+- WCAG measurement for `.secondary` over post-F07 gradient — covered by AC #4 ("Dark Mode caption is readable").
+- `.analyzing` / `.errorOnly` implicit centering in the now-greedy primary slot — verified intrinsic-height content; centers naturally; covered by AC #4 operator verification.
+- Small-window `controlsSection` clipping — SwiftUI prioritizes intrinsic-height children; `primaryStateView` shrinks first, controls keep intrinsic height.
+- Hint redundancy with combined label — "Drag" (action) is meaningfully distinct from "Drop" (outcome) in the combined label.

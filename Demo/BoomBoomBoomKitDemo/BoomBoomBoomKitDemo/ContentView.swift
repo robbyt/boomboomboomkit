@@ -41,17 +41,28 @@ struct ContentView: View {
       // result-block-scoped `.background()` would collapse to zero
       // size in `.empty` / `.analyzing` / `.errorOnly` — that's the
       // anti-pattern this design rejects.
+      // F11 (Story 5-6b, option b after Codex review): the gradient
+      // stops at the safe area so visual extent and `.dropDestination`
+      // hit-region agree at the same boundary. The earlier attempt
+      // (`.ignoresSafeArea()` on the outer ZStack) propagated to the
+      // content VStack and pushed the result-view BPM hero under the
+      // title bar.
       StrategyBackground(strategy: backgroundStrategy)
-        .ignoresSafeArea()
         .animation(
           reduceMotion ? nil : .easeInOut(duration: 0.25),
           value: backgroundStrategy
         )
 
+      // F04 (Story 5-6b): `primaryStateView` claims the full pane height
+      // so EmptyStateView (with `.frame(maxHeight: .infinity)` and a
+      // VStack-default center alignment) centers vertically in the area
+      // above controls. The earlier `Spacer()` between bannerView and
+      // controlsSection split the space 50/50 with EmptyStateView and
+      // landed the empty state in the upper half.
       VStack(spacing: 16) {
         primaryStateView
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
         bannerView
-        Spacer()
         controlsSection
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,6 +104,12 @@ struct ContentView: View {
         }
         .keyboardShortcut("d", modifiers: [.command, .shift])
         .help("Show / hide diagnostics (\u{2318}\u{21E7}D)")
+        // F12 (Story 5-6b): VoiceOver announces toggle state. Without
+        // this, VO reads "Diagnostics, button" regardless of whether
+        // the inspector is currently shown or hidden. `Text(...)` per
+        // Apple-docs MCP — the indexed `.accessibilityValue(_:)`
+        // overload documents the Text form for forward-compat.
+        .accessibilityValue(Text(inspectorPresented ? "Shown" : "Hidden"))
       }
     }
     // CRITICAL: `.inspectorColumnWidth(min:ideal:max:)` MUST be applied
@@ -362,8 +379,12 @@ struct ContentView: View {
     }
     // Single-container top-right anchoring (AC #2 — `.frame` with
     // `alignment: .topTrailing` on a single VStack, NOT nested
-    // `HStack { Spacer(); VStack }`).
-    .frame(maxWidth: .infinity, alignment: .topTrailing)
+    // `HStack { Spacer(); VStack }`). `maxHeight: .infinity` added
+    // (Story 5-6b post-Codex review) because `primaryStateView` now
+    // claims the full pane height; without it the intrinsic-height
+    // result block would center vertically instead of anchoring
+    // top-right.
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
   }
 
   @ViewBuilder
