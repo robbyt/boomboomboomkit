@@ -3,7 +3,7 @@
 Story ID: 5.6
 Story Key: 5-6-end-user-ui-redesign
 Epic: 5 — Developer Experience (Demo App + Documentation)
-Status: review
+Status: done
 Last refined: 2026-05-23 (multi-stage validation — Axiom skills + apple-docs MCP + Codex + BMAD party)
 
 ## Story
