@@ -18,8 +18,10 @@ struct EmptyStateView: View {
         .font(.largeTitle)
       Text("Supported: WAV, AIFF, MP3, FLAC, M4A, CAF")
         .font(.callout)
-        .foregroundStyle(.tertiary)
+        .foregroundStyle(.secondary)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .accessibilityElement(children: .combine)
+    .accessibilityHint("Drag an audio file here to analyze")
   }
 }
