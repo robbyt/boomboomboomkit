@@ -52,7 +52,7 @@ The archive is NOT auto-uploaded. To submit:
 
 1. Open the archive in Xcode Organizer: `open build/BoomBoomBoomKitDemo.xcarchive`
 2. Use **Distribute App** → **App Store Connect** → **Upload**, OR
-3. Export with `xcodebuild -exportArchive -archivePath build/BoomBoomBoomKitDemo.xcarchive -exportPath build/export -exportOptionsPlist ExportOptions.plist`, then upload the resulting `.pkg` / `.app` via Transporter.
+3. (For scripted/CI export: author your own `ExportOptions.plist` per Apple's spec, then `xcodebuild -exportArchive -archivePath build/BoomBoomBoomKitDemo.xcarchive -exportPath build/export -exportOptionsPlist your-export-options.plist`, then upload the resulting `.pkg` / `.app` via Transporter. No `ExportOptions.plist` ships in-repo — the schema differs across teams' signing setups.)
 
 Apple's `-allowProvisioningUpdates` flag (on by default in `make demo-archive`) auto-downloads/refreshes the App Store distribution provisioning profile from Apple's servers if your Apple Developer account is configured. The first archive on a fresh machine may prompt for Xcode sign-in.
 
