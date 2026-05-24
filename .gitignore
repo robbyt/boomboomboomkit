@@ -15,9 +15,11 @@ DerivedData/
 *.xccheckout
 *.moved-aside
 
-# Demo app build artifacts (Story 5-1: scaffold)
+# Demo app build artifacts (Story 5-1: scaffold; Story 5-7 added /build/*.xcarchive for make demo-archive output; both root patterns anchored to / per Story 5-7 review patch — unanchored `build/` would hide tools/coreml-convert/build/ and other in-tree build dirs)
 Demo/**/build/
 Demo/**/*.xcuserstate
+/build/
+/build/*.xcarchive
 
 # macOS
 .DS_Store

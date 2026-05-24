@@ -128,10 +128,27 @@ final class AnalysisViewModel {
   var lastRunSnapshot: LastRunDiagnosticSnapshot?
 
   /// - Parameter autoStarted: `true` when the URL arrives via
-  ///   `.onOpenURL` (Dock drop, Finder Open With, `open -a`) — the
-  ///   system has already called `startAccessingSecurityScopedResource`
-  ///   on this URL; the defer must `stop` but NOT `start`. `false`
-  ///   (window-drop default) uses defensive start + balanced stop.
+  ///   `.onOpenURL` (Dock drop, Finder Open With, `open -a`); `false`
+  ///   (window-drop default) for `.dropDestination`-delivered URLs.
+  ///   The flag is consumed by the sandbox-denial heuristic (`!autoStarted
+  ///   && !didStart` → `.fileReadFailed(sandboxDenied: true)`) so the
+  ///   error-banner copy can distinguish "you dropped a file and we
+  ///   couldn't access it" from "system delivered this and analysis
+  ///   failed for some other reason." It does NOT gate the
+  ///   `startAccessingSecurityScopedResource()` call — both paths
+  ///   defensively call `start...` per Story 5-7 Carry-over Copilot C1.
+  ///   Apple's contract: `start...` returns `true` for any security-
+  ///   scoped URL (each call increments a per-process refcount that
+  ///   must be balanced by a matching `stop`) and returns `false` for
+  ///   non-scoped URLs. Typical LaunchServices-delivered URLs (`.onOpenURL`,
+  ///   Finder Open With, `open -a`) are non-scoped file URLs — their
+  ///   sandbox extension is kernel-vended, not scoped-URL-mediated — so
+  ///   `start` returns `false` and no `stop` is needed. Drop-delivered
+  ///   and bookmark-restored URLs are scoped; `start` returns `true` and
+  ///   the defer-stop pairs with it. Calling `stop` without a matching
+  ///   `start` (the pre-fix C1 / C2 imbalance) decrements the refcount
+  ///   below baseline and can manifest as permission failures under
+  ///   sustained use.
   func analyze(url: URL, autoStarted: Bool = false) {
     let taskID = UUID()
 
@@ -168,8 +185,20 @@ final class AnalysisViewModel {
     // reset() helper at the end of this file still clears it on
     // explicit clear-state transitions.
 
-    let didStart: Bool = autoStarted ? false : url.startAccessingSecurityScopedResource()
-    let shouldStop: Bool = autoStarted || didStart
+    // Story 5-7 Carry-over Copilot C1 (deferred-work W43, addressed in
+    // commit Story 5-7): defensive start/stop with refcount semantics.
+    // The autoStarted path previously forced didStart=false but
+    // shouldStop=true, calling stopAccessingSecurityScopedResource()
+    // without a matching start... Apple's documented contract requires
+    // every start to be balanced with one stop. Apple's `start...`
+    // contract: returns true (refcount++) only for security-scoped URLs;
+    // returns false for non-scoped URLs (typical LaunchServices delivery
+    // — the sandbox extension is kernel-vended, not URL-mediated). The
+    // defensive call is safe in either case: non-scoped → didStart=false
+    // → no stop; scoped → didStart=true → defer-stop balances the
+    // increment we just took.
+    let didStart: Bool = url.startAccessingSecurityScopedResource()
+    let shouldStop: Bool = didStart
 
     // Task.detached does NOT inherit cancellation, so the library's
     // default `Options.isCancelled = { Task.isCancelled }` would always
@@ -543,11 +572,19 @@ final class AnalysisViewModel {
     }
   }
 
-  // NSSavePanel auto-starts security-scoped READ access via PowerBox;
-  // the defer releases it on every exit path. WRITE capability is
-  // gated by `com.apple.security.files.user-selected.read-write` —
-  // without that entitlement the write fails with
-  // `NSFileWriteNoPermissionError`.
+  // NSSavePanel-returned URLs are PowerBox-granted security-scoped URLs:
+  // start...() returns true (refcount++) and the matching stop must run.
+  // Story 5-7 Carry-over Copilot C2 (deferred-work W44, addressed in
+  // commit Story 5-7): prior code called stop... without a matching
+  // start..., underflowing the sandbox extension's refcount on every
+  // save. Under sustained use that can manifest as later saves denying
+  // write with NSFileWriteNoPermissionError despite the read-write
+  // entitlement. The defensive pattern (capture didStart, defer-stop
+  // on `if didStart`) repairs the imbalance — and the `if didStart`
+  // guard also covers the rare case where the URL is non-scoped (start
+  // returns false; no stop needed). WRITE capability is gated by
+  // `com.apple.security.files.user-selected.read-write` — without that
+  // entitlement the write fails with `NSFileWriteNoPermissionError`.
   @discardableResult
   func exportTrace() -> Bool {
     guard let snapshot = lastRunSnapshot else { return false }
@@ -557,7 +594,12 @@ final class AnalysisViewModel {
     panel.canCreateDirectories = true
     let response = panel.runModal()
     guard response == .OK, let url = panel.url else { return false }
-    defer { url.stopAccessingSecurityScopedResource() }
+    let didStart = url.startAccessingSecurityScopedResource()
+    defer {
+      if didStart {
+        url.stopAccessingSecurityScopedResource()
+      }
+    }
     return writeTraceJSON(to: url)
   }
 
