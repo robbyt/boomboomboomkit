@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: "2026-05-24 — Story 5-4 /bmad-code-review patch round complete (12 patches applied + 2 reclassified to defer per Codex). Status review → done. AC #11 manual GUI smoke remains operator-owned. Detail in comments below."
+last_updated: "2026-05-24 — Story 5-7 fourth-pass /bmad-code-review complete (narrow scope: scripts/demo-bump-build.py + Makefile demo-bump-build one-liner + the new xcscheme/xctestplan Xcode-side-effect files from running tests interactively, plus pbxproj + AnalysisViewModel.swift doc-comment). 4-layer review (Blind Hunter + Edge Case Hunter + Acceptance Auditor + Codex MCP independent) returned 12 unique findings → 3 decision-needed (D1 demo-test scheme-break upgraded to patch P4 + D2 xcscheme/xctestplan zero-spec-authorization upgraded to patch P5 + D3 quoted-value regex permissiveness dismissed as no-real-world-trigger), 5 patches applied (P1 atomic-write tempfile+os.replace + P2 UTF-8 encoding pin + P3 scripts/ added to AC #11 + P4 + P5), 4 deferred (W17-W20: tracebacks-vs-exit-codes, xctestplan-in-synchronized-root-group, xctestplan-filetype-cosmetic, xcscheme-mixed-case-Yes-self-healing), 2 dismissed. Notable D1 fix: committed app scheme stops Xcode auto-generating Tests scheme, so make demo-test was rewritten to `-scheme BoomBoomBoomKitDemo -testPlan BoomBoomBoomKitDemo`; smoke-tested green (TEST SUCCEEDED, 81/81 passed). Story 5-7 stays at review until operator xcodebuild -exportArchive end-to-end validation (AC #6.6)."
 
 # 2026-05-24 — Story 5-4 /bmad-code-review patch round complete.
 #
