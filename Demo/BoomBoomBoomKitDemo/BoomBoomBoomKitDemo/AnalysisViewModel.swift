@@ -142,11 +142,18 @@ final class AnalysisViewModel {
   /// - Parameter autoStarted: `true` when the URL arrives via
   ///   `.onOpenURL` (Dock drop, Finder Open With, `open -a`); `false`
   ///   (window-drop default) for `.dropDestination`-delivered URLs.
-  ///   The flag is consumed by the sandbox-denial heuristic (`!autoStarted
-  ///   && !didStart` → `.fileReadFailed(sandboxDenied: true)`) so the
-  ///   error-banner copy can distinguish "you dropped a file and we
-  ///   couldn't access it" from "system delivered this and analysis
-  ///   failed for some other reason." It does NOT gate the
+  ///   The flag feeds the sandbox-denial heuristic (`!autoStarted
+  ///   && !didStart` → `.fileReadFailed(sandboxDenied: true)`), but
+  ///   `errorDescription` no longer surfaces the `sandboxDenied` bit
+  ///   to the user (banner copy collapsed to the single
+  ///   `"Could not read audio file: \(filename)"` message per the
+  ///   2026-05-24 review pass — the heuristic over-classified
+  ///   non-denial scenarios such as Re-analyze of LaunchServices URLs
+  ///   and drops of virtualized cloud files). The flag is retained
+  ///   purely as a structural seam for the deferred heuristic
+  ///   redesign (see story 5-7 §Review Findings); do NOT re-wire it
+  ///   into UX copy without re-doing the classification work first.
+  ///   It does NOT gate the
   ///   `startAccessingSecurityScopedResource()` call — both paths
   ///   defensively call `start...` per Story 5-7 Carry-over Copilot C1.
   ///   Apple's contract: `start...` returns `true` for any security-

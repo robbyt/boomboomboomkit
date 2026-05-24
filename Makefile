@@ -42,12 +42,13 @@ demo-build:
 		CODE_SIGN_IDENTITY="" \
 		build
 
-## demo-test: Run the BoomBoomBoomKitDemoTests target (sibling of demo-build, optional dev cadence)
+## demo-test: Run BoomBoomBoomKitDemo tests via the app scheme + xctestplan (Story 5-7 2026-05-24 fourth-pass review D1 — committing only the app scheme makes Xcode stop auto-generating the Tests scheme, so the Makefile uses `-scheme BoomBoomBoomKitDemo -testPlan BoomBoomBoomKitDemo` instead). Modern Xcode 26 convention: xctestplan is the canonical test-config entry point.
 .PHONY: demo-test
 demo-test:
 	xcodebuild \
 		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
-		-scheme BoomBoomBoomKitDemoTests \
+		-scheme BoomBoomBoomKitDemo \
+		-testPlan BoomBoomBoomKitDemo \
 		-destination 'platform=macOS' \
 		CODE_SIGNING_ALLOWED=NO \
 		CODE_SIGNING_REQUIRED=NO \
@@ -83,15 +84,10 @@ endif
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		archive
 
-## demo-bump-build: Increment CURRENT_PROJECT_VERSION (CFBundleVersion) in pbxproj before the next archive. Closes the ITMS-90062 round-trip risk surfaced by Story 5-7 review — without this, the operator can forget to bump and discover the duplicate-build-number rejection only after a 5-15 min upload round-trip. Takes the MAX value across all 4 pbxproj configs (app + test, Debug + Release) then rewrites every CURRENT_PROJECT_VERSION line to MAX+1 — converges divergent values (e.g., if test=1 and app=3, both go to 4) per Codex post-patch review. Quoted-form values (`= "1";` — Xcode GUI occasionally emits these) are also handled by the extraction and substitution regexes; non-integer values are filtered out and surface the "could not parse" error rather than crashing arithmetic (per 2026-05-24 review patch). Run as: `make demo-bump-build` (then `DEVELOPMENT_TEAM=<id> make demo-archive`).
+## demo-bump-build: Increment CURRENT_PROJECT_VERSION (CFBundleVersion) in pbxproj before the next archive. Closes the ITMS-90062 round-trip risk surfaced by Story 5-7 review. Implemented as `scripts/demo-bump-build.py` (stdlib-only Python) per operator directive 2026-05-24 — the original shell-pipeline form went through three rounds of churn in 48 hours and was extracted to Python to stop the fragility cycle (recurring review flags around BSD-vs-GNU sed, regex anchoring, shell quoting, arithmetic edge cases). The Python form enforces the same invariants more robustly: every CURRENT_PROJECT_VERSION assignment must parse as an integer (hard error on mixed integer/non-integer pbxproj state, no partial bump possible); all assignments converge to MAX+1 in one rewrite; post-rewrite count verification refuses to write if the substitution touched only a subset. Run as: `make demo-bump-build` (then `DEVELOPMENT_TEAM=<id> make demo-archive`).
 .PHONY: demo-bump-build
 demo-bump-build:
-	@PBXPROJ=Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj/project.pbxproj; \
-	MAX=$$(grep 'CURRENT_PROJECT_VERSION = ' $$PBXPROJ | sed -E 's/.*= "?([0-9]+)"?;.*/\1/' | grep -E '^[0-9]+$$' | sort -n | tail -1); \
-	if [ -z "$$MAX" ]; then echo "ERROR: could not parse CURRENT_PROJECT_VERSION from $$PBXPROJ (no integer-form values found; quoted-form is supported, but non-integer values like 1.0 are rejected)"; exit 1; fi; \
-	NEXT=$$((MAX + 1)); \
-	sed -i '' -E "s/CURRENT_PROJECT_VERSION = \"?[0-9]+\"?;/CURRENT_PROJECT_VERSION = $$NEXT;/g" $$PBXPROJ; \
-	echo "Bumped CURRENT_PROJECT_VERSION (max across all configs $$MAX) -> $$NEXT, applied to $$(grep -c "CURRENT_PROJECT_VERSION = $$NEXT;" $$PBXPROJ) configs (all should be the same)"
+	uv run scripts/demo-bump-build.py
 
 ## demo-fmt: Format Swift source code under Demo/ (sibling of `fmt`, which covers Sources/Tests only)
 .PHONY: demo-fmt
