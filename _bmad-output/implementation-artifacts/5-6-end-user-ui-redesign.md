@@ -50,7 +50,7 @@ Three behavioral shifts ship:
 
 8. **Outer-`ZStack` composition for `StrategyBackground`.** Result-block-scoped `.background()` collapses to zero size in `.empty` / `.analyzing` / `.errorOnly` states. Hoisting `StrategyBackground` to a window-filling `ZStack` at the `ContentView` root (behind every `DisplayState`) gives the app a consistent visual identity across its first five seconds. Trade-off acknowledged: the background persists across result clears (could feel sticky) — mitigated by cross-fading to the neutral pre-analysis gradient when `viewModel.lastRunSnapshot == nil`.
 
-9. **No new tests for layout.** SwiftUI view code is exercised end-to-end by `make demo-build` (compile-time) + the existing 79 invocations in `AnalysisViewModelSmokeTest.swift` (view-model contract). Layout regressions surface visually; the demo doesn't carry a snapshot-test harness today and adding one is out-of-scope. The dev agent verifies layout manually by running the app and dropping a fixture file (`bpm-120-click.wav`) and toggling the inspector.
+9. **No new tests for layout.** SwiftUI view code is exercised end-to-end by `make demo-build` (compile-time) + the existing 78 invocations in `AnalysisViewModelSmokeTest.swift` (view-model contract). Layout regressions surface visually; the demo doesn't carry a snapshot-test harness today and adding one is out-of-scope. The dev agent verifies layout manually by running the app and dropping a fixture file (`bpm-120-click.wav`) and toggling the inspector.
 
 10. **Screenshot stability is now a Story-5-6 concern, not a Story-5-7 inheritance.** Story 5-7 requires App Store assets at 1280×800 (default) and 2560×1600 (Retina). If the hero/inspector layout reflows unpredictably between those, 5-7 inherits a screenshot-automation problem. Story 5-6 validates layout parity at both resolutions during Task 5 visual verification (Winston's 2026-05-23 review note).
 
@@ -80,7 +80,7 @@ Three behavioral shifts ship:
 
 12. **Drop-zone empty state is extracted to a new `EmptyStateView`** at `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo/EmptyStateView.swift`. Renders a large decorative SF Symbol (`Image(decorative: "music.note.list", bundle: nil)` or `Image(systemName: ...).accessibilityHidden(true)`) + "Drop a track" headline + supported-format caption, fills the main pane.
 
-13. **`make demo-fmt`, `make demo-lint`, `make demo-build`, `make demo-test` all pass.** Existing 79 `AnalysisViewModelSmokeTest` invocations remain green (zero VM-surface changes). `make pre-commit` (the umbrella target) is run before opening the PR.
+13. **`make demo-fmt`, `make demo-lint`, `make demo-build`, `make demo-test` all pass.** Existing 78 `AnalysisViewModelSmokeTest` invocations remain green (zero VM-surface changes). `make pre-commit` (the umbrella target) is run before opening the PR.
 
 14. **`make demo-build-sandboxed DEVELOPMENT_TEAM=<id>` succeeds.** Sandboxed-build smoke test, since the toolbar + inspector both interact with the system chrome. No new entitlements required.
 
