@@ -62,11 +62,8 @@ struct StrategyBackground: View {
     case .none:
       // Pre-analysis: quiet, low-saturation. Reads as "blank canvas,
       // waiting for input" rather than asserting a result-domain
-      // visual identity. `Color(nsColor:)` (labeled `nsColor:` is
-      // required — bare `Color(NSColor.foo)` resolves to the
-      // asset-catalog overload `Color(_ name:bundle:)` and silently
-      // returns a placeholder). Dynamic colors adapt Light/Dark and
-      // Increased Contrast.
+      // visual identity. `Color(nsColor:)` dynamic colors adapt
+      // Light/Dark and Increased Contrast.
       gradientFill(
         top: Color(nsColor: .windowBackgroundColor),
         bottom: Color(nsColor: .underPageBackgroundColor)
