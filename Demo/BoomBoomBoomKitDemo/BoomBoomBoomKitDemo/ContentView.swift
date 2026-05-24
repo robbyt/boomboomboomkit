@@ -106,11 +106,14 @@ struct ContentView: View {
     // modifier attaches unambiguously.
     .inspector(isPresented: $inspectorPresented) {
       // P_D5 / D5 resolution (code review 2026-05-23): 3-state branch
-      // honors the analyze-prologue snapshot reset by surfacing an
-      // explicit "Analyzing…" placeholder instead of flashing the
-      // empty-state view. Empty → Analyzing → Populated reflects the
-      // honest pipeline state; the inspector never pretends "nothing
-      // happened yet" while a run is in flight.
+      // surfaces an explicit "Analyzing…" placeholder for the first-run
+      // window (`isAnalyzing == true` AND no prior snapshot) instead of
+      // flashing the empty-state view. On re-analyze F09 preserves the
+      // prior snapshot (`AnalysisViewModel.swift:185-197`), so the
+      // populated `TraceView` stays mounted and the placeholder doesn't
+      // fire. First-run cascade: Empty → Analyzing → Populated reflects
+      // the honest pipeline state; the inspector never pretends
+      // "nothing happened yet" while the first run is in flight.
       Group {
         if let snapshot = viewModel.lastRunSnapshot {
           TraceView(snapshot: snapshot)

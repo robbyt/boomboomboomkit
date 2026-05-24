@@ -97,15 +97,19 @@ enum FinalSelectionStep: String, Sendable, Equatable, CaseIterable {
 
     // candidatesBefore/AfterBoost are NOT documented sort-stable across
     // MetadataCorroborator.apply, so reduce via max(by:), not [0]. Filter
-    // NaN scores AND NaN bpms first — `max(by:)` is unsafe with NaN (both
-    // lt/gt return false, so a NaN entry can win and corrupt attribution),
-    // and `before.bpm != after.bpm` with either side NaN spuriously
-    // attributes to .metadataCorroboration (NaN != anything).
+    // non-finite scores AND non-finite bpms first — `max(by:)` is unsafe
+    // with NaN (both lt/gt return false, so a NaN entry can win and
+    // corrupt attribution); and ±Infinity (`!isNaN` but `!isFinite`) would
+    // win the reduce trivially, then trip `before.bpm != after.bpm` and
+    // falsely attribute to .metadataCorroboration. Tightened `!isNaN` →
+    // `isFinite` to match the `.mlEnsemble` (`decision.selectedBPM.isFinite`)
+    // and `.fineGridRefinement` (`refined.isFinite && disambiguation.bpm.isFinite`)
+    // arms below.
     let beforeWinner = trace.candidatesBeforeBoost
-      .filter { !$0.score.isNaN && !$0.bpm.isNaN }
+      .filter { $0.score.isFinite && $0.bpm.isFinite }
       .max(by: { $0.score < $1.score })
     let afterWinner = trace.candidatesAfterBoost
-      .filter { !$0.score.isNaN && !$0.bpm.isNaN }
+      .filter { $0.score.isFinite && $0.bpm.isFinite }
       .max(by: { $0.score < $1.score })
     if let before = beforeWinner, let after = afterWinner, before.bpm != after.bpm {
       return .metadataCorroboration

@@ -334,10 +334,13 @@ struct TraceInspectorEmptyView: View {
 
 // P_D5 / D5 resolution (code review 2026-05-23): in-flight placeholder
 // surfaced while `viewModel.isAnalyzing == true` AND `lastRunSnapshot`
-// is nil (the analyze-prologue reset window). Avoids the empty-state
-// flash that would otherwise read "drop a track to analyze" mid-run,
-// which is misleading — the user just dropped something and a run is
-// in progress.
+// is nil — i.e., the first-run case (or the post-`reset()` case after
+// an explicit `cancelInFlight()`). On re-analyze F09 explicitly
+// preserves the prior snapshot (see `AnalysisViewModel.swift:185-197`)
+// so the populated `TraceView` stays mounted and this placeholder
+// doesn't fire. Avoids the empty-state flash that would otherwise read
+// "drop a track to analyze" mid-run, which is misleading on the first
+// run — the user just dropped something and a run is in progress.
 struct TraceInspectorAnalyzingView: View {
   var body: some View {
     VStack(spacing: 12) {

@@ -563,10 +563,11 @@ struct AnalysisViewModelSmokeTest {
 
   // 5.1 — projection round-trips through JSON.
   //
-  // `generatedAt` is normalized to a fixed sentinel (`.distantPast`) on
-  // both sides before comparison — ISO 8601 string encoding truncates
-  // `Date()`'s sub-millisecond precision, so a raw round-trip would
-  // diff on the fractional seconds.
+  // `generatedAt` is normalized to a fixed sentinel
+  // (`Date(timeIntervalSince1970: 0)`, see `normalizeForRoundTrip` body
+  // below) on both sides before comparison — ISO 8601 string encoding
+  // truncates `Date()`'s sub-millisecond precision, so a raw round-trip
+  // would diff on the fractional seconds.
   // P1 (code review 2026-05-23): rewritten to honor AC #7 step-by-step.
   // The pre-patch version compared Swift-level Equatable; the rewritten
   // version enforces the contract that actually catches LSB-level Float
@@ -685,6 +686,16 @@ struct AnalysisViewModelSmokeTest {
       if CFGetTypeID(number as CFTypeRef) != CFBooleanGetTypeID() {
         result.append(number.doubleValue)
       }
+    } else if let str = any as? String,
+      str == "NaN" || str == "Infinity" || str == "-Infinity" || str == "+Infinity"
+    {
+      // JSONEncoder's `.convertToString(...)` non-conforming-float strategy
+      // emits these sentinel strings; the finite-walk contract should still
+      // trip in that hypothetical future, so flag them as non-finite via
+      // .nan. Current encoder uses `.throw` (see
+      // `AnalysisViewModel.swift:539-542`), so this branch is
+      // forward-defensive and not currently exercised on the happy path.
+      result.append(.nan)
     }
   }
 
