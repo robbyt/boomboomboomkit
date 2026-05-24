@@ -66,10 +66,11 @@ final class AnalysisViewModel {
         let displayExt = ext.isEmpty ? "(no extension)" : ext
         return
           "Unsupported file type: \(displayExt). Supported: WAV, AIFF, MP3, FLAC, M4A, CAF."
-      case .fileReadFailed(let filename, let sandboxDenied):
-        if sandboxDenied {
-          return "Could not read audio file: \(filename) (sandbox denied)"
-        }
+      case .fileReadFailed(let filename, _):
+        // sandboxDenied flag preserved on the error type (set by the heuristic
+        // at :306) as a structural seam for the deferred classification
+        // redesign — see 5-7 Review Findings 2026-05-24 §Deferred. UX copy
+        // collapsed to a single truthful message until that redesign lands.
         return "Could not read audio file: \(filename)"
       case .noBPMDetected:
         return "No BPM detected (silence, too-short audio, or non-musical content)"
@@ -209,7 +210,6 @@ final class AnalysisViewModel {
     // → no stop; scoped → didStart=true → defer-stop balances the
     // increment we just took.
     let didStart: Bool = url.startAccessingSecurityScopedResource()
-    let shouldStop: Bool = didStart
 
     // Task.detached does NOT inherit cancellation, so the library's
     // default `Options.isCancelled = { Task.isCancelled }` would always
@@ -227,7 +227,7 @@ final class AnalysisViewModel {
 
     let task = Task { [weak self] in
       defer {
-        if shouldStop {
+        if didStart {
           url.stopAccessingSecurityScopedResource()
         }
       }
