@@ -105,9 +105,17 @@ struct ContentView: View {
     // Group wrapper resolves the if/else to a single view so the
     // modifier attaches unambiguously.
     .inspector(isPresented: $inspectorPresented) {
+      // P_D5 / D5 resolution (code review 2026-05-23): 3-state branch
+      // honors the analyze-prologue snapshot reset by surfacing an
+      // explicit "Analyzing…" placeholder instead of flashing the
+      // empty-state view. Empty → Analyzing → Populated reflects the
+      // honest pipeline state; the inspector never pretends "nothing
+      // happened yet" while a run is in flight.
       Group {
         if let snapshot = viewModel.lastRunSnapshot {
           TraceView(snapshot: snapshot)
+        } else if viewModel.isAnalyzing {
+          TraceInspectorAnalyzingView()
         } else {
           TraceInspectorEmptyView()
         }

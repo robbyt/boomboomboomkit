@@ -120,10 +120,21 @@ final class AnalysisViewModel {
 
   var options: AudioAnalysisService.Options = .init()
 
-  // CRITICAL invariant: SwiftUI only re-renders when an OBSERVED property
-  // mutates. `lastRunSnapshot` is @ObservationIgnored — always pair writes
-  // to it with a write to an observed property in the same MainActor turn,
-  // or readers will see stale snapshots.
+  // CRITICAL invariant — DD #5 atomicity + DD #10 re-render coupling:
+  // SwiftUI only re-renders when an OBSERVED property mutates. This
+  // property is @ObservationIgnored, so every write MUST pair with a
+  // same-MainActor-turn write to an observed property (e.g., `detectedBPM`,
+  // `error`, `isAnalyzing`), or readers will see stale snapshots.
+  // Reference write sites for the contract: success path at the post-
+  // `value.trace != nil` arm (paired with `detectedBPM`/`confidence`/
+  // `effectiveIntensity`); failure paths in `.success(nil)`/`.failure`
+  // arms (paired with `self.error` + the shared `elapsedSeconds`/
+  // `isAnalyzing = false` writes); and `clearPriorResult()` (paired with
+  // `detectedBPM = nil`, etc.). P2 (code review 2026-05-23) confirmed
+  // `private(set)` is the wrong access modifier here — it would block
+  // `@testable import` mutation that the smoke tests rely on; the
+  // atomicity contract is the load-bearing invariant, not the access
+  // modifier.
   @ObservationIgnored
   var lastRunSnapshot: LastRunDiagnosticSnapshot?
 
@@ -279,6 +290,17 @@ final class AnalysisViewModel {
         }
       case .success(nil):
         self.error = .noBPMDetected
+        // P_D4 / D4 resolution (Codex thread 019e5812-5ce7-7840-9aae-4825dccd98ab):
+        // failure / no-BPM arms must clear the prior snapshot so the
+        // inspector + Export Trace button reflect the absence of a fresh
+        // result. clearPriorResult() is guarded by !isAnalyzing and
+        // would no-op here; the explicit nil-write at this terminal
+        // point is the smallest fix for the stuck-snapshot case without
+        // touching the DD #5 atomicity contract (snapshot rides with
+        // the observed-state writes — `self.error` above + the shared
+        // `self.elapsedSeconds`/`self.isAnalyzing = false` below — in
+        // the same MainActor turn per DD #10).
+        self.lastRunSnapshot = nil
       case .failure(let readerError as PCMBufferReaderError):
         let sandboxDenied: Bool
         if case .fileNotReadable = readerError, !autoStarted, !didStart {
@@ -290,8 +312,10 @@ final class AnalysisViewModel {
           filename: url.lastPathComponent,
           sandboxDenied: sandboxDenied
         )
+        self.lastRunSnapshot = nil  // P_D4 — see comment in .success(nil) arm
       case .failure(let other):
         self.error = .unexpected("\(other)")
+        self.lastRunSnapshot = nil  // P_D4 — see comment in .success(nil) arm
       }
       self.elapsedSeconds = secs
       self.isAnalyzing = false
@@ -547,7 +571,25 @@ final class AnalysisViewModel {
   // error branch without driving NSSavePanel.
   @discardableResult
   func writeTraceJSON(to url: URL) -> Bool {
-    guard let snapshot = lastRunSnapshot else { return false }
+    // P3 (code review 2026-05-23): surface a banner on the silent
+    // nil-snapshot path so a future programmatic / scripted caller
+    // (or a snapshot-clear race interleaving between view re-render
+    // and the user-initiated tap) sees feedback instead of a silent
+    // `false`. NSSavePanel-driven UI flow gates visibility on
+    // `lastRunSnapshot != nil`, so this is defensive.
+    guard let snapshot = lastRunSnapshot else {
+      error = .traceExport(detail: "no snapshot available to export")
+      return false
+    }
+    // P3: NSSavePanel always hands back a file:// URL, but tests +
+    // future programmatic callers can pass anything. data.write(to:)
+    // with a non-file URL throws a misleading "unsupported URL"
+    // error from Foundation; surface a clear demo-side message
+    // instead.
+    guard url.isFileURL else {
+      error = .traceExport(detail: "invalid destination URL scheme — expected file://")
+      return false
+    }
     let data: Data
     do {
       data = try Self.encodeTrace(
@@ -587,7 +629,16 @@ final class AnalysisViewModel {
   // entitlement the write fails with `NSFileWriteNoPermissionError`.
   @discardableResult
   func exportTrace() -> Bool {
-    guard let snapshot = lastRunSnapshot else { return false }
+    // P3 (code review 2026-05-23): surface a banner on the silent
+    // nil-snapshot path so a user click race (button visible, then
+    // snapshot cleared by a fresh analyze starting via .onOpenURL
+    // before the tap lands) leaves a clear diagnostic instead of
+    // a silent no-op. The button visibility predicate normally gates
+    // this, but the gap window exists.
+    guard let snapshot = lastRunSnapshot else {
+      error = .traceExport(detail: "no snapshot available to export")
+      return false
+    }
     let panel = NSSavePanel()
     panel.allowedContentTypes = [.json]
     panel.nameFieldStringValue = Self.suggestedFilename(from: snapshot.fileName)

@@ -331,3 +331,24 @@ struct TraceInspectorEmptyView: View {
     .padding()
   }
 }
+
+// P_D5 / D5 resolution (code review 2026-05-23): in-flight placeholder
+// surfaced while `viewModel.isAnalyzing == true` AND `lastRunSnapshot`
+// is nil (the analyze-prologue reset window). Avoids the empty-state
+// flash that would otherwise read "drop a track to analyze" mid-run,
+// which is misleading — the user just dropped something and a run is
+// in progress.
+struct TraceInspectorAnalyzingView: View {
+  var body: some View {
+    VStack(spacing: 12) {
+      ProgressView()
+      Text("Analyzing\u{2026}")
+        .font(.callout)
+        .foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .padding()
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("Diagnostic trace, analysis in progress")
+  }
+}
