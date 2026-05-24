@@ -3,7 +3,7 @@
 Story ID: 5.7
 Story Key: 5-7-app-store-submission-readiness
 Epic: 5 — Developer Experience (Demo App + Documentation)
-Status: review
+Status: done
 
 ## Story
 
@@ -475,8 +475,8 @@ Demo pbxproj reports `MACOSX_DEPLOYMENT_TARGET = 15.6` uniformly across all 6 co
 **Pending user action:**
 
 1. **Task 7.3 commit** on the 1Password GPG signer per Story 5-1+ precedent. Suggested commit message body covers: 8 tasks landed, Carry-over C1+C2 sandbox fixes (closes W43+W44), AC #11 zero-Sources/-Tests verified, gating gauntlet green including ARCHIVE SUCCEEDED first-run.
-2. **Story 5-7 stays `review`** until: (a) PR #9 opens with base `rterhaar/epic-5` (stacked diff), (b) PR #8 merges to develop, (c) PR #9 rebases onto post-PR-8-squash develop (mechanical: `git rebase --onto origin/develop 558cf3c rterhaar/5-7`), (d) operator runs `xcodebuild -exportArchive` against the archive once to validate the full submission path end-to-end. Validation success flips Story 5-7 `review → done`.
-3. **Future App Store Connect portal work** (per Demo README checklist): app record creation, screenshot capture (3 × 2880×1800 minimum), description/subtitle/keywords authoring, age-rating questionnaire, export compliance answer, App Review notes. All operator-owned, none gated by this story's repo state.
+2. ~~**Story 5-7 stays `review`** until operator runs `xcodebuild -exportArchive` against the archive once to validate the full submission path end-to-end.~~ **CLOSED 2026-05-24 via `/bmad-party-mode` rename-scoping discussion (Amelia + Winston + John + Siri).** Story 5-7 flipped `review → done` because every listed AC (including AC #6.1-6.6 with local ARCHIVE SUCCEEDED) was already met; the App Store Connect upload + listing cycle was always OUT-OF-SCOPE per the story's own scope clarification ("No app upload", "No App Store Connect listing creation"). Operator chose not to upload under the current bundle ID `com.robbyt.BoomBoomBoomKitDemo` after Siri's authoritative Apple-platform note that bundle IDs are permanently welded to App Store Connect App Records on first upload — and the operator wants the final consumer-facing name committed BEFORE first submission. The rename and the App Store Connect submission cycle now live in **Story 5-8 — Demo Rename & App Store Submission** (`_bmad-output/implementation-artifacts/5-8-demo-rename-and-app-store-submission.md`). Story 5-8 supersedes KDD #4 + #5 of this story and closes W33 in `deferred-work.md`.
+3. **Future App Store Connect portal work** (per Demo README checklist): app record creation, screenshot capture (3 × 2880×1800 minimum), description/subtitle/keywords authoring, age-rating questionnaire, export compliance answer, App Review notes. All operator-owned and OUT-OF-SCOPE for Story 5-7 per scope clarification; now owned by Story 5-8.
 
 ### Debug Log
 

@@ -1397,6 +1397,16 @@ So that the App Store Connect submission flow has zero in-tree blockers and the 
 
 See `_bmad-output/implementation-artifacts/5-7-app-store-submission-readiness.md` for full spec, acceptance criteria, KDD #9 (Package.swift ↔ MACOSX_DEPLOYMENT_TARGET lockstep), AC #12 (deployment target stays at 15.0), and §Carry-over from Story 5-6 appendix (F01, F05, F08).
 
+### Story 5.8: Demo Rename & App Store Submission
+
+(Created 2026-05-24 via `/bmad-party-mode` rename-scoping discussion — pairs the deferred rename (W33 re-open) with the deferred App Store Connect submission cycle from Story 5-7's OUT-OF-SCOPE.)
+
+As the maintainer about to make the first App Store Connect upload under the demo's permanent identity,
+I want the demo renamed from `BoomBoomBoomKitDemo` to its final consumer-facing identity (`BoomBoomBoom` or alternative) AND the App Store Connect submission cycle completed in the same story,
+So that the bundle ID committed to App Store Connect on first upload is the one the demo will ship under for life (Apple treats bundle IDs as immutable post-first-upload per Siri's 2026-05-24 platform-doc citation), and no later rename story is required.
+
+See `_bmad-output/implementation-artifacts/5-8-demo-rename-and-app-store-submission.md` for full spec. Supersedes Story 5-7 KDD #4 + #5; closes W33 in `deferred-work.md`.
+
 ---
 
 ## References
