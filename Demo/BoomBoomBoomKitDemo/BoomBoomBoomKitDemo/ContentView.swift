@@ -6,18 +6,57 @@ struct ContentView: View {
   @State private var isDropTargeted: Bool = false
 
   // Persisted via @SceneStorage so the inspector preference survives
-  // window-close / app-relaunch. Default true — the demo audience
-  // wants the diagnostic surface up. Toggle via Control-Command-I.
-  @SceneStorage("traceInspectorPresented") private var inspectorPresented: Bool = true
+  // window-close / app-relaunch. Default false — end-user audience;
+  // power users toggle via the Diagnostics button (Command-Shift-D),
+  // the system View → Show Inspector menu, or Control-Command-I (both
+  // provided by `InspectorCommands()` at
+  // `BoomBoomBoomKitDemoApp.swift:14-16`).
+  @SceneStorage("traceInspectorPresented") private var inspectorPresented: Bool = false
+
+  // Accessibility gates for `StrategyBackground` — reduce-motion
+  // suppresses the cross-strategy cross-fade; increased-contrast
+  // switches the gradient out for a solid fill (handled inside
+  // `StrategyBackground`). Read at the root so the keyed
+  // `.animation(...)` modifier can disable cleanly per AC #5.
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  // F03 (Story 5-6 review): @ScaledMetric drives the hero point size with
+  // Dynamic Type relative to .largeTitle. Default 96pt at the user's
+  // body-size; scales up at AX1-AX3 (capped by the `.dynamicTypeSize(...)`
+  // modifier on the Text). Fixes KDD #4's "honors AX1-AX3" promise — bare
+  // Font.system(size: 96) is fixed-point and does NOT scale.
+  @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 96
+
+  // `nil` until the first run completes — that's the cue for the
+  // neutral pre-analysis gradient (KDD #8). Once a snapshot exists,
+  // the user-chosen merge strategy keys the visual.
+  private var backgroundStrategy: CandidateMergeStrategy? {
+    viewModel.lastRunSnapshot == nil ? nil : viewModel.options.mergeStrategy
+  }
 
   var body: some View {
-    VStack(spacing: 16) {
-      controlsSection
-      primaryStateView
-      bannerView
+    ZStack {
+      // Outer-`ZStack` composition (KDD #8 / AC #4): the gradient
+      // paints behind EVERY `DisplayState`, not just `.result`. A
+      // result-block-scoped `.background()` would collapse to zero
+      // size in `.empty` / `.analyzing` / `.errorOnly` — that's the
+      // anti-pattern this design rejects.
+      StrategyBackground(strategy: backgroundStrategy)
+        .ignoresSafeArea()
+        .animation(
+          reduceMotion ? nil : .easeInOut(duration: 0.25),
+          value: backgroundStrategy
+        )
+
+      VStack(spacing: 16) {
+        primaryStateView
+        bannerView
+        Spacer()
+        controlsSection
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .padding()
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .padding()
     // `.contentShape` AFTER `.frame()` and BEFORE `.dropDestination` so
     // padded margins register drops at the visible border edge.
     .contentShape(Rectangle())
@@ -40,6 +79,21 @@ struct ContentView: View {
     // `.dropDestination`.
     .onOpenURL { url in
       viewModel.handleOpenURL(url)
+    }
+    .toolbar {
+      // AC #9: explicit toolbar toggle in addition to the system
+      // `InspectorCommands()` wire. macOS routes `.toolbar` from a
+      // bare `WindowGroup` ContentView to the window title-bar — no
+      // `NavigationStack` wrapping required.
+      ToolbarItem(placement: .primaryAction) {
+        Button {
+          inspectorPresented.toggle()
+        } label: {
+          Label("Diagnostics", systemImage: "sidebar.right")
+        }
+        .keyboardShortcut("d", modifiers: [.command, .shift])
+        .help("Show / hide diagnostics (\u{2318}\u{21E7}D)")
+      }
     }
     // CRITICAL: `.inspectorColumnWidth(min:ideal:max:)` MUST be applied
     // to the inspector CONTENT (inside the closure), NOT chained after
@@ -128,7 +182,12 @@ struct ContentView: View {
         // re-analyzes.
         Picker("Merge strategy", selection: $viewModel.options.mergeStrategy) {
           ForEach(CandidateMergeStrategy.allCases, id: \.self) { strategy in
-            Text(strategy.rawValue).tag(strategy)
+            // F06 (Story 5-6 review, closes deferred-work W28): humanize
+            // raw camelCase enum names ("maxConfidence", "windowVoting")
+            // into space-separated lowercase ("max confidence", "window
+            // voting") for the end-user Picker labels. The rawValue
+            // string is preserved internally on the @Binding.
+            Text(AnalysisViewModel.humanize(strategy)).tag(strategy)
           }
         }
         .pickerStyle(.menu)
@@ -231,13 +290,7 @@ struct ContentView: View {
   private var primaryStateView: some View {
     switch displayState {
     case .empty:
-      VStack(spacing: 8) {
-        Text("Drop an audio file")
-          .font(.title2)
-        Text("Supported: WAV, AIFF, MP3, FLAC, M4A, CAF")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-      }
+      EmptyStateView()
     case .analyzing(let filename, let cancelling):
       VStack(spacing: 8) {
         ProgressView()
@@ -272,35 +325,38 @@ struct ContentView: View {
     }
   }
 
+  // Hero rendering per AC #2 / KDD #4. `.monospacedDigit()` (not
+  // `design: .monospaced` on the full face) keeps SF Pro on the
+  // " BPM" suffix while stabilising digit widths. Bounded Dynamic
+  // Type (≤ AX3) + `minimumScaleFactor` + `lineLimit(1)` cooperate
+  // to honor AX1–AX3 and degrade gracefully beyond — fixed 96pt
+  // alone would violate Dynamic Type, pure `.relativeTo(.largeTitle)`
+  // would let AX4/AX5 push the number off-canvas.
   @ViewBuilder
   private func resultView(_ row: AnalysisViewModel.BPMResultRow) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      resultRow("File", row.fileName)
-      resultRow("BPM", row.bpm)
-      resultRow("Confidence", row.confidence)
-      resultRow("Intensity", row.intensity)
-      resultRow("Elapsed", row.elapsed)
-      // Quiet caption showing the run config that produced this BPM.
-      // Stays pinned to the snapshot values so the user immediately
-      // sees divergence when a slider changes post-result.
-      if let snapshot = viewModel.lastRunSnapshot {
-        Text(
-          "Result captured at: intensity \(snapshot.runOptions.intensity.rawValue), "
-            + AnalysisViewModel.humanize(snapshot.runOptions.mergeStrategy)
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
+    VStack(alignment: .trailing, spacing: 12) {
+      Text(row.bpm)
+        .font(.system(size: heroSize, weight: .bold).monospacedDigit().leading(.tight))
+        .dynamicTypeSize(...DynamicTypeSize.accessibility3)
+        .minimumScaleFactor(0.6)
+        .lineLimit(1)
+
+      VStack(alignment: .trailing, spacing: 4) {
+        secondaryMetadataRow(row.fileName)
+        secondaryMetadataRow("Confidence: \(row.confidence)")
+        secondaryMetadataRow("Elapsed: \(row.elapsed)")
       }
+      .font(.callout)
+      .foregroundStyle(.secondary)
     }
-    .frame(maxWidth: 360)
+    // Single-container top-right anchoring (AC #2 — `.frame` with
+    // `alignment: .topTrailing` on a single VStack, NOT nested
+    // `HStack { Spacer(); VStack }`).
+    .frame(maxWidth: .infinity, alignment: .topTrailing)
   }
 
   @ViewBuilder
-  private func resultRow(_ label: String, _ value: String) -> some View {
-    HStack {
-      Text("\(label):")
-      Spacer()
-      Text(value).monospacedDigit()
-    }
+  private func secondaryMetadataRow(_ value: String) -> some View {
+    Text(value).monospacedDigit()
   }
 }
