@@ -124,8 +124,8 @@
     "maxSeconds" : 120,
     "mergeStrategy" : "maxConfidence",
     "metadataPolicyEnabledSources" : [
-      "iTunesTmpo",
       "id3TBPM",
+      "iTunesTmpo",
       "vorbisBPM"
     ],
     "votingPolicy" : "simpleMajority",

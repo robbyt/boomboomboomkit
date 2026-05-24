@@ -35,7 +35,63 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: "2026-05-23 — Story 5-7 /bmad-code-review pass + Liquid Glass icon pivot; status stays `review` pending operator xcodebuild -exportArchive validation. Detail in comments below."
+last_updated: "2026-05-24 — Story 5-4 /bmad-code-review patch round complete (12 patches applied + 2 reclassified to defer per Codex). Status review → done. AC #11 manual GUI smoke remains operator-owned. Detail in comments below."
+
+# 2026-05-24 — Story 5-4 /bmad-code-review patch round complete.
+#
+# Triage: 59 raw findings across 3 review layers (Blind Hunter / Edge Case Hunter / Acceptance Auditor)
+# deduped to 23 distinct items (6 decision-needed, 9 patch, 5 defer, 3 dismissed).
+# All 6 decision-needed resolved via 2-round AskUserQuestion + 3 Codex consultations on thread
+# 019e5812-5ce7-7840-9aae-4825dccd98ab.
+#
+# Decision outcomes baked into the patch round:
+# - D1 → AMEND DD #6 to match late commit 19cf772 (Codex-validated)
+# - D2 → bounded sanitize at projection boundary; keep JSONEncoder.throw (Codex-validated)
+# - D3 → tolerance 0.5 BPM + NaN early-return in FinalSelectionStep.derive (user)
+# - D4 → snapshot=nil in task .success(nil)/.failure arms (Codex-validated, option c)
+# - D5 → loading "Analyzing…" placeholder mid-analyze (user; 3-state inspector)
+# - D6 → spec amendments deferred to separate spec-amendment commit (user; 7 items marked [TODO])
+#
+# Plan reviewed by Codex → P4 (TraceView.finalStep computed) + P6 (HarmonicRatio.one mapping)
+# reclassified to defer (W6, W7) — TraceView is reconstructed via `if let snapshot` so identity
+# changes anyway; HarmonicRatio.one is a "should never happen" library invariant + golden-visible
+# string change would churn consumer scripts. Net: 12 patches applied (was 14 planned).
+#
+# 12 patches landed: P_D1 (spec amendment), P_D2 (sanitize Double fields in 4 projection types),
+# P_D3 (derive() tolerance+NaN guard), P_D4 (snapshot=nil in 3 task failure arms), P_D5
+# (TraceInspectorAnalyzingView + 3-state inspector branch), P1 (AC #7 test rewrite + new
+# traceExportReproducibilityTwoRuns + allFloats walker), P2 vm-half (invariant doc comment,
+# NOT private(set) per Codex), P2 test-half (extended lastRunSnapshotIsAtomic + new
+# lastRunSnapshotResetClearsAllFields), P3 (writeTraceJSON/exportTrace silent-failure surfacing +
+# isFileURL guard), P5 (golden discipline: env-var-guarded regen + alphabetical sort + trailing
+# newline tolerance + #expect(false) on missing), P7 (containsKey rename + NSNull guard). P8
+# obsoleted (test renamed via Story 5-6 F09 inversion, drain loop already present). P9 de-scoped
+# (P_D2 sanitization at projection boundary means view never sees NaN).
+#
+# Plan risk #2 fired exactly as predicted: P_D3 cascade tolerance changes broke 2 of 9
+# finalSelectionStepDerivation parameterized scenarios (refinedBPM=120.5 vs disambiguation=120.0
+# is exactly at the new `> 0.5` tolerance boundary). Fixed by bumping the synthetic test deltas
+# from 0.5 to 1.0 BPM on .fineGridChanged and .fineGridAndSubBandConflict scenarios — preserves
+# test intent ("fine-grid moved BPM meaningfully") without polluting the cascade tolerance.
+#
+# Post-patch gauntlet (9 steps, all green): make demo-fmt clean, make demo-lint exit 0,
+# make demo-build BUILD SUCCEEDED, make demo-test TEST SUCCEEDED 81 invocations / 0 failures
+# (was 80 pre-patch; +3 new tests; SwiftTesting parameterized-test reporting accounts for the
+# observed delta), DEVELOPMENT_TEAM=S85RR68YT7 make demo-build-sandboxed BUILD SUCCEEDED,
+# make pre-commit exit 0 (1 violation = canonical LUFSAnalyzer:94 TODO baseline), make build
+# 0.08s + make test 431/94 in 1.40s UNCHANGED, AC #10 git status --porcelain Sources/ Tests/
+# empty, entitlement verification via codesign -d --entitlements confirms
+# com.apple.security.files.user-selected.read-write = true attached to the signed bundle.
+#
+# Status flip 5-4: review → done. Pending: AC #11 manual GUI smoke 1-7 (operator-owned per
+# Story 5-1/5-2/5-3 precedent), final commit on 1Password GPG signer, suggested commit message
+# "Story 5-4: code-review patch round (D1-D5 + P1-P3, P5, P7 + spec amendments)".
+#
+# D6 spec amendments deferred (7 items per user "per-item triage in a follow-up pass"):
+# DD #5 4→5 fields; DD #7 ensembleDecision optional + RunInfo +2 fields; AC #1 DisclosureGroup
+# vs .inspector reframe; DD #1 narrative insertion point; MetadataInfo evidence source pre vs
+# post boost; W31 close mark; parsedBPM NaN→null doc. Tracked separately for a future
+# spec-amendment commit.
 
 # 2026-05-23 (post-dev-close-out) — Story 5-7 /bmad-code-review pass + mid-pass Liquid Glass icon pivot.
 #
@@ -195,7 +251,7 @@ development_status:
   5-1-demo-app-project-scaffold: done
   5-2-core-analysis-flow: done
   5-3-parameter-controls: done
-  5-4-diagnostic-trace-visualization-and-export: review
+  5-4-diagnostic-trace-visualization-and-export: done
   5-5-public-api-documentation-and-readme: done
   5-6-end-user-ui-redesign: review
   5-6b-a11y-polish: backlog
