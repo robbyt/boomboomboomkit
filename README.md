@@ -266,7 +266,7 @@ let clickTrack = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds
 
 ## Demo App
 
-A SwiftUI macOS demo app under `Demo/BoomBoomBoomKitDemo/` exercises the public API end-to-end — file drop, BPM display, parameter controls, and a diagnostic-trace inspector with JSON export. It's a hands-on evaluation tool, not a documented product. Build with `make demo-build` (no code signing required) or open `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj` in Xcode.
+A SwiftUI macOS demo app under `Demo/BoomBoomBoomKitDemo/` exercises the public API end-to-end — file drop, BPM display, parameter controls, and a diagnostic-trace inspector with JSON export. It's a hands-on evaluation tool. Build with `make demo-build` (no code signing required) or open `Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj` in Xcode. See [`Demo/BoomBoomBoomKitDemo/README.md`](Demo/BoomBoomBoomKitDemo/README.md) for App Store distribution prerequisites (bundle identity, archive workflow, privacy manifest, category decision).
 
 ## BPM Pipeline Steps
 

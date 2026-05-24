@@ -862,24 +862,36 @@ struct AnalysisViewModelSmokeTest {
     }
   }
 
-  // 5.5 — snapshot resets to nil at the synchronous prologue of the
-  // next analyze() call.
-  @Test("lastRunSnapshotResetOnAnalyzePrologue: new analyze clears prior snapshot")
+  // 5.5 — F09 (Story 5-6 review, 2026-05-23): snapshot is PRESERVED
+  // across reanalyze so ContentView's strategy-keyed background gradient
+  // can crossfade strategy→new-strategy in a single transition (Story
+  // 5-6 AC #5). Prior contract was "synchronous reset" (test name
+  // `lastRunSnapshotResetOnAnalyzePrologue`); F09 inverted it because
+  // resetting forced gradient → neutral → new-strategy mid-run. Stale
+  // snapshot during analyze is acceptable: Export Trace button is hidden
+  // by `!viewModel.isAnalyzing` (ContentView.swift) so stale export
+  // remains unreachable via normal UI. After the new result lands,
+  // `lastRunSnapshot` overwrites atomically with the new value.
+  @Test("lastRunSnapshotPreservedAcrossReanalyze: prior snapshot survives prologue")
   @MainActor
-  func lastRunSnapshotResetOnAnalyzePrologue() async throws {
+  func lastRunSnapshotPreservedAcrossReanalyze() async throws {
     let viewModel = try await Self.analyzeFixture()
-    #expect(viewModel.lastRunSnapshot != nil)
-    // Immediately re-launch — the synchronous prologue clears the
-    // snapshot before the Task body runs. Inspecting at this point
-    // (before yield) catches the synchronous reset.
+    let priorSnapshot = try #require(viewModel.lastRunSnapshot)
+    // Immediately re-launch — the synchronous prologue must NOT clear
+    // the snapshot. Inspecting at this point (before yield) catches a
+    // regression that re-introduces the prologue clear.
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
     viewModel.analyze(url: url)
-    #expect(viewModel.lastRunSnapshot == nil, "prologue should clear snapshot synchronously")
+    #expect(viewModel.lastRunSnapshot != nil, "prologue should PRESERVE prior snapshot per F09")
+    #expect(viewModel.lastRunSnapshot?.runOptions == priorSnapshot.runOptions)
     // Drain the in-flight task so the test doesn't leak a Task.
     let deadline = ContinuousClock.now.advanced(by: .seconds(30))
     while viewModel.isAnalyzing && ContinuousClock.now < deadline {
       try await Task.sleep(for: .milliseconds(50))
     }
+    // After completion, snapshot should be NON-NIL (the new run wrote
+    // a fresh snapshot atomically on success).
+    #expect(viewModel.lastRunSnapshot != nil, "post-run snapshot should be the new one")
   }
 
   // 5.6 — `opts.enableTrace = true` override at the prologue defeats
