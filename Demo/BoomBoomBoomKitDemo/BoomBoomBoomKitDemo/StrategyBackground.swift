@@ -62,8 +62,12 @@ struct StrategyBackground: View {
     case .none:
       // Pre-analysis: quiet, low-saturation. Reads as "blank canvas,
       // waiting for input" rather than asserting a result-domain
-      // visual identity.
-      gradientFill(top: Color(white: 0.95), bottom: Color(white: 0.88))
+      // visual identity. `Color(nsColor:)` dynamic colors adapt
+      // Light/Dark and Increased Contrast.
+      gradientFill(
+        top: Color(nsColor: .windowBackgroundColor),
+        bottom: Color(nsColor: .underPageBackgroundColor)
+      )
     }
   }
 
