@@ -20,7 +20,7 @@ struct AnalysisViewModelSmokeTest {
     // `AnalysisViewModel.init(configuration:)` hydration path does NOT
     // consult `.standard` — preserves test isolation from operator-side
     // app prefs and other tests in the same target.
-    let viewModel = Self.makeIsolatedViewModel(suiteName: "smoke.wrapping")
+    let viewModel = try Self.makeIsolatedViewModel(suiteName: "smoke.wrapping")
     defer { Self.removeIsolatedSuite("smoke.wrapping") }
     viewModel.analyze(url: url)
 
@@ -556,14 +556,19 @@ struct AnalysisViewModelSmokeTest {
   //
   // Uses an isolated `UserDefaults(suiteName:)` so the new
   // `AnalysisViewModel.init(configuration:)` hydration path does NOT
-  // consult `.standard` and contaminate the operator's app prefs or
-  // other tests. The suite is intentionally NOT cleaned up here —
-  // `analyzeFixture` never writes to UserDefaults (its only producer
-  // is the Picker `.onChange`, which is not exercised by these tests).
+  // consult `.standard` and contaminate the operator's app prefs.
+  // All callers of this helper share the single `smoke.analyzeFixture`
+  // suite (both within and across test runs). The current smoke tests
+  // never WRITE a merge-strategy preference into that suite, so under
+  // normal state the helper only reads and the init's self-heal arm
+  // (which removes a bad key via `removeObject`) never fires here.
+  // A future test that seeds EITHER an unrecognized raw value OR a
+  // stale-but-valid value would need a `removeIsolatedSuite` cleanup
+  // (or a unique suite name) to avoid cross-test pollution.
   @MainActor
   private static func analyzeFixture() async throws -> AnalysisViewModel {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
-    let viewModel = makeIsolatedViewModel(suiteName: "smoke.analyzeFixture")
+    let viewModel = try makeIsolatedViewModel(suiteName: "smoke.analyzeFixture")
     viewModel.analyze(url: url)
     let deadline = ContinuousClock.now.advanced(by: .seconds(30))
     while viewModel.isAnalyzing && ContinuousClock.now < deadline {
@@ -578,10 +583,16 @@ struct AnalysisViewModelSmokeTest {
   // namespaced under the bundle id to avoid colliding with other apps
   // or tests on the developer's machine. Pair with `removeIsolatedSuite`
   // when the test wants clean state for the next call.
+  //
+  // `try #require` instead of force-unwrap so a nil suite name (invalid
+  // identifier / environment issue) fails THIS test with attribution,
+  // not the whole process. Mirrors the pattern in
+  // `MergeStrategyPersistenceTests.swift` to keep both test files
+  // consistent on isolation hygiene.
   @MainActor
-  fileprivate static func makeIsolatedViewModel(suiteName: String) -> AnalysisViewModel {
+  fileprivate static func makeIsolatedViewModel(suiteName: String) throws -> AnalysisViewModel {
     let qualifiedName = "com.robbyt.BoomBoomBoomBPMTests.\(suiteName)"
-    let defaults = UserDefaults(suiteName: qualifiedName)!
+    let defaults = try #require(UserDefaults(suiteName: qualifiedName))
     return AnalysisViewModel(
       configuration: AnalysisViewModel.Configuration(
         defaults: defaults,

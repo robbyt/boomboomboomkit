@@ -4,7 +4,7 @@ user_name: 'robbyt'
 date: '2026-05-25'
 sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
 status: 'complete'
-rule_count: 112
+rule_count: 113
 optimized_for_llm: true
 validated_with: ['apple-docs-mcp', 'axiom-swift-concurrency-ref', 'axiom-swift-modern', 'axiom-swift-testing', 'axiom-swift-performance', 'axiom-avfoundation-ref', 'axiom-bnns-ref', 'bpm-diagnostic-trace (project-local)', 'epic-4-retrospective (2026-05-17)', 'epic-5-retrospective (2026-05-25)']
 ---
@@ -155,6 +155,7 @@ These are workflow patterns that emerged through Epic 1-3 retros and are now loa
 - **Story-spec compaction discipline at close-out.** When a story acquires a 3rd review sub-section OR a mid-flight pivot rewrites a KDD, schedule a 50% compaction pass at close-out — shipping-state-only spec body, full revision history compacted to a single Change Log section. Default ceiling: no story spec exceeds 350 lines at `done` status without an explicit "audit-trail-preservation override" Change Log entry. Story 5-7 (552 lines, 4 review sub-sections) and Story 5-8 (363 lines with retained scope-c mechanics) are the precedent that motivated the rule
 - **Supersession-header amendment pattern for cross-story KDD overrides.** When a later story supersedes an earlier story's KDD, add a `> AMENDED BY X-Y — KDD partially superseded.` blockquote at the head of each affected KDD with cross-reference to the superseding story. Original wording preserved beneath for archaeological reasons. Precedent: Story 5-8 KDD #4 amending Story 5-7 KDD #4 + #5. Do NOT delete superseded text; the audit trail of what was true when is load-bearing for pre-1.0 reasoning
 - **Pre-execution-decisions-before-irreversible-edits ceremony for one-way doors.** When a story's mechanics are reversible (LOC edit in a Swift file, test addition, doc rewrite) the standard DD block suffices. When the mechanics are irreversible (bundle ID committed to ASC, license changes, database schema migrations past a public release, public API removals post-1.0), the story spec MUST capture pre-execution trade-off decisions in Completion Notes BEFORE any mechanic lands — including the alternative paths considered and rejected. Story 5-8 captured 5 such trade-offs (trigger, persona, scope, name, story shape) before any pbxproj edit; the discipline caught the "Apple welds bundle IDs on first upload" constraint in time to choose the final name. Apply selectively — not every story is a one-way door
+- **After flipping a policy during spec review (e.g., self-heal vs. preserve, throw vs. fallback), grep all Verification / Manual-checks / I/O-matrix sections for stale expectations of the old policy.** The Codex spec-review pass for the merge-strategy-persistence story flipped the unrecognized-rawValue policy from "preserve on disk" to "self-heal: remove and fall back" — but a leftover Verification line still asserted the old "preserved on disk" expectation. Codex's review caught the flip but not the dangling Verification; GitHub Copilot caught it post-push (PR #16 comment 3). Cost: one follow-up commit. Run the grep BEFORE pushing, as part of the same compaction pass that the previous rule mandates
 
 ### Critical Don't-Miss Rules
 
@@ -216,4 +217,4 @@ _For the discipline rule on designing trace state BEFORE introducing techniques 
 
 **File structure rule:** This file is **rules**, not **history**. Use imperative voice ("do X" / "MUST" / "is", not "did X" / "was added in Story Y"). Trailing-citation pattern is allowed and encouraged: end an imperative rule with `(reference: Story X-Y)` when the rule's origin matters for understanding. The prohibition is on past-tense rule **bodies**, not on attribution. If a rule needs a paragraph of context, extract the pattern to a project-local skill (precedent: `.claude/skills/bpm-diagnostic-trace/SKILL.md`).
 
-Last Updated: 2026-05-25. Change history in git: `git log --oneline --follow _bmad-output/project-context.md`. **Growth tripwire:** when rule count exceeds ~120, extract a subsection to a project-local skill file. Current count: ~112.
+Last Updated: 2026-05-25. Change history in git: `git log --oneline --follow _bmad-output/project-context.md`. **Growth tripwire:** when rule count exceeds ~120, extract a subsection to a project-local skill file. Current count: ~113.

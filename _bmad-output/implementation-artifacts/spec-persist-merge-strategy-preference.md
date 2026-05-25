@@ -88,7 +88,7 @@ baseline_commit: 'b2a4122'
 - `make demo-test` — expected: all tests pass; the smoke test still detects the 120 BPM click track
 - After build + launch + Picker change + quit: `defaults read com.robbyt.BoomBoomBoomBPM preferredMergeStrategy` — expected: the rawValue of the user's last selection (e.g., `quorum`, `weightedAverage`)
 - Reset state for testing first-launch: `defaults delete com.robbyt.BoomBoomBoomBPM preferredMergeStrategy && open <built-app>` — expected: Picker shows `quorum`
-- Corrupt-value test: `defaults write com.robbyt.BoomBoomBoomBPM preferredMergeStrategy bogusValue && open <built-app>` — expected: Picker shows `quorum`; `defaults read` still returns `bogusValue` (not overwritten silently)
+- Unrecognized raw-value test: `defaults write com.robbyt.BoomBoomBoomBPM preferredMergeStrategy bogusValue && open <built-app>` — expected: Picker shows `quorum`; after launch, the self-heal path has removed the bad key, so `defaults read com.robbyt.BoomBoomBoomBPM preferredMergeStrategy` reports that the key does not exist.
 
 **Manual checks:**
 - Launch fresh-state app → Picker reads `quorum`. Pick `weighted average`. Quit. Relaunch → Picker reads `weighted average`. Pick `dedup`. Quit. Relaunch → Picker reads `dedup`.
