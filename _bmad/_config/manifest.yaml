@@ -1,35 +1,35 @@
 installation:
-  version: 6.6.0
+  version: 6.7.1
   installDate: 2026-03-21 23:38:56.349000000 Z
-  lastUpdated: 2026-04-30T03:58:56.434Z
+  lastUpdated: 2026-05-25T16:58:23.697Z
 modules:
   - name: core
-    version: 6.6.0
+    version: 6.7.1
     installDate: 2026-03-21 23:38:56.019000000 Z
-    lastUpdated: 2026-04-30T03:58:56.374Z
+    lastUpdated: 2026-05-25T16:58:23.695Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmm
-    version: 6.6.0
+    version: 6.7.1
     installDate: 2026-04-27T04:20:19.653Z
-    lastUpdated: 2026-04-30T03:58:56.374Z
+    lastUpdated: 2026-05-25T16:58:23.695Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: gloria
-    version: 1.0.0
+    version: null
     installDate: 2026-04-27 04:09:57.236000000 Z
-    lastUpdated: 2026-04-30T03:58:56.404Z
-    source: custom
+    lastUpdated: 2026-05-25T16:58:23.696Z
+    source: unknown
     npmPackage: null
     repoUrl: null
     localPath: /Users/rterhaar/Dropbox/research/ai/bmad-agents/skills/gloria
   - name: siri
-    version: 1.0.0
+    version: null
     installDate: 2026-04-27 04:09:57.274000000 Z
-    lastUpdated: 2026-04-30T03:58:56.434Z
-    source: custom
+    lastUpdated: 2026-05-25T16:58:23.697Z
+    source: unknown
     npmPackage: null
     repoUrl: null
     localPath: /Users/rterhaar/Dropbox/research/ai/bmad-agents/skills/siri
