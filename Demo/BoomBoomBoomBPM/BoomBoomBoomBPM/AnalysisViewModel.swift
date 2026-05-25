@@ -9,7 +9,74 @@ import UniformTypeIdentifiers
 @Observable
 final class AnalysisViewModel {
 
-  init() {}
+  // Injectable storage layer for the persisted merge-strategy
+  // preference. Production callers pass nothing (`.live` defaults to
+  // `UserDefaults.standard` + `.quorum` fallback); tests inject an
+  // isolated `UserDefaults(suiteName:)` to avoid contaminating each
+  // other or the operator's app prefs. Single-arg struct rather than a
+  // bare `defaults` parameter so future prefs knobs land in the same
+  // place without breaking the call sites.
+  struct Configuration: Sendable {
+    let defaults: UserDefaults
+    let fallbackStrategy: CandidateMergeStrategy
+
+    static let live = Configuration(
+      defaults: .standard,
+      fallbackStrategy: .quorum
+    )
+  }
+
+  static let preferredMergeStrategyKey = "preferredMergeStrategy"
+
+  @ObservationIgnored
+  private let configuration: Configuration
+
+  /// Hydrate `options.mergeStrategy` from the configured UserDefaults
+  /// BEFORE `ContentView.body` first renders, so the Picker shows the
+  /// persisted value with no transient flash.
+  ///
+  /// Demo policy: when the stored raw value is absent OR unrecognized
+  /// (e.g., a library case was renamed/removed), fall back to
+  /// `configuration.fallbackStrategy` (`.quorum` for `.live`). On the
+  /// unrecognized path we also remove the bad key — self-healing per
+  /// the pre-1.0 framing in `CLAUDE.md` — so subsequent launches take
+  /// the absent-key path cleanly.
+  ///
+  /// The library default at
+  /// `AudioAnalysisService.Options.mergeStrategy` remains
+  /// `.maxConfidence`; this seeding is demo-side only and MUST NOT
+  /// leak into the library. SPM consumers receive the library default
+  /// unless they opt in.
+  init(configuration: Configuration = .live) {
+    self.configuration = configuration
+    if let rawValue = configuration.defaults.string(
+      forKey: Self.preferredMergeStrategyKey
+    ) {
+      if let strategy = CandidateMergeStrategy(rawValue: rawValue) {
+        options.mergeStrategy = strategy
+      } else {
+        // Self-heal: remove the bad key, fall back to the configured
+        // default. Future launches take the absent-key path.
+        configuration.defaults.removeObject(
+          forKey: Self.preferredMergeStrategyKey
+        )
+        options.mergeStrategy = configuration.fallbackStrategy
+      }
+    } else {
+      options.mergeStrategy = configuration.fallbackStrategy
+    }
+  }
+
+  /// Persist the current `options.mergeStrategy` to the configured
+  /// UserDefaults. Called from `ContentView`'s
+  /// `.onChange(of: viewModel.options.mergeStrategy)` so every Picker
+  /// change survives quit/relaunch.
+  func persistPreferredMergeStrategy() {
+    configuration.defaults.set(
+      options.mergeStrategy.rawValue,
+      forKey: Self.preferredMergeStrategyKey
+    )
+  }
 
   // Extension-based whitelist used by `validateDropPayload`. NOT
   // `UTType.conforms(to:)` — `.m4b` / `.mp4` conform to `.mpeg4Audio`
