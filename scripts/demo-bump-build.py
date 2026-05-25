@@ -48,7 +48,7 @@ PBXPROJ = (
     REPO_ROOT
     / "Demo"
     / "BoomBoomBoomKitDemo"
-    / "BoomBoomBoomKitDemo.xcodeproj"
+    / "BoomBoomBoomBPM.xcodeproj"
     / "project.pbxproj"
 )
 

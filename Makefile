@@ -33,7 +33,7 @@ build-release:
 .PHONY: demo-build
 demo-build:
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
 		-scheme BoomBoomBoomKitDemo \
 		-destination 'platform=macOS' \
 		-configuration Debug \
@@ -46,7 +46,7 @@ demo-build:
 .PHONY: demo-test
 demo-test:
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
 		-scheme BoomBoomBoomKitDemo \
 		-testPlan BoomBoomBoomKitDemo \
 		-destination 'platform=macOS' \
@@ -59,7 +59,7 @@ demo-test:
 .PHONY: demo-build-sandboxed
 demo-build-sandboxed:
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
 		-scheme BoomBoomBoomKitDemo \
 		-destination 'platform=macOS' \
 		-configuration Debug \
@@ -75,7 +75,7 @@ ifndef DEVELOPMENT_TEAM
 endif
 	@rm -rf build/BoomBoomBoomKitDemo.xcarchive
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj \
+		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
 		-scheme BoomBoomBoomKitDemo \
 		-destination 'generic/platform=macOS' \
 		-configuration Release \

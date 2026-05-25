@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2FB1B49AED6042639BAAD059"
-               BuildableName = "BoomBoomBoomKitDemo.app"
-               BlueprintName = "BoomBoomBoomKitDemo"
-               ReferencedContainer = "container:BoomBoomBoomKitDemo.xcodeproj">
+               BuildableName = "BoomBoomBoomBPM.app"
+               BlueprintName = "BoomBoomBoomBPM"
+               ReferencedContainer = "container:BoomBoomBoomBPM.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -41,9 +41,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "ED2B4E6380294593B2271D63"
-               BuildableName = "BoomBoomBoomKitDemoTests.xctest"
-               BlueprintName = "BoomBoomBoomKitDemoTests"
-               ReferencedContainer = "container:BoomBoomBoomKitDemo.xcodeproj">
+               BuildableName = "BoomBoomBoomBPMTests.xctest"
+               BlueprintName = "BoomBoomBoomBPMTests"
+               ReferencedContainer = "container:BoomBoomBoomBPM.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -58,15 +58,15 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES"
-      queueDebuggingEnableBacktraceRecording = "YES">
+      queueDebuggingEnableBacktraceRecording = "Yes">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2FB1B49AED6042639BAAD059"
-            BuildableName = "BoomBoomBoomKitDemo.app"
-            BlueprintName = "BoomBoomBoomKitDemo"
-            ReferencedContainer = "container:BoomBoomBoomKitDemo.xcodeproj">
+            BuildableName = "BoomBoomBoomBPM.app"
+            BlueprintName = "BoomBoomBoomBPM"
+            ReferencedContainer = "container:BoomBoomBoomBPM.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -81,9 +81,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "2FB1B49AED6042639BAAD059"
-            BuildableName = "BoomBoomBoomKitDemo.app"
-            BlueprintName = "BoomBoomBoomKitDemo"
-            ReferencedContainer = "container:BoomBoomBoomKitDemo.xcodeproj">
+            BuildableName = "BoomBoomBoomBPM.app"
+            BlueprintName = "BoomBoomBoomBPM"
+            ReferencedContainer = "container:BoomBoomBoomBPM.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
