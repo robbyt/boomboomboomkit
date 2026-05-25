@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct BoomBoomBoomKitDemoApp: App {
+struct BoomBoomBoomBPMApp: App {
   var body: some Scene {
     WindowGroup {
       ContentView()

@@ -18,37 +18,37 @@
 			containerPortal = 8303CC245BBF40BB807A9383 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 2FB1B49AED6042639BAAD059;
-			remoteInfo = BoomBoomBoomKitDemo;
+			remoteInfo = BoomBoomBoomBPM;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0848465D51CB4967A32319B4 /* BoomBoomBoomKitDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BoomBoomBoomKitDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		32EA47B840544CC3AF42CEF2 /* BoomBoomBoomKitDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BoomBoomBoomKitDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0848465D51CB4967A32319B4 /* BoomBoomBoomBPM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BoomBoomBoomBPM.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		32EA47B840544CC3AF42CEF2 /* BoomBoomBoomBPMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BoomBoomBoomBPMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomKitDemo" folder in "BoomBoomBoomKitDemo" target */ = {
+		4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomBPM" folder in "BoomBoomBoomBPM" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 2FB1B49AED6042639BAAD059 /* BoomBoomBoomKitDemo */;
+			target = 2FB1B49AED6042639BAAD059 /* BoomBoomBoomBPM */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		18CD563CFA7747BC95911C77 /* BoomBoomBoomKitDemo */ = {
+		18CD563CFA7747BC95911C77 /* BoomBoomBoomBPM */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomKitDemo" folder in "BoomBoomBoomKitDemo" target */,
+				4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomBPM" folder in "BoomBoomBoomBPM" target */,
 			);
-			path = BoomBoomBoomKitDemo;
+			path = BoomBoomBoomBPM;
 			sourceTree = "<group>";
 		};
-		9C94DB39762342978C5CD688 /* BoomBoomBoomKitDemoTests */ = {
+		9C94DB39762342978C5CD688 /* BoomBoomBoomBPMTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BoomBoomBoomKitDemoTests;
+			path = BoomBoomBoomBPMTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -84,8 +84,8 @@
 		5BA7EA2EF94B47D78F93A0DD /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0848465D51CB4967A32319B4 /* BoomBoomBoomKitDemo.app */,
-				32EA47B840544CC3AF42CEF2 /* BoomBoomBoomKitDemoTests.xctest */,
+				0848465D51CB4967A32319B4 /* BoomBoomBoomBPM.app */,
+				32EA47B840544CC3AF42CEF2 /* BoomBoomBoomBPMTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -93,8 +93,8 @@
 		EF5CE63619DA4C44BBCB330B = {
 			isa = PBXGroup;
 			children = (
-				18CD563CFA7747BC95911C77 /* BoomBoomBoomKitDemo */,
-				9C94DB39762342978C5CD688 /* BoomBoomBoomKitDemoTests */,
+				18CD563CFA7747BC95911C77 /* BoomBoomBoomBPM */,
+				9C94DB39762342978C5CD688 /* BoomBoomBoomBPMTests */,
 				340BE5955A1740E99214065C /* Frameworks */,
 				5BA7EA2EF94B47D78F93A0DD /* Products */,
 			);
@@ -103,9 +103,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		2FB1B49AED6042639BAAD059 /* BoomBoomBoomKitDemo */ = {
+		2FB1B49AED6042639BAAD059 /* BoomBoomBoomBPM */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 6D48E084E5C84570BF5D2363 /* Build configuration list for PBXNativeTarget "BoomBoomBoomKitDemo" */;
+			buildConfigurationList = 6D48E084E5C84570BF5D2363 /* Build configuration list for PBXNativeTarget "BoomBoomBoomBPM" */;
 			buildPhases = (
 				352ADAB05CB84CC08D5DF89B /* Sources */,
 				E80E2607EA4348A3BFBF822E /* Frameworks */,
@@ -116,20 +116,20 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				18CD563CFA7747BC95911C77 /* BoomBoomBoomKitDemo */,
+				18CD563CFA7747BC95911C77 /* BoomBoomBoomBPM */,
 			);
-			name = BoomBoomBoomKitDemo;
+			name = BoomBoomBoomBPM;
 			packageProductDependencies = (
 				CC80BDB8C44C4D6CB5BDDC39 /* BoomBoomBoomKit */,
 				491F0616FB7E4121955E263E /* BoomBoomBoomKitML */,
 			);
-			productName = BoomBoomBoomKitDemo;
-			productReference = 0848465D51CB4967A32319B4 /* BoomBoomBoomKitDemo.app */;
+			productName = BoomBoomBoomBPM;
+			productReference = 0848465D51CB4967A32319B4 /* BoomBoomBoomBPM.app */;
 			productType = "com.apple.product-type.application";
 		};
-		ED2B4E6380294593B2271D63 /* BoomBoomBoomKitDemoTests */ = {
+		ED2B4E6380294593B2271D63 /* BoomBoomBoomBPMTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 07AC87D1A96549109DE96360 /* Build configuration list for PBXNativeTarget "BoomBoomBoomKitDemoTests" */;
+			buildConfigurationList = 07AC87D1A96549109DE96360 /* Build configuration list for PBXNativeTarget "BoomBoomBoomBPMTests" */;
 			buildPhases = (
 				28EA06376F1F4A17BF72E52E /* Sources */,
 				DFDDD5475E5B4D42824AA632 /* Frameworks */,
@@ -141,14 +141,14 @@
 				1D3AD10F5FAD4E5FB21C161F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9C94DB39762342978C5CD688 /* BoomBoomBoomKitDemoTests */,
+				9C94DB39762342978C5CD688 /* BoomBoomBoomBPMTests */,
 			);
-			name = BoomBoomBoomKitDemoTests;
+			name = BoomBoomBoomBPMTests;
 			packageProductDependencies = (
 				4C958F5C01774258A1A8F08B /* BoomBoomBoomKitTestSupport */,
 			);
-			productName = BoomBoomBoomKitDemoTests;
-			productReference = 32EA47B840544CC3AF42CEF2 /* BoomBoomBoomKitDemoTests.xctest */;
+			productName = BoomBoomBoomBPMTests;
+			productReference = 32EA47B840544CC3AF42CEF2 /* BoomBoomBoomBPMTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -170,7 +170,7 @@
 					};
 				};
 			};
-			buildConfigurationList = FD04CACBAECF4547960DAA33 /* Build configuration list for PBXProject "BoomBoomBoomKitDemo" */;
+			buildConfigurationList = FD04CACBAECF4547960DAA33 /* Build configuration list for PBXProject "BoomBoomBoomBPM" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -187,8 +187,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				2FB1B49AED6042639BAAD059 /* BoomBoomBoomKitDemo */,
-				ED2B4E6380294593B2271D63 /* BoomBoomBoomKitDemoTests */,
+				2FB1B49AED6042639BAAD059 /* BoomBoomBoomBPM */,
+				ED2B4E6380294593B2271D63 /* BoomBoomBoomBPMTests */,
 			);
 		};
 /* End PBXProject section */
@@ -230,7 +230,7 @@
 /* Begin PBXTargetDependency section */
 		1D3AD10F5FAD4E5FB21C161F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 2FB1B49AED6042639BAAD059 /* BoomBoomBoomKitDemo */;
+			target = 2FB1B49AED6042639BAAD059 /* BoomBoomBoomBPM */;
 			targetProxy = 749E3F28B4AE4D10A71035AE /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -247,14 +247,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomKitDemoTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomBPM.Tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BoomBoomBoomKitDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BoomBoomBoomKitDemo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BoomBoomBoomBPM.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BoomBoomBoomBPM";
 			};
 			name = Release;
 		};
@@ -387,10 +387,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.entitlements;
+				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
@@ -399,14 +399,14 @@
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = BoomBoomBoomKitDemo/Info.plist;
+				INFOPLIST_FILE = BoomBoomBoomBPM/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomKitDemo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomBPM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -422,10 +422,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.entitlements;
+				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
@@ -433,14 +433,14 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = BoomBoomBoomKitDemo/Info.plist;
+				INFOPLIST_FILE = BoomBoomBoomBPM/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomKitDemo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomBPM;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -462,21 +462,21 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 0.1;
-				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomKitDemoTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.robbyt.BoomBoomBoomBPM.Tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BoomBoomBoomKitDemo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BoomBoomBoomKitDemo";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BoomBoomBoomBPM.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BoomBoomBoomBPM";
 			};
 			name = Debug;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		07AC87D1A96549109DE96360 /* Build configuration list for PBXNativeTarget "BoomBoomBoomKitDemoTests" */ = {
+		07AC87D1A96549109DE96360 /* Build configuration list for PBXNativeTarget "BoomBoomBoomBPMTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E994CE69C7DF4164B576E48F /* Debug */,
@@ -485,7 +485,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		6D48E084E5C84570BF5D2363 /* Build configuration list for PBXNativeTarget "BoomBoomBoomKitDemo" */ = {
+		6D48E084E5C84570BF5D2363 /* Build configuration list for PBXNativeTarget "BoomBoomBoomBPM" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				91CC0E3CC2CC4B0784DB2802 /* Debug */,
@@ -494,7 +494,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FD04CACBAECF4547960DAA33 /* Build configuration list for PBXProject "BoomBoomBoomKitDemo" */ = {
+		FD04CACBAECF4547960DAA33 /* Build configuration list for PBXProject "BoomBoomBoomBPM" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				67CF34E911C649A185BC2A32 /* Debug */,

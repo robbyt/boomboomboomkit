@@ -1,4 +1,4 @@
-# BoomBoomBoomKitDemo
+# BoomBoomBoomBPM
 
 End-user macOS demo app for [BoomBoomBoomKit](../../README.md). Drop an audio file, see the detected BPM, optionally inspect the diagnostic trace pipeline. Distributed as a free download via the Mac App Store.
 
@@ -6,8 +6,8 @@ End-user macOS demo app for [BoomBoomBoomKit](../../README.md). Drop an audio fi
 
 | Field | Value |
 |-------|-------|
-| Bundle ID | `com.robbyt.BoomBoomBoomKitDemo` |
-| Display name | `BoomBoomBoomKitDemo` |
+| Bundle ID | `com.robbyt.BoomBoomBoomBPM` |
+| Display name | `BoomBoomBoomBPM` |
 | Development team | configured per-operator via `DEVELOPMENT_TEAM=<id>` env var (see Archive workflow) |
 | Minimum macOS | 15.6 (App Store demo binary only — library distributes independently via SPM at `.macOS(.v15)`; see [Story 5-7 KDD #9](../../_bmad-output/implementation-artifacts/5-7-app-store-submission-readiness.md) for the platform-decoupling rationale) |
 
@@ -23,7 +23,7 @@ End-user macOS demo app for [BoomBoomBoomKit](../../README.md). Drop an audio fi
 - **`CFBundleShortVersionString` (marketing version):** semantic `MAJOR.MINOR.PATCH`, starts at `0.1` (pre-1.0 per library framing in `CLAUDE.md`). Visible to users in the App Store listing.
 - **`CFBundleVersion` (build number):** monotonically increasing integer per upload to App Store Connect. Starts at `1`. Manual bump (no date-derived scheme); operator increments per archive.
 
-Both values are set via `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` build settings in `BoomBoomBoomKitDemo.xcodeproj`; `Info.plist` references them via `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)` placeholders.
+Both values are set via `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` build settings in `BoomBoomBoomBPM.xcodeproj`; `Info.plist` references them via `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)` placeholders.
 
 To bump build number (every archive upload — App Store Connect rejects duplicates with ITMS-90062):
 
@@ -36,13 +36,13 @@ This increments `CURRENT_PROJECT_VERSION` across all 4 pbxproj configs. Run it b
 To bump marketing version (user-visible release — typically less frequent):
 
 ```bash
-# Edit Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj/project.pbxproj manually:
+# Edit Demo/BoomBoomBoomBPM/BoomBoomBoomBPM.xcodeproj/project.pbxproj manually:
 #   MARKETING_VERSION = 0.2;          (raise for user-visible release)
 ```
 
 ## Archive workflow
 
-`make demo-archive` produces a signed `.xcarchive` at `build/BoomBoomBoomKitDemo.xcarchive`. `DEVELOPMENT_TEAM` env var is required and is validated by an explicit `ifndef DEVELOPMENT_TEAM` guard in the Makefile recipe — invocation without it fails fast with an actionable error. (Sibling target `make demo-build-sandboxed` only *threads* `DEVELOPMENT_TEAM` into the xcodebuild command and will fail cryptically downstream if unset — the two targets are deliberately asymmetric: archive uploads must never silently produce an unsigned bundle, while iterative sandbox builds tolerate a less strict guard.)
+`make demo-archive` produces a signed `.xcarchive` at `build/BoomBoomBoomBPM.xcarchive`. `DEVELOPMENT_TEAM` env var is required and is validated by an explicit `ifndef DEVELOPMENT_TEAM` guard in the Makefile recipe — invocation without it fails fast with an actionable error. (Sibling target `make demo-build-sandboxed` only *threads* `DEVELOPMENT_TEAM` into the xcodebuild command and will fail cryptically downstream if unset — the two targets are deliberately asymmetric: archive uploads must never silently produce an unsigned bundle, while iterative sandbox builds tolerate a less strict guard.)
 
 ```bash
 DEVELOPMENT_TEAM=ABC1234DEF make demo-archive
@@ -50,9 +50,9 @@ DEVELOPMENT_TEAM=ABC1234DEF make demo-archive
 
 The archive is NOT auto-uploaded. To submit:
 
-1. Open the archive in Xcode Organizer: `open build/BoomBoomBoomKitDemo.xcarchive`
+1. Open the archive in Xcode Organizer: `open build/BoomBoomBoomBPM.xcarchive`
 2. Use **Distribute App** → **App Store Connect** → **Upload**, OR
-3. (For scripted/CI export: author your own `ExportOptions.plist` per Apple's spec, then `xcodebuild -exportArchive -archivePath build/BoomBoomBoomKitDemo.xcarchive -exportPath build/export -exportOptionsPlist your-export-options.plist`, then upload the resulting `.pkg` / `.app` via Transporter. No `ExportOptions.plist` ships in-repo — the schema differs across teams' signing setups.)
+3. (For scripted/CI export: author your own `ExportOptions.plist` per Apple's spec, then `xcodebuild -exportArchive -archivePath build/BoomBoomBoomBPM.xcarchive -exportPath build/export -exportOptionsPlist your-export-options.plist`, then upload the resulting `.pkg` / `.app` via Transporter. No `ExportOptions.plist` ships in-repo — the schema differs across teams' signing setups.)
 
 Apple's `-allowProvisioningUpdates` flag (on by default in `make demo-archive`) auto-downloads/refreshes the App Store distribution provisioning profile from Apple's servers if your Apple Developer account is configured. The first archive on a fresh machine may prompt for Xcode sign-in.
 
@@ -62,7 +62,7 @@ These are portal-side items the operator handles via App Store Connect — none 
 
 | Item | Status | Notes |
 |------|--------|-------|
-| App record created in App Store Connect | operator | Use bundle ID `com.robbyt.BoomBoomBoomKitDemo` |
+| App record created in App Store Connect | operator | Use bundle ID `com.robbyt.BoomBoomBoomBPM` |
 | Screenshots (3 × 2880×1800 minimum) | operator | Run the app at 2880×1800 window size; capture via macOS Screenshot (`Cmd-Shift-4` / `Cmd-Shift-5`). Suggested subjects: empty-state drop zone, mid-analysis ProgressView, post-result hero + Diagnostics inspector |
 | App description (≤4000 chars) | operator | Highlight: zero-config BPM detection, supports WAV/AIFF/MP3/FLAC/M4A, sandbox-respecting, no tracking |
 | Subtitle (≤170 chars) | operator | Suggested: "Detect BPM from any audio file. Free, private, fast." |

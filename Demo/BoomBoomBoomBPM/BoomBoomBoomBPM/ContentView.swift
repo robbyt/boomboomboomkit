@@ -10,7 +10,7 @@ struct ContentView: View {
   // power users toggle via the Diagnostics button (Command-Shift-D),
   // the system View → Show Inspector menu, or Control-Command-I (both
   // provided by `InspectorCommands()` at
-  // `BoomBoomBoomKitDemoApp.swift:14-16`).
+  // `BoomBoomBoomBPMApp.swift:14-16`).
   @SceneStorage("traceInspectorPresented") private var inspectorPresented: Bool = false
 
   // Accessibility gates for `StrategyBackground` — reduce-motion
