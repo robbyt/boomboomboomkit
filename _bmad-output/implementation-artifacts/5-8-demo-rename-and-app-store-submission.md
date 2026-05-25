@@ -3,7 +3,7 @@
 Story ID: 5.8
 Story Key: 5-8-demo-rename-and-app-store-submission
 Epic: 5 — Developer Experience (Demo App + Documentation)
-Status: ready-for-dev (operator pre-execution answers recorded 2026-05-24; AC #1 documentation completion + Q1.1 search audit gate flip to in-progress)
+Status: done (landed on `develop` via PR #13 `50be70f` — "story 5-8 - finalize the xcode build config and rename")
 Created: 2026-05-24 (via `/bmad-party-mode` rename-scoping discussion: Amelia + Winston + John + Siri)
 Reviewed: 2026-05-24 (via `/bmad-party-mode` review-validate-update pass: Amelia + Winston + John + Siri + mediadiff/MetaMan cross-reference; 18 findings consolidated; operator pre-execution answers recorded — see Change Log)
 Source: `/bmad-party-mode` 2026-05-24 transcripts; supersedes Story 5-7 KDD #4 + #5; closes W33 in `_bmad-output/implementation-artifacts/deferred-work.md`
