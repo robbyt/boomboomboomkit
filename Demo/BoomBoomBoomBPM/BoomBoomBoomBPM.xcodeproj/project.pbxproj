@@ -18,7 +18,7 @@
 			containerPortal = 8303CC245BBF40BB807A9383 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 2FB1B49AED6042639BAAD059;
-			remoteInfo = BoomBoomBoomKitDemo;
+			remoteInfo = BoomBoomBoomBPM;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -28,7 +28,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomKitDemo" folder in "BoomBoomBoomBPM" target */ = {
+		4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomBPM" folder in "BoomBoomBoomBPM" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -38,17 +38,17 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		18CD563CFA7747BC95911C77 /* BoomBoomBoomKitDemo */ = {
+		18CD563CFA7747BC95911C77 /* BoomBoomBoomBPM */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomKitDemo" folder in "BoomBoomBoomBPM" target */,
+				4F5B7E1A9C8D406DB2C39A48 /* Exceptions for "BoomBoomBoomBPM" folder in "BoomBoomBoomBPM" target */,
 			);
-			path = BoomBoomBoomKitDemo;
+			path = BoomBoomBoomBPM;
 			sourceTree = "<group>";
 		};
-		9C94DB39762342978C5CD688 /* BoomBoomBoomKitDemoTests */ = {
+		9C94DB39762342978C5CD688 /* BoomBoomBoomBPMTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BoomBoomBoomKitDemoTests;
+			path = BoomBoomBoomBPMTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -93,8 +93,8 @@
 		EF5CE63619DA4C44BBCB330B = {
 			isa = PBXGroup;
 			children = (
-				18CD563CFA7747BC95911C77 /* BoomBoomBoomKitDemo */,
-				9C94DB39762342978C5CD688 /* BoomBoomBoomKitDemoTests */,
+				18CD563CFA7747BC95911C77 /* BoomBoomBoomBPM */,
+				9C94DB39762342978C5CD688 /* BoomBoomBoomBPMTests */,
 				340BE5955A1740E99214065C /* Frameworks */,
 				5BA7EA2EF94B47D78F93A0DD /* Products */,
 			);
@@ -116,14 +116,14 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				18CD563CFA7747BC95911C77 /* BoomBoomBoomKitDemo */,
+				18CD563CFA7747BC95911C77 /* BoomBoomBoomBPM */,
 			);
 			name = BoomBoomBoomBPM;
 			packageProductDependencies = (
 				CC80BDB8C44C4D6CB5BDDC39 /* BoomBoomBoomKit */,
 				491F0616FB7E4121955E263E /* BoomBoomBoomKitML */,
 			);
-			productName = BoomBoomBoomKitDemo;
+			productName = BoomBoomBoomBPM;
 			productReference = 0848465D51CB4967A32319B4 /* BoomBoomBoomBPM.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -141,13 +141,13 @@
 				1D3AD10F5FAD4E5FB21C161F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9C94DB39762342978C5CD688 /* BoomBoomBoomKitDemoTests */,
+				9C94DB39762342978C5CD688 /* BoomBoomBoomBPMTests */,
 			);
 			name = BoomBoomBoomBPMTests;
 			packageProductDependencies = (
 				4C958F5C01774258A1A8F08B /* BoomBoomBoomKitTestSupport */,
 			);
-			productName = BoomBoomBoomKitDemoTests;
+			productName = BoomBoomBoomBPMTests;
 			productReference = 32EA47B840544CC3AF42CEF2 /* BoomBoomBoomBPMTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -387,7 +387,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.entitlements;
+				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2;
@@ -399,7 +399,7 @@
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = BoomBoomBoomKitDemo/Info.plist;
+				INFOPLIST_FILE = BoomBoomBoomBPM/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -422,7 +422,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.entitlements;
+				CODE_SIGN_ENTITLEMENTS = BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 2;
@@ -433,7 +433,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = BoomBoomBoomKitDemo/Info.plist;
+				INFOPLIST_FILE = BoomBoomBoomBPM/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

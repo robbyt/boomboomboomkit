@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.10"
 # ///
-"""demo-bump-build.py — Increment CURRENT_PROJECT_VERSION in BoomBoomBoomKitDemo's pbxproj.
+"""demo-bump-build.py — Increment CURRENT_PROJECT_VERSION in BoomBoomBoomBPM's pbxproj.
 
 Replaces the shell-pipeline-based ``demo-bump-build`` Makefile recipe. The shell
 form went through three rounds of churn in 48 hours (Story 5-7 PR #9 squash +
@@ -47,7 +47,7 @@ REPO_ROOT = SCRIPT_DIR.parent
 PBXPROJ = (
     REPO_ROOT
     / "Demo"
-    / "BoomBoomBoomKitDemo"
+    / "BoomBoomBoomBPM"
     / "BoomBoomBoomBPM.xcodeproj"
     / "project.pbxproj"
 )

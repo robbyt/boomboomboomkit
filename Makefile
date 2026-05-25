@@ -29,12 +29,12 @@ build:
 build-release:
 	swift build -c release
 
-## demo-build: Build the BoomBoomBoomKitDemo macOS app (Debug, no code signing — Story 5-1 DD #6)
+## demo-build: Build the BoomBoomBoomBPM macOS app (Debug, no code signing — Story 5-1 DD #6)
 .PHONY: demo-build
 demo-build:
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
-		-scheme BoomBoomBoomKitDemo \
+		-project Demo/BoomBoomBoomBPM/BoomBoomBoomBPM.xcodeproj \
+		-scheme BoomBoomBoomBPM \
 		-destination 'platform=macOS' \
 		-configuration Debug \
 		CODE_SIGNING_ALLOWED=NO \
@@ -42,44 +42,44 @@ demo-build:
 		CODE_SIGN_IDENTITY="" \
 		build
 
-## demo-test: Run BoomBoomBoomKitDemo tests via the app scheme + xctestplan (Story 5-7 2026-05-24 fourth-pass review D1 — committing only the app scheme makes Xcode stop auto-generating the Tests scheme, so the Makefile uses `-scheme BoomBoomBoomKitDemo -testPlan BoomBoomBoomKitDemo` instead). Modern Xcode 26 convention: xctestplan is the canonical test-config entry point.
+## demo-test: Run BoomBoomBoomBPM tests via the app scheme + xctestplan (Story 5-7 2026-05-24 fourth-pass review D1 — committing only the app scheme makes Xcode stop auto-generating the Tests scheme, so the Makefile uses `-scheme BoomBoomBoomBPM -testPlan BoomBoomBoomBPM` instead). Modern Xcode 26 convention: xctestplan is the canonical test-config entry point.
 .PHONY: demo-test
 demo-test:
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
-		-scheme BoomBoomBoomKitDemo \
-		-testPlan BoomBoomBoomKitDemo \
+		-project Demo/BoomBoomBoomBPM/BoomBoomBoomBPM.xcodeproj \
+		-scheme BoomBoomBoomBPM \
+		-testPlan BoomBoomBoomBPM \
 		-destination 'platform=macOS' \
 		CODE_SIGNING_ALLOWED=NO \
 		CODE_SIGNING_REQUIRED=NO \
 		CODE_SIGN_IDENTITY="" \
 		test
 
-## demo-build-sandboxed: Build the BoomBoomBoomKitDemo macOS app with signing enabled so the app-sandbox entitlements actually attach at launch (Story 5-1 code review D4). Requires a configured signing identity (Xcode > Settings > Accounts, OR invoke with DEVELOPMENT_TEAM=<your-team-id> make demo-build-sandboxed — the env var is threaded into xcodebuild per PR #3 Copilot review 2026-05-19 / W14 closure); does NOT pass CODE_SIGNING_ALLOWED=NO. Use to reproduce sandbox bugs that demo-build cannot exercise; not for fresh-clone CI.
+## demo-build-sandboxed: Build the BoomBoomBoomBPM macOS app with signing enabled so the app-sandbox entitlements actually attach at launch (Story 5-1 code review D4). Requires a configured signing identity (Xcode > Settings > Accounts, OR invoke with DEVELOPMENT_TEAM=<your-team-id> make demo-build-sandboxed — the env var is threaded into xcodebuild per PR #3 Copilot review 2026-05-19 / W14 closure); does NOT pass CODE_SIGNING_ALLOWED=NO. Use to reproduce sandbox bugs that demo-build cannot exercise; not for fresh-clone CI.
 .PHONY: demo-build-sandboxed
 demo-build-sandboxed:
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
-		-scheme BoomBoomBoomKitDemo \
+		-project Demo/BoomBoomBoomBPM/BoomBoomBoomBPM.xcodeproj \
+		-scheme BoomBoomBoomBPM \
 		-destination 'platform=macOS' \
 		-configuration Debug \
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		build
 
-## demo-archive: Produce a signed App Store archive at build/BoomBoomBoomKitDemo.xcarchive. Requires DEVELOPMENT_TEAM=<team-id> in the environment (Story 5-7 AC #3, mirrors the demo-build-sandboxed W14 pattern; whitespace-only values are rejected via $(strip ...) per Story 5-7 review patch). Does NOT auto-upload; xcodebuild -exportArchive or Xcode Organizer handle the final submission step (user owns App Store Connect distribution per Story 5-7 OUT-OF-SCOPE). Failing fast on unset DEVELOPMENT_TEAM prevents an unsigned archive from being silently produced. Stale-archive preflight (rm -rf) added per Story 5-7 review patch to match sibling compile-model idempotency.
+## demo-archive: Produce a signed App Store archive at build/BoomBoomBoomBPM.xcarchive. Requires DEVELOPMENT_TEAM=<team-id> in the environment (Story 5-7 AC #3, mirrors the demo-build-sandboxed W14 pattern; whitespace-only values are rejected via $(strip ...) per Story 5-7 review patch). Does NOT auto-upload; xcodebuild -exportArchive or Xcode Organizer handle the final submission step (user owns App Store Connect distribution per Story 5-7 OUT-OF-SCOPE). Failing fast on unset DEVELOPMENT_TEAM prevents an unsigned archive from being silently produced. Stale-archive preflight (rm -rf) added per Story 5-7 review patch to match sibling compile-model idempotency.
 .PHONY: demo-archive
 override DEVELOPMENT_TEAM := $(strip $(DEVELOPMENT_TEAM))
 demo-archive:
 ifndef DEVELOPMENT_TEAM
 	$(error DEVELOPMENT_TEAM is not set. Invoke as: DEVELOPMENT_TEAM=ABC1234DEF make demo-archive)
 endif
-	@rm -rf build/BoomBoomBoomKitDemo.xcarchive
+	@rm -rf build/BoomBoomBoomBPM.xcarchive
 	xcodebuild \
-		-project Demo/BoomBoomBoomKitDemo/BoomBoomBoomBPM.xcodeproj \
-		-scheme BoomBoomBoomKitDemo \
+		-project Demo/BoomBoomBoomBPM/BoomBoomBoomBPM.xcodeproj \
+		-scheme BoomBoomBoomBPM \
 		-destination 'generic/platform=macOS' \
 		-configuration Release \
-		-archivePath build/BoomBoomBoomKitDemo.xcarchive \
+		-archivePath build/BoomBoomBoomBPM.xcarchive \
 		-allowProvisioningUpdates \
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		archive
