@@ -45,7 +45,17 @@ Three deliverables ship:
 
 3. **`make demo-archive` accepts `DEVELOPMENT_TEAM` via environment but does NOT default it.** Matches the Story 5-1 W14 pattern for `make demo-build-sandboxed`. Failing fast on an unset team prevents an unsigned archive from being silently produced. The error message points the user at the documented invocation: `DEVELOPMENT_TEAM=ABC1234DEF make demo-archive`.
 
+> **AMENDED BY 5-8 — KDD partially superseded.** Story 5-8 changes
+> the bundle ID and display name; see `5-8-demo-rename-and-app-store-submission.md`
+> KDD #1 + #2 for current state. Original wording preserved below for
+> archaeological reasons.
+
 4. **Bundle ID stays `com.robbyt.BoomBoomBoomKitDemo`.** Per Story 5-1 DD, the bundle ID was chosen to be App-Store-acceptable from day one. No change in Story 5-7. The user can override at archive time with `xcodebuild PRODUCT_BUNDLE_IDENTIFIER=<other>` if they want a different listing identifier, but the in-repo default stays.
+
+> **AMENDED BY 5-8 — KDD partially superseded.** Story 5-8 changes
+> the bundle ID and display name; see `5-8-demo-rename-and-app-store-submission.md`
+> KDD #1 + #2 for current state. Original wording preserved below for
+> archaeological reasons.
 
 5. **App name stays "BoomBoomBoomKitDemo".** Renaming to something more consumer-friendly (party-mode Siri's "BeatScope" suggestion) is a marketing decision the user owns and can be done at App Store Connect listing time without changing the bundle ID. Story 5-7 records the in-repo display name (`CFBundleDisplayName`) as "BoomBoomBoomKitDemo" for consistency with prior stories. If the user wants a different display name now, the change is a one-line `Info.plist` edit during this story.
 
