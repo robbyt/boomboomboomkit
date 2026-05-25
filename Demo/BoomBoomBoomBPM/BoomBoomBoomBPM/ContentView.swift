@@ -220,6 +220,7 @@ struct ContentView: View {
         }
         .pickerStyle(.menu)
         .onChange(of: viewModel.options.mergeStrategy) { _, _ in
+          viewModel.persistPreferredMergeStrategy()
           triggerReanalyze()
         }
 

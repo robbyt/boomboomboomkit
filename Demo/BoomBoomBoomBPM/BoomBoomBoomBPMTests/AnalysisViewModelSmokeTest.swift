@@ -16,7 +16,12 @@ struct AnalysisViewModelSmokeTest {
     // if the fixture is missing — the throw itself is the missing-fixture
     // signal, no #require wrapping needed.
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
-    let viewModel = AnalysisViewModel()
+    // Isolated UserDefaults suite so the new
+    // `AnalysisViewModel.init(configuration:)` hydration path does NOT
+    // consult `.standard` — preserves test isolation from operator-side
+    // app prefs and other tests in the same target.
+    let viewModel = Self.makeIsolatedViewModel(suiteName: "smoke.wrapping")
+    defer { Self.removeIsolatedSuite("smoke.wrapping") }
     viewModel.analyze(url: url)
 
     // analyze(url:) launches a Task; poll observed isAnalyzing flag.
@@ -548,10 +553,17 @@ struct AnalysisViewModelSmokeTest {
 
   // Helper — analyze the click fixture and return the populated view
   // model. Used by tests that need a real, populated snapshot.
+  //
+  // Uses an isolated `UserDefaults(suiteName:)` so the new
+  // `AnalysisViewModel.init(configuration:)` hydration path does NOT
+  // consult `.standard` and contaminate the operator's app prefs or
+  // other tests. The suite is intentionally NOT cleaned up here —
+  // `analyzeFixture` never writes to UserDefaults (its only producer
+  // is the Picker `.onChange`, which is not exercised by these tests).
   @MainActor
   private static func analyzeFixture() async throws -> AnalysisViewModel {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
-    let viewModel = AnalysisViewModel()
+    let viewModel = makeIsolatedViewModel(suiteName: "smoke.analyzeFixture")
     viewModel.analyze(url: url)
     let deadline = ContinuousClock.now.advanced(by: .seconds(30))
     while viewModel.isAnalyzing && ContinuousClock.now < deadline {
@@ -559,6 +571,31 @@ struct AnalysisViewModelSmokeTest {
     }
     try #require(!viewModel.isAnalyzing, "analyze did not complete within 30s")
     return viewModel
+  }
+
+  // Factory for an `AnalysisViewModel` whose hydration path reads from
+  // a per-suite `UserDefaults` instead of `.standard`. The suite name is
+  // namespaced under the bundle id to avoid colliding with other apps
+  // or tests on the developer's machine. Pair with `removeIsolatedSuite`
+  // when the test wants clean state for the next call.
+  @MainActor
+  fileprivate static func makeIsolatedViewModel(suiteName: String) -> AnalysisViewModel {
+    let qualifiedName = "com.robbyt.BoomBoomBoomBPMTests.\(suiteName)"
+    let defaults = UserDefaults(suiteName: qualifiedName)!
+    return AnalysisViewModel(
+      configuration: AnalysisViewModel.Configuration(
+        defaults: defaults,
+        fallbackStrategy: .quorum
+      )
+    )
+  }
+
+  // Best-effort cleanup of a suite created by `makeIsolatedViewModel`.
+  // Safe to call even if the suite was never written to.
+  @MainActor
+  fileprivate static func removeIsolatedSuite(_ suiteName: String) {
+    let qualifiedName = "com.robbyt.BoomBoomBoomBPMTests.\(suiteName)"
+    UserDefaults.standard.removePersistentDomain(forName: qualifiedName)
   }
 
   // 5.1 — projection round-trips through JSON.
