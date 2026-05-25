@@ -4,7 +4,7 @@ import BoomBoomBoomKitTestSupport
 import Foundation
 import Testing
 
-@testable import BoomBoomBoomKitDemo
+@testable import BoomBoomBoomBPM
 
 @Suite("AnalysisViewModel smoke")
 struct AnalysisViewModelSmokeTest {

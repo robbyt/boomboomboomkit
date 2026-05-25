@@ -11,18 +11,18 @@
   "defaultOptions" : {
     "performanceAntipatternCheckerEnabled" : true,
     "targetForVariableExpansion" : {
-      "containerPath" : "container:BoomBoomBoomKitDemo.xcodeproj",
+      "containerPath" : "container:BoomBoomBoomBPM.xcodeproj",
       "identifier" : "2FB1B49AED6042639BAAD059",
-      "name" : "BoomBoomBoomKitDemo"
+      "name" : "BoomBoomBoomBPM"
     }
   },
   "testTargets" : [
     {
       "parallelizable" : true,
       "target" : {
-        "containerPath" : "container:BoomBoomBoomKitDemo.xcodeproj",
+        "containerPath" : "container:BoomBoomBoomBPM.xcodeproj",
         "identifier" : "ED2B4E6380294593B2271D63",
-        "name" : "BoomBoomBoomKitDemoTests"
+        "name" : "BoomBoomBoomBPMTests"
       }
     }
   ],
