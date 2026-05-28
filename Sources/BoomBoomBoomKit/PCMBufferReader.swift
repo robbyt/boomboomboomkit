@@ -61,6 +61,27 @@ public struct PCMBufferReader {
     }
 
     let format = file.processingFormat
+    // Sample-rate sanity check at the file-read boundary — recoverable
+    // validation lives here (not at FeatureSubstrate.DecodedAudio.init, which
+    // is a pure carrier with a programmer-contract precondition). Downstream
+    // consumers (BPMAnalyzer, MelFilterbank, OnsetFeaturesBuilder) trust the
+    // rate from this point onward. The 8 kHz floor matches the DecodedAudio
+    // precondition — anything below makes BPMAnalyzer's `hopSize = Int(rate
+    // / 100)` derivation produce hopSize `<` 80 (and == 0 for rate `<` 100),
+    // which is meaningless for onset detection on real music.
+    guard format.sampleRate.isFinite, format.sampleRate >= 8_000 else {
+      throw PCMBufferReaderError.fileNotReadable(url)
+    }
+    // `targetSampleRate` is a caller-driven downsample knob — the resulting
+    // buffer may be fed into the BPM pipeline (will trap in DecodedAudio.init
+    // if `<` 8 kHz), or used standalone for any other purpose (e.g., the
+    // existing downsample-to-4410 test verifying the converter infrastructure).
+    // Only check finite + positive here.
+    if let targetSampleRate {
+      guard targetSampleRate.isFinite, targetSampleRate > 0 else {
+        throw PCMBufferReaderError.conversionFailed(url)
+      }
+    }
     let totalFrames = AVAudioFrameCount(clamping: file.length)
 
     // AC7: Zero-frame file returns empty array
