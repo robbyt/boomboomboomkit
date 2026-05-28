@@ -11,6 +11,7 @@ user_name: 'robbyt'
 date: '2026-05-25'
 status: 'complete'
 completedAt: '2026-05-26'
+lastAmended: '2026-05-28'
 lastStep: 8
 prdReference: 'prd-BoomBoomBoomKit-2026-05-25 (status: final, 51 FRs across 5 epics, ~25 deferred KDDs)'
 archivedPredecessor: '_bmad-output/planning-artifacts/archive/architecture-2026-03-31.md'
@@ -21,6 +22,14 @@ archivedPredecessor: '_bmad-output/planning-artifacts/archive/architecture-2026-
 _Architecture for the 2026-05-25 PRD (ML retraining, multi-signal ensemble, selection-strategy documentation). The 2026-03-31 architecture (Phases 1-3 of pre-Epic-4 work) is archived under `archive/architecture-2026-03-31.md`._
 
 _This document builds collaboratively through step-by-step discovery. Sections are appended as we work through each architectural decision together._
+
+## Post-Step-8 Amendment Log
+
+Amendments applied after the step-08 completion sweep (2026-05-26) as Epic 6 implementation revealed factual or contract corrections. Each amendment is a surgical edit to the originally-completed sections; the original wording is preserved beneath where load-bearing for archaeological reasons, otherwise replaced inline.
+
+| Date | Stories driving the amendment | Sections touched | Summary |
+|---|---|---|---|
+| 2026-05-28 | Story 6.1 D1 + Story 6.2 DD #1/#2/#4 | KDD-S1 type sketch (§Architecture-Introduced KDDs); KDD-S2 type sketch (§Architecture-Introduced KDDs); §Complete project directory structure → `Sources/BoomBoomBoomKit/FeatureSubstrate/` tree | Hashable+NaN contract violations: `SignalParticipation` / `AbstainReason` / `DemotionReason` (S1) and `WeightingProfile` / `SubBandWeights` (S2) all drop `Hashable` in favor of `Sendable [, Equatable]` — their Float/Double payloads can be `.nan`, which breaks `Hashable`'s `x == x` invariant (4 reviewers + Codex MCP converged on this finding during Story 6.1 close-out). MLFeatureFrames source-of-truth correction: was incorrectly described as "MOVED from `BoomBoomBoomKitML/`" — actual location pre-Story-6.2 was `BPMDiagnosticTrace.swift:500` in the core target; the ML target has only ever held `BNNSTechnique.swift` + `CoreMLTechnique.swift`. Story 6.2 EXTRACTED MLFeatureFrames + TensorLayout from `BPMDiagnosticTrace.swift` into `FeatureSubstrate/`; the step-04 "replace MLFeatureFrames with FeatureSubstrate.OnsetFeatures" recommendation was NOT taken — both types coexist (file move within core target, public symbol unchanged). `FeatureSubstrate/` file-map updated to 12 entries (was 10) — adds `FeatureSubstrate.swift` namespace file + `FeatureSubstrateError.swift` (new error type per Story 6.2 DD #10 replacing misuse of `MLTechniqueError.invalidFeatureShape` for substrate-domain failures). |
 
 ## Project Context Analysis
 
@@ -122,24 +131,31 @@ These two KDDs surfaced during advanced elicitation as Tier-1 prerequisites. The
 
 #### KDD-S1 — Failure-Mode Taxonomy Contract
 
-**Decision.** The unified signal pool participates via a four-state `SignalParticipation` enum (`Sendable, Hashable`) — every signal source (DSP, ML, file metadata, beat-grid) maps its result into one of `.absent` / `.abstained(reason)` / `.demoted(signal, reason)` / `.present(signal)`. There is no bare optional return from any source into the pool.
+**Decision.** The unified signal pool participates via a four-state `SignalParticipation` enum (`Sendable`; see amendment note below for the Hashable drop) — every signal source (DSP, ML, file metadata, beat-grid) maps its result into one of `.absent` / `.abstained(reason)` / `.demoted(signal, reason)` / `.present(signal)`. There is no bare optional return from any source into the pool.
 
 ```swift
-public enum SignalParticipation: Sendable, Hashable {
+// Conformances reflect the 2026-05-28 amendment (Story 6.1 D1):
+// Hashable dropped because `WeightedSignal` carries Double payloads that can
+// be `.nan` (codable round-trip + sentinel-NaN abstain paths), and
+// `Hashable`'s `x == x` invariant fails on NaN. `Equatable` is added on
+// AbstainReason + DemotionReason so test `==` assertions still synthesize.
+// `SignalSource` (String-backed enum) is unaffected and remains `Hashable`
+// in its source file.
+public enum SignalParticipation: Sendable {
     case absent                                              // pool never received an entry (source not invoked)
     case abstained(AbstainReason)                            // source invoked, returned no usable signal
     case demoted(WeightedSignal, reason: DemotionReason)     // signal received at reduced source weight
     case present(WeightedSignal)                             // signal received at full source weight
 }
 
-public enum AbstainReason: Sendable, Hashable {
+public enum AbstainReason: Sendable, Equatable {
     case policyDisabled                  // ML disabled, metadata source not in enabledSources, intensity skip
     case inputBelowMinimum               // silence detected, file shorter than required
     case confidenceBelowFloor            // signal produced result but self-reported confidence below abstain floor
     case sourceSpecific(String)          // escape hatch — surfaced in trace, opaque to pool weight math
 }
 
-public enum DemotionReason: Sendable, Hashable {
+public enum DemotionReason: Sendable, Equatable {
     case implausibleForContext           // tag implausible-for-genre, ML disagrees with strong DSP consensus
     case sourceSpecific(String)          // surfaced in trace, opaque to pool weight math
 }
@@ -194,12 +210,18 @@ public enum FeatureSubstrate {                              // namespace, no cas
         public let featureSetVersion: String                // FNV-1a checksum of post-vvlogf log-mel byte stream
     }
 
-    public enum WeightingProfile: Sendable, Hashable {
+    // WeightingProfile + SubBandWeights drop Hashable per the 2026-05-28
+    // amendment (Story 6.2 DD #4). SubBandWeights carries Float fields
+    // directly; WeightingProfile transitively carries them via
+    // .subBandEmphasis(SubBandWeights). Float `.nan` payloads (Codable
+    // decode paths can install them before init runs) break Hashable's
+    // `x == x` invariant. Equatable preserved so `==` is synthesized.
+    public enum WeightingProfile: Sendable, Equatable {
         case uniform                                        // pre-substrate behavior; matches existing MelFilterbank
         case subBandEmphasis(SubBandWeights)                // aubio-inspired; parameterized
     }
 
-    public struct SubBandWeights: Sendable, Hashable {
+    public struct SubBandWeights: Sendable, Equatable {
         public let kickBandWeight: Float                    // 60–250 Hz emphasis multiplier
         public let snareBandWeight: Float                   // 250–2000 Hz
         public let cymbalBandWeight: Float                  // 2000–8000 Hz
@@ -220,7 +242,7 @@ public enum FeatureSubstrate {                              // namespace, no cas
 
 - *Keep substrate internal, never publicly typed* — minimal API surface, but loses FR-21 train/runtime parity visibility (consumers can't verify what features the model trained against). Rejected.
 - *Promote substrate to public service method `analyzeFeatures(url:options:) -> OnsetFeatures`* — gives Python training and Swift consumers a first-class API but expands public surface beyond Epic C's scope. Deferred to a future story.
-- *Unify with existing `MLFeatureFrames`* — `MLFeatureFrames` (Story 4-5) already carries `frames`, `melBands`, `logMelData`, `tensorLayout`, `featureSetVersion`. The substrate's `OnsetFeatures` overlaps significantly. **Recommendation (pre-1.0 break authorized):** replace `MLFeatureFrames` with `FeatureSubstrate.OnsetFeatures`. `featureSetVersion` bump catches the migration. Final decision deferred to step-04 KDD-A1/A6 resolution. Option (b) — keep `MLFeatureFrames` as adapter wrapping `OnsetFeatures` — preserves the frozen `MLTechnique` ABI but adds parallel-type maintenance.
+- *Unify with existing `MLFeatureFrames`* — `MLFeatureFrames` (Story 4-5) already carries `frames`, `melBands`, `logMelData`, `tensorLayout`, `featureSetVersion`. The substrate's `OnsetFeatures` overlaps significantly. **2026-05-28 amendment (Story 6.2 DD #1 + DD #2):** the original step-04 recommendation ("replace `MLFeatureFrames` with `FeatureSubstrate.OnsetFeatures`") incorrectly assumed `MLFeatureFrames` lived in `BoomBoomBoomKitML/`. It did not — its actual location pre-Story-6.2 was `Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift:500` in the core target. The ML target has only ever held `BNNSTechnique.swift` + `CoreMLTechnique.swift`. Story 6.2 EXTRACTED `MLFeatureFrames` + `TensorLayout` from `BPMDiagnosticTrace.swift` into `Sources/BoomBoomBoomKit/FeatureSubstrate/` (file move within the same target; public symbol `BoomBoomBoomKit.MLFeatureFrames` unchanged). `OnsetFeatures` was added alongside, not as a replacement. Both types coexist in `FeatureSubstrate/` — `MLFeatureFrames` continues to back the `BPMDiagnosticTrace.mlFeatures` field and the frozen `MLTechnique` protocol's feature pre-image; `OnsetFeatures` is the substrate's type-surface output from `OnsetFeaturesBuilder.build`. The two are byte-identical in the `.uniform` weighting path (regression-locked by `FeatureSubstrateTests.uniformWeightingByteIdentity`); divergence is reserved for `.subBandEmphasis(...)` once a calibration story lands.
 
 **aubio attachment.** `WeightingProfile.subBandEmphasis(SubBandWeights)` is the seam. Implementation: Float weight vector applied during the existing `MelFilterbank.applyMatrix` (`vDSP_mmul`) — not a new pipeline stage, not a biquad cascade. Reference cites in `///` doc comments: aubio `src/onset/onset.c` weighting, Davies & Plumbley 2007 onset analysis section. No linked or transcribed aubio code; GPL fence intact.
 
@@ -985,17 +1007,19 @@ BoomBoomBoomKit/
 │   │   │   ├── EnsembleWeightResolution.swift          # NEW typed-evidence (KDD-T0)
 │   │   │   └── MetadataCorroborator.swift              # MOVED + UPDATED (KDD-A6 thin shim, namespace only)
 │   │   │
-│   │   ├── FeatureSubstrate/                           # NEW subfolder (KDD-S2)
+│   │   ├── FeatureSubstrate/                           # NEW subfolder (KDD-S2). 2026-05-28 amendment: 12 files, not 10 — adds namespace + error type per Story 6.2 DD #2/#10.
+│   │   │   ├── FeatureSubstrate.swift                  # NEW caseless-enum namespace declaration (Story 6.2)
 │   │   │   ├── DecodedAudio.swift                      # NEW (KDD-S2 + KDD-C4 shared-decode seam)
-│   │   │   ├── OnsetFeatures.swift                     # NEW (KDD-S2)
-│   │   │   ├── OnsetFeaturesBuilder.swift              # NEW internal namespace
+│   │   │   ├── OnsetFeatures.swift                     # NEW (KDD-S2; nested `Parameters` struct)
+│   │   │   ├── OnsetFeaturesBuilder.swift              # NEW public enum namespace (Tier-1 facade per Story 6.2 DD #8; Tier-3 inverts direction Story 6.5+)
 │   │   │   ├── WeightingProfile.swift                  # NEW (KDD-S2, aubio-inspired sub-band emphasis)
 │   │   │   ├── SubBandWeights.swift                    # NEW (KDD-S2)
-│   │   │   ├── SubBandCutoff.swift                     # NEW (KDD-S2)
+│   │   │   ├── SubBandCutoff.swift                     # NEW (KDD-S2; .custom(...) case deferred to a calibration story per Story 6.2 DD #4)
 │   │   │   ├── AudioCodec.swift                        # NEW (KDD-S2 PrimingInfo)
 │   │   │   ├── PrimingInfo.swift                       # NEW (KDD-S2, FR-30 playback alignment)
-│   │   │   ├── TensorLayout.swift                      # RELOCATED from root (intra-target — already public in core per CLAUDE.md)
-│   │   │   └── MLFeatureFrames.swift                   # MOVED from BoomBoomBoomKitML/ (Winston — one source of truth for feature contract)
+│   │   │   ├── FeatureSubstrateError.swift             # NEW (Story 6.2 DD #10 — substrate-domain failures: .weightingNotYetImplemented + .featurizationFailed; replaces misuse of MLTechniqueError.invalidFeatureShape)
+│   │   │   ├── TensorLayout.swift                      # EXTRACTED from BPMDiagnosticTrace.swift (Story 6.2 — was at line 452; 2026-05-28 amendment corrects earlier "RELOCATED from root" annotation)
+│   │   │   └── MLFeatureFrames.swift                   # EXTRACTED from BPMDiagnosticTrace.swift (Story 6.2 — was at line 500; 2026-05-28 amendment corrects earlier "MOVED from BoomBoomBoomKitML/" annotation — the ML target never held this type; includes @TaskLocal _testingMaximumLogMelDataCount test helper + _withTestingMaximumLogMelDataCount wrapper)
 │   │   │
 │   │   ├── BeatGrid.swift                              # NEW public (Epic C FR-27)
 │   │   ├── BeatTimestamp.swift                         # NEW (Epic C, KDD-C2 + strength field)
