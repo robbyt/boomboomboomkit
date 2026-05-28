@@ -416,7 +416,9 @@ struct MetadataCorroboratorUnitTests {
 @Suite("MetadataCorroboration — Service-level integration")
 struct MetadataCorroborationServiceTests {
 
-  @Test("disabled policy skips metadata I/O — empty evidence, byte-identical core fields")
+  @Test(
+    "disabled policy skips metadata I/O — empty evidence, byte-identical core fields",
+    .tags(.stage1Floor))
   func disabledPolicy() throws {
     let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
@@ -436,12 +438,12 @@ struct MetadataCorroborationServiceTests {
         url: url, options: optsDisabled, enableTrace: optsDisabled.enableTrace
       ).result)
     #expect(resultDisabled.metadataEvidence.isEmpty)
-    #expect(resultDisabled.bpm.bitPattern == baseline.bpm.bitPattern)
-    #expect(resultDisabled.confidence.bitPattern == baseline.confidence.bitPattern)
+    #expect(NumericTestHelpers.bitEqual(resultDisabled.bpm, baseline.bpm))
+    #expect(NumericTestHelpers.bitEqual(resultDisabled.confidence, baseline.confidence))
     #expect(resultDisabled.candidates.count == baseline.candidates.count)
     for (actual, expected) in zip(resultDisabled.candidates, baseline.candidates) {
-      #expect(actual.bpm.bitPattern == expected.bpm.bitPattern)
-      #expect(actual.score.bitPattern == expected.score.bitPattern)
+      #expect(NumericTestHelpers.bitEqual(actual.bpm, expected.bpm))
+      #expect(NumericTestHelpers.bitEqual(actual.score, expected.score))
     }
   }
 
@@ -456,7 +458,9 @@ struct MetadataCorroborationServiceTests {
     #expect(result.metadataEvidence.first?.parsedBPM == 128.0)
   }
 
-  @Test("same-tempo corroboration boosts confidence on tagged synthetic click")
+  @Test(
+    "same-tempo corroboration boosts confidence on tagged synthetic click",
+    .tags(.stage1Floor))
   func sameTempoBoostsConfidence() throws {
     let urlTagged = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
@@ -493,7 +497,9 @@ struct MetadataCorroborationServiceTests {
     #expect(!result.metadataEvidence.isEmpty)
   }
 
-  @Test("disabled policy on tagged file produces empty evidence")
+  @Test(
+    "disabled policy on tagged file produces empty evidence",
+    .tags(.stage1Floor))
   func disabledPolicyOnTaggedFile() throws {
     let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
@@ -522,7 +528,9 @@ struct MetadataCorroborationServiceTests {
     }
   }
 
-  @Test("metadataEvidence empty when policy disabled even with tagged AIFF")
+  @Test(
+    "metadataEvidence empty when policy disabled even with tagged AIFF",
+    .tags(.stage1Floor))
   func evidenceEmptyWhenDisabled() throws {
     let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")

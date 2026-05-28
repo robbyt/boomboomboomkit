@@ -225,6 +225,10 @@ public struct BPMDiagnosticTrace: Sendable {
   /// See ``MLFeatureFrames`` for the typed-evidence shape + semantic
   /// metadata that disambiguates the tensor's contract.
   public var mlFeatures: MLFeatureFrames?
+
+  // MARK: - Story 6.1: Unified Signal Pool (SignalParticipationTraceEntry lives in SignalPool/)
+
+  public var signalParticipationTrace: [SignalParticipationTraceEntry] = []
 }
 
 // MARK: - Trace Evidence Types (Story 3-3b)

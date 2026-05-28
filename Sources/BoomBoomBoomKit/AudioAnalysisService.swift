@@ -336,11 +336,39 @@ public struct AudioAnalysisService {
       url: url, options: options, enableTrace: shouldBuildTrace)
     guard let merged = pre.result else { return nil }
 
+    // Story 6.1 DD #6 / DD #7: construct the Stage 1 UnifiedSignalPool and
+    // populate `BPMDiagnosticTrace.signalParticipationTrace` AFTER
+    // runPreCorroborationPipeline returns and BEFORE MetadataCorroborator.apply.
+    // Per DD #6 "wrap, don't replace", the pool is NOT consumed by `merge`
+    // (signature frozen — break lands Story 6.4) and ML evaluation is NOT
+    // moved earlier (no accuracy-changing behavior — ML continues to see the
+    // post-corroboration trace at its existing call site below). Per Task 4.2.1
+    // explicit-mutation pattern (FMA-12), the trace is rebuilt into a fresh
+    // `BPMResult` rather than mutated via `merged.trace?...` (the latter writes
+    // into an unused local copy because BPMResult.trace is a `let` field).
+    //
+    // Code-review 2026-05-27 P2: gate pool construction on `merged.trace != nil`
+    // so the default consumer path (enableTrace=false, mlTechnique=nil) skips
+    // both the helper call and the BPMResult rebuild — the pool would otherwise
+    // be discarded via `participationTrace?.signalParticipationTrace = ...` no-op.
+    let mergedWithParticipationTrace: BPMResult
+    if merged.trace != nil {
+      let pool = Self.buildStage1SignalPool(
+        merged: merged, options: options, metadataInput: pre.metadataInput)
+      var participationTrace = merged.trace
+      participationTrace?.signalParticipationTrace = pool.entries
+      mergedWithParticipationTrace = BPMResult(
+        bpm: merged.bpm, confidence: merged.confidence,
+        candidates: merged.candidates, trace: participationTrace)
+    } else {
+      mergedWithParticipationTrace = merged
+    }
+
     // Story 3.6: post-merge metadata corroboration. Runs unconditionally so
     // single-window paths (intensity 1-5, where `merge` short-circuits) still
     // get the corroboration pass.
     let (corroborated, evidence) = MetadataCorroborator.apply(
-      to: merged, input: pre.metadataInput)
+      to: mergedWithParticipationTrace, input: pre.metadataInput)
 
     // Story 4-5 / DD #11 / AC #9: ML evaluation runs AFTER metadata
     // corroboration via a private throws helper that checks cancellation
@@ -387,6 +415,123 @@ public struct AudioAnalysisService {
       trace: options.enableTrace ? combined.trace : nil,
       metadataEvidence: evidence,
       effectiveIntensity: effective, degradationReason: reason)
+  }
+
+  // MARK: - Story 6.1: Stage 1 Unified Signal Pool construction
+
+  /// Builds the Stage 1 ``UnifiedSignalPool`` from the merged DSP candidate,
+  /// the configured options, and the parsed metadata input. Per Story 6.1
+  /// DD #6 / DD #7 this is invoked AFTER ``runPreCorroborationPipeline``
+  /// returns and BEFORE ``MetadataCorroborator/apply(to:input:)``. The pool
+  /// is consumed only by the trace's ``BPMDiagnosticTrace/signalParticipationTrace``
+  /// at Stage 1; ``CandidateMergeStrategy/merge(_:options:)`` continues to
+  /// receive ``BPMResult`` unchanged.
+  ///
+  /// Stage 1 ML caveat: at this call point, ``MLTechnique/evaluate(trace:)``
+  /// has not yet run (it executes at its existing call site post-corroboration
+  /// to preserve the no-accuracy-change contract). When ML is configured and
+  /// not short-circuited by ``EnsemblePolicy/dspOnly``, the entry records
+  /// `.abstained(.sourceSpecific("stage1-eval-deferred"))` as the honest
+  /// Stage 1 state; Stage 2+ will distinguish `.present` vs `.abstained`
+  /// based on the actual evaluation result.
+  private static func buildStage1SignalPool(
+    merged: BPMResult,
+    options: Options,
+    metadataInput: MetadataCorroborationInput
+  ) -> UnifiedSignalPool {
+    // Code-review 2026-05-27 P4: single Stage 1 weight literal hoisted to a
+    // local so Story 6.5 (DD #7 weight-value evolution) lifts one site instead
+    // of five. Stage 1 contract is invariant `weight == 1.0`.
+    let weight: Double = 1.0
+    var entries: [SignalParticipationTraceEntry] = []
+
+    // DSP: one entry per merged candidate (DD #6, c.score hoisted Float→Double
+    // per Patch C5 — fusion score, not calibrated probability).
+    for candidate in merged.candidates {
+      let signal = WeightedSignal(
+        bpm: candidate.bpm,
+        confidence: Double(candidate.score),
+        source: .dsp)
+      let participation = SignalParticipation.present(signal)
+      entries.append(
+        SignalParticipationTraceEntry(
+          source: .dsp,
+          participation: participation,
+          weight: weight,
+          contribution: participation.confidence * weight))
+    }
+    // Code-review 2026-05-27 P3: when `merged.candidates.isEmpty` (structurally
+    // permitted by `BPMResult.init`), emit a sentinel `.dsp` entry so AC #6's
+    // per-source contract ("at least one .dsp-tagged entry; none is .absent")
+    // holds even on the empty-candidate edge. `dspPerSourceContract` would
+    // otherwise fail on a fixture that returns non-nil-but-no-candidates.
+    if merged.candidates.isEmpty {
+      let participation = SignalParticipation.abstained(
+        .sourceSpecific("no-candidates"))
+      entries.append(
+        SignalParticipationTraceEntry(
+          source: .dsp,
+          participation: participation,
+          weight: weight,
+          contribution: participation.confidence * weight))
+    }
+
+    // ML: single entry per evaluation (DD #6 + Patch H7 dspOnly guard).
+    let mlParticipation: SignalParticipation
+    if options.mlTechnique == nil || options.ensemblePolicy == .dspOnly {
+      mlParticipation = .absent
+    } else {
+      mlParticipation = .abstained(.sourceSpecific("stage1-eval-deferred"))
+    }
+    entries.append(
+      SignalParticipationTraceEntry(
+        source: .ml,
+        participation: mlParticipation,
+        weight: weight,
+        contribution: mlParticipation.confidence * weight))
+
+    // File metadata: emit one entry per non-rejected participating tag when
+    // policy enables I/O; single `.absent` entry otherwise (DD #6).
+    if options.metadataPolicy.enabledSources.isEmpty {
+      let participation = SignalParticipation.absent
+      entries.append(
+        SignalParticipationTraceEntry(
+          source: .fileMetadata,
+          participation: participation,
+          weight: weight,
+          contribution: participation.confidence * weight))
+    } else {
+      let acceptedTags = metadataInput.participatingTags.filter {
+        $0.rejectionReason == nil
+      }
+      if acceptedTags.isEmpty {
+        // Policy enabled but no usable tag survived parse. Record absent so
+        // the per-source contract still holds.
+        let participation = SignalParticipation.absent
+        entries.append(
+          SignalParticipationTraceEntry(
+            source: .fileMetadata,
+            participation: participation,
+            weight: weight,
+            contribution: participation.confidence * weight))
+      } else {
+        for tag in acceptedTags {
+          let signal = WeightedSignal(
+            bpm: tag.parsedBPM,
+            confidence: WeightedSignal.fileMetadataStage1TraceOnlyDefault,
+            source: .fileMetadata)
+          let participation = SignalParticipation.present(signal)
+          entries.append(
+            SignalParticipationTraceEntry(
+              source: .fileMetadata,
+              participation: participation,
+              weight: weight,
+              contribution: participation.confidence * weight))
+        }
+      }
+    }
+
+    return UnifiedSignalPool(entries: entries)
   }
 
   // MARK: - Story 4.2: effective intensity reporting + maximum supported query
