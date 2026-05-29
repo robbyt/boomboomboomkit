@@ -75,13 +75,27 @@ struct SignalPoolTests {
     let nanSignal = WeightedSignal(bpm: .nan, confidence: .nan, source: .ml)
     let infSignal = WeightedSignal(bpm: .infinity, confidence: 1.0, source: .fileMetadata)
     let cleanSignal = WeightedSignal(bpm: 128.0, confidence: 0.8, source: .dsp)
+    // Story 6.4a: `score: Float?` round-trip. `dspScoredSignal` carries a
+    // populated finite score (the DSP carrier shape); `nanScoreSignal` carries a
+    // non-finite score so DD #5's Float-NaN claim is test-locked under the same
+    // symmetric `nonConformingFloat` strategy that covers `bpm`/`confidence`.
+    // The three signals above (nan/inf/clean) keep `score == nil` via the init
+    // default — exercising the absent-key (`encodeIfPresent`/`decodeIfPresent`)
+    // optional path, NOT the non-conforming-float string path.
+    let dspScoredSignal = WeightedSignal(
+      bpm: 174.0, confidence: 0.42, source: .dsp, score: 0.42)
+    let nanScoreSignal = WeightedSignal(
+      bpm: 96.0, confidence: 0.5, source: .dsp, score: .nan)
 
     let cases: [SignalParticipation] = [
       .absent,
       .abstained(.sourceSpecific("decode-rejected")),
       .demoted(infSignal, reason: .sourceSpecific("ratio-outlier")),
+      .demoted(dspScoredSignal, reason: .sourceSpecific("scored-demote")),
       .present(nanSignal),
       .present(cleanSignal),
+      .present(dspScoredSignal),
+      .present(nanScoreSignal),
     ]
 
     for participation in cases {
@@ -97,14 +111,31 @@ struct SignalPoolTests {
         #expect(NumericTestHelpers.bitEqual(s1.bpm, s2.bpm))
         #expect(NumericTestHelpers.bitEqual(s1.confidence, s2.confidence))
         #expect(s1.source == s2.source)
+        Self.expectScoreSurvives(s1.score, s2.score)
         #expect(r1 == r2)
       case (.present(let s1), .present(let s2)):
         #expect(NumericTestHelpers.bitEqual(s1.bpm, s2.bpm))
         #expect(NumericTestHelpers.bitEqual(s1.confidence, s2.confidence))
         #expect(s1.source == s2.source)
+        Self.expectScoreSurvives(s1.score, s2.score)
       default:
         Issue.record("Decoded case mismatch: \(participation) vs \(decoded)")
       }
+    }
+  }
+
+  /// Asserts `WeightedSignal.score` survives encode/decode: a populated score
+  /// must round-trip with an identical IEEE-754 bit pattern (NaN-safe), and a
+  /// `nil` score (absent key) must stay `nil` (Story 6.4a, AC #3).
+  private static func expectScoreSurvives(_ lhs: Float?, _ rhs: Float?) {
+    switch (lhs, rhs) {
+    case (nil, nil):
+      break
+    case (.some(let a), .some(let b)):
+      #expect(NumericTestHelpers.bitEqual(a, b))
+    default:
+      Issue.record(
+        "score optionality mismatch: \(String(describing: lhs)) vs \(String(describing: rhs))")
     }
   }
 
@@ -185,5 +216,80 @@ struct SignalPoolTests {
           "Expected .absent for .fileMetadata when policy disabled, got \(entry.participation)")
       }
     }
+  }
+
+  // MARK: - Story 6.4a: WeightedSignal.score population matrix
+
+  /// AC #1(a)/(c): the DSP `.present(...)` pool entries carry the EXACT operative
+  /// `Float` candidate-fusion score (`signal.score == candidate.score`), while ML
+  /// constructs NO `WeightedSignal` (its entry is `.absent` under the default
+  /// `mlTechnique == nil`). Verified via a real `enableTrace` run — a populated
+  /// DSP pool only exists after `analyzeBPM`. The click fixture carries no
+  /// embedded tag, so corroboration is a no-op and ML is absent; thus
+  /// `result.candidates` equals the merged candidates that built the DSP pool,
+  /// in order. The trace carrier equaling the byte-floor-protected
+  /// `result.candidates` score proves no drift; byte-inertness itself is locked
+  /// by the `.stage2Floor` tests + the accuracy benchmarks.
+  @Test func dspPresentCarriesCandidateScore() throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    var options = AudioAnalysisService.Options()
+    options.enableTrace = true
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: options))
+    let trace = try #require(result.trace)
+
+    let dspPresentSignals: [WeightedSignal] = trace.signalParticipationTrace
+      .filter { $0.source == .dsp }
+      .compactMap { entry in
+        if case .present(let signal) = entry.participation { return signal }
+        return nil
+      }
+    // One .present DSP entry per merged candidate, in candidate order.
+    // Fail-closed (Story 6.4a code review CR1): guard against a vacuous pass if a
+    // future fixture ever yields zero candidates — the count check and zip below
+    // would otherwise degenerate to 0 == 0 with the load-bearing score-equality
+    // loop never running. bpm-120-click reliably produces candidates today, so
+    // this never fires in practice; it locks the AC #1(a)/(c) assertions closed.
+    #expect(!dspPresentSignals.isEmpty)
+    #expect(dspPresentSignals.count == result.candidates.count)
+    for (signal, candidate) in zip(dspPresentSignals, result.candidates) {
+      #expect(NumericTestHelpers.bitEqual(signal.bpm, candidate.bpm))  // ordering sanity
+      let score = try #require(signal.score, "DSP .present must carry a non-nil score")
+      #expect(NumericTestHelpers.bitEqual(score, candidate.score))
+    }
+
+    // ML: no WeightedSignal is constructed when mlTechnique == nil (entry .absent).
+    let mlEntries = trace.signalParticipationTrace.filter { $0.source == .ml }
+    #expect(mlEntries.count == 1)
+    switch mlEntries.first?.participation {
+    case .present, .demoted:
+      Issue.record("ML must not construct a WeightedSignal when mlTechnique == nil")
+    case .absent, .abstained, nil:
+      break
+    }
+  }
+
+  /// AC #1(b): the file-metadata `.present(...)` pool entry DOES construct a
+  /// `WeightedSignal`, and it carries `score == nil` via the init default. The
+  /// 6.4b-frozen construction site at `MetadataCorroborator.swift:371` uses the
+  /// positional 3-arg `WeightedSignal(bpm:confidence:source:)` form and is NOT
+  /// edited by 6.4a. Driven through `signalParticipationEntries` directly so no
+  /// audio fixture is required.
+  @Test func fileMetadataPresentCarriesNilScore() {
+    let input = MetadataCorroborationInput(
+      consensusBPM: nil,
+      participatingTags: [
+        MetadataBPMEvidence(source: .id3TBPM, rawValue: "128", parsedBPM: 128.0)
+      ],
+      conflictDetected: false,
+      policy: .default)
+    let entries = MetadataCorroborator.signalParticipationEntries(for: input, weight: 1.0)
+    let present: [WeightedSignal] = entries.compactMap { entry in
+      guard entry.source == .fileMetadata,
+        case .present(let signal) = entry.participation
+      else { return nil }
+      return signal
+    }
+    #expect(present.count == 1)
+    #expect(present.first?.score == nil)
   }
 }
