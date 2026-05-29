@@ -321,6 +321,71 @@ enum MetadataCorroborator {
     )
   }
 
+  // MARK: - Story 6.3: Stage 2 signal participation ownership
+
+  /// Produces the file-metadata ``SignalParticipationTraceEntry`` values for the
+  /// Stage-2 ``UnifiedSignalPool``, one entry per accepted tag (or a single
+  /// `.absent` entry when the policy reads no source / no usable tag survived
+  /// parse).
+  ///
+  /// Per Story 6.3 DD #3(b) this is a function relocation, NOT a transfer of
+  /// corroboration authority: ``apply(to:input:)`` still owns the boost /
+  /// re-select math and reads ``BPMResult/candidates`` directly. This helper
+  /// only moves ownership of the metadata pool-entry production out of the
+  /// service-side pool builder — the trace-shaped side-evidence it emits is not
+  /// yet consumed by the corroborator. The authority transfer lands Story 6.4
+  /// (KDD-A6 Stage 3) when the pool becomes the authoritative candidate-score
+  /// carrier. The logic here is a verbatim lift of the former
+  /// `AudioAnalysisService.buildStage1SignalPool` file-metadata branch.
+  static func signalParticipationEntries(
+    for input: MetadataCorroborationInput, weight: Double
+  ) -> [SignalParticipationTraceEntry] {
+    var entries: [SignalParticipationTraceEntry] = []
+
+    // File metadata: emit one entry per non-rejected participating tag when
+    // policy enables I/O; single `.absent` entry otherwise (DD #6).
+    if input.policy.enabledSources.isEmpty {
+      let participation = SignalParticipation.absent
+      entries.append(
+        SignalParticipationTraceEntry(
+          source: .fileMetadata,
+          participation: participation,
+          weight: weight,
+          contribution: participation.confidence * weight))
+    } else {
+      let acceptedTags = input.participatingTags.filter {
+        $0.rejectionReason == nil
+      }
+      if acceptedTags.isEmpty {
+        // Policy enabled but no usable tag survived parse. Record absent so
+        // the per-source contract still holds.
+        let participation = SignalParticipation.absent
+        entries.append(
+          SignalParticipationTraceEntry(
+            source: .fileMetadata,
+            participation: participation,
+            weight: weight,
+            contribution: participation.confidence * weight))
+      } else {
+        for tag in acceptedTags {
+          let signal = WeightedSignal(
+            bpm: tag.parsedBPM,
+            confidence: WeightedSignal.fileMetadataStage1TraceOnlyDefault,
+            source: .fileMetadata)
+          let participation = SignalParticipation.present(signal)
+          entries.append(
+            SignalParticipationTraceEntry(
+              source: .fileMetadata,
+              participation: participation,
+              weight: weight,
+              contribution: participation.confidence * weight))
+        }
+      }
+    }
+
+    return entries
+  }
+
   // MARK: - Internals
 
   /// Determines the harmonic ratio at which `tagBPM` corroborates `candidateBPM`,

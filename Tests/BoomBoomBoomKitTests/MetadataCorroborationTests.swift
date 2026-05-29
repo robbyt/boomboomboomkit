@@ -418,7 +418,7 @@ struct MetadataCorroborationServiceTests {
 
   @Test(
     "disabled policy skips metadata I/O — empty evidence, byte-identical core fields",
-    .tags(.stage1Floor))
+    .tags(.stage1Floor, .stage2Floor))
   func disabledPolicy() throws {
     let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
@@ -460,7 +460,7 @@ struct MetadataCorroborationServiceTests {
 
   @Test(
     "same-tempo corroboration boosts confidence on tagged synthetic click",
-    .tags(.stage1Floor))
+    .tags(.stage1Floor, .stage2Floor))
   func sameTempoBoostsConfidence() throws {
     let urlTagged = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
@@ -499,7 +499,7 @@ struct MetadataCorroborationServiceTests {
 
   @Test(
     "disabled policy on tagged file produces empty evidence",
-    .tags(.stage1Floor))
+    .tags(.stage1Floor, .stage2Floor))
   func disabledPolicyOnTaggedFile() throws {
     let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
@@ -530,7 +530,7 @@ struct MetadataCorroborationServiceTests {
 
   @Test(
     "metadataEvidence empty when policy disabled even with tagged AIFF",
-    .tags(.stage1Floor))
+    .tags(.stage1Floor, .stage2Floor))
   func evidenceEmptyWhenDisabled() throws {
     let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
