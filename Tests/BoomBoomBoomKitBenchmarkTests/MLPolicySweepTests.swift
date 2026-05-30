@@ -343,7 +343,7 @@ struct MLPolicySweepTests {
     // The pre-read result is NOT reused inside the policy loop: the loop
     // calls `AudioAnalysisService.analyzeBPM(url:)`, which re-decodes the
     // file from disk per policy. That is the intended integration shape
-    // (DD #8: "exercise policy switch + EnsembleCombiner end-to-end") —
+    // (DD #8: "exercise policy switch + the inlined ensemble combiner end-to-end") —
     // wall-clock cost is per-policy DSP analysis + per-policy audio I/O,
     // and the `samples`/`sampleRate` carried in `TrackAudio` is retained
     // only so the per-track loops can iterate by index in the same shape
@@ -372,7 +372,7 @@ struct MLPolicySweepTests {
       var acc2 = 0
 
       // Use analyzeBPM (rather than calling BPMAnalyzer directly) so the
-      // policy switch + EnsembleCombiner are exercised end-to-end.
+      // policy switch + the inlined ensemble combiner are exercised end-to-end.
       // analyzeBPM re-reads each track from disk per policy; wall-clock is
       // per-policy DSP analysis + per-policy audio I/O. The mock evaluate
       // is constant-time so the cost shape is dominated by DSP + I/O.

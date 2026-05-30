@@ -357,7 +357,7 @@ struct EnsemblePolicyDecisionTableTests {
         let mlEval = outcome.ml.map {
           MLEvaluation(bpm: $0.bpm, confidence: $0.conf)
         }
-        let combined = EnsembleCombiner.combine(
+        let combined = AudioAnalysisService.combineEnsemble(
           dspWinner: dspResult, mlEvaluation: mlEval, policy: policy)
 
         let decision = combined.trace?.ensembleDecision
@@ -399,7 +399,7 @@ struct EnsemblePolicyDecisionTableTests {
     print("4-4-ensemble-policy-decision-table.json -> \(target.path)")
   }
 
-  /// Task 6.5: the EnsembleCombiner is deterministic — two consecutive
+  /// Task 6.5: the ensemble policy sweep is deterministic — two consecutive
   /// invocations against the same inputs produce byte-identical JSON
   /// output. Tiny synthetic fixture set (no corpus needed) so this runs on
   /// every `make test`.
@@ -412,7 +412,7 @@ struct EnsemblePolicyDecisionTableTests {
         trace: BPMDiagnosticTrace())
       var rows: [DecisionTableRow44] = []
       for policy in EnsemblePolicy.allCases {
-        let combined = EnsembleCombiner.combine(
+        let combined = AudioAnalysisService.combineEnsemble(
           dspWinner: dsp,
           mlEvaluation: MLEvaluation(bpm: 128.0, confidence: 0.92),
           policy: policy)

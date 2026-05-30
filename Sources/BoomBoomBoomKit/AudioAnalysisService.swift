@@ -116,7 +116,7 @@ public struct AudioAnalysisService {
     /// ``BPMDiagnosticTrace/candidatesAfterBoost``) is passed to
     /// ``MLTechnique/evaluate(trace:)`` for an alternative estimate. The
     /// ``MLEvaluation?`` return value flows through the internal
-    /// ``EnsembleCombiner`` alongside the DSP winner; the resulting BPM and
+    /// inlined ensemble combiner alongside the DSP winner; the resulting BPM and
     /// confidence depend on ``ensemblePolicy``. When `nil` (default), the
     /// feature is inactive and the DSP result is returned unchanged.
     ///
@@ -175,7 +175,7 @@ public struct AudioAnalysisService {
 
     /// Resolution policy for the DSP+ML ensemble combiner (Story 4.4).
     ///
-    /// Selects how ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``
+    /// Selects how ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)``
     /// reconciles the post-corroboration DSP candidate with an optional
     /// ``MLEvaluation`` from ``mlTechnique``. Always-present configuration
     /// per ADR-11 (`_bmad-output/planning-artifacts/architecture.md`) — the
@@ -351,9 +351,7 @@ public struct AudioAnalysisService {
     if let pool = pre.pool {
       var participationTrace = merged.trace
       participationTrace?.signalParticipationTrace = pool.entries
-      mergedWithParticipationTrace = BPMResult(
-        bpm: merged.bpm, confidence: merged.confidence,
-        candidates: merged.candidates, trace: participationTrace)
+      mergedWithParticipationTrace = merged.with(trace: participationTrace)
     } else {
       mergedWithParticipationTrace = merged
     }
@@ -385,12 +383,8 @@ public struct AudioAnalysisService {
     var localTrace = corroborated.trace
     let mlEvaluation = try Self.evaluateMLIfActive(
       options: options, trace: &localTrace)
-    let corroboratedWithSnapshot = BPMResult(
-      bpm: corroborated.bpm,
-      confidence: corroborated.confidence,
-      candidates: corroborated.candidates,
-      trace: localTrace)
-    let combined = EnsembleCombiner.combine(
+    let corroboratedWithSnapshot = corroborated.with(trace: localTrace)
+    let combined = Self.combineEnsemble(
       dspWinner: corroboratedWithSnapshot,
       mlEvaluation: mlEvaluation,
       policy: options.ensemblePolicy)
@@ -551,13 +545,136 @@ public struct AudioAnalysisService {
     return localEvaluation
   }
 
-  // MARK: - Story 4.4: ML ensemble combiner promoted to EnsembleCombiner.swift
+  // MARK: - Story 6.4 (KDD-A6 Stage 3, Part 1): ML ensemble combiner (inlined)
 
-  // The internal `combine(dspWinner:mlEvaluation:)` helper that lived here in
-  // Story 4.3 has been promoted to ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``.
-  // The call site now lives inline in ``analyzeBPM(url:options:)`` (above)
-  // alongside the A1 short-circuit IIFE that decides whether ML inference
-  // runs at all.
+  /// Combines the post-corroboration DSP winner with an optional ML evaluation
+  /// under the supplied policy, producing the final ``BPMResult``.
+  ///
+  /// Inlined verbatim from the removed `EnsembleCombiner.combine` (Story 6.4 /
+  /// KDD-A6 Stage 3, Part 1): the standalone ensemble-arbiter type was removed
+  /// to collapse the post-merge boundary by one stage. The logic is
+  /// byte-identical; this is a testable seam (the former `EnsembleCombiner`
+  /// unit suites drive it via `@testable import`). The genuine fold of ensemble
+  /// selection into the unified pool (`select(from: pool)`) lands in Story 6.5.
+  ///
+  /// ## Sanitization (two independent sentinels)
+  /// Non-finite ML `bpm` (NaN, ±∞) abstains to DSP (`mlAbstained: true`);
+  /// finite-but-out-of-range `bpm` clamps to `60.0...200.0`. Non-finite
+  /// `confidence` collapses to `0.0` (does NOT abstain); out-of-range clamps to
+  /// `0.0...1.0`. The two sentinels are independent.
+  ///
+  /// ## EnsembleDecision matrix
+  /// `ensembleDecision != nil` iff ``MLTechnique/evaluate(trace:)`` returned a
+  /// non-nil ``MLEvaluation``. The rule applies at this seam's output; the
+  /// public ``AudioAnalysisResult/trace`` is independently gated by
+  /// ``Options/enableTrace``. The `.dspOnly` branch never consults
+  /// `mlEvaluation` (HALT-(b) guard) and attaches no decision.
+  ///
+  /// ## Tag-bias caveat (`.highestConfidence`)
+  /// `dspWinner.confidence` may already have been boosted to the `0.95` ceiling
+  /// (``MetadataPolicy/maxBoostedConfidence``) by metadata corroboration before
+  /// reaching this seam. Comparing it raw against ML confidence biases toward
+  /// DSP on tag-corroborated tracks (Story 4.4 DD #6 surfaced the risk but did
+  /// not mitigate — re-open trigger is the Story 6.5 pool-vote re-expression,
+  /// where this comparison becomes a `.present`/`.demoted` vote rather than a
+  /// raw confidence compare).
+  static func combineEnsemble(
+    dspWinner: BPMResult,
+    mlEvaluation: MLEvaluation?,
+    policy: EnsemblePolicy
+  ) -> BPMResult {
+    switch policy {
+    case .dspOnly:
+      // HALT (b) guard: the .dspOnly branch must not consult `mlEvaluation`.
+      _ = mlEvaluation
+      return dspWinner
+
+    case .mlOnly:
+      guard let ml = mlEvaluation else {
+        return dspWinner
+      }
+      // Non-finite bpm → sentinel abstain to DSP.
+      guard ml.bpm.isFinite else {
+        let decision = EnsembleDecision(
+          policy: .mlOnly, winner: .dsp,
+          dspConfidence: dspWinner.confidence,
+          mlConfidence: nil, mlAbstained: true,
+          selectedBPM: dspWinner.bpm)
+        return dspWinner.with(trace: ensembleTrace(decision: decision, base: dspWinner.trace))
+      }
+      let clampedBPM = clampEnsembleBPM(ml.bpm)
+      let mlConf = sanitizeEnsembleConfidence(ml.confidence)
+      let decision = EnsembleDecision(
+        policy: .mlOnly, winner: .ml,
+        dspConfidence: dspWinner.confidence,
+        mlConfidence: mlConf, mlAbstained: false,
+        selectedBPM: clampedBPM)
+      return dspWinner.with(
+        bpm: clampedBPM, confidence: mlConf,
+        trace: ensembleTrace(decision: decision, base: dspWinner.trace))
+
+    case .highestConfidence:
+      guard let ml = mlEvaluation else {
+        return dspWinner
+      }
+      guard ml.bpm.isFinite else {
+        let decision = EnsembleDecision(
+          policy: .highestConfidence, winner: .dsp,
+          dspConfidence: dspWinner.confidence,
+          mlConfidence: nil, mlAbstained: true,
+          selectedBPM: dspWinner.bpm)
+        return dspWinner.with(trace: ensembleTrace(decision: decision, base: dspWinner.trace))
+      }
+      let clampedBPM = clampEnsembleBPM(ml.bpm)
+      let mlConf = sanitizeEnsembleConfidence(ml.confidence)
+      // Compare confidences. DSP wins ties (deterministic tiebreak).
+      if mlConf > dspWinner.confidence {
+        let decision = EnsembleDecision(
+          policy: .highestConfidence, winner: .ml,
+          dspConfidence: dspWinner.confidence,
+          mlConfidence: mlConf, mlAbstained: false,
+          selectedBPM: clampedBPM)
+        return dspWinner.with(
+          bpm: clampedBPM, confidence: mlConf,
+          trace: ensembleTrace(decision: decision, base: dspWinner.trace))
+      } else if mlConf == dspWinner.confidence {
+        let decision = EnsembleDecision(
+          policy: .highestConfidence, winner: .tie,
+          dspConfidence: dspWinner.confidence,
+          mlConfidence: mlConf, mlAbstained: false,
+          selectedBPM: dspWinner.bpm)
+        return dspWinner.with(trace: ensembleTrace(decision: decision, base: dspWinner.trace))
+      } else {
+        let decision = EnsembleDecision(
+          policy: .highestConfidence, winner: .dsp,
+          dspConfidence: dspWinner.confidence,
+          mlConfidence: mlConf, mlAbstained: false,
+          selectedBPM: dspWinner.bpm)
+        return dspWinner.with(trace: ensembleTrace(decision: decision, base: dspWinner.trace))
+      }
+    }
+  }
+
+  /// Clamp a finite ML `bpm` to the DSP range-normalization window `60.0...200.0`.
+  private static func clampEnsembleBPM(_ bpm: Double) -> Double {
+    min(max(bpm, 60.0), 200.0)
+  }
+
+  /// Non-finite confidence collapses to `0.0`; finite-but-out-of-range clamps to `0.0...1.0`.
+  private static func sanitizeEnsembleConfidence(_ c: Double) -> Double {
+    guard c.isFinite else { return 0.0 }
+    return min(max(c, 0.0), 1.0)
+  }
+
+  /// Returns a copy of `base` with `ensembleDecision` set, or `nil` when `base`
+  /// is `nil` (no trace was built — nothing to attach to).
+  private static func ensembleTrace(
+    decision: EnsembleDecision, base: BPMDiagnosticTrace?
+  ) -> BPMDiagnosticTrace? {
+    guard var updated = base else { return nil }
+    updated.ensembleDecision = decision
+    return updated
+  }
 
   /// Maximum analysis intensity supported by the current configuration.
   ///
@@ -907,5 +1024,29 @@ public struct AudioAnalysisService {
     return LUFSAnalyzer.measureLoudness(
       samples: samples, sampleRate: sampleRate
     )?.integratedLoudness
+  }
+}
+
+// MARK: - Story 6.4 (W52): BPMResult value-type forwarding
+
+extension BPMResult {
+  /// Returns a copy of this result with the given fields overridden and the rest
+  /// forwarded. `candidates` is always forwarded from `self`.
+  ///
+  /// Story 6.4 (W52): collapses the field-enumerating post-merge rebuild sites
+  /// (the inlined ensemble combiner + the trace-snapshot rebuilds in
+  /// ``AudioAnalysisService/analyzeBPM(url:options:)``) into one forwarding
+  /// helper, so a future ``BPMResult`` field is not silently dropped at any
+  /// rebuild site.
+  func with(
+    bpm newBPM: Double? = nil,
+    confidence newConfidence: Double? = nil,
+    trace newTrace: BPMDiagnosticTrace?
+  ) -> BPMResult {
+    BPMResult(
+      bpm: newBPM ?? bpm,
+      confidence: newConfidence ?? confidence,
+      candidates: candidates,
+      trace: newTrace)
   }
 }

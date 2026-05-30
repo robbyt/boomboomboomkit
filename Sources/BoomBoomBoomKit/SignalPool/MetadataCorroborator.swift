@@ -46,6 +46,15 @@ enum MetadataCorroborator {
 
   /// Applies tag-based corroboration to `result`.
   ///
+  /// - Important: **Temporary legacy post-merge adapter (Story 6.4 / KDD-A6
+  ///   Stage 3, Part 1).** Retained byte-unchanged until Story 6.5, where this
+  ///   boost / skepticism-penalty / winner-reselection math is re-expressed as
+  ///   `.present` / `.demoted` votes over the authoritative ``UnifiedSignalPool``
+  ///   and this standalone post-merge entry point is removed. Story 6.4b only
+  ///   relocated the type into `SignalPool/`; the genuine removal (with its
+  ///   semantic replacement) lands in 6.5 — deletion without replacement would
+  ///   be churn.
+  ///
   /// Boosts every candidate whose BPM matches any participating tag at an
   /// allowed ratio (same-tempo within ``MetadataPolicy/corroborationTolerance``,
   /// optionally octave 1.92-2.08, optionally triplet 1.45-1.55 / 2.85-3.15),
