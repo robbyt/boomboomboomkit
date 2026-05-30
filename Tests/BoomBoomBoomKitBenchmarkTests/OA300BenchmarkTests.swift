@@ -275,7 +275,7 @@ struct OA300BenchmarkTests {
       }
     }
 
-    for strategy in CandidateMergeStrategy.allCases {
+    for strategy in BPMSelectionPolicy.allCases {
       var acc1 = 0
       var acc2 = 0
 
@@ -294,7 +294,7 @@ struct OA300BenchmarkTests {
         }
 
         guard
-          let merged = CandidateMergeStrategy.merge(
+          let merged = BPMSelectionPolicy.merge(
             windowResults: windowResults,
             candidateCount: AnalysisIntensity.default.techniqueSet.candidateCount,
             strategy: strategy)
@@ -389,7 +389,7 @@ struct OA300BenchmarkTests {
 
       for entry in cachedWindows {
         guard
-          let merged = CandidateMergeStrategy.merge(
+          let merged = BPMSelectionPolicy.merge(
             windowResults: entry.results,
             candidateCount: candidateCount,
             strategy: .windowVoting,
@@ -707,7 +707,7 @@ struct OA300BenchmarkTests {
 
   private func runBenchmark(
     intensity: AnalysisIntensity,
-    mergeStrategy: CandidateMergeStrategy = .maxConfidence,
+    mergeStrategy: BPMSelectionPolicy = .maxConfidence,
     tolerance: Double,
     durationHint: Bool = true,
     metadataPolicy: MetadataPolicy = .default

@@ -38,10 +38,10 @@ struct MergeStrategyPersistenceTests {
   // (2) Valid stored raw value — hydrates to the matching enum case.
   @Test(
     "hydrate decodes valid stored raw value",
-    arguments: CandidateMergeStrategy.allCases
+    arguments: BPMSelectionPolicy.allCases
   )
   @MainActor
-  func hydrateValidRawValue(_ stored: CandidateMergeStrategy) throws {
+  func hydrateValidRawValue(_ stored: BPMSelectionPolicy) throws {
     let suiteName = "com.robbyt.BoomBoomBoomBPMTests.persist.valid.\(stored.rawValue)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }

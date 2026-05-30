@@ -252,7 +252,7 @@ struct GiantStepsBenchmarkTests {
 
   private func runBenchmark(
     intensity: AnalysisIntensity,
-    mergeStrategy: CandidateMergeStrategy = .maxConfidence,
+    mergeStrategy: BPMSelectionPolicy = .maxConfidence,
     tolerance: Double,
     durationHint: Bool = true,
     metadataPolicy: MetadataPolicy = .default

@@ -596,19 +596,21 @@ struct ArchitectureInvariantsTests {
     #expect(Set(MetadataSource.allCases) == Set([.iTunesTmpo, .id3TBPM, .vorbisBPM]))
   }
 
-  /// Story 4.4 AC #9: `EnsemblePolicy.allCases.count == 3` is unit-test-locked
-  /// alongside the existing five architecture invariants. Pre-1.0 / no-BC
-  /// framing (DD #13) allows breaking this invariant in a follow-up story
-  /// — but accidental drift fails this test loudly rather than silently.
-  @Test("EnsemblePolicy has exactly three cases (Story 4.4 AC #9)")
+  /// Story 6.5a: the `EnsemblePolicy` facade has exactly five cases. The type
+  /// dropped `String, CaseIterable` when it gained the associated-value
+  /// `.weightedVoting(SignalWeights)` case (which `RawRepresentable`/`CaseIterable`
+  /// cannot synthesize), so `allPolicies` is the hand-written stand-in for
+  /// `allCases`. Pre-1.0 / no-BC framing allows breaking this invariant in a
+  /// follow-up story — but accidental drift fails this test loudly.
+  @Test("EnsemblePolicy facade has exactly five cases (Story 6.5a)")
   func ensemblePolicyCases() {
-    #expect(EnsemblePolicy.allCases.count == 3)
+    #expect(EnsemblePolicy.allPolicies.count == 5)
     // Ordered comparison locks the iteration order so benchmark sweeps
-    // consuming `EnsemblePolicy.allCases` produce stable, reproducible
-    // policy-row order across runs (and so the JSON artifacts emitted by
-    // `make ml-policy-sweep` have a fixed row order regardless of how a
-    // future maintainer reorders the case definitions).
-    #expect(EnsemblePolicy.allCases == [.dspOnly, .mlOnly, .highestConfidence])
+    // consuming `EnsemblePolicy.allPolicies` produce stable, reproducible
+    // policy-row order across runs.
+    #expect(
+      EnsemblePolicy.allPolicies
+        == [.default, .dspOnly, .mlOnly, .highestConfidence, .weightedVoting(.default)])
   }
 
   /// Story 4.5 DD #14: `TensorLayout.allCases.count == 2` is unit-test-locked
@@ -619,6 +621,16 @@ struct ArchitectureInvariantsTests {
   func tensorLayoutCases() {
     #expect(TensorLayout.allCases.count == 2)
     #expect(Set(TensorLayout.allCases) == Set([.frameMajorLogMel, .nchw]))
+  }
+
+  /// Story 6.5a: `OctaveEquivalencePolicy.allCases.count == 3` is unit-test-locked
+  /// in the canonical invariant venue alongside the other case-count invariants.
+  @Test("OctaveEquivalencePolicy has exactly three cases (Story 6.5a)")
+  func octaveEquivalencePolicyCases() {
+    #expect(OctaveEquivalencePolicy.allCases.count == 3)
+    #expect(
+      Set(OctaveEquivalencePolicy.allCases)
+        == Set([.collapseToFundamental, .octaveAwareWithPenalty, .exactMatchOnly]))
   }
 
   @Test("MetadataPolicy.default enables all sources, valueRange 30-300")

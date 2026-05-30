@@ -126,7 +126,7 @@ public struct BPMDiagnosticTrace: Sendable {
 
   /// Candidate pool (BPM, score) snapshot taken just before the corroborator
   /// applied any score multipliers — i.e., the merged DSP candidates as
-  /// returned by ``CandidateMergeStrategy/merge(windowResults:candidateCount:strategy:votingPolicy:votingThreshold:)``.
+  /// returned by ``BPMSelectionPolicy/merge(windowResults:candidateCount:strategy:votingPolicy:votingThreshold:)``.
   public var candidatesBeforeBoost: [(bpm: Double, score: Float)] = []
 
   /// Candidate pool after the corroborator multiplied matching candidates'

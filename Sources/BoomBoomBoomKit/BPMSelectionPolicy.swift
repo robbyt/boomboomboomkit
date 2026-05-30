@@ -1,5 +1,5 @@
 //
-//  CandidateMergeStrategy.swift
+//  BPMSelectionPolicy.swift
 //  BoomBoomBoomKit
 //
 //  Strategy for merging BPM candidates across multiple analysis windows.
@@ -14,9 +14,9 @@ import Foundation
 /// time windows (30s, 60s, 90s). This enum controls how the per-window
 /// candidates are combined into a final result.
 ///
-/// Use `CandidateMergeStrategy.allCases` and the OA300 benchmark to
+/// Use `BPMSelectionPolicy.allCases` and the OA300 benchmark to
 /// ablate strategies and find the best fit for a given corpus.
-public enum CandidateMergeStrategy: String, CaseIterable, Sendable, Hashable {
+public enum BPMSelectionPolicy: String, CaseIterable, Sendable, Hashable {
   /// Pick the single window with the highest confidence. Current default behavior.
   case maxConfidence
 
@@ -52,7 +52,7 @@ public enum CandidateMergeStrategy: String, CaseIterable, Sendable, Hashable {
 
 // MARK: - Merge Logic
 
-extension CandidateMergeStrategy {
+extension BPMSelectionPolicy {
 
   /// Merges candidates from multiple analysis windows using this strategy.
   ///
@@ -60,7 +60,7 @@ extension CandidateMergeStrategy {
   ///   - windowResults: Per-window `BPMResult` values (from successful windows only).
   ///   - candidateCount: Maximum number of candidates to return.
   ///   - strategy: Strategy for combining window candidates.
-  ///   - votingPolicy: Resolution policy for ``CandidateMergeStrategy/windowVoting``.
+  ///   - votingPolicy: Resolution policy for ``BPMSelectionPolicy/windowVoting``.
   ///     Ignored by all other strategies. Default ``VotingPolicy/simpleMajority``
   ///     reproduces the post-Story-3-3a baseline byte-for-byte.
   ///   - votingThreshold: Acceptance threshold for ``VotingPolicy/thresholdGated``
@@ -71,7 +71,7 @@ extension CandidateMergeStrategy {
   static func merge(
     windowResults: [BPMResult],
     candidateCount: Int,
-    strategy: CandidateMergeStrategy,
+    strategy: BPMSelectionPolicy,
     votingPolicy: VotingPolicy = .simpleMajority,
     votingThreshold: Double = 0.0
   ) -> BPMResult? {
