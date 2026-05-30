@@ -493,7 +493,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **When** any new public-API surface lands in `AudioAnalysisService.swift`,
 **Then** the surface remains `internal` or unannotated — Epic 8 stories promote them.
 
-**FRs covered:** FR-7 (data-shape migration; substantive consumer fires in Story 6.4).
+**FRs covered:** FR-7 (data-shape migration; substantive consumer fires in Story 6.5 — corrected 2026-05-29: the metadata-as-peer-voter consumer was reallocated from 6.4 to 6.5 alongside the pool-authority restructuring).
 **KDDs implemented:** A6 Stage 2.
 **Pressure-release valve:** None. Story is intentionally narrow.
 
@@ -529,9 +529,9 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **When** code review inspects the new `merge` call graph,
 **Then** `EnsembleCombiner` is removed (per pre-1.0 break authorization) and `merge` operates directly on the pool — no intermediate arbiter.
 
-**FRs covered:** FR-1, FR-2, FR-6, FR-7, FR-10, FR-11.
-**KDDs implemented:** A6 Stage 3.
-**Pressure-release valve:** None. Atomic-PR rule non-negotiable.
+**FRs covered:** FR-10, FR-11. (Reallocated 2026-05-29 by operator sign-off: FR-1/FR-2/FR-6/FR-7 moved to Story 6.5 — 6.4b is the corroboration-boundary collapse + atomic byte→semantic test swap and does NOT make the pool authoritative; the `merge`-parameter flip + `select(from: pool)` + metadata-as-peer-voter land in 6.5. See the 6-4 spec DD #2/#11.)
+**KDDs implemented:** A6 Stage 3 (corroboration-boundary collapse + atomic test-floor flip; pool-authoritative selection deferred to 6.5 / KDD-A1).
+**Pressure-release valve:** None for the corroboration-collapse + test-swap pairing (atomic, one commit). NOTE (2026-05-29 operator sign-off): the original "flip merge's parameter type at 41 call sites" headline was superseded — `merge` runs pre-pool, so that restructuring belongs to 6.5; this is a scope deferral, not a phantom correction.
 
 ### Story 6.5: Type taxonomy split — SignalWeights + OctaveEquivalencePolicy + BPMSelectionPolicy rename + KDD-A2/A3/A4/A4a/A5 derivations
 
@@ -577,7 +577,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **When** Story 6.5 closes,
 **Then** `find Sources/BoomBoomBoomKit -maxdepth 2 -type f | wc -l` returns ≤ 35; if exceeded, the closing PR MUST surface a subdir-promotion decision (move a cohesive ≥ 5-file group into a new subfolder per the architecture's "subdir when ≥ 5 cohesive files" rule) before merge. The same closing PR additionally asserts `find Tests/BoomBoomBoomKitTests -maxdepth 1 -type f -name "*.swift" | wc -l` returns ≤ 70; if exceeded, a follow-up story to organize tests into thematic subfolders is filed (not blocking Story 6.5 merge, but tracked).
 
-**FRs covered:** FR-2, FR-3, FR-4, FR-5, FR-6, FR-11a.
+**FRs covered:** FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-11a. (FR-1 unified-pool selection + FR-7 metadata-as-peer-voter reallocated from Story 6.4 on 2026-05-29 — they fire here with `BPMSelectionPolicy.select(from: pool)` + `SignalWeights`; this is also where 6.4b's deferred `WeightedSignal.score` read-seam + `SignalParticipation.score` accessor land.)
 **KDDs implemented:** A1, A2, A3, A4, A4a, A5.
 **Pressure-release valve (Amelia, post-party-mode review):** If the rename across 41 call sites + 4 new types + 1 type update (`EnsemblePolicy`) exceeds a single dev-agent context window, split into Story 6.5a (rename `CandidateMergeStrategy → BPMSelectionPolicy` + introduce `SignalWeights`) and Story 6.5b (`OctaveEquivalencePolicy` + `MLExecutionPolicy` + `ComputeBudget` + `EnsemblePolicy` 5-case facade update). Document the deviation in `_bmad-output/implementation-artifacts/6-5-pressure-release.md`.
 
