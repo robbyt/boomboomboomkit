@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// Diagnostic record of how ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``
+/// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)``
 /// reconciled the post-corroboration DSP candidate with an ``MLEvaluation``.
 ///
 /// `EnsembleDecision` is attached to ``BPMDiagnosticTrace/ensembleDecision``
@@ -31,7 +31,7 @@ import Foundation
 /// `Winner` enum for JSON serialization.
 ///
 /// **Trace gating.** The single-rule above describes attachment at the
-/// internal ``EnsembleCombiner`` output (`combined.trace`). The public
+/// internal ensemble combiner output (`combined.trace`). The public
 /// ``AudioAnalysisResult/trace`` field is independently gated by
 /// ``AudioAnalysisService/Options/enableTrace``: when `enableTrace == false`
 /// the public `result.trace` is `nil` regardless of whether the combiner

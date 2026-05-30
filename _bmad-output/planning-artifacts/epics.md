@@ -527,7 +527,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 
 **Given** the `EnsembleCombiner` type from the prior architecture,
 **When** code review inspects the new `merge` call graph,
-**Then** `EnsembleCombiner` is removed (per pre-1.0 break authorization) and `merge` operates directly on the pool — no intermediate arbiter.
+**Then** `EnsembleCombiner` is removed (per pre-1.0 break authorization), its branches inlined behind a testable seam in `AudioAnalysisService`. _(Reconciled 2026-05-30 to the delivered byte-inert 6.4b scope: making `merge` operate directly on the pool — the pool-authoritative `select(from: pool)` end-state — is Story 6.5, consistent with the FRs/KDDs lines below. 6.4b removes the arbiter without changing `merge`'s pre-pool signature.)_
 
 **FRs covered:** FR-10, FR-11. (Reallocated 2026-05-29 by operator sign-off: FR-1/FR-2/FR-6/FR-7 moved to Story 6.5 — 6.4b is the corroboration-boundary collapse + atomic byte→semantic test swap and does NOT make the pool authoritative; the `merge`-parameter flip + `select(from: pool)` + metadata-as-peer-voter land in 6.5. See the 6-4 spec DD #2/#11.)
 **KDDs implemented:** A6 Stage 3 (corroboration-boundary collapse + atomic test-floor flip; pool-authoritative selection deferred to 6.5 / KDD-A1).

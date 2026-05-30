@@ -2,7 +2,7 @@
 //  EnsembleCombinerTests.swift
 //  BoomBoomBoomKitTests
 //
-//  Unit tests for EnsembleCombiner.combine(dspWinner:mlEvaluation:policy:).
+//  Unit tests for AudioAnalysisService.combineEnsemble(dspWinner:mlEvaluation:policy:).
 //  Story 4.3 shipped the original 4 tests against AudioAnalysisService.combine
 //  (default DSP-wins). Story 4.4 promoted the helper to EnsembleCombiner, added
 //  the 3-case EnsemblePolicy switch, the two-sentinel sanitization, and the
@@ -55,7 +55,7 @@ struct EnsembleCombinerTests {
   @Test("combine returns DSP winner when mlEvaluation is nil")
   func combineReturnsDSPWinnerWhenMLEvaluationNil() {
     let dsp = makeFixture()
-    let result = EnsembleCombiner.combine(
+    let result = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: nil, policy: .dspOnly)
     #expect(equalByBitPattern(result, dsp))
     #expect(result.trace?.ensembleDecision == nil)
@@ -68,7 +68,7 @@ struct EnsembleCombinerTests {
   func combineReturnsDSPWinnerWhenMLEvaluationAgrees() {
     let dsp = makeFixture()
     let ml = MLEvaluation(bpm: 120.0, confidence: 0.85)
-    let result = EnsembleCombiner.combine(
+    let result = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .dspOnly)
     #expect(equalByBitPattern(result, dsp))
     #expect(result.trace?.ensembleDecision == nil)
@@ -79,7 +79,7 @@ struct EnsembleCombinerTests {
   func combineReturnsDSPWinnerWhenMLEvaluationDisagreesLowConf() {
     let dsp = makeFixture()
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.4)
-    let result = EnsembleCombiner.combine(
+    let result = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .dspOnly)
     #expect(equalByBitPattern(result, dsp))
     #expect(result.trace?.ensembleDecision == nil)
@@ -92,7 +92,7 @@ struct EnsembleCombinerTests {
   func combineReturnsDSPWinnerWhenMLEvaluationDisagreesHighConf() {
     let dsp = makeFixture()
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.95)
-    let result = EnsembleCombiner.combine(
+    let result = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .dspOnly)
     #expect(equalByBitPattern(result, dsp))
     #expect(result.trace?.ensembleDecision == nil)
@@ -120,7 +120,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   @Test("dspOnly + ml=nil → DSP wins, no decision")
   func dspOnly_mlNil() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: nil, policy: .dspOnly)
     #expect(equalByBitPattern(r, dsp))
     #expect(r.trace?.ensembleDecision == nil)
@@ -130,7 +130,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func dspOnly_mlAgreesHighConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.7)
     let ml = MLEvaluation(bpm: 120.0, confidence: 0.95)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .dspOnly)
     #expect(equalByBitPattern(r, dsp))
     #expect(r.trace?.ensembleDecision == nil)
@@ -140,7 +140,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func dspOnly_mlDisagreesLowConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9)
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.4)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .dspOnly)
     #expect(equalByBitPattern(r, dsp))
     #expect(r.trace?.ensembleDecision == nil)
@@ -150,7 +150,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func dspOnly_mlDisagreesHighConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.7)
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.95)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .dspOnly)
     #expect(equalByBitPattern(r, dsp))
     #expect(r.trace?.ensembleDecision == nil)
@@ -161,7 +161,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   @Test("mlOnly + ml=nil → DSP wins (no model verdict), no decision")
   func mlOnly_mlNil() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: nil, policy: .mlOnly)
     #expect(equalByBitPattern(r, dsp))
     #expect(r.trace?.ensembleDecision == nil)
@@ -171,7 +171,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func mlOnly_mlAgreesHighConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.7, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 120.0, confidence: 0.95)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 120.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.95.bitPattern)
@@ -180,13 +180,21 @@ struct EnsembleCombinerPolicyMatrixTests {
     #expect(d?.winner == .ml)
     #expect(d?.mlAbstained == false)
     #expect(d?.selectedBPM == 120.0)
+    // 6.4b review: lock candidate-forwarding through `.with` on the ML-win path —
+    // candidates must survive byte-identical from the DSP winner (the seam only
+    // overrides bpm/confidence/trace, never candidates).
+    #expect(r.candidates.count == dsp.candidates.count)
+    for (lhs, rhs) in zip(r.candidates, dsp.candidates) {
+      #expect(lhs.bpm.bitPattern == rhs.bpm.bitPattern)
+      #expect(lhs.score.bitPattern == rhs.score.bitPattern)
+    }
   }
 
   @Test("mlOnly + ml disagrees low conf → ML wins (policy ignores DSP), decision attached")
   func mlOnly_mlDisagreesLowConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.4)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 60.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.4.bitPattern)
@@ -199,7 +207,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func mlOnly_mlDisagreesHighConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.7, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.95)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 60.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.95.bitPattern)
@@ -212,7 +220,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   @Test("highestConfidence + ml=nil → DSP wins, no decision")
   func highestConfidence_mlNil() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: nil, policy: .highestConfidence)
     #expect(equalByBitPattern(r, dsp))
     #expect(r.trace?.ensembleDecision == nil)
@@ -222,7 +230,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func highestConfidence_mlAgreesHighConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.7, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 120.0, confidence: 0.95)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .highestConfidence)
     #expect(r.bpm.bitPattern == 120.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.95.bitPattern)
@@ -233,7 +241,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func highestConfidence_mlDisagreesLowConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.4)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .highestConfidence)
     #expect(r.bpm.bitPattern == 120.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.9.bitPattern)
@@ -244,7 +252,7 @@ struct EnsembleCombinerPolicyMatrixTests {
   func highestConfidence_mlDisagreesHighConf() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.7, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 60.0, confidence: 0.95)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .highestConfidence)
     #expect(r.bpm.bitPattern == 60.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.95.bitPattern)
@@ -266,7 +274,7 @@ struct EnsembleCombinerSanitizationTests {
   func mlOnly_bpmNaN_abstains() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: .nan, confidence: 0.5)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 120.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.9.bitPattern)
@@ -280,7 +288,7 @@ struct EnsembleCombinerSanitizationTests {
   func mlOnly_bpmPositiveInfinity_abstains() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: .infinity, confidence: 0.5)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 120.0.bitPattern)
     #expect(r.trace?.ensembleDecision?.mlAbstained == true)
@@ -290,7 +298,7 @@ struct EnsembleCombinerSanitizationTests {
   func mlOnly_bpmOutOfRangeHigh_clamps() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 999.0, confidence: 0.8)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 200.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.8.bitPattern)
@@ -301,7 +309,7 @@ struct EnsembleCombinerSanitizationTests {
   func mlOnly_bpmOutOfRangeLow_clamps() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 30.0, confidence: 0.8)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 60.0.bitPattern)
     #expect(r.trace?.ensembleDecision?.mlAbstained == false)
@@ -311,7 +319,7 @@ struct EnsembleCombinerSanitizationTests {
   func mlOnly_confidenceNaN_collapses() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 128.0, confidence: .nan)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 128.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.0.bitPattern)
@@ -325,7 +333,7 @@ struct EnsembleCombinerSanitizationTests {
   func highestConfidence_confidenceClampHigh() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 60.0, confidence: 2.0)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .highestConfidence)
     #expect(r.bpm.bitPattern == 60.0.bitPattern)
     #expect(r.confidence.bitPattern == 1.0.bitPattern)
@@ -339,7 +347,7 @@ struct EnsembleCombinerSanitizationTests {
   func mlOnly_bpmNegativeInfinity_abstains() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: -.infinity, confidence: 0.5)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .mlOnly)
     #expect(r.bpm.bitPattern == 120.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.9.bitPattern)
@@ -359,7 +367,7 @@ struct EnsembleCombinerSanitizationTests {
   func highestConfidence_confidenceClampLow() {
     let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
     let ml = MLEvaluation(bpm: 60.0, confidence: -1.0)
-    let r = EnsembleCombiner.combine(
+    let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, mlEvaluation: ml, policy: .highestConfidence)
     #expect(r.bpm.bitPattern == 120.0.bitPattern)
     #expect(r.confidence.bitPattern == 0.9.bitPattern)

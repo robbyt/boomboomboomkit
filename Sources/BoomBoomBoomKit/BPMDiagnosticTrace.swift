@@ -139,7 +139,7 @@ public struct BPMDiagnosticTrace: Sendable {
 
   // MARK: - Story 4.4: Ensemble Decision
 
-  /// Diagnostic record of how ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``
+  /// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)``
   /// resolved the post-corroboration DSP candidate against an
   /// ``MLEvaluation``. Populated when ``MLTechnique/evaluate(trace:)``
   /// returned a non-nil ``MLEvaluation``; otherwise `nil` (including under
