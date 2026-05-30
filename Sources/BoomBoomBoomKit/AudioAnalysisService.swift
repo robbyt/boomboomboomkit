@@ -772,12 +772,16 @@ public struct AudioAnalysisService {
     var entries: [SignalParticipationTraceEntry] = []
 
     // DSP: one entry per merged candidate (DD #6, c.score hoisted Float→Double
-    // per Patch C5 — fusion score, not calibrated probability).
+    // per Patch C5 — fusion score, not calibrated probability). Story 6.4a also
+    // carries the EXACT operative Float as `score:` (strictly dead — populated
+    // here, read by nothing; Story 6.4b reads it off the pool when it flips the
+    // merge carrier, avoiding a lossy Double→Float reconstruction).
     for candidate in merged.candidates {
       let signal = WeightedSignal(
         bpm: candidate.bpm,
         confidence: Double(candidate.score),
-        source: .dsp)
+        source: .dsp,
+        score: candidate.score)
       let participation = SignalParticipation.present(signal)
       entries.append(
         SignalParticipationTraceEntry(
