@@ -105,14 +105,17 @@ public enum EnsemblePolicy: Sendable, Hashable {
   case weightedVoting(SignalWeights)
 
   /// Whether this policy causes ``MLTechnique/evaluate(trace:)`` to be invoked.
-  /// True only for ``mlOnly`` and ``highestConfidence``; ``default``,
-  /// ``dspOnly``, and ``weightedVoting(_:)`` are operation-inert (no ML) in the
-  /// current release. Replaces the former `policy != .dspOnly` call-site check,
-  /// which would have wrongly invoked ML for the new placeholder cases.
+  /// True for the cross-signal-fusion policies — ``mlOnly``,
+  /// ``highestConfidence``, and (Story 6.5b KDD-A5 activation) the now-live
+  /// ``default`` and ``weightedVoting(_:)`` weighted-resolution policies, which
+  /// fuse an ML voice when a technique is wired up. Only ``dspOnly`` is
+  /// operation-inert (the ML short-circuit). Inference still requires
+  /// ``AudioAnalysisService/Options/mlTechnique`` to be non-nil; this flag only
+  /// gates the policies that *would* consume an ML voice.
   public var invokesMLInference: Bool {
     switch self {
-    case .mlOnly, .highestConfidence: return true
-    case .default, .dspOnly, .weightedVoting: return false
+    case .mlOnly, .highestConfidence, .default, .weightedVoting: return true
+    case .dspOnly: return false
     }
   }
 

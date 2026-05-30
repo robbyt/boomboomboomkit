@@ -21,8 +21,8 @@
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "policy_default_short_circuit",
-      "source" : "dsp"
+      "reason" : "policy_default_weighted_ml",
+      "source" : "ml"
     },
     "ml" : {
       "bpm" : 120,
@@ -38,7 +38,7 @@
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "policy_default_short_circuit",
+      "reason" : "policy_default_weighted_dsp",
       "source" : "dsp"
     },
     "ml" : {
@@ -54,9 +54,9 @@
       "conf" : 0.7
     },
     "ensemble" : {
-      "bpm" : 120,
-      "reason" : "policy_default_short_circuit",
-      "source" : "dsp"
+      "bpm" : 60,
+      "reason" : "policy_default_weighted_ml",
+      "source" : "ml"
     },
     "ml" : {
       "bpm" : 60,
@@ -281,8 +281,8 @@
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "policy_weightedVoting_short_circuit",
-      "source" : "dsp"
+      "reason" : "policy_weightedVoting_weighted_ml",
+      "source" : "ml"
     },
     "ml" : {
       "bpm" : 120,
@@ -298,7 +298,7 @@
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "policy_weightedVoting_short_circuit",
+      "reason" : "policy_weightedVoting_weighted_dsp",
       "source" : "dsp"
     },
     "ml" : {
@@ -314,9 +314,9 @@
       "conf" : 0.7
     },
     "ensemble" : {
-      "bpm" : 120,
-      "reason" : "policy_weightedVoting_short_circuit",
-      "source" : "dsp"
+      "bpm" : 60,
+      "reason" : "policy_weightedVoting_weighted_ml",
+      "source" : "ml"
     },
     "ml" : {
       "bpm" : 60,

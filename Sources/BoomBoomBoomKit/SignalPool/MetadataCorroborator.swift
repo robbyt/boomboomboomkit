@@ -70,7 +70,8 @@ enum MetadataCorroborator {
   /// trace stays nil. Returned evidence is always `[]` on this branch.
   static func apply(
     to result: BPMResult,
-    input: MetadataCorroborationInput
+    input: MetadataCorroborationInput,
+    metadataScale: Double = 1.0
   ) -> (BPMResult, [MetadataBPMEvidence]) {
 
     // No tags → pass through, but populate the trace's
@@ -178,13 +179,42 @@ enum MetadataCorroborator {
       }
     }
 
+    // Story 6.5b / DD #2 — multiplicative corroboration scaled by the pool's
+    // file-metadata weight. `metadataScale` SCALES the boost/penalty strength;
+    // it does NOT replace the multiplicative transform with additive vote mass
+    // (the winner-promotion would not survive an additive re-expression). At
+    // `metadataScale == 1.0` (every non-`weightedVoting`/`default` policy, and
+    // `.default`/`.weightedVoting(.default)`) these reproduce the pre-6.5b
+    // `policy.corroborationBoost` / `policy.skepticismPenalty` exactly:
+    // `1.0 + 1·(1.25−1.0) == 1.25` and `1.0 − 1·(1.0−0.85) == 0.85`. At
+    // `metadataScale == 0` (`SignalWeights.fileMetadata == 0`) the boost and
+    // penalty collapse to `1.0` → the merge winner carries unchanged (the
+    // metadata-inert identity).
+    //
+    // `SignalWeights.fileMetadata` is unbounded above (a multiplier, not a
+    // [0,1] probability), so `metadataScale` can be arbitrarily large. The
+    // penalty is floored at `0.0` (a large scale would otherwise drive
+    // `scaledPenalty` negative — `0.85` zero-crosses at `metadataScale ≈ 6.67`
+    // — and `confidence × negative` would emit a NEGATIVE confidence the
+    // boost-path clamp never catches; Story 6.5b code-review HIGH). The boosted
+    // SCORE product is likewise capped at `Float.greatestFiniteMagnitude` so a
+    // huge scale cannot leak `+inf` into `result.candidates`. Both guards are
+    // byte-inert at `metadataScale == 1.0` (`max(0, 0.85) == 0.85`; the score
+    // cap never binds at `×1.25`).
+    let scaledBoost = 1.0 + metadataScale * (input.policy.corroborationBoost - 1.0)
+    let scaledPenalty = max(
+      0.0, 1.0 - metadataScale * (1.0 - input.policy.skepticismPenalty))
+
     // Boost matching candidates' scores. Compute in Double, store in Float
     // (per Swift Implementation Pitfall #3 — Float * Double does not auto-widen).
     var boostedScores = originalCandidates.map { $0.score }
     let boostedIdxSet = Set(allMatches.map(\.candidateIdx))
     for idx in boostedIdxSet {
       let original = originalCandidates[idx].score
-      boostedScores[idx] = Float(Double(original) * input.policy.corroborationBoost)
+      // Cap at the largest finite Float so a large `metadataScale` cannot leak
+      // `+inf` into the candidate scores / trace (byte-inert at scale 1.0).
+      let boosted = min(Double(original) * scaledBoost, Double(Float.greatestFiniteMagnitude))
+      boostedScores[idx] = Float(boosted)
     }
 
     // Re-select the winner from the boosted pool.
@@ -237,9 +267,14 @@ enum MetadataCorroborator {
     let newConfidence: Double
     let effectiveBoost: Double
     if winnerIsCorroborated {
-      // AC #11: boost confidence, clamped at maxBoostedConfidence.
-      if prevConfidence.isFinite, prevConfidence > 0 {
-        let raw = prevConfidence * input.policy.corroborationBoost
+      // AC #11: boost confidence, clamped at maxBoostedConfidence. The
+      // `metadataScale != 0` guard keeps `metadataScale == 0` fully inert — at
+      // scale 0 the boost multiplier is 1.0 but the `min(maxBoostedConfidence,…)`
+      // clamp would still pull a corroborated winner whose `prevConfidence`
+      // already exceeds 0.95 down to 0.95, diverging from "scale 0 = unchanged"
+      // (DD #2 metadata-inert identity; Story 6.5b code-review LOW).
+      if metadataScale != 0, prevConfidence.isFinite, prevConfidence > 0 {
+        let raw = prevConfidence * scaledBoost
         newConfidence = min(input.policy.maxBoostedConfidence, raw)
         effectiveBoost = newConfidence / prevConfidence
       } else {
@@ -249,8 +284,8 @@ enum MetadataCorroborator {
     } else if useConsensus, allMatches.isEmpty {
       // AC #14: unanimous-consensus does not corroborate any candidate → penalty.
       if prevConfidence.isFinite, prevConfidence > 0 {
-        newConfidence = prevConfidence * input.policy.skepticismPenalty
-        effectiveBoost = input.policy.skepticismPenalty
+        newConfidence = prevConfidence * scaledPenalty
+        effectiveBoost = scaledPenalty
       } else {
         newConfidence = prevConfidence
         effectiveBoost = 1.0
@@ -377,11 +412,27 @@ enum MetadataCorroborator {
             contribution: participation.confidence * weight))
       } else {
         for tag in acceptedTags {
+          // Story 6.5b DD #5(c): the former `fileMetadataStage1TraceOnlyDefault`
+          // 1.0 presence sentinel is removed — metadata participation strength is
+          // now governed by `SignalWeights.fileMetadata` in the Phase 2a
+          // corroboration scale, not a constant pinned into the trace entry. The
+          // trace `.present` signal records metadata *presence* (1.0); the
+          // calibrated weighting happens in selection.
           let signal = WeightedSignal(
             bpm: tag.parsedBPM,
-            confidence: WeightedSignal.fileMetadataStage1TraceOnlyDefault,
+            confidence: 1.0,
             source: .fileMetadata)
-          let participation = SignalParticipation.present(signal)
+          // Story 6.5b W51 / DD #4: an intra-file conflict (two valid tags
+          // disagree beyond tolerance) demotes every otherwise-valid tag — the
+          // pool records `.demoted(reason:)` rather than `.present`, since the
+          // all-or-nothing rule rejects all of them for decision purposes. The
+          // skepticism-penalty demotion (unanimous tags disagree with DSP) is a
+          // post-corroboration outcome reflected in `MetadataBPMEvidence`
+          // (`dsp-disagreement`), not knowable at pool-construction time.
+          let participation: SignalParticipation =
+            input.conflictDetected
+            ? .demoted(signal, reason: .sourceSpecific("intra-file-conflict"))
+            : .present(signal)
           entries.append(
             SignalParticipationTraceEntry(
               source: .fileMetadata,

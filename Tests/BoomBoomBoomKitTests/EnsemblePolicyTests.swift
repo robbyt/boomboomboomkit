@@ -102,15 +102,15 @@ struct EnsemblePolicyShortCircuitTests {
     #expect(mock.callCount == 0)
   }
 
-  /// Story 6.5a: the new placeholder policies `.default` and `.weightedVoting`
-  /// are fully operation-inert (no ML), matching the `invokesMLInference`
-  /// contract — even with a non-nil `mlTechnique` AND `enableTrace`, ML inference
-  /// does not run and no ML log-mel feature frames are captured into the trace.
-  /// Locks the Story 6.5a fix that migrated the `captureMLFeatures` +
-  /// Stage-2-pool predicates from `!= .dspOnly` to `invokesMLInference` (so the
-  /// placeholder cases behave exactly like `.dspOnly` for all ML side effects).
-  @Test("placeholder policies (.default / .weightedVoting) are operation-inert")
-  func placeholderPoliciesAreOperationInert() throws {
+  /// Story 6.5b (KDD-A5 activation): `.default` and `.weightedVoting` are now
+  /// LIVE weighted-resolution policies — they invoke ML inference and capture
+  /// log-mel features when a technique is wired up (`invokesMLInference == true`).
+  /// This is the deliberate flip of the Story 6.5a placeholder-inertness contract
+  /// (the cases shipped inert; 6.5b consumes them). `.dspOnly` remains the only
+  /// operation-inert ML short-circuit (locked by `mlTechniqueNotInvokedUnderDSPOnly`
+  /// above).
+  @Test("KDD-A5: .default / .weightedVoting invoke ML when a technique is present")
+  func weightedPoliciesInvokeMLWhenActivated() throws {
     for policy: EnsemblePolicy in [.default, .weightedVoting(.default)] {
       let url = try makeSyntheticClickTrack()
       let mock = RecordingMockMLTechnique()
@@ -120,10 +120,14 @@ struct EnsemblePolicyShortCircuitTests {
       opts.enableTrace = true
 
       let result = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
-      #expect(mock.callCount == 0, "ML must not run under \(policy.stableKey)")
+      #expect(mock.callCount > 0, "ML must run under activated \(policy.stableKey)")
       #expect(
-        result?.trace?.mlFeatures == nil,
-        "no ML feature capture under \(policy.stableKey)")
+        result?.trace?.mlFeatures != nil,
+        "ML feature capture expected under activated \(policy.stableKey)")
+      // The weighted resolution records its forensic evidence (KDD-A5).
+      #expect(
+        result?.trace?.ensembleWeightResolution != nil,
+        "EnsembleWeightResolution expected under \(policy.stableKey)")
     }
   }
 
@@ -384,23 +388,37 @@ struct EnsemblePolicyDecisionTableTests {
           MLEvaluation(bpm: $0.bpm, confidence: $0.conf)
         }
         let combined = AudioAnalysisService.combineEnsemble(
-          dspWinner: dspResult, mlEvaluation: mlEval, policy: policy)
+          dspWinner: dspResult, mlEvaluation: mlEval, policy: policy,
+          weights: AudioAnalysisService.resolveWeights(policy))
 
         let decision = combined.trace?.ensembleDecision
+        // Story 6.5b KDD-A5: `.default` / `.weightedVoting` emit
+        // `ensembleWeightResolution` (not `ensembleDecision`); read both so the
+        // artifact reports the true winner for the weighted-resolution policies.
+        let weightRes = combined.trace?.ensembleWeightResolution
         let source: String = {
-          guard let d = decision else { return "dsp" }
-          switch d.winner {
-          case .dsp, .tie: return "dsp"
-          case .ml: return "ml"
+          if let d = decision {
+            switch d.winner {
+            case .dsp, .tie: return "dsp"
+            case .ml: return "ml"
+            }
           }
+          if let w = weightRes {
+            switch w.winner {
+            case .dsp, .tie: return "dsp"
+            case .ml: return "ml"
+            }
+          }
+          return "dsp"
         }()
         let reason: String = {
           if outcome.ml == nil { return "protocol_abstain" }
+          if let w = weightRes {
+            // KDD-A5 weighted resolution (`.default` / `.weightedVoting`).
+            return "policy_\(policy.stableKey)_weighted_\(w.winner.rawValue)"
+          }
           if decision == nil {
-            // All operation-inert policies (.dspOnly, .default, .weightedVoting)
-            // short-circuit before ML and attach no decision; label them by key
-            // so the artifact distinguishes a policy short-circuit from a genuine
-            // ML abstain.
+            // `.dspOnly` short-circuits before ML and attaches no decision.
             return !policy.invokesMLInference
               ? "policy_\(policy.stableKey)_short_circuit" : "no_decision"
           }
@@ -445,9 +463,13 @@ struct EnsemblePolicyDecisionTableTests {
         let combined = AudioAnalysisService.combineEnsemble(
           dspWinner: dsp,
           mlEvaluation: MLEvaluation(bpm: 128.0, confidence: 0.92),
-          policy: policy)
+          policy: policy,
+          weights: AudioAnalysisService.resolveWeights(policy))
+        // KDD-A5: `.default` / `.weightedVoting` report via
+        // `ensembleWeightResolution`; the ML-policies via `ensembleDecision`.
         let source: String =
           combined.trace?.ensembleDecision?.winner.rawValue
+          ?? combined.trace?.ensembleWeightResolution?.winner.rawValue
           ?? "dsp"
         rows.append(
           DecisionTableRow44(

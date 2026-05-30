@@ -26,4 +26,14 @@ public enum OctaveEquivalencePolicy: String, CaseIterable, Sendable, Hashable {
   /// Require an exact BPM match within tolerance; octave relationships do not
   /// count as agreement.
   case exactMatchOnly
+
+  /// The default octave-equivalence policy consumed by
+  /// ``BPMSelectionPolicy/select(from:weights:equivalence:votingPolicy:votingThreshold:)``.
+  /// ``octaveAwareWithPenalty`` mirrors the pre-6.5b corroboration behavior
+  /// (octave-related tags corroborate, governed by
+  /// ``MetadataPolicy/allowOctaveCorroboration``). Story 6.5b accepts this knob
+  /// in the selection signature but does not yet branch on it — the octave-ratio
+  /// behavior remains governed by ``MetadataPolicy``; activating the three
+  /// distinct policies is a reserved follow-up.
+  public static let `default` = OctaveEquivalencePolicy.octaveAwareWithPenalty
 }

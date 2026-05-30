@@ -411,6 +411,147 @@ extension BPMSelectionPolicy {
   }
 }
 
+// MARK: - Story 6.5b: Pool-authoritative two-phase selection (KDD-A6 Stage 3)
+
+extension BPMSelectionPolicy {
+
+  /// Outcome of pool-authoritative selection (Phase 1 + Phase 2a).
+  ///
+  /// `result` is the Phase-2a metadata-corroborated DSP voice (the value the
+  /// service hands to ML fusion / `combineEnsemble` as the DSP winner).
+  /// `evidence` is the per-tag metadata evidence. The cross-signal ML fusion
+  /// (Phase 2b) runs in ``AudioAnalysisService`` AFTER ML evaluation, because
+  /// `MLTechnique.evaluate` reads the post-corroboration trace — it cannot fold
+  /// into this pure value-type method without breaking the no-accuracy-change
+  /// ordering (Story 6.5b design resolution DR-1).
+  struct PoolSelection: Sendable {
+    let result: BPMResult
+    let evidence: [MetadataBPMEvidence]
+  }
+
+  /// Pool-authoritative two-phase BPM selection (KDD-A6 Stage 3, the genuine
+  /// semantic flip). Replaces the service's `merge → apply` chain with a single
+  /// pool-consuming entry point:
+  ///
+  /// - **Phase 1 — cross-WINDOW aggregation** (`merge`, byte-preserved): the
+  ///   8-strategy clustered/voting math collapses `pool.dspWindows` → one merged
+  ///   DSP ``BPMResult``, identical to the pre-6.5b `merge` output.
+  /// - **Phase 2a — cross-SIGNAL corroboration**: pool-authoritative
+  ///   multiplicative metadata corroboration (the former
+  ///   ``MetadataCorroborator/apply(to:input:metadataScale:)``), with the boost /
+  ///   skepticism strength SCALED by `weights.fileMetadata` (DD #2). At
+  ///   `fileMetadata == 1.0` the transform reproduces the pre-6.5b boost / penalty
+  ///   exactly; at `0.0` metadata is inert.
+  ///
+  /// The authoritative per-source trace entries (``BPMDiagnosticTrace/
+  /// signalParticipationTrace``) are built from the merged voice when a trace
+  /// exists (preserving the `SignalPoolTests` per-source contract).
+  ///
+  /// - Returns: the corroborated DSP voice + metadata evidence, or `nil` when the
+  ///   pool has no DSP windows (FR-8 / DD #7 — a library never `precondition`-
+  ///   crashes on an empty pool).
+  /// - Parameters:
+  ///   - pool: the authoritative selection-input bundle.
+  ///   - weights: per-source vote weights; `weights.fileMetadata` scales Phase 2a.
+  ///   - equivalence: octave-equivalence policy. Accepted per the KDD-A6 signature;
+  ///     reserved — the octave-ratio behavior remains governed by
+  ///     ``MetadataPolicy`` (`allowOctaveCorroboration`) in the current release.
+  ///   - votingPolicy: resolution policy for ``BPMSelectionPolicy/windowVoting``.
+  ///   - votingThreshold: acceptance threshold for ``VotingPolicy/thresholdGated``.
+  func select(
+    from pool: UnifiedSignalPool,
+    weights: SignalWeights = .default,
+    equivalence: OctaveEquivalencePolicy = .default,
+    votingPolicy: VotingPolicy = .simpleMajority,
+    votingThreshold: Double = 0.0
+  ) -> PoolSelection? {
+    // DD #7 / FR-8: empty pool → nil. `merge` already returns nil on empty
+    // windowResults; the guard makes the library-safety contract explicit and
+    // avoids any precondition-crash path.
+    guard
+      let merged = Self.merge(
+        windowResults: pool.dspWindows,
+        candidateCount: pool.candidateCount,
+        strategy: self,
+        votingPolicy: votingPolicy,
+        votingThreshold: votingThreshold)
+    else { return nil }
+
+    // Authoritative per-source trace entries, built from the merged voice. Gated
+    // on a real trace — the exact observable gate the former
+    // `buildStage2SignalPool` used (no trace ⇒ nowhere to write
+    // `signalParticipationTrace`). This is the only place the entries are
+    // produced now; the pool itself is authoritative (built unconditionally).
+    let mergedWithEntries: BPMResult
+    if merged.trace != nil {
+      var trace = merged.trace
+      trace?.signalParticipationTrace = Self.participationEntries(merged: merged, pool: pool)
+      mergedWithEntries = merged.with(trace: trace)
+    } else {
+      mergedWithEntries = merged
+    }
+
+    // `equivalence` accepted per the KDD-A6 signature; reserved (see doc).
+    _ = equivalence
+
+    // Phase 2a: pool-authoritative multiplicative corroboration, boost/penalty
+    // scaled by the file-metadata weight (DD #2).
+    let (corroborated, evidence) = MetadataCorroborator.apply(
+      to: mergedWithEntries,
+      input: pool.metadataInput,
+      metadataScale: weights.fileMetadata)
+
+    return PoolSelection(result: corroborated, evidence: evidence)
+  }
+
+  /// Builds the authoritative per-source ``SignalParticipationTraceEntry`` list
+  /// from the merged DSP voice + the pool's metadata / ML participation. Byte-
+  /// equivalent to the former `AudioAnalysisService.buildStage2SignalPool`:
+  /// DSP entries first (one `.present` per merged candidate carrying the EXACT
+  /// operative `Float` score, plus a `.dsp` `noCandidates` sentinel on the
+  /// empty-candidate edge), then the single ML entry, then the file-metadata
+  /// entries (owned by ``MetadataCorroborator/signalParticipationEntries(for:weight:)``).
+  static func participationEntries(
+    merged: BPMResult, pool: UnifiedSignalPool
+  ) -> [SignalParticipationTraceEntry] {
+    let weight = pool.weight
+    var entries: [SignalParticipationTraceEntry] = []
+
+    for candidate in merged.candidates {
+      let signal = WeightedSignal(
+        bpm: candidate.bpm,
+        confidence: Double(candidate.score),
+        source: .dsp,
+        score: candidate.score)
+      let participation = SignalParticipation.present(signal)
+      entries.append(
+        SignalParticipationTraceEntry(
+          source: .dsp, participation: participation,
+          weight: weight, contribution: participation.confidence * weight))
+    }
+    if merged.candidates.isEmpty {
+      let participation = SignalParticipation.abstained(
+        .sourceSpecific(AbstainReason.noCandidates))
+      entries.append(
+        SignalParticipationTraceEntry(
+          source: .dsp, participation: participation,
+          weight: weight, contribution: participation.confidence * weight))
+    }
+
+    let mlParticipation = pool.mlParticipation
+    entries.append(
+      SignalParticipationTraceEntry(
+        source: .ml, participation: mlParticipation,
+        weight: weight, contribution: mlParticipation.confidence * weight))
+
+    entries.append(
+      contentsOf: MetadataCorroborator.signalParticipationEntries(
+        for: pool.metadataInput, weight: weight))
+
+    return entries
+  }
+}
+
 // MARK: - BPM Cluster
 
 /// Groups near-match candidates across windows for score aggregation.

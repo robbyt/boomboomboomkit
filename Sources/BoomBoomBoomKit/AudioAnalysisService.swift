@@ -334,33 +334,26 @@ public struct AudioAnalysisService {
 
     let pre = try Self.runPreCorroborationPipeline(
       url: url, options: options, enableTrace: shouldBuildTrace)
-    guard let merged = pre.result else { return nil }
 
-    // Story 6.3 (KDD-A6 Stage 2): the UnifiedSignalPool is now built INSIDE
-    // `runPreCorroborationPipeline` (post-merge, gated on `merged?.trace != nil`)
-    // and threaded out via `pre.pool` — the post-hoc `buildStage1SignalPool`
-    // call that lived here is gone (DD #3a/#3c). A non-nil `pre.pool` implies a
-    // non-nil `merged.trace` (same gate), so the trace rebuild lands on a real
-    // trace. Per the FMA-12 explicit-mutation pattern, the trace is rebuilt into
-    // a fresh `BPMResult` rather than mutated via `merged.trace?...` (that writes
-    // into an unused local copy because `BPMResult.trace` is a `let` field).
-    // The pool is NOT consumed by `merge` (signature frozen — flip lands Story
-    // 6.4) and ML evaluation is NOT moved earlier (no accuracy-changing
-    // behavior — ML continues to see the post-corroboration trace below).
-    let mergedWithParticipationTrace: BPMResult
-    if let pool = pre.pool {
-      var participationTrace = merged.trace
-      participationTrace?.signalParticipationTrace = pool.entries
-      mergedWithParticipationTrace = merged.with(trace: participationTrace)
-    } else {
-      mergedWithParticipationTrace = merged
-    }
-
-    // Story 3.6: post-merge metadata corroboration. Runs unconditionally so
-    // single-window paths (intensity 1-5, where `merge` short-circuits) still
-    // get the corroboration pass.
-    let (corroborated, evidence) = MetadataCorroborator.apply(
-      to: mergedWithParticipationTrace, input: pre.metadataInput)
+    // Story 6.5b (KDD-A6 Stage 3): Phase 1 (cross-window aggregation) + Phase 2a
+    // (pool-authoritative multiplicative metadata corroboration) collapse into a
+    // single pool-consuming entry point — `BPMSelectionPolicy.select(from:)`. The
+    // former `merge → weave pool entries → MetadataCorroborator.apply` chain is
+    // gone; the authoritative `UnifiedSignalPool` (built unconditionally in
+    // `runPreCorroborationPipeline`) is the selection input. Empty pool → nil
+    // (FR-8 / DD #7). `weights.fileMetadata` scales the corroboration strength
+    // (DD #2); for every non-`weightedVoting`/`default` policy it resolves to
+    // `1.0`, byte-reproducing the pre-6.5b corroboration.
+    let resolvedWeights = Self.resolveWeights(options.ensemblePolicy)
+    guard
+      let selection = options.mergeStrategy.select(
+        from: pre.pool,
+        weights: resolvedWeights,
+        votingPolicy: options.votingPolicy,
+        votingThreshold: options.votingThreshold)
+    else { return nil }
+    let corroborated = selection.result
+    let evidence = selection.evidence
 
     // Story 4-5 / DD #11 / AC #9: ML evaluation runs AFTER metadata
     // corroboration via a private throws helper that checks cancellation
@@ -384,10 +377,13 @@ public struct AudioAnalysisService {
     let mlEvaluation = try Self.evaluateMLIfActive(
       options: options, trace: &localTrace)
     let corroboratedWithSnapshot = corroborated.with(trace: localTrace)
+    // Phase 2b: cross-signal ML fusion + KDD-A5 weighted resolution, consuming
+    // the same resolved weights as Phase 2a's corroboration scale.
     let combined = Self.combineEnsemble(
       dspWinner: corroboratedWithSnapshot,
       mlEvaluation: mlEvaluation,
-      policy: options.ensemblePolicy)
+      policy: options.ensemblePolicy,
+      weights: resolvedWeights)
 
     // Story 4.2: post-pipeline reporting of effective intensity + degradation
     // reason. Computed AFTER both `runPreCorroborationPipeline` and
@@ -581,17 +577,70 @@ public struct AudioAnalysisService {
   static func combineEnsemble(
     dspWinner: BPMResult,
     mlEvaluation: MLEvaluation?,
-    policy: EnsemblePolicy
+    policy: EnsemblePolicy,
+    weights: SignalWeights = .default
   ) -> BPMResult {
     switch policy {
-    case .default, .dspOnly, .weightedVoting:
-      // HALT (b) guard: these branches must not consult `mlEvaluation`.
-      // `.default` and `.weightedVoting` are byte-inert placeholders in Story
-      // 6.5a (the default-policy resolution and pool-based weighted voting they
-      // will drive land in Story 6.5b); like `.dspOnly` they return the DSP
-      // winner unchanged and attach no decision.
+    case .dspOnly:
+      // HALT (b) guard: DSP-only must not consult `mlEvaluation`. The DSP winner
+      // carries unchanged; no decision attached. Byte-identical to Story 4-3's
+      // default-DSP-wins behavior.
       _ = mlEvaluation
       return dspWinner
+
+    case .default, .weightedVoting:
+      // KDD-A5 (Story 6.5b): pool-authoritative weighted resolution — the live
+      // activation of the two cases Story 6.5a shipped inert. The DSP voice is
+      // the Phase-1-aggregated, Phase-2a-corroborated candidate; the ML voice
+      // participates only when a technique ran (``EnsemblePolicy/invokesMLInference``
+      // is true for these cases). Winner is the higher
+      // `effectiveVote = confidence × weights[source]` (KDD-A3); DSP wins ties
+      // (deterministic tiebreak). `.default` uses ``SignalWeights/default``
+      // (equal weighting — the balanced peer ensemble); `.weightedVoting(w)`
+      // uses `w`. Emits ``EnsembleWeightResolution`` (NOT ``EnsembleDecision``).
+      //
+      // BOTH votes sanitize their confidence (non-finite → 0, clamp to [0,1])
+      // before weighting — symmetric handling so a non-finite/out-of-range DSP
+      // confidence cannot poison the comparison (Story 6.5b code-review HIGH;
+      // defense-in-depth — the corroboration confidence is already floored).
+      // Identity for the normal finite-[0,1] case.
+      let dspVote = sanitizeEnsembleConfidence(dspWinner.confidence) * weights.dsp
+      guard let ml = mlEvaluation, ml.bpm.isFinite else {
+        // No ML voice (no technique wired up, or non-finite ML bpm abstains):
+        // the DSP voice carries unchanged.
+        let resolution = EnsembleWeightResolution(
+          policyKey: policy.stableKey, weights: weights,
+          dspEffectiveVote: dspVote, mlEffectiveVote: nil,
+          winner: .dsp, selectedBPM: dspWinner.bpm)
+        return dspWinner.with(
+          trace: weightResolutionTrace(resolution: resolution, base: dspWinner.trace))
+      }
+      let clampedBPM = clampEnsembleBPM(ml.bpm)
+      let mlConf = sanitizeEnsembleConfidence(ml.confidence)
+      let mlVote = mlConf * weights.ml
+      if mlVote > dspVote {
+        let resolution = EnsembleWeightResolution(
+          policyKey: policy.stableKey, weights: weights,
+          dspEffectiveVote: dspVote, mlEffectiveVote: mlVote,
+          winner: .ml, selectedBPM: clampedBPM)
+        return dspWinner.with(
+          bpm: clampedBPM, confidence: mlConf,
+          trace: weightResolutionTrace(resolution: resolution, base: dspWinner.trace))
+      } else if mlVote == dspVote {
+        let resolution = EnsembleWeightResolution(
+          policyKey: policy.stableKey, weights: weights,
+          dspEffectiveVote: dspVote, mlEffectiveVote: mlVote,
+          winner: .tie, selectedBPM: dspWinner.bpm)
+        return dspWinner.with(
+          trace: weightResolutionTrace(resolution: resolution, base: dspWinner.trace))
+      } else {
+        let resolution = EnsembleWeightResolution(
+          policyKey: policy.stableKey, weights: weights,
+          dspEffectiveVote: dspVote, mlEffectiveVote: mlVote,
+          winner: .dsp, selectedBPM: dspWinner.bpm)
+        return dspWinner.with(
+          trace: weightResolutionTrace(resolution: resolution, base: dspWinner.trace))
+      }
 
     case .mlOnly:
       guard let ml = mlEvaluation else {
@@ -680,6 +729,18 @@ public struct AudioAnalysisService {
     return updated
   }
 
+  /// Returns a copy of `base` with `ensembleWeightResolution` set, or `nil` when
+  /// `base` is `nil` (no trace was built — the default path attaches nothing, so
+  /// the weighted-policy output stays byte-identical to a DSP-wins resolution
+  /// when no ML voice changed the winner). Story 6.5b / KDD-A5.
+  private static func weightResolutionTrace(
+    resolution: EnsembleWeightResolution, base: BPMDiagnosticTrace?
+  ) -> BPMDiagnosticTrace? {
+    guard var updated = base else { return nil }
+    updated.ensembleWeightResolution = resolution
+    return updated
+  }
+
   /// Maximum analysis intensity supported by the current configuration.
   ///
   /// - Parameter mlTechnique: The ML technique that will be supplied via
@@ -706,16 +767,13 @@ public struct AudioAnalysisService {
   /// cancellation or metadata I/O would be forced to break this signature
   /// rather than silently diverge from a hand-replicated copy.
   struct PreCorroborationOutput: Sendable {
-    let result: BPMResult?
     let metadataInput: MetadataCorroborationInput
-    /// Story 6.3 (KDD-A6 Stage 2): the Stage-1-shaped ``UnifiedSignalPool``
-    /// built inside the pipeline (post-merge), gated on `result?.trace != nil`
-    /// — the exact observable gate the former post-hoc `buildStage1SignalPool`
-    /// skip used (DD #3a). `nil` when no trace was produced (the consumer would
-    /// otherwise have nowhere to write `signalParticipationTrace`). The pool
-    /// stays trace-shaped (`entries: [SignalParticipationTraceEntry]`), NOT the
-    /// authoritative candidate-score carrier — that flip is Story 6.4 (DD #2).
-    let pool: UnifiedSignalPool?
+    /// Story 6.5b (KDD-A6 Stage 3): the AUTHORITATIVE ``UnifiedSignalPool`` —
+    /// the per-window DSP candidates, parsed metadata, and pre-computed ML
+    /// participation that ``BPMSelectionPolicy/select(from:weights:equivalence:votingPolicy:votingThreshold:)``
+    /// consumes. Built UNCONDITIONALLY (authoritative, not nil on the default
+    /// path); Phase 1 (`merge`) now runs inside `select`, not in this helper.
+    let pool: UnifiedSignalPool
   }
 
   /// Runs the full pre-corroboration sequence in production order:
@@ -825,129 +883,46 @@ public struct AudioAnalysisService {
       }
     }
 
-    // Merge candidates across windows using the selected strategy.
-    let merged = BPMSelectionPolicy.merge(
-      windowResults: windowResults,
+    // Story 6.5b (KDD-A6 Stage 3): build the AUTHORITATIVE UnifiedSignalPool —
+    // the per-window DSP candidates, the parsed metadata signal, and the
+    // pre-computed ML participation that `BPMSelectionPolicy.select(from:)`
+    // consumes. Phase 1 (`merge`) now runs INSIDE `select`, so this helper no
+    // longer merges; it bundles the raw selection inputs. Built unconditionally
+    // (authoritative, not nil on the default path).
+    //
+    // ML participation is options-derived: `.absent` when no technique is wired
+    // up or the selected policy does not invoke ML; otherwise an
+    // `ml-eval-deferred` abstain (W48 named constant; ML inference runs
+    // post-selection to preserve the no-accuracy-change ordering, so it has not
+    // run at pool-construction time).
+    let mlParticipation: SignalParticipation =
+      (options.mlTechnique == nil || !options.ensemblePolicy.invokesMLInference)
+      ? .absent
+      : .abstained(.sourceSpecific(AbstainReason.mlEvalDeferred))
+    let pool = UnifiedSignalPool(
+      dspWindows: windowResults,
+      metadataInput: metadataInput,
       candidateCount: resolvedTechniqueSet.candidateCount,
-      strategy: options.mergeStrategy,
-      votingPolicy: options.votingPolicy,
-      votingThreshold: options.votingThreshold)
+      mlParticipation: mlParticipation,
+      weight: 1.0)
 
-    // Story 6.3 (KDD-A6 Stage 2): build the Stage-1-shaped UnifiedSignalPool
-    // here, inside the pipeline, instead of post-hoc in `analyzeBPM`. Gate on
-    // `merged?.trace != nil` — the EXACT observable gate the former
-    // `buildStage1SignalPool` skip used (DD #3a / Codex Q1). `enableTrace` is
-    // the upstream intent flag and would diverge from this concrete byte-
-    // preservation guard if a future merge/fallback ever returned a non-nil
-    // result with a nil trace. The pool stays trace-shaped (DD #2): the
-    // corroborator's boost/re-select math continues to read
-    // `BPMResult.candidates` directly; the Float-score carrier flip is 6.4.
-    let pool = buildStage2SignalPool(
-      merged: merged, options: options, metadataInput: metadataInput)
-
-    return PreCorroborationOutput(
-      result: merged, metadataInput: metadataInput, pool: pool)
+    return PreCorroborationOutput(metadataInput: metadataInput, pool: pool)
   }
 
-  // MARK: - Story 6.3: Stage 2 Unified Signal Pool construction
+  // MARK: - Story 6.5b: weight resolution (KDD-A5)
 
-  /// Builds the Stage-2 ``UnifiedSignalPool`` from the merged DSP candidate,
-  /// the configured options, and the parsed metadata input — inside
-  /// ``runPreCorroborationPipeline``, replacing the former post-hoc
-  /// `buildStage1SignalPool` call in ``analyzeBPM(url:options:)`` (Story 6.3
-  /// KDD-A6 Stage 2, DD #3a).
-  ///
-  /// Returns `nil` when `merged?.trace == nil` — the exact observable gate the
-  /// former `buildStage1SignalPool` skip used: no trace means nowhere to write
-  /// `signalParticipationTrace`, so building a pool would be discarded work.
-  /// Keying on `merged?.trace != nil` (not `enableTrace`) keeps this a concrete
-  /// byte-preservation guard rather than an intent flag (Codex Q1).
-  ///
-  /// Entry order is byte-identical to the former builder: DSP entries first
-  /// (one per merged candidate, plus the empty-candidate `.dsp` sentinel), then
-  /// the single ML entry, then file-metadata entries (produced by
-  /// ``MetadataCorroborator/signalParticipationEntries(for:weight:)`` per DD
-  /// #3b — that ownership move is the Stage-2 deliverable). The pool stays
-  /// trace-shaped (DD #2); the Float candidate-score carrier flip is Story 6.4.
-  ///
-  /// Stage ML caveat: at pool-construction time, ``MLTechnique/evaluate(trace:)``
-  /// has not yet run (it executes post-corroboration to preserve the
-  /// no-accuracy-change contract). When ML is configured and not short-circuited
-  /// by ``EnsemblePolicy/dspOnly``, the entry records
-  /// `.abstained(.sourceSpecific("stage1-eval-deferred"))` — unchanged from
-  /// Stage 1, since its value depends only on options that are in scope here.
-  private static func buildStage2SignalPool(
-    merged: BPMResult?,
-    options: Options,
-    metadataInput: MetadataCorroborationInput
-  ) -> UnifiedSignalPool? {
-    guard let merged, merged.trace != nil else { return nil }
-
-    // Code-review 2026-05-27 P4 (Story 6.1): single Stage weight literal hoisted
-    // to a local so Story 6.5 (DD #7 weight-value evolution) lifts fewer sites.
-    // Story 6.3 R7/DD #6: this `weight` now ALSO flows as the `weight:` arg to
-    // `MetadataCorroborator.signalParticipationEntries` — so Story 6.5's weight
-    // evolution lifts TWO sites (this local + the helper arg), not one. Stage
-    // contract is invariant `weight == 1.0`.
-    let weight: Double = 1.0
-    var entries: [SignalParticipationTraceEntry] = []
-
-    // DSP: one entry per merged candidate (DD #6, c.score hoisted Float→Double
-    // per Patch C5 — fusion score, not calibrated probability). Story 6.4a also
-    // carries the EXACT operative Float as `score:` (strictly dead — populated
-    // here, read by nothing; Story 6.4b reads it off the pool when it flips the
-    // merge carrier, avoiding a lossy Double→Float reconstruction).
-    for candidate in merged.candidates {
-      let signal = WeightedSignal(
-        bpm: candidate.bpm,
-        confidence: Double(candidate.score),
-        source: .dsp,
-        score: candidate.score)
-      let participation = SignalParticipation.present(signal)
-      entries.append(
-        SignalParticipationTraceEntry(
-          source: .dsp,
-          participation: participation,
-          weight: weight,
-          contribution: participation.confidence * weight))
+  /// Resolves the per-source ``SignalWeights`` for the selected policy. Only
+  /// ``EnsemblePolicy/weightedVoting(_:)`` carries an explicit weight set; every
+  /// other policy resolves to ``SignalWeights/default`` (all `1.0`), so Phase 2a
+  /// corroboration scales by `fileMetadata == 1.0` (byte-reproducing the pre-6.5b
+  /// corroboration) and Phase 2b weighted resolution treats DSP and ML equally.
+  static func resolveWeights(_ policy: EnsemblePolicy) -> SignalWeights {
+    switch policy {
+    case .weightedVoting(let weights):
+      return weights
+    case .default, .dspOnly, .mlOnly, .highestConfidence:
+      return .default
     }
-    // Code-review 2026-05-27 P3 (Story 6.1): when `merged.candidates.isEmpty`
-    // (structurally permitted by `BPMResult.init`), emit a sentinel `.dsp`
-    // entry so AC #6's per-source contract ("at least one .dsp-tagged entry;
-    // none is .absent") holds even on the empty-candidate edge.
-    if merged.candidates.isEmpty {
-      let participation = SignalParticipation.abstained(
-        .sourceSpecific("no-candidates"))
-      entries.append(
-        SignalParticipationTraceEntry(
-          source: .dsp,
-          participation: participation,
-          weight: weight,
-          contribution: participation.confidence * weight))
-    }
-
-    // ML: single entry per evaluation (DD #6 + Patch H7 dspOnly guard). Value is
-    // options-derived and unchanged by the Stage-2 relocation (Codex Q3).
-    let mlParticipation: SignalParticipation
-    if options.mlTechnique == nil || !options.ensemblePolicy.invokesMLInference {
-      mlParticipation = .absent
-    } else {
-      mlParticipation = .abstained(.sourceSpecific("stage1-eval-deferred"))
-    }
-    entries.append(
-      SignalParticipationTraceEntry(
-        source: .ml,
-        participation: mlParticipation,
-        weight: weight,
-        contribution: mlParticipation.confidence * weight))
-
-    // File metadata: produced by MetadataCorroborator (Story 6.3 DD #3b
-    // ownership move). Same entry math, same order — appended last.
-    entries.append(
-      contentsOf: MetadataCorroborator.signalParticipationEntries(
-        for: metadataInput, weight: weight))
-
-    return UnifiedSignalPool(entries: entries)
   }
 
   // MARK: - Story 3.6: metadata read + consensus
