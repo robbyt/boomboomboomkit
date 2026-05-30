@@ -147,6 +147,16 @@ public struct BPMDiagnosticTrace: Sendable {
   /// See ``EnsembleDecision`` for the population matrix.
   public var ensembleDecision: EnsembleDecision?
 
+  // MARK: - Story 6.5b: Weighted Ensemble Resolution (KDD-A5)
+
+  /// Forensic record of a pool-authoritative weighted ensemble resolution.
+  /// Populated by ``AudioAnalysisService`` when the selected ``EnsemblePolicy``
+  /// is ``EnsemblePolicy/weightedVoting(_:)`` or ``EnsemblePolicy/default`` and
+  /// the cross-signal fusion ran; `nil` for the DSP-/ML-/highest-confidence
+  /// policies (which emit ``ensembleDecision`` instead) and on the default
+  /// `.dspOnly` path. See ``EnsembleWeightResolution``.
+  public var ensembleWeightResolution: EnsembleWeightResolution?
+
   // MARK: - Story 4.6: ML Diagnostic Snapshot
 
   /// Per-evaluation diagnostic snapshot of the most recent

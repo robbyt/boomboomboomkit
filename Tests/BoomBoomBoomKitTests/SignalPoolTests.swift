@@ -227,9 +227,9 @@ struct SignalPoolTests {
   /// DSP pool only exists after `analyzeBPM`. The click fixture carries no
   /// embedded tag, so corroboration is a no-op and ML is absent; thus
   /// `result.candidates` equals the merged candidates that built the DSP pool,
-  /// in order. The trace carrier equaling the byte-floor-protected
-  /// `result.candidates` score proves no drift; byte-inertness itself is locked
-  /// by the `.stage2Floor` tests + the accuracy benchmarks.
+  /// in order. The trace carrier equaling `result.candidates` score proves no
+  /// drift; output-equivalence itself is locked by `MergeSemanticEqualityTests`
+  /// + the accuracy benchmarks (Story 6.5b retired the byte floor).
   @Test func dspPresentCarriesCandidateScore() throws {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
     var options = AudioAnalysisService.Options()

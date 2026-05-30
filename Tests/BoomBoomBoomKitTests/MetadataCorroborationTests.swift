@@ -416,37 +416,6 @@ struct MetadataCorroboratorUnitTests {
 @Suite("MetadataCorroboration — Service-level integration")
 struct MetadataCorroborationServiceTests {
 
-  @Test(
-    "disabled policy skips metadata I/O — empty evidence, byte-identical core fields",
-    .tags(.stage1Floor, .stage2Floor))
-  func disabledPolicy() throws {
-    let url = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: url) }
-    var optsDisabled = AudioAnalysisService.Options()
-    optsDisabled.metadataPolicy = .disabled
-    let resultDisabled = try #require(
-      try AudioAnalysisService.analyzeBPM(
-        url: url, options: optsDisabled))
-    // Anchor the bitPattern equality to the SAME helper production calls.
-    // `runPreCorroborationPipeline` is the single source of truth for the
-    // pre-corroboration pipeline ordering invariant — discarding
-    // `metadataInput` here is intentional: the disabled-policy assertion
-    // is precisely that metadata I/O produces no evidence.
-    let baseline = try #require(
-      try AudioAnalysisService.runPreCorroborationPipeline(
-        url: url, options: optsDisabled, enableTrace: optsDisabled.enableTrace
-      ).result)
-    #expect(resultDisabled.metadataEvidence.isEmpty)
-    #expect(NumericTestHelpers.bitEqual(resultDisabled.bpm, baseline.bpm))
-    #expect(NumericTestHelpers.bitEqual(resultDisabled.confidence, baseline.confidence))
-    #expect(resultDisabled.candidates.count == baseline.candidates.count)
-    for (actual, expected) in zip(resultDisabled.candidates, baseline.candidates) {
-      #expect(NumericTestHelpers.bitEqual(actual.bpm, expected.bpm))
-      #expect(NumericTestHelpers.bitEqual(actual.score, expected.score))
-    }
-  }
-
   @Test("default policy populates evidence on AIFF with TBPM tag")
   func defaultPopulatesEvidence() throws {
     let url = try ClickTrackAIFFBuilder.write(
@@ -458,30 +427,20 @@ struct MetadataCorroborationServiceTests {
     #expect(result.metadataEvidence.first?.parsedBPM == 128.0)
   }
 
-  @Test(
-    "same-tempo corroboration boosts confidence on tagged synthetic click",
-    .tags(.stage1Floor, .stage2Floor))
-  func sameTempoBoostsConfidence() throws {
-    let urlTagged = try ClickTrackAIFFBuilder.write(
+  /// Story 6.5b: the disabled-policy service path produces empty evidence — the
+  /// semantic-level replacement for the retired `.stage1Floor/.stage2Floor`
+  /// byte-identity tests (the byte floor was retired; output-equivalence is now
+  /// guarded at the value level + the corpus accuracy floors). Closes the
+  /// service-level coverage the deleted tagged tests left (code-review LOW).
+  @Test("disabled policy produces empty metadata evidence on a tagged AIFF")
+  func disabledPolicyEmptyEvidenceService() throws {
+    let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: urlTagged) }
-    let urlPlain = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "0")  // sentinel-zero, no boost
-    defer { try? FileManager.default.removeItem(at: urlPlain) }
-
-    let tagged = try #require(try AudioAnalysisService.analyzeBPM(url: urlTagged))
-    var optsDisabled = AudioAnalysisService.Options()
-    optsDisabled.metadataPolicy = .disabled
-    let plain = try #require(
-      try AudioAnalysisService.analyzeBPM(
-        url: urlPlain, options: optsDisabled))
-
-    // Tagged confidence ≥ plain confidence (with strict > only if DSP found 128).
-    if abs(tagged.bpm - 128.0) < 0.5 {
-      #expect(tagged.confidence >= plain.confidence)
-    }
-    let corrEvidence = tagged.metadataEvidence.first(where: { $0.rejectionReason == nil })
-    #expect(corrEvidence != nil)
+    defer { try? FileManager.default.removeItem(at: url) }
+    var opts = AudioAnalysisService.Options()
+    opts.metadataPolicy = .disabled
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    #expect(result.metadataEvidence.isEmpty)
   }
 
   @Test("fastest intensity still reads metadata")
@@ -495,21 +454,6 @@ struct MetadataCorroborationServiceTests {
       try AudioAnalysisService.analyzeBPM(
         url: url, options: opts))
     #expect(!result.metadataEvidence.isEmpty)
-  }
-
-  @Test(
-    "disabled policy on tagged file produces empty evidence",
-    .tags(.stage1Floor, .stage2Floor))
-  func disabledPolicyOnTaggedFile() throws {
-    let url = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: url) }
-    var opts = AudioAnalysisService.Options()
-    opts.metadataPolicy = .disabled
-    let result = try #require(
-      try AudioAnalysisService.analyzeBPM(
-        url: url, options: opts))
-    #expect(result.metadataEvidence.isEmpty)
   }
 
   @Test("intra-file conflict marks both tags rejected (AIFF with two TBPM frames)")
@@ -528,18 +472,6 @@ struct MetadataCorroborationServiceTests {
     }
   }
 
-  @Test(
-    "metadataEvidence empty when policy disabled even with tagged AIFF",
-    .tags(.stage1Floor, .stage2Floor))
-  func evidenceEmptyWhenDisabled() throws {
-    let url = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: url) }
-    var opts = AudioAnalysisService.Options()
-    opts.metadataPolicy = .disabled
-    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
-    #expect(result.metadataEvidence.isEmpty)
-  }
 }
 
 // MARK: - OA300 reference test (env-gated)

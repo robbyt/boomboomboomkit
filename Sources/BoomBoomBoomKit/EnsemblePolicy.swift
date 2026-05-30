@@ -65,12 +65,17 @@ import Foundation
 /// list is 1.0-stable.
 public enum EnsemblePolicy: Sendable, Hashable {
 
-  /// The library's default ensemble resolution. Story 6.5a ships this as a
-  /// byte-inert placeholder that resolves to ``dspOnly`` behavior (the DSP
-  /// winner carries unchanged; no ML inference); the genuine default-policy
-  /// resolution lands in Story 6.5b. NOTE:
-  /// ``AudioAnalysisService/Options/ensemblePolicy`` still defaults to
-  /// ``dspOnly`` (not this case) to preserve byte-identity.
+  /// The library's default ensemble resolution: the **balanced peer ensemble**
+  /// (Story 6.5b KDD-A5). Equivalent to ``weightedVoting(_:)`` with
+  /// ``SignalWeights/default`` (equal weighting) — the DSP voice (Phase-1
+  /// aggregated, metadata-corroborated) and the ML voice (when a technique is
+  /// wired up) are compared by `effectiveVote = confidence × weight`; the higher
+  /// vote wins, DSP wins ties. Invokes ``MLTechnique/evaluate(trace:)`` when a
+  /// technique is present (see ``invokesMLInference``) and emits
+  /// ``EnsembleWeightResolution``. With no ML technique it degrades to the DSP
+  /// winner unchanged. NOTE: ``AudioAnalysisService/Options/ensemblePolicy``
+  /// still defaults to ``dspOnly`` (not this case) to preserve byte-identity for
+  /// existing default-options callers.
   case `default`
 
   /// DSP-only resolution. The DSP winner carries unchanged;
@@ -98,21 +103,30 @@ public enum EnsemblePolicy: Sendable, Hashable {
   /// `mlEvaluation == nil`, DSP wins unconditionally.
   case highestConfidence
 
-  /// Per-source weighted voting over the unified signal pool, parameterized by
-  /// ``SignalWeights``. Story 6.5a ships this as a byte-inert placeholder
-  /// (resolves to ``dspOnly`` behavior; no ML inference); the pool-authoritative
-  /// weighted selection that consumes the ``SignalWeights`` lands in Story 6.5b.
+  /// Per-source weighted resolution over the unified signal pool, parameterized
+  /// by ``SignalWeights`` (Story 6.5b KDD-A5). The DSP voice (Phase-1 aggregated,
+  /// metadata-corroborated) and the ML voice (when a technique is wired up) are
+  /// compared by `effectiveVote = confidence × weights[source]`; the higher
+  /// vote wins, DSP wins ties. `weights.fileMetadata` additionally scales the
+  /// Phase-2a metadata corroboration strength. Invokes
+  /// ``MLTechnique/evaluate(trace:)`` when a technique is present (see
+  /// ``invokesMLInference``) and emits ``EnsembleWeightResolution``. The
+  /// associated ``SignalWeights`` is the single source of the weights — the
+  /// resolution derives them from the policy, never from a separate argument.
   case weightedVoting(SignalWeights)
 
   /// Whether this policy causes ``MLTechnique/evaluate(trace:)`` to be invoked.
-  /// True only for ``mlOnly`` and ``highestConfidence``; ``default``,
-  /// ``dspOnly``, and ``weightedVoting(_:)`` are operation-inert (no ML) in the
-  /// current release. Replaces the former `policy != .dspOnly` call-site check,
-  /// which would have wrongly invoked ML for the new placeholder cases.
+  /// True for the cross-signal-fusion policies — ``mlOnly``,
+  /// ``highestConfidence``, and (Story 6.5b KDD-A5 activation) the now-live
+  /// ``default`` and ``weightedVoting(_:)`` weighted-resolution policies, which
+  /// fuse an ML voice when a technique is wired up. Only ``dspOnly`` is
+  /// operation-inert (the ML short-circuit). Inference still requires
+  /// ``AudioAnalysisService/Options/mlTechnique`` to be non-nil; this flag only
+  /// gates the policies that *would* consume an ML voice.
   public var invokesMLInference: Bool {
     switch self {
-    case .mlOnly, .highestConfidence: return true
-    case .default, .dspOnly, .weightedVoting: return false
+    case .mlOnly, .highestConfidence, .default, .weightedVoting: return true
+    case .dspOnly: return false
     }
   }
 

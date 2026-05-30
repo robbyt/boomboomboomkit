@@ -22,4 +22,19 @@ public enum SignalParticipation: Sendable, Codable {
       return signal.confidence
     }
   }
+
+  /// The exact operative `Float` candidate-fusion score carried by `.present` /
+  /// `.demoted` signals; `nil` for `.absent` / `.abstained` (no signal) and for
+  /// signals that never carried a fusion score (e.g. file-metadata presence).
+  /// Story 6.5b DD #5(b): mirrors ``confidence`` so the pool-authoritative
+  /// `BPMSelectionPolicy.select` Phase 2 can read the exact `Float` off the pool
+  /// — no lossy `Double → Float` reconstruction.
+  public var score: Float? {
+    switch self {
+    case .absent, .abstained:
+      return nil
+    case .present(let signal), .demoted(let signal, _):
+      return signal.score
+    }
+  }
 }
