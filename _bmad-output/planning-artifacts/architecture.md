@@ -49,7 +49,7 @@ Amendments applied after the step-08 completion sweep (2026-05-26) as Epic 6 imp
 
 - **Complexity: High.** 5 epics, 51 FRs, ~25 deferred KDDs. Spans library architecture refactor (Epic A), full ML training pipeline (Epic B), three new public API surfaces (Epic C), demo UX with security-scoped bookmarks (Epic D), and runtime-documentation system (Epic E). ML system has Python training and Swift runtime paths requiring feature-pipeline parity.
 - **Primary technical domain:** Apple-platform Swift library (audio DSP + on-device ML + file I/O) with bundled macOS demo. Pure value-type architecture; no classes.
-- **Architecture invariants are unit-test-locked:** `DSPTechnique.allCases.count == 8`, `TechniqueSet.allDSPCombinations().count == 256`, `MetadataSource.allCases.count == 3`, `CandidateMergeStrategy.allCases.count == 8`. Each invariant becomes load-bearing for KDD resolution (e.g., KDD-A1 split route deletes one assertion, replaces with 2 + 1 struct-shape test).
+- **Architecture invariants are unit-test-locked:** `DSPTechnique.allCases.count == 8`, `TechniqueSet.allDSPCombinations().count == 256`, `MetadataSource.allCases.count == 3`, `BPMSelectionPolicy.allCases.count == 8`. Each invariant becomes load-bearing for KDD resolution (e.g., KDD-A1 split route deletes one assertion, replaces with 2 + 1 struct-shape test).
 
 ### Technical Constraints & Dependencies
 
@@ -100,7 +100,7 @@ Ten concerns the architect must resolve coherently across epics. Order reflects 
 
 6. **Octave-equivalence policy spans three layers** — training loss (Epic B FR-16), runtime voting (Epic A FR-3), evaluation metrics (FR-23). Architecture defines once and references everywhere; train/runtime mismatch is a defect that blocks model acceptance (FR-23).
 
-7. **Type taxonomy alignment** — KDD-A1 (umbrella vs split policy types), KDD-A2 (weights shape), KDD-A4 (ML execution policy surface), KDD-A5 (`EnsemblePolicy` fate), KDD-E4 (`AnalysisIntensity` reshape) must resolve coherently or the demo's preset list (FR-36) and Epic E's documented enums (FR-45) fork. **Implementation realism (Amelia):** the KDD-A1 split route replaces `CandidateMergeStrategy.allCases.count == 8` with two new count assertions plus a struct-shape drift test for `SignalWeights`.
+7. **Type taxonomy alignment** — KDD-A1 (umbrella vs split policy types), KDD-A2 (weights shape), KDD-A4 (ML execution policy surface), KDD-A5 (`EnsemblePolicy` fate), KDD-E4 (`AnalysisIntensity` reshape) must resolve coherently or the demo's preset list (FR-36) and Epic E's documented enums (FR-45) fork. **Implementation realism (Amelia):** the KDD-A1 split route replaces `BPMSelectionPolicy.allCases.count == 8` with two new count assertions plus a struct-shape drift test for `SignalWeights`.
 
 8. **DocC + runtime Markdown bundle are parallel surfaces (KDD-E8)** — not a single-sourcing problem to solve. Library exposes a public accessor (`BoomBoomBoomKitDocs.attributedString(for:)`) so the demo target never references `Bundle.module` directly (`Bundle.module` is synthesized only for SPM resource-bearing targets, invisible from an Xcode app target).
 
@@ -346,7 +346,7 @@ This resolves John's pushback that `mlFraction = 0` / `EnsemblePolicy.dspOnly` /
 
 #### KDD-A1 — Type taxonomy split
 
-**Decision:** Split into three typed policies. Renames `CandidateMergeStrategy` → `BPMSelectionPolicy`.
+**Decision:** Split into three typed policies. Renames `BPMSelectionPolicy` → `BPMSelectionPolicy`.
 
 ```swift
 public struct SignalWeights: Sendable, Hashable {
@@ -368,7 +368,7 @@ public enum BPMSelectionPolicy: String, CaseIterable, Sendable, Hashable {
 }
 ```
 
-**Invariants:** `BPMSelectionPolicy.allCases.count == 8` (replaces `CandidateMergeStrategy.allCases.count == 8`); `OctaveEquivalencePolicy.allCases.count == 3` (new); `SignalWeights` field-set drift detection via Codable round-trip or field enumeration test in `Tests/BoomBoomBoomKitTests/InvariantTests.swift`.
+**Invariants:** `BPMSelectionPolicy.allCases.count == 8` (replaces `BPMSelectionPolicy.allCases.count == 8`); `OctaveEquivalencePolicy.allCases.count == 3` (new); `SignalWeights` field-set drift detection via Codable round-trip or field enumeration test in `Tests/BoomBoomBoomKitTests/InvariantTests.swift`.
 
 #### KDD-A2 — `SignalWeights` shape
 
@@ -968,7 +968,7 @@ BoomBoomBoomKit/
 │   │   ├── DSPTechnique.swift                          # unchanged (8 cases)
 │   │   ├── TechniqueSet.swift                          # unchanged
 │   │   ├── VotingPolicy.swift                          # unchanged (3 cases)
-│   │   ├── BPMSelectionPolicy.swift                    # RENAMED from CandidateMergeStrategy (KDD-A1)
+│   │   ├── BPMSelectionPolicy.swift                    # RENAMED from BPMSelectionPolicy (KDD-A1)
 │   │   ├── OctaveEquivalencePolicy.swift               # NEW (KDD-A1, 3 cases)
 │   │   ├── EnsemblePolicy.swift                        # UPDATED: 5-case facade (KDD-A5)
 │   │   ├── MLExecutionPolicy.swift                     # NEW (KDD-A4, 3 cases)
@@ -1142,7 +1142,7 @@ BoomBoomBoomKit/
 **Epic A — Unified-signal-pool architecture:**
 - New files: `Sources/BoomBoomBoomKit/SignalPool/*` (10 new files)
 - Modified: `BPMAnalyzer.swift`, `AudioAnalysisService.swift`, `BPMDiagnosticTrace.swift`, `EnsemblePolicy.swift`
-- Renamed: `CandidateMergeStrategy.swift` → `BPMSelectionPolicy.swift`
+- Renamed: `BPMSelectionPolicy.swift` → `BPMSelectionPolicy.swift`
 - Tests: `Tests/BoomBoomBoomKitTests/SignalPoolTests.swift`, `MergeByteEqualityTests.swift` (`@Tag`-gated), `MergeSemanticEqualityTests.swift` (Stage 3 atomic replacement)
 
 **Epic B — ML retraining:**
@@ -1242,7 +1242,7 @@ File URL
 - NFR-1 Swift 6 strict concurrency — `Mutex<T>`, Sendable on all new public types
 - NFR-2 Zero external deps — Apple frameworks only
 - NFR-3 macOS 15+ — `platforms:` declaration + iOS-neutrality tripwire
-- NFR-4 Pre-1.0 no BC — `CandidateMergeStrategy` → `BPMSelectionPolicy` rename, `merge` signature flip, `EnsembleCombiner` removal, `AnalysisIntensity` reshape all authorized
+- NFR-4 Pre-1.0 no BC — `BPMSelectionPolicy` → `BPMSelectionPolicy` rename, `merge` signature flip, `EnsembleCombiner` removal, `AnalysisIntensity` reshape all authorized
 - NFR-5 No prose duplication — DocC transclude from canonical runtime Markdown
 - NFR-6 Perf budgets — 15% OA300, bounded beat-grid, shared decode
 - NFR-7 Accuracy floors — CI invariants on all four floors

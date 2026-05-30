@@ -37,7 +37,7 @@ struct MetadataCorroborationInput: Sendable {
 
 /// Caseless enum namespace (parallel to `MelFilterbank`, `FileMetadataReader`)
 /// that applies tag-driven corroboration to a merged ``BPMResult`` AFTER
-/// ``CandidateMergeStrategy/merge(windowResults:candidateCount:strategy:votingPolicy:votingThreshold:)``
+/// ``BPMSelectionPolicy/merge(windowResults:candidateCount:strategy:votingPolicy:votingThreshold:)``
 /// returns. Lives outside `merge` deliberately so the merge signature stays
 /// `BPMResult?` (Codex finding C1: 41 call sites would cascade) and so the
 /// `windowResults.count == 1` short-circuit inside `merge` cannot silently

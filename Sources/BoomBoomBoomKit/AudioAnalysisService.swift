@@ -154,10 +154,10 @@ public struct AudioAnalysisService {
 
     /// Strategy for combining candidates across analysis windows (default: `.maxConfidence`).
     /// Only applies at intensity 6+ where multiple windows are analyzed.
-    public var mergeStrategy: CandidateMergeStrategy = .maxConfidence
+    public var mergeStrategy: BPMSelectionPolicy = .maxConfidence
 
     /// Resolution policy used when ``mergeStrategy`` is
-    /// ``CandidateMergeStrategy/windowVoting``. Has no effect for any other
+    /// ``BPMSelectionPolicy/windowVoting``. Has no effect for any other
     /// strategy. Default ``VotingPolicy/simpleMajority`` reproduces the
     /// post-Story-3-3a baseline byte-for-byte. See ``VotingPolicy`` for the
     /// per-case semantics.
@@ -167,7 +167,7 @@ public struct AudioAnalysisService {
     /// `[0.0, 1.0]`). Out-of-range values silently clamp; non-finite values
     /// (NaN, ±Infinity, signaling NaN) silently fall back to `0.0`. Has no
     /// effect when ``votingPolicy`` is not ``VotingPolicy/thresholdGated``,
-    /// or when ``mergeStrategy`` is not ``CandidateMergeStrategy/windowVoting``.
+    /// or when ``mergeStrategy`` is not ``BPMSelectionPolicy/windowVoting``.
     /// Default `0.0` makes the gate permissive (equivalent to
     /// ``VotingPolicy/simpleMajority``) so a benchmark sweep can dial up the
     /// threshold without recompiling.
@@ -330,7 +330,7 @@ public struct AudioAnalysisService {
     // expectation that ML inference is running.
     let shouldBuildTrace =
       options.enableTrace
-      || (options.mlTechnique != nil && options.ensemblePolicy != .dspOnly)
+      || (options.mlTechnique != nil && options.ensemblePolicy.invokesMLInference)
 
     let pre = try Self.runPreCorroborationPipeline(
       url: url, options: options, enableTrace: shouldBuildTrace)
@@ -508,7 +508,7 @@ public struct AudioAnalysisService {
   private static func evaluateMLIfActive(
     options: Options, trace: inout BPMDiagnosticTrace?
   ) throws -> MLEvaluation? {
-    guard options.ensemblePolicy != .dspOnly,
+    guard options.ensemblePolicy.invokesMLInference,
       let ml = options.mlTechnique,
       let unwrappedTrace = trace
     else { return nil }
@@ -584,8 +584,12 @@ public struct AudioAnalysisService {
     policy: EnsemblePolicy
   ) -> BPMResult {
     switch policy {
-    case .dspOnly:
-      // HALT (b) guard: the .dspOnly branch must not consult `mlEvaluation`.
+    case .default, .dspOnly, .weightedVoting:
+      // HALT (b) guard: these branches must not consult `mlEvaluation`.
+      // `.default` and `.weightedVoting` are byte-inert placeholders in Story
+      // 6.5a (the default-policy resolution and pool-based weighted voting they
+      // will drive land in Story 6.5b); like `.dspOnly` they return the DSP
+      // winner unchanged and attach no decision.
       _ = mlEvaluation
       return dspWinner
 
@@ -716,7 +720,7 @@ public struct AudioAnalysisService {
 
   /// Runs the full pre-corroboration sequence in production order:
   /// cancellation check → metadata read → duration read → PCM read →
-  /// window loop with cancellation/progress → ``CandidateMergeStrategy/merge``.
+  /// window loop with cancellation/progress → ``BPMSelectionPolicy/merge``.
   ///
   /// Called by ``analyzeBPM(url:options:)`` for production AND by the
   /// disabled-policy bitPattern regression test in
@@ -783,7 +787,7 @@ public struct AudioAnalysisService {
     let captureMLFeatures =
       enableTrace
       && options.mlTechnique != nil
-      && options.ensemblePolicy != .dspOnly
+      && options.ensemblePolicy.invokesMLInference
 
     // Collect results from all windows.
     var windowResults: [BPMResult] = []
@@ -822,7 +826,7 @@ public struct AudioAnalysisService {
     }
 
     // Merge candidates across windows using the selected strategy.
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: windowResults,
       candidateCount: resolvedTechniqueSet.candidateCount,
       strategy: options.mergeStrategy,
@@ -925,7 +929,7 @@ public struct AudioAnalysisService {
     // ML: single entry per evaluation (DD #6 + Patch H7 dspOnly guard). Value is
     // options-derived and unchanged by the Stage-2 relocation (Codex Q3).
     let mlParticipation: SignalParticipation
-    if options.mlTechnique == nil || options.ensemblePolicy == .dspOnly {
+    if options.mlTechnique == nil || !options.ensemblePolicy.invokesMLInference {
       mlParticipation = .absent
     } else {
       mlParticipation = .abstained(.sourceSpecific("stage1-eval-deferred"))

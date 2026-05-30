@@ -8,7 +8,7 @@ measurement on macOS 15+.
 BoomBoomBoomKit is a pure-Swift library with zero external dependencies — it
 uses only Apple's Accelerate (vDSP), AVFoundation, and Foundation. The
 public facade is ``AudioAnalysisService``; analysis depth is controlled via
-``AnalysisIntensity`` and ``CandidateMergeStrategy``.
+``AnalysisIntensity`` and ``BPMSelectionPolicy``.
 
 ## Topics
 
@@ -25,7 +25,7 @@ public facade is ``AudioAnalysisService``; analysis depth is controlled via
 ### Analysis Configuration
 
 - ``AnalysisIntensity``
-- ``CandidateMergeStrategy``
+- ``BPMSelectionPolicy``
 - ``TechniqueSet``
 - ``DSPTechnique``
 - ``VotingPolicy``

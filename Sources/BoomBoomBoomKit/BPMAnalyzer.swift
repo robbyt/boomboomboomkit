@@ -375,7 +375,7 @@ struct BPMAnalyzer {
     // When .clickTrackCorrelation is active, each candidate's score is multiplied by
     // (alpha + (1 - alpha) * normalizedClickScore). The rescored array flows into both
     // step 10 disambiguation AND back out via BPMResult.candidates so multi-window
-    // CandidateMergeStrategy stays consistent with disambiguation (DD#11).
+    // BPMSelectionPolicy stays consistent with disambiguation (DD#11).
     //
     // The default α=0.7 is corroborative-not-authoritative (DD#4); the value was
     // finalized by Story 3-3 Task 3.3 — the α-sweep over `.optimal`-family combos on

@@ -14,7 +14,7 @@ BoomBoomBoomKit/
 │   │   ├── AudioAnalysisService.swift   # Public facade -- BPM + LUFS analysis entry point
 │   │   ├── ProgressUpdate.swift         # Public Sendable struct for progress callbacks
 │   │   ├── AnalysisIntensity.swift      # Public struct (1-10) controlling pipeline depth
-│   │   ├── CandidateMergeStrategy.swift # Public enum (8 strategies) for multi-window merge
+│   │   ├── BPMSelectionPolicy.swift # Public enum (8 strategies) for multi-window merge
 │   │   ├── DSPTechnique.swift           # Public enum (6 DSP technique cases)
 │   │   ├── BPMDiagnosticTrace.swift     # Public struct for per-step pipeline state
 │   │   ├── BPMAnalyzer.swift            # Internal -- 10-step DSP pipeline (~1400 lines)

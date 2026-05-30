@@ -180,10 +180,10 @@ struct AnalysisViewModelSmokeTest {
   // 8 cases — rawValue strings match the case names verbatim.
   @Test(
     "generateConfigSnippet emits .rawValue for all 8 merge strategies",
-    arguments: CandidateMergeStrategy.allCases
+    arguments: BPMSelectionPolicy.allCases
   )
   @MainActor
-  func generateConfigSnippetMergeStrategyFormatting(_ strategy: CandidateMergeStrategy) {
+  func generateConfigSnippetMergeStrategyFormatting(_ strategy: BPMSelectionPolicy) {
     let snippet = AnalysisViewModel.generateConfigSnippet(
       intensity: .default,
       mergeStrategy: strategy

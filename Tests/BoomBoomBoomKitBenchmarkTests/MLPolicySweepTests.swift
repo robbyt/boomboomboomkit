@@ -282,8 +282,10 @@ struct MLPolicySweepTests {
           differingCount >= 1,
           ".highestConfidence is a no-op vs .dspOnly baseline (every track unchanged) — mock confidence may be too low"
         )
-      case .dspOnly:
-        Issue.record("dspOnly should not appear in the policy switch loop")
+      case .default, .dspOnly, .weightedVoting:
+        Issue.record(
+          "non-ML policy \(policy.stableKey) should not appear in the .mlOnly/.highestConfidence loop"
+        )
       }
     }
   }
@@ -316,7 +318,7 @@ struct MLPolicySweepTests {
   }
 
   /// Task 6.3 / AC #6: `make ml-policy-sweep` harness. Gated on
-  /// `ML_POLICY_SWEEP=1`; iterates `EnsemblePolicy.allCases` injecting
+  /// `ML_POLICY_SWEEP=1`; iterates `EnsemblePolicy.allPolicies` injecting
   /// `MockMLTechnique(returning: MLEvaluation(bpm: 128, confidence: 0.92))`
   /// per case (deterministic; this is harness validation per DD #8, not
   /// model-correctness evidence). The pre-read pass over OA300 audio
@@ -367,7 +369,7 @@ struct MLPolicySweepTests {
     let mockConfidence = 0.92
 
     var rows: [SweepRow] = []
-    for policy in EnsemblePolicy.allCases {
+    for policy in EnsemblePolicy.allPolicies {
       var acc1 = 0
       var acc2 = 0
 
@@ -406,7 +408,7 @@ struct MLPolicySweepTests {
 
       rows.append(
         SweepRow(
-          policy: policy.rawValue,
+          policy: policy.stableKey,
           acc1: acc1,
           acc2: acc2,
           total: audioData.count,
@@ -428,9 +430,13 @@ struct MLPolicySweepTests {
     try json.write(to: target)
     print("Story 4-4 ml-policy-sweep -> \(target.path) (\(rows.count) policies)")
 
-    #expect(rows.count == EnsemblePolicy.allCases.count)
-    #expect(rows.first?.policy == "dspOnly")
-    #expect(rows.first?.default == true)
+    #expect(rows.count == EnsemblePolicy.allPolicies.count)
+    // `.dspOnly` is the library default (Options.ensemblePolicy default), but it
+    // is no longer first in `allPolicies` (which now leads with the `.default`
+    // facade case), so locate the default row by key rather than position.
+    let dspOnlyRow = rows.first { $0.policy == "dspOnly" }
+    #expect(dspOnlyRow?.default == true)
+    #expect(rows.filter { $0.default }.count == 1)
   }
 
   // MARK: - Helpers

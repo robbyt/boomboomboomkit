@@ -15,7 +15,7 @@ import Foundation
 /// policy is configured through ``AudioAnalysisService/Options/ensemblePolicy``,
 /// per ADR-11's Options-first public configuration rule. It is NOT a
 /// ``DSPTechnique`` (no DSP changes; no expansion of the 256-combo ablation
-/// matrix) and NOT a ``CandidateMergeStrategy`` case (still 8 cases). The
+/// matrix) and NOT a ``BPMSelectionPolicy`` case (still 8 cases). The
 /// policy is orthogonal to ``AnalysisIntensity`` — a `.dspOnly` policy is
 /// valid at every intensity level, with or without an ``MLTechnique``
 /// conformance.
@@ -63,9 +63,17 @@ import Foundation
 /// parallel scalar field on ``AudioAnalysisService/Options``) are explicitly
 /// allowed and expected. Downstream consumers should NOT assume the case
 /// list is 1.0-stable.
-public enum EnsemblePolicy: String, CaseIterable, Sendable, Hashable {
+public enum EnsemblePolicy: Sendable, Hashable {
 
-  /// Default. The DSP winner carries unchanged;
+  /// The library's default ensemble resolution. Story 6.5a ships this as a
+  /// byte-inert placeholder that resolves to ``dspOnly`` behavior (the DSP
+  /// winner carries unchanged; no ML inference); the genuine default-policy
+  /// resolution lands in Story 6.5b. NOTE:
+  /// ``AudioAnalysisService/Options/ensemblePolicy`` still defaults to
+  /// ``dspOnly`` (not this case) to preserve byte-identity.
+  case `default`
+
+  /// DSP-only resolution. The DSP winner carries unchanged;
   /// ``MLTechnique/evaluate(trace:)`` is NOT invoked when this policy is
   /// selected (operation-inert AND output-inert per the Story 4-4 short-circuit
   /// at the call site; AC #14 contract). Produces byte-identical output to
@@ -89,4 +97,45 @@ public enum EnsemblePolicy: String, CaseIterable, Sendable, Hashable {
   /// revisit after Story 4-5 BNNS ablation per the re-open trigger). When
   /// `mlEvaluation == nil`, DSP wins unconditionally.
   case highestConfidence
+
+  /// Per-source weighted voting over the unified signal pool, parameterized by
+  /// ``SignalWeights``. Story 6.5a ships this as a byte-inert placeholder
+  /// (resolves to ``dspOnly`` behavior; no ML inference); the pool-authoritative
+  /// weighted selection that consumes the ``SignalWeights`` lands in Story 6.5b.
+  case weightedVoting(SignalWeights)
+
+  /// Whether this policy causes ``MLTechnique/evaluate(trace:)`` to be invoked.
+  /// True only for ``mlOnly`` and ``highestConfidence``; ``default``,
+  /// ``dspOnly``, and ``weightedVoting(_:)`` are operation-inert (no ML) in the
+  /// current release. Replaces the former `policy != .dspOnly` call-site check,
+  /// which would have wrongly invoked ML for the new placeholder cases.
+  public var invokesMLInference: Bool {
+    switch self {
+    case .mlOnly, .highestConfidence: return true
+    case .default, .dspOnly, .weightedVoting: return false
+    }
+  }
+
+  /// A stable string key for this policy, for JSON artifacts and trace labels.
+  /// Replaces the former `String` raw value (dropped when ``weightedVoting(_:)``
+  /// gained an associated value, which makes `RawRepresentable` unsynthesizable).
+  /// The key ignores the ``weightedVoting(_:)`` payload.
+  public var stableKey: String {
+    switch self {
+    case .default: return "default"
+    case .dspOnly: return "dspOnly"
+    case .mlOnly: return "mlOnly"
+    case .highestConfidence: return "highestConfidence"
+    case .weightedVoting: return "weightedVoting"
+    }
+  }
+
+  /// A canonical, ordered list of the policy cases — the hand-written stand-in
+  /// for `CaseIterable.allCases`, which cannot be synthesized for an enum with
+  /// an associated-value case. ``weightedVoting(_:)`` is represented with
+  /// ``SignalWeights/default``. Consumed by the benchmark policy sweeps for
+  /// stable, reproducible row order.
+  public static let allPolicies: [EnsemblePolicy] = [
+    .default, .dspOnly, .mlOnly, .highestConfidence, .weightedVoting(.default),
+  ]
 }
