@@ -388,8 +388,7 @@ struct EnsemblePolicyDecisionTableTests {
           MLEvaluation(bpm: $0.bpm, confidence: $0.conf)
         }
         let combined = AudioAnalysisService.combineEnsemble(
-          dspWinner: dspResult, mlEvaluation: mlEval, policy: policy,
-          weights: AudioAnalysisService.resolveWeights(policy))
+          dspWinner: dspResult, mlEvaluation: mlEval, policy: policy)
 
         let decision = combined.trace?.ensembleDecision
         // Story 6.5b KDD-A5: `.default` / `.weightedVoting` emit
@@ -463,8 +462,7 @@ struct EnsemblePolicyDecisionTableTests {
         let combined = AudioAnalysisService.combineEnsemble(
           dspWinner: dsp,
           mlEvaluation: MLEvaluation(bpm: 128.0, confidence: 0.92),
-          policy: policy,
-          weights: AudioAnalysisService.resolveWeights(policy))
+          policy: policy)
         // KDD-A5: `.default` / `.weightedVoting` report via
         // `ensembleWeightResolution`; the ML-policies via `ensembleDecision`.
         let source: String =

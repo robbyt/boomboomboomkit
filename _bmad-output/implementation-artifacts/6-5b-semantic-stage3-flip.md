@@ -247,6 +247,10 @@ claude-opus-4-8 (1M)
 
 **DISMISSED:** `.demoted`-for-conflict trace change (intentional W51, working as designed); "AC #9 numbers self-reported" (independently re-verified zero-delta by the dev run).
 
+**Copilot review (PR #23) — 2 inline comments, both VALID and patched (verified against code per the skeptical-Copilot discipline):**
+- **`combineEnsemble` weights drift** — the `weights:` parameter could contradict the policy's own `SignalWeights` payload if a caller passed `.weightedVoting(custom)` but omitted `weights:`. FIX: dropped the parameter; `combineEnsemble` now derives weights from the policy via `resolveWeights(policy)` (single source of truth). Byte-identical to production (which already passed `resolveWeights(policy)`).
+- **Stale `.default`/`.weightedVoting` case docs** — a real DD #14 execution gap: the case-level DocC still said "Story 6.5a byte-inert placeholder … lands in Story 6.5b" while 6.5b activated them. FIX: rewrote both case docs to the shipped balanced/weighted-resolution semantics. (The `invokesMLInference` doc + `combineEnsemble` comment were already updated; this closed the two case-doc sites.)
+
 ## Change Log
 
 | Date | Change |

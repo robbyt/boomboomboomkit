@@ -365,7 +365,7 @@ struct WeightedResolutionSanitizationTests {
     let dsp = makeResult(bpm: 128.0, confidence: .nan, candidates: [(128.0, 0.6)])
     let ml = MLEvaluation(bpm: 174.0, confidence: 0.5)
     let out = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: ml, policy: .default, weights: .default)
+      dspWinner: dsp, mlEvaluation: ml, policy: .default)
     // DSP NaN → vote 0; ML vote 0.5 > 0 → ML wins (no NaN-poisoned DSP win).
     #expect(out.bpm == 174.0)
     #expect(out.confidence.isFinite)
@@ -461,13 +461,13 @@ struct WeightedResolutionTests {
 
     // .default (equal weights): DSP vote 0.60 > ML vote 0.50 → DSP wins.
     let balanced = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: ml, policy: .default, weights: .default)
+      dspWinner: dsp, mlEvaluation: ml, policy: .default)
     #expect(balanced.bpm == 128.0)
 
     // .weightedVoting(ml: 1.5): ML vote 0.50×1.5 = 0.75 > DSP 0.60 → ML wins.
     let weights = SignalWeights(dsp: 1.0, ml: 1.5)
     let mlFavored = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: ml, policy: .weightedVoting(weights), weights: weights)
+      dspWinner: dsp, mlEvaluation: ml, policy: .weightedVoting(weights))
     #expect(mlFavored.bpm == 174.0)
     #expect(abs(mlFavored.confidence - 0.50) < 1e-9)
   }
@@ -479,7 +479,7 @@ struct WeightedResolutionTests {
   func defaultWithoutMLEqualsDSP() {
     let dsp = makeResult(bpm: 128.0, confidence: 0.7, candidates: [(128.0, 0.7)])
     let out = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: nil, policy: .default, weights: .default)
+      dspWinner: dsp, mlEvaluation: nil, policy: .default)
     #expect(out.bpm == 128.0)
     #expect(out.confidence == 0.7)
   }

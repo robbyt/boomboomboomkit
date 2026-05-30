@@ -377,13 +377,13 @@ public struct AudioAnalysisService {
     let mlEvaluation = try Self.evaluateMLIfActive(
       options: options, trace: &localTrace)
     let corroboratedWithSnapshot = corroborated.with(trace: localTrace)
-    // Phase 2b: cross-signal ML fusion + KDD-A5 weighted resolution, consuming
-    // the same resolved weights as Phase 2a's corroboration scale.
+    // Phase 2b: cross-signal ML fusion + KDD-A5 weighted resolution. Weights are
+    // derived from the policy inside `combineEnsemble` (same `resolveWeights`
+    // mapping Phase 2a used for the corroboration scale).
     let combined = Self.combineEnsemble(
       dspWinner: corroboratedWithSnapshot,
       mlEvaluation: mlEvaluation,
-      policy: options.ensemblePolicy,
-      weights: resolvedWeights)
+      policy: options.ensemblePolicy)
 
     // Story 4.2: post-pipeline reporting of effective intensity + degradation
     // reason. Computed AFTER both `runPreCorroborationPipeline` and
@@ -577,8 +577,7 @@ public struct AudioAnalysisService {
   static func combineEnsemble(
     dspWinner: BPMResult,
     mlEvaluation: MLEvaluation?,
-    policy: EnsemblePolicy,
-    weights: SignalWeights = .default
+    policy: EnsemblePolicy
   ) -> BPMResult {
     switch policy {
     case .dspOnly:
@@ -598,6 +597,12 @@ public struct AudioAnalysisService {
       // (deterministic tiebreak). `.default` uses ``SignalWeights/default``
       // (equal weighting — the balanced peer ensemble); `.weightedVoting(w)`
       // uses `w`. Emits ``EnsembleWeightResolution`` (NOT ``EnsembleDecision``).
+      //
+      // Weights are derived from the policy here (`.weightedVoting(w)` → `w`;
+      // `.default` → equal) rather than passed in — the policy is the single
+      // source of truth, so a caller cannot drift a `weights:` argument from the
+      // policy's own ``SignalWeights`` payload (Story 6.5b code-review).
+      let weights = Self.resolveWeights(policy)
       //
       // BOTH votes sanitize their confidence (non-finite → 0, clamp to [0,1])
       // before weighting — symmetric handling so a non-finite/out-of-range DSP
