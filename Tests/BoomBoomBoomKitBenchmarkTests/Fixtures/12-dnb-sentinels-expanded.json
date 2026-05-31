@@ -1,0 +1,474 @@
+{
+  "fixture_schema": "jams-tempo-sentinels-v1",
+  "jams_namespace": "tempo",
+  "description": "12 DnB tempo sentinels for the FR-18 gate (a): 4 originals (dawproject-verified, re-expressed from 4-dnb-triplet-targets.json schema v3) + 8 expanded Tony Strong/Solid tracks. JAMS-format; inert at runtime (no Swift JAMSDecoder until Story 8.7). Expanded subgenre tags are PROVISIONAL \u2014 operator confirms by ear before Story 7.6 use (DD #8).",
+  "ddNote_subgenre_valve": "DD #8 valve FIRED: neurofunk/jump-up/liquid have zero machine-readable footprint in the corpus; a dev agent cannot classify by ear. Subgenre tags on the 8 expanded entries are heuristic (playlist vibe + tempo + jungle/amen keyword) and carry subgenre_provisional:true. 2-per-subgenre confidence is NOT met programmatically; final classification is an operator gate.",
+  "expandedTrackIds": [
+    "153359729",
+    "223853584",
+    "31785840",
+    "34188226",
+    "56119162",
+    "65106896",
+    "88208891",
+    "90949779"
+  ],
+  "entries": [
+    {
+      "file_metadata": {
+        "title": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework)",
+        "artist": "",
+        "duration": null,
+        "identifiers": {
+          "track_id": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework)"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "dnb-original",
+            "subgenre_provisional": false,
+            "confidence_quintile": null,
+            "held_out": true,
+            "origin": "4-dnb-triplet-targets.json (schema v3)",
+            "source": "dawproject"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "1. The Faraday_Bunker (D-Struct Remix)",
+        "artist": "",
+        "duration": null,
+        "identifiers": {
+          "track_id": "1. The Faraday_Bunker (D-Struct Remix)"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "dnb-original",
+            "subgenre_provisional": false,
+            "confidence_quintile": null,
+            "held_out": true,
+            "origin": "4-dnb-triplet-targets.json (schema v3)",
+            "source": "dawproject"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)",
+        "artist": "",
+        "duration": null,
+        "identifiers": {
+          "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "dnb-original",
+            "subgenre_provisional": false,
+            "confidence_quintile": null,
+            "held_out": true,
+            "origin": "4-dnb-triplet-targets.json (schema v3)",
+            "source": "daw_oracle"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "9. HEFT_Anagram 6 (Owl Remix)",
+        "artist": "",
+        "duration": null,
+        "identifiers": {
+          "track_id": "9. HEFT_Anagram 6 (Owl Remix)"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "dnb-original",
+            "subgenre_provisional": false,
+            "confidence_quintile": null,
+            "held_out": true,
+            "origin": "4-dnb-triplet-targets.json (schema v3)",
+            "source": "daw_oracle"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "Loon of Doom",
+        "artist": "robbyt & DJ Scam",
+        "duration": null,
+        "identifiers": {
+          "track_id": "153359729"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 172.562,
+              "confidence": 0.72
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "jungle",
+            "subgenre_provisional": true,
+            "confidence_quintile": 1,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "Dream",
+        "artist": "Harmony",
+        "duration": null,
+        "identifiers": {
+          "track_id": "65106896"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 165.64,
+              "confidence": 0.721
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "jungle",
+            "subgenre_provisional": true,
+            "confidence_quintile": 4,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "BOO",
+        "artist": "Fetus",
+        "duration": null,
+        "identifiers": {
+          "track_id": "31785840"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 160.661,
+              "confidence": 0.72
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "jump-up",
+            "subgenre_provisional": true,
+            "confidence_quintile": 1,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "Manic Acid Sex Bunny",
+        "artist": "D'TCH",
+        "duration": null,
+        "identifiers": {
+          "track_id": "88208891"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 169.233,
+              "confidence": 0.72
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "jump-up",
+            "subgenre_provisional": true,
+            "confidence_quintile": 1,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "Sinister Sound",
+        "artist": "DJ Sofa, ODJ Pirkka",
+        "duration": null,
+        "identifiers": {
+          "track_id": "223853584"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 165.818,
+              "confidence": 0.72
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "neurofunk",
+            "subgenre_provisional": true,
+            "confidence_quintile": 1,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "HOOVER1A",
+        "artist": "HOOVER1",
+        "duration": null,
+        "identifiers": {
+          "track_id": "56119162"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 160.705,
+              "confidence": 0.72
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "neurofunk",
+            "subgenre_provisional": true,
+            "confidence_quintile": 1,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "Gastown",
+        "artist": "Hyroglifics",
+        "duration": null,
+        "identifiers": {
+          "track_id": "34188226"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 172.979,
+              "confidence": 0.724
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "liquid",
+            "subgenre_provisional": true,
+            "confidence_quintile": 5,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    },
+    {
+      "file_metadata": {
+        "title": "Cloak (Wingz Remix)",
+        "artist": "Ternion Sound",
+        "duration": null,
+        "identifiers": {
+          "track_id": "90949779"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": null,
+              "value": 172.36,
+              "confidence": 0.712
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Story 7.1 sentinel curation",
+              "email": ""
+            },
+            "annotation_tools": "curate_sentinels.py (provisional subgenre)"
+          },
+          "sandbox": {
+            "subgenre": "liquid",
+            "subgenre_provisional": true,
+            "confidence_quintile": 1,
+            "held_out": true,
+            "origin": "tony-truth-labels.json (Strong/Solid)",
+            "source": "tony-labeler"
+          }
+        }
+      ]
+    }
+  ]
+}
