@@ -368,7 +368,7 @@ public enum BPMSelectionPolicy: String, CaseIterable, Sendable, Hashable {
 }
 ```
 
-**Invariants:** `BPMSelectionPolicy.allCases.count == 8` (replaces `BPMSelectionPolicy.allCases.count == 8`); `OctaveEquivalencePolicy.allCases.count == 3` (new); `SignalWeights` field-set drift detection via Codable round-trip or field enumeration test in `Tests/BoomBoomBoomKitTests/InvariantTests.swift`.
+**Invariants:** `BPMSelectionPolicy.allCases.count == 8` (replaces `CandidateMergeStrategy.allCases.count == 8`, locked in `Tests/BoomBoomBoomKitTests/BPMAnalyzerTests.swift`); `OctaveEquivalencePolicy.allCases.count == 3` (new, locked in `Tests/BoomBoomBoomKitTests/EnsembleConfigTypesTests.swift`); `SignalWeights` field-set drift detection via Codable round-trip or field enumeration test (`EnsembleConfigTypesTests.swift`).
 
 #### KDD-A2 — `SignalWeights` shape
 
@@ -713,7 +713,7 @@ Both criteria must hold. Pre-1.0 anti-bloat guard.
 **Initial set (qualifies under both criteria):**
 
 ```swift
-public struct SignalParticipationTraceEntry: Sendable, Hashable, CustomStringConvertible {
+public struct SignalParticipationTraceEntry: Sendable, CustomStringConvertible {
     public let source: SignalSource         // .dsp / .ml / .fileMetadata / .beatGrid
     public let participation: SignalParticipation
     public let weight: Double               // resolved source weight
@@ -899,7 +899,7 @@ The following are the specific scenarios where an AI agent implementing a story 
   - `MetadataSource.allCases.count == 3`
   - `BPMSelectionPolicy.allCases.count == 8` (renamed from `CandidateMergeStrategy`)
   - `OctaveEquivalencePolicy.allCases.count == 3` (new)
-  - `MLExecutionPolicy.allCases` invariant (one case has associated value, count test uses pattern check)
+  - `MLExecutionPolicy` case-coverage invariant (one case has an associated value, so the test is a pattern check — there is no synthesizable `.allCases`)
   - `DownbeatResult.allCases` invariant (one case has associated value)
   - `AnalysisIntensity.allCases.count == 10` (new)
   - `OA300 Acc1 ≥ 58/82, Acc2 ≥ 74/82` (existing)
@@ -1075,7 +1075,7 @@ BoomBoomBoomKit/
 │   ├── BoomBoomBoomKitTests/                           # Unit tests, run by `make test`
 │   │   ├── (existing test files)
 │   │   ├── DocumentationValidatorTests.swift           # NEW (Epic E CI validator, per-rule + per-file)
-│   │   ├── InvariantTests.swift                        # UPDATED: new count assertions
+│   │   ├── EnsembleConfigTypesTests.swift              # NEW (KDD-A2/A4 config types + OctaveEquivalencePolicy/SignalWeights count + drift invariants; BPMSelectionPolicy.allCases==8 lives in existing BPMAnalyzerTests.swift)
 │   │   ├── SignalPoolTests.swift                       # NEW (KDD-S1 + KDD-A6)
 │   │   ├── FeatureSubstrateTests.swift                 # NEW (KDD-S2)
 │   │   ├── BeatGridTests.swift                         # NEW (Epic C)

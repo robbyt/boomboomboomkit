@@ -26,6 +26,7 @@ partyModeAmendmentsApplied:
   - '2026-05-26: Codex-blessed iteration-leak mitigation (thread 019e6662-22ab-7451-957e-ae93b0cb1a6e). Story 7.6 grows N=3 FR-18 re-run governance tripwire with deviation log at _bmad-output/implementation-artifacts/7-6-fr18-rerun-log.md. Story 7.7 grows held-out GiantSteps slice of n=150 tracks (Codex preferred over Mary suggested 50) with stratified-by-tempo-band + stratified-by-style-label selection; sealed locally with committed selection-script + seed + SHA256 manifest digest; iteration-leak tripwire fires at gap ≥ 8 Acc1 points. ACs added to Stories 7.6 + 7.7; no new Story 7.8 needed per Codex verdict.'
   - '2026-05-26: JAMS (JSON Annotated Music Specification, marl/jams, ISC) + mir_eval adopted for ground-truth annotation artifacts. Story 8.7 updated: F-measure via mir_eval.beat.f_measure (Python sidecar, develop-only Python dep), daw-oracle-beats.json emits JAMS natively, Swift JAMS decoder lands at Tests/BoomBoomBoomKitBenchmarkTests/Helpers/JAMSDecoder.swift (~100-150 LOC). Story 8.8 added: one-time migration of daw-oracle.json + oa300-ground-truth.json + 4-dnb-triplet-targets.json to JAMS shape via make oracle-migrate-to-jams. Python jams + mir_eval deps added to _bmad-output/ml-training/pyproject.toml (develop-only, NOT shipped to main).'
   - '2026-05-26: Global valve artifact-path pass — every Pressure-release valve in the file that proposes a deviation now cites _bmad-output/implementation-artifacts/<story>-pressure-release.md as documentation target. 13 valves updated; 11 already cited; 10 say None. Closes audit-trail hole flagged by Amelia #6.'
+  - '2026-05-30: Epic 7 runtime-gate reconciliation (Epic 6 retro Action Item A1). The genuine KDD-A6 Stage 3 semantic flip + KDD-A5 activation landed in Story 6.5b, not Story 6.4 — 6.4b was byte-inert prep and FR-1/2/6/7 were reallocated to 6.5 on 2026-05-29 (see the Story 6.4/6.5 sections at the merge-flip text). The Epic 7 FR-18 runtime-stability gates (dependency preamble bullet 3, dependency diagram, Epic 7 stories preamble, Story 7.5 precondition AC, Story 7.6 want-statement) are repointed Story 6.4 to Story 6.5b. Guardrail (2) feature-config reference is corrected Story 6.4 to Story 6.2 (the mel/FFT/log feature shape freezes in 6.2, consumed unchanged by the 6.5b runtime). The 2026-05-26 entries above are kept as the historical record of what was decided at the time. No code change; epics.md + architecture.md doc-only. Also corrected architecture.md residual drift: SignalParticipationTraceEntry Hashable drop, MLExecutionPolicy non-allCases case-coverage invariant, and the BPMSelectionPolicy/OctaveEquivalencePolicy invariant-test file pointers.'
 ---
 
 # BoomBoomBoomKit — Epic Breakdown
@@ -286,12 +287,12 @@ The corpus is 1,344 hand-labeled DJ tracks (Strong tier ≥0.80 = 333 + Solid ti
 
 - **Pre-substrate-safe (parallel with Epic 6):** corpus curation, KDD-B4 diagnostic suite, label-tier policy implementation, augmentation-vs-pretraining ablation harness, ECE_half_double instrumentation, marginal-tier categorization wiring. All Python, no Swift dependency. Begins immediately.
 - **Substrate-dependent (gates on Story 6.2):** final training run that produces the bundled `.mlmodel` artifact must train against whatever feature shape Story 6.2 freezes.
-- **Substrate-coupled at evaluation (gates on Story 6.4):** FR-18 promotion-gate evaluation must run via the production runtime path (`BNNSTechnique` against the post-Epic-6 unified pool).
+- **Substrate-coupled at evaluation (gates on Story 6.5b):** FR-18 promotion-gate evaluation must run via the production runtime path (`BNNSTechnique` against the post-Epic-6 unified pool). [The genuine KDD-A6 Stage 3 flip + KDD-A5 activation landed in Story 6.5b, not 6.4 — reconciled 2026-05-30, see partyModeAmendmentsApplied.]
 
 **Three guardrails from Codex (non-negotiable):**
 
 1. **v1 training is scaffolding/diagnostics, NOT a promotable bundle candidate.** Any Python training that completes against the existing v1 feature contract before Story 6.2 lands is treated as research artifact — model weights and final calibration metrics are disposable; corpus prep, diagnostics, ablation harnesses, and parity plumbing are reusable.
-2. **`featureSetVersion` seam blocks runtime miscalibration but v1 FR-18 metrics do NOT transfer to v2.** Any mel/FFT/log/default-weighting change in Story 6.2 invalidates Acc1, ECE, and tail-error claims. FR-18 reruns from scratch on the exact runtime feature config Story 6.4 ships.
+2. **`featureSetVersion` seam blocks runtime miscalibration but v1 FR-18 metrics do NOT transfer to v2.** Any mel/FFT/log/default-weighting change in Story 6.2 invalidates Acc1, ECE, and tail-error claims. FR-18 reruns from scratch on the exact runtime feature config Story 6.2 freezes (the feature shape is set in 6.2 and consumed unchanged by the post-Epic-6 runtime).
 3. **Sub-band weighting trains against ONE declared profile.** The chosen `WeightingProfile` (e.g., `.uniform` or `.subBandEmphasis(SubBandWeights)`) is encoded in model metadata alongside `featureSetVersion`. Alternate profile is ablation/augmentation only, not a co-equal training target.
 
 **FRs covered:** FR-12, FR-13, FR-14, FR-15, FR-16, FR-17, FR-18, FR-19, FR-20, FR-21, FR-22, FR-23, FR-24, FR-25
@@ -349,7 +350,7 @@ Epic 6 (unified-signal-pool — foundation; 5-story Tier-1 sequence)
    │      ├─ Python prefix runs in PARALLEL with Epic 6 (corpus prep, diagnostics,
    │      │  ablation harness, ECE instrumentation, marginal-tier wiring)
    │      ├─ Substrate-dependent training gates on Story 6.2 (FeatureSubstrate)
-   │      └─ FR-18 promotion-gate evaluation runs on Story 6.4's stable runtime path
+   │      └─ FR-18 promotion-gate evaluation runs on Story 6.5b's stable runtime path
    │         [Codex PHASED verdict, 3 guardrails — see Epic 7 body]
    │
    ├──→ Epic 8 (LUFS + beat-grid + ModelRegistry)
@@ -583,7 +584,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 
 ## Epic 7: ML retraining on Tony's hand-labeled corpus (stories)
 
-7 stories phased per Codex PHASED verdict: Stories 7.1-7.4 are pre-substrate-safe and may run in parallel with Epic 6; Story 7.5 gates on Story 6.2's `FeatureSubstrate.OnsetFeatures`; Story 7.6 (FR-18 promotion-gate evaluation) gates on Story 6.4's stable runtime path. The three non-negotiable guardrails — (1) v1 features are scaffolding/diagnostics only, (2) `featureSetVersion` bumps invalidate FR-18 metrics, (3) one declared `WeightingProfile` per trained model — surface as ACs in Stories 7.3 and 7.5.
+7 stories phased per Codex PHASED verdict: Stories 7.1-7.4 are pre-substrate-safe and may run in parallel with Epic 6; Story 7.5 gates on Story 6.2's `FeatureSubstrate.OnsetFeatures`; Story 7.6 (FR-18 promotion-gate evaluation) gates on Story 6.5b's stable runtime path. The three non-negotiable guardrails — (1) v1 features are scaffolding/diagnostics only, (2) `featureSetVersion` bumps invalidate FR-18 metrics, (3) one declared `WeightingProfile` per trained model — surface as ACs in Stories 7.3 and 7.5.
 
 ### Story 7.1: Corpus diagnostics + label-tier policy + split-contamination audit
 
@@ -769,9 +770,9 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **When** `feature_substrate_v2.py` is reviewed,
 **Then** the feature tensor reaching the model is solely the `logMelData` payload — no playlist, path, Rekordbox, artist, or ID3 BPM signal enters the model input.
 
-**Given** the substrate-dependent gate (Codex PHASED guardrail) AND Story 6.4's stable-runtime gate (Amelia #2 — body framing earlier in this story refers to runtime-path stability for FR-18 evaluation),
+**Given** the substrate-dependent gate (Codex PHASED guardrail) AND Story 6.5b's stable-runtime gate (Amelia #2 — body framing earlier in this story refers to runtime-path stability for FR-18 evaluation),
 **When** Story 7.5 attempts to start,
-**Then** BOTH Story 6.2's `FeatureSubstrate.OnsetFeatures` MUST exist on develop AND Story 6.4's KDD-A6 Stage 3 atomic flip MUST have merged on develop (since the FR-18 evaluator in Story 7.6 runs against the post-Stage-3 runtime path); both gates verified by a precondition check in `train.py` that aborts with a named error if either condition fails.
+**Then** BOTH Story 6.2's `FeatureSubstrate.OnsetFeatures` MUST exist on develop AND Story 6.5b's KDD-A6 Stage 3 semantic flip MUST have merged on develop (6.4b was byte-inert prep; the genuine pool-authoritative flip + KDD-A5 activation that the FR-18 evaluator in Story 7.6 runs against landed in 6.5b); both gates verified by a precondition check in `train.py` that aborts with a named error if either condition fails.
 
 **Given** KDD-B3 reopen-trigger #5 requires evidence of "stable high-confidence Marginal predictions across seeds/checkpoints/augmentations" (Mary #5 — highest-priority defect),
 **When** the final training run executes,
@@ -784,7 +785,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 ### Story 7.6: FR-18 promotion-gate evaluation + FR-23 octave-policy consistency report
 
 **As a** library maintainer,
-**I want** the Story 7.5 trained model evaluated against all 5 FR-18 promotion gates on the production runtime path from Story 6.4, with the FR-23 raw-vs-octave-normalized accuracy table and the leave-artist-out evaluation slice from Story 7.1 surfaced as named acceptance reports, producing a single bundle-vs-BYOW decision per KDD-B5,
+**I want** the Story 7.5 trained model evaluated against all 5 FR-18 promotion gates on the production runtime path from Story 6.5b, with the FR-23 raw-vs-octave-normalized accuracy table and the leave-artist-out evaluation slice from Story 7.1 surfaced as named acceptance reports, producing a single bundle-vs-BYOW decision per KDD-B5,
 **So that** the model promotes to a bundled `giantsteps_v2.mlmodelc` on `main` only if every gate passes, otherwise ships as BYOW at `_bmad-output/ml-models/` with the failure surfaced in `_bmad-output/ml-training/fr-18-evaluation.md`.
 
 **Acceptance Criteria:**
