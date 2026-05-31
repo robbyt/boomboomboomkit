@@ -260,7 +260,7 @@ development_status:
   epic-5-retrospective: done
 
   # Epic 6: Unified-signal-pool ensemble — see _bmad-output/planning-artifacts/epics.md Epic 6 for KDD-A6 3-stage migration ordering. Stories 6.1-6.4 are sequential (substrate → consumers → equality flip); 6.5 follows 6.4.
-  epic-6: in-progress
+  epic-6: done
   6-1-signalparticipation-contract-and-pool-stage-1-adapter: done
   6-2-featuresubstrate-namespace-and-mlfeatureframes-relocation: done
   6-3-kdd-a6-stage-2-corroborator-and-pipeline-pool-migration: done

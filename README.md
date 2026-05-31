@@ -239,7 +239,8 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `MetadataSource`, `MetadataBPMEvidence`, `HarmonicRatio` | Metadata evidence types |
 | `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Using your own tempo model" + [MODEL_CARD.md](MODEL_CARD.md) |
 | `MLEvaluation` | ML estimate carrier (`bpm`, `confidence`, optional `modelIdentifier`) |
-| `EnsemblePolicy` | DSP + ML combiner policy (`.dspOnly` default, `.mlOnly`, `.highestConfidence`) |
+| `EnsemblePolicy` | DSP + ML combiner policy (5 cases: `.default`, `.dspOnly` default, `.mlOnly`, `.highestConfidence`, `.weightedVoting(SignalWeights)`) |
+| `SignalWeights` | Per-source weights for `EnsemblePolicy.weightedVoting` (`dsp` / `ml` / `fileMetadata` / `beatGrid`; `.default` = equal weighting) |
 | `EnsembleDecision` | Diagnostic record of the combiner outcome (`Winner` is `.dsp` / `.ml` / `.tie`) |
 | `MLDiagnosticTechnique` | Opt-in capability protocol producing per-evaluation snapshots |
 | `MLDiagnosticSnapshot` | Per-evaluation diagnostic carrier (decoded BPM, softmax top-2, checksum, failure stage) |
