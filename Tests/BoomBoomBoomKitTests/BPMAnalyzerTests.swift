@@ -918,7 +918,7 @@ struct BPMAnalyzerReviewFixTests {
 
 // MARK: - Candidate Merge Strategy Tests
 
-@Suite("CandidateMergeStrategy")
+@Suite("BPMSelectionPolicy")
 struct CandidateMergingTests {
 
   // MARK: - Helpers
@@ -978,7 +978,7 @@ struct CandidateMergingTests {
 
   @Test("allCases has 8 strategies")
   func allCasesCount() {
-    #expect(CandidateMergeStrategy.allCases.count == 8)
+    #expect(BPMSelectionPolicy.allCases.count == 8)
   }
 
   // MARK: - Single window passthrough
@@ -989,8 +989,8 @@ struct CandidateMergingTests {
       bpm: 170, confidence: 0.8,
       candidates: [(170, 0.9), (85, 0.5), (120, 0.3)])
 
-    for strategy in CandidateMergeStrategy.allCases {
-      let merged = CandidateMergeStrategy.merge(
+    for strategy in BPMSelectionPolicy.allCases {
+      let merged = BPMSelectionPolicy.merge(
         windowResults: [result], candidateCount: 3, strategy: strategy)
       #expect(merged != nil, "Strategy \(strategy) should return non-nil for single window")
       #expect(merged?.bpm == 170, "Strategy \(strategy) should preserve BPM")
@@ -1003,8 +1003,8 @@ struct CandidateMergingTests {
 
   @Test("empty input returns nil for all strategies")
   func emptyInput() {
-    for strategy in CandidateMergeStrategy.allCases {
-      let merged = CandidateMergeStrategy.merge(
+    for strategy in BPMSelectionPolicy.allCases {
+      let merged = BPMSelectionPolicy.merge(
         windowResults: [], candidateCount: 3, strategy: strategy)
       #expect(merged == nil, "Strategy \(strategy) should return nil for empty input")
     }
@@ -1018,7 +1018,7 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 85, confidence: 0.8, candidates: [(85, 0.7)])
     let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.95)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .maxConfidence)!
     #expect(merged.bpm == 85, "Should pick window with highest confidence (0.8)")
     #expect(merged.confidence == 0.8)
@@ -1032,7 +1032,7 @@ struct CandidateMergingTests {
     let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9), (85, 0.5)])
     let r2 = makeBPMResult(bpm: 170.5, confidence: 0.7, candidates: [(170.5, 0.8), (85, 0.6)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2], candidateCount: 3, strategy: .dedup)!
     // 170 cluster: max score = 0.9 (from r1). 85 cluster: max score = 0.6 (from r2).
     #expect(merged.candidates.count <= 3)
@@ -1046,7 +1046,7 @@ struct CandidateMergingTests {
     let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9)])
     let r2 = makeBPMResult(bpm: 120, confidence: 0.7, candidates: [(120, 0.8)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2], candidateCount: 3, strategy: .dedup)!
     #expect(merged.candidates.count == 2)
   }
@@ -1060,7 +1060,7 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.6)])
     let r3 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.65)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .quorum)!
     // 170 cluster: 3 windows. 85 cluster: 1 window. 170 should rank first.
     #expect(merged.candidates[0].bpm == 170, "170 BPM (3 windows) should beat 85 BPM (1 window)")
@@ -1074,7 +1074,7 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.6)])
     let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.7)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .average)!
     // mean(0.8, 0.6, 0.7) = 0.7
     let score = merged.candidates[0].score
@@ -1089,7 +1089,7 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.1)])  // outlier
     let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.7)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .median)!
     // median(0.1, 0.7, 0.8) = 0.7
     let score = merged.candidates[0].score
@@ -1106,7 +1106,7 @@ struct CandidateMergingTests {
     let r1 = makeBPMResult(bpm: 170, confidence: 0.9, candidates: [(170, 0.8)])
     let r2 = makeBPMResult(bpm: 170, confidence: 0.1, candidates: [(170, 0.2)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2], candidateCount: 3, strategy: .weightedAverage)!
     // weighted = (0.8*0.9 + 0.2*0.1) / (0.9+0.1) = 0.74
     let score = merged.candidates[0].score
@@ -1120,7 +1120,7 @@ struct CandidateMergingTests {
     let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9), (85, 0.5)])
     let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.8), (120, 0.6)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2], candidateCount: 5, strategy: .union)!
     // 4 total candidates pooled, sorted by score: 0.9, 0.8, 0.6, 0.5
     #expect(merged.candidates.count == 4)
@@ -1133,7 +1133,7 @@ struct CandidateMergingTests {
     let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9), (85, 0.5)])
     let r2 = makeBPMResult(bpm: 170, confidence: 0.7, candidates: [(170, 0.8), (120, 0.6)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2], candidateCount: 2, strategy: .union)!
     #expect(merged.candidates.count == 2)
   }
@@ -1150,11 +1150,11 @@ struct CandidateMergingTests {
       candidates: [(170, 0.8), (140, 0.6), (100, 0.3)])
 
     // maxConfidence and windowVoting return raw window results (no merging), so skip them.
-    let mergingStrategies = CandidateMergeStrategy.allCases.filter {
+    let mergingStrategies = BPMSelectionPolicy.allCases.filter {
       $0 != .maxConfidence && $0 != .windowVoting
     }
     for strategy in mergingStrategies {
-      let merged = CandidateMergeStrategy.merge(
+      let merged = BPMSelectionPolicy.merge(
         windowResults: [r1, r2], candidateCount: 2, strategy: strategy)!
       #expect(
         merged.candidates.count <= 2,
@@ -1172,7 +1172,7 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 85, confidence: 0.9, candidates: [(85, 0.8), (170, 0.4)])
     let r3 = makeBPMResult(bpm: 170.2, confidence: 0.7, candidates: [(170.2, 0.85)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .windowVoting)!
     // Consensus is 170 (windows 0 and 2). Best confidence in group is 0.7 (window 2).
     #expect(
@@ -1187,7 +1187,7 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 170.3, confidence: 0.8, candidates: [(170.3, 0.7)])
     let r3 = makeBPMResult(bpm: 169.8, confidence: 0.6, candidates: [(169.8, 0.85)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .windowVoting)!
     // All 3 agree. Best confidence = 0.8 (window 2).
     #expect(merged.bpm == 170.3, "Should pick BPM from highest-confidence window (0.8)")
@@ -1201,7 +1201,7 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 85, confidence: 0.8, candidates: [(85, 0.7)])
     let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.85)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2, r3], candidateCount: 3, strategy: .windowVoting)!
     // Fallback to maxConfidence: window 2 has confidence 0.8.
     #expect(merged.bpm == 85, "Should fall back to maxConfidence (window 2, conf=0.8)")
@@ -1213,7 +1213,7 @@ struct CandidateMergingTests {
     let r1 = makeBPMResult(bpm: 85, confidence: 0.6, candidates: [(85, 0.9)])
     let r2 = makeBPMResult(bpm: 170, confidence: 0.8, candidates: [(170, 0.7)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2], candidateCount: 3, strategy: .windowVoting)!
     // No pair agrees. Fallback to maxConfidence.
     #expect(merged.bpm == 170, "Should fall back to maxConfidence (window 2, conf=0.8)")
@@ -1224,7 +1224,7 @@ struct CandidateMergingTests {
     let r1 = makeBPMResult(bpm: 170, confidence: 0.6, candidates: [(170, 0.9)])
     let r2 = makeBPMResult(bpm: 170.5, confidence: 0.8, candidates: [(170.5, 0.7)])
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [r1, r2], candidateCount: 3, strategy: .windowVoting)!
     // Both agree within 2%. Best confidence = 0.8 (window 2).
     #expect(merged.bpm == 170.5, "Should pick BPM from higher-confidence window")
@@ -1239,8 +1239,8 @@ struct CandidateMergingTests {
     let r2 = makeBPMResult(bpm: 170, confidence: 0.8, candidates: [(170, 0.7)])
     let r3 = makeBPMResult(bpm: 170, confidence: 0.5, candidates: [(170, 0.6)])
 
-    for strategy in CandidateMergeStrategy.allCases {
-      let merged = CandidateMergeStrategy.merge(
+    for strategy in BPMSelectionPolicy.allCases {
+      let merged = BPMSelectionPolicy.merge(
         windowResults: [r1, r2, r3], candidateCount: 3, strategy: strategy)!
       #expect(
         merged.confidence == 0.8,
@@ -1255,7 +1255,7 @@ struct CandidateMergingTests {
   func singleWindowPassthroughAllPolicies() {
     let only = makeWindow(index: 0, bpm: 170, confidence: 0.7)
     for policy in VotingPolicy.allCases {
-      let merged = CandidateMergeStrategy.merge(
+      let merged = BPMSelectionPolicy.merge(
         windowResults: [only], candidateCount: 3,
         strategy: .windowVoting,
         votingPolicy: policy, votingThreshold: 0.42)
@@ -1268,7 +1268,7 @@ struct CandidateMergingTests {
   @Test("empty input returns nil for all 3 voting policies")
   func emptyInputReturnsNilAllPolicies() {
     for policy in VotingPolicy.allCases {
-      let merged = CandidateMergeStrategy.merge(
+      let merged = BPMSelectionPolicy.merge(
         windowResults: [], candidateCount: 3,
         strategy: .windowVoting,
         votingPolicy: policy, votingThreshold: 0.7)
@@ -1284,13 +1284,13 @@ struct CandidateMergingTests {
     let r3 = makeWindow(index: 2, bpm: 85, confidence: 0.5, candidates: [(85, 0.7)])
     let inputs = [r1, r2, r3]
 
-    let nonWindowVoting = CandidateMergeStrategy.allCases.filter { $0 != .windowVoting }
+    let nonWindowVoting = BPMSelectionPolicy.allCases.filter { $0 != .windowVoting }
     #expect(nonWindowVoting.count == 7)
 
     for strategy in nonWindowVoting {
-      let baseline = CandidateMergeStrategy.merge(
+      let baseline = BPMSelectionPolicy.merge(
         windowResults: inputs, candidateCount: 3, strategy: strategy)!
-      let pathological = CandidateMergeStrategy.merge(
+      let pathological = BPMSelectionPolicy.merge(
         windowResults: inputs, candidateCount: 3, strategy: strategy,
         votingPolicy: .thresholdGated, votingThreshold: .nan)!
       assertSameBPMResult(pathological, baseline)
@@ -1307,14 +1307,14 @@ struct CandidateMergingTests {
 
     // Cluster A {0,1} summed=1.75, B {2} summed=0.95.
     // Both .simpleMajority and .confidenceWeighted pick A. Within A: window 0 (0.9 > 0.85).
-    let simple = CandidateMergeStrategy.merge(
+    let simple = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .simpleMajority)!
     #expect(simple.bpm == 170.0)
     #expect(simple.confidence == 0.9)
     assertSameBPMResult(simple, windows[0])
 
-    let weighted = CandidateMergeStrategy.merge(
+    let weighted = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .confidenceWeighted)!
     #expect(weighted.bpm == 170.0)
@@ -1333,7 +1333,7 @@ struct CandidateMergingTests {
     // Cluster A {0,1} summed=0.6, B {2} summed=0.95.
     // .simpleMajority picks A by size (count=2 >= 2). Within A: tied conf at 0.3 → lowest
     // index wins → window 0.
-    let simple = CandidateMergeStrategy.merge(
+    let simple = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .simpleMajority)!
     #expect(simple.bpm == 170.0)
@@ -1342,7 +1342,7 @@ struct CandidateMergingTests {
 
     // .confidenceWeighted: B wins by summed conf, but is singleton → fall back to
     // mergeMaxConfidence(results) → window 2 (conf=0.95).
-    let weighted = CandidateMergeStrategy.merge(
+    let weighted = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .confidenceWeighted)!
     #expect(weighted.bpm == 85.0)
@@ -1359,7 +1359,7 @@ struct CandidateMergingTests {
     let windows = [w0, w1, w2]
 
     // Cluster A {0,1} max conf 0.9 >= 0.6 → accepted. Within A: window 0.
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .thresholdGated, votingThreshold: 0.6)!
     #expect(merged.bpm == 170.0)
@@ -1376,7 +1376,7 @@ struct CandidateMergingTests {
     let windows = [w0, w1, w2]
 
     // .thresholdGated: cluster A max conf 0.9 < 0.95 → fallback. maxConfidence picks w0.
-    let gated = CandidateMergeStrategy.merge(
+    let gated = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .thresholdGated, votingThreshold: 0.95)!
     #expect(gated.bpm == 170.0)
@@ -1385,7 +1385,7 @@ struct CandidateMergingTests {
 
     // .simpleMajority: same inputs, consensus path → w0 directly. Same answer reached
     // via DIFFERENT branch, distinguished by 5e (which produces divergent answers).
-    let simple = CandidateMergeStrategy.merge(
+    let simple = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .simpleMajority)!
     assertSameBPMResult(simple, windows[0])
@@ -1399,14 +1399,14 @@ struct CandidateMergingTests {
     let w2 = makeWindow(index: 2, bpm: 85, confidence: 0.9)
     let windows = [w0, w1, w2]
 
-    let simple = CandidateMergeStrategy.merge(
+    let simple = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .simpleMajority)!
     #expect(simple.bpm == 170.0)
     #expect(simple.confidence == 0.4)
     assertSameBPMResult(simple, windows[0])
 
-    let gated = CandidateMergeStrategy.merge(
+    let gated = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .thresholdGated, votingThreshold: 0.5)!
     #expect(gated.bpm == 85.0)
@@ -1443,7 +1443,7 @@ struct CandidateMergingTests {
       ("6h (.signalingNaN → 0.0)", .signalingNaN, w0),
     ]
     for c in cases {
-      let merged = CandidateMergeStrategy.merge(
+      let merged = BPMSelectionPolicy.merge(
         windowResults: windows, candidateCount: 3, strategy: .windowVoting,
         votingPolicy: .thresholdGated, votingThreshold: c.threshold)!
       assertSameBPMResult(merged, c.expected)
@@ -1460,7 +1460,7 @@ struct CandidateMergingTests {
     let w0 = makeWindow(index: 0, bpm: 170, confidence: 1.0)
     let w1 = makeWindow(index: 1, bpm: 170.2, confidence: 0.5)
     let w2 = makeWindow(index: 2, bpm: 85, confidence: 0.3)
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: [w0, w1, w2], candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .thresholdGated, votingThreshold: 1.0)!
     assertSameBPMResult(merged, w0)
@@ -1480,10 +1480,10 @@ struct CandidateMergingTests {
     let w1 = makeWindow(index: 1, bpm: 170.2, confidence: 0.7)
     let w2 = makeWindow(index: 2, bpm: 85, confidence: 0.5)
     let windows = [w0, w1, w2]
-    let plusZero = CandidateMergeStrategy.merge(
+    let plusZero = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .thresholdGated, votingThreshold: 0.0)!
-    let minusZero = CandidateMergeStrategy.merge(
+    let minusZero = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .thresholdGated, votingThreshold: -0.0)!
     assertSameBPMResult(minusZero, plusZero)
@@ -1499,15 +1499,15 @@ struct CandidateMergingTests {
       ])
   }
 
-  // Task 5.8 — AC #10 (CandidateMergeStrategy unchanged + analyzeBPM overload pin)
-  @Test("CandidateMergeStrategy.allCases.count == 8 (Story 3-5 regression guard)")
+  // Task 5.8 — AC #10 (BPMSelectionPolicy unchanged + analyzeBPM overload pin)
+  @Test("BPMSelectionPolicy.allCases.count == 8 (Story 3-5 regression guard)")
   func candidateMergeStrategyAllCasesCountUnchanged() {
-    #expect(CandidateMergeStrategy.allCases.count == 8)
+    #expect(BPMSelectionPolicy.allCases.count == 8)
     let expected: Set<String> = [
       "maxConfidence", "dedup", "quorum", "average", "median",
       "weightedAverage", "union", "windowVoting",
     ]
-    #expect(Set(CandidateMergeStrategy.allCases.map(\.rawValue)) == expected)
+    #expect(Set(BPMSelectionPolicy.allCases.map(\.rawValue)) == expected)
 
     // Compile-time pin of analyzeBPM's two public overloads. If a future
     // refactor splits these by adding a third overload (e.g.,
@@ -1531,7 +1531,7 @@ struct CandidateMergingTests {
     let w3 = makeWindow(index: 3, bpm: 85.2, confidence: 0.6)
     let windows = [w0, w1, w2, w3]
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .confidenceWeighted)!
     #expect(merged.bpm == 85.2)
@@ -1552,7 +1552,7 @@ struct CandidateMergingTests {
     let w4 = makeWindow(index: 4, bpm: 120, confidence: 0.5)
     let windows = [w0, w1, w2, w3, w4]
 
-    let merged = CandidateMergeStrategy.merge(
+    let merged = BPMSelectionPolicy.merge(
       windowResults: windows, candidateCount: 3, strategy: .windowVoting,
       votingPolicy: .simpleMajority)!
     #expect(merged.bpm == 85.0)
@@ -1569,7 +1569,7 @@ struct CandidateMergingTests {
     let windows = [w0, w1, w2]
 
     for policy in VotingPolicy.allCases {
-      let merged = CandidateMergeStrategy.merge(
+      let merged = BPMSelectionPolicy.merge(
         windowResults: windows, candidateCount: 3, strategy: .windowVoting,
         votingPolicy: policy, votingThreshold: 0.0)!
       assertSameBPMResult(merged, windows[1])

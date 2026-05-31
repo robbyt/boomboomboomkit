@@ -2,7 +2,7 @@ import BoomBoomBoomKit
 import SwiftUI
 
 // Strategy-keyed background painted at the `ContentView` root (KDD #8
-// / AC #4). One `LinearGradient` per `CandidateMergeStrategy` case
+// / AC #4). One `LinearGradient` per `BPMSelectionPolicy` case
 // plus a 9th neutral variant for the pre-analysis state (when
 // `viewModel.lastRunSnapshot == nil`, the user hasn't selected
 // anything yet — the visual should be quiet, not assertive).
@@ -22,7 +22,7 @@ import SwiftUI
 // per AC #7 — gradients can wash out contrast hot-spots on
 // accessibility hardware.
 struct StrategyBackground: View {
-  let strategy: CandidateMergeStrategy?
+  let strategy: BPMSelectionPolicy?
 
   @Environment(\.colorSchemeContrast) private var contrast
 

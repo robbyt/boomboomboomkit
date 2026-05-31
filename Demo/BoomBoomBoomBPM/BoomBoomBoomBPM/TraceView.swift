@@ -243,7 +243,7 @@ struct TraceView: View {
           Text("(ML not active)").foregroundStyle(.secondary)
         } else {
           if let decision = trace.ensembleDecision {
-            LabeledContent("Policy", value: decision.policy.rawValue)
+            LabeledContent("Policy", value: decision.policy.stableKey)
             LabeledContent("Winner", value: decision.winner.rawValue)
             LabeledContent("DSP confidence") {
               monoFloat(Double(decision.dspConfidence), digits: 4)

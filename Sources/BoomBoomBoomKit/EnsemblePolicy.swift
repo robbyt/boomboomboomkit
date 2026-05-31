@@ -10,12 +10,12 @@ import Foundation
 /// Resolution policy controlling how the post-pipeline DSP candidate and an
 /// optional ``MLEvaluation`` are combined into the final ``AudioAnalysisResult``.
 ///
-/// `EnsemblePolicy` is consulted by ``EnsembleCombiner/combine(dspWinner:mlEvaluation:policy:)``
+/// `EnsemblePolicy` is consulted by ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)``
 /// at the post-corroboration stage of the analysis pipeline. The selected
 /// policy is configured through ``AudioAnalysisService/Options/ensemblePolicy``,
 /// per ADR-11's Options-first public configuration rule. It is NOT a
 /// ``DSPTechnique`` (no DSP changes; no expansion of the 256-combo ablation
-/// matrix) and NOT a ``CandidateMergeStrategy`` case (still 8 cases). The
+/// matrix) and NOT a ``BPMSelectionPolicy`` case (still 8 cases). The
 /// policy is orthogonal to ``AnalysisIntensity`` — a `.dspOnly` policy is
 /// valid at every intensity level, with or without an ``MLTechnique``
 /// conformance.
@@ -38,11 +38,11 @@ import Foundation
 /// **Abstention.** ``MLTechnique/evaluate(trace:)`` may return `nil` to
 /// abstain (the protocol-level abstain path); in that case the combiner
 /// returns the DSP winner unchanged regardless of policy. Independently,
-/// ``EnsembleCombiner`` sanitizes any ``MLEvaluation`` it consumes — non-finite
+/// the ensemble combiner sanitizes any ``MLEvaluation`` it consumes — non-finite
 /// `bpm` (NaN, ±∞) is treated as a sentinel-NaN abstain (combiner falls back
 /// to DSP). The Apple-platform precedent for "abstain on NaN" is
 /// `FloatingPoint.minimum(_:_:)`, which states *"If one of x or y is NaN,
-/// the other is returned."* See ``EnsembleCombiner`` for the full sanitization
+/// the other is returned."* See ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)`` for the full sanitization
 /// rules.
 ///
 /// **Byte-identity invariant under `.dspOnly`.** When the selected policy is
@@ -63,9 +63,22 @@ import Foundation
 /// parallel scalar field on ``AudioAnalysisService/Options``) are explicitly
 /// allowed and expected. Downstream consumers should NOT assume the case
 /// list is 1.0-stable.
-public enum EnsemblePolicy: String, CaseIterable, Sendable, Hashable {
+public enum EnsemblePolicy: Sendable, Hashable {
 
-  /// Default. The DSP winner carries unchanged;
+  /// The library's default ensemble resolution: the **balanced peer ensemble**
+  /// (Story 6.5b KDD-A5). Equivalent to ``weightedVoting(_:)`` with
+  /// ``SignalWeights/default`` (equal weighting) — the DSP voice (Phase-1
+  /// aggregated, metadata-corroborated) and the ML voice (when a technique is
+  /// wired up) are compared by `effectiveVote = confidence × weight`; the higher
+  /// vote wins, DSP wins ties. Invokes ``MLTechnique/evaluate(trace:)`` when a
+  /// technique is present (see ``invokesMLInference``) and emits
+  /// ``EnsembleWeightResolution``. With no ML technique it degrades to the DSP
+  /// winner unchanged. NOTE: ``AudioAnalysisService/Options/ensemblePolicy``
+  /// still defaults to ``dspOnly`` (not this case) to preserve byte-identity for
+  /// existing default-options callers.
+  case `default`
+
+  /// DSP-only resolution. The DSP winner carries unchanged;
   /// ``MLTechnique/evaluate(trace:)`` is NOT invoked when this policy is
   /// selected (operation-inert AND output-inert per the Story 4-4 short-circuit
   /// at the call site; AC #14 contract). Produces byte-identical output to
@@ -89,4 +102,54 @@ public enum EnsemblePolicy: String, CaseIterable, Sendable, Hashable {
   /// revisit after Story 4-5 BNNS ablation per the re-open trigger). When
   /// `mlEvaluation == nil`, DSP wins unconditionally.
   case highestConfidence
+
+  /// Per-source weighted resolution over the unified signal pool, parameterized
+  /// by ``SignalWeights`` (Story 6.5b KDD-A5). The DSP voice (Phase-1 aggregated,
+  /// metadata-corroborated) and the ML voice (when a technique is wired up) are
+  /// compared by `effectiveVote = confidence × weights[source]`; the higher
+  /// vote wins, DSP wins ties. `weights.fileMetadata` additionally scales the
+  /// Phase-2a metadata corroboration strength. Invokes
+  /// ``MLTechnique/evaluate(trace:)`` when a technique is present (see
+  /// ``invokesMLInference``) and emits ``EnsembleWeightResolution``. The
+  /// associated ``SignalWeights`` is the single source of the weights — the
+  /// resolution derives them from the policy, never from a separate argument.
+  case weightedVoting(SignalWeights)
+
+  /// Whether this policy causes ``MLTechnique/evaluate(trace:)`` to be invoked.
+  /// True for the cross-signal-fusion policies — ``mlOnly``,
+  /// ``highestConfidence``, and (Story 6.5b KDD-A5 activation) the now-live
+  /// ``default`` and ``weightedVoting(_:)`` weighted-resolution policies, which
+  /// fuse an ML voice when a technique is wired up. Only ``dspOnly`` is
+  /// operation-inert (the ML short-circuit). Inference still requires
+  /// ``AudioAnalysisService/Options/mlTechnique`` to be non-nil; this flag only
+  /// gates the policies that *would* consume an ML voice.
+  public var invokesMLInference: Bool {
+    switch self {
+    case .mlOnly, .highestConfidence, .default, .weightedVoting: return true
+    case .dspOnly: return false
+    }
+  }
+
+  /// A stable string key for this policy, for JSON artifacts and trace labels.
+  /// Replaces the former `String` raw value (dropped when ``weightedVoting(_:)``
+  /// gained an associated value, which makes `RawRepresentable` unsynthesizable).
+  /// The key ignores the ``weightedVoting(_:)`` payload.
+  public var stableKey: String {
+    switch self {
+    case .default: return "default"
+    case .dspOnly: return "dspOnly"
+    case .mlOnly: return "mlOnly"
+    case .highestConfidence: return "highestConfidence"
+    case .weightedVoting: return "weightedVoting"
+    }
+  }
+
+  /// A canonical, ordered list of the policy cases — the hand-written stand-in
+  /// for `CaseIterable.allCases`, which cannot be synthesized for an enum with
+  /// an associated-value case. ``weightedVoting(_:)`` is represented with
+  /// ``SignalWeights/default``. Consumed by the benchmark policy sweeps for
+  /// stable, reproducible row order.
+  public static let allPolicies: [EnsemblePolicy] = [
+    .default, .dspOnly, .mlOnly, .highestConfidence, .weightedVoting(.default),
+  ]
 }

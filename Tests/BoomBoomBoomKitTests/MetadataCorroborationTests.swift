@@ -416,35 +416,6 @@ struct MetadataCorroboratorUnitTests {
 @Suite("MetadataCorroboration — Service-level integration")
 struct MetadataCorroborationServiceTests {
 
-  @Test("disabled policy skips metadata I/O — empty evidence, byte-identical core fields")
-  func disabledPolicy() throws {
-    let url = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: url) }
-    var optsDisabled = AudioAnalysisService.Options()
-    optsDisabled.metadataPolicy = .disabled
-    let resultDisabled = try #require(
-      try AudioAnalysisService.analyzeBPM(
-        url: url, options: optsDisabled))
-    // Anchor the bitPattern equality to the SAME helper production calls.
-    // `runPreCorroborationPipeline` is the single source of truth for the
-    // pre-corroboration pipeline ordering invariant — discarding
-    // `metadataInput` here is intentional: the disabled-policy assertion
-    // is precisely that metadata I/O produces no evidence.
-    let baseline = try #require(
-      try AudioAnalysisService.runPreCorroborationPipeline(
-        url: url, options: optsDisabled, enableTrace: optsDisabled.enableTrace
-      ).result)
-    #expect(resultDisabled.metadataEvidence.isEmpty)
-    #expect(resultDisabled.bpm.bitPattern == baseline.bpm.bitPattern)
-    #expect(resultDisabled.confidence.bitPattern == baseline.confidence.bitPattern)
-    #expect(resultDisabled.candidates.count == baseline.candidates.count)
-    for (actual, expected) in zip(resultDisabled.candidates, baseline.candidates) {
-      #expect(actual.bpm.bitPattern == expected.bpm.bitPattern)
-      #expect(actual.score.bitPattern == expected.score.bitPattern)
-    }
-  }
-
   @Test("default policy populates evidence on AIFF with TBPM tag")
   func defaultPopulatesEvidence() throws {
     let url = try ClickTrackAIFFBuilder.write(
@@ -456,28 +427,20 @@ struct MetadataCorroborationServiceTests {
     #expect(result.metadataEvidence.first?.parsedBPM == 128.0)
   }
 
-  @Test("same-tempo corroboration boosts confidence on tagged synthetic click")
-  func sameTempoBoostsConfidence() throws {
-    let urlTagged = try ClickTrackAIFFBuilder.write(
+  /// Story 6.5b: the disabled-policy service path produces empty evidence — the
+  /// semantic-level replacement for the retired `.stage1Floor/.stage2Floor`
+  /// byte-identity tests (the byte floor was retired; output-equivalence is now
+  /// guarded at the value level + the corpus accuracy floors). Closes the
+  /// service-level coverage the deleted tagged tests left (code-review LOW).
+  @Test("disabled policy produces empty metadata evidence on a tagged AIFF")
+  func disabledPolicyEmptyEvidenceService() throws {
+    let url = try ClickTrackAIFFBuilder.write(
       clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: urlTagged) }
-    let urlPlain = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "0")  // sentinel-zero, no boost
-    defer { try? FileManager.default.removeItem(at: urlPlain) }
-
-    let tagged = try #require(try AudioAnalysisService.analyzeBPM(url: urlTagged))
-    var optsDisabled = AudioAnalysisService.Options()
-    optsDisabled.metadataPolicy = .disabled
-    let plain = try #require(
-      try AudioAnalysisService.analyzeBPM(
-        url: urlPlain, options: optsDisabled))
-
-    // Tagged confidence ≥ plain confidence (with strict > only if DSP found 128).
-    if abs(tagged.bpm - 128.0) < 0.5 {
-      #expect(tagged.confidence >= plain.confidence)
-    }
-    let corrEvidence = tagged.metadataEvidence.first(where: { $0.rejectionReason == nil })
-    #expect(corrEvidence != nil)
+    defer { try? FileManager.default.removeItem(at: url) }
+    var opts = AudioAnalysisService.Options()
+    opts.metadataPolicy = .disabled
+    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
+    #expect(result.metadataEvidence.isEmpty)
   }
 
   @Test("fastest intensity still reads metadata")
@@ -491,19 +454,6 @@ struct MetadataCorroborationServiceTests {
       try AudioAnalysisService.analyzeBPM(
         url: url, options: opts))
     #expect(!result.metadataEvidence.isEmpty)
-  }
-
-  @Test("disabled policy on tagged file produces empty evidence")
-  func disabledPolicyOnTaggedFile() throws {
-    let url = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: url) }
-    var opts = AudioAnalysisService.Options()
-    opts.metadataPolicy = .disabled
-    let result = try #require(
-      try AudioAnalysisService.analyzeBPM(
-        url: url, options: opts))
-    #expect(result.metadataEvidence.isEmpty)
   }
 
   @Test("intra-file conflict marks both tags rejected (AIFF with two TBPM frames)")
@@ -522,16 +472,6 @@ struct MetadataCorroborationServiceTests {
     }
   }
 
-  @Test("metadataEvidence empty when policy disabled even with tagged AIFF")
-  func evidenceEmptyWhenDisabled() throws {
-    let url = try ClickTrackAIFFBuilder.write(
-      clickBPM: 128, durationSeconds: 10, tbpm: "128")
-    defer { try? FileManager.default.removeItem(at: url) }
-    var opts = AudioAnalysisService.Options()
-    opts.metadataPolicy = .disabled
-    let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
-    #expect(result.metadataEvidence.isEmpty)
-  }
 }
 
 // MARK: - OA300 reference test (env-gated)
@@ -588,19 +528,21 @@ struct ArchitectureInvariantsTests {
     #expect(Set(MetadataSource.allCases) == Set([.iTunesTmpo, .id3TBPM, .vorbisBPM]))
   }
 
-  /// Story 4.4 AC #9: `EnsemblePolicy.allCases.count == 3` is unit-test-locked
-  /// alongside the existing five architecture invariants. Pre-1.0 / no-BC
-  /// framing (DD #13) allows breaking this invariant in a follow-up story
-  /// — but accidental drift fails this test loudly rather than silently.
-  @Test("EnsemblePolicy has exactly three cases (Story 4.4 AC #9)")
+  /// Story 6.5a: the `EnsemblePolicy` facade has exactly five cases. The type
+  /// dropped `String, CaseIterable` when it gained the associated-value
+  /// `.weightedVoting(SignalWeights)` case (which `RawRepresentable`/`CaseIterable`
+  /// cannot synthesize), so `allPolicies` is the hand-written stand-in for
+  /// `allCases`. Pre-1.0 / no-BC framing allows breaking this invariant in a
+  /// follow-up story — but accidental drift fails this test loudly.
+  @Test("EnsemblePolicy facade has exactly five cases (Story 6.5a)")
   func ensemblePolicyCases() {
-    #expect(EnsemblePolicy.allCases.count == 3)
+    #expect(EnsemblePolicy.allPolicies.count == 5)
     // Ordered comparison locks the iteration order so benchmark sweeps
-    // consuming `EnsemblePolicy.allCases` produce stable, reproducible
-    // policy-row order across runs (and so the JSON artifacts emitted by
-    // `make ml-policy-sweep` have a fixed row order regardless of how a
-    // future maintainer reorders the case definitions).
-    #expect(EnsemblePolicy.allCases == [.dspOnly, .mlOnly, .highestConfidence])
+    // consuming `EnsemblePolicy.allPolicies` produce stable, reproducible
+    // policy-row order across runs.
+    #expect(
+      EnsemblePolicy.allPolicies
+        == [.default, .dspOnly, .mlOnly, .highestConfidence, .weightedVoting(.default)])
   }
 
   /// Story 4.5 DD #14: `TensorLayout.allCases.count == 2` is unit-test-locked
@@ -611,6 +553,16 @@ struct ArchitectureInvariantsTests {
   func tensorLayoutCases() {
     #expect(TensorLayout.allCases.count == 2)
     #expect(Set(TensorLayout.allCases) == Set([.frameMajorLogMel, .nchw]))
+  }
+
+  /// Story 6.5a: `OctaveEquivalencePolicy.allCases.count == 3` is unit-test-locked
+  /// in the canonical invariant venue alongside the other case-count invariants.
+  @Test("OctaveEquivalencePolicy has exactly three cases (Story 6.5a)")
+  func octaveEquivalencePolicyCases() {
+    #expect(OctaveEquivalencePolicy.allCases.count == 3)
+    #expect(
+      Set(OctaveEquivalencePolicy.allCases)
+        == Set([.collapseToFundamental, .octaveAwareWithPenalty, .exactMatchOnly]))
   }
 
   @Test("MetadataPolicy.default enables all sources, valueRange 30-300")

@@ -18,7 +18,7 @@ final class AnalysisViewModel {
   // place without breaking the call sites.
   struct Configuration: Sendable {
     let defaults: UserDefaults
-    let fallbackStrategy: CandidateMergeStrategy
+    let fallbackStrategy: BPMSelectionPolicy
 
     static let live = Configuration(
       defaults: .standard,
@@ -52,7 +52,7 @@ final class AnalysisViewModel {
     if let rawValue = configuration.defaults.string(
       forKey: Self.preferredMergeStrategyKey
     ) {
-      if let strategy = CandidateMergeStrategy(rawValue: rawValue) {
+      if let strategy = BPMSelectionPolicy(rawValue: rawValue) {
         options.mergeStrategy = strategy
       } else {
         // Self-heal: remove the bad key, fall back to the configured
@@ -497,10 +497,10 @@ final class AnalysisViewModel {
 
   // MARK: - Humanization
 
-  // Space-separated lowercase rendering of `CandidateMergeStrategy` for
+  // Space-separated lowercase rendering of `BPMSelectionPolicy` for
   // the result-row caption. UI-only — the exported JSON keeps the
   // rawValue verbatim.
-  static func humanize(_ strategy: CandidateMergeStrategy) -> String {
+  static func humanize(_ strategy: BPMSelectionPolicy) -> String {
     switch strategy {
     case .maxConfidence: return "max confidence"
     case .dedup: return "dedup"
@@ -521,7 +521,7 @@ final class AnalysisViewModel {
   // No leading whitespace, no trailing newline.
   static func generateConfigSnippet(
     intensity: AnalysisIntensity,
-    mergeStrategy: CandidateMergeStrategy
+    mergeStrategy: BPMSelectionPolicy
   ) -> String {
     let intensityLiteral: String
     switch intensity.rawValue {
