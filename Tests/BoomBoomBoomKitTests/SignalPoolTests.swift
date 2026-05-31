@@ -16,6 +16,44 @@ import Testing
 @Suite("SignalPoolTests")
 struct SignalPoolTests {
 
+  // MARK: - W56: entry source / embedded WeightedSignal.source agreement
+
+  /// W56 (Blind #19 / Copilot PR #17): `SignalParticipationTraceEntry.init`
+  /// `precondition`s that a `.present` / `.demoted` participation's embedded
+  /// `WeightedSignal.source` matches the entry's canonical `source`. The trap
+  /// case (a `.dsp` entry wrapping a `.ml` signal) aborts the process and is not
+  /// `#expect(throws:)`-catchable in Swift Testing (the documented `precondition`
+  /// limitation). This positive test pins that matching-source entries — the
+  /// shape every production caller emits — construct and preserve their fields,
+  /// so a refactor that breaks the agreement is caught here.
+  @Test func traceEntrySourceMatchesEmbeddedSignalSource() {
+    let dsp = WeightedSignal(bpm: 128.0, confidence: 0.8, source: .dsp, score: 0.8)
+    let present = SignalParticipationTraceEntry(
+      source: .dsp, participation: .present(dsp), weight: 1.0, contribution: 0.8)
+    #expect(present.source == .dsp)
+    if case .present(let s) = present.participation {
+      #expect(s.source == present.source)
+    } else {
+      Issue.record("expected .present participation")
+    }
+
+    let meta = WeightedSignal(bpm: 174.0, confidence: 1.0, source: .fileMetadata)
+    let demoted = SignalParticipationTraceEntry(
+      source: .fileMetadata,
+      participation: .demoted(meta, reason: .sourceSpecific("intra-file-conflict")),
+      weight: 1.0, contribution: 1.0)
+    if case .demoted(let s, _) = demoted.participation {
+      #expect(s.source == demoted.source)
+    } else {
+      Issue.record("expected .demoted participation")
+    }
+
+    // `.absent` carries no signal — the precondition is a no-op; any source is fine.
+    let absent = SignalParticipationTraceEntry(
+      source: .ml, participation: .absent, weight: 1.0, contribution: 0.0)
+    #expect(absent.source == .ml)
+  }
+
   // MARK: - AC #1: shape & exhaustiveness
 
   /// Exhaustive switch over `SignalParticipation` — compile-time guarantee
