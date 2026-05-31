@@ -102,6 +102,35 @@ struct EnsemblePolicyShortCircuitTests {
     #expect(mock.callCount == 0)
   }
 
+  /// Story 6.5b (KDD-A5 activation): `.default` and `.weightedVoting` are now
+  /// LIVE weighted-resolution policies — they invoke ML inference and capture
+  /// log-mel features when a technique is wired up (`invokesMLInference == true`).
+  /// This is the deliberate flip of the Story 6.5a placeholder-inertness contract
+  /// (the cases shipped inert; 6.5b consumes them). `.dspOnly` remains the only
+  /// operation-inert ML short-circuit (locked by `mlTechniqueNotInvokedUnderDSPOnly`
+  /// above).
+  @Test("KDD-A5: .default / .weightedVoting invoke ML when a technique is present")
+  func weightedPoliciesInvokeMLWhenActivated() throws {
+    for policy: EnsemblePolicy in [.default, .weightedVoting(.default)] {
+      let url = try makeSyntheticClickTrack()
+      let mock = RecordingMockMLTechnique()
+      var opts = AudioAnalysisService.Options()
+      opts.ensemblePolicy = policy
+      opts.mlTechnique = mock
+      opts.enableTrace = true
+
+      let result = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
+      #expect(mock.callCount > 0, "ML must run under activated \(policy.stableKey)")
+      #expect(
+        result?.trace?.mlFeatures != nil,
+        "ML feature capture expected under activated \(policy.stableKey)")
+      // The weighted resolution records its forensic evidence (KDD-A5).
+      #expect(
+        result?.trace?.ensembleWeightResolution != nil,
+        "EnsembleWeightResolution expected under \(policy.stableKey)")
+    }
+  }
+
   /// AC #14 contrapositive: under `.mlOnly` the short-circuit must NOT fire.
   /// `RecordingMockMLTechnique.callCount == 1` proves `evaluate(trace:)` ran
   /// for the single window analysis. `capturedCandidatesAfterBoostCount > 0`
@@ -323,10 +352,11 @@ private struct DecisionTableRow44: Encodable {
 struct EnsemblePolicyDecisionTableTests {
 
   /// Task 6.1: emit `_bmad-output/implementation-artifacts/4-4-ensemble-policy-decision-table.json`
-  /// covering 3 policies × 4 outcome cases (12 rows). JSON is byte-stable
+  /// covering 5 policies × 4 outcome cases (20 rows; Story 6.5a grew the
+  /// `EnsemblePolicy` facade from 3 to 5 cases). JSON is byte-stable
   /// (`.prettyPrinted` + `.sortedKeys`); the test runs on every `make test`
   /// so the artifact is always reproducible.
-  @Test("decisionTableArtifactWritesValidJSON — 12 rows, .prettyPrinted + .sortedKeys")
+  @Test("decisionTableArtifactWritesValidJSON — 20 rows, .prettyPrinted + .sortedKeys")
   func decisionTableArtifactWritesValidJSON() throws {
     struct Outcome {
       let name: String
@@ -348,7 +378,7 @@ struct EnsemblePolicyDecisionTableTests {
     ]
 
     var rows: [DecisionTableRow44] = []
-    for policy in EnsemblePolicy.allCases {
+    for policy in EnsemblePolicy.allPolicies {
       for outcome in outcomes {
         let dspResult = BPMResult(
           bpm: outcome.dsp.bpm, confidence: outcome.dsp.conf,
@@ -357,29 +387,46 @@ struct EnsemblePolicyDecisionTableTests {
         let mlEval = outcome.ml.map {
           MLEvaluation(bpm: $0.bpm, confidence: $0.conf)
         }
-        let combined = EnsembleCombiner.combine(
+        let combined = AudioAnalysisService.combineEnsemble(
           dspWinner: dspResult, mlEvaluation: mlEval, policy: policy)
 
         let decision = combined.trace?.ensembleDecision
+        // Story 6.5b KDD-A5: `.default` / `.weightedVoting` emit
+        // `ensembleWeightResolution` (not `ensembleDecision`); read both so the
+        // artifact reports the true winner for the weighted-resolution policies.
+        let weightRes = combined.trace?.ensembleWeightResolution
         let source: String = {
-          guard let d = decision else { return "dsp" }
-          switch d.winner {
-          case .dsp, .tie: return "dsp"
-          case .ml: return "ml"
+          if let d = decision {
+            switch d.winner {
+            case .dsp, .tie: return "dsp"
+            case .ml: return "ml"
+            }
           }
+          if let w = weightRes {
+            switch w.winner {
+            case .dsp, .tie: return "dsp"
+            case .ml: return "ml"
+            }
+          }
+          return "dsp"
         }()
         let reason: String = {
           if outcome.ml == nil { return "protocol_abstain" }
-          if decision == nil {
-            return policy == .dspOnly
-              ? "policy_dspOnly_short_circuit" : "no_decision"
+          if let w = weightRes {
+            // KDD-A5 weighted resolution (`.default` / `.weightedVoting`).
+            return "policy_\(policy.stableKey)_weighted_\(w.winner.rawValue)"
           }
-          return "policy_\(policy.rawValue)_\(decision!.winner.rawValue)"
+          if decision == nil {
+            // `.dspOnly` short-circuits before ML and attaches no decision.
+            return !policy.invokesMLInference
+              ? "policy_\(policy.stableKey)_short_circuit" : "no_decision"
+          }
+          return "policy_\(policy.stableKey)_\(decision!.winner.rawValue)"
         }()
 
         rows.append(
           DecisionTableRow44(
-            policy: policy.rawValue,
+            policy: policy.stableKey,
             case: outcome.name,
             dsp: DspBlock44(bpm: outcome.dsp.bpm, conf: outcome.dsp.conf),
             ml: outcome.ml.map { MlBlock44(bpm: $0.bpm, conf: $0.conf) },
@@ -388,7 +435,7 @@ struct EnsemblePolicyDecisionTableTests {
       }
     }
 
-    #expect(rows.count == 12, "expected 3 policies × 4 outcomes = 12 rows")
+    #expect(rows.count == 20, "expected 5 policies × 4 outcomes = 20 rows")
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -399,7 +446,7 @@ struct EnsemblePolicyDecisionTableTests {
     print("4-4-ensemble-policy-decision-table.json -> \(target.path)")
   }
 
-  /// Task 6.5: the EnsembleCombiner is deterministic — two consecutive
+  /// Task 6.5: the ensemble policy sweep is deterministic — two consecutive
   /// invocations against the same inputs produce byte-identical JSON
   /// output. Tiny synthetic fixture set (no corpus needed) so this runs on
   /// every `make test`.
@@ -411,17 +458,20 @@ struct EnsemblePolicyDecisionTableTests {
         candidates: [(bpm: 120.0, score: 0.7)],
         trace: BPMDiagnosticTrace())
       var rows: [DecisionTableRow44] = []
-      for policy in EnsemblePolicy.allCases {
-        let combined = EnsembleCombiner.combine(
+      for policy in EnsemblePolicy.allPolicies {
+        let combined = AudioAnalysisService.combineEnsemble(
           dspWinner: dsp,
           mlEvaluation: MLEvaluation(bpm: 128.0, confidence: 0.92),
           policy: policy)
+        // KDD-A5: `.default` / `.weightedVoting` report via
+        // `ensembleWeightResolution`; the ML-policies via `ensembleDecision`.
         let source: String =
           combined.trace?.ensembleDecision?.winner.rawValue
+          ?? combined.trace?.ensembleWeightResolution?.winner.rawValue
           ?? "dsp"
         rows.append(
           DecisionTableRow44(
-            policy: policy.rawValue, case: "fixture",
+            policy: policy.stableKey, case: "fixture",
             dsp: DspBlock44(bpm: 120.0, conf: 0.7),
             ml: MlBlock44(bpm: 128.0, conf: 0.92),
             ensemble: EnsembleBlock44(

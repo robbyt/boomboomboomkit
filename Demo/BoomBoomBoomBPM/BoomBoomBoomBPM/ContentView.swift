@@ -30,7 +30,7 @@ struct ContentView: View {
   // `nil` until the first run completes — that's the cue for the
   // neutral pre-analysis gradient (KDD #8). Once a snapshot exists,
   // the user-chosen merge strategy keys the visual.
-  private var backgroundStrategy: CandidateMergeStrategy? {
+  private var backgroundStrategy: BPMSelectionPolicy? {
     viewModel.lastRunSnapshot == nil ? nil : viewModel.options.mergeStrategy
   }
 
@@ -209,7 +209,7 @@ struct ContentView: View {
         // value, so a future preset feature could trigger unintended
         // re-analyzes.
         Picker("Merge strategy", selection: $viewModel.options.mergeStrategy) {
-          ForEach(CandidateMergeStrategy.allCases, id: \.self) { strategy in
+          ForEach(BPMSelectionPolicy.allCases, id: \.self) { strategy in
             // F06 (Story 5-6 review, closes deferred-work W28): humanize
             // raw camelCase enum names ("maxConfidence", "windowVoting")
             // into space-separated lowercase ("max confidence", "window

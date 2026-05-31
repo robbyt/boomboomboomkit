@@ -62,7 +62,7 @@ public struct MLEvaluation: Sendable {
   ///
   /// - Parameters:
   ///   - bpm: The model's tempo estimate. Conformers should clamp to `60.0...200.0`;
-  ///     non-finite values are rejected by ``EnsembleCombiner`` and treated as a
+  ///     non-finite values are rejected by the ensemble combiner and treated as a
   ///     sentinel-NaN abstain.
   ///   - confidence: The model's self-reported confidence in `[0.0, 1.0]`.
   ///     Out-of-range and non-finite values are sanitized downstream — see
@@ -80,7 +80,7 @@ public struct MLEvaluation: Sendable {
 
 /// Extension point for ML-augmented BPM estimation. The library invokes
 /// conformers AFTER the DSP pipeline and AFTER metadata corroboration; the
-/// result is consumed by the `EnsembleCombiner` per the user's selected
+/// result is consumed by the ensemble combiner per the user's selected
 /// `EnsemblePolicy`. Story 4.5 ships ``BNNSTechnique`` as the default
 /// implementation; consumers may bring their own conformance via
 /// `Options.mlTechnique = MyCustomMLTechnique()`.

@@ -11,6 +11,71 @@
       "source" : "dsp"
     },
     "ml" : null,
+    "policy" : "default"
+  },
+  {
+    "case" : "ml_agrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_default_weighted_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 120,
+      "conf" : 0.95
+    },
+    "policy" : "default"
+  },
+  {
+    "case" : "ml_disagrees_low_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_default_weighted_dsp",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.4
+    },
+    "policy" : "default"
+  },
+  {
+    "case" : "ml_disagrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 60,
+      "reason" : "policy_default_weighted_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.95
+    },
+    "policy" : "default"
+  },
+  {
+    "case" : "ml_nil",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "protocol_abstain",
+      "source" : "dsp"
+    },
+    "ml" : null,
     "policy" : "dspOnly"
   },
   {
@@ -193,5 +258,70 @@
       "conf" : 0.95
     },
     "policy" : "highestConfidence"
+  },
+  {
+    "case" : "ml_nil",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "protocol_abstain",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "weightedVoting"
+  },
+  {
+    "case" : "ml_agrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_weightedVoting_weighted_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 120,
+      "conf" : 0.95
+    },
+    "policy" : "weightedVoting"
+  },
+  {
+    "case" : "ml_disagrees_low_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_weightedVoting_weighted_dsp",
+      "source" : "dsp"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.4
+    },
+    "policy" : "weightedVoting"
+  },
+  {
+    "case" : "ml_disagrees_high_conf",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.7
+    },
+    "ensemble" : {
+      "bpm" : 60,
+      "reason" : "policy_weightedVoting_weighted_ml",
+      "source" : "ml"
+    },
+    "ml" : {
+      "bpm" : 60,
+      "conf" : 0.95
+    },
+    "policy" : "weightedVoting"
   }
 ]

@@ -21,7 +21,7 @@ struct LastRunDiagnosticSnapshot: Sendable {
 // is synthesized.
 struct RunOptionsSnapshot: Sendable, Equatable {
   let intensity: AnalysisIntensity
-  let mergeStrategy: CandidateMergeStrategy
+  let mergeStrategy: BPMSelectionPolicy
   let votingPolicy: VotingPolicy
   let votingThreshold: Double
   let metadataPolicyEnabledSources: Set<MetadataSource>
@@ -55,7 +55,7 @@ struct RunOptionsSnapshot: Sendable, Equatable {
 ///
 /// Cascade order reflects pipeline execution order in
 /// `AudioAnalysisService.analyzeBPM`: BPMAnalyzer (clickRescore →
-/// durationHint → subBandVote → fineGrid) → CandidateMergeStrategy.merge
+/// durationHint → subBandVote → fineGrid) → BPMSelectionPolicy.merge
 /// → MetadataCorroborator.apply → ML ensemble combiner. Highest priority
 /// = latest-executed.
 enum FinalSelectionStep: String, Sendable, Equatable, CaseIterable {
@@ -247,7 +247,7 @@ struct TraceExport: Codable, Sendable, Equatable {
         .sorted(),
       durationHint: runOptions.durationHint,
       durationHintMinFileSeconds: runOptions.durationHintMinFileSeconds,
-      ensemblePolicy: runOptions.ensemblePolicy.rawValue,
+      ensemblePolicy: runOptions.ensemblePolicy.stableKey,
       enableTrace: runOptions.enableTrace,
       enableMLDiagnostics: runOptions.enableMLDiagnostics,
       maxSeconds: runOptions.maxSeconds,
@@ -540,7 +540,7 @@ struct EnsembleDecisionJSON: Codable, Sendable, Equatable {
   let selectedBPM: Double
 
   init(from decision: EnsembleDecision) {
-    self.policy = decision.policy.rawValue
+    self.policy = decision.policy.stableKey
     self.winner = decision.winner.rawValue
     // CLAUDE.md explicitly notes EnsembleDecision is "not Hashable
     // (unsanitized Double.nan in DSP/ML values would break the hash

@@ -231,7 +231,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `PCMBufferReader` | Audio file → `[Float]` mono samples |
 | `PCMBufferReaderError` | Error cases for file reading |
 | `AnalysisIntensity` | Controls pipeline depth (1-10 ordinal scale) |
-| `CandidateMergeStrategy` | How multi-window candidates are combined (8 strategies) |
+| `BPMSelectionPolicy` | How multi-window candidates are combined (8 strategies) |
 | `DSPTechnique` | Individual DSP technique enum (closed set, `CaseIterable`) |
 | `TechniqueSet` | Composable technique set with named presets (`.optimal`, `.clickAugmented`, `.full`, …) |
 | `VotingPolicy` | Resolution policy for `mergeStrategy == .windowVoting` (3 cases) |

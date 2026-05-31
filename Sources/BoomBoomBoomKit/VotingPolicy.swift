@@ -7,14 +7,14 @@
 
 import Foundation
 
-/// Resolution policy used by ``CandidateMergeStrategy/windowVoting`` to choose
+/// Resolution policy used by ``BPMSelectionPolicy/windowVoting`` to choose
 /// the consensus window across multiple analysis windows.
 ///
 /// `VotingPolicy` is consulted ONLY when `mergeStrategy == .windowVoting` (where
-/// `mergeStrategy` is the ``CandidateMergeStrategy`` value held by
+/// `mergeStrategy` is the ``BPMSelectionPolicy`` value held by
 /// ``AudioAnalysisService/Options``). It is NOT a DSP technique, NOT a merge
 /// strategy case, and does NOT belong in ``DSPTechnique`` or
-/// `CandidateMergeStrategy.allCases`.
+/// `BPMSelectionPolicy.allCases`.
 ///
 /// All policies share the same 2% relative BPM tolerance for clustering windows;
 /// they differ only in how the winning cluster is chosen and gated. The
@@ -27,7 +27,7 @@ public enum VotingPolicy: String, CaseIterable, Sendable, Hashable {
   /// window has the larger confidence wins; if those tie too, the cluster whose
   /// lowest original window index is smaller wins. Within the chosen cluster,
   /// the highest-confidence window is returned (breaking ties by lowest original
-  /// index). Falls back to ``CandidateMergeStrategy/maxConfidence`` over ALL
+  /// index). Falls back to ``BPMSelectionPolicy/maxConfidence`` over ALL
   /// windows when no cluster has at least two members.
   ///
   /// This is the post-Story-3-3a baseline behavior and the default policy.
@@ -41,7 +41,7 @@ public enum VotingPolicy: String, CaseIterable, Sendable, Hashable {
   /// confidence, then (b) the cluster's lowest original window index. After the
   /// winner is chosen, if it is a singleton (its summed confidence equals one
   /// window's confidence — no consensus benefit) the policy falls back to
-  /// ``CandidateMergeStrategy/maxConfidence`` over ALL windows. Otherwise the
+  /// ``BPMSelectionPolicy/maxConfidence`` over ALL windows. Otherwise the
   /// highest-confidence window in the winning cluster is returned (breaking
   /// ties by lowest original index).
   ///
@@ -57,7 +57,7 @@ public enum VotingPolicy: String, CaseIterable, Sendable, Hashable {
   /// clamp; non-finite values (NaN, ±Infinity, signaling NaN) silently fall
   /// back to `0.0` (permissive). When the chosen cluster's max confidence is
   /// strictly below the (normalized) threshold, the policy falls back to
-  /// ``CandidateMergeStrategy/maxConfidence`` over ALL windows. Cluster
+  /// ``BPMSelectionPolicy/maxConfidence`` over ALL windows. Cluster
   /// selection and within-cluster window selection use the same explicit
   /// `(higher confidence, lower original index)` tiebreaker chain as
   /// ``simpleMajority``.

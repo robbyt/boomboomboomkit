@@ -1,26 +1,26 @@
 installation:
-  version: 6.7.1
+  version: 6.8.0
   installDate: 2026-03-21 23:38:56.349000000 Z
-  lastUpdated: 2026-05-25T16:58:23.697Z
+  lastUpdated: 2026-05-28T05:04:58.895Z
 modules:
   - name: core
-    version: 6.7.1
+    version: 6.8.0
     installDate: 2026-03-21 23:38:56.019000000 Z
-    lastUpdated: 2026-05-25T16:58:23.695Z
+    lastUpdated: 2026-05-28T05:04:58.893Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: bmm
-    version: 6.7.1
+    version: 6.8.0
     installDate: 2026-04-27T04:20:19.653Z
-    lastUpdated: 2026-05-25T16:58:23.695Z
+    lastUpdated: 2026-05-28T05:04:58.893Z
     source: built-in
     npmPackage: null
     repoUrl: null
   - name: gloria
     version: null
     installDate: 2026-04-27 04:09:57.236000000 Z
-    lastUpdated: 2026-05-25T16:58:23.696Z
+    lastUpdated: 2026-05-28T05:04:58.894Z
     source: unknown
     npmPackage: null
     repoUrl: null
@@ -28,7 +28,7 @@ modules:
   - name: siri
     version: null
     installDate: 2026-04-27 04:09:57.274000000 Z
-    lastUpdated: 2026-05-25T16:58:23.697Z
+    lastUpdated: 2026-05-28T05:04:58.895Z
     source: unknown
     npmPackage: null
     repoUrl: null
