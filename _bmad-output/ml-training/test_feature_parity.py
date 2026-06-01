@@ -23,7 +23,6 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
@@ -89,9 +88,9 @@ def compare_within_tol(
 def stage1_fixture_roundtrip(report: list[StageResult]) -> bool:
     """Stage 1 — filterbank fixture .npz round-trip ≤ 1e-6."""
     fixture = load_fixture(FIXTURE_PATH)
-    swift_fb = np.fromfile(
-        SWIFT_OUT_DIR / "mel_filterbank.f32", dtype=np.float32
-    ).reshape(fixture.mel_filterbank.shape)
+    swift_fb = np.fromfile(SWIFT_OUT_DIR / "mel_filterbank.f32", dtype=np.float32).reshape(
+        fixture.mel_filterbank.shape
+    )
     swift_win = np.fromfile(SWIFT_OUT_DIR / "stft_window.f32", dtype=np.float32)
 
     fb_passed, fb_abs, fb_rel = compare_within_tol(
@@ -156,15 +155,9 @@ def stage234_for_signal(
     py_stage4 = py_stage4_t.T  # to (frames, n_mels) for parity
 
     # Swift dumps as flat float32, layout (frames, n_mels) row-major.
-    swift_stage2 = _load_swift_2d(
-        SWIFT_STAGES_DIR / stage_meta["stage2_path"], expected_shape
-    )
-    swift_stage3 = _load_swift_2d(
-        SWIFT_STAGES_DIR / stage_meta["stage3_path"], expected_shape
-    )
-    swift_stage4 = _load_swift_2d(
-        SWIFT_STAGES_DIR / stage_meta["stage4_path"], expected_shape
-    )
+    swift_stage2 = _load_swift_2d(SWIFT_STAGES_DIR / stage_meta["stage2_path"], expected_shape)
+    swift_stage3 = _load_swift_2d(SWIFT_STAGES_DIR / stage_meta["stage3_path"], expected_shape)
+    swift_stage4 = _load_swift_2d(SWIFT_STAGES_DIR / stage_meta["stage4_path"], expected_shape)
 
     # Stage 4 active-band mask
     DEGENERATE_STD_THRESHOLD = 1e-3

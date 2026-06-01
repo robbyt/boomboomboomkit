@@ -274,9 +274,16 @@ oracle-generate:
 fmt:
 	swift format --recursive --in-place Sources/ Tests/
 
-## lint: Run SwiftLint code quality checks
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) carries pre-existing ty debt and is out of the ty scope for now.
+.PHONY: py-lint
+py-lint:
+	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
+	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py ../../scripts/audit-corpus-splits.py
+
+## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
-lint:
+lint: py-lint
 	swiftlint lint .
 
 ## lint-fix: Run SwiftLint with auto-fix

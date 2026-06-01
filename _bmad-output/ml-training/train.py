@@ -28,7 +28,7 @@ import os
 import random
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +47,6 @@ from dataset import (
     FIXTURE_PATH,
     SAMPLE_RATE,
     TARGET_FRAMES,
-    TempoDataset,
     TrackRecord,
     augment_pcm,
     build_splits,
@@ -177,7 +176,9 @@ class CachedTempoDataset(Dataset):
         if self.augment:
             stretch_safe_ceiling = BPM_BIN_MAX / 1.04
             audio, bpm = augment_pcm(
-                audio, bpm, rng,
+                audio,
+                bpm,
+                rng,
                 sr=SAMPLE_RATE,
                 allow_stretch=(bpm <= stretch_safe_ceiling),
             )
@@ -236,7 +237,7 @@ def set_seeds(seed: int) -> None:
 
 def acc_4pct(predicted_bpm: torch.Tensor, true_bpm: torch.Tensor) -> torch.Tensor:
     """|pred - truth| / truth ≤ 0.04 — literature-comparable Acc1 (S&M 2018)."""
-    return (torch.abs(predicted_bpm - true_bpm) / torch.clamp(true_bpm, min=1e-6) <= 0.04)
+    return torch.abs(predicted_bpm - true_bpm) / torch.clamp(true_bpm, min=1e-6) <= 0.04
 
 
 def bin_to_bpm_tensor(bin_idx: torch.Tensor) -> torch.Tensor:
@@ -507,8 +508,8 @@ def main(argv: list[str] | None = None) -> int:
     # documented but never tripped in code). Smoke run uses --subset; full run
     # otherwise. If wall-clock exceeds the ceiling, raise so the run exits
     # non-zero before silently burning hours.
-    SMOKE_CEILING_S = 2 * 60          # 2 min smoke ceiling
-    FULL_CEILING_S = 6 * 60 * 60      # 6h full-run ceiling
+    SMOKE_CEILING_S = 2 * 60  # 2 min smoke ceiling
+    FULL_CEILING_S = 6 * 60 * 60  # 6h full-run ceiling
     is_smoke = args.subset is not None
     ceiling_s = SMOKE_CEILING_S if is_smoke else FULL_CEILING_S
     print(f"AC #8 wall-clock ceiling: {ceiling_s}s ({'smoke' if is_smoke else 'full'} run)")
@@ -541,7 +542,9 @@ def main(argv: list[str] | None = None) -> int:
         median_wall = float(np.median(epoch_walls))
         if epoch_wall >= 5.0 * median_wall and len(epoch_walls) >= 3:
             log_metadata["mps_fallback_observed"] = True
-            print(f"!! WARN: epoch {epoch} wall {epoch_wall:.1f}s >= 5x median {median_wall:.1f}s — MPS fallback suspected")
+            print(
+                f"!! WARN: epoch {epoch} wall {epoch_wall:.1f}s >= 5x median {median_wall:.1f}s — MPS fallback suspected"
+            )
         print(
             f"epoch {epoch:03d} | "
             f"wall {epoch_wall:6.1f}s | "
@@ -584,12 +587,12 @@ def main(argv: list[str] | None = None) -> int:
     # wrapped intermediate checkpoints are for resume).
     torch.save(model.state_dict(), MODEL_PATH)
 
-    log_metadata["training_end_utc"] = time.strftime(
-        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-    )
+    log_metadata["training_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     log_metadata["total_wall_clock_seconds"] = time.time() - overall_start
     log_metadata["epochs_completed"] = len(log_per_epoch)
-    log_metadata["median_epoch_wall_clock_seconds"] = float(np.median(epoch_walls)) if epoch_walls else 0.0
+    log_metadata["median_epoch_wall_clock_seconds"] = (
+        float(np.median(epoch_walls)) if epoch_walls else 0.0
+    )
 
     out = {"metadata": log_metadata, "per_epoch": log_per_epoch}
     TRAINING_LOG_PATH.write_text(json.dumps(out, indent=2, sort_keys=True))
