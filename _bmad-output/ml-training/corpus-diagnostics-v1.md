@@ -26,14 +26,14 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## gitSha
 
-`effb1d5-dirty`
+`38dde01-dirty`
 
 ## provenance
 
 - **labelsPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/tony-corpus/tony-truth-labels.json`
 - **labelsSha256**: `e01ae432b424f8bd37b367c315c45599e33327c8ff247fb59cf1f6757b83f96a`
 - **labelerScriptPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/scripts/tony-tunes-labels.py`
-- **labelerScriptSha256**: `c334b93c39402ba483aa2dde9cb8117b95e14c6cfb61c235a090b32d582e95e2`
+- **labelerScriptSha256**: `0b2c096191dcf79e71961e6eb0f6ea59cae3209a7c3c21b661c25b275cea1d04`
 - **trackCount**: `1344`
 - **note**: `The corpus is develop-local/gitignored; these hashes pin the EXACT label file + labeler that produced the figures below. A regenerated label file changes labelsSha256 and invalidates this artifact (AC9).`
 

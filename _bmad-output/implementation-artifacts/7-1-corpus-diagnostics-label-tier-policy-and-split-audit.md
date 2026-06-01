@@ -295,6 +295,7 @@ New (develop-only):
 - `_bmad-output/ml-training/label-tier-policy-v1.md`
 - `_bmad-output/ml-training/expanded-sentinels-curation.md`
 - `_bmad-output/ml-training/7-1-pressure-release.md`
+- `_bmad-output/ml-training/manual-dup-exclusions.json` (operator-input template for the KDD-B4 dup-exclusion loop; empty list = no drops)
 - `scripts/audit-corpus-splits.py`
 - (`_bmad-output/ml-training/tony-corpus/fingerprint-cache.npz` — regenerable cache, gitignored, NOT committed)
 
@@ -339,9 +340,16 @@ the quorum-agreed correctness/robustness fixes were applied:
   fingerprint cache drops non-finite cached vectors; over-exclusion >5% warning; quintile thin-pool guard.
 - [x] **[doc] Stale counts + Charly mechanism (Auditor):** AC6 counts refreshed;
   clarified Tony's Charly is Marginal-tier-excluded (not cross-corpus), leak-safe.
+- [x] **[follow-up] Near-dup checklist item made actionable:** the new review
+  checklist item said confirmed dups should be "excluded", but no within-Tony dup
+  exclusion path existed. Added `manual-dup-exclusions.json` (optional operator
+  input, same exclusion pattern as cross-corpus/sentinels) + track_ids in the
+  audit's near-dup flag output, so the operator can confirm a flagged pair by ear,
+  drop the duplicate's id, and re-run `make ml-splits`.
 - Deferred (not 7.1 defects): split incremental-instability under corpus growth
-  (design note for 7.5/7.6); the report-only fingerprint's residual 21 inconsistent-naming
-  near-dup flags are surfaced for the operator's KDD-B4 signoff (new checklist item).
+  (design note for 7.5/7.6, deferred-work 7-1-D1); the report-only fingerprint's
+  residual 21 inconsistent-naming near-dup flags are surfaced for the operator's
+  KDD-B4 signoff (new checklist item + the manual-dup-exclusions.json action path).
 
 ### Change Log
 

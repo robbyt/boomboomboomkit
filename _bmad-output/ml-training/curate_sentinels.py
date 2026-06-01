@@ -31,12 +31,18 @@ import sys
 import corpus_common as cc
 
 OUT_JAMS = (
-    cc.REPO_ROOT / "Tests" / "BoomBoomBoomKitBenchmarkTests" / "Fixtures"
+    cc.REPO_ROOT
+    / "Tests"
+    / "BoomBoomBoomKitBenchmarkTests"
+    / "Fixtures"
     / "12-dnb-sentinels-expanded.json"
 )
 OUT_MD = cc.ML_TRAINING_DIR / "expanded-sentinels-curation.md"
 CANONICAL_ORIGINALS = (
-    cc.REPO_ROOT / "Tests" / "BoomBoomBoomKitBenchmarkTests" / "Fixtures"
+    cc.REPO_ROOT
+    / "Tests"
+    / "BoomBoomBoomKitBenchmarkTests"
+    / "Fixtures"
     / "4-dnb-triplet-targets.json"
 )
 
@@ -110,17 +116,20 @@ def load_originals() -> list[dict]:
     data = json.loads(CANONICAL_ORIGINALS.read_text())
     out = []
     for t in data["targets"]:
-        out.append({
-            "track_id": t["track_id"],
-            "bpm": float(t["ground_truth_bpm"]),
-            "confidence": 1.0,
-            "source": t.get("source", "dawproject"),
-        })
+        out.append(
+            {
+                "track_id": t["track_id"],
+                "bpm": float(t["ground_truth_bpm"]),
+                "confidence": 1.0,
+                "source": t.get("source", "dawproject"),
+            }
+        )
     return out
 
 
-def jams_entry(*, title, artist, track_id, bpm, confidence, subgenre,
-               provisional, quintile, origin, source) -> dict:
+def jams_entry(
+    *, title, artist, track_id, bpm, confidence, subgenre, provisional, quintile, origin, source
+) -> dict:
     """One JAMS-format entry: file_metadata + a single tempo annotation."""
     return {
         "file_metadata": {
@@ -132,9 +141,7 @@ def jams_entry(*, title, artist, track_id, bpm, confidence, subgenre,
         "annotations": [
             {
                 "namespace": "tempo",
-                "data": [
-                    {"time": 0.0, "duration": None, "value": bpm, "confidence": confidence}
-                ],
+                "data": [{"time": 0.0, "duration": None, "value": bpm, "confidence": confidence}],
                 "annotation_metadata": {
                     "curator": {"name": "Story 7.1 sentinel curation", "email": ""},
                     "annotation_tools": "curate_sentinels.py (provisional subgenre)",
@@ -157,19 +164,29 @@ def build_jams(expanded: list[dict], originals: list[dict]) -> dict:
 
     # 4 originals (OA300 dawproject-verified; already held-out eval).
     for o in originals:
-        entries.append(jams_entry(
-            title=o["track_id"], artist="", track_id=o["track_id"],
-            bpm=o["bpm"], confidence=o["confidence"],
-            subgenre="dnb-original", provisional=False, quintile=None,
-            origin="4-dnb-triplet-targets.json (schema v3)", source=o["source"],
-        ))
+        entries.append(
+            jams_entry(
+                title=o["track_id"],
+                artist="",
+                track_id=o["track_id"],
+                bpm=o["bpm"],
+                confidence=o["confidence"],
+                subgenre="dnb-original",
+                provisional=False,
+                quintile=None,
+                origin="4-dnb-triplet-targets.json (schema v3)",
+                source=o["source"],
+            )
+        )
 
     # Confidence quintile boundaries over the expanded set. Guarded for a thin
     # pool (< 5 tracks -> single bin; index would otherwise overrun); ties collapse
     # quintiles harmlessly (the field is provisional metadata, no runtime consumer).
     confs = sorted(t["truth_confidence"] for t in expanded)
+
     def quintile(c):
         import bisect
+
         if len(confs) < 5:
             return 1
         edges = [confs[min(len(confs) - 1, int(len(confs) * q / 5))] for q in range(1, 5)]
@@ -177,13 +194,20 @@ def build_jams(expanded: list[dict], originals: list[dict]) -> dict:
 
     for t in expanded:
         sg, _ = _provisional_subgenre(t)
-        entries.append(jams_entry(
-            title=t.get("name"), artist=t.get("artist") or "",
-            track_id=str(t.get("track_id")), bpm=t["bpm_truth"],
-            confidence=t["truth_confidence"], subgenre=sg, provisional=True,
-            quintile=quintile(t["truth_confidence"]),
-            origin="tony-truth-labels.json (Strong/Solid)", source="tony-labeler",
-        ))
+        entries.append(
+            jams_entry(
+                title=t.get("name"),
+                artist=t.get("artist") or "",
+                track_id=str(t.get("track_id")),
+                bpm=t["bpm_truth"],
+                confidence=t["truth_confidence"],
+                subgenre=sg,
+                provisional=True,
+                quintile=quintile(t["truth_confidence"]),
+                origin="tony-truth-labels.json (Strong/Solid)",
+                source="tony-labeler",
+            )
+        )
 
     return {
         "fixture_schema": "jams-tempo-sentinels-v1",
@@ -205,28 +229,41 @@ def build_jams(expanded: list[dict], originals: list[dict]) -> dict:
 
 def render_curation_md(jams: dict, expanded: list[dict]) -> str:
     from collections import Counter
+
     sg_counts = Counter()
     for t in expanded:
         sg_counts[_provisional_subgenre(t)[0]] += 1
     lines = ["# Expanded DnB Sentinel Curation (Story 7.1, FR-18 gate (a))", ""]
-    lines.append("Develop-only rationale for the 8 expanded sentinels in the main-bound "
-                 "`Tests/.../Fixtures/12-dnb-sentinels-expanded.json` (4 originals + 8 expanded).")
+    lines.append(
+        "Develop-only rationale for the 8 expanded sentinels in the main-bound "
+        "`Tests/.../Fixtures/12-dnb-sentinels-expanded.json` (4 originals + 8 expanded)."
+    )
     lines.append("")
     lines.append("## DD #8 subgenre asymmetry valve — FIRED")
     lines.append("")
-    lines.append("The corpus has NO `subgenre` field. On-disk keyword probe: "
-                 "`neurofunk`=0, `jump-up`=0, `liquid`=0 machine-readable hits; only "
-                 "`jungle` (10) and `amen` (103) have any footprint. A dev agent cannot "
-                 "classify by ear. Therefore:")
+    lines.append(
+        "The corpus has NO `subgenre` field. On-disk keyword probe: "
+        "`neurofunk`=0, `jump-up`=0, `liquid`=0 machine-readable hits; only "
+        "`jungle` (10) and `amen` (103) have any footprint. A dev agent cannot "
+        "classify by ear. Therefore:"
+    )
     lines.append("")
-    lines.append("- Subgenre tags below are **provisional** (`subgenre_provisional: true`), "
-                 "derived from playlist vibe + tempo band + jungle/amen keywords.")
-    lines.append("- The DD #8 valve (drop below confident 2-per-subgenre) **has fired**. "
-                 "Provisional spread: " + ", ".join(f"{k}={v}" for k, v in sorted(sg_counts.items())) + ".")
-    lines.append("- **Operator gate:** confirm/reassign each expanded sentinel by ear into "
-                 "{neurofunk, jungle, jump-up, liquid} before Story 7.6 consumes them.")
-    lines.append("- Non-DnB substitution is forbidden; every expanded track is DnB "
-                 "(150-180 BPM, Strong/Solid).")
+    lines.append(
+        "- Subgenre tags below are **provisional** (`subgenre_provisional: true`), "
+        "derived from playlist vibe + tempo band + jungle/amen keywords."
+    )
+    lines.append(
+        "- The DD #8 valve (drop below confident 2-per-subgenre) **has fired**. "
+        "Provisional spread: " + ", ".join(f"{k}={v}" for k, v in sorted(sg_counts.items())) + "."
+    )
+    lines.append(
+        "- **Operator gate:** confirm/reassign each expanded sentinel by ear into "
+        "{neurofunk, jungle, jump-up, liquid} before Story 7.6 consumes them."
+    )
+    lines.append(
+        "- Non-DnB substitution is forbidden; every expanded track is DnB "
+        "(150-180 BPM, Strong/Solid)."
+    )
     lines.append("")
     lines.append("## Expanded sentinels (8)")
     lines.append("")
@@ -235,21 +272,27 @@ def render_curation_md(jams: dict, expanded: list[dict]) -> str:
     for t in expanded:
         sg, why = _provisional_subgenre(t)
         nm = (t.get("name") or "").replace("|", "/")[:48]
-        lines.append(f"| {t.get('track_id')} | {nm} | {t['bpm_truth']} | "
-                     f"{t['truth_confidence']} | {sg} (provisional) | {why} |")
+        lines.append(
+            f"| {t.get('track_id')} | {nm} | {t['bpm_truth']} | "
+            f"{t['truth_confidence']} | {sg} (provisional) | {why} |"
+        )
     lines.append("")
     lines.append("## Originals (4)")
     lines.append("")
-    lines.append("Re-expressed from `Tests/.../Fixtures/4-dnb-triplet-targets.json` (canonical "
-                 "schema v3) — NOT the diverged schema-v1 `_bmad-output/implementation-artifacts/` "
-                 "copy. These are the named DnB half-time failures (Charly/Faraday_Bunker/"
-                 "Yin Yang/HEFT_Anagram), already OA300 held-out eval.")
+    lines.append(
+        "Re-expressed from `Tests/.../Fixtures/4-dnb-triplet-targets.json` (canonical "
+        "schema v3) — NOT the diverged schema-v1 `_bmad-output/implementation-artifacts/` "
+        "copy. These are the named DnB half-time failures (Charly/Faraday_Bunker/"
+        "Yin Yang/HEFT_Anagram), already OA300 held-out eval."
+    )
     lines.append("")
     for e in jams["entries"][:4]:
         fm = e["file_metadata"]
         d = e["annotations"][0]["data"][0]
-        lines.append(f"- `{fm['identifiers']['track_id']}` — {d['value']} BPM "
-                     f"(conf {d['confidence']}, {e['annotations'][0]['sandbox']['source']})")
+        lines.append(
+            f"- `{fm['identifiers']['track_id']}` — {d['value']} BPM "
+            f"(conf {d['confidence']}, {e['annotations'][0]['sandbox']['source']})"
+        )
     lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -257,15 +300,20 @@ def render_curation_md(jams: dict, expanded: list[dict]) -> str:
 def main() -> int:
     expanded = select_expanded_sentinels()
     if len(expanded) < N_EXPANDED:
-        print(f"ERROR: only found {len(expanded)} expanded sentinels (need {N_EXPANDED}). "
-              f"DnB pool too thin — do NOT substitute non-DnB tracks (DD #8).", file=sys.stderr)
+        print(
+            f"ERROR: only found {len(expanded)} expanded sentinels (need {N_EXPANDED}). "
+            f"DnB pool too thin — do NOT substitute non-DnB tracks (DD #8).",
+            file=sys.stderr,
+        )
         return 1
     originals = load_originals()
     jams = build_jams(expanded, originals)
     OUT_JAMS.write_text(json.dumps(jams, indent=2) + "\n")
     OUT_MD.write_text(render_curation_md(jams, expanded))
-    print(f"Wrote {OUT_JAMS.relative_to(cc.REPO_ROOT)} ({len(jams['entries'])} entries: "
-          f"4 originals + {len(expanded)} expanded)")
+    print(
+        f"Wrote {OUT_JAMS.relative_to(cc.REPO_ROOT)} ({len(jams['entries'])} entries: "
+        f"4 originals + {len(expanded)} expanded)"
+    )
     print(f"Wrote {OUT_MD.relative_to(cc.REPO_ROOT)}")
     print(f"  expanded track_ids: {jams['expandedTrackIds']}")
     return 0

@@ -29,6 +29,10 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ML_TRAINING_DIR = REPO_ROOT / "_bmad-output" / "ml-training"
@@ -37,7 +41,9 @@ TONY_TRUTH_LABELS = TONY_CORPUS_DIR / "tony-truth-labels.json"
 TONY_LABELER_SCRIPT = REPO_ROOT / "scripts" / "tony-tunes-labels.py"
 
 # In-repo external-eval ground truth (ships to main; always present).
-OA300_GT_PATH = REPO_ROOT / "Tests" / "BoomBoomBoomKitBenchmarkTests" / "Fixtures" / "oa300-ground-truth.json"
+OA300_GT_PATH = (
+    REPO_ROOT / "Tests" / "BoomBoomBoomKitBenchmarkTests" / "Fixtures" / "oa300-ground-truth.json"
+)
 # GiantSteps GT lives under the corpus dir (env-resolved, optional in-env).
 GIANTSTEPS_GT_FILENAME = "giantsteps-tempo-ground-truth.json"
 
@@ -195,17 +201,25 @@ def load_tony_corpus(labels_path: Path = TONY_TRUTH_LABELS) -> tuple[list[dict],
     # records) and non-finite truth_confidence (would silently band as Reject).
     ids = [t.get("track_id") for t in tracks]
     if any(i is None for i in ids):
-        raise ValueError(f"{labels_path}: {sum(i is None for i in ids)} track(s) missing a track_id.")
+        raise ValueError(
+            f"{labels_path}: {sum(i is None for i in ids)} track(s) missing a track_id."
+        )
     str_ids = [str(i) for i in ids]
     if len(set(str_ids)) != len(str_ids):
-        raise ValueError(f"{labels_path}: duplicate track_id(s) — refusing to proceed "
-                         f"(records would silently collapse).")
-    bad_conf = [str(t.get("track_id")) for t in tracks
-                if t.get("truth_confidence") is not None
-                and not _is_finite(t.get("truth_confidence"))]
+        raise ValueError(
+            f"{labels_path}: duplicate track_id(s) — refusing to proceed "
+            f"(records would silently collapse)."
+        )
+    bad_conf = [
+        str(t.get("track_id"))
+        for t in tracks
+        if t.get("truth_confidence") is not None and not _is_finite(t.get("truth_confidence"))
+    ]
     if bad_conf:
-        raise ValueError(f"{labels_path}: {len(bad_conf)} track(s) with non-finite "
-                         f"truth_confidence (label-pipeline corruption): {bad_conf[:5]}")
+        raise ValueError(
+            f"{labels_path}: {len(bad_conf)} track(s) with non-finite "
+            f"truth_confidence (label-pipeline corruption): {bad_conf[:5]}"
+        )
     labeler_hash = file_sha256(TONY_LABELER_SCRIPT) if TONY_LABELER_SCRIPT.exists() else "absent"
     prov = CorpusProvenance(
         labels_path=str(labels_path),
@@ -356,7 +370,7 @@ _FP_SR = 22050
 _FP_DURATION = 60.0  # seconds analyzed (mid-track skip handled by offset)
 
 
-def compute_fingerprint(audio_path: str) -> "object":
+def compute_fingerprint(audio_path: str) -> "np.ndarray | None":
     """Return a RAW float32 fingerprint vector (FINGERPRINT_DIM,) or None if the
     audio cannot be decoded. NOT unit-normed — the audit standardizes per
     dimension across the cohort before cosine. Lazy-imports numpy/librosa.
@@ -374,10 +388,10 @@ def compute_fingerprint(audio_path: str) -> "object":
     if y is None or y.size < _FP_SR:  # < 1s decoded — unusable
         return None
     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)  # (20, T)
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)     # (12, T)
-    vec = np.concatenate([
-        mfcc.mean(axis=1), mfcc.std(axis=1), chroma.mean(axis=1)
-    ]).astype(np.float32)
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)  # (12, T)
+    vec = np.concatenate([mfcc.mean(axis=1), mfcc.std(axis=1), chroma.mean(axis=1)]).astype(
+        np.float32
+    )
     if not np.all(np.isfinite(vec)):
         return None
     return vec

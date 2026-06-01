@@ -21,7 +21,6 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import numpy as np
 from scipy.cluster.vq import kmeans2, whiten
@@ -56,12 +55,17 @@ def _git_sha() -> str:
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            cwd=cc.REPO_ROOT, capture_output=True, text=True, check=True,
+            cwd=cc.REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
         )
         sha = out.stdout.strip()
         dirty = subprocess.run(
-            ["git", "status", "--porcelain"], cwd=cc.REPO_ROOT,
-            capture_output=True, text=True,
+            ["git", "status", "--porcelain"],
+            cwd=cc.REPO_ROOT,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
         return f"{sha}{'-dirty' if dirty else ''}"
     except Exception:
@@ -93,7 +97,9 @@ def label_source_bias(tracks: list[dict]) -> dict:
     # does not mistake the 4x4 for four INDEPENDENT signals (on this corpus
     # rekordbox_average and grid_bpm carry an identical relation on every record).
     degenerate_pairs = [
-        [i, j] for idx_i, i in enumerate(SIGNALS) for j in SIGNALS[idx_i + 1:]
+        [i, j]
+        for idx_i, i in enumerate(SIGNALS)
+        for j in SIGNALS[idx_i + 1 :]
         if matrix[i][j]["n"] and matrix[i][j]["agreement"] == 1.0
     ]
     return {
@@ -194,13 +200,15 @@ def label_octave_error_audit(tracks: list[dict]) -> dict:
             if dsp_rel != "same":
                 high_risk.append(row)
         elif rel == "double":
-            halved.append({
-                "track_id": str(t.get("track_id")),
-                "name": t.get("name"),
-                "bpm_truth": truth,
-                "rekordbox_bpm": rbpm,
-                "dspRelation": dsp_rel,
-            })
+            halved.append(
+                {
+                    "track_id": str(t.get("track_id")),
+                    "name": t.get("name"),
+                    "bpm_truth": truth,
+                    "rekordbox_bpm": rbpm,
+                    "dspRelation": dsp_rel,
+                }
+            )
     return {
         "definition": "Strong+Solid tracks where assigned truth is an octave off the "
         "human Rekordbox tag (rekordbox relation 'half' => truth=2×rekordbox).",
@@ -236,11 +244,17 @@ def confidence_calibration_by_tier(tracks: list[dict]) -> dict:
     """
     resolvable = [t for t in tracks if t.get("bpm_truth") is not None]
     if not resolvable:
-        return {"perTier": {}, "labelECE": None, "eceBins": [],
-                "note": "no resolvable tracks (all bpm_truth null) — ECE undefined."}
+        return {
+            "perTier": {},
+            "labelECE": None,
+            "eceBins": [],
+            "note": "no resolvable tracks (all bpm_truth null) — ECE undefined.",
+        }
     per_tier: dict[str, dict] = {}
     for tier in cc.TRAINABLE_TIERS + ("Marginal",):
-        group = [t for t in resolvable if cc.tier_for(t["truth_confidence"], t["bpm_truth"]) == tier]
+        group = [
+            t for t in resolvable if cc.tier_for(t["truth_confidence"], t["bpm_truth"]) == tier
+        ]
         if not group:
             per_tier[tier] = {"n": 0}
             continue
@@ -266,11 +280,14 @@ def confidence_calibration_by_tier(tracks: list[dict]) -> dict:
         conf_mean = float(confs[mask].mean())
         acc_mean = float(proxy[mask].mean())
         ece += (cnt / len(confs)) * abs(conf_mean - acc_mean)
-        bin_rows.append({
-            "bin": b, "n": cnt,
-            "meanConfidence": round(conf_mean, 4),
-            "proxyAccuracy": round(acc_mean, 4),
-        })
+        bin_rows.append(
+            {
+                "bin": b,
+                "n": cnt,
+                "meanConfidence": round(conf_mean, 4),
+                "proxyAccuracy": round(acc_mean, 4),
+            }
+        )
     return {
         "perTier": per_tier,
         "labelECE": round(float(ece), 4),
@@ -298,22 +315,30 @@ def cluster_stability(tracks: list[dict], k: int = 4, seeds: int = 5) -> dict:
     feats = []
     for t in resolvable:
         truth = t["bpm_truth"]
+
         def logr(sig: str) -> float:
             b = t["signals"].get(sig, {}).get("bpm")
             if not b or b <= 0 or truth <= 0:
                 return 0.0
             return float(np.log2(b / truth))
-        feats.append([
-            float(t["truth_confidence"]),
-            logr("rekordbox_average"),
-            logr("grid_bpm"),
-            logr("dsp"),
-        ])
+
+        feats.append(
+            [
+                float(t["truth_confidence"]),
+                logr("rekordbox_average"),
+                logr("grid_bpm"),
+                logr("dsp"),
+            ]
+        )
     X = np.asarray(feats, dtype=np.float64)
     N = X.shape[0]
     if N < max(k, 2):
-        return {"k": k, "seeds": seeds, "coAssignmentConsistency": None,
-                "note": f"too few resolvable tracks ({N}) for k={k} k-means — skipped."}
+        return {
+            "k": k,
+            "seeds": seeds,
+            "coAssignmentConsistency": None,
+            "note": f"too few resolvable tracks ({N}) for k={k} k-means — skipped.",
+        }
     Xw = whiten(X)
 
     labelings = []
@@ -335,8 +360,12 @@ def cluster_stability(tracks: list[dict], k: int = 4, seeds: int = 5) -> dict:
     # Sampled with replacement (a few duplicate pairs are statistically harmless
     # at N in the hundreds+); guard the degenerate empty-sample case.
     if a.size == 0:
-        return {"k": k, "seeds": seeds, "coAssignmentConsistency": None,
-                "note": "pair sample empty (degenerate N) — stability undefined."}
+        return {
+            "k": k,
+            "seeds": seeds,
+            "coAssignmentConsistency": None,
+            "note": "pair sample empty (degenerate N) — stability undefined.",
+        }
     same_per_seed = np.stack([(L[a] == L[b]) for L in labelings])  # (seeds, pairs)
     # For each pair: agreement across all seed-pairs = how often two seeds concur.
     frac_same = same_per_seed.mean(axis=0)  # (pairs,)
@@ -345,8 +374,12 @@ def cluster_stability(tracks: list[dict], k: int = 4, seeds: int = 5) -> dict:
     return {
         "k": k,
         "seeds": seeds,
-        "featureVector": ["truth_confidence", "log2(rekordbox/truth)",
-                          "log2(grid/truth)", "log2(dsp/truth)"],
+        "featureVector": [
+            "truth_confidence",
+            "log2(rekordbox/truth)",
+            "log2(grid/truth)",
+            "log2(dsp/truth)",
+        ],
         "method": "scipy.cluster.vq.kmeans2 (++init, whiten-standardized features)",
         "coAssignmentConsistency": round(consistency, 4),
         "consistencyDefinition": "Over a fixed 5000-pair sample, mean of "
@@ -376,62 +409,95 @@ def representative_findings(tracks: list[dict]) -> list[dict]:
     def add(t, note):
         if t is None:
             return
-        findings.append({
-            "track_id": str(t.get("track_id")),
-            "name": t.get("name"),
-            "artist": t.get("artist") or "(empty)",
-            "tier": cc.tier_for(t["truth_confidence"], t["bpm_truth"]),
-            "truth_confidence": t["truth_confidence"],
-            "bpm_truth": t.get("bpm_truth"),
-            "qa_flags": t.get("qa_flags", []),
-            "note": note,
-        })
+        findings.append(
+            {
+                "track_id": str(t.get("track_id")),
+                "name": t.get("name"),
+                "artist": t.get("artist") or "(empty)",
+                "tier": cc.tier_for(t["truth_confidence"], t["bpm_truth"]),
+                "truth_confidence": t["truth_confidence"],
+                "bpm_truth": t.get("bpm_truth"),
+                "qa_flags": t.get("qa_flags", []),
+                "note": note,
+            }
+        )
 
     # 2 Strong exemplars where all 3 BPM signals agree at same octave.
     clean = [t for t in by_tier["Strong"] if all(rel(t, s) == "same" for s in BPM_SIGNALS)]
     for t in clean[:2]:
-        add(t, "Strong-tier clean exemplar: all three BPM signals (rekordbox/grid/dsp) "
-               "agree with the assigned truth at the same octave.")
+        add(
+            t,
+            "Strong-tier clean exemplar: all three BPM signals (rekordbox/grid/dsp) "
+            "agree with the assigned truth at the same octave.",
+        )
     # 2 Solid where rekordbox/grid say half but dsp pulled truth to full tempo.
-    split = [t for t in by_tier["Solid"]
-             if rel(t, "rekordbox_average") == "half" and rel(t, "dsp") == "same"]
+    split = [
+        t
+        for t in by_tier["Solid"]
+        if rel(t, "rekordbox_average") == "half" and rel(t, "dsp") == "same"
+    ]
     for t in split[:2]:
-        add(t, "Solid-tier octave split: Rekordbox+grid tag the half-time; DSP carried "
-               "the full-tempo winner. Watch for wrong-octave risk (E1).")
+        add(
+            t,
+            "Solid-tier octave split: Rekordbox+grid tag the half-time; DSP carried "
+            "the full-tempo winner. Watch for wrong-octave risk (E1).",
+        )
     # >= 2 MARGINAL findings (required).
     marg_amb = [t for t in by_tier["Marginal"] if "ambiguous_cluster" in t.get("qa_flags", [])]
     for t in marg_amb[:2]:
-        add(t, "Marginal-tier ambiguous cluster: winner barely beat the runner-up; "
-               "tempo geometry is genuinely contested. Failure-categorization candidate (Story 7.4).")
+        add(
+            t,
+            "Marginal-tier ambiguous cluster: winner barely beat the runner-up; "
+            "tempo geometry is genuinely contested. Failure-categorization candidate (Story 7.4).",
+        )
     if sum(1 for f in findings if f["tier"] == "Marginal") < 2:
         for t in by_tier["Marginal"][:2]:
             if not any(f["track_id"] == str(t.get("track_id")) for f in findings):
-                add(t, "Marginal-tier representative: truth_confidence in [0.55,0.65); "
-                       "excluded from the initial supervised set, retained as a watchlist (KDD-B3).")
+                add(
+                    t,
+                    "Marginal-tier representative: truth_confidence in [0.55,0.65); "
+                    "excluded from the initial supervised set, retained as a watchlist (KDD-B3).",
+                )
     # 2 label-octave-error candidates: high-risk subset (doubled AND DSP did
     # not independently confirm the full tempo).
-    high_risk = [t for t in (by_tier["Strong"] + by_tier["Solid"])
-                 if rel(t, "rekordbox_average") == "half" and rel(t, "dsp") != "same"]
+    high_risk = [
+        t
+        for t in (by_tier["Strong"] + by_tier["Solid"])
+        if rel(t, "rekordbox_average") == "half" and rel(t, "dsp") != "same"
+    ]
     for t in high_risk[:2]:
-        add(t, "Label-octave-error HIGH-RISK candidate (E1): assigned truth is 2× the "
-               "human Rekordbox tag AND DSP did not independently land on the full tempo. "
-               "If the DJ tag was right, this is a confidently-wrong octave label.")
+        add(
+            t,
+            "Label-octave-error HIGH-RISK candidate (E1): assigned truth is 2× the "
+            "human Rekordbox tag AND DSP did not independently land on the full tempo. "
+            "If the DJ tag was right, this is a confidently-wrong octave label.",
+        )
     # 1 single_source_truth, 1 high-confidence Strong with a 'far' dsp.
     ss = find(tracks, lambda t: "single_source_truth" in t.get("qa_flags", []))
-    add(ss, "single_source_truth flag: winner cluster rests on < 2 distinct non-playlist "
-            "sources; lands in Marginal/Reject (no single-source track reaches the trainable tier).")
+    add(
+        ss,
+        "single_source_truth flag: winner cluster rests on < 2 distinct non-playlist "
+        "sources; lands in Marginal/Reject (no single-source track reaches the trainable tier).",
+    )
     fardsp = find(by_tier["Strong"], lambda t: rel(t, "dsp") == "far")
-    add(fardsp, "Strong-tier with DSP 'far': Rekordbox+grid consensus carried a confident "
-                "label despite the DSP estimate being off — DSP-disagreement exemplar.")
+    add(
+        fardsp,
+        "Strong-tier with DSP 'far': Rekordbox+grid consensus carried a confident "
+        "label despite the DSP estimate being off — DSP-disagreement exemplar.",
+    )
 
     # Guarantee >= 10 by topping up from Solid with generic notes.
     i = 0
     while len(findings) < 10 and i < len(by_tier["Solid"]):
-        t = by_tier["Solid"][i]; i += 1
+        t = by_tier["Solid"][i]
+        i += 1
         if any(f["track_id"] == str(t.get("track_id")) for f in findings):
             continue
-        add(t, "Solid-tier representative: multi-signal agreement placed truth_confidence "
-               "in [0.65,0.80); part of the initial supervised set.")
+        add(
+            t,
+            "Solid-tier representative: multi-signal agreement placed truth_confidence "
+            "in [0.65,0.80); part of the initial supervised set.",
+        )
     return findings
 
 
@@ -466,8 +532,11 @@ def build_diagnostics() -> dict:
     # AC9 / M1 — resolved-vs-total audio (NEVER silently shrink the corpus).
     total = len(tracks)
     unresolved = [
-        {"track_id": str(t.get("track_id")), "name": t.get("name"),
-         "local_path": t.get("local_path")}
+        {
+            "track_id": str(t.get("track_id")),
+            "name": t.get("name"),
+            "local_path": t.get("local_path"),
+        }
         for t in tracks
         if not (t.get("local_path") and os.path.exists(t["local_path"]))
     ]
@@ -554,13 +623,17 @@ def render_markdown(diag: dict) -> str:
     lines: list[str] = []
     lines.append("# Corpus Diagnostics v1 (Story 7.1, FR-12)")
     lines.append("")
-    lines.append("> Develop-only diagnostic artifact. Every confidence/ECE figure here is a "
-                 "LABEL-confidence diagnostic over the disagreement signals, NOT a model metric "
-                 "(Guardrail 2). Produces NO transferable FR-18 accuracy claim.")
+    lines.append(
+        "> Develop-only diagnostic artifact. Every confidence/ECE figure here is a "
+        "LABEL-confidence diagnostic over the disagreement signals, NOT a model metric "
+        "(Guardrail 2). Produces NO transferable FR-18 accuracy claim."
+    )
     lines.append("")
-    lines.append("Machine-readable companion: `corpus-diagnostics-v1.json`. This Markdown has "
-                 "exactly one `##` section per top-level JSON key (grep-checkable reviewer "
-                 "structure).")
+    lines.append(
+        "Machine-readable companion: `corpus-diagnostics-v1.json`. This Markdown has "
+        "exactly one `##` section per top-level JSON key (grep-checkable reviewer "
+        "structure)."
+    )
     lines.append("")
 
     # KDD-B4 signoff checklist rendered prominently (AC8).
@@ -569,11 +642,13 @@ def render_markdown(diag: dict) -> str:
     lines.append("")
     lines.append(f"`REVIEWER_SIGNOFF: {so['state']}`")
     lines.append("")
-    lines.append("The operator fills this by TRANSCRIBING what they actually verified, then "
-                 "changes the marker above to `signed`. `audit-corpus-splits.py --check-gate` "
-                 "exits non-zero until then. **7.1 'done' = evidence assembled + review pending, "
-                 "NOT corpus-safe-to-train** — that flips only when this is signed (it gates "
-                 "Story 7.5 train.py, not 7.1 close).")
+    lines.append(
+        "The operator fills this by TRANSCRIBING what they actually verified, then "
+        "changes the marker above to `signed`. `audit-corpus-splits.py --check-gate` "
+        "exits non-zero until then. **7.1 'done' = evidence assembled + review pending, "
+        "NOT corpus-safe-to-train** — that flips only when this is signed (it gates "
+        "Story 7.5 train.py, not 7.1 close)."
+    )
     lines.append("")
     for item in so["checklistItems"]:
         lines.append(f"- [ ] {item}  →  _verified value:_ `__________`")
@@ -624,14 +699,24 @@ def main() -> int:
     hist = diag["tierHistogram"]["computed"]
     print(f"Wrote {OUT_JSON.name} + {OUT_MD.name}")
     print(f"  tiers: {hist}")
-    print(f"  resolved audio: {diag['resolvedVsTotal']['resolvedAudio']}/{diag['resolvedVsTotal']['total']}")
+    print(
+        f"  resolved audio: {diag['resolvedVsTotal']['resolvedAudio']}/{diag['resolvedVsTotal']['total']}"
+    )
     print(f"  labelECE (label, not model): {diag['confidenceCalibrationByTier']['labelECE']}")
-    print(f"  cluster co-assignment consistency: {diag['clusterStability']['coAssignmentConsistency']}")
-    print(f"  E1 doubled-label candidates (Strong+Solid): {diag['labelOctaveErrorAudit']['doubledCount']}")
-    print(f"  reviewer signoff: {diag['reviewerSignoff']['state']} "
-          f"(run audit --check-gate to enforce)")
+    print(
+        f"  cluster co-assignment consistency: {diag['clusterStability']['coAssignmentConsistency']}"
+    )
+    print(
+        f"  E1 doubled-label candidates (Strong+Solid): {diag['labelOctaveErrorAudit']['doubledCount']}"
+    )
+    print(
+        f"  reviewer signoff: {diag['reviewerSignoff']['state']} "
+        f"(run audit --check-gate to enforce)"
+    )
     if diag["driftBlockThreshold"]["blocksTraining"]:
-        print("  WARNING: tier drift exceeds the block threshold — training BLOCKED pending review.")
+        print(
+            "  WARNING: tier drift exceeds the block threshold — training BLOCKED pending review."
+        )
     return 0
 
 
