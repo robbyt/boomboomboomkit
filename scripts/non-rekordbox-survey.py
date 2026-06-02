@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# ///
 """Non-Rekordbox audio expansion survey + provenance-clean tiering (Story 7.2).
 
 Develop-only. Surveys the audio files OUTSIDE Tony's Rekordbox `<COLLECTION>`,
@@ -350,30 +353,33 @@ def precompute_sentinel_hashes(roots: list[Path], log: TextIO) -> dict[str, str]
     unacceptable (AC7): a 0-byte file would hash empty bytes and never match a real
     pool file, silently defeating FR-17 exclusion.
     """
+    # Walk each root ONCE (not per-needle), iterating the generator and keeping
+    # only the audio files — never materializing the full tree per root/needle.
+    audio_files: list[Path] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        try:
+            audio_files.extend(
+                p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in AUDIO_EXTS
+            )
+        except OSError as exc:
+            print(f"  warn: cannot fully walk {root} for sentinels: {exc}", file=log)
+
     hashes: dict[str, str] = {}
     for needle in SENTINEL_NEEDLES:
         found: list[Path] = []
         zero_byte = 0
-        for root in roots:
-            if not root.exists():
+        for p in audio_files:
+            if needle not in p.name.lower():
                 continue
             try:
-                candidates = list(root.rglob("*"))
-            except OSError as exc:
-                print(f"  warn: cannot fully walk {root} for sentinels: {exc}", file=log)
+                if p.stat().st_size == 0:
+                    zero_byte += 1  # cloud placeholder -> would mis-hash empty bytes
+                    continue
+            except OSError:
                 continue
-            for p in candidates:
-                if not (p.is_file() and p.suffix.lower() in AUDIO_EXTS):
-                    continue
-                if needle not in p.name.lower():
-                    continue
-                try:
-                    if p.stat().st_size == 0:
-                        zero_byte += 1  # cloud placeholder -> would mis-hash empty bytes
-                        continue
-                except OSError:
-                    continue
-                found.append(p)
+            found.append(p)
         if not found:
             raise SystemExit(
                 f"error: sentinel '{needle}' resolved to zero non-empty on-disk files under "

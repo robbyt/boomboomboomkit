@@ -94,6 +94,7 @@ func printUsage() {
   let usage = """
     usage: tony-dsp-prepass --survey-json <path> --output <path>
                             [--concurrency N] [--intensity 1..10] [--limit N]
+                            [--no-metadata]
 
     Reads a survey JSON produced by scripts/tony-tunes-survey.py, filters to
     tracks where resolve_status == "ok", runs AudioAnalysisService.analyzeBPM
