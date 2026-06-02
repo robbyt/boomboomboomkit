@@ -507,3 +507,6 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 See REVIEWER SIGNOFF section above. State: `pending`.
 
+## Non-Rekordbox expansion (Story 7.2)
+
+The non-Rekordbox semi-supervised expansion pool (Story 7.2) is surveyed and tiered separately; see [`non-rekordbox-source-distribution.md`](non-rekordbox-source-distribution.md) for the source-distribution report (genre/tempo/format/tier counts + yield + octave-risk caveat).

@@ -279,7 +279,7 @@ fmt:
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py test_recording_components.py ../../scripts/audit-corpus-splits.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py test_recording_components.py ../../scripts/audit-corpus-splits.py ../../scripts/non-rekordbox-survey.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -468,3 +468,12 @@ tony-labels:
 ## tony-corpus: Full pipeline — survey → DSP prepass → labeler
 .PHONY: tony-corpus
 tony-corpus: tony-survey tony-dsp-prepass tony-labels
+
+## non-rekordbox-survey: Story 7.2 — survey the ~4,700 audio files outside the Rekordbox <COLLECTION>, BPM-tag-blind DSP + independent mutagen tags, tier into secondarySupervised/unsupervisedPool/reject. Develop-only. Pass LIMIT=N to smoke-test a subset; OA300_CORPUS_PATH is the sentinel-exclusion source (FR-17).
+.PHONY: non-rekordbox-survey
+non-rekordbox-survey:
+	TONY_XML="$(TONY_XML)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/non-rekordbox-survey.py \
+		$(if $(LIMIT),--limit $(LIMIT),)
