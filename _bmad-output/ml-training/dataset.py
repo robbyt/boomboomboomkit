@@ -22,16 +22,20 @@ Feature pipeline per AC #3 (Story 4-4b DD #5):
 from __future__ import annotations
 
 import json
+import math
 import os
 import random
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import librosa
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+
+import corpus_common as cc
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -41,11 +45,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ML_TRAINING_DIR = REPO_ROOT / "_bmad-output" / "ml-training"
 FIXTURES_DIR = ML_TRAINING_DIR / "fixtures"
 FIXTURE_PATH = FIXTURES_DIR / "feature_pipeline_v1.npz"
-OA300_GT_PATH = REPO_ROOT / "Tests" / "BoomBoomBoomKitBenchmarkTests" / "Fixtures" / "oa300-ground-truth.json"
+OA300_GT_PATH = (
+    REPO_ROOT / "Tests" / "BoomBoomBoomKitBenchmarkTests" / "Fixtures" / "oa300-ground-truth.json"
+)
 
 # 4-dnb-triplet-targets.json holds the dawproject-verified named-DnB targets
 # (Yin Yang/HEFT_Anagram both 170, NOT the octave-down 85 in oa300-ground-truth.json)
-DNB_TARGETS_PATH = REPO_ROOT / "_bmad-output" / "implementation-artifacts" / "4-dnb-triplet-targets.json"
+DNB_TARGETS_PATH = (
+    REPO_ROOT / "_bmad-output" / "implementation-artifacts" / "4-dnb-triplet-targets.json"
+)
 
 # BPM bin schema per DD #7 — 256 integer bins from 30 to 285 BPM inclusive.
 BPM_BIN_MIN = 30
@@ -141,7 +149,7 @@ def _audio_path_for_giantsteps_track(gs_root: Path, track: dict) -> Path | None:
     return p if p.exists() else None
 
 
-def build_splits(verify: bool = True) -> dict[str, list[TrackRecord]]:
+def build_splits(verify: bool = True) -> dict[str, Any]:
     """Return {"train": [...], "val": [...], "test": [...]} per DD #3."""
     oa300_root, gs_root = get_corpus_paths()
 
@@ -231,6 +239,10 @@ def _normalize_track_key(s: str) -> str:
     suffixes (e.g. "[Original Mix]"), trailing parenthetical artist tags,
     extension, whitespace, then lowercases. Catches the same recording stored
     under different naming conventions across OA300 and GiantSteps.
+
+    KEPT IN SYNC with `corpus_common.normalize_track_key` (DD #10). This copy
+    serves the existing OA300<->GiantSteps `_verify_no_leak`; the Story 7.1
+    Tony audit imports the corpus_common copy. Identical logic — change both.
     """
     import os
     import re
@@ -288,11 +300,12 @@ def _verify_dnb_triplets_in_oa300(test: list[TrackRecord], gs_gt: list[dict] | N
             f"Cannot proceed: training set may have leaked DnB tracks."
         )
     if gs_gt is not None:
-        gs_normalized_titles = " ".join(
-            _normalize_track_key(t["filename"]) for t in gs_gt
-        )
-        leaked = [n for n in needles if n.replace("_", " ") in gs_normalized_titles
-                  or n in gs_normalized_titles]
+        gs_normalized_titles = " ".join(_normalize_track_key(t["filename"]) for t in gs_gt)
+        leaked = [
+            n
+            for n in needles
+            if n.replace("_", " ") in gs_normalized_titles or n in gs_normalized_titles
+        ]
         if leaked:
             raise RuntimeError(
                 f"DnB triplets ALSO appear in GiantSteps train+val: {leaked}. "
@@ -314,6 +327,387 @@ def write_corpus_splits_json(splits: dict[str, list[TrackRecord]], out_path: Pat
         "_meta": splits.get("_meta", {}),
     }
     out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+
+# ---------------------------------------------------------------------------
+# Story 7.1 — Tony namespaced split (DD #2) + leave-artist-out (DD #4) +
+# cross-corpus exclusion (AC5). Pure metadata over tony-truth-labels.json; needs
+# NO external audio corpus. Deterministic at the seeds below.
+# ---------------------------------------------------------------------------
+
+TONY_SPLIT_SEED = 20260531
+TONY_VAL_FRACTION = 0.10
+LEAVE_ARTIST_OUT_MIN_FRACTION = 0.10  # AC6: held-out >= 10% of trainable (named only)
+DNB_TRIPLET_NEEDLES = ("charly", "faraday_bunker", "yin yang", "heft_anagram")
+SENTINELS_JAMS_PATH = (
+    cc.REPO_ROOT
+    / "Tests"
+    / "BoomBoomBoomKitBenchmarkTests"
+    / "Fixtures"
+    / "12-dnb-sentinels-expanded.json"
+)
+# Operator-curated within-Tony duplicate exclusions (KDD-B4 signoff). The audit
+# surfaces near-dup REVIEW FLAGS (same recording under inconsistent names, which
+# title/artist normalization can't link); the operator confirms each by ear and
+# lists the track_id to DROP here. Excluded before train/val assignment, same as
+# the cross-corpus and sentinel exclusions. Optional — absent => no manual drops.
+MANUAL_DUP_EXCLUSIONS_PATH = ML_TRAINING_DIR / "manual-dup-exclusions.json"
+
+
+def load_manual_dup_exclusions() -> set[str]:
+    if not MANUAL_DUP_EXCLUSIONS_PATH.exists():
+        return set()
+    data = json.loads(MANUAL_DUP_EXCLUSIONS_PATH.read_text())
+    # Operator input — validate shape loudly (consistent with the sentinel loader)
+    # rather than silently mis-reading a string/dict/null, or a misspelled key
+    # (`excludedTrackIDs`), as "no exclusions".
+    if not isinstance(data, dict) or "excludedTrackIds" not in data:
+        raise ValueError(
+            f"{MANUAL_DUP_EXCLUSIONS_PATH.name}: expected a JSON object with an "
+            f"`excludedTrackIds` key (a list of track_ids; use [] for no drops)."
+        )
+    ids = data["excludedTrackIds"]
+    if not isinstance(ids, list):
+        raise ValueError(f"{MANUAL_DUP_EXCLUSIONS_PATH.name}: `excludedTrackIds` must be a list.")
+
+    def _is_id(x) -> bool:
+        # bool is an int subclass — exclude it so a JSON true/false fails here
+        # with a precise message, not later as an ineligible "True"/"False".
+        return isinstance(x, str) or (isinstance(x, int) and not isinstance(x, bool))
+
+    if any(not _is_id(x) for x in ids):
+        raise ValueError(
+            f"{MANUAL_DUP_EXCLUSIONS_PATH.name}: every excludedTrackIds entry must be a "
+            f"track_id string/int (found a {type(next(x for x in ids if not _is_id(x))).__name__})."
+        )
+    return {str(x) for x in ids}
+
+
+def load_expanded_sentinel_ids() -> set[str]:
+    """The 8 expanded sentinel track_ids (AC7) that MUST be held out of
+    tony.train/val. Read from the JAMS fixture if it exists; empty otherwise
+    (the split is still valid pre-curation, just without sentinel holdout)."""
+    if not SENTINELS_JAMS_PATH.exists():
+        return set()  # pre-curation: split is valid without sentinel holdout
+    # File PRESENT but unparseable/empty is a corruption, not "no sentinels" —
+    # fail loud rather than silently degrade the AC7 holdout to a no-op (the file
+    # ships to main and is the FR-18 gate input).
+    data = json.loads(SENTINELS_JAMS_PATH.read_text())
+    ids = {str(x) for x in data.get("expandedTrackIds", [])}
+    if not ids:
+        raise ValueError(
+            f"{SENTINELS_JAMS_PATH.name} is present but has no `expandedTrackIds` — "
+            f"refusing to silently skip the sentinel holdout. Re-run `make curate-sentinels`."
+        )
+    return ids
+
+
+class _UnionFind:
+    def __init__(self, items: list[str]) -> None:
+        self.parent = {i: i for i in items}
+
+    def find(self, x: str) -> str:
+        root = x
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while self.parent[x] != root:
+            self.parent[x], x = root, self.parent[x]
+        return root
+
+    def union(self, a: str, b: str) -> None:
+        ra, rb = self.find(a), self.find(b)
+        if ra != rb:
+            # Deterministic merge: smaller root id wins.
+            lo, hi = (ra, rb) if ra < rb else (rb, ra)
+            self.parent[hi] = lo
+
+
+def _recording_components(tracks: list[dict]) -> dict[str, list[dict]]:
+    """Connected components over same-recording edges. All copies of one
+    recording land in ONE component, so they cannot be split across train / val
+    / leaveArtistOut. Two edge kinds:
+
+      - SHARED CANONICAL ARTIST: every track by one canonical artist is one
+        component (the artist-disjointness gate depends on this).
+      - SHARED NORMALIZED TITLE, but ONLY when at least one endpoint has an EMPTY
+        canonical artist. This targets the genuine same-recording case where one
+        copy has the artist field populated ("X", "X - Song") and another has it
+        empty (artist embedded in the name). It deliberately does NOT union two
+        DIFFERENT named artists that merely share a generic title (e.g. two
+        unrelated tracks both called "Axiom" or "Simulacra") — that over-merge
+        previously fused unrelated artists into one giant component and silently
+        distorted the leave-artist-out split (an audit found a 59-track merge of
+        Ternion Sound + sinistarr + subject xero via generic titles). The audit's
+        audio fingerprint flags the remaining differently-named residue for review.
+    """
+    if len({str(t.get("track_id")) for t in tracks}) != len(tracks):
+        raise ValueError(
+            "Duplicate track_id in the trainable set — refusing to build "
+            "components (a dict would silently collapse duplicates)."
+        )
+    by_id = {str(t.get("track_id")): t for t in tracks}
+    uf = _UnionFind(list(by_id))
+    artist_groups: dict[str, list[str]] = {}
+    title_groups: dict[str, list[str]] = {}
+    empty_artist: set[str] = set()
+    for tid, t in by_id.items():
+        ak = cc.canonical_artist_key(t.get("artist"))
+        if ak:
+            artist_groups.setdefault(ak, []).append(tid)
+        else:
+            empty_artist.add(tid)
+        tk = cc.normalize_track_key(t.get("name", ""))
+        if tk:
+            title_groups.setdefault(tk, []).append(tid)
+    # Artist edges: union every track sharing a canonical artist.
+    for group in artist_groups.values():
+        for other in group[1:]:
+            uf.union(group[0], other)
+    # Title edges: only union an empty-artist track to its same-title peers
+    # (one of which may be a named recording of that title). Named<->named title
+    # collisions are NOT unioned. Anchor to a NAMED track when one exists so the
+    # named copy and the artist-in-name copies merge — group[0] is corpus-order
+    # and is not guaranteed named (was a bug: an empty group[0] left the named
+    # same-title copy in a separate component, crossing split boundaries).
+    for group in title_groups.values():
+        named = [tid for tid in group if tid not in empty_artist]
+        empties = [tid for tid in group if tid in empty_artist]
+        if not empties:
+            continue  # all named, different artists, same generic title — skip
+        anchor = named[0] if named else empties[0]
+        for tid in empties:
+            uf.union(anchor, tid)
+    comps: dict[str, list[dict]] = {}
+    for tid, t in by_id.items():
+        comps.setdefault(uf.find(tid), []).append(t)
+    return comps
+
+
+def build_tony_splits(external_index: "cc.ExternalIndex | None" = None) -> dict:
+    """Build the Tony split: train / val / leaveArtistOut over the Strong+Solid
+    trainable set, with Tony<->external-eval leaks EXCLUDED first (AC5).
+
+    Returns a JSON-ready dict. Deterministic.
+    """
+    tracks, prov = cc.load_tony_corpus()
+    trainable = [t for t in tracks if cc.is_trainable(t)]
+
+    # --- AC5: exclude Tony tracks that collide with OA300 / GiantSteps eval ---
+    if external_index is None:
+        external_index = cc.build_external_index(giantsteps_gt_path=cc.resolve_giantsteps_gt_path())
+    matches = cc.find_cross_corpus_matches(trainable, external_index)
+    excluded_ids = {m.track_id for m in matches}
+
+    # AC7: the 8 expanded DnB sentinels are held-out eval — exclude from train/val.
+    sentinel_ids = load_expanded_sentinel_ids()
+    # KDD-B4 signoff: operator-confirmed within-Tony duplicate drops (optional).
+    manual_dup_ids = load_manual_dup_exclusions()
+    # Fail on a typoed/unknown/redundant id: a silent no-op during the safety-critical
+    # signoff would leave the confirmed duplicate in the split while the metadata claims
+    # it was excluded. Every listed id must be a track this filter ACTUALLY drops —
+    # i.e. trainable AND not already removed by the cross-corpus or sentinel filters —
+    # so `manualDupExclusions.count` equals drops actually applied.
+    trainable_ids = {str(t.get("track_id")) for t in trainable}
+    eligible_ids = trainable_ids - excluded_ids - sentinel_ids
+    ineligible_dups = manual_dup_ids - eligible_ids
+    if ineligible_dups:
+        raise ValueError(
+            f"{MANUAL_DUP_EXCLUSIONS_PATH.name} lists {len(ineligible_dups)} track_id(s) that "
+            f"this filter cannot drop — not in the Strong/Solid trainable set, or already "
+            f"excluded by cross-corpus/sentinel (typo, or remove them): "
+            f"{sorted(ineligible_dups)[:10]}"
+        )
+
+    clean = [
+        t
+        for t in trainable
+        if str(t.get("track_id")) not in excluded_ids
+        and str(t.get("track_id")) not in sentinel_ids
+        and str(t.get("track_id")) not in manual_dup_ids
+    ]
+
+    # --- connected components over (shared artist OR shared title) ---
+    components = _recording_components(clean)
+
+    def comp_artists(members: list[dict]) -> set[str]:
+        return {cc.canonical_artist_key(t.get("artist")) for t in members} - {""}
+
+    def comp_key(members: list[dict]) -> str:
+        return min(str(t.get("track_id")) for t in members)
+
+    empties_total = [t for t in clean if not cc.canonical_artist_key(t.get("artist"))]
+
+    # --- leave-artist-out: hold out whole NAMED components to >= 10% ---
+    # ceil (not round): round() can land below 10% (e.g. round(0.10*1024)=102 is
+    # 9.96%), and the audit checks against this same floor — an under-rounded
+    # floor would silently pass a sub-10% held-out (AC6).
+    target_heldout = math.ceil(LEAVE_ARTIST_OUT_MIN_FRACTION * len(clean))
+    named_comps = sorted((c for c in components.values() if comp_artists(c)), key=comp_key)
+    rng = random.Random(TONY_SPLIT_SEED)
+    rng.shuffle(named_comps)
+    held_out_ids: list[str] = []
+    held_out_artists: set[str] = set()
+    held_out_comp_keys: set[str] = set()
+    for members in named_comps:
+        if len(held_out_ids) >= target_heldout:
+            break
+        held_out_comp_keys.add(comp_key(members))
+        held_out_ids.extend(str(t.get("track_id")) for t in members)
+        held_out_artists |= comp_artists(members)
+    held_out_id_set = set(held_out_ids)
+
+    # --- train/val over the remaining components (whole component -> one side) ---
+    # Greedy deterministic val accumulation to ~TONY_VAL_FRACTION (whole-component
+    # assignment makes a hash-bucket undershoot when a big artist lands in train,
+    # so accumulate to the target instead).
+    remaining = [
+        components[ckey]
+        for ckey in sorted(components, key=lambda k: comp_key(components[k]))
+        if comp_key(components[ckey]) not in held_out_comp_keys
+    ]
+    train_artists: set[str] = set()
+    for members in remaining:
+        train_artists |= comp_artists(members)
+    pool_n = sum(len(m) for m in remaining)
+    # max(1,...) so a small pool never yields an empty tony.val (Story 7.5's
+    # validation loader would crash / silently skip on val == []).
+    val_target = max(1, int(round(TONY_VAL_FRACTION * pool_n))) if pool_n else 0
+    val_order = list(remaining)
+    random.Random(TONY_SPLIT_SEED + 1).shuffle(val_order)
+    train_ids: list[str] = []
+    val_ids: list[str] = []
+    val_n = 0
+    for members in val_order:
+        ids = [str(t.get("track_id")) for t in members]
+        if val_n < val_target:
+            val_ids.extend(ids)
+            val_n += len(ids)
+        else:
+            train_ids.extend(ids)
+
+    # Empty-artist tracks that ended up held-out (only as a title-linked dup of a
+    # held-out recording) vs excluded from held-out (the standalone majority).
+    empty_in_heldout = [t for t in empties_total if str(t.get("track_id")) in held_out_id_set]
+    empty_excluded = [t for t in empties_total if str(t.get("track_id")) not in held_out_id_set]
+
+    # --- named DnB triplet confirmation (AC5): none in train+val ---
+    train_val_set = set(train_ids) | set(val_ids)
+    remaining_names = " ".join(
+        (t.get("name") or "").lower() for t in clean if str(t.get("track_id")) in train_val_set
+    ).replace("_", " ")
+    triplet_residue = [n for n in DNB_TRIPLET_NEEDLES if n.replace("_", " ") in remaining_names]
+
+    return {
+        "trainable_before_exclusion": len(trainable),
+        "sentinelHoldout": {
+            "expandedSentinelIds": sorted(sentinel_ids),
+            "count": len(sentinel_ids),
+            "note": "AC7 — the 8 expanded DnB sentinels are held-out eval; excluded from "
+            "tony.train/val before assignment. Empty if 12-dnb-sentinels-expanded.json is "
+            "not yet curated (run `make curate-sentinels`).",
+        },
+        "manualDupExclusions": {
+            "excludedTrackIds": sorted(manual_dup_ids),
+            "count": len(manual_dup_ids),
+            "note": "Operator-confirmed within-Tony duplicate drops from the KDD-B4 signoff "
+            "(manual-dup-exclusions.json). The audit surfaces near-dup REVIEW FLAGS; the "
+            "operator confirms each by ear and lists the track_id to drop, then re-runs "
+            "`make ml-splits`. Empty until the operator acts.",
+        },
+        "train": sorted(train_ids),
+        "val": sorted(val_ids),
+        "leaveArtistOut": {
+            "trainArtists": sorted(train_artists),
+            "heldOutArtists": sorted(held_out_artists),
+            "heldOutTrackIds": sorted(held_out_ids),
+            "heldOutCount": len(held_out_ids),
+            "minRequired": target_heldout,
+            "emptyArtistExcludedCount": len(empty_excluded),
+            "emptyArtistTrackIds": sorted(str(t.get("track_id")) for t in empty_excluded),
+            "emptyArtistHeldOutAsDupCount": len(empty_in_heldout),
+            "note": "Grouping = connected components over (shared canonical artist OR "
+            "shared normalized title), so every copy of a recording lands on one side "
+            "deterministically (DD #4 + the same-recording gate AC4 needs). Disjoint on "
+            "the canonical artist key. Empty-artist tracks are EXCLUDED from the held-out "
+            "slice and the disjointness assertion, EXCEPT the few that are title-linked "
+            "dups of a held-out recording (emptyArtistHeldOutAsDupCount — they correctly "
+            "follow their duplicate). Held-out sized >= 10% of the cleaned trainable set "
+            "for Story 7.6 FR-23.",
+        },
+        "excludedCrossCorpus": {
+            "count": len(matches),
+            "corporaChecked": external_index.corpora_checked,
+            "matches": [
+                {
+                    "track_id": m.track_id,
+                    "tony_name": m.tony_name,
+                    "normalized_key": m.normalized_key,
+                    "external_corpus": m.external_corpus,
+                    "external_title": m.external_title,
+                }
+                for m in matches
+            ],
+            "namedDnBTripletResidueInTrain": triplet_residue,
+            "note": "AC5 — detect AND remove. Tony is TRAIN; OA300/GiantSteps are FR-18 "
+            "eval gates. Conservative: a normalized-title hit is excluded even for generic "
+            "titles (excluding a false-positive from training is harmless; admitting a true "
+            "leak inflates the gate). NOTE on Charly: Tony's `Charly (Neekeetone Jungle "
+            "Rework)` shares an identical normalized title with the OA300 eval entry, but it "
+            "is Marginal-tier (truth_confidence 0.627) so it is already excluded by TIERING "
+            "and never reaches this cross-corpus pass — it is leak-safe via the tier filter, "
+            "not via this exclusion set (which is why it does not appear in `matches`).",
+        },
+        "_provenance": {
+            "labelsSha256": prov.labels_sha256,
+            "labelerScriptSha256": prov.labeler_script_sha256,
+            "trackCount": prov.track_count,
+        },
+    }
+
+
+def hashlib_md5_int(s: str) -> int:
+    """Stable cross-run integer hash (Python's builtin hash() is salted)."""
+    import hashlib
+
+    return int(hashlib.md5(s.encode()).hexdigest(), 16)
+
+
+def _external_namespace(splits: dict) -> dict:
+    """Shape the legacy GiantSteps/OA300 split into externalEval namespace."""
+    return {
+        "giantsteps": {
+            "train": sorted(t.track_id for t in splits["train"]),
+            "val": sorted(t.track_id for t in splits["val"]),
+        },
+        "oa300": {
+            "test": sorted(t.track_id for t in splits["test"]),
+        },
+        "_meta": splits.get("_meta", {}),
+    }
+
+
+def write_namespaced_corpus_splits_json(
+    tony_splits: dict, external: dict | None, out_path: Path
+) -> None:
+    """Persist the Story 7.1 namespaced split (DD #2). schema_version bumped to
+    2 — the flat top-level train/val/test keys are GONE, so a stale-shape
+    consumer reading `data["train"]` KeyErrors loudly instead of silently
+    treating GiantSteps as Tony.
+    """
+    payload = {
+        "schema_version": 2,
+        "schema_note": "v2 namespaces the split: tony.{train,val,leaveArtistOut} is the "
+        "TRAINING corpus; externalEval.{giantsteps,oa300} is held-out FR-18 eval. The flat "
+        "v1 train/val/test keys are REMOVED — a v1 consumer must fail loud, not reinterpret.",
+        "tony": tony_splits,
+        "externalEval": external
+        if external is not None
+        else {
+            "_note": "externalEval not rebuilt this run (OA300/GiantSteps corpora "
+            "unavailable); re-run with corpus env vars set to populate."
+        },
+    }
+    out_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -369,9 +763,7 @@ def load_fixture(path: Path = FIXTURE_PATH) -> FeaturePipelineFixture:
             f"Re-export with `swift run dump-fixture` after changing SAMPLE_RATE."
         )
     if fixture.n_mels != N_MELS:
-        raise ValueError(
-            f"Fixture n_mels={fixture.n_mels} != N_MELS={N_MELS}."
-        )
+        raise ValueError(f"Fixture n_mels={fixture.n_mels} != N_MELS={N_MELS}.")
     if fixture.n_fft != N_FFT:
         raise ValueError(f"Fixture n_fft={fixture.n_fft} != N_FFT={N_FFT}.")
     if fixture.feature_set_version != FEATURE_SET_VERSION:
@@ -460,7 +852,7 @@ def extract_pre_log_mel(
         padded = np.pad(audio, (0, n_fft - audio.shape[0]), mode="constant")
         frames = padded[np.newaxis, :]
 
-    windowed = (frames.astype(np.float64) * fixture.stft_window.astype(np.float64))
+    windowed = frames.astype(np.float64) * fixture.stft_window.astype(np.float64)
     spec = np.fft.rfft(windowed, axis=1)  # (n_frames, n_fft//2 + 1) = (n_frames, 1025)
 
     # Build Swift-equivalent (n_frames, half_n) power array
@@ -513,7 +905,9 @@ def sample_window(
         return log_mel
     if training:
         if rng is None:
-            rng = random
+            # Fresh unseeded instance (behaviorally equivalent to the module
+            # global for this no-rng-given path; callers normally pass a seeded rng).
+            rng = random.Random()
         offset = rng.randint(0, n_frames - target_frames)
     else:
         offset = (n_frames - target_frames) // 2
@@ -654,9 +1048,9 @@ class TempoDataset(Dataset):
         """Index-deterministic RNG for reproducibility."""
         return random.Random(self._base_seed * 1_000_003 + idx)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
-        record = self.records[idx]
-        rng = self._make_rng(idx)
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, int]:
+        record = self.records[index]
+        rng = self._make_rng(index)
 
         # Load mono audio at the canonical sample rate. soxr_hq matches
         # Accelerate's resampler closer than kaiser_best.
@@ -676,7 +1070,9 @@ class TempoDataset(Dataset):
             # bounds without clamp-collapse.
             stretch_safe_ceiling = BPM_BIN_MAX / 1.04
             audio, bpm = augment_pcm(
-                audio, bpm, rng,
+                audio,
+                bpm,
+                rng,
                 sr=SAMPLE_RATE,
                 allow_stretch=(bpm <= stretch_safe_ceiling),
             )
@@ -703,27 +1099,57 @@ def worker_init_fn(worker_id: int) -> None:
 
 
 # ---------------------------------------------------------------------------
-# CLI: print split summary and write corpus_splits.json
+# CLI: build the Story 7.1 namespaced split and write corpus_splits.json
 # ---------------------------------------------------------------------------
 
 
 def main() -> int:
-    splits = build_splits(verify=True)
-    print(f"train: {len(splits['train'])} GiantSteps tracks")
-    print(f"val:   {len(splits['val'])} GiantSteps tracks (fold01)")
-    print(f"test:  {len(splits['test'])} OA300 tracks (held-out)")
-    print(f"meta:  {splits.get('_meta', {})}")
+    # Tony split — always buildable (pure metadata, no external corpus).
+    tony = build_tony_splits()
+    lao = tony["leaveArtistOut"]
+    print(
+        f"tony.train: {len(tony['train'])}  tony.val: {len(tony['val'])}  "
+        f"leaveArtistOut: {lao['heldOutCount']} tracks / {len(lao['heldOutArtists'])} artists "
+        f"(min {lao['minRequired']})"
+    )
+    print(
+        f"  excluded cross-corpus: {tony['excludedCrossCorpus']['count']} "
+        f"(checked {tony['excludedCrossCorpus']['corporaChecked']})"
+    )
+    print(f"  empty-artist excluded from held-out: {lao['emptyArtistExcludedCount']}")
+    residue = tony["excludedCrossCorpus"]["namedDnBTripletResidueInTrain"]
+    print(f"  named DnB triplet residue in train (must be empty): {residue}")
 
-    # DnB triplet confirmation
-    needles = ["Charly", "Faraday_Bunker", "Yin Yang", "HEFT_Anagram"]
-    for n in needles:
-        matches = [t.track_id for t in splits["test"] if n in t.track_id]
-        print(f"  DnB needle {n!r}: {matches}")
+    # externalEval — only when the OA300/GiantSteps corpora are available.
+    external = None
+    try:
+        splits = build_splits(verify=True)
+        external = _external_namespace(splits)
+        print(
+            f"externalEval.giantsteps: {len(external['giantsteps']['train'])} train / "
+            f"{len(external['giantsteps']['val'])} val; oa300: "
+            f"{len(external['oa300']['test'])} test"
+        )
+    except (EnvironmentError, FileNotFoundError) as exc:
+        print(f"externalEval NOT rebuilt (corpora unavailable): {exc}")
+        # Preserve a previously-built externalEval namespace if present.
+        out = ML_TRAINING_DIR / "corpus_splits.json"
+        if out.exists():
+            try:
+                prev = json.loads(out.read_text())
+                if (
+                    isinstance(prev, dict)
+                    and isinstance(prev.get("externalEval"), dict)
+                    and "giantsteps" in prev["externalEval"]
+                ):
+                    external = prev["externalEval"]
+                    print("  carried forward externalEval from existing corpus_splits.json")
+            except (json.JSONDecodeError, OSError):
+                pass
 
-    # Persist split manifest
     out = ML_TRAINING_DIR / "corpus_splits.json"
-    write_corpus_splits_json(splits, out)
-    print(f"\nWrote {out}")
+    write_namespaced_corpus_splits_json(tony, external, out)
+    print(f"\nWrote {out} (schema_version 2, namespaced)")
     return 0
 
 

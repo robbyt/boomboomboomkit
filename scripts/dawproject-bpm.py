@@ -95,9 +95,7 @@ def normalize(s: str) -> str:
     return unicodedata.normalize("NFC", s)
 
 
-def find_ground_truth_match(
-    daw_filename: str, gt_entries: list[dict]
-) -> dict | None:
+def find_ground_truth_match(daw_filename: str, gt_entries: list[dict]) -> dict | None:
     """Match a dawproject filename to a ground truth entry."""
     daw_norm = normalize(daw_filename)
 

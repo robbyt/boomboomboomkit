@@ -33,7 +33,7 @@ import argparse
 import json
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -41,9 +41,7 @@ import numpy as np
 import torch
 
 from dataset import (
-    BPM_BIN_COUNT,
     BPM_BIN_MIN,
-    DNB_TARGETS_PATH,
     FIXTURE_PATH,
     SAMPLE_RATE,
     TARGET_FRAMES,
@@ -301,10 +299,10 @@ def main(argv=None) -> int:
         choices=["pytorch", "coreml", "both"],
         default="both",
         help="Inference source. Default 'both' so the canonical gating run "
-             "exercises AC #11's CoreML binding mode AND captures the "
-             "convert-roundtrip sanity HALT. Use 'pytorch' for fast smoke "
-             "iteration during dev (sanity HALT for roundtrip will be omitted "
-             "from the report when CoreML is not exercised).",
+        "exercises AC #11's CoreML binding mode AND captures the "
+        "convert-roundtrip sanity HALT. Use 'pytorch' for fast smoke "
+        "iteration during dev (sanity HALT for roundtrip will be omitted "
+        "from the report when CoreML is not exercised).",
     )
     p.add_argument("--test-corpus", type=str, default="oa300", choices=["oa300"])
     args = p.parse_args(argv if argv is not None else sys.argv[1:])
@@ -327,7 +325,9 @@ def main(argv=None) -> int:
         if isinstance(state, dict):
             for wrapper_key in ("model", "state_dict", "model_state_dict", "model_state"):
                 inner = state.get(wrapper_key)
-                if isinstance(inner, dict) and any(isinstance(v, torch.Tensor) for v in inner.values()):
+                if isinstance(inner, dict) and any(
+                    isinstance(v, torch.Tensor) for v in inner.values()
+                ):
                     print(f"Unwrapped checkpoint via key {wrapper_key!r}")
                     state = inner
                     break
@@ -360,9 +360,7 @@ def main(argv=None) -> int:
     # Summaries
     overall = summarize(results)
     dnb_results = named_dnb_subset(results)
-    dnb_strict_count = sum(
-        1 for r in dnb_results if r.get("strict_0_5") is True
-    )
+    dnb_strict_count = sum(1 for r in dnb_results if r.get("strict_0_5") is True)
 
     # Sanity HALTs. Per chunk-1 P12 review: when --source != 'both', the
     # convert-roundtrip HALT key is OMITTED entirely (mirrors chunk-2
@@ -383,15 +381,11 @@ def main(argv=None) -> int:
         )
     advisory_halts = {
         "named_dnb_strict_0_5_>=_2_of_4": dnb_strict_count >= 2,
-        "_advisory_only": (
-            "below threshold blocks Story 4-5 signoff, not Story 4-4b production"
-        ),
+        "_advisory_only": ("below threshold blocks Story 4-5 signoff, not Story 4-4b production"),
     }
     promotion_warnings = {
         "oa300_acc_4pct_>=_25pct": overall["acc_4pct_percent"] >= 25.0,
-        "_signoff_required_if_false": (
-            "Project Lead must acknowledge in Completion Notes"
-        ),
+        "_signoff_required_if_false": ("Project Lead must acknowledge in Completion Notes"),
     }
     soft_targets = {
         "giantsteps_val_acc_4pct_>=_55pct": None,  # not evaluated here
@@ -451,12 +445,10 @@ def main(argv=None) -> int:
     print()
     print(f"=== OA300 held-out test ({overall['n']} tracks) ===")
     print(
-        f"acc_4pct: {overall['acc_4pct_count']}/{overall['n']} "
-        f"({overall['acc_4pct_percent']:.1f}%)"
+        f"acc_4pct: {overall['acc_4pct_count']}/{overall['n']} ({overall['acc_4pct_percent']:.1f}%)"
     )
     print(
-        f"acc_2pct: {overall['acc_2pct_count']}/{overall['n']} "
-        f"({overall['acc_2pct_percent']:.1f}%)"
+        f"acc_2pct: {overall['acc_2pct_count']}/{overall['n']} ({overall['acc_2pct_percent']:.1f}%)"
     )
     print(
         f"strict_0_5: {overall['strict_0_5_count']}/{overall['n']} "

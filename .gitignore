@@ -56,6 +56,8 @@ _bmad-output/ml-training/checkpoints/
 _bmad-output/ml-training/swift_feature_extractor/out/
 _bmad-output/ml-training/benchmark-oa300-pre.log
 _bmad-output/ml-training/benchmark-giantsteps-pre.log
+# Story 7.1 — regenerable audio-fingerprint cache (machine-specific path/mtime keys)
+_bmad-output/ml-training/tony-corpus/fingerprint-cache.npz
 
 # Local review scratch output (NOT shipped)
 _bmad-output/implementation-artifacts/review-tmp/

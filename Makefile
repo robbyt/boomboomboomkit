@@ -274,9 +274,16 @@ oracle-generate:
 fmt:
 	swift format --recursive --in-place Sources/ Tests/
 
-## lint: Run SwiftLint code quality checks
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) carries pre-existing ty debt and is out of the ty scope for now.
+.PHONY: py-lint
+py-lint:
+	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
+	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py test_recording_components.py ../../scripts/audit-corpus-splits.py
+
+## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
-lint:
+lint: py-lint
 	swiftlint lint .
 
 ## lint-fix: Run SwiftLint with auto-fix
@@ -333,10 +340,31 @@ ml-dump-fixture:
 ml-parity:
 	cd $(ML_TRAINING_DIR) && uv run python test_feature_parity.py
 
-## ml-splits: Build corpus_splits.json with leak and DnB-triplet checks
+## ml-splits: Build the namespaced corpus_splits.json (Story 7.1: tony.{train,val,leaveArtistOut} + externalEval.{giantsteps,oa300}, schema_version 2). Corpus paths are passed so externalEval rebuilds; Tony alone needs no external corpus.
 .PHONY: ml-splits
 ml-splits:
-	cd $(ML_TRAINING_DIR) && uv run python dataset.py
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run python dataset.py
+
+## corpus-diagnostics: Story 7.1 — emit corpus-diagnostics-v1.{json,md} from tony-truth-labels.json (FR-12; develop-only, no external corpus needed)
+.PHONY: corpus-diagnostics
+corpus-diagnostics:
+	cd $(ML_TRAINING_DIR) && uv run python corpus_diagnostics.py
+
+## curate-sentinels: Story 7.1 — emit the 12-track JAMS sentinel manifest (Tests/.../12-dnb-sentinels-expanded.json, ships to main) + expanded-sentinels-curation.md (develop-only)
+.PHONY: curate-sentinels
+curate-sentinels:
+	cd $(ML_TRAINING_DIR) && uv run python curate_sentinels.py
+
+## audit-corpus-splits: Story 7.1 — contamination audit over corpus_splits.json (AC4/5/6/7 gates + DD #3 fingerprint). Corpus paths feed the GiantSteps overlap pass + audio fingerprint.
+.PHONY: audit-corpus-splits
+audit-corpus-splits:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/audit-corpus-splits.py \
+		--check-sentinels-against Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/12-dnb-sentinels-expanded.json
 
 ## ml-summary: Regenerate model_summary.txt and model_metadata.json
 .PHONY: ml-summary

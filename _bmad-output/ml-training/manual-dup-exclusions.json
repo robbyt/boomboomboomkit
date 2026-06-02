@@ -1,0 +1,5 @@
+{
+  "_doc": "KDD-B4 signoff: operator-confirmed within-Tony duplicate drops. Run `make audit-corpus-splits`; it prints near-dup REVIEW FLAGS as `<cosine> <split>[<track_id>]:<name> <-> <split>[<track_id>]:<name>`. For each pair you confirm by ear is the SAME recording crossing a train/val/leaveArtistOut boundary, copy the track_id of the copy to DROP into excludedTrackIds below, then re-run `make ml-splits`. Leave pairs you confirm are DISTINCT (different recordings) out. Empty list => no manual drops (the report-only fingerprint never auto-excludes, per DD #3).",
+  "excludedTrackIds": [],
+  "rationale": {}
+}

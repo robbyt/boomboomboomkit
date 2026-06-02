@@ -44,13 +44,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
-PBXPROJ = (
-    REPO_ROOT
-    / "Demo"
-    / "BoomBoomBoomBPM"
-    / "BoomBoomBoomBPM.xcodeproj"
-    / "project.pbxproj"
-)
+PBXPROJ = REPO_ROOT / "Demo" / "BoomBoomBoomBPM" / "BoomBoomBoomBPM.xcodeproj" / "project.pbxproj"
 
 # Line-anchored, whitespace-tolerant, quoted-or-unquoted integer matcher.
 # Group 1 captures leading indentation so rewrites preserve it.
@@ -113,9 +107,7 @@ def main() -> int:
 
     new_text = LINE_RE.sub(replace, text)
 
-    applied = sum(
-        1 for _indent, value in LINE_RE.findall(new_text) if int(value) == next_val
-    )
+    applied = sum(1 for _indent, value in LINE_RE.findall(new_text) if int(value) == next_val)
     if applied != total:
         print(
             f"ERROR: bump would rewrite {applied} of {total} CURRENT_PROJECT_VERSION "
