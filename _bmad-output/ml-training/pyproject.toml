@@ -12,6 +12,7 @@ dependencies = [
   "coremltools>=8.0",
   "tqdm>=4.66",
   "torchinfo>=1.8",
+  "mutagen>=1.47.0",
 ]
 
 [dependency-groups]

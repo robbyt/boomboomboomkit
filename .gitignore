@@ -59,5 +59,10 @@ _bmad-output/ml-training/benchmark-giantsteps-pre.log
 # Story 7.1 — regenerable audio-fingerprint cache (machine-specific path/mtime keys)
 _bmad-output/ml-training/tony-corpus/fingerprint-cache.npz
 
+# Story 7.2 — large regenerable survey intermediate (embeds absolute audio paths;
+# regenerate via `make non-rekordbox-survey`). The portable hash-keyed manifest +
+# the two reviewable .md reports ARE committed.
+_bmad-output/ml-training/non-rekordbox-survey.json
+
 # Local review scratch output (NOT shipped)
 _bmad-output/implementation-artifacts/review-tmp/
