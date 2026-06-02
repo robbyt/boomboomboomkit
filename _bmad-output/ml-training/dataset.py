@@ -465,12 +465,16 @@ def _recording_components(tracks: list[dict]) -> dict[str, list[dict]]:
             uf.union(group[0], other)
     # Title edges: only union an empty-artist track to its same-title peers
     # (one of which may be a named recording of that title). Named<->named title
-    # collisions are NOT unioned.
+    # collisions are NOT unioned. Anchor to a NAMED track when one exists so the
+    # named copy and the artist-in-name copies merge — group[0] is corpus-order
+    # and is not guaranteed named (was a bug: an empty group[0] left the named
+    # same-title copy in a separate component, crossing split boundaries).
     for group in title_groups.values():
+        named = [tid for tid in group if tid not in empty_artist]
         empties = [tid for tid in group if tid in empty_artist]
         if not empties:
             continue  # all named, different artists, same generic title — skip
-        anchor = group[0]  # attach empties to the first (named if any) of this title
+        anchor = named[0] if named else empties[0]
         for tid in empties:
             uf.union(anchor, tid)
     comps: dict[str, list[dict]] = {}

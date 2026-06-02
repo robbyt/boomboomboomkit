@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# ///
 """
 Story 7.1 Task 4 — corpus-split contamination audit (develop-only).
 
@@ -61,6 +64,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 ML_TRAINING_DIR = REPO_ROOT / "_bmad-output" / "ml-training"
 sys.path.insert(0, str(ML_TRAINING_DIR))
 
+# Project-coupled: imports the local corpus_common module and (lazily) numpy +
+# librosa. The canonical invocation is the Makefile's
+# `uv run --project <ml-training> python scripts/audit-corpus-splits.py`, which
+# resolves corpus_common + those deps from the ml-training venv. The PEP 723
+# header above is for convention + light standalone use (metadata-only paths).
 import corpus_common as cc  # noqa: E402  (runtime sys.path insert above)
 
 SPLITS_PATH = ML_TRAINING_DIR / "corpus_splits.json"
