@@ -64,5 +64,15 @@ _bmad-output/ml-training/tony-corpus/fingerprint-cache.npz
 # the two reviewable .md reports ARE committed.
 _bmad-output/ml-training/non-rekordbox-survey.json
 
+# Story 7.3 — per-run ablation model artifacts. Only the large/regenerable ones
+# are ignored: the model weights, the per-epoch log, and the run-B split sidecar.
+# model_metadata.json IS committed (DD #8 forensic record). The harness (.py), the
+# .md docs, and non-rekordbox-unsupervised-pretrain-manifest.json are committed;
+# kdd-b2-comparison-v1.md is the operator-produced AC12 deliverable.
+_bmad-output/ml-training/ablation/*/model.pt
+_bmad-output/ml-training/ablation/*/model.pt.partial
+_bmad-output/ml-training/ablation/*/training_log.json
+_bmad-output/ml-training/ablation/*/run_b_random_split.json
+
 # Local review scratch output (NOT shipped)
 _bmad-output/implementation-artifacts/review-tmp/
