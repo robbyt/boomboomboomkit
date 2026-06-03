@@ -279,7 +279,7 @@ fmt:
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py test_recording_components.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/non-rekordbox-survey.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -353,18 +353,24 @@ ml-splits:
 corpus-diagnostics:
 	cd $(ML_TRAINING_DIR) && uv run python corpus_diagnostics.py
 
+## marginal-failure-categorize: Story 7.4 — emit marginal-failure-categorization.json (use-a) + marginal-watchlist.json (use-c) for the 241 Marginal-tier tracks (FR-14/KDD-B4; develop-only, decode-free, no external corpus needed)
+.PHONY: marginal-failure-categorize
+marginal-failure-categorize:
+	uv run --project $(ML_TRAINING_DIR) python scripts/marginal-failure-categorize.py
+
 ## curate-sentinels: Story 7.1 — emit the 12-track JAMS sentinel manifest (Tests/.../12-dnb-sentinels-expanded.json, ships to main) + expanded-sentinels-curation.md (develop-only)
 .PHONY: curate-sentinels
 curate-sentinels:
 	cd $(ML_TRAINING_DIR) && uv run python curate_sentinels.py
 
-## audit-corpus-splits: Story 7.1 — contamination audit over corpus_splits.json (AC4/5/6/7 gates + DD #3 fingerprint). Corpus paths feed the GiantSteps overlap pass + audio fingerprint.
+## audit-corpus-splits: Story 7.1/7.4 — contamination audit over corpus_splits.json (AC4/5/6/7 gates + DD #3 fingerprint + Story 7.4 FR-14 --reject-marginal). Corpus paths feed the GiantSteps overlap pass + audio fingerprint.
 .PHONY: audit-corpus-splits
 audit-corpus-splits:
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	uv run --project $(ML_TRAINING_DIR) python scripts/audit-corpus-splits.py \
-		--check-sentinels-against Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/12-dnb-sentinels-expanded.json
+		--check-sentinels-against Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/12-dnb-sentinels-expanded.json \
+		--reject-marginal
 
 ## ml-summary: Regenerate model_summary.txt and model_metadata.json
 .PHONY: ml-summary

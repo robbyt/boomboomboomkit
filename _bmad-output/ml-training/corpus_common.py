@@ -58,6 +58,37 @@ def _is_finite(x) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Tempo ratio geometry (Story 7.4 Task 0 / DD #2) — single source of the
+# canonical larger/smaller ratio + the octave/harmonic tolerances.
+#
+# Promoted out of `corpus_diagnostics._canonical_ratio` so the categorization
+# module, the diagnostics generator, and any future consumer share ONE ratio
+# helper (the `tier_for` single-source discipline applied to ratio math).
+# `corpus_diagnostics` imports `canonical_ratio` from here; do not re-define it.
+# ---------------------------------------------------------------------------
+
+# Relative tolerances on the canonical centroid ratio (Story 7.4 DD #2).
+# OCTAVE: a 2:1 ratio is "octave" within OCTAVE_RATIO_TOL of 2.0 (scaled by 2.0
+# so the absolute window is OCTAVE_RATIO_TOL*2.0 = 0.10 BPM-ratio units).
+# HARMONIC: 3:2 or 3:1 within HARMONIC_RATIO_TOL of 1.5 / 3.0 respectively.
+OCTAVE_RATIO_TOL = 0.05
+HARMONIC_RATIO_TOL = 0.03
+
+
+def canonical_ratio(a: float, b: float) -> float:
+    """Larger / smaller, guarding zero/negative.
+
+    Direction-symmetric: `canonical_ratio(170, 85) == canonical_ratio(85, 170)`,
+    so a 0.5x runner-up needs no separate `double` branch (DD #2). Returns 0.0
+    when either input is non-positive (the caller treats 0.0 as "no ratio").
+    """
+    if a <= 0 or b <= 0:
+        return 0.0
+    hi, lo = (a, b) if a >= b else (b, a)
+    return hi / lo
+
+
+# ---------------------------------------------------------------------------
 # Label-tier banding (AC2 / DD #1) — EXACT half-open intervals on truth_confidence.
 # Boundary records (exactly 0.65 / 0.80) land in the HIGHER tier (M2).
 # `bpm_truth == null` abstentions are Reject regardless of confidence.

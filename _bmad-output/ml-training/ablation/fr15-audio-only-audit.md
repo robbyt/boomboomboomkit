@@ -56,3 +56,24 @@ audio), never a model feature; the survey's forbidden columns
 (`dspBPM`/`dspConfidence`/`fileMetadataBPM`) are dropped at build time
 (`build_unsupervised_manifest.py`). Asserted by
 `tests/test_ablation_data.py::test_unsupervised_manifest_is_fr15_clean`.
+
+## Story 7.4 addendum — Marginal diagnostic artifacts (AC10 / DD #12)
+
+Story 7.4 produces two develop-only DIAGNOSTIC artifacts that intentionally
+CONTAIN forbidden-as-FEATURE content (DSP BPM/confidence, Rekordbox/grid BPM,
+playlist relation): `marginal-failure-categorization.json` and
+`marginal-watchlist.json`. FR-15 governs MODEL INPUTS — a diagnostic file
+containing these signals is fine; the risk is a feature-transform / training
+path READING one of them. That risk is closed two ways:
+
+1. **Filename grep (extended scope).** The FR-15 audit greps the
+   feature-transform / training code paths (`dataset.py`, `train.py`,
+   `ablation/ablation_features.py`, `ablation/train_*.py`,
+   `ablation/build_unsupervised_manifest.py`) for the two artifact filenames and
+   for the categorization module name (`marginal_failure_categorize` /
+   `marginal-failure-categorize`) — **zero matches required**.
+2. **Test enforcement.** Asserted by
+   `ablation/tests/test_marginal_categorization.py::test_no_training_path_reads_marginal_artifacts`.
+
+The boundary mirrors the Story 7.2 AC9 / 7.3 DD #4 locator-vs-feature
+distinction and is also recorded in `marginal-failure-categorization.md`.

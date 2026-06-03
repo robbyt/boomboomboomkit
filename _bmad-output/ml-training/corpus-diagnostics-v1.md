@@ -26,7 +26,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## gitSha
 
-`38dde01-dirty`
+`2a92369-dirty`
 
 ## provenance
 
@@ -503,10 +503,59 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 - **singleSourceInTrainable**: `0`
 - **decision**: `INCLUDE — moot on this corpus: 0 single-source tracks reach the Strong/Solid trainable tier (the single_source_truth flag co-occurs with low_confidence and tiers into Marginal/Reject). The trainable set of 1078 is fully multi-source. If a future relabel pushes a single-source track into Strong/Solid, this decision MUST be revisited.`
 
+## marginalTierDisagreementGeometry
+
+- **marginalTierCount**: `241`
+- **categorizationModule**: `marginal_failure_categorize.py`
+- **perCategory**:
+  - **dspFailure**:
+    - **count**: `30`
+    - **meanDspConfidence**: `0.658603`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **metadataConflict**:
+    - **count**: `2`
+    - **meanDspConfidence**: `0.862624`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **halfDoubleOctave**:
+    - **count**: `199`
+    - **meanDspConfidence**: `0.686071`
+    - **halfDoubleRate**: `1.0`
+    - **coveredForProximity**: `16`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **harmonicAmbiguity**:
+    - **count**: `8`
+    - **meanDspConfidence**: `0.754616`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **unresolved**:
+    - **count**: `2`
+    - **meanDspConfidence**: `0.770405`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+- **halfDoubleRateDefinition**: `fraction of the category's tracks whose runner_up_cluster centroid is a 2x/0.5x (octave) ratio of the truth_cluster centroid (canonical_ratio within OCTAVE_RATIO_TOL).`
+- **proximity**:
+  - **metric**: `cosine distance to the nearest Strong-tier neighbor in the librosa-mfcc-chroma-timbral-v2 fingerprint space (per-dimension standardized across the union, exhaustive argmin, ties -> lowest Strong track_id).`
+  - **marginalCoverage**: `16/241`
+  - **strongCoverage**: `321/333`
+  - **coverageFloor**: `0.8`
+  - **minPerCategory**: `10`
+  - **coverageMet**: `False`
+  - **note**: `DD #5 — the fingerprint cache was built over SPLIT tracks; Marginal is split-excluded (FR-14), so coverage is far below the floor on a dev-agent run and per-category meanNearestStrongDistance is `null` with proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. Numeric proximity appears only after `corpus_diagnostics.py --fingerprint-fill` (needs Tony audio + librosa) raises coverage above the floor.`
+  - **fillRan**: `False`
+  - **fillNewVectors**: `0`
+
 ## reviewerSignoff
 
 See REVIEWER SIGNOFF section above. State: `pending`.
 
-## Non-Rekordbox expansion (Story 7.2)
-
-The non-Rekordbox semi-supervised expansion pool (Story 7.2) is surveyed and tiered separately; see [`non-rekordbox-source-distribution.md`](non-rekordbox-source-distribution.md) for the source-distribution report (genre/tempo/format/tier counts + yield + octave-risk caveat).

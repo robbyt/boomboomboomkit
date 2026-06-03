@@ -17,8 +17,10 @@ new review (AC8 / AC9 drift philosophy).
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -26,9 +28,18 @@ import numpy as np
 from scipy.cluster.vq import kmeans2, whiten
 
 import corpus_common as cc
+import marginal_failure_categorize as mfc
 
 OUT_JSON = cc.ML_TRAINING_DIR / "corpus-diagnostics-v1.json"
 OUT_MD = cc.ML_TRAINING_DIR / "corpus-diagnostics-v1.md"
+
+# Story 7.4 use-(b) — proximity sub-metric coverage gate (DD #5). The
+# fingerprint cache was built over SPLIT tracks (Marginal is split-excluded by
+# FR-14), so live Marginal coverage is ~16/241 — below this floor the per-
+# category mean nearest-Strong distance is `null`+status, never a misleading
+# upward-biased number. Numeric proximity appears only after `--fingerprint-fill`.
+MARGINAL_PROXIMITY_COVERAGE_FLOOR = 0.80
+MARGINAL_PROXIMITY_MIN_PER_CATEGORY = 10
 
 SIGNALS = ("rekordbox_average", "grid_bpm", "dsp", "playlist")
 BPM_SIGNALS = ("rekordbox_average", "grid_bpm", "dsp")  # playlist carries no bpm
@@ -124,14 +135,6 @@ def label_source_bias(tracks: list[dict]) -> dict:
     }
 
 
-def _canonical_ratio(a: float, b: float) -> float:
-    """Larger / smaller, guarding zero."""
-    if a <= 0 or b <= 0:
-        return 0.0
-    hi, lo = (a, b) if a >= b else (b, a)
-    return hi / lo
-
-
 def octave_ambiguity_rate(tracks: list[dict]) -> dict:
     """Fraction of resolvable tracks where Rekordbox AverageBpm vs DSP winner
     form a 2:1 ratio within the labeler's 0.04 tolerance.
@@ -143,7 +146,7 @@ def octave_ambiguity_rate(tracks: list[dict]) -> dict:
         d = t["signals"].get("dsp", {}).get("bpm")
         if r is None or d is None:
             continue
-        ratio = _canonical_ratio(r, d)
+        ratio = cc.canonical_ratio(r, d)
         if abs(ratio - 2.0) <= 0.04 * 2.0:
             n += 1
     denom = len(resolvable)
@@ -522,11 +525,153 @@ def single_source_truth_policy(tracks: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Story 7.4 use-(b) — Marginal-tier disagreement geometry (DD #3 / DD #5)
+# ---------------------------------------------------------------------------
+
+
+def _load_cached_fingerprints(
+    subset: list[dict], *, fill: bool = False
+) -> tuple[dict[str, "np.ndarray"], int]:
+    """Return ({track_id -> raw vector}, new_entries) for `subset`, reading the
+    method-versioned cache. Cache-ONLY in the default path (no audio decode —
+    DD #5); `fill=True` is the operator path that computes missing vectors via
+    librosa and writes them back (needs Tony audio).
+    """
+    cache: dict[str, "np.ndarray"] = {}
+    if cc.FINGERPRINT_CACHE.exists():
+        z = np.load(cc.FINGERPRINT_CACHE, allow_pickle=True)
+        method = str(z["__method__"]) if "__method__" in z.files else "unknown"
+        if method == cc.FINGERPRINT_METHOD:
+            for k in z.files:
+                if k == "__method__":
+                    continue
+                v = z[k]
+                if np.all(np.isfinite(v)):
+                    cache[k] = v
+
+    vecs: dict[str, "np.ndarray"] = {}
+    new_entries = 0
+    for t in subset:
+        path = t.get("local_path")
+        if not path or not os.path.exists(path):
+            continue
+        ckey = cc.content_hash(path)
+        if ckey in cache:
+            vecs[str(t.get("track_id"))] = cache[ckey]
+        elif fill:
+            fp = cc.compute_fingerprint(path)
+            if fp is None:
+                continue
+            cache[ckey] = fp
+            vecs[str(t.get("track_id"))] = fp
+            new_entries += 1
+
+    if fill and new_entries:
+        np.savez_compressed(
+            cc.FINGERPRINT_CACHE,
+            __method__=cc.FINGERPRINT_METHOD,
+            **cache,  # ty: ignore[invalid-argument-type]
+        )
+    return vecs, new_entries
+
+
+def marginal_tier_disagreement_geometry(tracks: list[dict], *, fill: bool = False) -> dict:
+    """Use-(b) `marginalTierDisagreementGeometry` block (AC3).
+
+    Sub-metrics (a)-(c) are computed from on-disk JSON at 100% coverage; (d) is
+    coverage-gated (DD #5) — `null`+status below the floor (the expected
+    dev-agent state with the split-built cache).
+    """
+    records = mfc.categorization_records(tracks)
+    marg_by_id = {str(t.get("track_id")): t for t in mfc.select_marginal(tracks)}
+
+    # Octave geometry shares the categorizer's single-source predicate (DD #3) —
+    # the finite-coercing `_centroid` path, not a raw `.get("centroid")` re-impl.
+    def _is_octave(t: dict) -> bool:
+        return mfc.is_octave_ratio(mfc.cluster_ratio(t))
+
+    # Group marginal track_ids by category (declared order).
+    by_cat: dict[str, list[str]] = {c: [] for c in mfc.CATEGORIES}
+    for r in records:
+        by_cat[r["failureCategory"]].append(r["track_id"])
+
+    # --- Proximity (d) — coverage-gated nearest-Strong distance (DD #5). ---
+    strong = [
+        t for t in tracks if cc.tier_for(t.get("truth_confidence"), t.get("bpm_truth")) == "Strong"
+    ]
+    marg_vecs, marg_new = _load_cached_fingerprints(list(marg_by_id.values()), fill=fill)
+    strong_vecs, strong_new = _load_cached_fingerprints(strong, fill=fill)
+    marg_total = len(marg_by_id)
+    strong_total = len(strong)
+    marg_cov_frac = len(marg_vecs) / marg_total if marg_total else 0.0
+    coverage_ok = marg_cov_frac >= MARGINAL_PROXIMITY_COVERAGE_FLOOR and bool(strong_vecs)
+
+    per_category: dict[str, dict] = {}
+    for cat in mfc.CATEGORIES:
+        ids = by_cat[cat]
+        n = len(ids)
+        dsp_confs = []
+        for i in ids:
+            conf = marg_by_id[i].get("signals", {}).get("dsp", {}).get("confidence")
+            if cc._is_finite(conf):
+                dsp_confs.append(conf)
+        octave_n = sum(1 for i in ids if _is_octave(marg_by_id[i]))
+
+        # (d) coverage-gated proximity for THIS category.
+        covered_ids = [i for i in ids if i in marg_vecs]
+        if coverage_ok and len(covered_ids) >= MARGINAL_PROXIMITY_MIN_PER_CATEGORY:
+            cat_marg_vecs = {i: marg_vecs[i] for i in covered_ids}
+            nearest = mfc.nearest_strong_distances(cat_marg_vecs, strong_vecs)
+            dists = [d for _, d in nearest.values()]
+            mean_dist = round(float(np.mean(dists)), 6) if dists else None
+            prox_status = "computed"
+        else:
+            mean_dist = None
+            prox_status = "insufficientCoverage"
+
+        per_category[cat] = {
+            "count": n,
+            "meanDspConfidence": round(float(np.mean(dsp_confs)), 6) if dsp_confs else None,
+            "halfDoubleRate": round(octave_n / n, 6) if n else None,
+            "coveredForProximity": len(covered_ids),
+            "meanNearestStrongDistance": mean_dist,
+            "proximityStatus": prox_status,
+        }
+
+    return {
+        "marginalTierCount": marg_total,
+        "categorizationModule": "marginal_failure_categorize.py",
+        "perCategory": per_category,
+        "halfDoubleRateDefinition": "fraction of the category's tracks whose "
+        "runner_up_cluster centroid is a 2x/0.5x (octave) ratio of the truth_cluster "
+        "centroid (canonical_ratio within OCTAVE_RATIO_TOL).",
+        "proximity": {
+            "metric": "cosine distance to the nearest Strong-tier neighbor in the "
+            f"{cc.FINGERPRINT_METHOD} fingerprint space (per-dimension standardized "
+            "across the union, exhaustive argmin, ties -> lowest Strong track_id).",
+            "marginalCoverage": f"{len(marg_vecs)}/{marg_total}",
+            "strongCoverage": f"{len(strong_vecs)}/{strong_total}",
+            "coverageFloor": MARGINAL_PROXIMITY_COVERAGE_FLOOR,
+            "minPerCategory": MARGINAL_PROXIMITY_MIN_PER_CATEGORY,
+            "coverageMet": coverage_ok,
+            "note": "DD #5 — the fingerprint cache was built over SPLIT tracks; Marginal "
+            "is split-excluded (FR-14), so coverage is far below the floor on a dev-agent "
+            "run and per-category meanNearestStrongDistance is `null` with "
+            "proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. "
+            "Numeric proximity appears only after `corpus_diagnostics.py --fingerprint-fill` "
+            "(needs Tony audio + librosa) raises coverage above the floor.",
+            "fillRan": fill,
+            "fillNewVectors": marg_new + strong_new,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Assembly
 # ---------------------------------------------------------------------------
 
 
-def build_diagnostics() -> dict:
+def build_diagnostics(*, fingerprint_fill: bool = False) -> dict:
     tracks, prov = cc.load_tony_corpus()
 
     # AC9 / M1 — resolved-vs-total audio (NEVER silently shrink the corpus).
@@ -594,6 +739,9 @@ def build_diagnostics() -> dict:
         "clusterStability": cluster_stability(tracks),
         "representativeManualReviewFindings": representative_findings(tracks),
         "singleSourceTruthPolicy": single_source_truth_policy(tracks),
+        "marginalTierDisagreementGeometry": marginal_tier_disagreement_geometry(
+            tracks, fill=fingerprint_fill
+        ),
         "reviewerSignoff": {
             "state": "pending",
             "note": "KDD-B4 gate (AC8). `scripts/audit-corpus-splits.py --check-gate` "
@@ -691,8 +839,57 @@ def render_markdown(diag: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
-    diag = build_diagnostics()
+def _existing_signoff_state() -> str | None:
+    """Return the REVIEWER_SIGNOFF state in the on-disk .md (signed/pending), or
+    None if the file is absent or carries no marker. Anchored regex (same form the
+    audit uses).
+
+    Fail-CLOSED on ambiguity (code-review 7-4): any marker count != 1 maps to
+    "signed" so `main()` refuses to overwrite without --force — a 2+-marker file
+    (including two `pending`) is an ambiguous state the guard must not silently
+    clobber. Only a single unambiguous marker returns its own value.
+    """
+    if not OUT_MD.exists():
+        return None
+    markers = re.findall(r"REVIEWER_SIGNOFF:\s*(signed|pending)", OUT_MD.read_text())
+    if not markers:
+        return None
+    if len(markers) != 1:
+        return "signed"
+    return markers[0]
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Story 7.1/7.4 corpus diagnostics generator.")
+    ap.add_argument(
+        "--fingerprint-fill",
+        action="store_true",
+        help="OPERATOR-ONLY (DD #5): compute missing librosa fingerprints from Tony "
+        "audio to raise the use-(b) proximity coverage above the floor. Needs the "
+        "audio on disk; the default dev-agent run reads cache-only and emits null.",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerate even when the on-disk diagnostics are REVIEWER_SIGNOFF: signed "
+        "(DD #4 — regeneration reverts the signoff to pending).",
+    )
+    args = ap.parse_args(argv)
+
+    # DD #4 — loud-fail before clobbering a SIGNED diagnostics file. Regenerating
+    # reverts REVIEWER_SIGNOFF to pending; a silent overwrite would let a reviewer
+    # vouch for a snapshot that no longer exists. Mirrors the audit's loud-fail.
+    if _existing_signoff_state() == "signed" and not args.force:
+        print(
+            "REFUSING to overwrite a SIGNED diagnostics file: "
+            f"{OUT_MD.name} carries REVIEWER_SIGNOFF: signed. Regenerating would revert "
+            "it to pending and silently invalidate the KDD-B4 gate that Story 7.5 "
+            "train.py reads. Re-run with --force if you intend to re-open review.",
+            file=sys.stderr,
+        )
+        return 2
+
+    diag = build_diagnostics(fingerprint_fill=args.fingerprint_fill)
     OUT_JSON.write_text(json.dumps(diag, indent=2, sort_keys=False) + "\n")
     OUT_MD.write_text(render_markdown(diag))
 
@@ -708,6 +905,12 @@ def main() -> int:
     )
     print(
         f"  E1 doubled-label candidates (Strong+Solid): {diag['labelOctaveErrorAudit']['doubledCount']}"
+    )
+    geo = diag["marginalTierDisagreementGeometry"]
+    print(
+        f"  marginal geometry: {geo['marginalTierCount']} tracks, "
+        f"proximity coverage {geo['proximity']['marginalCoverage']} "
+        f"(floor {geo['proximity']['coverageFloor']}, met={geo['proximity']['coverageMet']})"
     )
     print(
         f"  reviewer signoff: {diag['reviewerSignoff']['state']} "

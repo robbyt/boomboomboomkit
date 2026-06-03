@@ -435,6 +435,44 @@ def check_sentinels_against(jams_path: Path, tony: dict, res: AuditResult) -> No
 # ---------------------------------------------------------------------------
 
 
+def check_marginal_exclusion(tony: dict, tracks: list[dict], res: AuditResult) -> None:
+    """FR-14 (Story 7.4 AC5 / DD #6) — assert the Marginal tier is excluded.
+
+    Two failure modes, BOTH gated (Codex finding #6): (a) the self-describing
+    `tony.marginalTierExclusion` flag is missing or not `true`; (b) any
+    re-derived Marginal track_id leaked into train / val / leaveArtistOut.
+    """
+    flag = tony.get("marginalTierExclusion")
+    if flag is not True:
+        res.fail(
+            "--reject-marginal: tony.marginalTierExclusion is "
+            f"{flag!r} (expected true) — the FR-14 exclusion assertion is missing/false. "
+            "Re-run `make ml-splits` (dataset.py emits it)."
+        )
+
+    marginal_ids = {
+        str(t.get("track_id"))
+        for t in tracks
+        if cc.tier_for(t.get("truth_confidence"), t.get("bpm_truth")) == "Marginal"
+    }
+    split_ids = (
+        set(tony.get("train", []))
+        | set(tony.get("val", []))
+        | set(tony.get("leaveArtistOut", {}).get("heldOutTrackIds", []))
+    )
+    leaked = marginal_ids & split_ids
+    if leaked:
+        res.fail(
+            f"--reject-marginal: {len(leaked)} Marginal track_id(s) leaked into "
+            f"train/val/leaveArtistOut (FR-14 violation): {sorted(leaked)[:5]}"
+        )
+    else:
+        res.note(
+            f"--reject-marginal: 0 of {len(marginal_ids)} Marginal track_ids in any split; "
+            f"marginalTierExclusion flag present and true."
+        )
+
+
 def check_gate(res: AuditResult) -> None:
     if not DIAGNOSTICS_MD.exists():
         res.fail(
@@ -488,6 +526,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Omit the defensive near-dup fingerprint pass (prints a loud notice).",
     )
+    ap.add_argument(
+        "--reject-marginal",
+        action="store_true",
+        help="FR-14 (Story 7.4 AC5): assert tony.marginalTierExclusion is true AND no "
+        "re-derived Marginal track_id leaked into train/val/leaveArtistOut.",
+    )
     args = ap.parse_args(argv)
 
     res = AuditResult()
@@ -512,6 +556,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check_sentinels_against:
         check_sentinels_against(Path(args.check_sentinels_against), tony, res)
+
+    if args.reject_marginal:
+        check_marginal_exclusion(tony, tracks, res)
 
     if args.no_fingerprint:
         res.warn(
