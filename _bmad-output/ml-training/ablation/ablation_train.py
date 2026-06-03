@@ -76,13 +76,21 @@ def finetune(
     train_set = LabeledTonyDataset(
         train_records, fixture, augment=True, seed=seed, weighting_profile=weighting_profile
     )
+    # strict=True: val_acc1 drives best-checkpoint selection, so a decode failure must
+    # loud-fail rather than silently substitute another track (Copilot PR #26). train_set
+    # stays resilient (default strict=False) — one bad track shouldn't kill a 60-epoch run.
     val_set = LabeledTonyDataset(
-        val_records, fixture, augment=False, seed=seed, weighting_profile=weighting_profile
+        val_records,
+        fixture,
+        augment=False,
+        seed=seed,
+        weighting_profile=weighting_profile,
+        strict=True,
     )
     # Loud-fail if there are no records at all (a silently-untrained model would
-    # otherwise write a confident `val_acc1: 0.0`). Per-track decode failures are
-    # now lazy (skip-and-shift in the dataset; each prints a WARN), so there is no
-    # eager decode-drop count to compare here.
+    # otherwise write a confident `val_acc1: 0.0`). Per-track decode failures are lazy:
+    # train_set skip-and-shifts (resilient, prints a WARN); val_set is strict (loud-fail,
+    # no substitution — keeps val_acc1 honest). There is no eager decode-drop count here.
     if len(train_set) == 0 or len(val_set) == 0:
         raise RuntimeError(
             f"Empty dataset (train_records={len(train_set)}, val_records={len(val_set)}); "

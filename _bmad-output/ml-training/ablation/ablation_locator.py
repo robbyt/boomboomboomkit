@@ -250,7 +250,16 @@ class LabeledTonyDataset(Dataset):
     `ablation_features.transform`. `__getitem__` passes decoded PCM + bpm — never a
     path — into the transform."""
 
-    def __init__(self, records, fixture, *, augment: bool, seed: int, weighting_profile: str):
+    def __init__(
+        self,
+        records,
+        fixture,
+        *,
+        augment: bool,
+        seed: int,
+        weighting_profile: str,
+        strict: bool = False,
+    ):
         # NB: store only picklable state (records/fixture/scalars) — do NOT stash the
         # `random` module on self; that breaks DataLoader worker pickling
         # ("cannot pickle 'module' object"). Use the module-level `random` directly.
@@ -259,16 +268,42 @@ class LabeledTonyDataset(Dataset):
         self._augment = augment
         self._seed = seed
         self._wp = weighting_profile
+        # strict=True is the EVAL/REPORT contract: decode exactly the requested idx and
+        # loud-fail on failure (no substitution) so val/LAO accuracy is never silently
+        # skewed by a double-counted track (Copilot PR #26). strict=False is the TRAIN
+        # default: resilient bounded skip-and-shift so one bad track can't kill a 60-epoch
+        # run. Only the requested track is ever returned in strict mode.
+        self._strict = strict
         self._failed: set[int] = set()
 
     def __len__(self) -> int:
         return len(self._records)
 
     def __getitem__(self, idx: int):
-        # Bounded skip-and-shift on decode failure (NOT recursion — a fully-bad
-        # TONY_AUDIO_ROOT over thousands of tracks would blow the recursion limit
-        # before the all-failed guard fires; Codex 2026-06-02). Probe at most n
-        # consecutive indices, then loud-fail.
+        if self._strict:
+            # EVAL/REPORT path: no substitution, no modulo-shift — decode exactly idx.
+            r = self._records[idx]
+            audio = _load_pcm(r.audio_path)
+            if audio is None:
+                raise RuntimeError(
+                    f"strict eval: failed to decode record idx={idx} "
+                    f"track_id={r.track_id} path={r.audio_path}"
+                )
+            rng = random.Random(self._seed * 1_000_003 + idx)
+            return feats.transform(
+                audio,
+                ds.SAMPLE_RATE,
+                r.bpm,
+                self._fixture,
+                augment=self._augment,
+                rng=rng,
+                weighting_profile=self._wp,
+            )
+        # TRAIN default: bounded skip-and-shift on decode failure (NOT recursion — a
+        # fully-bad TONY_AUDIO_ROOT over thousands of tracks would blow the recursion
+        # limit before the all-failed guard fires; Codex 2026-06-02). Probe at most n
+        # consecutive indices, then loud-fail. Resilient by design — a single bad track
+        # is dropped, not fatal; the eval path uses strict=True instead.
         n = len(self._records)
         for k in range(n):
             j = (idx + k) % n

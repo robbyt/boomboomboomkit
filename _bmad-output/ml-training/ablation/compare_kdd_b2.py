@@ -7,7 +7,7 @@ Loads both variants' `model.pt` + `model_metadata.json`, runs inference on the
 Tony val + leaveArtistOut splits, and emits `kdd-b2-comparison-v1.md` (+ sibling
 JSON) with the five KDD-B2 axes:
   (a) Acc1 on tony.val (4% relative)
-  (b) inference wall-clock per file (ms)
+  (b) forward latency per file (ms, MPS-synced — excludes transfer/decode/softmax)
   (c) peak memory footprint (MB)
   (d) ECE_half_double + reliability-diagram bins + softmax-entropy histogram
       (JSON bins + a Markdown table; no matplotlib at v1 — PNG deferred to 7.7)
@@ -92,17 +92,31 @@ def _infer(model, records, device, weighting_profile: str, seed: int):
     import torch
 
     fixture = ds.load_fixture(ds.FIXTURE_PATH)
+    # strict=True: the reporting path must never substitute a decodable track for a
+    # failed one (that would double-count and skew Acc1/ECE) — loud-fail instead.
     dset = LabeledTonyDataset(
-        records, fixture, augment=False, seed=seed, weighting_profile=weighting_profile
+        records,
+        fixture,
+        augment=False,
+        seed=seed,
+        weighting_profile=weighting_profile,
+        strict=True,
     )
+    is_mps = device.type == "mps"
     out = []
-    latencies = []
+    latencies = []  # forward latency only (MPS-synced); excludes transfer/decode/softmax
     with torch.no_grad():
         for i in range(len(dset)):
             x, y = dset[i]
             x = x.unsqueeze(0).to(device)
+            # MPS ops are async — drain prior work, then bracket the forward pass with a
+            # post-sync so the timer captures real compute, not just dispatch (Copilot PR #26).
+            if is_mps:
+                torch.mps.synchronize()
             t0 = time.perf_counter()
             logits = model(x)
+            if is_mps:
+                torch.mps.synchronize()
             latencies.append((time.perf_counter() - t0) * 1000.0)
             # CPU before argmax/item — keep int64 off MPS (MPS int64 hazard).
             probs = torch.softmax(logits, dim=1)[0].detach().cpu()
@@ -287,7 +301,7 @@ def _write_md(payload: dict) -> None:
 
     lines += [
         row("(a) tony.val Acc1", "val_acc1_correct", lambda x, rv: f"{x}/{rv['val_acc1_total']}"),
-        row("(b) inference ms/file", "inference_ms_per_file"),
+        row("(b) forward latency ms/file (MPS-synced)", "inference_ms_per_file"),
         row("(d) ECE_half_double", "ece_half_double"),
         row("    ECE qualifying tracks", "ece_qualifying_tracks"),
         row(
