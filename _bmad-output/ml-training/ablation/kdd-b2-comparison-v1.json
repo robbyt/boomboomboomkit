@@ -1,0 +1,197 @@
+{
+  "process_peak_memory_mb": 1532.5,
+  "rationale": "Acc1 within +/-2 tracks (88 vs 88); tiebreak on ECE_half_double (0.5542 vs 0.5353; qualifying tracks 92).",
+  "results": {
+    "maskedMelPretrain": {
+      "ece_half_double": 0.5353,
+      "ece_qualifying_tracks": 92,
+      "inference_ms_per_file": 1.212,
+      "lao_minus_random_delta": 0.05769230769230771,
+      "leave_artist_out_acc1_correct": 101,
+      "leave_artist_out_acc1_total": 104,
+      "random_split_acc1": 0.9134615384615384,
+      "reliability_bins": [
+        {
+          "acc": 0.0,
+          "conf": 0.0,
+          "hi": 0.1,
+          "lo": 0.0,
+          "n": 0
+        },
+        {
+          "acc": 0.75,
+          "conf": 0.1687,
+          "hi": 0.2,
+          "lo": 0.1,
+          "n": 8
+        },
+        {
+          "acc": 0.9286,
+          "conf": 0.2558,
+          "hi": 0.3,
+          "lo": 0.2,
+          "n": 14
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.3525,
+          "hi": 0.4,
+          "lo": 0.3,
+          "n": 20
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.4443,
+          "hi": 0.5,
+          "lo": 0.4,
+          "n": 21
+        },
+        {
+          "acc": 0.9375,
+          "conf": 0.5455,
+          "hi": 0.6,
+          "lo": 0.5,
+          "n": 16
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.6492,
+          "hi": 0.7,
+          "lo": 0.6,
+          "n": 9
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.718,
+          "hi": 0.8,
+          "lo": 0.7,
+          "n": 4
+        },
+        {
+          "acc": 0.0,
+          "conf": 0.0,
+          "hi": 0.9,
+          "lo": 0.8,
+          "n": 0
+        },
+        {
+          "acc": 0.0,
+          "conf": 0.0,
+          "hi": 1.0,
+          "lo": 0.9,
+          "n": 0
+        }
+      ],
+      "softmax_entropy_hist": [
+        0,
+        5,
+        37,
+        28,
+        9,
+        5,
+        8,
+        0,
+        0,
+        0
+      ],
+      "val_acc1_correct": 88,
+      "val_acc1_total": 92
+    },
+    "supervisedAugmented": {
+      "ece_half_double": 0.5542,
+      "ece_qualifying_tracks": 92,
+      "inference_ms_per_file": 2.117,
+      "lao_minus_random_delta": 0.07692307692307687,
+      "leave_artist_out_acc1_correct": 101,
+      "leave_artist_out_acc1_total": 104,
+      "random_split_acc1": 0.8942307692307693,
+      "reliability_bins": [
+        {
+          "acc": 1.0,
+          "conf": 0.0687,
+          "hi": 0.1,
+          "lo": 0.0,
+          "n": 5
+        },
+        {
+          "acc": 0.7143,
+          "conf": 0.1492,
+          "hi": 0.2,
+          "lo": 0.1,
+          "n": 7
+        },
+        {
+          "acc": 0.8333,
+          "conf": 0.2413,
+          "hi": 0.3,
+          "lo": 0.2,
+          "n": 12
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.3588,
+          "hi": 0.4,
+          "lo": 0.3,
+          "n": 20
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.4495,
+          "hi": 0.5,
+          "lo": 0.4,
+          "n": 21
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.5526,
+          "hi": 0.6,
+          "lo": 0.5,
+          "n": 16
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.6492,
+          "hi": 0.7,
+          "lo": 0.6,
+          "n": 9
+        },
+        {
+          "acc": 1.0,
+          "conf": 0.7166,
+          "hi": 0.8,
+          "lo": 0.7,
+          "n": 2
+        },
+        {
+          "acc": 0.0,
+          "conf": 0.0,
+          "hi": 0.9,
+          "lo": 0.8,
+          "n": 0
+        },
+        {
+          "acc": 0.0,
+          "conf": 0.0,
+          "hi": 1.0,
+          "lo": 0.9,
+          "n": 0
+        }
+      ],
+      "softmax_entropy_hist": [
+        0,
+        6,
+        38,
+        22,
+        11,
+        7,
+        3,
+        5,
+        0,
+        0
+      ],
+      "val_acc1_correct": 88,
+      "val_acc1_total": 92
+    }
+  },
+  "winner": "maskedMelPretrain"
+}

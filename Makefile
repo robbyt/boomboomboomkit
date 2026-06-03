@@ -274,12 +274,12 @@ oracle-generate:
 fmt:
 	swift format --recursive --in-place Sources/ Tests/
 
-## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) carries pre-existing ty debt and is out of the ty scope for now.
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob.
 .PHONY: py-lint
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py test_recording_components.py ../../scripts/audit-corpus-splits.py ../../scripts/non-rekordbox-survey.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py test_recording_components.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/non-rekordbox-survey.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -477,3 +477,50 @@ non-rekordbox-survey:
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	uv run --project $(ML_TRAINING_DIR) python scripts/non-rekordbox-survey.py \
 		$(if $(LIMIT),--limit $(LIMIT),)
+
+# ---------------------------------------------------------------------------
+# Story 7.3 — KDD-B2 ablation harness (develop-only, v1 scaffolding).
+# Full 60-epoch runs are an operator-run step (need Tony audio + MPS + hours);
+# the dev-agent step ships + smoke-verifies the harness. `done` is gated on the
+# winner-bearing kdd-b2-comparison-v1.md (Story 7.3 AC12).
+# ---------------------------------------------------------------------------
+ABLATION_DIR := $(ML_TRAINING_DIR)/ablation
+
+## ablation-unsupervised-manifest: Derive the committed FR-15-clean unsupervised-pretrain manifest from the (gitignored) survey
+.PHONY: ablation-unsupervised-manifest
+ablation-unsupervised-manifest:
+	cd $(ML_TRAINING_DIR) && uv run python ablation/build_unsupervised_manifest.py
+
+## ablation-tests: Run the Story 7.3 pytest suite (metadata schema, octave loss, split-join)
+.PHONY: ablation-tests
+ablation-tests:
+	cd $(ML_TRAINING_DIR) && uv run pytest ablation/tests/
+
+## ablation-supervised: Run the supervisedAugmented arm (smoke: ABLATION_ARGS="--epochs 1 --subset 32"; DD #6 run B: ABLATION_ARGS="--random-split")
+.PHONY: ablation-supervised
+ablation-supervised:
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python ablation/train_supervised_augmented.py \
+		--seed 42 --epochs 60 --batch-size 32 --weighting-profile uniform $(ABLATION_ARGS)
+
+## ablation-masked-mel: Run the maskedMelPretrain arm (smoke: ABLATION_ARGS="--epochs 1 --pretrain-epochs 1 --subset 32"; DD #6 run B: ABLATION_ARGS="--random-split")
+.PHONY: ablation-masked-mel
+ablation-masked-mel:
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python ablation/train_masked_mel_pretrain.py \
+		--seed 42 --epochs 60 --pretrain-epochs 30 --batch-size 32 --weighting-profile uniform $(ABLATION_ARGS)
+
+## ablation-compare: Generate kdd-b2-comparison-v1.md from both trained variants (operator-run; AC5/AC6/AC12)
+.PHONY: ablation-compare
+ablation-compare:
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python ablation/compare_kdd_b2.py --weighting-profile uniform
