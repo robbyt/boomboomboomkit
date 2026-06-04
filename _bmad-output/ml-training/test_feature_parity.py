@@ -1,20 +1,30 @@
 """
-Story 4-4b Task 3.6 / AC #3 Part B — 4-stage feature-pipeline parity harness.
+Story 4-4b Task 3.6 / AC #3 Part B (+ Story 7.5 stage 5) — 5-stage
+feature-pipeline parity harness.
 
 Compares Python `extract_pre_log_mel` / `extract_log_mel` / `zscore_per_band`
-against Swift CLI's emitted per-stage outputs on the deterministic parity
-signals (1s 440 Hz sine + 5s 120 BPM click).
+and `feature_substrate_v2.model_input_tensor_from_audio` against the Swift CLI's
+emitted per-stage outputs on the deterministic parity signals (1s 440 Hz sine +
+5s 120 BPM click).
 
-Tolerances per spec DD #5 / AC #3 Part B:
+Tolerances per spec DD #5 / AC #3 Part B (+ Story 7.5 DD #15):
   Stage 1 — filterbank from .npz round-trip: abs ≤ 1e-6
   Stage 2 — raw mel POWER post-STFT, pre-log: abs ≤ 1e-5 OR rel ≤ 1e-4
   Stage 3 — log-mel post-log1p(100·x):        abs ≤ 1e-4 OR rel ≤ 1e-3
   Stage 4 — z-scored final tensor:            abs ≤ 1e-4 OR rel ≤ 1e-3
+  Stage 5 — model-input tensor [128, 512]
+            (post-featurize: mel-major + z-score + resample-to-512):
+            abs ≤ 1e-4 OR rel ≤ 1e-3  — vs the `dump-model-input` Swift dump
+            (BNNSTechnique.modelInputTensor). This is the FR-21 train/runtime
+            seam: the training pipeline consumes feature_substrate_v2, the
+            runtime consumes featurize; stage 5 proves they agree.
 
-Failure surfaces the failing stage name; output captured to
-feature_parity_report.txt.
+Stages 4 and 5 mask degenerate (near-constant) bands and treat the sine as
+informational (z-score amplifies near-zero-std diffs); the click is the binding
+realistic-music gate. Failure surfaces the failing stage name; output captured
+to feature_parity_report.txt.
 
-Exit code: 0 on full pass, 1 on any stage failure.
+Exit code: 0 on full pass, 1 on any gating-stage failure.
 """
 
 from __future__ import annotations
@@ -40,12 +50,16 @@ SWIFT_STAGES_DIR = SWIFT_OUT_DIR / "swift_stages"
 PARITY_SIGNALS_DIR = ML_TRAINING_DIR / "parity_signals"
 REPORT_PATH = ML_TRAINING_DIR / "feature_parity_report.txt"
 
-# Tolerance contract (DD #5)
+# Tolerance contract (DD #5 + Story 7.5 DD #15)
 STAGE_TOLERANCES = {
     1: {"abs": 1e-6, "rel": None},
     2: {"abs": 1e-5, "rel": 1e-4},
     3: {"abs": 1e-4, "rel": 1e-3},
     4: {"abs": 1e-4, "rel": 1e-3},
+    # Stage 5 (Story 7.5): the post-featurize [128, 512] model-input tensor
+    # (mel-major + z-score + resample-to-512). 1e-4/1e-3 aligned with stages
+    # 3/4 — 1e-6 is unreachable for float STFT/log accumulation (DD #15).
+    5: {"abs": 1e-4, "rel": 1e-3},
 }
 
 
@@ -241,6 +255,83 @@ def stage234_for_signal(
     return all_passed
 
 
+def stage5_model_input_for_signal(
+    signal_name: str, audio_path: Path, fixture, report: list[StageResult]
+) -> bool:
+    """Story 7.5 stage 5 — the post-featurize [128, 512] model-input tensor.
+
+    Compares ``feature_substrate_v2.model_input_tensor_from_audio`` (the numpy
+    reconstruction the training pipeline consumes) against the Swift
+    ``dump-model-input`` dump (the runtime ``BNNSTechnique.modelInputTensor``).
+    Same degenerate-band masking + sine=informational / click=binding-gate
+    discipline as stage 4 (z-score amplifies near-zero-std log-mel diffs).
+    """
+    from feature_substrate_v2 import model_input_tensor_from_audio
+
+    audio = np.fromfile(audio_path, dtype=np.float32)
+    py = model_input_tensor_from_audio(audio, fixture)  # mel-major [128, 512]
+
+    swift_path = SWIFT_STAGES_DIR / f"{signal_name}_stage5_model_input.f32"
+    if not swift_path.exists():
+        report.append(
+            StageResult(
+                name=signal_name,
+                stage=5,
+                passed=False,
+                max_abs=float("inf"),
+                max_rel=float("inf"),
+                note=(
+                    f"MISSING Swift dump {swift_path.name} — run "
+                    "`cd swift_feature_extractor && swift run dump-model-input`"
+                ),
+            )
+        )
+        return False
+    swift = np.fromfile(swift_path, dtype=np.float32).reshape(py.shape)  # mel-major [128, 512]
+
+    # Active-band mask from the pre-resample log-mel std (mel-major [M, F]).
+    log_mel = extract_log_mel(audio, fixture)  # [M, F]
+    band_std = log_mel.std(axis=1)
+    active = band_std >= 1e-3
+    n_active = int(active.sum())
+    tol = STAGE_TOLERANCES[5]
+    passed, max_abs, max_rel = compare_within_tol(swift[active], py[active], tol["abs"], tol["rel"])
+
+    if signal_name == "sine_440Hz_1s":
+        # Degenerate stress signal (only ~32/128 active bands): informational,
+        # not counted in OVERALL. Click is the binding realistic-music gate.
+        report.append(
+            StageResult(
+                name=signal_name,
+                stage=5,
+                passed=passed,
+                max_abs=max_abs,
+                max_rel=max_rel,
+                note=(
+                    f"INFORMATIONAL (degenerate signal); active_bands={n_active}/128; "
+                    "NOT counted in OVERALL — click is the stage-5 binding gate"
+                ),
+                informational_only=True,
+            )
+        )
+        return True
+
+    report.append(
+        StageResult(
+            name=signal_name,
+            stage=5,
+            passed=passed,
+            max_abs=max_abs,
+            max_rel=max_rel,
+            note=(
+                f"model-input tensor [128, 512]; active_bands={n_active}/128; "
+                f"tol abs<={tol['abs']:.0e} rel<={tol['rel']}"
+            ),
+        )
+    )
+    return passed
+
+
 def main() -> int:
     if not FIXTURE_PATH.exists():
         print(f"FIXTURE NOT BUILT: {FIXTURE_PATH}", file=sys.stderr)
@@ -266,6 +357,10 @@ def main() -> int:
             return 2
         passed = stage234_for_signal(signal_name, audio_path, fixture, manifest, report)
         overall = overall and passed
+        # Story 7.5 stage 5 — model-input tensor parity (depends on the
+        # dump-model-input Swift dump; sine is informational, click gates).
+        stage5_passed = stage5_model_input_for_signal(signal_name, audio_path, fixture, report)
+        overall = overall and stage5_passed
 
     # Render report
     lines = []

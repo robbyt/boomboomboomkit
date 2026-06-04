@@ -19,7 +19,7 @@ import Foundation
 /// payloads, NO stringified-numeric values. The accompanying
 /// ``featureSetVersion`` field is the load-bearing seam that detects
 /// pre-`vvlogf` pipeline drift — see project-context.md §"Banned trace-
-/// field shapes" for the discipline. Story 4.5 ships `"v1"` against the
+/// field shapes" for the discipline. Story 7.5 ships `"v2"` against the
 /// current `BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands` pre-image;
 /// any change to `BPMAnalyzer.hopSize` / `melBands` / `melFmin` /
 /// `melFmax` / `fftSize` / `logCompressionScale` / mel filterbank formula
@@ -107,12 +107,26 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   /// `BPMAnalyzer.logCompressionScale`).
   public let logCompressionScale: Float
 
-  /// Pre-`vvlogf` pipeline version tag. Story 4.5 ships `"v1"`. Bumps to
-  /// `"v2"` (or later) per the DD #2 + DD #14 bump-trigger checklist.
-  /// Consumer ``MLTechnique`` conformances SHOULD check this against the
-  /// version their model was trained on and abstain (return `nil` from
-  /// `evaluate(trace:)`) if the versions disagree.
+  /// Pre-`vvlogf` pipeline version tag. Story 7.5 ships `"v2"` (the
+  /// substrate-locked, FR-18-evaluable feature contract; `"v1"` was Story
+  /// 4.5/6.2's pre-substrate scaffolding). Bumps per the DD #2 + DD #14
+  /// bump-trigger checklist. Consumer ``MLTechnique`` conformances SHOULD
+  /// check this against the version their model was trained on and abstain
+  /// (return `nil` from `evaluate(trace:)`) if the versions disagree.
   public let featureSetVersion: String
+
+  /// Single source of truth for the feature-set version this build of the
+  /// library produces and the bundled-architecture model expects (Story 7.5
+  /// DD #1/#12). `BPMAnalyzer`'s `MLFeatureFrames` producer stamps every
+  /// payload with this value, and `BNNSTechnique.supportedFeatureSetVersion`
+  /// references it, so the runtime emission and the model expectation can
+  /// never silently diverge — the abstain guard then fires only on a genuine
+  /// consumer/BYOW mismatch (e.g. feeding `"v1"` features to a `"v2"` runtime).
+  /// Bumping the feature contract (mel/FFT/log shape, or the substrate
+  /// producer) means bumping THIS constant; the multi-seed *model generation*
+  /// rides on the `giantsteps_v2_seed_*` filename + `MLEvaluation.modelIdentifier`,
+  /// NOT on this string (DD #14).
+  public static let currentFeatureSetVersion = "v2"
 
   /// Maximum allowed `logMelData.count` (= 8 Mi floats = 32 MB at
   /// 4 bytes/float). Comfortably accommodates the default

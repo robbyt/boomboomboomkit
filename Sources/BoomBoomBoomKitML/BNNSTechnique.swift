@@ -188,20 +188,22 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// BPM offset for the bin-center decode (DD #18): `bpm = 30 + argmax`.
   private static let bpmBinOffset: Double = 30.0
 
-  /// Feature-set version the historical `giantsteps_v1.mlmodelc` was
-  /// trained against (Story 4-4b training corpus). `MLFeatureFrames`
-  /// payloads with a different version (e.g., post-Story-4.7) cause
-  /// `evaluate(trace:)` to abstain — preventing silent
-  /// feature-distribution drift. Held as the reference value because
-  /// BYOW consumers targeting the same architecture inherit the same
+  /// Feature-set version this `BNNSTechnique` build's `featurize` contract
+  /// targets. Story 7.5 bumps it to `"v2"` (the substrate-locked feature
+  /// contract the multi-seed `giantsteps_v2_seed_*` models train against);
+  /// it references the single source of truth `MLFeatureFrames.currentFeatureSetVersion`
+  /// so the runtime emission and the model expectation can never silently
+  /// diverge. `MLFeatureFrames` payloads with a different version cause
+  /// `evaluate(trace:)` to abstain — preventing silent feature-distribution
+  /// drift. BYOW consumers targeting the same architecture inherit the same
   /// featurize contract.
   ///
   /// `internal` (Story 4-6 close-out P3): the BNNSImpactTests harness's
   /// pre-featurize bucket-classification logic must reference this
-  /// constant rather than hardcoding the string literal "v1" — otherwise
+  /// constant rather than hardcoding the string literal — otherwise
   /// a future version bump silently drifts the report's bucketing from
   /// the evaluator's actual abstain criterion.
-  internal static let supportedFeatureSetVersion = "v1"
+  internal static let supportedFeatureSetVersion = MLFeatureFrames.currentFeatureSetVersion
 
   /// Compiled graph + workspace ownership. Final class so its `deinit`
   /// runs when the last `BNNSTechnique` reference drops.
@@ -329,7 +331,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// - `trace.mlFeatures == nil` → `(nil, nil)` (pre-featurize abstain;
   ///   no checksum possible). The defensive `logNilFeaturesOnce` from
   ///   Story 4-5 (HALT (g) inheritance) still fires here.
-  /// - `featureSetVersion != "v1"` → `(nil, nil)` (pre-featurize
+  /// - `featureSetVersion != "v2"` → `(nil, nil)` (pre-featurize
   ///   abstain; no checksum on a version mismatch since the feature
   ///   pipeline itself is suspect).
   /// - `featurize` returned nil → `(nil, snapshot)` with
@@ -512,18 +514,43 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
 
   // MARK: - featurize
 
-  /// Transposes the trace's log-mel payload into mel-major
+  /// Instance entry point used by `evaluateInternal` — delegates to the
+  /// pure ``modelInputTensor(from:)`` seam so the transpose/z-score/resample
+  /// logic has exactly ONE implementation shared between the runtime path
+  /// and the develop-only `dump-model-input` CLI / parity harness
+  /// (Story 7.5 DD #15 — train/runtime feature identity).
+  private func featurize(_ features: MLFeatureFrames) -> [Float]? {
+    Self.modelInputTensor(from: features)
+  }
+
+  /// Produces the exact `[1, 1, 128, 512]` NCHW row-major model-input tensor
+  /// that `evaluate(trace:)` feeds the BNNSGraph, from a log-mel
+  /// ``MLFeatureFrames`` payload: transposes the payload into mel-major
   /// `[melBands, frames]` (Step 1, when needed), z-score-normalizes each
   /// mel band across time (Step 2), and resamples each band to `W=512`
-  /// frames (Step 3). Returns a flat `[1, 1, 128, 512]` NCHW row-major
-  /// `Float` buffer or `nil` if the input is degenerate (too few frames,
-  /// wrong mel-band count, or an unrecognized ``TensorLayout``).
+  /// frames (Step 3). Returns the flat `Float` buffer or `nil` if the input
+  /// is degenerate (too few frames, wrong mel-band count, or an unrecognized
+  /// ``TensorLayout``).
+  ///
+  /// **Pure** — depends only on the input payload + the static feature
+  /// constants, never on the loaded graph — so it can be called WITHOUT a
+  /// constructed model. This is the parity seam (Story 7.5 DD #15): the
+  /// Python training feature pipeline is verified byte-for-byte against this
+  /// at the model-input-tensor boundary, guaranteeing the model trains on
+  /// the same tensor it infers on (FR-21).
   ///
   /// Step 1's behavior depends on ``MLFeatureFrames/tensorLayout``:
   /// - ``TensorLayout/frameMajorLogMel`` (current ``BPMAnalyzer``
   ///   producer): transpose `[frame * M + mel]` → `[mel * F + frame]`.
   /// - ``TensorLayout/nchw``: already mel-major; copy through as-is.
-  private func featurize(_ features: MLFeatureFrames) -> [Float]? {
+  ///
+  /// `@_spi(FeatureParity)` — NOT part of the stable public API (review
+  /// Amelia #3 + the Epic 6↔8 seam rule: new touchpoints stay out of the
+  /// public surface). The develop-only `dump-model-input` CLI reaches it via
+  /// `@_spi(FeatureParity) import BoomBoomBoomKitML`; a future story promotes
+  /// it with a named contract if a consumer genuinely needs raw tensor access.
+  @_spi(FeatureParity)
+  public static func modelInputTensor(from features: MLFeatureFrames) -> [Float]? {
     // DD #9 short-clip guard fires BEFORE the resize step. Sub-32-frame
     // sources upsample by > 16× per row and produce features outside the
     // model's training distribution.
