@@ -599,6 +599,14 @@ def build_tony_splits(external_index: "cc.ExternalIndex | None" = None) -> dict:
 
     return {
         "trainable_before_exclusion": len(trainable),
+        "marginalTierExclusion": True,
+        "marginalTierExclusionNote": "FR-14 (Story 7.4 AC5): the Marginal tier "
+        "(truth_confidence in [0.55,0.65)) is excluded from supervised training. "
+        "TRAINABLE_TIERS == (Strong, Solid), so Marginal is structurally absent from "
+        "train/val/leaveArtistOut already; this self-describing flag makes the invariant "
+        "an executable gate — `audit-corpus-splits.py --reject-marginal` re-derives the "
+        "Marginal set and fails non-zero if it is missing/false OR if any Marginal id "
+        "leaked into a split.",
         "sentinelHoldout": {
             "expandedSentinelIds": sorted(sentinel_ids),
             "count": len(sentinel_ids),

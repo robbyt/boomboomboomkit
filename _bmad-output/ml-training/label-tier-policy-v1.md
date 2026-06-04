@@ -83,6 +83,37 @@ number — offsets drift). Reproduced verbatim:
 If any trigger fires during Epic 7 training, the Marginal tier (and its banding)
 is reopened for reintroduction review per KDD-B3.
 
+### Reopen-trigger → artifact mapping (Story 7.4 AC6)
+
+Each trigger is bound to the concrete artifact that carries its empirical input,
+so a trigger firing during Story 7.5/7.6 has its evidence already on disk. Three
+artifacts exist today; triggers 2 & 5 are forward-references to Story-7.6
+artifacts (labeled **named-but-pending (Story 7.6)**) with their
+consequence-when-fired-early.
+
+| # | KDD-B3 trigger (abbrev) | Bound artifact | Status |
+|---|---|---|---|
+| 1 | Strong/Solid val accuracy plateaus below target while train is higher | `_bmad-output/ml-training/ablation/kdd-b2-comparison-v1.md` (val Acc1 per arm) | exists |
+| 2 | Leave-artist-out / GiantSteps underperforms despite good in-domain val | Story 7.6 FR-23 octave-consistency report | named-but-pending (Story 7.6) |
+| 3 | Error analysis shows failures near marginal-style ambiguity | `corpus-diagnostics-v1.json` → `marginalTierDisagreementGeometry` block (Story 7.4 AC3) | exists |
+| 4 | Masked-mel pretraining helps materially | `_bmad-output/ml-training/ablation/kdd-b2-comparison-v1.md` (per-arm delta; winner = `maskedMelPretrain`) | exists |
+| 5 | Marginal tracks get stable high-confidence predictions across seeds | Story 7.6 `marginal-watchlist-stability.json` regression table (seeded from this story's `marginal-watchlist.json`) | named-but-pending (Story 7.6) |
+
+**Consequence-when-fired-early (triggers 2 & 5):** the evidence artifact lands in
+Story 7.6; if either trigger fires during Story 7.5, escalate to the operator —
+do NOT self-resolve a Marginal reintroduction from a 7.5-era partial signal.
+
+### Regen-vs-signoff ordering (Story 7.4 DD #4)
+
+`corpus_diagnostics.py` resets `REVIEWER_SIGNOFF → pending` on every regen and
+the Story 7.4 `marginalTierDisagreementGeometry` block lives INSIDE that
+generator (so the KDD-B4 signoff covers it as evidence). Therefore the LAST
+diagnostics regeneration across all of Story 7.4/7.5 MUST precede the operator's
+KDD-B4 signoff — signing first and regenerating after would silently revert the
+gate that `audit-corpus-splits.py --check-gate` reads (which blocks Story 7.5
+`train.py`). The generator now loud-fails on an attempt to overwrite an
+already-`signed` file unless `--force` is passed.
+
 ## FR-15 — Forbidden model inputs (audio-only constraint)
 
 The trained tempo model consumes AUDIO ONLY. The signals below inform LABELING
