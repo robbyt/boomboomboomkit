@@ -26,7 +26,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## gitSha
 
-`2a92369-dirty`
+`56590d7-dirty`
 
 ## provenance
 
@@ -551,7 +551,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - **coverageFloor**: `0.8`
   - **minPerCategory**: `10`
   - **coverageMet**: `False`
-  - **note**: `DD #5 — the fingerprint cache was built over SPLIT tracks; Marginal is split-excluded (FR-14), so coverage is far below the floor on a dev-agent run and per-category meanNearestStrongDistance is `null` with proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. Numeric proximity appears only after `corpus_diagnostics.py --fingerprint-fill` (needs Tony audio + librosa) raises coverage above the floor.`
+  - **note**: `DD #5 — the fingerprint cache was built over SPLIT tracks; Marginal is split-excluded (FR-14), so coverage is far below the floor on a dev-agent run and per-category meanNearestStrongDistance is null with proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. Numeric proximity appears only after the corpus_diagnostics.py --fingerprint-fill flag (needs Tony audio + librosa) raises coverage above the floor.`
   - **fillRan**: `False`
   - **fillNewVectors**: `0`
 

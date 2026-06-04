@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# ///
 """
 Story 7.4 — Marginal-tier failure-categorization CLI (develop-only).
 

@@ -656,10 +656,10 @@ def marginal_tier_disagreement_geometry(tracks: list[dict], *, fill: bool = Fals
             "coverageMet": coverage_ok,
             "note": "DD #5 — the fingerprint cache was built over SPLIT tracks; Marginal "
             "is split-excluded (FR-14), so coverage is far below the floor on a dev-agent "
-            "run and per-category meanNearestStrongDistance is `null` with "
+            "run and per-category meanNearestStrongDistance is null with "
             "proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. "
-            "Numeric proximity appears only after `corpus_diagnostics.py --fingerprint-fill` "
-            "(needs Tony audio + librosa) raises coverage above the floor.",
+            "Numeric proximity appears only after the corpus_diagnostics.py --fingerprint-fill "
+            "flag (needs Tony audio + librosa) raises coverage above the floor.",
             "fillRan": fill,
             "fillNewVectors": marg_new + strong_new,
         },

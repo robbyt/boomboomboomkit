@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "generator": "corpus_diagnostics.py",
-  "gitSha": "2a92369-dirty",
+  "gitSha": "56590d7-dirty",
   "provenance": {
     "labelsPath": "/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/tony-corpus/tony-truth-labels.json",
     "labelsSha256": "e01ae432b424f8bd37b367c315c45599e33327c8ff247fb59cf1f6757b83f96a",
@@ -603,7 +603,7 @@
       "coverageFloor": 0.8,
       "minPerCategory": 10,
       "coverageMet": false,
-      "note": "DD #5 \u2014 the fingerprint cache was built over SPLIT tracks; Marginal is split-excluded (FR-14), so coverage is far below the floor on a dev-agent run and per-category meanNearestStrongDistance is `null` with proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. Numeric proximity appears only after `corpus_diagnostics.py --fingerprint-fill` (needs Tony audio + librosa) raises coverage above the floor.",
+      "note": "DD #5 \u2014 the fingerprint cache was built over SPLIT tracks; Marginal is split-excluded (FR-14), so coverage is far below the floor on a dev-agent run and per-category meanNearestStrongDistance is null with proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. Numeric proximity appears only after the corpus_diagnostics.py --fingerprint-fill flag (needs Tony audio + librosa) raises coverage above the floor.",
       "fillRan": false,
       "fillNewVectors": 0
     }
