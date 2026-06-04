@@ -71,7 +71,7 @@ struct FeatureSubstrateTests {
     )
     let produced = try FeatureSubstrate.OnsetFeaturesBuilder.build(
       decoded: decoded, weighting: .uniform)
-    #expect(produced.featureSetVersion == "v1")
+    #expect(produced.featureSetVersion == "v2")
   }
 
   // MARK: - AC #2 relocation: public surface unchanged

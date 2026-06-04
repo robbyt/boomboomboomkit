@@ -26,6 +26,7 @@ import argparse
 import json
 import os
 import random
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -332,7 +333,7 @@ def env_metadata(seed: int) -> dict[str, Any]:
         "torchaudio_version": torchaudio.__version__,
         "coremltools_version": ct.__version__,
         "training_seed": seed,
-        "feature_set_version": "v1",
+        "feature_set_version": "v2",
         "training_start_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "mps_available": bool(torch.backends.mps.is_available()),
         "mps_built": bool(torch.backends.mps.is_built()),
@@ -366,6 +367,8 @@ class TrainArgs:
     num_workers: int = 0
     resume: str | None = None
     checkpoint_every: int = 5
+    weighting_profile: str = "uniform"
+    allow_legacy_giantsteps: bool = False
 
 
 def parse_args(argv: list[str]) -> TrainArgs:
@@ -385,6 +388,24 @@ def parse_args(argv: list[str]) -> TrainArgs:
     p.add_argument("--num-workers", type=int, default=0)
     p.add_argument("--resume", type=str, default=None)
     p.add_argument("--checkpoint-every", type=int, default=5)
+    # Guardrail 3 (AC6 / DD #6): exactly one declared WeightingProfile per run.
+    # The substrate OnsetFeaturesBuilder implements ONLY `.uniform` and THROWS
+    # on `.subBandEmphasis`, so `uniform` is the only selectable value for the
+    # v2 run. REQUIRED (no default) so a run can never start undeclared.
+    p.add_argument(
+        "--weighting-profile",
+        type=str,
+        required=True,
+        choices=["uniform"],
+        help="Declared WeightingProfile (Guardrail 3). Only 'uniform' is selectable: "
+        "the substrate OnsetFeaturesBuilder throws on .subBandEmphasis (DD #6).",
+    )
+    p.add_argument(
+        "--allow-legacy-giantsteps",
+        action="store_true",
+        help="Run the historical GiantSteps build_splits pipeline. NEVER use for the "
+        "Story 7.5 v2 run — the substrate-v2 Tony loop must be wired first (S1 guard).",
+    )
     a = p.parse_args(argv)
     return TrainArgs(
         seed=a.seed,
@@ -397,11 +418,87 @@ def parse_args(argv: list[str]) -> TrainArgs:
         num_workers=a.num_workers,
         resume=a.resume,
         checkpoint_every=a.checkpoint_every,
+        weighting_profile=a.weighting_profile,
+        allow_legacy_giantsteps=a.allow_legacy_giantsteps,
     )
+
+
+ML_TRAINING_DIR = Path(__file__).resolve().parent
+REPO_ROOT = ML_TRAINING_DIR.parent.parent
+DIAGNOSTICS_MD = ML_TRAINING_DIR / "corpus-diagnostics-v1.md"
+_SIGNOFF_RE = re.compile(r"REVIEWER_SIGNOFF:\s*(signed|pending)")
+
+
+class SubstratePreconditionError(RuntimeError):
+    """Story 7.5 AC10 — train.py refuses to start unless (a) the Story 6.2
+    FeatureSubstrate types, (b) the Story 6.5b ``BPMSelectionPolicy.select(``
+    runtime flip, AND (c) the KDD-B4 corpus signoff are ALL present in the
+    checkout. The substrate-bound v2 run must train against the same feature
+    contract + runtime path Story 7.6 evaluates (FR-21 + Codex PHASED gate)."""
+
+
+def check_substrate_preconditions() -> None:
+    """AC10 / DD #11 / DD #16 — the named-error gate. Reaching this gate and
+    aborting on (c) IS the dev-agent's verified outcome (the KDD-B4 signoff is
+    operator-owned); the operator's full run proceeds only once it is signed."""
+    sources = REPO_ROOT / "Sources" / "BoomBoomBoomKit"
+
+    # (a) Story 6.2 substrate types present in the checkout.
+    onset = sources / "FeatureSubstrate" / "OnsetFeatures.swift"
+    builder = sources / "FeatureSubstrate" / "OnsetFeaturesBuilder.swift"
+    if not onset.exists() or not builder.exists():
+        raise SubstratePreconditionError(
+            "AC10(a): FeatureSubstrate.OnsetFeatures / OnsetFeaturesBuilder absent from "
+            f"{sources / 'FeatureSubstrate'} — the Story 6.2 substrate must be present."
+        )
+
+    # (b) Story 6.5b KDD-A6 Stage-3 flip: `func select(` (the signature spans
+    # lines, so match `func select(` NOT `select(from:` — Story 7.5 DD #16/Codex).
+    policy = sources / "BPMSelectionPolicy.swift"
+    policy_text = policy.read_text(encoding="utf-8") if policy.exists() else ""
+    # Require BOTH the declaration token AND the pool input type — a bare
+    # `func select(` substring could live in a comment (review S2: a fail-closed
+    # gate must not fail-open on a comment). `select(from: UnifiedSignalPool` is
+    # the actual 6.5b signature.
+    if "func select(" not in policy_text or "UnifiedSignalPool" not in policy_text:
+        raise SubstratePreconditionError(
+            "AC10(b): BPMSelectionPolicy.select(from: UnifiedSignalPool) (Story 6.5b "
+            "KDD-A6 Stage-3 pool-authoritative flip) not found in Sources/ — the "
+            "runtime path Story 7.6 evaluates against is absent."
+        )
+
+    # (c) KDD-B4 corpus signoff — same contract as
+    # `scripts/audit-corpus-splits.py --check-gate`: exactly one
+    # REVIEWER_SIGNOFF marker, and it must be `signed`.
+    if not DIAGNOSTICS_MD.exists():
+        raise SubstratePreconditionError(
+            f"AC10(c): {DIAGNOSTICS_MD.name} not found — corpus diagnostics not produced "
+            "(run `make corpus-diagnostics`). KDD-B4 gate cannot pass."
+        )
+    markers = _SIGNOFF_RE.findall(DIAGNOSTICS_MD.read_text(encoding="utf-8"))
+    if len(markers) != 1:
+        raise SubstratePreconditionError(
+            f"AC10(c): expected exactly ONE REVIEWER_SIGNOFF marker in {DIAGNOSTICS_MD.name}, "
+            f"found {len(markers)} — fails CLOSED (matches audit-corpus-splits.py --check-gate)."
+        )
+    if markers[0] != "signed":
+        raise SubstratePreconditionError(
+            "AC10(c): KDD-B4 corpus signoff is `pending`. Training is BLOCKED until the "
+            f"operator transcribes what they verified in {DIAGNOSTICS_MD.name} and flips "
+            "REVIEWER_SIGNOFF -> signed (the same gate `audit-corpus-splits.py --check-gate` "
+            "enforces). Story 7.1 'done' = evidence assembled, NOT corpus-safe-to-train."
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+
+    # AC10 / DD #16: the substrate + flip + KDD-B4 signoff gate fires FIRST,
+    # before any MPS/fixture/corpus work. In the dev environment the signoff is
+    # `pending`, so this aborts with the named error — that abort IS the
+    # dev-verified outcome (the operator owns the signoff + the full run).
+    check_substrate_preconditions()
+
     set_seeds(args.seed)
 
     # AC #8 / DD #1: training MUST run on MPS to fit the 6h wall-clock budget.
@@ -419,6 +516,29 @@ def main(argv: list[str] | None = None) -> int:
     fixture = load_fixture(FIXTURE_PATH)
     print(f"Loaded fixture v{fixture.feature_set_version} sha={fixture.sha256[:12]}")
 
+    # Story 7.5 Task 4 / DD #2 — HARD STOP (review BLOCKER/landmine S1): the
+    # substrate-bound v2 full run MUST train on the Tony Strong+Solid split
+    # (corpus_splits.json tony.{train,val} via corpus_common.load_tony_corpus +
+    # ablation_common), consuming feature_substrate_v2 model-input tensors + the
+    # maskedMelPretrain recipe (ablation/masked_mel.py + train_masked_mel_pretrain.py).
+    # That loop rewire is the operator's gated full-run step. Rather than leave
+    # the legacy GiantSteps build_splits() reachable behind a prose comment (which
+    # would silently train a MISMATCHED model the day an operator flips the
+    # KDD-B4 signoff without doing the swap — the three-way review flagged this as
+    # the load-bearing landmine), we FAIL CLOSED: the legacy loop is disabled.
+    # Pass --allow-legacy-giantsteps ONLY for the historical GiantSteps pipeline,
+    # never for the Story 7.5 v2 run.
+    if not getattr(args, "allow_legacy_giantsteps", False):
+        raise NotImplementedError(
+            "Story 7.5: the substrate-v2 training loop (Tony split + "
+            "feature_substrate_v2 + maskedMelPretrain) is the operator's gated "
+            "full-run step and is NOT yet wired into train.py. The legacy "
+            "GiantSteps build_splits() loop below is INTENTIONALLY DISABLED so a "
+            "signed-off run cannot silently train a model on the wrong corpus + a "
+            "non-runtime-faithful (crop/loop + 1e-8-floor z-score) feature path. "
+            "Wire the v2 loader before the signed run; or pass "
+            "--allow-legacy-giantsteps to run the historical GiantSteps pipeline."
+        )
     splits = build_splits(verify=True)
     train_records = splits["train"]
     val_records = splits["val"]

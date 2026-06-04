@@ -99,7 +99,7 @@ struct BNNSTechniqueDiagnosticTests {
         melFmin: 30.0,
         melFmax: 16000.0,
         logCompressionScale: 100.0,
-        featureSetVersion: "v1")
+        featureSetVersion: "v2")
       let result = bnns.evaluateWithDiagnostic(trace: trace)
       #expect(result.evaluation == nil)
       let snapshot = try #require(result.snapshot)
@@ -146,7 +146,7 @@ struct BNNSTechniqueDiagnosticTests {
         melFmin: 30.0,
         melFmax: 16000.0,
         logCompressionScale: 100.0,
-        featureSetVersion: "v1")
+        featureSetVersion: "v2")
       let url = try #require(fixtureURL())
       let bnns = try BNNSTechnique(modelURL: url)
       let result = bnns.evaluateWithDiagnostic(trace: trace)
@@ -172,7 +172,7 @@ struct BNNSTechniqueDiagnosticTests {
         logMelData: [Float](repeating: 0.5, count: 128 * 16),
         sampleRate: 44100.0, fftSize: 2048, hopSize: 441,
         melFmin: 30.0, melFmax: 16000.0,
-        logCompressionScale: 100.0, featureSetVersion: "v1")
+        logCompressionScale: 100.0, featureSetVersion: "v2")
       let evaluation = bnns.evaluate(trace: trace)
       let diagnostic = bnns.evaluateWithDiagnostic(trace: trace)
       #expect(evaluation == nil)
