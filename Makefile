@@ -279,7 +279,7 @@ fmt:
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -530,3 +530,48 @@ ablation-compare:
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
 	uv run python ablation/compare_kdd_b2.py --weighting-profile uniform
+
+# ---------------------------------------------------------------------------
+# Story 7.6 — FR-18 promotion-gate evaluation (develop-only, operator-run).
+# Two-step: (1) `fr18-produce` runs the PRODUCTION Swift runtime path
+# (FR18EvaluationHarnessTests -> BNNSTechnique(modelURL:) -> analyzeBPM .mlOnly)
+# once per seed, dumping per-track predictions to seed_<N>/; (2) `fr18-evaluate`
+# aggregates the 5 gates across seeds (>=2-of-3 + dispersion) + emits the
+# KDD-B5 decision. Run fr18-produce 3x (SEED=42/43/44, BNNS_MODEL_URL pointing
+# at each giantsteps_v2_seed_<N>.mlmodel) into a shared FR18_PRED_DIR, then
+# fr18-evaluate once. The v2 checkpoints are produced by Story 7.5's operator
+# training run (gated on the pending KDD-B4 corpus signoff).
+# ---------------------------------------------------------------------------
+FR18_PRED_DIR ?= $(CURDIR)/_bmad-output/ml-training/fr18-predictions
+
+## fr18-produce: Run the Swift runtime producer for ONE seed (SEED=, BNNS_MODEL_URL=, optional SUBSET=)
+.PHONY: fr18-produce
+fr18-produce:
+ifndef BNNS_MODEL_URL
+	$(error BNNS_MODEL_URL is not set. Usage: SEED=42 BNNS_MODEL_URL=path/to/giantsteps_v2_seed_42.mlmodel make fr18-produce)
+endif
+ifndef SEED
+	$(error SEED is not set. Usage: SEED=42 BNNS_MODEL_URL=... make fr18-produce)
+endif
+	@mkdir -p "$(FR18_PRED_DIR)"
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python build_fr18_input.py --seed $(SEED) \
+		--output "$(FR18_PRED_DIR)/fr18-eval-input-seed-$(SEED).json" \
+		$(if $(SUBSET),--subset $(SUBSET),)
+	FR18_EVAL=1 \
+	BNNS_MODEL_URL="$(BNNS_MODEL_URL)" \
+	FR18_EVAL_INPUT="$(FR18_PRED_DIR)/fr18-eval-input-seed-$(SEED).json" \
+	FR18_EVAL_OUT_DIR="$(FR18_PRED_DIR)" \
+	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.FR18EvaluationHarnessTests/fr18RuntimeEvaluation
+
+## fr18-evaluate: Aggregate the 5 FR-18 gates across all seed dirs in FR18_PRED_DIR + emit the KDD-B5 decision
+.PHONY: fr18-evaluate
+fr18-evaluate:
+	cd $(ML_TRAINING_DIR) && uv run python evaluate_fr18.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training" \
+		$(FR18_EVAL_ARGS)
