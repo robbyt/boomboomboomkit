@@ -262,3 +262,13 @@ Codex (thread 019e9660) re-reviewed the patched diff. 1 BLOCKER + 2 SHOULD-FIX +
 - [x] [Review][Patch] **strata-count wording** (NICE) `scripts/sample-giantsteps-holdout.py` — docstring corrected: the `"other"` catch-all means up to 5×4=20 populated strata, not exactly 15; the n=150 quota distributes across whatever is populated.
 
 Re-verified GREEN: ablation pytest 137, `make py-lint` clean, CLI smoke (fr24 full-denominator → evaluated; fr24 tiny-corpus → below-denominator excluded; post-bundle no-marginal → fail-closed), `git diff Sources/ Tests/` empty.
+
+### Copilot review (PR #31, 2026-06-05) — 3 comments, all valid, all applied
+
+All three verified against code (none false positives); develop-only, low-to-medium severity.
+
+- [x] [Review][Patch] **FR-24 sentinel-only fail-open + inaccurate comment** (substantive) `fr24_net_benefit.py` — `MIN_DENOMINATOR` hardcoded `sentinel: 1` while the comment claimed it mirrors `EXPECTED_*`; a sentinel-only run (oa300/giantsteps below denominator) could decide `netBenefitProven` on n<=12 evidence. Fixed: corrected the comment (sentinel is best-effort by design, k<12 per AC13) + `net_benefit_gate` now requires >=1 FIXED corpus (`oa300`/`giantsteps`) compared before `netBenefitProven`; `evaluate` returns `inconclusive` when `fixedCorporaCompared == 0`. +regression test (138).
+- [x] [Review][Patch] **`detect_style_key` doc-code mismatch** (minor) `scripts/sample-giantsteps-holdout.py` — docstring said "majority" but the condition is `>= 0.5 * len` (accepts exactly half); docstring corrected to "at least half (>= 50%)".
+- [x] [Review][Patch] **`ml-export-v2` relative-path inconsistency** (minor) `Makefile` — the `[ ! -e ]` check ran repo-root-relative while `export.py --checkpoint` ran ml-training-relative after `cd`; wrapped `$(EPIC7_V2_CHECKPOINT)` with `$(abspath …)` on both sides (default is already absolute → no-op there).
+
+Re-verified GREEN: ablation pytest 138, `make py-lint` clean, CLI smoke (fr24 full-denominator → evaluated/proven; sentinel-only → inconclusive; Makefile relative override → absolute `--checkpoint`), `git diff Sources/ Tests/` empty.

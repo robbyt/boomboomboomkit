@@ -226,6 +226,20 @@ def test_net_benefit_below_denominator_corpus_not_compared():
     assert "oa300" in g["belowDenominator"] and "giantsteps" in g["belowDenominator"]
 
 
+def test_net_benefit_sentinel_only_cannot_carry_verdict():
+    # Copilot PR #31: sentinel-only (oa300/giantsteps below denominator) must NOT
+    # decide net-benefit on n<=12 evidence — requires >=1 FIXED corpus.
+    arm = {
+        "oa300": {"acc1": 4, "n": 5, "ece": None, "tailP95": 3.0},  # below 82
+        "giantsteps": {"acc1": 4, "n": 5, "ece": None, "tailP95": 3.0},  # below 661
+        "sentinel": {"acc1": 12, "n": 12, "ece": None, "tailP95": 1.0},  # full 12
+    }
+    g = fr24.net_benefit_gate(arm, arm)
+    assert g["comparedCorpora"] == 1  # only sentinel cleared its (min=1) denominator
+    assert g["fixedCorporaCompared"] == 0
+    assert g["netBenefitProven"] is False  # sentinel alone cannot prove it
+
+
 def test_net_benefit_empty_corpora_is_not_proven():
     # code-review BLOCKER: zero comparable corpora must NOT silently prove benefit.
     g = fr24.net_benefit_gate({}, {})

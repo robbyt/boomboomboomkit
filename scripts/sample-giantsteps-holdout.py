@@ -61,8 +61,9 @@ class HoldoutSampleError(RuntimeError):
 
 
 def detect_style_key(tracks: list[dict]) -> str | None:
-    """Return the first STYLE_KEYS field present + non-empty on a majority of
-    tracks, else None (-> tempo-only fallback, DD #7). Never fabricates."""
+    """Return the first STYLE_KEYS field present + non-empty on at least half
+    (>= 50%) of the tracks, else None (-> tempo-only fallback, DD #7). Never
+    fabricates. (Exactly-half clears the bar — the condition is `>= 0.5 * len`.)"""
     for key in STYLE_KEYS:
         present = sum(1 for t in tracks if t.get(key) not in (None, ""))
         if present >= 0.5 * len(tracks) and present > 0:

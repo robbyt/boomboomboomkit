@@ -37,10 +37,16 @@ ACC1_TOL_TRACKS = 2
 ECE_TOL = 0.02
 TAIL_P95_TOL = 0.5
 
-# Per-corpus minimum denominators (mirror evaluate_fr18's EXPECTED_* — Codex
-# diff-review): the raw-track tolerances (Acc1 +/-2) are only meaningful at the
-# full corpus size, so a partial/tiny operator run (e.g. a 5-track OA300 or a
-# 1-seed smoke) must NOT count as a comparable corpus and silently promote.
+# Per-corpus minimum denominators: the raw-track tolerances (Acc1 +/-2) are only
+# meaningful at the full corpus size, so a partial/tiny operator run (e.g. a
+# 5-track OA300 or a 1-seed smoke) must NOT count as a comparable corpus and
+# silently promote. oa300/giantsteps use the full evaluate_fr18 EXPECTED_*
+# denominators. sentinel is BEST-EFFORT (min 1), NOT EXPECTED_SENTINELS=12,
+# because sentinel resolution is variable (k<12 allowed, AC13); to stop a
+# sentinel-only run (oa300/giantsteps below denominator) from carrying the
+# verdict on n<=12 evidence, net_benefit_gate additionally requires >=1 FIXED
+# corpus compared (FIXED_CORPORA) before netBenefitProven can be True.
+FIXED_CORPORA = ("oa300", "giantsteps")
 MIN_DENOMINATOR = {"oa300": ev.EXPECTED_OA300, "giantsteps": ev.EXPECTED_GIANTSTEPS, "sentinel": 1}
 
 
@@ -136,10 +142,14 @@ def net_benefit_gate(ssl: dict, runnerup: dict) -> dict:
             "ssl": s,
             "runnerup": r,
         }
-    proven = overall and compared > 0  # zero comparable corpora => UNPROVEN
+    # netBenefitProven needs >=1 FIXED-denominator corpus (oa300/giantsteps) —
+    # sentinel-only evidence (n<=12) cannot carry the verdict (Copilot PR #31).
+    fixed_compared = sum(1 for c in FIXED_CORPORA if c in per_corpus)
+    proven = overall and compared > 0 and fixed_compared >= 1
     return {
         "perCorpus": per_corpus,
         "comparedCorpora": compared,
+        "fixedCorporaCompared": fixed_compared,
         "belowDenominator": below_denominator,
         "netBenefitProven": proven,
     }
@@ -162,13 +172,15 @@ def evaluate(pred_root: Path) -> dict:
         }
     runnerup = arm_metrics(ev.consume_predictions(runnerup_dir))
     gate = net_benefit_gate(ssl, runnerup)
-    # No comparable corpora => inconclusive (fail-closed), not a silent promote.
-    if gate["comparedCorpora"] == 0:
+    # No FIXED corpus met its full denominator => inconclusive (fail-closed), not
+    # a silent promote/fallback — sentinel-only (n<=12) cannot decide net-benefit.
+    if gate["fixedCorporaCompared"] == 0:
         return {
             "state": "inconclusive",
             "reason": (
-                "both arm dirs present but no corpus met its full denominator "
-                f"(below: {gate['belowDenominator'] or 'none present'}); net-benefit UNPROVEN"
+                "neither oa300 nor giantsteps met its full denominator "
+                f"(below: {gate['belowDenominator'] or 'none present'}); "
+                "sentinel-only evidence cannot decide net-benefit; UNPROVEN"
             ),
             "ssl": ssl,
             "runnerup": runnerup,

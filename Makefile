@@ -591,14 +591,14 @@ EPIC7_V2_CHECKPOINT ?= $(CURDIR)/_bmad-output/ml-training/model.pt
 ## ml-export-v2: Export a v2 checkpoint to CoreML (Story 7.7 AC1; CHECKPOINT= overrides; fails closed if absent)
 .PHONY: ml-export-v2
 ml-export-v2:
-	@if [ ! -e "$(EPIC7_V2_CHECKPOINT)" ]; then \
-		echo "Error: v2 checkpoint not found at $(EPIC7_V2_CHECKPOINT)."; \
+	@if [ ! -e "$(abspath $(EPIC7_V2_CHECKPOINT))" ]; then \
+		echo "Error: v2 checkpoint not found at $(abspath $(EPIC7_V2_CHECKPOINT))."; \
 		echo "Override with: make ml-export-v2 EPIC7_V2_CHECKPOINT=path/to/giantsteps_v2_seed_N.pt"; \
 		exit 1; \
 	fi
 	@mkdir -p "$(CURDIR)/_bmad-output/ml-models"
 	cd $(ML_TRAINING_DIR) && uv run python export.py \
-		--checkpoint "$(EPIC7_V2_CHECKPOINT)" --output ../ml-models/giantsteps_v2.mlmodel
+		--checkpoint "$(abspath $(EPIC7_V2_CHECKPOINT))" --output ../ml-models/giantsteps_v2.mlmodel
 
 ## holdout-sample: Sample the sealed stratified GiantSteps holdout (Story 7.7 AC6; needs GIANTSTEPS_CORPUS_PATH)
 .PHONY: holdout-sample
