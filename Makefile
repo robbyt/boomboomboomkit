@@ -279,7 +279,7 @@ fmt:
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -544,7 +544,7 @@ ablation-compare:
 # ---------------------------------------------------------------------------
 FR18_PRED_DIR ?= $(CURDIR)/_bmad-output/ml-training/fr18-predictions
 
-## fr18-produce: Run the Swift runtime producer for ONE seed (SEED=, BNNS_MODEL_URL=, optional SUBSET=)
+## fr18-produce: Run the Swift runtime producer for ONE seed (SEED=, BNNS_MODEL_URL=, optional SUBSET=, optional ARM= for Story 7.7 FR-24 per-arm dirs)
 .PHONY: fr18-produce
 fr18-produce:
 ifndef BNNS_MODEL_URL
@@ -553,18 +553,18 @@ endif
 ifndef SEED
 	$(error SEED is not set. Usage: SEED=42 BNNS_MODEL_URL=... make fr18-produce)
 endif
-	@mkdir -p "$(FR18_PRED_DIR)"
+	@mkdir -p "$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)"
 	cd $(ML_TRAINING_DIR) && \
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
 	uv run python build_fr18_input.py --seed $(SEED) \
-		--output "$(FR18_PRED_DIR)/fr18-eval-input-seed-$(SEED).json" \
+		--output "$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)/fr18-eval-input-seed-$(SEED).json" \
 		$(if $(SUBSET),--subset $(SUBSET),)
 	FR18_EVAL=1 \
 	BNNS_MODEL_URL="$(BNNS_MODEL_URL)" \
-	FR18_EVAL_INPUT="$(FR18_PRED_DIR)/fr18-eval-input-seed-$(SEED).json" \
-	FR18_EVAL_OUT_DIR="$(FR18_PRED_DIR)" \
+	FR18_EVAL_INPUT="$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)/fr18-eval-input-seed-$(SEED).json" \
+	FR18_EVAL_OUT_DIR="$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)" \
 	GIT_SHA=$$( \
 	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
 	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
@@ -579,3 +579,61 @@ fr18-evaluate:
 		--runtime-predictions "$(FR18_PRED_DIR)" \
 		--out-dir "$(CURDIR)/_bmad-output/ml-training" \
 		$(FR18_EVAL_ARGS)
+
+# ---------------------------------------------------------------------------
+# Story 7.7 — Epic 7 close-out harness (develop-only, operator-run for the
+# authoritative numbers). The v2 model does not exist yet (KDD-B4 signoff
+# pending -> 7.5 training -> 7.6 eval), so these smoke against the v1 negative
+# control / synthetic fixtures and the authoritative runs are operator-owned.
+# ---------------------------------------------------------------------------
+EPIC7_V2_CHECKPOINT ?= $(CURDIR)/_bmad-output/ml-training/model.pt
+
+## ml-export-v2: Export a v2 checkpoint to CoreML (Story 7.7 AC1; CHECKPOINT= overrides; fails closed if absent)
+.PHONY: ml-export-v2
+ml-export-v2:
+	@if [ ! -e "$(abspath $(EPIC7_V2_CHECKPOINT))" ]; then \
+		echo "Error: v2 checkpoint not found at $(abspath $(EPIC7_V2_CHECKPOINT))."; \
+		echo "Override with: make ml-export-v2 EPIC7_V2_CHECKPOINT=path/to/giantsteps_v2_seed_N.pt"; \
+		exit 1; \
+	fi
+	@mkdir -p "$(CURDIR)/_bmad-output/ml-models"
+	cd $(ML_TRAINING_DIR) && uv run python export.py \
+		--checkpoint "$(abspath $(EPIC7_V2_CHECKPOINT))" --output ../ml-models/giantsteps_v2.mlmodel
+
+## holdout-sample: Sample the sealed stratified GiantSteps holdout (Story 7.7 AC6; needs GIANTSTEPS_CORPUS_PATH)
+.PHONY: holdout-sample
+holdout-sample:
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/sample-giantsteps-holdout.py $(HOLDOUT_ARGS)
+
+## holdout-gap: GiantSteps holdout-gap over Story-7.6 dumps (Story 7.7 AC6; FR18_PRED_DIR=)
+.PHONY: holdout-gap
+holdout-gap:
+	cd $(ML_TRAINING_DIR) && uv run python holdout_gap.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training" $(HOLDOUT_GAP_ARGS)
+
+## calibration-verify: FR-25 calibration verification + reliability PNG (Story 7.7 AC3/AC4; FR18_PRED_DIR=)
+.PHONY: calibration-verify
+calibration-verify:
+	cd $(ML_TRAINING_DIR) && uv run python calibration_verification.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training" $(CALIBRATION_ARGS)
+
+## fr24-net-benefit: FR-24 semi-supervised net-benefit gate (Story 7.7 AC5; FR18_PRED_DIR holds <arm>/seed_N/)
+.PHONY: fr24-net-benefit
+fr24-net-benefit:
+	cd $(ML_TRAINING_DIR) && uv run python fr24_net_benefit.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training"
+
+## epic7-freeze: FR-20 reproducibility freeze (Story 7.7 AC7; DECISION=bundle|byow, default byow)
+.PHONY: epic7-freeze
+epic7-freeze:
+	cd $(ML_TRAINING_DIR) && uv run python epic7_freeze.py --decision $(if $(DECISION),$(DECISION),byow)
+
+## post-bundle-watchlist: Post-bundle regression watchlist v2 (Story 7.7 AC8; FR18_PRED_DIR=)
+.PHONY: post-bundle-watchlist
+post-bundle-watchlist:
+	cd $(ML_TRAINING_DIR) && uv run python post_bundle_watchlist.py \
+		--runtime-predictions "$(FR18_PRED_DIR)"
