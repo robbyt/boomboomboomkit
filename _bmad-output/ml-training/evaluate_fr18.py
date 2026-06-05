@@ -736,7 +736,7 @@ def write_markdown(report: dict, path: Path, smoke: bool) -> None:
             "## OPERATOR REMAINDER (v2 pending — Story 7.5 training run + KDD-B4 signoff)",
             "",
             "- [ ] Run the 3-seed evaluation: "
-            "`make fr18-evaluate` per seed (BNNS_MODEL_URL=giantsteps_v2_seed_{42,43,44}.mlmodel)",
+            "`make fr18-produce` per seed (BNNS_MODEL_URL=giantsteps_v2_seed_{42,43,44}.mlmodel), then `make fr18-evaluate` once",
             "- [ ] Finalize the `decision:` line above from the real 3-seed aggregate",
             "- [ ] Backfill `marginal-watchlist-stability.json` `seeds[]` (Story 7.5)",
         ]

@@ -36,6 +36,14 @@ def test_tony_index_real_file_keys_off_tracks():
     assert "track_id" in sample and "bpm_truth" in sample
 
 
+def test_resolvers_fail_closed_on_empty_corpus_path():
+    # Copilot #4/#5: an empty corpus-path env var must NOT probe the CWD for a
+    # stray fixture filename — it returns [] (fails safe; the downstream
+    # denominator guard then marks the gate inconclusive -> byow).
+    assert bfi.resolve_oa300("") == []
+    assert bfi.resolve_giantsteps("") == []
+
+
 # --- accuracy + octave -----------------------------------------------------
 
 

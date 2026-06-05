@@ -253,3 +253,14 @@ claude-opus-4-8
 - [x] [Review][Patch] `TONY_AUDIO_ROOT` documented + Makefile-threaded but unused (resolver used absolute `local_path` only) [build_fr18_input.py] — APPLIED (`_tony_audio_path` rebases basename under `TONY_AUDIO_ROOT` when the absolute path is absent)
 
 Codex confirmed: no gate reads `runtimeResultBPM` (DD #12 invariant holds); all four fixes land with no new merge-blocker.
+
+### Copilot review (PR #30, 2026-06-05) — 6 comments, all applied
+
+- [x] [Review][Patch] `sha256OfFile`/`checkpointSha256` named SHA-256 but was FNV-1a (dir → path-hash, weakening the seed dup-guard) [FR18EvaluationHarnessTests.swift] — APPLIED (real `CryptoKit.SHA256` of `coremldata.bin` inside the `.mlmodelc`, file-bytes for plain files; documented as a weights/blob identity, not a full-bundle digest)
+- [x] [Review][Patch] `writeWAV` `Int16(NaN)` runtime trap [FR18EvaluationHarnessTests.swift] — APPLIED (`sample.isFinite ? sample : 0.0`)
+- [x] [Review][Patch] `fr18-produce` `GIT_SHA` lacked the `-dirty` suffix [Makefile] — APPLIED (matches the `bnns-impact-report` convention)
+- [x] [Review][Patch] `resolve_oa300` probed the CWD when `OA300_CORPUS_PATH` empty [build_fr18_input.py] — APPLIED (`if not corpus_path: return []`; + regression test)
+- [x] [Review][Patch] `resolve_giantsteps` same for `GIANTSTEPS_CORPUS_PATH` [build_fr18_input.py] — APPLIED (+ regression test)
+- [x] [Review][Patch] Smoke-mode operator checklist inverted the produce/evaluate order [evaluate_fr18.py] — APPLIED (`make fr18-produce` per seed, then `make fr18-evaluate` once)
+
+Codex plan-review (thread 019e95bc) folded in: the `coremldata.bin` hash is a documented weights-blob identity (full-bundle digest out of scope for a develop-only operator-error guard); the empty-corpus `return []` is fail-safe (denominator guard → byow) + now test-locked.

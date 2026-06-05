@@ -32,6 +32,7 @@
 
 import BoomBoomBoomKit
 import BoomBoomBoomKitTestSupport
+import CryptoKit
 import Foundation
 import Testing
 
@@ -314,37 +315,36 @@ private enum FR18HarnessError: Error {
   case modelURLNotSet
 }
 
-/// Streaming SHA-256 of a file's bytes (the model bundle's `coremldata.bin`
-/// inside a `.mlmodelc` is a directory, so for a directory URL we hash the
-/// path string as a stable-but-weak fallback). Used only for the manifest's
-/// seed-isolation identity check, not for security.
+/// Stable SHA-256 identity for the manifest's seed-isolation check (did the
+/// operator point two seed dirs at the same checkpoint?). This is a
+/// WEIGHTS/BLOB identity, NOT a full-bundle digest: for a `.mlmodelc` directory
+/// it hashes `coremldata.bin` (the weights+architecture blob — distinct seeds
+/// have distinct weights, so it discriminates the real "same checkpoint" case),
+/// and for a plain file it hashes the file bytes. The path-string fallback is
+/// reachable only for a malformed bundle lacking `coremldata.bin` (a real
+/// `.mlmodelc` always contains it).
 private func sha256OfFile(at url: URL) -> String? {
   var isDir: ObjCBool = false
   guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else {
     return nil
   }
+
+  let targetURL: URL
   if isDir.boolValue {
-    // .mlmodelc is a directory bundle — hash the resolved path as a stable id.
-    return simpleHash(url.path)
+    let candidate = url.appendingPathComponent("coremldata.bin")
+    if FileManager.default.fileExists(atPath: candidate.path) {
+      targetURL = candidate
+    } else {
+      let digest = SHA256.hash(data: Data(url.path.utf8))
+      return digest.map { String(format: "%02x", $0) }.joined()
+    }
+  } else {
+    targetURL = url
   }
-  guard let data = try? Data(contentsOf: url) else { return nil }
-  return simpleHash(data)
-}
 
-/// FNV-1a 64-bit over bytes, rendered hex. Dependency-free; sufficient for the
-/// manifest's "did the operator point two seed dirs at the same checkpoint?"
-/// identity check.
-private func simpleHash(_ data: Data) -> String {
-  var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-  for byte in data {
-    hash ^= UInt64(byte)
-    hash = hash &* 0x0000_0100_0000_01B3
-  }
-  return String(format: "%016llx", hash)
-}
-
-private func simpleHash(_ string: String) -> String {
-  simpleHash(Data(string.utf8))
+  guard let data = try? Data(contentsOf: targetURL) else { return nil }
+  let digest = SHA256.hash(data: data)
+  return digest.map { String(format: "%02x", $0) }.joined()
 }
 
 /// Minimal 16-bit PCM WAV writer for the self-test click track.
@@ -375,7 +375,8 @@ private func writeWAV(samples: [Float], sampleRate: Int, to url: URL) throws {
   data.append(contentsOf: Array("data".utf8))
   appendLE32(UInt32(dataSize))
   for sample in samples {
-    let clamped = max(-1.0, min(1.0, sample))
+    let normalized = sample.isFinite ? sample : 0.0
+    let clamped = max(-1.0, min(1.0, normalized))
     appendLE16(UInt16(bitPattern: Int16(clamped * 32_767.0)))
   }
   try data.write(to: url)

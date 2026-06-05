@@ -44,6 +44,8 @@ def _tony_audio_path(local_path: str) -> str:
 
 
 def resolve_oa300(corpus_path: str) -> list[dict]:
+    if not corpus_path:
+        return []
     gt = json.loads((FIXTURES / "oa300-ground-truth.json").read_text())
     out: list[dict] = []
     for t in gt:
@@ -66,6 +68,8 @@ def resolve_oa300(corpus_path: str) -> list[dict]:
 
 
 def resolve_giantsteps(corpus_path: str) -> list[dict]:
+    if not corpus_path:
+        return []
     gt_path = Path(corpus_path) / "giantsteps-tempo-ground-truth.json"
     if not gt_path.exists():
         return []

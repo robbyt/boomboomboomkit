@@ -565,7 +565,11 @@ endif
 	BNNS_MODEL_URL="$(BNNS_MODEL_URL)" \
 	FR18_EVAL_INPUT="$(FR18_PRED_DIR)/fr18-eval-input-seed-$(SEED).json" \
 	FR18_EVAL_OUT_DIR="$(FR18_PRED_DIR)" \
-	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.FR18EvaluationHarnessTests/fr18RuntimeEvaluation
 
 ## fr18-evaluate: Aggregate the 5 FR-18 gates across all seed dirs in FR18_PRED_DIR + emit the KDD-B5 decision
