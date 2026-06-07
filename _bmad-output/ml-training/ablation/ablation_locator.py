@@ -39,6 +39,7 @@ for _p in (_ABLATION_DIR, os.path.dirname(_ABLATION_DIR)):
         sys.path.insert(0, _p)
 
 import ablation_features as feats  # noqa: E402  (one-way import: locator -> features)
+import ablation_features_v2 as feats_v2  # noqa: E402  (v2 substrate transform)
 import corpus_common as cc  # noqa: E402
 import dataset as ds  # noqa: E402  (FIXTURE_PATH, SAMPLE_RATE, load_fixture, worker_init_fn)
 
@@ -259,6 +260,7 @@ class LabeledTonyDataset(Dataset):
         seed: int,
         weighting_profile: str,
         strict: bool = False,
+        feature_path: str = "v1",
     ):
         # NB: store only picklable state (records/fixture/scalars) — do NOT stash the
         # `random` module on self; that breaks DataLoader worker pickling
@@ -268,6 +270,13 @@ class LabeledTonyDataset(Dataset):
         self._augment = augment
         self._seed = seed
         self._wp = weighting_profile
+        # feature_path "v1" -> the legacy ablation transform (6 s window, native
+        # 512-frame slice); "v2" -> the runtime-faithful substrate transform
+        # (30/60/90 s window -> feature_substrate_v2). v1 is the default so the
+        # KDD-B2 ablation arms + existing tests are byte-unchanged.
+        if feature_path not in ("v1", "v2"):
+            raise ValueError(f"feature_path must be 'v1' or 'v2'; got {feature_path!r}")
+        self._feature_path = feature_path
         # strict=True is the EVAL/REPORT contract: decode exactly the requested idx and
         # loud-fail on failure (no substitution) so val/LAO accuracy is never silently
         # skewed by a double-counted track (Copilot PR #26). strict=False is the TRAIN
@@ -275,6 +284,28 @@ class LabeledTonyDataset(Dataset):
         # run. Only the requested track is ever returned in strict mode.
         self._strict = strict
         self._failed: set[int] = set()
+
+    def _apply(self, audio, bpm: float, rng):
+        """Dispatch to the v1 (legacy) or v2 (substrate) feature transform."""
+        if self._feature_path == "v2":
+            return feats_v2.transform_v2(
+                audio,
+                ds.SAMPLE_RATE,
+                bpm,
+                self._fixture,
+                augment=self._augment,
+                rng=rng,
+                weighting_profile=self._wp,
+            )
+        return feats.transform(
+            audio,
+            ds.SAMPLE_RATE,
+            bpm,
+            self._fixture,
+            augment=self._augment,
+            rng=rng,
+            weighting_profile=self._wp,
+        )
 
     def __len__(self) -> int:
         return len(self._records)
@@ -290,15 +321,7 @@ class LabeledTonyDataset(Dataset):
                     f"track_id={r.track_id} path={r.audio_path}"
                 )
             rng = random.Random(self._seed * 1_000_003 + idx)
-            return feats.transform(
-                audio,
-                ds.SAMPLE_RATE,
-                r.bpm,
-                self._fixture,
-                augment=self._augment,
-                rng=rng,
-                weighting_profile=self._wp,
-            )
+            return self._apply(audio, r.bpm, rng)
         # TRAIN default: bounded skip-and-shift on decode failure (NOT recursion — a
         # fully-bad TONY_AUDIO_ROOT over thousands of tracks would blow the recursion
         # limit before the all-failed guard fires; Codex 2026-06-02). Probe at most n
@@ -313,15 +336,7 @@ class LabeledTonyDataset(Dataset):
                 continue
             r = self._records[j]
             rng = random.Random(self._seed * 1_000_003 + j)
-            return feats.transform(
-                audio,
-                ds.SAMPLE_RATE,
-                r.bpm,
-                self._fixture,
-                augment=self._augment,
-                rng=rng,
-                weighting_profile=self._wp,
-            )
+            return self._apply(audio, r.bpm, rng)
         raise RuntimeError("All labeled tracks failed to decode — check TONY_AUDIO_ROOT.")
 
 
@@ -330,12 +345,17 @@ class UnlabeledPretrainDataset(Dataset):
     LabeledTonyDataset). Delegates to `ablation_features.transform_unlabeled`.
     NO labels (AC10/DD #12)."""
 
-    def __init__(self, audio_paths, fixture, *, seed: int, weighting_profile: str):
+    def __init__(
+        self, audio_paths, fixture, *, seed: int, weighting_profile: str, feature_path: str = "v1"
+    ):
         # Store only picklable state (no `random` module on self — see LabeledTonyDataset).
         self._paths = list(audio_paths)
         self._fixture = fixture
         self._seed = seed
         self._wp = weighting_profile
+        if feature_path not in ("v1", "v2"):
+            raise ValueError(f"feature_path must be 'v1' or 'v2'; got {feature_path!r}")
+        self._feature_path = feature_path
         self._failed: set[int] = set()
 
     def __len__(self) -> int:
@@ -352,6 +372,10 @@ class UnlabeledPretrainDataset(Dataset):
                 self._failed.add(j)
                 continue
             rng = random.Random(self._seed * 1_000_003 + j)
+            if self._feature_path == "v2":
+                return feats_v2.transform_unlabeled_v2(
+                    audio, ds.SAMPLE_RATE, self._fixture, rng=rng, weighting_profile=self._wp
+                )
             return feats.transform_unlabeled(
                 audio, ds.SAMPLE_RATE, self._fixture, rng=rng, weighting_profile=self._wp
             )

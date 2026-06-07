@@ -390,6 +390,22 @@ ml-train:
 		--seed $(TRAIN_SEED) --epochs $(TRAIN_EPOCHS) \
 		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS)
 
+## ml-train-v2: Authoritative substrate-v2 training (Epic 7). VARIANT= {maskedMelPretrain|supervisedAugmented} + SEED= {42|43|44} required. Requires the KDD-B4 signoff signed (train.py's gate fails closed otherwise). Writes _bmad-output/ml-training/v2-runs/<VARIANT>/seed_<SEED>/model.pt + promotable metadata. Run the full 3-seed x 2-arm matrix under caffeinate.
+.PHONY: ml-train-v2
+ml-train-v2:
+ifndef VARIANT
+	$(error VARIANT is not set. Usage: make ml-train-v2 VARIANT=maskedMelPretrain SEED=42)
+endif
+ifndef SEED
+	$(error SEED is not set. Usage: make ml-train-v2 VARIANT=maskedMelPretrain SEED=42)
+endif
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python train.py \
+		--variant $(VARIANT) --seed $(SEED) --weighting-profile uniform \
+		--epochs $(TRAIN_EPOCHS) --pretrain-epochs 30 \
+		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS)
+
 ## ml-train-resume: Resume training from a checkpoint (CHECKPOINT=path/to/epoch_N.pt; project-root-relative paths are resolved automatically)
 .PHONY: ml-train-resume
 ml-train-resume:

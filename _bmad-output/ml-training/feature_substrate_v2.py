@@ -74,39 +74,38 @@ def zscore_per_band_featurize(mel_major: np.ndarray) -> np.ndarray:
 def resample_to_width_vlint(mel_major: np.ndarray, width: int = TARGET_WIDTH) -> np.ndarray:
     """Per-band linear resample ``F -> width`` matching ``featurize`` Step 3.
 
-    Builds the control vector by float32 ACCUMULATION (``cur += step``) to mirror
-    ``vDSP_vramp``'s actual implementation (``C[n]=*A; *A += *B``) — NOT
-    ``i * step`` (review BLOCKER B1: ``arange*step`` and float32 accumulation
-    diverge as F grows, e.g. ~0.07 control-index drift at F=20000, which is
-    reachable on multi-minute Tony tracks and would shift ``floor(c)`` / the
-    interpolated sample; the sine/click parity signals (F<=496) cannot catch it).
-    Clamps the last entry one ULP below the float32-ACCUMULATED last control
-    value (matching ``controlVector[W-1] = controlVector[W-1].nextDown``, where
-    ``controlVector[W-1]`` is the *accumulated* ramp value — NOT the ideal
-    ``F-1``). Review pass 2 BLOCKER: ``nextafter(F-1)`` and ``nextDown(accumulated)``
-    AGREE for short clips (F<=496, where accumulation drift is sub-ULP) but
-    DIVERGE on long tracks (F=10k-60k frac drift up to ~0.28), shifting the last
-    resampled column of every mel band off the runtime — exactly the FR-21
-    train/runtime mismatch the F<=496 parity fixtures cannot catch. Then linear
+    Builds the control vector as ``i * step`` in float32 — vectorized, matching
+    what Swift ``vDSP_vramp`` (``rampStart=0``, ``rampStep=Float(F-1)/Float(W-1)``)
+    ACTUALLY emits on hardware.
+
+    Empirical correction (Epic 7 close-out, Phase 1.5 ``verify_real_track_parity``):
+    the earlier B1/B2 review reasoning assumed ``vDSP_vramp`` performs strict
+    scalar accumulation (``C[n]=*A; *A += *B``) and built the control by a
+    ``cur += step`` loop. Dumping ``vDSP_vramp``'s real output for a live track
+    (``dump-real-track`` -> ``control.f32``, F=2996) DISPROVED that: scalar
+    accumulation diverges from the true ramp by ~1.2e-2 in control-index space
+    (-> ~3.3e-2 in the model-input tensor, a systematic drift growing toward
+    later frames), while ``i*step`` (f32) is the closest portable match (control
+    error ~4.9e-4 -> tensor diff ~9.6e-4). The true ``vDSP_vramp`` is block-
+    vectorized and NOT bit-reproducible in portable numpy; ``i*step`` is the
+    correct, unbiased approximation. The F<=496 parity fixtures cannot see the
+    difference (sub-ULP there); only a real multi-minute track surfaces it.
+    Clamps the last entry one ULP below ``min(control[W-1], F-1)`` (mirroring
+    Swift ``controlVector[W-1].nextDown`` + the in-bounds floor), then linear
     interpolates ``A[floor(c)] + frac * (A[floor(c)+1] - A[floor(c)])`` per band
     (matching ``vDSP_vlint``).
     """
     mel_major = np.ascontiguousarray(mel_major, dtype=np.float32)
     n_bands, frames = mel_major.shape
     step = np.float32(frames - 1) / np.float32(width - 1)
-    control = np.empty(width, dtype=np.float32)
-    cur = np.float32(0.0)
-    for i in range(width):
-        control[i] = cur
-        cur = np.float32(cur + step)  # float32 accumulation, matches vDSP_vramp
-    # Match Swift `controlVector[W-1].nextDown`: nextDown of the float32
-    # ACCUMULATED last value, NOT nextafter(F-1). On long tracks the accumulated
-    # value drifts ~0.06-0.29 BELOW F-1, so clamping the ideal F-1 would diverge
-    # from the runtime (review pass 2 BLOCKER). The min(., F-1) floor keeps the
-    # gather in-bounds when accumulation drift instead pushes the last index to/
-    # above F-1 (short clips, e.g. F=200/496): Swift over-reads one float there
-    # (deferred 7-5-D1) but numpy would hard-crash, so clamp to F-1 — which also
-    # reproduces the prior short-clip behavior exactly (nextDown(F-1)).
+    # i*step in float32 — matches vDSP_vramp's actual (vectorized) output far
+    # better than scalar accumulation (Phase 1.5 empirical dump).
+    control = (np.arange(width, dtype=np.float32) * step).astype(np.float32)
+    # Clamp the last entry one ULP below min(control[W-1], F-1): mirrors Swift
+    # `controlVector[W-1].nextDown` while the min(., F-1) floor keeps vDSP_vlint's
+    # `A[floor(c)+1]` read in-bounds when i*step rounding nudges the last index
+    # to/above F-1 (Swift over-reads one float there — deferred 7-5-D1 — but
+    # numpy would hard-crash).
     last = min(float(control[width - 1]), float(frames - 1))
     control[width - 1] = np.nextafter(np.float32(last), np.float32(-np.inf))
     floor_c = np.floor(control).astype(np.int64)

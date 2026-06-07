@@ -74,6 +74,14 @@ _bmad-output/ml-training/ablation/*/model.pt.partial
 _bmad-output/ml-training/ablation/*/training_log.json
 _bmad-output/ml-training/ablation/*/run_b_random_split.json
 
+# Epic 7 — substrate-v2 close-out. Regenerable: the Phase-1 smoke checkpoints, the
+# operator-run FR-18 prediction dumps, and the large v2 training weights + logs.
+# Committed: the per-seed model_metadata.json (forensic) + the eval .json/.md reports.
+_bmad-output/ml-training/ablation/v2-smoke/
+_bmad-output/ml-training/fr18-predictions/
+_bmad-output/ml-training/v2-runs/*/seed_*/model.pt
+_bmad-output/ml-training/v2-runs/*/seed_*/training_log.json
+
 # Local review scratch output (NOT shipped)
 _bmad-output/implementation-artifacts/review-tmp/
 

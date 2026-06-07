@@ -26,6 +26,9 @@ from typing import Any
 
 FEATURE_SET_VERSION = "v2"
 TRAINING_VARIANT = "maskedMelPretrain"  # KDD-B2 winner (ablation/kdd-b2-comparison-v1.md)
+# The winner is the default; the runner-up arm (FR-24 net-benefit comparison) is
+# trained at v2 too and tags its metadata with this variant.
+TRAINING_VARIANTS = ("maskedMelPretrain", "supervisedAugmented")
 MODEL_GENERATION = "v2"
 SEEDS = (42, 43, 44)
 OCTAVE_AGREEMENT_TOL = 0.04  # 4% after octave normalization
@@ -66,10 +69,12 @@ def build_seed_metadata(
     corpus_version_hash: str,
     split_version_hash: str,
     harness_git_sha: str = "unknown",
+    variant: str = TRAINING_VARIANT,
 ) -> dict[str, Any]:
     """The per-seed model_metadata.json schema (AC7). ``promotable: true`` (the
     Story-7.3 ``false`` is flipped) + ``bundleEligibilityPendingFR18: true``
-    (Story 7.6 owns the bundle decision)."""
+    (Story 7.6 owns the bundle decision). ``variant`` defaults to the KDD-B2
+    winner; the FR-24 runner-up arm passes ``supervisedAugmented``."""
     if weighting_profile != "uniform":
         # Guardrail 3 / DD #6 — substrate OnsetFeaturesBuilder throws on
         # .subBandEmphasis, so uniform is the only valid declared profile.
@@ -78,10 +83,12 @@ def build_seed_metadata(
         )
     if seed not in SEEDS:
         raise ValueError(f"seed must be one of {SEEDS} (got {seed})")
+    if variant not in TRAINING_VARIANTS:
+        raise ValueError(f"variant must be one of {TRAINING_VARIANTS} (got {variant!r})")
     return {
         "metadataSchema": "train-v2",
         "architecture": "TempoCNN",
-        "trainingVariant": TRAINING_VARIANT,
+        "trainingVariant": variant,
         "weightingProfile": weighting_profile,
         "featureSetVersion": FEATURE_SET_VERSION,
         "modelGeneration": MODEL_GENERATION,

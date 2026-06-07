@@ -205,44 +205,34 @@ def test_octave_agreement_does_not_hang_on_inf():
 
 
 def test_resample_control_vector_large_F_stays_linear():
-    # BLOCKER B1 — on long tracks (Tony F=10k-60k) the OLD arange*step control
-    # vector diverged from Swift's float32-accumulated vDSP_vramp. A linear ramp
-    # row resampled to 512 must stay ~linear (catches a broken control vector).
+    # Phase 1.5 (Epic 7) empirical correction: the control vector is i*step (f32),
+    # matching what Swift vDSP_vramp ACTUALLY emits (verify_real_track_parity
+    # disproved the earlier scalar-accumulation model — accumulation drifts ~1.2e-2
+    # from the true ramp, i*step ~4.9e-4). A linear ramp row resampled to 512 must
+    # stay ~linear (catches a broken control vector).
     frames = 20000
     ramp = np.tile(np.arange(frames, dtype=np.float32), (128, 1))  # every band is 0..F-1
     out = fsv2.resample_to_width_vlint(ramp, width=512)
     assert out.shape == (128, 512)
     expected = np.linspace(0.0, frames - 1, 512, dtype=np.float64)
-    # float32 accumulation drift over 512 steps is small; well within 1 frame.
     assert np.max(np.abs(out[0].astype(np.float64) - expected)) < 1.0
     assert out[0, 0] == 0.0  # control[0] == 0 exactly
 
 
-def test_resample_last_column_clamps_accumulated_not_ideal_F_minus_1():
-    # Review pass 2 BLOCKER — the last control entry must clamp `nextDown` of the
-    # float32-ACCUMULATED last value (matching Swift `controlVector[W-1].nextDown`),
-    # NOT `nextafter(F-1)`. On long tracks these diverge; the previous test only
-    # checked numpy self-consistency and green-lit the divergent column.
+def test_resample_last_column_in_bounds_and_near_F_minus_1():
+    # Phase 1.5 empirical correction: with the i*step control, control[W-1] =
+    # (W-1)*step ~= F-1. The last entry is clamped one ULP below min(control[W-1],
+    # F-1) so vDSP_vlint's A[floor(c)+1] read stays in-bounds. For a linear ramp
+    # row[i]=i, vlint at the last column returns the control value itself.
     frames = 60000
     width = 512
     ramp = np.tile(np.arange(frames, dtype=np.float32), (128, 1))
     out = fsv2.resample_to_width_vlint(ramp, width=width)
-    # For a linear ramp row[i]=i, vlint at the last column returns the control
-    # index itself, so out[0, -1] IS the clamped last control value.
-    step = np.float32(frames - 1) / np.float32(width - 1)
-    cur = np.float32(0.0)
-    for _ in range(width - 1):
-        cur = np.float32(cur + step)
-    # At F=60000 accumulation drifts ~0.29 BELOW F-1, so the min(., F-1) floor is
-    # a no-op and the clamp matches Swift's nextDown(accumulated).
-    clamped = min(float(cur), float(frames - 1))
-    accumulated_last = np.nextafter(np.float32(clamped), np.float32(-np.inf))
-    ideal_last = np.nextafter(np.float32(frames - 1), np.float32(-np.inf))  # the OLD bug
-    # The output must match the accumulated clamp...
-    assert abs(float(out[0, -1]) - float(accumulated_last)) < 1e-2
-    # ...and the two clamps must genuinely DIVERGE at this F (proving the bug was
-    # real and that the test is not vacuous).
-    assert abs(float(accumulated_last) - float(ideal_last)) > 0.05
+    last = float(out[0, -1])
+    # In bounds: strictly below F-1 (clamp + nextDown guarantee floor(c)+1 <= F-1).
+    assert last < float(frames - 1)
+    # i*step lands the last control essentially at F-1 (within a frame).
+    assert abs(last - float(frames - 1)) < 1.0
 
 
 def test_marginal_stability_incomplete_seed_set():

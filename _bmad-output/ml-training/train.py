@@ -369,6 +369,9 @@ class TrainArgs:
     checkpoint_every: int = 5
     weighting_profile: str = "uniform"
     allow_legacy_giantsteps: bool = False
+    variant: str = "maskedMelPretrain"
+    pretrain_epochs: int = 30
+    octave_mass: float = 0.15
 
 
 def parse_args(argv: list[str]) -> TrainArgs:
@@ -406,6 +409,17 @@ def parse_args(argv: list[str]) -> TrainArgs:
         help="Run the historical GiantSteps build_splits pipeline. NEVER use for the "
         "Story 7.5 v2 run — the substrate-v2 Tony loop must be wired first (S1 guard).",
     )
+    # Story 7.5 v2 substrate run knobs (the authoritative path delegates to
+    # ablation.train_v2.run_v2 after the KDD-B4 gate).
+    p.add_argument(
+        "--variant",
+        type=str,
+        default="maskedMelPretrain",
+        choices=["maskedMelPretrain", "supervisedAugmented"],
+        help="v2 arm: maskedMelPretrain (KDD-B2 winner) or supervisedAugmented (FR-24 runner-up).",
+    )
+    p.add_argument("--pretrain-epochs", type=int, default=30, help="masked-mel pretrain budget")
+    p.add_argument("--octave-mass", type=float, default=0.15)
     a = p.parse_args(argv)
     return TrainArgs(
         seed=a.seed,
@@ -420,6 +434,9 @@ def parse_args(argv: list[str]) -> TrainArgs:
         checkpoint_every=a.checkpoint_every,
         weighting_profile=a.weighting_profile,
         allow_legacy_giantsteps=a.allow_legacy_giantsteps,
+        variant=a.variant,
+        pretrain_epochs=a.pretrain_epochs,
+        octave_mass=a.octave_mass,
     )
 
 
@@ -490,6 +507,57 @@ def check_substrate_preconditions() -> None:
         )
 
 
+def _run_substrate_v2(args: "TrainArgs", device) -> int:
+    """Authoritative v2 substrate run (Story 7.5 full-run wiring). Delegates the
+    recipe to ``ablation.train_v2.run_v2`` (the shared module also used by the
+    pre-signoff smoke CLI) and owns the promotable per-seed output placement.
+    Reached ONLY after ``check_substrate_preconditions`` passes (KDD-B4 signed).
+
+    Output: ``v2-runs/<variant>/seed_<N>/{model.pt,model_metadata.json,...}``.
+    Phase 3 then exports each ``model.pt`` to ``giantsteps_v2_seed_<N>.mlmodel``
+    via ``export.py --output`` (the ``giantsteps_v2_seed_*`` name is applied at
+    export, not here)."""
+    sys.path.insert(0, str(ML_TRAINING_DIR / "ablation"))
+    import masked_mel  # noqa: PLC0415
+    import train_v2  # noqa: PLC0415
+
+    # A --subset run through the authoritative path is an operator EXPLORATORY run,
+    # not a shippable seed: mark it non-promotable so it can't masquerade as a
+    # giantsteps_v2_seed_* checkpoint (build_seed_metadata also rejects seeds
+    # outside {42,43,44}, which an exploratory run may use).
+    promotable = args.subset is None
+    out_dir = ML_TRAINING_DIR / "v2-runs" / args.variant / f"seed_{args.seed}"
+    print(
+        f"[train.py v2] variant={args.variant} seed={args.seed} promotable={promotable} "
+        f"-> {out_dir}"
+    )
+    train_v2.run_v2(
+        variant=args.variant,
+        seed=args.seed,
+        epochs=args.epochs,
+        pretrain_epochs=args.pretrain_epochs,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        weighting_profile=args.weighting_profile,
+        subset=args.subset,
+        num_workers=args.num_workers,
+        octave_mass=args.octave_mass,
+        label_smoothing=args.label_smoothing,
+        mask_ratio=masked_mel.DEFAULT_MASK_RATIO,
+        mask_span=masked_mel.DEFAULT_SPAN,
+        device=device,
+        out_dir=out_dir,
+        promotable=promotable,
+        smoke=not promotable,
+    )
+    if promotable:
+        print(
+            f"[train.py v2] next: export.py --checkpoint {out_dir / 'model.pt'} "
+            f"--output ../ml-models/giantsteps_v2_seed_{args.seed}.mlmodel"
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -516,29 +584,15 @@ def main(argv: list[str] | None = None) -> int:
     fixture = load_fixture(FIXTURE_PATH)
     print(f"Loaded fixture v{fixture.feature_set_version} sha={fixture.sha256[:12]}")
 
-    # Story 7.5 Task 4 / DD #2 — HARD STOP (review BLOCKER/landmine S1): the
-    # substrate-bound v2 full run MUST train on the Tony Strong+Solid split
-    # (corpus_splits.json tony.{train,val} via corpus_common.load_tony_corpus +
-    # ablation_common), consuming feature_substrate_v2 model-input tensors + the
-    # maskedMelPretrain recipe (ablation/masked_mel.py + train_masked_mel_pretrain.py).
-    # That loop rewire is the operator's gated full-run step. Rather than leave
-    # the legacy GiantSteps build_splits() reachable behind a prose comment (which
-    # would silently train a MISMATCHED model the day an operator flips the
-    # KDD-B4 signoff without doing the swap — the three-way review flagged this as
-    # the load-bearing landmine), we FAIL CLOSED: the legacy loop is disabled.
-    # Pass --allow-legacy-giantsteps ONLY for the historical GiantSteps pipeline,
-    # never for the Story 7.5 v2 run.
+    # Story 7.5 Task 4 / DD #2: the substrate-bound v2 run trains on the Tony
+    # Strong+Solid split via feature_substrate_v2 + the maskedMelPretrain recipe.
+    # This loop is now WIRED (Epic 7 close-out) and delegates to the shared
+    # ablation.train_v2 module. The legacy GiantSteps build_splits() loop below
+    # stays reachable ONLY behind --allow-legacy-giantsteps so a signed-off run
+    # cannot silently train on the wrong corpus + a non-runtime-faithful feature
+    # path (the S1 fail-closed guard is preserved as an explicit opt-in flag).
     if not getattr(args, "allow_legacy_giantsteps", False):
-        raise NotImplementedError(
-            "Story 7.5: the substrate-v2 training loop (Tony split + "
-            "feature_substrate_v2 + maskedMelPretrain) is the operator's gated "
-            "full-run step and is NOT yet wired into train.py. The legacy "
-            "GiantSteps build_splits() loop below is INTENTIONALLY DISABLED so a "
-            "signed-off run cannot silently train a model on the wrong corpus + a "
-            "non-runtime-faithful (crop/loop + 1e-8-floor z-score) feature path. "
-            "Wire the v2 loader before the signed run; or pass "
-            "--allow-legacy-giantsteps to run the historical GiantSteps pipeline."
-        )
+        return _run_substrate_v2(args, device)
     splits = build_splits(verify=True)
     train_records = splits["train"]
     val_records = splits["val"]

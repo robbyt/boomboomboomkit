@@ -59,6 +59,7 @@ def finetune(
     num_workers: int = 4,
     train_records=None,
     val_records=None,
+    feature_path: str = "v1",
 ) -> FinetuneResult:
     """Supervised fine-tune on Tony strong-only (tony.train/tony.val). Returns the
     final + best val Acc1 (4% relative) and a per-epoch log."""
@@ -74,7 +75,12 @@ def finetune(
     val_records = _subset(val_records, subset)
 
     train_set = LabeledTonyDataset(
-        train_records, fixture, augment=True, seed=seed, weighting_profile=weighting_profile
+        train_records,
+        fixture,
+        augment=True,
+        seed=seed,
+        weighting_profile=weighting_profile,
+        feature_path=feature_path,
     )
     # strict=True: val_acc1 drives best-checkpoint selection, so a decode failure must
     # loud-fail rather than silently substitute another track (Copilot PR #26). train_set
@@ -86,6 +92,7 @@ def finetune(
         seed=seed,
         weighting_profile=weighting_profile,
         strict=True,
+        feature_path=feature_path,
     )
     # Loud-fail if there are no records at all (a silently-untrained model would
     # otherwise write a confident `val_acc1: 0.0`). Per-track decode failures are lazy:
