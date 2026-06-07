@@ -6,15 +6,17 @@ Machine-readable companion: `corpus-diagnostics-v1.json`. This Markdown has exac
 
 ## REVIEWER SIGNOFF (KDD-B4 gate)
 
-`REVIEWER_SIGNOFF: pending`
+`REVIEWER_SIGNOFF: signed`
 
 The operator fills this by TRANSCRIBING what they actually verified, then changes the marker above to `signed`. `audit-corpus-splits.py --check-gate` exits non-zero until then. **7.1 'done' = evidence assembled + review pending, NOT corpus-safe-to-train** — that flips only when this is signed (it gates Story 7.5 train.py, not 7.1 close).
 
-- [ ] tierHistogram.computed transcribed and matches expectation  →  _verified value:_ `__________`
-- [ ] count of representativeManualReviewFindings reviewed (>= 10, >= 2 Marginal)  →  _verified value:_ `__________`
-- [ ] count of labelOctaveErrorAudit candidates spot-checked against audio (with track IDs)  →  _verified value:_ `__________`
-- [ ] audit-corpus-splits.py near-dup REVIEW FLAGS resolved (each genuinely-differently-named same-recording pair excluded or confirmed distinct, with IDs)  →  _verified value:_ `__________`
-- [ ] driftBlockThreshold.blocksTraining is false  →  _verified value:_ `__________`
+- [x] tierHistogram.computed transcribed and matches expectation  →  _verified value:_ `333 Strong / 745 Solid / 241 Marginal / 25 Reject; snapshotDelta 0 (matches PRD)`
+- [x] count of representativeManualReviewFindings reviewed (>= 10, >= 2 Marginal)  →  _verified value:_ `10 reviewed (2 Marginal)`
+- [x] count of labelOctaveErrorAudit candidates spot-checked against audio (with track IDs)  →  _verified value:_ `4 of 20 spot-checked vs DAW/by-ear: Carne 43042112=160, Kemal 261646565=173.96, Night Squid 56889039=170, Fried 70330910=175 — all confirm Tony's BPM/2 entries were correctly doubled; DSP non-confirmation on old/vinyl tunes is expected, not a label error`
+- [x] audit-corpus-splits.py near-dup REVIEW FLAGS resolved (each genuinely-differently-named same-recording pair excluded or confirmed distinct, with IDs)  →  _verified value:_ `all 10 reviewed; confirmed same-song variants INTENTIONALLY RETAINED as codec/master/edit acoustic diversity on consistent BPM — Night Squid (56889039/145388332), Fried (70330910/214603360/145737805), Bleach remaster (27776344/28466763), ADMM62 D1/D3 edits (30559031/232856842 vs 6494977/111066626/103883560). tony.val is checkpoint-selection, not an FR-18 gate, so the retained val-side near-copies are immaterial to the bundle decision`
+- [x] driftBlockThreshold.blocksTraining is false  →  _verified value:_ `false (maxAbsTierDrift 0, threshold 27)`
+
+> **Signed by operator (robbyt), 2026-06-06.** Reviewed during the Epic-7 close-out. NOTE: this review surfaced and fixed a label-derivation bug — `bpm_truth` was the DSP/playlist-blended cluster centroid (e.g. Carne 160.991), which is training-jank. `scripts/tony-tunes-labels.py` was corrected to set `bpm_truth` = Tony's validated rekordbox value at the cluster's chosen octave (Carne→160, Night Squid→170, Fried→175, Kemal→173.96); labels regenerated (938/1016 trainable cleaned, whole-number rate 51%→85%; tiers + splits unchanged). This signoff is over the CORRECTED labels (labelsSha256 above).
 
 ## schemaVersion
 
@@ -26,14 +28,14 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## gitSha
 
-`56590d7-dirty`
+`17c3e47-dirty`
 
 ## provenance
 
 - **labelsPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/tony-corpus/tony-truth-labels.json`
-- **labelsSha256**: `e01ae432b424f8bd37b367c315c45599e33327c8ff247fb59cf1f6757b83f96a`
+- **labelsSha256**: `6c65d13f74f48cdbe1fe1c91318815ce86d65d7133caaff3b96eab6768ab2f38`
 - **labelerScriptPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/scripts/tony-tunes-labels.py`
-- **labelerScriptSha256**: `0b2c096191dcf79e71961e6eb0f6ea59cae3209a7c3c21b661c25b275cea1d04`
+- **labelerScriptSha256**: `aa3effa7b31d7d24f7cd71769478c83abb270c51f7c3e050bc810cb9c4f6b3a6`
 - **trackCount**: `1344`
 - **note**: `The corpus is develop-local/gitignored; these hashes pin the EXACT label file + labeler that produced the figures below. A regenerated label file changes labelsSha256 and invalidates this artifact (AC9).`
 
@@ -88,10 +90,10 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
       - **agreement**: `1.0`
       - **n**: `1319`
     - **dsp**:
-      - **agreement**: `0.3139`
+      - **agreement**: `0.3124`
       - **n**: `1319`
     - **playlist**:
-      - **agreement**: `0.2567`
+      - **agreement**: `0.2257`
       - **n**: `483`
   - **grid_bpm**:
     - **rekordbox_average**:
@@ -101,33 +103,33 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
       - **agreement**: `1.0`
       - **n**: `1319`
     - **dsp**:
-      - **agreement**: `0.3139`
+      - **agreement**: `0.3124`
       - **n**: `1319`
     - **playlist**:
-      - **agreement**: `0.2567`
+      - **agreement**: `0.2257`
       - **n**: `483`
   - **dsp**:
     - **rekordbox_average**:
-      - **agreement**: `0.3139`
+      - **agreement**: `0.3124`
       - **n**: `1319`
     - **grid_bpm**:
-      - **agreement**: `0.3139`
+      - **agreement**: `0.3124`
       - **n**: `1319`
     - **dsp**:
       - **agreement**: `1.0`
       - **n**: `1319`
     - **playlist**:
-      - **agreement**: `0.3706`
+      - **agreement**: `0.3375`
       - **n**: `483`
   - **playlist**:
     - **rekordbox_average**:
-      - **agreement**: `0.2567`
+      - **agreement**: `0.2257`
       - **n**: `483`
     - **grid_bpm**:
-      - **agreement**: `0.2567`
+      - **agreement**: `0.2257`
       - **n**: `483`
     - **dsp**:
-      - **agreement**: `0.3706`
+      - **agreement**: `0.3375`
       - **n**: `483`
     - **playlist**:
       - **agreement**: `1.0`
@@ -155,14 +157,14 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 - **definition**: `Strong+Solid tracks where assigned truth is an octave off the human Rekordbox tag (rekordbox relation 'half' => truth=2×rekordbox).`
 - **doubledCount**: `665`
 - **doubledNote**: `Mostly the EXPECTED DnB half-time tagging convention (DJ grids to the half for mixing); NOT a label error on its own. Reported for transparency.`
-- **highRiskCount**: `13`
+- **highRiskCount**: `20`
 - **highRiskDefinition**: `doubled AND DSP did not independently confirm the full tempo (dsp relation != 'same') — the confidently-wrong octave class: the full-tempo label rests on grid/boost with no independent onset corroboration.`
 - **halvedCount**: `0`
 - **highRiskSample**:
   -
     - **track_id**: `43042112`
     - **name**: `Carne`
-    - **bpm_truth**: `160.991`
+    - **bpm_truth**: `160.0`
     - **rekordbox_bpm**: `80.0`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -174,7 +176,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   -
     - **track_id**: `261646565`
     - **name**: `Kemal - Re-Animation (Kemal + Rob Data Remix ARX005 remastered)`
-    - **bpm_truth**: `175.311`
+    - **bpm_truth**: `173.96`
     - **rekordbox_bpm**: `86.98`
     - **dspRelation**: `near`
     - **winnerClusterSources**:
@@ -197,7 +199,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   -
     - **track_id**: `52271828`
     - **name**: `Wrong Foot Forward (Original Mix)`
-    - **bpm_truth**: `166.56`
+    - **bpm_truth**: `167.0`
     - **rekordbox_bpm**: `83.5`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -209,7 +211,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   -
     - **track_id**: `168883878`
     - **name**: `Monrroe - Understand`
-    - **bpm_truth**: `169.217`
+    - **bpm_truth**: `168.0`
     - **rekordbox_bpm**: `84.0`
     - **dspRelation**: `near`
     - **winnerClusterSources**:
@@ -218,9 +220,21 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
       - `rekordbox_average`
     - **winnerSourceCount**: `3`
   -
+    - **track_id**: `122253010`
+    - **name**: `Normal Function`
+    - **bpm_truth**: `165.0`
+    - **rekordbox_bpm**: `82.5`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
     - **track_id**: `117853529`
     - **name**: `Sorbet Rose`
-    - **bpm_truth**: `165.386`
+    - **bpm_truth**: `165.0`
     - **rekordbox_bpm**: `82.5`
     - **dspRelation**: `half`
     - **winnerClusterSources**:
@@ -232,7 +246,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   -
     - **track_id**: `191553337`
     - **name**: `Sealed Fate`
-    - **bpm_truth**: `165.297`
+    - **bpm_truth**: `166.04`
     - **rekordbox_bpm**: `83.02`
     - **dspRelation**: `near`
     - **winnerClusterSources**:
@@ -244,7 +258,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   -
     - **track_id**: `212227183`
     - **name**: `M25 Orbital`
-    - **bpm_truth**: `161.985`
+    - **bpm_truth**: `160.0`
     - **rekordbox_bpm**: `80.0`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -255,7 +269,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   -
     - **track_id**: `245924856`
     - **name**: `Swarm Behaviour`
-    - **bpm_truth**: `161.086`
+    - **bpm_truth**: `160.0`
     - **rekordbox_bpm**: `80.0`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -265,9 +279,20 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
       - `rekordbox_average`
     - **winnerSourceCount**: `4`
   -
+    - **track_id**: `230941984`
+    - **name**: `LOVE YOUR ENEMIES [Feat. Cameo Blush]`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
     - **track_id**: `201416600`
     - **name**: `WITH A VENGEANCE`
-    - **bpm_truth**: `161.985`
+    - **bpm_truth**: `160.0`
     - **rekordbox_bpm**: `80.0`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -276,9 +301,43 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
       - `rekordbox_average`
     - **winnerSourceCount**: `3`
   -
+    - **track_id**: `220585624`
+    - **name**: `Raving Cru`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `211934123`
+    - **name**: `Heavy Vibes`
+    - **bpm_truth**: `159.66`
+    - **rekordbox_bpm**: `79.83`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `223510826`
+    - **name**: `Tears in the Rain`
+    - **bpm_truth**: `170.0`
+    - **rekordbox_bpm**: `85.0`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
     - **track_id**: `94420904`
     - **name**: `Nights (Not Just A Dub Mix)`
-    - **bpm_truth**: `165.39`
+    - **bpm_truth**: `164.0`
     - **rekordbox_bpm**: `82.0`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -289,7 +348,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   -
     - **track_id**: `211761592`
     - **name**: `Digitalis (Original Mix)`
-    - **bpm_truth**: `166.773`
+    - **bpm_truth**: `166.0`
     - **rekordbox_bpm**: `83.0`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -299,9 +358,21 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
       - `rekordbox_average`
     - **winnerSourceCount**: `4`
   -
+    - **track_id**: `143115955`
+    - **name**: `Papaya Whip`
+    - **bpm_truth**: `167.0`
+    - **rekordbox_bpm**: `83.5`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
     - **track_id**: `123870338`
     - **name**: `Scorched Earth B1`
-    - **bpm_truth**: `167.649`
+    - **bpm_truth**: `167.0`
     - **rekordbox_bpm**: `83.5`
     - **dspRelation**: `far`
     - **winnerClusterSources**:
@@ -310,6 +381,17 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
       - `playlist_prior`
       - `rekordbox_average`
     - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `263046269`
+    - **name**: `Recognized`
+    - **bpm_truth**: `175.0`
+    - **rekordbox_bpm**: `87.5`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
 - **halvedSample**:
 - **guardrailNote**: `LABEL-quality audit, not a model metric (Guardrail 2). Feeds KDD-B3 reopen-trigger 3 (half/double confusions); high-risk track IDs are the spot-check list for the reviewer signoff (AC8).`
 
@@ -394,10 +476,10 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - `log2(grid/truth)`
   - `log2(dsp/truth)`
 - **method**: `scipy.cluster.vq.kmeans2 (++init, whiten-standardized features)`
-- **coAssignmentConsistency**: `0.9575`
+- **coAssignmentConsistency**: `0.9574`
 - **consistencyDefinition**: `Over a fixed 5000-pair sample, mean of max(frac_same_cluster, 1-frac_same_cluster) across seeds — 1.0 = perfectly stable, 0.5 = seed-dependent. Permutation-invariant (no label alignment).`
-- **distortionMean**: `0.3923`
-- **distortionStd**: `0.0378`
+- **distortionMean**: `0.3929`
+- **distortionStd**: `0.038`
 
 ## representativeManualReviewFindings
 
@@ -407,7 +489,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - **artist**: `(empty)`
   - **tier**: `Strong`
   - **truth_confidence**: `0.899`
-  - **bpm_truth**: `157.479`
+  - **bpm_truth**: `157.31`
   - **qa_flags**:
   - **note**: `Strong-tier clean exemplar: all three BPM signals (rekordbox/grid/dsp) agree with the assigned truth at the same octave.`
 -
@@ -416,7 +498,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - **artist**: `(empty)`
   - **tier**: `Strong`
   - **truth_confidence**: `0.92`
-  - **bpm_truth**: `146.018`
+  - **bpm_truth**: `145.85`
   - **qa_flags**:
   - **note**: `Strong-tier clean exemplar: all three BPM signals (rekordbox/grid/dsp) agree with the assigned truth at the same octave.`
 -
@@ -425,7 +507,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - **artist**: `(empty)`
   - **tier**: `Solid`
   - **truth_confidence**: `0.678`
-  - **bpm_truth**: `167.653`
+  - **bpm_truth**: `168.0`
   - **qa_flags**:
   - **note**: `Solid-tier octave split: Rekordbox+grid tag the half-time; DSP carried the full-tempo winner. Watch for wrong-octave risk (E1).`
 -
@@ -434,7 +516,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - **artist**: `(empty)`
   - **tier**: `Solid`
   - **truth_confidence**: `0.663`
-  - **bpm_truth**: `157.866`
+  - **bpm_truth**: `157.84`
   - **qa_flags**:
   - **note**: `Solid-tier octave split: Rekordbox+grid tag the half-time; DSP carried the full-tempo winner. Watch for wrong-octave risk (E1).`
 -
@@ -463,7 +545,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - **artist**: `Amor Satyr & Toma Kami`
   - **tier**: `Solid`
   - **truth_confidence**: `0.651`
-  - **bpm_truth**: `160.991`
+  - **bpm_truth**: `160.0`
   - **qa_flags**:
   - **note**: `Label-octave-error HIGH-RISK candidate (E1): assigned truth is 2× the human Rekordbox tag AND DSP did not independently land on the full tempo. If the DJ tag was right, this is a confidently-wrong octave label.`
 -
@@ -472,7 +554,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - **artist**: `Architecture Recordings`
   - **tier**: `Solid`
   - **truth_confidence**: `0.677`
-  - **bpm_truth**: `175.311`
+  - **bpm_truth**: `173.96`
   - **qa_flags**:
   - **note**: `Label-octave-error HIGH-RISK candidate (E1): assigned truth is 2× the human Rekordbox tag AND DSP did not independently land on the full tempo. If the DJ tag was right, this is a confidently-wrong octave label.`
 -
@@ -557,5 +639,5 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## reviewerSignoff
 
-See REVIEWER SIGNOFF section above. State: `pending`.
+See REVIEWER SIGNOFF section above. State: `signed`.
 

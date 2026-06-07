@@ -376,6 +376,35 @@ def build_disagreement_report(
 # ---------------------------------------------------------------------------
 
 
+# Source preference for the truth VALUE (not the octave decision). Tony's
+# Rekordbox AverageBpm is his hand-validated tag; grid_bpm is his Inizio
+# beatgrid. Both are operator-validated; DSP/playlist are noisy votes used only
+# to pick the OCTAVE, never to set the value.
+_TRUTH_VALUE_SOURCES = ("rekordbox_average", "grid_bpm")
+
+
+def _truth_value_from_winner(winner: dict) -> float:
+    """bpm_truth = Tony's validated value, at the octave the cluster chose.
+
+    The winning cluster decided the octave (DSP/grid/playlist votes detect the
+    half-time entries that need doubling — Tony's DnB convention). But the VALUE
+    must be Tony's, not the weighted centroid: the centroid blends in the DSP
+    estimate (often octave-wrong/far) and the playlist prior, dragging a clean
+    whole-number tempo off by up to ~2 BPM (e.g. Carne 80x2=160 -> centroid
+    160.991; Fried 87.5x2=175 -> 174.937). Each winning member already carries
+    `canonical_bpm` = raw_bpm x octave_factor, so picking the rekordbox member's
+    canonical_bpm gives the octave-corrected Tony value exactly. Falls back to
+    grid_bpm, then the centroid, only if neither Tony source is in the winner
+    (rare). Epic 7 corpus signoff (robbyt 2026-06-06): the prior centroid blend
+    was training-jank; reproduces the operator's DAW-verified values 4/4
+    (Carne 160, Night Squid 170, Fried 175, Kemal 173.96)."""
+    for source in _TRUTH_VALUE_SOURCES:
+        members = [m for m in winner["members"] if m["source"] == source]
+        if members:
+            return float(max(members, key=lambda m: m["weight"])["canonical_bpm"])
+    return float(winner["centroid"])
+
+
 def label_one(track: dict, dsp: dict | None) -> dict:
     clusters = TempoClusters()
 
@@ -434,7 +463,9 @@ def label_one(track: dict, dsp: dict | None) -> dict:
         if len(non_playlist_sources) < 2:
             qa_flags.append("single_source_truth")
         if "low_confidence" not in qa_flags:
-            truth = round(winner["centroid"], 3)
+            # bpm_truth = Tony's validated value at the cluster's chosen octave,
+            # NOT the DSP/playlist-blended centroid (Epic 7 corpus signoff).
+            truth = round(_truth_value_from_winner(winner), 3)
 
     signals = build_disagreement_report(track, dsp, truth, contributed)
 
