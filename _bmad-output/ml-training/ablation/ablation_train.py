@@ -18,7 +18,7 @@ from typing import Any
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
 import ablation_common as common
 import dataset as ds
@@ -44,6 +44,57 @@ def _subset(records: list, subset: int | None) -> list:
     return records[:subset] if subset else records
 
 
+# GiantSteps tempo-band priors (the bundle gate's distribution, n=661) — the
+# target the rebalanced sampler matches so the model stops over-predicting the
+# DnB tempos the Tony corpus is glutted with (Epic 7 data-augmentation: Tony is
+# 51% 160-175 BPM, GiantSteps only 23%; GiantSteps is 47% 120-140, Tony ~15%).
+_GS_BAND_PRIORS = {
+    "<100": 0.0908,
+    "100-120": 0.0530,
+    "120-140": 0.4675,
+    "140-160": 0.1331,
+    "160-175": 0.2315,
+    "175+": 0.0242,
+}
+# Clamp the per-track weight so the few under-represented tracks aren't oversampled
+# to the point of memorization (Codex: rebalancing cannot invent examples).
+_REBALANCE_CLAMP = (0.33, 3.0)
+
+
+def _tempo_band(bpm: float) -> str:
+    if bpm < 100:
+        return "<100"
+    if bpm < 120:
+        return "100-120"
+    if bpm < 140:
+        return "120-140"
+    if bpm < 160:
+        return "140-160"
+    if bpm < 175:
+        return "160-175"
+    return "175+"
+
+
+def _rebalance_weights(records) -> list[float]:
+    """Per-track WeightedRandomSampler weights = clamp(GS_frac / corpus_frac): the
+    effective training distribution approaches the GiantSteps gate's tempo bands
+    (down-weight the DnB glut, up-weight house/techno)."""
+    from collections import Counter
+
+    bands = [_tempo_band(float(r.bpm)) for r in records]
+    counts = Counter(bands)
+    n = max(len(records), 1)
+    lo, hi = _REBALANCE_CLAMP
+    weights: list[float] = []
+    for b in bands:
+        src_frac = counts[b] / n
+        tgt_frac = _GS_BAND_PRIORS.get(b, src_frac)
+        w = (tgt_frac / src_frac) if src_frac > 0 else 1.0
+        weights.append(min(hi, max(lo, w)))
+    print(f"[finetune] rebalance band counts (raw): {dict(counts)}")
+    return weights
+
+
 def finetune(
     model: nn.Module,
     *,
@@ -60,6 +111,7 @@ def finetune(
     train_records=None,
     val_records=None,
     feature_path: str = "v1",
+    rebalance: bool = False,
 ) -> FinetuneResult:
     """Supervised fine-tune on Tony strong-only (tony.train/tony.val). Returns the
     final + best val Acc1 (4% relative) and a per-epoch log."""
@@ -110,14 +162,30 @@ def finetune(
     # forbids ("attributable to encoder INIT only"). val_loader is shuffle=False.
     g = torch.Generator()
     g.manual_seed(seed)
-    train_loader = DataLoader(
-        train_set,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        worker_init_fn=ds.worker_init_fn,
-        generator=g,
-    )
+    if rebalance:
+        # Tempo-band rebalancing toward the GiantSteps gate (Epic 7). Mutually
+        # exclusive with shuffle — the weighted sampler IS the shuffle. Seeded by
+        # the same generator so the draw order stays a pure function of `seed`.
+        weights = _rebalance_weights(train_records)
+        sampler = WeightedRandomSampler(
+            weights, num_samples=len(train_records), replacement=True, generator=g
+        )
+        train_loader = DataLoader(
+            train_set,
+            batch_size=batch_size,
+            sampler=sampler,
+            num_workers=num_workers,
+            worker_init_fn=ds.worker_init_fn,
+        )
+    else:
+        train_loader = DataLoader(
+            train_set,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            worker_init_fn=ds.worker_init_fn,
+            generator=g,
+        )
     val_loader = DataLoader(
         val_set,
         batch_size=batch_size,

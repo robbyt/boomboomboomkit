@@ -372,6 +372,7 @@ class TrainArgs:
     variant: str = "maskedMelPretrain"
     pretrain_epochs: int = 30
     octave_mass: float = 0.15
+    rebalance: bool = False
 
 
 def parse_args(argv: list[str]) -> TrainArgs:
@@ -420,6 +421,12 @@ def parse_args(argv: list[str]) -> TrainArgs:
     )
     p.add_argument("--pretrain-epochs", type=int, default=30, help="masked-mel pretrain budget")
     p.add_argument("--octave-mass", type=float, default=0.15)
+    p.add_argument(
+        "--rebalance",
+        action="store_true",
+        help="WeightedRandomSampler toward GiantSteps tempo-band priors (Epic 7 "
+        "data-augmentation: down-weight the DnB glut, up-weight house/techno).",
+    )
     a = p.parse_args(argv)
     return TrainArgs(
         seed=a.seed,
@@ -437,6 +444,7 @@ def parse_args(argv: list[str]) -> TrainArgs:
         variant=a.variant,
         pretrain_epochs=a.pretrain_epochs,
         octave_mass=a.octave_mass,
+        rebalance=a.rebalance,
     )
 
 
@@ -549,6 +557,7 @@ def _run_substrate_v2(args: "TrainArgs", device) -> int:
         out_dir=out_dir,
         promotable=promotable,
         smoke=not promotable,
+        rebalance=args.rebalance,
     )
     if promotable:
         print(

@@ -72,6 +72,7 @@ def run_v2(
     out_dir: Path,
     promotable: bool,
     smoke: bool,
+    rebalance: bool = False,
 ) -> dict:
     """Train one v2 arm and write ``model.pt`` + ``model_metadata.json`` +
     ``training_log.json`` to ``out_dir``. Returns the metadata dict."""
@@ -141,6 +142,7 @@ def run_v2(
         label_smoothing=label_smoothing,
         num_workers=num_workers,
         feature_path="v2",
+        rebalance=rebalance,
     )
     wall = time.time() - start
 
@@ -178,6 +180,7 @@ def run_v2(
     if variant == "maskedMelPretrain":
         metadata["pretrainEpochs"] = pretrain_used
         metadata["maskRatio"] = mask_ratio
+    metadata["tempoBandRebalanced"] = rebalance
     (out_dir / "model_metadata.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n"
     )
@@ -187,6 +190,7 @@ def run_v2(
                 "variant": variant,
                 "featureSetVersion": tv2.FEATURE_SET_VERSION,
                 "smoke": smoke,
+                "tempoBandRebalanced": rebalance,
                 "val_acc1": result.val_acc1,
                 "best_val_acc1": result.best_val_acc1,
                 "pretrain_epochs": pretrain_used,
@@ -224,6 +228,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--label-smoothing", type=float, default=0.05)
     p.add_argument("--mask-ratio", type=float, default=masked_mel.DEFAULT_MASK_RATIO)
     p.add_argument("--mask-span", type=int, default=masked_mel.DEFAULT_SPAN)
+    p.add_argument(
+        "--rebalance",
+        action="store_true",
+        help="WeightedRandomSampler toward GiantSteps tempo-band priors (Epic 7).",
+    )
     return p.parse_args(argv)
 
 
@@ -253,6 +262,7 @@ def main(argv: list[str] | None = None) -> int:
         out_dir=out_dir,
         promotable=False,
         smoke=True,
+        rebalance=args.rebalance,
     )
     return 0
 
