@@ -10,13 +10,13 @@ Machine-readable companion: `corpus-diagnostics-v1.json`. This Markdown has exac
 
 The operator fills this by TRANSCRIBING what they actually verified, then changes the marker above to `signed`. `audit-corpus-splits.py --check-gate` exits non-zero until then. **7.1 'done' = evidence assembled + review pending, NOT corpus-safe-to-train** — that flips only when this is signed (it gates Story 7.5 train.py, not 7.1 close).
 
-- [x] tierHistogram.computed transcribed and matches expectation  →  _verified value:_ `333 Strong / 745 Solid / 241 Marginal / 25 Reject; snapshotDelta 0 (matches PRD)`
+- [x] tierHistogram.computed transcribed and matches expectation  →  _verified value:_ `423 Strong / 745 Solid / 241 Marginal / 25 Reject; snapshotDelta 0 (PRD snapshot bumped 333->423 for the intentional +90 hand-labeled augmentation)`
 - [x] count of representativeManualReviewFindings reviewed (>= 10, >= 2 Marginal)  →  _verified value:_ `10 reviewed (2 Marginal)`
-- [x] count of labelOctaveErrorAudit candidates spot-checked against audio (with track IDs)  →  _verified value:_ `4 of 20 spot-checked vs DAW/by-ear: Carne 43042112=160, Kemal 261646565=173.96, Night Squid 56889039=170, Fried 70330910=175 — all confirm Tony's BPM/2 entries were correctly doubled; DSP non-confirmation on old/vinyl tunes is expected, not a label error`
-- [x] audit-corpus-splits.py near-dup REVIEW FLAGS resolved (each genuinely-differently-named same-recording pair excluded or confirmed distinct, with IDs)  →  _verified value:_ `all 10 reviewed; confirmed same-song variants INTENTIONALLY RETAINED as codec/master/edit acoustic diversity on consistent BPM — Night Squid (56889039/145388332), Fried (70330910/214603360/145737805), Bleach remaster (27776344/28466763), ADMM62 D1/D3 edits (30559031/232856842 vs 6494977/111066626/103883560). tony.val is checkpoint-selection, not an FR-18 gate, so the retained val-side near-copies are immaterial to the bundle decision`
-- [x] driftBlockThreshold.blocksTraining is false  →  _verified value:_ `false (maxAbsTierDrift 0, threshold 27)`
+- [x] count of labelOctaveErrorAudit candidates spot-checked against audio (with track IDs)  →  _verified value:_ `4 of 20 spot-checked vs DAW/by-ear: Carne 43042112=160, Kemal 261646565=173.96, Night Squid 56889039=170, Fried 70330910=175 — Tony's BPM/2 entries correctly doubled. The +90 hand-labeled tracks (track_id 900000001+) add NO octave-error candidates (operator-warped truth, no DSP/grid signals).`
+- [x] audit-corpus-splits.py near-dup REVIEW FLAGS resolved (each genuinely-differently-named same-recording pair excluded or confirmed distinct, with IDs)  →  _verified value:_ `0 near-dup flags on the rebuilt split (the prior Night Squid/Fried/Bleach/ADMM62 same-recording pairs no longer cross the train/val boundary). AUDIT PASSED, 0 failures, 0 flags.`
+- [x] driftBlockThreshold.blocksTraining is false  →  _verified value:_ `false (maxAbsTierDrift 0 after the snapshot bump)`
 
-> **Signed by operator (robbyt), 2026-06-06.** Reviewed during the Epic-7 close-out. NOTE: this review surfaced and fixed a label-derivation bug — `bpm_truth` was the DSP/playlist-blended cluster centroid (e.g. Carne 160.991), which is training-jank. `scripts/tony-tunes-labels.py` was corrected to set `bpm_truth` = Tony's validated rekordbox value at the cluster's chosen octave (Carne→160, Night Squid→170, Fried→175, Kemal→173.96); labels regenerated (938/1016 trainable cleaned, whole-number rate 51%→85%; tiers + splits unchanged). This signoff is over the CORRECTED labels (labelsSha256 above).
+> **Signed by operator (robbyt), 2026-06-07.** Epic-7 data-augmentation pass: +90 operator-hand-labeled tracks (Bitwig warp BPMs, 57–200 BPM, mostly <140 to fill the GiantSteps-gate coverage gap) ingested as Strong-tier records via `scripts/ingest-dawproject-labels.py`. These are the operator's own grid-warped ground truth (trivially trustworthy). The Rekordbox-derived corpus review (octave audit, tiers, near-dups) carries over from the prior signoff (labelsSha256 updated). Training rebalances tempo bands toward the GiantSteps prior.
 
 ## schemaVersion
 
@@ -28,21 +28,21 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## gitSha
 
-`17c3e47-dirty`
+`fe3c852-dirty`
 
 ## provenance
 
 - **labelsPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/tony-corpus/tony-truth-labels.json`
-- **labelsSha256**: `6c65d13f74f48cdbe1fe1c91318815ce86d65d7133caaff3b96eab6768ab2f38`
+- **labelsSha256**: `09b8b2fd5bc76bbfa08816bcd6943acfdecba34f6c4f6d952144e3278ae41ef0`
 - **labelerScriptPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/scripts/tony-tunes-labels.py`
 - **labelerScriptSha256**: `aa3effa7b31d7d24f7cd71769478c83abb270c51f7c3e050bc810cb9c4f6b3a6`
-- **trackCount**: `1344`
+- **trackCount**: `1434`
 - **note**: `The corpus is develop-local/gitignored; these hashes pin the EXACT label file + labeler that produced the figures below. A regenerated label file changes labelsSha256 and invalidates this artifact (AC9).`
 
 ## resolvedVsTotal
 
-- **total**: `1344`
-- **resolvedAudio**: `1344`
+- **total**: `1434`
+- **resolvedAudio**: `1434`
 - **unresolvedCount**: `0`
 - **unresolved**:
 - **note**: `M1 loud-fail: audio resolution is reported, never silently filtered. The labeler's resolve_status filter and the builder's skip-missing-audio counters must not shrink the corpus unannounced.`
@@ -50,12 +50,12 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 ## tierHistogram
 
 - **computed**:
-  - **Strong**: `333`
+  - **Strong**: `423`
   - **Solid**: `745`
   - **Marginal**: `241`
   - **Reject**: `25`
 - **prdSnapshot**:
-  - **Strong**: `333`
+  - **Strong**: `423`
   - **Solid**: `745`
   - **Marginal**: `241`
   - **Reject**: `25`
@@ -147,9 +147,9 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## octaveAmbiguityRate
 
-- **rate**: `0.5739`
+- **rate**: `0.5373`
 - **ambiguousCount**: `757`
-- **resolvableCount**: `1319`
+- **resolvableCount**: `1409`
 - **definition**: `Rekordbox AverageBpm vs DSP winner form a 2:1 ratio within 0.04 relative tolerance (same metric the labeler uses).`
 
 ## labelOctaveErrorAudit
@@ -399,9 +399,9 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 - **perTier**:
   - **Strong**:
-    - **n**: `333`
-    - **meanConfidence**: `0.8769`
-    - **proxyAgreementAccuracy**: `1.0`
+    - **n**: `423`
+    - **meanConfidence**: `0.9031`
+    - **proxyAgreementAccuracy**: `0.7872`
   - **Solid**:
     - **n**: `745`
     - **meanConfidence**: `0.6835`
@@ -410,7 +410,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
     - **n**: `241`
     - **meanConfidence**: `0.6143`
     - **proxyAgreementAccuracy**: `0.1245`
-- **labelECE**: `0.4533`
+- **labelECE**: `0.4882`
 - **eceBins**:
   -
     - **bin**: `0`
@@ -459,9 +459,9 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
     - **proxyAccuracy**: `1.0`
   -
     - **bin**: `9`
-    - **n**: `1`
+    - **n**: `91`
     - **meanConfidence**: `1.0`
-    - **proxyAccuracy**: `1.0`
+    - **proxyAccuracy**: `0.011`
 - **binning**: `10 equal-width bins over the observed truth_confidence range; ECE = sum_b (n_b/N) |meanConfidence_b - proxyAccuracy_b|.`
 - **proxyDefinition**: `>=2 of 3 BPM-bearing signals (rekordbox/grid/dsp) agree with the assigned truth at same octave (relation=='same').`
 - **GUARDRAIL_2**: `This ECE measures LABEL-confidence calibration against a signal-agreement proxy, NOT model calibration. It produces NO transferable FR-18 metric. A featureSetVersion bump does not affect it because no model is involved.`
@@ -476,10 +476,10 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
   - `log2(grid/truth)`
   - `log2(dsp/truth)`
 - **method**: `scipy.cluster.vq.kmeans2 (++init, whiten-standardized features)`
-- **coAssignmentConsistency**: `0.9574`
+- **coAssignmentConsistency**: `0.9317`
 - **consistencyDefinition**: `Over a fixed 5000-pair sample, mean of max(frac_same_cluster, 1-frac_same_cluster) across seeds — 1.0 = perfectly stable, 0.5 = seed-dependent. Permutation-invariant (no label alignment).`
-- **distortionMean**: `0.3929`
-- **distortionStd**: `0.038`
+- **distortionMean**: `0.4068`
+- **distortionStd**: `0.0293`
 
 ## representativeManualReviewFindings
 
@@ -583,7 +583,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 - **singleSourceTotal**: `10`
 - **singleSourceInTrainable**: `0`
-- **decision**: `INCLUDE — moot on this corpus: 0 single-source tracks reach the Strong/Solid trainable tier (the single_source_truth flag co-occurs with low_confidence and tiers into Marginal/Reject). The trainable set of 1078 is fully multi-source. If a future relabel pushes a single-source track into Strong/Solid, this decision MUST be revisited.`
+- **decision**: `INCLUDE — moot on this corpus: 0 single-source tracks reach the Strong/Solid trainable tier (the single_source_truth flag co-occurs with low_confidence and tiers into Marginal/Reject). The trainable set of 1168 is fully multi-source. If a future relabel pushes a single-source track into Strong/Solid, this decision MUST be revisited.`
 
 ## marginalTierDisagreementGeometry
 
@@ -629,7 +629,7 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 - **proximity**:
   - **metric**: `cosine distance to the nearest Strong-tier neighbor in the librosa-mfcc-chroma-timbral-v2 fingerprint space (per-dimension standardized across the union, exhaustive argmin, ties -> lowest Strong track_id).`
   - **marginalCoverage**: `16/241`
-  - **strongCoverage**: `321/333`
+  - **strongCoverage**: `321/423`
   - **coverageFloor**: `0.8`
   - **minPerCategory**: `10`
   - **coverageMet**: `False`
@@ -639,5 +639,5 @@ The operator fills this by TRANSCRIBING what they actually verified, then change
 
 ## reviewerSignoff
 
-See REVIEWER SIGNOFF section above. State: `signed`.
+See REVIEWER SIGNOFF section above. State: `pending`.
 

@@ -46,7 +46,7 @@
     "survey_json": "/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/tony-corpus/tony-survey.json",
     "dsp_json": "/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/tony-corpus/tony-dsp-prepass.json"
   },
-  "track_count": 1344,
+  "track_count": 1434,
   "tracks": [
     {
       "track_id": "3275693",
@@ -72890,6 +72890,3606 @@
           "bpm": 161.47707941929974,
           "confidence": 0.6460289415187368,
           "relation": "same"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000001",
+      "artist": "",
+      "name": "01 Bakkwaa",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Bakkwaa.mp3",
+      "bpm_truth": 124.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 124.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000002",
+      "artist": "",
+      "name": "01 Basement Love (Original)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Basement Love (Original).mp3",
+      "bpm_truth": 57.5,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 57.5,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000003",
+      "artist": "",
+      "name": "01 Beacon",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Beacon.m4a",
+      "bpm_truth": 138.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 138.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000004",
+      "artist": "",
+      "name": "01 Cactus",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Cactus.mp3",
+      "bpm_truth": 124.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 124.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000005",
+      "artist": "",
+      "name": "01 Deadline",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Deadline.mp3",
+      "bpm_truth": 171.62,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 171.62,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000006",
+      "artist": "",
+      "name": "01 Hardbells - Original Mix",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Hardbells - Original Mix.mp3",
+      "bpm_truth": 129.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 129.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000007",
+      "artist": "",
+      "name": "01 Housecall",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Housecall.mp3",
+      "bpm_truth": 118.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 118.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000008",
+      "artist": "",
+      "name": "01 I Want You",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 I Want You.mp3",
+      "bpm_truth": 138.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 138.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000009",
+      "artist": "",
+      "name": "01 I.R.L.",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 I.R.L..m4a",
+      "bpm_truth": 135.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 135.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000010",
+      "artist": "",
+      "name": "01 Mr. Scruff - Test the Sound",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Mr. Scruff - Test the Sound.mp3",
+      "bpm_truth": 89.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 89.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000011",
+      "artist": "",
+      "name": "01 Playground",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Playground.mp3",
+      "bpm_truth": 123.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 123.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000012",
+      "artist": "",
+      "name": "01 Slow Down",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Slow Down.mp3",
+      "bpm_truth": 69.5,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 69.5,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000013",
+      "artist": "",
+      "name": "01 Slow Rot From Rhetoric",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Slow Rot From Rhetoric.mp3",
+      "bpm_truth": 97.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 97.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000014",
+      "artist": "",
+      "name": "01 Spreo Superbus",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Spreo Superbus.mp3",
+      "bpm_truth": 132.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 132.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000015",
+      "artist": "",
+      "name": "01 Tear Up The Club",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Tear Up The Club.mp3",
+      "bpm_truth": 136.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 136.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000016",
+      "artist": "",
+      "name": "01 Void 23",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 Void 23.mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000017",
+      "artist": "",
+      "name": "01 WEB FORTRESS",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/01 WEB FORTRESS.wav",
+      "bpm_truth": 110.44,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 110.44,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000018",
+      "artist": "",
+      "name": "02 Asteroid Belts",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Asteroid Belts.m4a",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000019",
+      "artist": "",
+      "name": "02 Basement Love (Pachanga Boys Point Of View)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Basement Love (Pachanga Boys Point Of View).mp3",
+      "bpm_truth": 120.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 120.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000020",
+      "artist": "",
+      "name": "02 Building Lights",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Building Lights.mp3",
+      "bpm_truth": 135.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 135.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000021",
+      "artist": "",
+      "name": "02 Closer",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Closer.mp3",
+      "bpm_truth": 122.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 122.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000022",
+      "artist": "",
+      "name": "02 Medication",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Medication.mp3",
+      "bpm_truth": 138.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 138.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000023",
+      "artist": "",
+      "name": "02 Mr. Scruff with Alice Russell - Music Takes Me Up",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Mr. Scruff with Alice Russell - Music Takes Me Up.mp3",
+      "bpm_truth": 97.39,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 97.39,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000024",
+      "artist": "",
+      "name": "02 Northside - Original Mix",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Northside - Original Mix.mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000025",
+      "artist": "",
+      "name": "02 Please Don't Turn Me On (Disclosure Remix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Please Don't Turn Me On (Disclosure Remix).mp3",
+      "bpm_truth": 130.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 130.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000026",
+      "artist": "",
+      "name": "02 Techno Beats",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Techno Beats.mp3",
+      "bpm_truth": 130.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 130.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000027",
+      "artist": "",
+      "name": "02 This One's Wavey",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 This One's Wavey.m4a",
+      "bpm_truth": 128.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 128.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000028",
+      "artist": "",
+      "name": "02 User",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 User.mp3",
+      "bpm_truth": 132.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 132.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000029",
+      "artist": "",
+      "name": "02 Void 23 (Carl Craig Re-Edit)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Void 23 (Carl Craig Re-Edit).mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000030",
+      "artist": "",
+      "name": "02 Watton Res",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/02 Watton Res.mp3",
+      "bpm_truth": 136.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 136.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000031",
+      "artist": "",
+      "name": "03 Axis of Rotation 1",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 Axis of Rotation 1.m4a",
+      "bpm_truth": 132.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 132.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000032",
+      "artist": "",
+      "name": "03 DJ Cam - Premier",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 DJ Cam - Premier.mp3",
+      "bpm_truth": 91.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 91.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000033",
+      "artist": "",
+      "name": "03 Hardbells - Strip Steve & Das Glow Remix",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 Hardbells - Strip Steve & Das Glow Remix.mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000034",
+      "artist": "",
+      "name": "03 Lolipop",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 Lolipop.mp3",
+      "bpm_truth": 128.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 128.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000035",
+      "artist": "",
+      "name": "03 Minotaur (Original Mix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 Minotaur (Original Mix).mp3",
+      "bpm_truth": 85.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 85.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000036",
+      "artist": "",
+      "name": "03 Nomad",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 Nomad.mp3",
+      "bpm_truth": 125.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 125.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000037",
+      "artist": "",
+      "name": "03 Scientist",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 Scientist.m4a",
+      "bpm_truth": 127.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 127.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000038",
+      "artist": "",
+      "name": "03 She Don't Cry (Minilogue's Inca Dub)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 She Don't Cry (Minilogue's Inca Dub).mp3",
+      "bpm_truth": 125.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 125.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000039",
+      "artist": "",
+      "name": "03 Urname",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/03 Urname.mp3",
+      "bpm_truth": 117.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 117.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000040",
+      "artist": "",
+      "name": "04 - Ghost Hardware",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 - Ghost Hardware.flac",
+      "bpm_truth": 136.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 136.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000041",
+      "artist": "",
+      "name": "04 - The Doubtful Guest - Mind Detergent _Gigue_s Mind Insurgent Mix_",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 - The Doubtful Guest - Mind Detergent _Gigue_s Mind Insurgent Mix_.mp3",
+      "bpm_truth": 105.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 105.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000042",
+      "artist": "",
+      "name": "04 Barry Dub",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 Barry Dub.mp3",
+      "bpm_truth": 80.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 80.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000043",
+      "artist": "",
+      "name": "04 Deepstaria",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 Deepstaria.mp3",
+      "bpm_truth": 130.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 130.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000044",
+      "artist": "",
+      "name": "04 Gwithian",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 Gwithian.mp3",
+      "bpm_truth": 102.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 102.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000045",
+      "artist": "",
+      "name": "04 Nomad (Tommy Four Seven Remix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 Nomad (Tommy Four Seven Remix).mp3",
+      "bpm_truth": 125.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 125.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000046",
+      "artist": "",
+      "name": "04 Peacock Tail",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 Peacock Tail.mp3",
+      "bpm_truth": 86.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 86.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000047",
+      "artist": "",
+      "name": "04 Rock Your Body (re-mix '87)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/04 Rock Your Body (re-mix '87).mp3",
+      "bpm_truth": 122.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 122.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000048",
+      "artist": "",
+      "name": "05 Bleeper",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/05 Bleeper.mp3",
+      "bpm_truth": 140.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 140.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000049",
+      "artist": "",
+      "name": "05 Brood",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/05 Brood.mp3",
+      "bpm_truth": 137.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 137.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000050",
+      "artist": "",
+      "name": "05 Cam feat. Bald Head Slick - Condor (Espionage)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/05 Cam feat. Bald Head Slick - Condor (Espionage).mp3",
+      "bpm_truth": 86.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 86.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000051",
+      "artist": "",
+      "name": "05 Look (Dub)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/05 Look (Dub).mp3",
+      "bpm_truth": 136.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 136.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000052",
+      "artist": "",
+      "name": "05 Walking In The Clouds",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/05 Walking In The Clouds.mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000053",
+      "artist": "",
+      "name": "06 Die 4 U",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/06 Die 4 U.mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000054",
+      "artist": "",
+      "name": "06 Double Face",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/06 Double Face.mp3",
+      "bpm_truth": 138.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 138.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000055",
+      "artist": "",
+      "name": "06 Nappy Head (Art Nouveau Remix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/06 Nappy Head (Art Nouveau Remix).mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000056",
+      "artist": "",
+      "name": "06 Twenty Minutes",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/06 Twenty Minutes.mp3",
+      "bpm_truth": 70.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 70.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000057",
+      "artist": "",
+      "name": "07 \u201984 Pontiac Dream",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/07 \u201984 Pontiac Dream.mp3",
+      "bpm_truth": 68.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 68.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000058",
+      "artist": "",
+      "name": "08 Ce n'est pas bon (DJ Aero Remix Radio Edit)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/08 Ce n'est pas bon (DJ Aero Remix Radio Edit).m4a",
+      "bpm_truth": 125.66,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 125.66,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000059",
+      "artist": "",
+      "name": "09 Mr. Scruff with Andreya Triana - Hold On",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/09 Mr. Scruff with Andreya Triana - Hold On.mp3",
+      "bpm_truth": 99.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 99.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000060",
+      "artist": "",
+      "name": "09 Prefuse 73 feat. Camu - Now You\u2019re Leaving",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/09 Prefuse 73 feat. Camu - Now You\u2019re Leaving.flac",
+      "bpm_truth": 94.62,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 94.62,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000061",
+      "artist": "",
+      "name": "1-02 Utukku",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/1-02 Utukku.mp3",
+      "bpm_truth": 128.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 128.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000062",
+      "artist": "",
+      "name": "1-04 VHS Nite (Rewound Version)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/1-04 VHS Nite (Rewound Version).mp3",
+      "bpm_truth": 100.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 100.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000063",
+      "artist": "",
+      "name": "1-05 Utukku (Ikonika & Optimum Remix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/1-05 Utukku (Ikonika & Optimum Remix).mp3",
+      "bpm_truth": 128.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 128.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000064",
+      "artist": "",
+      "name": "1-06 Underground Vibes",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/1-06 Underground Vibes.mp3",
+      "bpm_truth": 75.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 75.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000065",
+      "artist": "",
+      "name": "10 Hellfish - U Don't Quit",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/10 Hellfish - U Don't Quit.mp3",
+      "bpm_truth": 200.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 200.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000066",
+      "artist": "",
+      "name": "10 Necessary Evil",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/10 Necessary Evil.mp3",
+      "bpm_truth": 132.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 132.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000067",
+      "artist": "",
+      "name": "10 Nyc Beat (MSTRKRFT Remix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/10 Nyc Beat (MSTRKRFT Remix).mp3",
+      "bpm_truth": 130.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 130.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000068",
+      "artist": "",
+      "name": "10 Prefuse 73 vs. Pedro - Gratis",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/10 Prefuse 73 vs. Pedro - Gratis.flac",
+      "bpm_truth": 80.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 80.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000069",
+      "artist": "",
+      "name": "12 Dumb Age (Original Mix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/12 Dumb Age (Original Mix).mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000070",
+      "artist": "",
+      "name": "13 Sabali (Miike Snow Remix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/13 Sabali (Miike Snow Remix).m4a",
+      "bpm_truth": 124.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 124.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000071",
+      "artist": "",
+      "name": "14 Can't Trust Myself to Trust You",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/14 Can't Trust Myself to Trust You.mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000072",
+      "artist": "",
+      "name": "17 Playmate (Jesse Rose Remix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/17 Playmate (Jesse Rose Remix).mp3",
+      "bpm_truth": 126.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 126.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000073",
+      "artist": "",
+      "name": "427488_Bloscid_Original_Mix",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/427488_Bloscid_Original_Mix.mp3",
+      "bpm_truth": 115.58,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 115.58,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000074",
+      "artist": "",
+      "name": "The Biggest Ten Inches I.._",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/A1 - Untitled.mp3",
+      "bpm_truth": 142.37,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 142.37,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000075",
+      "artist": "",
+      "name": "Counterpoints - Original Mix",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/Counterpoints - Original Mix.mp3",
+      "bpm_truth": 146.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 146.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000076",
+      "artist": "",
+      "name": "Dr. Octagon- 3000",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/Dr. Octagon- 3000.mp3",
+      "bpm_truth": 98.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 98.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000077",
+      "artist": "",
+      "name": "EPROM - Acid Disk 2 - 05 Flex Acid",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/EPROM - Acid Disk 2 - 05 Flex Acid.aiff",
+      "bpm_truth": 95.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 95.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000078",
+      "artist": "",
+      "name": "Justify - Original Mix",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/Justify - Original Mix.mp3",
+      "bpm_truth": 140.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 140.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000079",
+      "artist": "",
+      "name": "KIMIKO - Early Reflections",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/KIMIKO - Early Reflections.aiff",
+      "bpm_truth": 130.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 130.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000080",
+      "artist": "",
+      "name": "L U C Y - Shook",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/L U C Y - Shook.aiff",
+      "bpm_truth": 140.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 140.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000081",
+      "artist": "",
+      "name": "Nikki Nair - Urquoise",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/Nikki Nair - Urquoise.aiff",
+      "bpm_truth": 124.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 124.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000082",
+      "artist": "",
+      "name": "OSSX - POOL TABLES EP - 01 POOL TABLES",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/OSSX - POOL TABLES EP - 01 POOL TABLES.aiff",
+      "bpm_truth": 130.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 130.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000083",
+      "artist": "",
+      "name": "Scratchclart - DRMTRK LP X - 03 X",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/Scratchclart - DRMTRK LP X - 03 X.aiff",
+      "bpm_truth": 125.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 125.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000084",
+      "artist": "",
+      "name": "Si Begg - Sick And Tired Of The Bullshit",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/Si Begg - Sick And Tired Of The Bullshit.aiff",
+      "bpm_truth": 128.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 128.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000085",
+      "artist": "",
+      "name": "Space Ghost - Inner Focus",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/Space Ghost - Inner Focus.aiff",
+      "bpm_truth": 115.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 115.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000086",
+      "artist": "",
+      "name": "TAH & OSSX - TURNPIKE AUTHORY EP W- TAH - 02 SLAPBOX",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/TAH & OSSX - TURNPIKE AUTHORY EP W- TAH - 02 SLAPBOX.aiff",
+      "bpm_truth": 133.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 133.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000087",
+      "artist": "",
+      "name": "V-A - Par Grindvik - Drift (Physical Therapy Remix) [2019]",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/V-A - Par Grindvik - Drift (Physical Therapy Remix) [2019].aiff",
+      "bpm_truth": 140.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 140.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000088",
+      "artist": "",
+      "name": "X&G - BANDO",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/X&G - BANDO.aiff",
+      "bpm_truth": 141.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 141.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000089",
+      "artist": "",
+      "name": "jocelyn enriquez - do you miss me (dreamhouse mix)",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/jocelyn enriquez - do you miss me (dreamhouse mix).mp3",
+      "bpm_truth": 130.0,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 130.0,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
+        },
+        "playlist": {
+          "names": [],
+          "priors_used": [],
+          "relation": "missing"
+        }
+      },
+      "qa_flags": []
+    },
+    {
+      "track_id": "900000090",
+      "artist": "",
+      "name": "thomas.bangalter-ventura-roule",
+      "album": "",
+      "local_path": "/Users/rterhaar/Dropbox/tony-tunes/other-bpms/other-bpms/samples/thomas.bangalter-ventura-roule.mp3",
+      "bpm_truth": 129.51,
+      "truth_confidence": 1.0,
+      "truth_cluster": {
+        "centroid": 129.51,
+        "total_weight": 1.0,
+        "member_count": 1,
+        "sources": [
+          "manual_hand_label"
+        ]
+      },
+      "runner_up_cluster": null,
+      "signals": {
+        "rekordbox_average": {
+          "bpm": null,
+          "relation": "missing"
+        },
+        "grid_bpm": {
+          "bpm": null,
+          "tempo_count": 0,
+          "relation": "missing"
+        },
+        "dsp": {
+          "bpm": null,
+          "confidence": null,
+          "relation": "missing"
         },
         "playlist": {
           "names": [],

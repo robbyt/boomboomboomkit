@@ -23,7 +23,9 @@ _CORPUS_AVAILABLE = loc.CORPUS_SPLITS.exists() and (loc.cc.TONY_TRUTH_LABELS).ex
 pytestmark = pytest.mark.skipif(not _CORPUS_AVAILABLE, reason="Tony corpus develop-local/absent")
 
 
-@pytest.mark.parametrize("which,expected", [("train", 820), ("val", 92), ("leaveArtistOut", 104)])
+# Post-ingest counts (90 hand-labeled tracks added to the Strong tier, Epic 7):
+# train 820 -> 890, val 92 -> 101, leaveArtistOut 104 -> 115.
+@pytest.mark.parametrize("which,expected", [("train", 890), ("val", 101), ("leaveArtistOut", 115)])
 def test_split_counts_reconcile(which, expected):
     records = loc.build_labeled_records(which)
     assert len(records) == expected
@@ -35,7 +37,7 @@ def test_leave_artist_out_ids_are_dict_accessor():
     assert isinstance(splits["tony"]["leaveArtistOut"], dict)
     assert isinstance(splits["tony"]["train"], list)
     ids = loc._split_ids(splits, "leaveArtistOut")
-    assert len(ids) == 104
+    assert len(ids) == 115
 
 
 def test_join_is_string_keyed():

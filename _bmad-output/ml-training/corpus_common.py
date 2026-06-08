@@ -102,7 +102,11 @@ TIERS = ("Strong", "Solid", "Marginal", "Reject")
 TRAINABLE_TIERS = ("Strong", "Solid")
 
 # Snapshot the policy snapshot reconciles against (FR-14 "currently"; AC10).
-PRD_TIER_SNAPSHOT = {"Strong": 333, "Solid": 745, "Marginal": 241, "Reject": 25}
+# Epic 7 data-augmentation: +90 hand-labeled Strong-tier tracks (diverse tempos,
+# mostly <140 BPM) folded in to fill the GiantSteps-gate coverage gap, so the
+# intended Strong count grew 333 -> 423. Bumped in lockstep with the intentional
+# expansion (an UNINTENDED label change would still trip the drift block).
+PRD_TIER_SNAPSHOT = {"Strong": 423, "Solid": 745, "Marginal": 241, "Reject": 25}
 
 
 def tier_for(truth_confidence: float | None, bpm_truth: float | None) -> str:
