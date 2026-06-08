@@ -26,7 +26,10 @@ throws on ``.subBandEmphasis`` (Guardrail 3 / Story 7.5 DD #6), and
 
 from __future__ import annotations
 
+import hashlib
+import os
 import random
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -38,6 +41,59 @@ from dataset import (  # noqa: E402
     BPM_BIN_MIN,
     augment_pcm,
 )
+
+# --- Deterministic-feature cache (Epic 7 perf) -----------------------------
+# The masked-mel pretrain (30 epochs over ~5.4k tracks — the training bulk) and
+# the val set never augment, so their [128,512] substrate tensors are identical
+# every epoch. With BBB_FEATURE_CACHE_DIR set we compute each once and reload
+# thereafter, eliminating the per-epoch STFT+mel+resample (the CPU bottleneck
+# that left the GPU idle). Augmented finetune draws fresh windows/pitch every
+# epoch and is NEVER cached. Only the FEATURE tensor is cached; the bin label is
+# recomputed from `bpm` each call so re-deriving truth labels does not
+# invalidate features.
+_FEATURE_CACHE_DIR = os.environ.get("BBB_FEATURE_CACHE_DIR") or None
+# Bump when the deterministic (augment=False) transform output changes — i.e.
+# window-selection logic, feature_substrate_v2 math, or the runtime W=512.
+_FEATURE_CACHE_VERSION = "fc1"
+
+
+def _fixture_signature(fixture) -> str:
+    return f"sr{fixture.sample_rate}_fft{fixture.n_fft}_hop{fixture.hop_size}_mel{fixture.n_mels}"
+
+
+def _feature_cache_path(cache_key: str | None, fixture) -> Path | None:
+    """Deterministic on-disk path for a track's cached feature tensor, or None
+    when caching is disabled / the key is absent. Incorporates file size (so an
+    edited file auto-invalidates, matching the PCM cache), the fixture params,
+    the substrate feature-set version, and W=512."""
+    if not _FEATURE_CACHE_DIR or not cache_key:
+        return None
+    try:
+        size = Path(cache_key).stat().st_size
+    except OSError:
+        size = -1
+    sig = (
+        f"{cache_key}|sz{size}|{_FEATURE_CACHE_VERSION}|"
+        f"{fsv2.FEATURE_SET_VERSION}|{_fixture_signature(fixture)}|w{fsv2.TARGET_WIDTH}"
+    )
+    h = hashlib.sha256(sig.encode()).hexdigest()[:24]
+    return Path(_FEATURE_CACHE_DIR) / f"{h}.f32.npy"
+
+
+def _save_feature_cache(cache_path: Path, feat: np.ndarray) -> None:
+    """Best-effort atomic float32 write; never fail training on a cache error."""
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_path.with_name(f"{cache_path.stem}.tmp{os.getpid()}.npy")
+        np.save(tmp, np.ascontiguousarray(feat, dtype=np.float32))
+        os.replace(tmp, cache_path)
+    except OSError:
+        pass
+
+
+def _bin_for(bpm_value: float) -> int:
+    return max(0, min(BPM_BIN_COUNT - 1, int(round(bpm_value)) - BPM_BIN_MIN))
+
 
 # Mirror of the Swift runtime constants (Sources/BoomBoomBoomKit/BPMAnalyzer.swift
 # + AnalysisIntensity.swift). Kept literal here (develop-only) rather than parsed
@@ -139,16 +195,28 @@ def transform_v2(
     augment: bool,
     rng: random.Random,
     weighting_profile: str = UNIFORM,
+    cache_key: str | None = None,
 ) -> tuple[torch.Tensor, int]:
     """Pure PCM -> (model-input tensor ``(1, 128, 512)``, bin label) via the v2
     substrate. Runtime-faithful window selection + augmentation on the WINDOWED
-    PCM, then ``feature_substrate_v2.model_input_tensor_from_audio``."""
+    PCM, then ``feature_substrate_v2.model_input_tensor_from_audio``.
+
+    When ``cache_key`` is set, ``BBB_FEATURE_CACHE_DIR`` is configured, and
+    ``augment`` is False, the deterministic ``[128,512]`` feature is loaded from
+    (or written to) the on-disk cache — the bin label is always recomputed from
+    ``bpm`` so it tracks the current truth labels."""
     if weighting_profile != UNIFORM:
         raise ValueError(
             "v2 substrate supports only 'uniform' weighting "
             "(OnsetFeaturesBuilder throws on sub-band-emphasis); "
             f"got {weighting_profile!r}"
         )
+    cache_path = _feature_cache_path(cache_key, fixture) if not augment else None
+    if cache_path is not None and cache_path.exists():
+        feat = np.load(cache_path)
+        return torch.from_numpy(np.ascontiguousarray(feat, dtype=np.float32)).unsqueeze(
+            0
+        ), _bin_for(float(bpm))
     audio = np.ascontiguousarray(pcm, dtype=np.float32)
     window = select_window(audio, sample_rate, training=augment, rng=rng)
     label_bpm = float(bpm)
@@ -167,8 +235,9 @@ def transform_v2(
     tensor = fsv2.model_input_tensor_from_audio(
         np.ascontiguousarray(window, dtype=np.float32), fixture
     )  # (128, 512)
-    bin_idx = max(0, min(BPM_BIN_COUNT - 1, int(round(label_bpm)) - BPM_BIN_MIN))
-    return torch.from_numpy(np.ascontiguousarray(tensor)).unsqueeze(0), bin_idx
+    if cache_path is not None:
+        _save_feature_cache(cache_path, tensor)
+    return torch.from_numpy(np.ascontiguousarray(tensor)).unsqueeze(0), _bin_for(label_bpm)
 
 
 def transform_unlabeled_v2(
@@ -178,9 +247,11 @@ def transform_unlabeled_v2(
     *,
     rng: random.Random,
     weighting_profile: str = UNIFORM,
+    cache_key: str | None = None,
 ) -> torch.Tensor:
     """PCM -> model-input tensor ``(1, 128, 512)`` with NO label, via the v2
-    substrate. Used by masked-mel pretraining (self-supervised). No augmentation."""
+    substrate. Used by masked-mel pretraining (self-supervised). No augmentation,
+    so its feature is fully cacheable via ``cache_key``."""
     tensor, _ = transform_v2(
         pcm,
         sample_rate,
@@ -189,5 +260,6 @@ def transform_unlabeled_v2(
         augment=False,
         rng=rng,
         weighting_profile=weighting_profile,
+        cache_key=cache_key,
     )
     return tensor

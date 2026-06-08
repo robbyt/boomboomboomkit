@@ -234,15 +234,57 @@ def build_pretrain_audio_paths() -> list[Path]:
 # ---------------------------------------------------------------------------
 
 
+# Decoded-PCM cache (Epic 7 perf). librosa's MP3/M4A decode + soxr_hq resample is
+# the training bottleneck — it re-runs every epoch while the tiny model leaves the
+# GPU idle. When BBB_PCM_CACHE_DIR is set, each track is decoded ONCE (capped to
+# the v2 runtime's 120s window, stored float16 ≈ 10 MB/track) and every later
+# epoch reads the cache instead of re-decoding. Env-gated so the v1 ablation path
+# + tests are byte-unchanged when it's unset.
+_PCM_CACHE_DIR = os.environ.get("BBB_PCM_CACHE_DIR") or None
+_PCM_CACHE_MAX_SECONDS = 120.0  # AudioAnalysisService.Options.maxSeconds; v2 caps here anyway
+
+
+def _pcm_cache_path(path: Path) -> Path:
+    st = path.stat()
+    key = hashlib.sha256(
+        f"{path}|{st.st_size}|sr{ds.SAMPLE_RATE}|cap{_PCM_CACHE_MAX_SECONDS}".encode()
+    ).hexdigest()[:24]
+    return Path(_PCM_CACHE_DIR) / f"{key}.f16.npy"
+
+
 def _load_pcm(path: Path) -> np.ndarray | None:
+    if _PCM_CACHE_DIR:
+        cp = _pcm_cache_path(path)
+        if cp.exists():
+            try:
+                return np.load(cp).astype(np.float32)
+            except Exception as e:  # noqa: BLE001 — corrupt cache entry: re-decode below
+                print(f"WARN: pcm cache read failed {cp}: {e}", file=sys.stderr)
+
     import librosa
 
     try:
-        audio, _ = librosa.load(str(path), sr=ds.SAMPLE_RATE, mono=True, res_type="soxr_hq")
-        return audio.astype(np.float32)
+        # Cap the decode at 120s when caching (the v2 transform caps there anyway):
+        # faster first decode + bounded cache. Full-track decode when uncached (v1).
+        kwargs = {"duration": _PCM_CACHE_MAX_SECONDS} if _PCM_CACHE_DIR else {}
+        audio, _ = librosa.load(
+            str(path), sr=ds.SAMPLE_RATE, mono=True, res_type="soxr_hq", **kwargs
+        )
+        audio = audio.astype(np.float32)
     except Exception as e:  # noqa: BLE001 — decode failure is data quality, not a bug
         print(f"WARN: failed to load {path}: {e}", file=sys.stderr)
         return None
+
+    if _PCM_CACHE_DIR:
+        try:  # atomic write (tmp + replace) so a killed run can't leave a partial file
+            cp = _pcm_cache_path(path)
+            cp.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cp.with_suffix(f".{os.getpid()}.tmp.npy")
+            np.save(tmp, audio.astype(np.float16))
+            os.replace(tmp, cp)
+        except Exception as e:  # noqa: BLE001 — cache is best-effort; never fail training on it
+            print(f"WARN: pcm cache write failed for {path}: {e}", file=sys.stderr)
+    return audio
 
 
 class LabeledTonyDataset(Dataset):
@@ -285,8 +327,12 @@ class LabeledTonyDataset(Dataset):
         self._strict = strict
         self._failed: set[int] = set()
 
-    def _apply(self, audio, bpm: float, rng):
-        """Dispatch to the v1 (legacy) or v2 (substrate) feature transform."""
+    def _apply(self, audio, bpm: float, rng, *, cache_key: str | None = None):
+        """Dispatch to the v1 (legacy) or v2 (substrate) feature transform.
+
+        ``cache_key`` (the track path) is threaded to the v2 transform so its
+        deterministic (non-augmented) features can be cached; ignored on the v1
+        path and whenever ``self._augment`` is True."""
         if self._feature_path == "v2":
             return feats_v2.transform_v2(
                 audio,
@@ -296,6 +342,7 @@ class LabeledTonyDataset(Dataset):
                 augment=self._augment,
                 rng=rng,
                 weighting_profile=self._wp,
+                cache_key=cache_key,
             )
         return feats.transform(
             audio,
@@ -321,7 +368,7 @@ class LabeledTonyDataset(Dataset):
                     f"track_id={r.track_id} path={r.audio_path}"
                 )
             rng = random.Random(self._seed * 1_000_003 + idx)
-            return self._apply(audio, r.bpm, rng)
+            return self._apply(audio, r.bpm, rng, cache_key=str(r.audio_path))
         # TRAIN default: bounded skip-and-shift on decode failure (NOT recursion — a
         # fully-bad TONY_AUDIO_ROOT over thousands of tracks would blow the recursion
         # limit before the all-failed guard fires; Codex 2026-06-02). Probe at most n
@@ -336,7 +383,7 @@ class LabeledTonyDataset(Dataset):
                 continue
             r = self._records[j]
             rng = random.Random(self._seed * 1_000_003 + j)
-            return self._apply(audio, r.bpm, rng)
+            return self._apply(audio, r.bpm, rng, cache_key=str(r.audio_path))
         raise RuntimeError("All labeled tracks failed to decode — check TONY_AUDIO_ROOT.")
 
 
@@ -374,7 +421,12 @@ class UnlabeledPretrainDataset(Dataset):
             rng = random.Random(self._seed * 1_000_003 + j)
             if self._feature_path == "v2":
                 return feats_v2.transform_unlabeled_v2(
-                    audio, ds.SAMPLE_RATE, self._fixture, rng=rng, weighting_profile=self._wp
+                    audio,
+                    ds.SAMPLE_RATE,
+                    self._fixture,
+                    rng=rng,
+                    weighting_profile=self._wp,
+                    cache_key=str(self._paths[j]),
                 )
             return feats.transform_unlabeled(
                 audio, ds.SAMPLE_RATE, self._fixture, rng=rng, weighting_profile=self._wp

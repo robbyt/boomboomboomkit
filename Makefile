@@ -323,6 +323,15 @@ TRAIN_SEED ?= 42
 TRAIN_EPOCHS ?= 60
 TRAIN_BATCH ?= 32
 TRAIN_WORKERS ?= 4
+# Decoded-PCM cache (Epic 7 perf): decode each track once, read the cache every
+# later epoch instead of re-running librosa's slow MP3/M4A decode. Develop-only,
+# operator path (like the corpus paths above). Empty = caching off.
+PCM_CACHE_DIR ?= /Volumes/ssd-raid/NoTM/tmp/mltraining-cache
+# Deterministic-feature cache (Epic 7 perf): the non-augmented [128,512] v2
+# substrate tensors (masked-mel pretrain pool + val/LAO eval) are identical every
+# epoch, so compute once and reload — eliminates per-epoch STFT/mel/resample, the
+# CPU bottleneck that leaves the GPU idle. Augmented finetune is never cached.
+FEATURE_CACHE_DIR ?= /Volumes/ssd-raid/NoTM/tmp/mltraining-feature-cache
 
 ## ml-train-deps: Sync Python deps for the training pipeline (idempotent)
 .PHONY: ml-train-deps
@@ -390,6 +399,15 @@ ml-train:
 		--seed $(TRAIN_SEED) --epochs $(TRAIN_EPOCHS) \
 		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS)
 
+## pcm-cache-build: Pre-decode the corpus into the PCM cache (PCM_CACHE_DIR) AND pre-compute the deterministic v2 feature cache (FEATURE_CACHE_DIR) for the masked-mel pretrain pool + val/LAO, so training epochs skip both librosa decode and the STFT/mel substrate (Epic 7 perf). Re-run after adding tracks; idempotent. Parallel across cores.
+.PHONY: pcm-cache-build
+pcm-cache-build:
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	BBB_PCM_CACHE_DIR="$(PCM_CACHE_DIR)" \
+	BBB_FEATURE_CACHE_DIR="$(FEATURE_CACHE_DIR)" \
+	uv run python ablation/precompute_pcm_cache.py
+
 ## ml-train-v2: Authoritative substrate-v2 training (Epic 7). VARIANT= {maskedMelPretrain|supervisedAugmented} + SEED= {42|43|44} required. Requires the KDD-B4 signoff signed (train.py's gate fails closed otherwise). Writes _bmad-output/ml-training/v2-runs/<VARIANT>/seed_<SEED>/model.pt + promotable metadata. Run the full 3-seed x 2-arm matrix under caffeinate.
 .PHONY: ml-train-v2
 ml-train-v2:
@@ -401,10 +419,13 @@ ifndef SEED
 endif
 	cd $(ML_TRAINING_DIR) && \
 	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	BBB_PCM_CACHE_DIR="$(PCM_CACHE_DIR)" \
+	BBB_FEATURE_CACHE_DIR="$(FEATURE_CACHE_DIR)" \
 	uv run python train.py \
 		--variant $(VARIANT) --seed $(SEED) --weighting-profile uniform \
 		--epochs $(TRAIN_EPOCHS) --pretrain-epochs 30 \
-		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS)
+		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS) \
+		$(if $(REBALANCE),--rebalance,)
 
 ## ml-train-resume: Resume training from a checkpoint (CHECKPOINT=path/to/epoch_N.pt; project-root-relative paths are resolved automatically)
 .PHONY: ml-train-resume
