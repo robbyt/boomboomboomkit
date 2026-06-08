@@ -81,6 +81,15 @@ _bmad-output/ml-training/ablation/v2-smoke/
 _bmad-output/ml-training/fr18-predictions/
 _bmad-output/ml-training/v2-runs/*/seed_*/model.pt
 _bmad-output/ml-training/v2-runs/*/seed_*/training_log.json
+# Operator scratch logs at the v2-runs root (per-run console captures).
+_bmad-output/ml-training/v2-runs/*.log
+_bmad-output/ml-training/v2-runs/train-log.txt
+# Per-seed experiment-iteration CoreML exports + their convert reports. These are
+# regenerable from the (gitignored) seed checkpoints; only an authoritative,
+# gate-passing model would be committed deliberately (as giantsteps_v2.mlmodel).
+_bmad-output/ml-models/giantsteps_v2_seed_*.mlmodel/
+_bmad-output/ml-models/giantsteps_v2_seed_*.mlmodelc/
+_bmad-output/ml-models/giantsteps_v2_seed_*.convert_report.json
 
 # Local review scratch output (NOT shipped)
 _bmad-output/implementation-artifacts/review-tmp/
