@@ -81,6 +81,15 @@ _bmad-output/ml-training/ablation/v2-smoke/
 _bmad-output/ml-training/fr18-predictions/
 _bmad-output/ml-training/v2-runs/*/seed_*/model.pt
 _bmad-output/ml-training/v2-runs/*/seed_*/training_log.json
+# Archived prior-model snapshots (feedback-archive-model-before-retrain): the small
+# forensic files (FR18-RESULT.md, model_metadata.json, fr18-manifest.json,
+# training_log.json) ARE committed for the attributable ladder; the heavy/regenerable
+# binaries stay local-only (preserved on disk in _archive/, not bloating git).
+_bmad-output/ml-training/v2-runs/_archive/*/model.pt
+_bmad-output/ml-training/v2-runs/_archive/*/*.mlmodelc/
+_bmad-output/ml-training/v2-runs/_archive/*/fr18-predictions.json
+# Per-experiment FR-18 runtime prediction scratch dumps (regenerable via fr18-produce).
+_bmad-output/ml-training/fr18-predictions-191/
 # Operator scratch logs at the v2-runs root (per-run console captures).
 _bmad-output/ml-training/v2-runs/*.log
 _bmad-output/ml-training/v2-runs/train-log.txt
