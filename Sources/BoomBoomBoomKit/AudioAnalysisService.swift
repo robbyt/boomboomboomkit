@@ -990,24 +990,68 @@ public struct AudioAnalysisService {
       policy: policy)
   }
 
-  /// Measures integrated loudness per ITU-R BS.1770-5.
-  /// Returns the integrated loudness in LUFS, or nil for silence/too-short/unsupported sample rate.
+  /// Measures loudness per ITU-R BS.1770-5 / EBU R 128 and returns a
+  /// chart-ready ``LUFSReport``: integrated loudness, max true-peak
+  /// (BS.1770-5 Annex 2), loudness range (EBU Tech 3342 §3.1), and
+  /// momentary/short-term time series on the shared 100ms grid
+  /// (EBU Tech 3341 §2.2).
+  ///
+  /// Analyzes the FULL file by default — integrated loudness is
+  /// whole-programme by definition. Bound the cost via
+  /// ``LUFSOptions/maxSeconds``.
+  ///
+  /// Nil-vs-throw contract: throwing means the measurement could not run
+  /// (unreadable file, unsupported sample rate); `nil` means the audio was
+  /// measured but produced no result (all-silence after gating, or input
+  /// shorter than one 400ms gating block).
+  ///
+  /// Runs to completion — no cooperative cancellation in this entry point
+  /// (decode dominates wall-clock; the DSP passes are O(n) vDSP). Cancellation
+  /// plumbing arrives with Story 8.2's shared-decode orchestration.
   ///
   /// - Parameters:
   ///   - url: Path to the audio file.
-  ///   - maxSeconds: Maximum seconds of audio to analyze (default: 30).
-  /// - Returns: Integrated loudness in LUFS, or `nil` for silence, too-short, or unsupported input.
-  /// - Throws: `PCMBufferReaderError` if the file cannot be read.
+  ///   - options: Analysis options (``LUFSOptions``); the default analyzes
+  ///     the full file.
+  /// - Returns: A ``LUFSReport``, or `nil` for silence or sub-400ms input.
+  /// - Throws: `PCMBufferReaderError` if the file cannot be read;
+  ///   ``LUFSAnalysisError/unsupportedSampleRate(sampleRate:supported:)`` if
+  ///   the decoded rate has no K-weighting coefficient set (44.1/48/96 kHz
+  ///   are supported).
   public static func analyzeLUFS(
     url: URL,
-    maxSeconds: Double = 30
-  ) throws -> Double? {
+    options: LUFSOptions = LUFSOptions()
+  ) throws -> LUFSReport? {
+    // Sanitize maxSeconds at the use site (the votingThreshold silently-clamp
+    // precedent): non-finite, non-positive, or absurdly large values are
+    // treated as nil (full file). Unsanitized, Int64(sampleRate * maxSeconds)
+    // inside the reader traps on NaN/Inf/overflow. 1e9 s ≈ 31.7 years — far
+    // above any real file, safely below Int64 overflow at any supported rate.
+    let maxSeconds = options.maxSeconds.flatMap { value in
+      value.isFinite && value > 0 && value < 1.0e9 ? value : nil
+    }
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
       from: url, maxSeconds: maxSeconds
     )
-    return LUFSAnalyzer.measureLoudness(
-      samples: samples, sampleRate: sampleRate
-    )?.integratedLoudness
+    guard LUFSAnalyzer.supportedSampleRates.contains(sampleRate) else {
+      throw LUFSAnalysisError.unsupportedSampleRate(
+        sampleRate: sampleRate, supported: LUFSAnalyzer.supportedSampleRates)
+    }
+    guard
+      let result = LUFSAnalyzer.measureLoudness(
+        samples: samples, sampleRate: sampleRate)
+    else {
+      return nil
+    }
+    return LUFSReport(
+      integratedLUFS: result.integratedLoudness,
+      maxTruePeakDBTP: result.maxTruePeakDBTP,
+      loudnessRangeLU: result.loudnessRange,
+      lraLowLUFS: result.lraLow,
+      lraHighLUFS: result.lraHigh,
+      momentaryLUFS: result.blockLoudnessValues,
+      shortTermLUFS: result.shortTermLoudnessValues,
+      stepSeconds: result.blockStepSeconds)
   }
 }
 

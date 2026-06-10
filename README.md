@@ -9,7 +9,7 @@ Standalone audio analysis package for BPM estimation and LUFS loudness measureme
 ## Features
 
 - **BPM Estimation** — Mel-spectrogram onset detection + autocorrelation-based beat tracking with progressive analysis, sub-band voting disambiguation, optional click-track cross-correlation rescoring, and optional file-tag corroboration
-- **LUFS Measurement** — ITU-R BS.1770-5 integrated loudness with K-weighting filter and dual gating
+- **LUFS Measurement** — chart-ready `LUFSReport`: ITU-R BS.1770-5 integrated loudness + max true-peak (Annex 2 polyphase), EBU Tech 3342 loudness range, and momentary/short-term time series on the 100ms EBU Tech 3341 grid
 - **PCM Reading** — Universal audio file reader producing mono `[Float]` samples (WAV, AIFF, MP3, FLAC, M4A, CAF)
 
 ## Installation
@@ -70,9 +70,10 @@ let traced = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: tra
 print("Pre-rescore candidates: \(traced?.trace?.rawCandidates ?? [])")
 print("Sub-band energies: \(traced?.trace?.subBandEnergies ?? .zero)")
 
-// LUFS Measurement (ITU-R BS.1770-5; 44.1/48/96 kHz only — returns nil otherwise)
-let lufs = try AudioAnalysisService.analyzeLUFS(url: audioFileURL)
-print("Loudness: \(lufs ?? 0) LUFS")
+// LUFS Measurement (ITU-R BS.1770-5; 44.1/48/96 kHz — throws LUFSAnalysisError otherwise)
+if let report = try AudioAnalysisService.analyzeLUFS(url: audioFileURL) {
+  print("Integrated: \(report.integratedLUFS) LUFS, true peak: \(report.maxTruePeakDBTP) dBTP")
+}
 
 // Direct PCM reading (mono [Float] at native sample rate)
 let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: audioFileURL)
@@ -122,9 +123,58 @@ See the inline `///` docs on `AnalysisIntensity` for the authoritative mapping a
 |-----------|--------------|----------------------|------------|
 | Silence | `BPMAnalyzer` step 2 RMS guard rejects below-threshold audio | `try analyzeBPM(url:)` returns `nil` | Check audio energy upstream; raise input gain if applicable. |
 | Too-short audio | File contains fewer than ~4 analyzable seconds after the energy transition (the `BPMAnalyzer.minimumDurationSeconds` floor) | `try analyzeBPM(url:)` returns `nil` | Use a longer clip — at least a few seconds of continuous audio after any silent intro. |
-| Unsupported sample rate | `analyzeLUFS` only — `LUFSAnalyzer` supports 44.1 / 48 / 96 kHz only | `try analyzeLUFS(url:)` returns `nil` | Resample to a supported rate before LUFS analysis. Does NOT affect `analyzeBPM`. |
+| Unsupported sample rate | `analyzeLUFS` only — K-weighting coefficients ship for 44.1 / 48 / 96 kHz only | `try analyzeLUFS(url:)` **throws** `LUFSAnalysisError.unsupportedSampleRate` | Resample to a supported rate before LUFS analysis. Does NOT affect `analyzeBPM`. |
 | Cancelled analysis | Caller's `Task` was cancelled OR `Options.isCancelled` returned `true` between window iterations | `try analyzeBPM(url:)` **throws** `CancellationError`; `try?` collapses to `nil` | Distinguish explicitly via `do { try analyzeBPM(...) } catch is CancellationError { ... }` if cancellation needs differentiated handling. |
 | No candidates found | Degenerate audio (white noise, sustained pitched material) produced zero surviving candidates after range normalization (step 9) | `try analyzeBPM(url:)` returns `nil` | Inspect with `enableTrace: true` and read `result?.candidates` (and `trace?.rawCandidates`); this is the rarest case. |
+
+## LUFS measurement
+
+`analyzeLUFS(url:options:)` returns a `LUFSReport?` carrying both the normative scalars and chart-ready time series:
+
+- `integratedLUFS` — programme loudness per ITU-R BS.1770-5 (400ms gating blocks, −70 LUFS absolute / −10 LU relative gates). Analyzes the **full file by default** (integrated loudness is whole-programme by definition); bound the cost with `LUFSOptions.maxSeconds`.
+- `maxTruePeakDBTP` — max true-peak per BS.1770-5 Annex 2 polyphase oversampling (4× at 44.1/48 kHz, 2× at 96 kHz). Computed post-mono-mixdown: it may **understate** per-channel inter-sample peaks, so do not use it to certify delivery compliance against a per-channel ceiling.
+- `loudnessRangeLU` + `lraLowLUFS`/`lraHighLUFS` — EBU Tech 3342 loudness range (P95 − P10 of the gated short-term distribution) with the percentile band edges for charting. `nil` below 60s of gated programme (EBU R 128 reliability floor).
+- `momentaryLUFS` (400ms window) and `shortTermLUFS` (exact 3.0s window) — both stepped on the shared 100ms grid per EBU Tech 3341 §2.2. Element `i` starts at `Double(i) * stepSeconds`.
+
+Errors vs nil: a **throw** means the measurement could not run (`PCMBufferReaderError` for unreadable files, `LUFSAnalysisError.unsupportedSampleRate` for rates outside 44.1/48/96 kHz); **`nil`** means the audio was measured but produced no result (all-silence after gating, or under 400ms of input).
+
+### Charting the loudness shape
+
+`LUFSReport.samples` flattens both series into `(time, lufs, series)` points — Swift Charts plots it directly. Use the classic `ForEach` + `LineMark` form; the vectorized `LinePlot(x:y:series:)` initializer is known to overwhelm the preview type-checker on this shape:
+
+```swift
+import Charts
+import SwiftUI
+
+struct LoudnessChart: View {
+  let report: LUFSReport
+  // Materialize once — `samples` is O(n) computed, not stored.
+  private var points: [LoudnessSample] { report.samples }
+
+  var body: some View {
+    Chart {
+      if report.loudnessRangeLU != nil {
+        RectangleMark(
+          yStart: .value("LRA low", report.lraLowLUFS),
+          yEnd: .value("LRA high", report.lraHighLUFS)
+        )
+        .foregroundStyle(.green.opacity(0.12))
+      }
+      ForEach(points) { sample in
+        LineMark(
+          x: .value("Time", sample.time),
+          y: .value("LUFS", sample.lufs)
+        )
+        .foregroundStyle(by: .value("Series", sample.series.rawValue))
+      }
+      RuleMark(y: .value("Integrated", report.integratedLUFS))
+        .lineStyle(StrokeStyle(lineWidth: 1, dash: [6, 3]))
+    }
+    .chartXAxisLabel("Time (s)")
+    .chartYAxisLabel("LUFS")
+  }
+}
+```
 
 ## Batch workflow patterns
 
@@ -249,6 +299,10 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `MLTechniqueError` | Construction-time errors for ML conformers |
 | `BPMDiagnosticTrace` | Per-step pipeline diagnostic state |
 | `ProgressUpdate` | Per-window progress payload for the `Options.onProgress` callback |
+| `LUFSReport` | Chart-ready loudness report (integrated, true peak, LRA + band edges, momentary/short-term series) |
+| `LoudnessSample`, `LoudnessSeries` | Foundation-only plotting adapter for `LUFSReport.samples` |
+| `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file) |
+| `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
 
 ## Test Support
 
