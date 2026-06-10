@@ -26,9 +26,10 @@ import argparse
 import json
 import os
 import random
+import re
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -47,7 +48,6 @@ from dataset import (
     FIXTURE_PATH,
     SAMPLE_RATE,
     TARGET_FRAMES,
-    TempoDataset,
     TrackRecord,
     augment_pcm,
     build_splits,
@@ -177,7 +177,9 @@ class CachedTempoDataset(Dataset):
         if self.augment:
             stretch_safe_ceiling = BPM_BIN_MAX / 1.04
             audio, bpm = augment_pcm(
-                audio, bpm, rng,
+                audio,
+                bpm,
+                rng,
                 sr=SAMPLE_RATE,
                 allow_stretch=(bpm <= stretch_safe_ceiling),
             )
@@ -236,7 +238,7 @@ def set_seeds(seed: int) -> None:
 
 def acc_4pct(predicted_bpm: torch.Tensor, true_bpm: torch.Tensor) -> torch.Tensor:
     """|pred - truth| / truth ≤ 0.04 — literature-comparable Acc1 (S&M 2018)."""
-    return (torch.abs(predicted_bpm - true_bpm) / torch.clamp(true_bpm, min=1e-6) <= 0.04)
+    return torch.abs(predicted_bpm - true_bpm) / torch.clamp(true_bpm, min=1e-6) <= 0.04
 
 
 def bin_to_bpm_tensor(bin_idx: torch.Tensor) -> torch.Tensor:
@@ -331,7 +333,7 @@ def env_metadata(seed: int) -> dict[str, Any]:
         "torchaudio_version": torchaudio.__version__,
         "coremltools_version": ct.__version__,
         "training_seed": seed,
-        "feature_set_version": "v1",
+        "feature_set_version": "v2",
         "training_start_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "mps_available": bool(torch.backends.mps.is_available()),
         "mps_built": bool(torch.backends.mps.is_built()),
@@ -365,6 +367,12 @@ class TrainArgs:
     num_workers: int = 0
     resume: str | None = None
     checkpoint_every: int = 5
+    weighting_profile: str = "uniform"
+    allow_legacy_giantsteps: bool = False
+    variant: str = "maskedMelPretrain"
+    pretrain_epochs: int = 30
+    octave_mass: float = 0.15
+    rebalance: bool = False
 
 
 def parse_args(argv: list[str]) -> TrainArgs:
@@ -384,6 +392,41 @@ def parse_args(argv: list[str]) -> TrainArgs:
     p.add_argument("--num-workers", type=int, default=0)
     p.add_argument("--resume", type=str, default=None)
     p.add_argument("--checkpoint-every", type=int, default=5)
+    # Guardrail 3 (AC6 / DD #6): exactly one declared WeightingProfile per run.
+    # The substrate OnsetFeaturesBuilder implements ONLY `.uniform` and THROWS
+    # on `.subBandEmphasis`, so `uniform` is the only selectable value for the
+    # v2 run. REQUIRED (no default) so a run can never start undeclared.
+    p.add_argument(
+        "--weighting-profile",
+        type=str,
+        required=True,
+        choices=["uniform"],
+        help="Declared WeightingProfile (Guardrail 3). Only 'uniform' is selectable: "
+        "the substrate OnsetFeaturesBuilder throws on .subBandEmphasis (DD #6).",
+    )
+    p.add_argument(
+        "--allow-legacy-giantsteps",
+        action="store_true",
+        help="Run the historical GiantSteps build_splits pipeline. NEVER use for the "
+        "Story 7.5 v2 run — the substrate-v2 Tony loop must be wired first (S1 guard).",
+    )
+    # Story 7.5 v2 substrate run knobs (the authoritative path delegates to
+    # ablation.train_v2.run_v2 after the KDD-B4 gate).
+    p.add_argument(
+        "--variant",
+        type=str,
+        default="maskedMelPretrain",
+        choices=["maskedMelPretrain", "supervisedAugmented"],
+        help="v2 arm: maskedMelPretrain (KDD-B2 winner) or supervisedAugmented (FR-24 runner-up).",
+    )
+    p.add_argument("--pretrain-epochs", type=int, default=30, help="masked-mel pretrain budget")
+    p.add_argument("--octave-mass", type=float, default=0.15)
+    p.add_argument(
+        "--rebalance",
+        action="store_true",
+        help="WeightedRandomSampler toward GiantSteps tempo-band priors (Epic 7 "
+        "data-augmentation: down-weight the DnB glut, up-weight house/techno).",
+    )
     a = p.parse_args(argv)
     return TrainArgs(
         seed=a.seed,
@@ -396,11 +439,143 @@ def parse_args(argv: list[str]) -> TrainArgs:
         num_workers=a.num_workers,
         resume=a.resume,
         checkpoint_every=a.checkpoint_every,
+        weighting_profile=a.weighting_profile,
+        allow_legacy_giantsteps=a.allow_legacy_giantsteps,
+        variant=a.variant,
+        pretrain_epochs=a.pretrain_epochs,
+        octave_mass=a.octave_mass,
+        rebalance=a.rebalance,
     )
+
+
+ML_TRAINING_DIR = Path(__file__).resolve().parent
+REPO_ROOT = ML_TRAINING_DIR.parent.parent
+DIAGNOSTICS_MD = ML_TRAINING_DIR / "corpus-diagnostics-v1.md"
+_SIGNOFF_RE = re.compile(r"REVIEWER_SIGNOFF:\s*(signed|pending)")
+
+
+class SubstratePreconditionError(RuntimeError):
+    """Story 7.5 AC10 — train.py refuses to start unless (a) the Story 6.2
+    FeatureSubstrate types, (b) the Story 6.5b ``BPMSelectionPolicy.select(``
+    runtime flip, AND (c) the KDD-B4 corpus signoff are ALL present in the
+    checkout. The substrate-bound v2 run must train against the same feature
+    contract + runtime path Story 7.6 evaluates (FR-21 + Codex PHASED gate)."""
+
+
+def check_substrate_preconditions() -> None:
+    """AC10 / DD #11 / DD #16 — the named-error gate. Reaching this gate and
+    aborting on (c) IS the dev-agent's verified outcome (the KDD-B4 signoff is
+    operator-owned); the operator's full run proceeds only once it is signed."""
+    sources = REPO_ROOT / "Sources" / "BoomBoomBoomKit"
+
+    # (a) Story 6.2 substrate types present in the checkout.
+    onset = sources / "FeatureSubstrate" / "OnsetFeatures.swift"
+    builder = sources / "FeatureSubstrate" / "OnsetFeaturesBuilder.swift"
+    if not onset.exists() or not builder.exists():
+        raise SubstratePreconditionError(
+            "AC10(a): FeatureSubstrate.OnsetFeatures / OnsetFeaturesBuilder absent from "
+            f"{sources / 'FeatureSubstrate'} — the Story 6.2 substrate must be present."
+        )
+
+    # (b) Story 6.5b KDD-A6 Stage-3 flip: `func select(` (the signature spans
+    # lines, so match `func select(` NOT `select(from:` — Story 7.5 DD #16/Codex).
+    policy = sources / "BPMSelectionPolicy.swift"
+    policy_text = policy.read_text(encoding="utf-8") if policy.exists() else ""
+    # Require BOTH the declaration token AND the pool input type — a bare
+    # `func select(` substring could live in a comment (review S2: a fail-closed
+    # gate must not fail-open on a comment). `select(from: UnifiedSignalPool` is
+    # the actual 6.5b signature.
+    if "func select(" not in policy_text or "UnifiedSignalPool" not in policy_text:
+        raise SubstratePreconditionError(
+            "AC10(b): BPMSelectionPolicy.select(from: UnifiedSignalPool) (Story 6.5b "
+            "KDD-A6 Stage-3 pool-authoritative flip) not found in Sources/ — the "
+            "runtime path Story 7.6 evaluates against is absent."
+        )
+
+    # (c) KDD-B4 corpus signoff — same contract as
+    # `scripts/audit-corpus-splits.py --check-gate`: exactly one
+    # REVIEWER_SIGNOFF marker, and it must be `signed`.
+    if not DIAGNOSTICS_MD.exists():
+        raise SubstratePreconditionError(
+            f"AC10(c): {DIAGNOSTICS_MD.name} not found — corpus diagnostics not produced "
+            "(run `make corpus-diagnostics`). KDD-B4 gate cannot pass."
+        )
+    markers = _SIGNOFF_RE.findall(DIAGNOSTICS_MD.read_text(encoding="utf-8"))
+    if len(markers) != 1:
+        raise SubstratePreconditionError(
+            f"AC10(c): expected exactly ONE REVIEWER_SIGNOFF marker in {DIAGNOSTICS_MD.name}, "
+            f"found {len(markers)} — fails CLOSED (matches audit-corpus-splits.py --check-gate)."
+        )
+    if markers[0] != "signed":
+        raise SubstratePreconditionError(
+            "AC10(c): KDD-B4 corpus signoff is `pending`. Training is BLOCKED until the "
+            f"operator transcribes what they verified in {DIAGNOSTICS_MD.name} and flips "
+            "REVIEWER_SIGNOFF -> signed (the same gate `audit-corpus-splits.py --check-gate` "
+            "enforces). Story 7.1 'done' = evidence assembled, NOT corpus-safe-to-train."
+        )
+
+
+def _run_substrate_v2(args: "TrainArgs", device) -> int:
+    """Authoritative v2 substrate run (Story 7.5 full-run wiring). Delegates the
+    recipe to ``ablation.train_v2.run_v2`` (the shared module also used by the
+    pre-signoff smoke CLI) and owns the promotable per-seed output placement.
+    Reached ONLY after ``check_substrate_preconditions`` passes (KDD-B4 signed).
+
+    Output: ``v2-runs/<variant>/seed_<N>/{model.pt,model_metadata.json,...}``.
+    Phase 3 then exports each ``model.pt`` to ``giantsteps_v2_seed_<N>.mlmodel``
+    via ``export.py --output`` (the ``giantsteps_v2_seed_*`` name is applied at
+    export, not here)."""
+    sys.path.insert(0, str(ML_TRAINING_DIR / "ablation"))
+    import masked_mel  # noqa: PLC0415
+    import train_v2  # noqa: PLC0415
+
+    # A --subset run through the authoritative path is an operator EXPLORATORY run,
+    # not a shippable seed: mark it non-promotable so it can't masquerade as a
+    # giantsteps_v2_seed_* checkpoint (build_seed_metadata also rejects seeds
+    # outside {42,43,44}, which an exploratory run may use).
+    promotable = args.subset is None
+    out_dir = ML_TRAINING_DIR / "v2-runs" / args.variant / f"seed_{args.seed}"
+    print(
+        f"[train.py v2] variant={args.variant} seed={args.seed} promotable={promotable} "
+        f"-> {out_dir}"
+    )
+    train_v2.run_v2(
+        variant=args.variant,
+        seed=args.seed,
+        epochs=args.epochs,
+        pretrain_epochs=args.pretrain_epochs,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        weighting_profile=args.weighting_profile,
+        subset=args.subset,
+        num_workers=args.num_workers,
+        octave_mass=args.octave_mass,
+        label_smoothing=args.label_smoothing,
+        mask_ratio=masked_mel.DEFAULT_MASK_RATIO,
+        mask_span=masked_mel.DEFAULT_SPAN,
+        device=device,
+        out_dir=out_dir,
+        promotable=promotable,
+        smoke=not promotable,
+        rebalance=args.rebalance,
+    )
+    if promotable:
+        print(
+            f"[train.py v2] next: export.py --checkpoint {out_dir / 'model.pt'} "
+            f"--output ../ml-models/giantsteps_v2_seed_{args.seed}.mlmodel"
+        )
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
+
+    # AC10 / DD #16: the substrate + flip + KDD-B4 signoff gate fires FIRST,
+    # before any MPS/fixture/corpus work. In the dev environment the signoff is
+    # `pending`, so this aborts with the named error — that abort IS the
+    # dev-verified outcome (the operator owns the signoff + the full run).
+    check_substrate_preconditions()
+
     set_seeds(args.seed)
 
     # AC #8 / DD #1: training MUST run on MPS to fit the 6h wall-clock budget.
@@ -418,6 +593,15 @@ def main(argv: list[str] | None = None) -> int:
     fixture = load_fixture(FIXTURE_PATH)
     print(f"Loaded fixture v{fixture.feature_set_version} sha={fixture.sha256[:12]}")
 
+    # Story 7.5 Task 4 / DD #2: the substrate-bound v2 run trains on the Tony
+    # Strong+Solid split via feature_substrate_v2 + the maskedMelPretrain recipe.
+    # This loop is now WIRED (Epic 7 close-out) and delegates to the shared
+    # ablation.train_v2 module. The legacy GiantSteps build_splits() loop below
+    # stays reachable ONLY behind --allow-legacy-giantsteps so a signed-off run
+    # cannot silently train on the wrong corpus + a non-runtime-faithful feature
+    # path (the S1 fail-closed guard is preserved as an explicit opt-in flag).
+    if not getattr(args, "allow_legacy_giantsteps", False):
+        return _run_substrate_v2(args, device)
     splits = build_splits(verify=True)
     train_records = splits["train"]
     val_records = splits["val"]
@@ -507,8 +691,8 @@ def main(argv: list[str] | None = None) -> int:
     # documented but never tripped in code). Smoke run uses --subset; full run
     # otherwise. If wall-clock exceeds the ceiling, raise so the run exits
     # non-zero before silently burning hours.
-    SMOKE_CEILING_S = 2 * 60          # 2 min smoke ceiling
-    FULL_CEILING_S = 6 * 60 * 60      # 6h full-run ceiling
+    SMOKE_CEILING_S = 2 * 60  # 2 min smoke ceiling
+    FULL_CEILING_S = 6 * 60 * 60  # 6h full-run ceiling
     is_smoke = args.subset is not None
     ceiling_s = SMOKE_CEILING_S if is_smoke else FULL_CEILING_S
     print(f"AC #8 wall-clock ceiling: {ceiling_s}s ({'smoke' if is_smoke else 'full'} run)")
@@ -541,7 +725,9 @@ def main(argv: list[str] | None = None) -> int:
         median_wall = float(np.median(epoch_walls))
         if epoch_wall >= 5.0 * median_wall and len(epoch_walls) >= 3:
             log_metadata["mps_fallback_observed"] = True
-            print(f"!! WARN: epoch {epoch} wall {epoch_wall:.1f}s >= 5x median {median_wall:.1f}s — MPS fallback suspected")
+            print(
+                f"!! WARN: epoch {epoch} wall {epoch_wall:.1f}s >= 5x median {median_wall:.1f}s — MPS fallback suspected"
+            )
         print(
             f"epoch {epoch:03d} | "
             f"wall {epoch_wall:6.1f}s | "
@@ -584,12 +770,12 @@ def main(argv: list[str] | None = None) -> int:
     # wrapped intermediate checkpoints are for resume).
     torch.save(model.state_dict(), MODEL_PATH)
 
-    log_metadata["training_end_utc"] = time.strftime(
-        "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-    )
+    log_metadata["training_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     log_metadata["total_wall_clock_seconds"] = time.time() - overall_start
     log_metadata["epochs_completed"] = len(log_per_epoch)
-    log_metadata["median_epoch_wall_clock_seconds"] = float(np.median(epoch_walls)) if epoch_walls else 0.0
+    log_metadata["median_epoch_wall_clock_seconds"] = (
+        float(np.median(epoch_walls)) if epoch_walls else 0.0
+    )
 
     out = {"metadata": log_metadata, "per_epoch": log_per_epoch}
     TRAINING_LOG_PATH.write_text(json.dumps(out, indent=2, sort_keys=True))

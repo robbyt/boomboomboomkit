@@ -1,0 +1,18 @@
+{
+  "architecture": "TempoCNN",
+  "bundleEligibilityPendingFR18": true,
+  "corpusVersionHash": "2dce7f9c5f58cb83a5ccfb6b33ead441a6fcb1c4cd22470dc9ee9e7c8a94c1f8",
+  "epochCount": 60,
+  "featureSetVersion": "v2",
+  "harnessGitSha": "be91867",
+  "maskRatio": 0.15,
+  "metadataSchema": "train-v2",
+  "modelGeneration": "v2",
+  "pretrainEpochs": 30,
+  "promotable": true,
+  "seed": 42,
+  "splitVersionHash": "097f0f138475734220f7a9b38a33d6c16ae113f89fbfe3ad2ef61672e49ab788",
+  "tempoBandRebalanced": true,
+  "trainingVariant": "maskedMelPretrain",
+  "weightingProfile": "uniform"
+}

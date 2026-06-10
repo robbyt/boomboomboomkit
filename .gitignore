@@ -56,6 +56,58 @@ _bmad-output/ml-training/checkpoints/
 _bmad-output/ml-training/swift_feature_extractor/out/
 _bmad-output/ml-training/benchmark-oa300-pre.log
 _bmad-output/ml-training/benchmark-giantsteps-pre.log
+# Story 7.1 — regenerable audio-fingerprint cache (machine-specific path/mtime keys)
+_bmad-output/ml-training/tony-corpus/fingerprint-cache.npz
+
+# Story 7.2 — large regenerable survey intermediate (embeds absolute audio paths;
+# regenerate via `make non-rekordbox-survey`). The portable hash-keyed manifest +
+# the two reviewable .md reports ARE committed.
+_bmad-output/ml-training/non-rekordbox-survey.json
+
+# Story 7.3 — per-run ablation model artifacts. Only the large/regenerable ones
+# are ignored: the model weights, the per-epoch log, and the run-B split sidecar.
+# model_metadata.json IS committed (DD #8 forensic record). The harness (.py), the
+# .md docs, and non-rekordbox-unsupervised-pretrain-manifest.json are committed;
+# kdd-b2-comparison-v1.md is the operator-produced AC12 deliverable.
+_bmad-output/ml-training/ablation/*/model.pt
+_bmad-output/ml-training/ablation/*/model.pt.partial
+_bmad-output/ml-training/ablation/*/training_log.json
+_bmad-output/ml-training/ablation/*/run_b_random_split.json
+
+# Epic 7 — substrate-v2 close-out. Regenerable: the Phase-1 smoke checkpoints, the
+# operator-run FR-18 prediction dumps, and the large v2 training weights + logs.
+# Committed: the per-seed model_metadata.json (forensic) + the eval .json/.md reports.
+_bmad-output/ml-training/ablation/v2-smoke/
+_bmad-output/ml-training/fr18-predictions/
+_bmad-output/ml-training/v2-runs/*/seed_*/model.pt
+_bmad-output/ml-training/v2-runs/*/seed_*/training_log.json
+# Archived prior-model snapshots (feedback-archive-model-before-retrain): the small
+# forensic files (FR18-RESULT.md, model_metadata.json, fr18-manifest.json,
+# training_log.json) ARE committed for the attributable ladder; the heavy/regenerable
+# binaries stay local-only (preserved on disk in _archive/, not bloating git).
+_bmad-output/ml-training/v2-runs/_archive/*/model.pt
+_bmad-output/ml-training/v2-runs/_archive/*/*.mlmodelc/
+_bmad-output/ml-training/v2-runs/_archive/*/fr18-predictions.json
+# Per-experiment FR-18 runtime prediction scratch dumps (regenerable via fr18-produce).
+_bmad-output/ml-training/fr18-predictions-191/
+# Stale earlier-corpus supervisedAugmented arm (different corpusVersionHash than the
+# current maskedMelPretrain winner; not a matched FR-24 pair). Local-only scratch.
+_bmad-output/ml-training/v2-runs/supervisedAugmented/
+# Operator scratch logs at the v2-runs root (per-run console captures).
+_bmad-output/ml-training/v2-runs/*.log
+_bmad-output/ml-training/v2-runs/train-log.txt
+# Per-seed experiment-iteration CoreML exports + their convert reports. These are
+# regenerable from the (gitignored) seed checkpoints; only an authoritative,
+# gate-passing model would be committed deliberately (as giantsteps_v2.mlmodel).
+_bmad-output/ml-models/giantsteps_v2_seed_*.mlmodel/
+_bmad-output/ml-models/giantsteps_v2_seed_*.mlmodelc/
+_bmad-output/ml-models/giantsteps_v2_seed_*.convert_report.json
 
 # Local review scratch output (NOT shipped)
 _bmad-output/implementation-artifacts/review-tmp/
+
+# Story 7.7 — the sealed GiantSteps holdout hash-list is LOCAL ONLY (smallest
+# leak surface, DD #10). Only the committed giantsteps-holdout-v2-manifest.md
+# (script ref + seed + SHA256 digest) is the reproducibility proof. Bare pattern
+# (no leading slash) so it ignores at any depth.
+giantsteps-holdout-v2.json

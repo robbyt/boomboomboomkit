@@ -83,9 +83,7 @@ def parse_tracks(xml_root: ET.Element) -> list[dict]:
             "location_decoded": location_decoded,
             "basename": _basename_from_location(location_decoded),
             "tempo_count": len(tempo_elems),
-            "first_tempo_bpm": _maybe_float(tempo_elems[0].get("Bpm"))
-            if tempo_elems
-            else None,
+            "first_tempo_bpm": _maybe_float(tempo_elems[0].get("Bpm")) if tempo_elems else None,
             "first_tempo_inizio": _maybe_float(tempo_elems[0].get("Inizio"))
             if tempo_elems
             else None,
@@ -262,7 +260,11 @@ def emit_summary(
     bpm_buckets = collections.Counter(_bpm_bucket(t["average_bpm"]) for t in tracks)
     print("\nAverageBpm buckets (10-BPM bins):", file=out)
     for k in sorted(bpm_buckets.keys(), key=_bucket_sort_key):
-        flag = " (half-time-suspect)" if k != "missing" and k != "zero" and _bucket_is_halftime(k) else ""
+        flag = (
+            " (half-time-suspect)"
+            if k != "missing" and k != "zero" and _bucket_is_halftime(k)
+            else ""
+        )
         print(f"  {bpm_buckets[k]:>5}  {k}{flag}", file=out)
     print(
         f"\n  half-time-suspect tracks (60 <= BPM < 100): "
@@ -300,8 +302,7 @@ def emit_summary(
         print(f"  {c:>5}  {status}", file=out)
     if duplicates:
         print(
-            f"\n  basename collisions ({len(duplicates)} basenames with >1 file): "
-            f"showing first 10",
+            f"\n  basename collisions ({len(duplicates)} basenames with >1 file): showing first 10",
             file=out,
         )
         for i, (bn, paths) in enumerate(duplicates.items()):
@@ -418,26 +419,16 @@ def main() -> int:
         missing_path = Path(args.write_missing).expanduser()
         # Include both genuinely-missing tracks AND Dropbox cloud-only stubs —
         # both are "user needs to do something to make this analyzable" cases.
-        missing_tracks = [
-            t for t in tracks if t["resolve_status"] in ("missing", "cloud_only")
-        ]
+        missing_tracks = [t for t in tracks if t["resolve_status"] in ("missing", "cloud_only")]
         with open(missing_path, "w") as fh:
-            fh.write(
-                f"# Tony tunes — {len(missing_tracks)} XML tracks with no on-disk match\n"
-            )
+            fh.write(f"# Tony tunes — {len(missing_tracks)} XML tracks with no on-disk match\n")
             fh.write(f"# XML source:  {xml_path}\n")
             if args.audio_root:
                 fh.write(f"# Audio root:  {Path(args.audio_root).resolve()}\n")
-            fh.write(
-                "# Each row: <artist> | <title> | <album> | <XML location decoded>\n"
-            )
+            fh.write("# Each row: <artist> | <title> | <album> | <XML location decoded>\n")
             fh.write("#\n")
-            for t in sorted(
-                missing_tracks, key=lambda r: (r["artist"], r["album"], r["name"])
-            ):
-                fh.write(
-                    f"{t['artist']} | {t['name']} | {t['album']} | {t['location_decoded']}\n"
-                )
+            for t in sorted(missing_tracks, key=lambda r: (r["artist"], r["album"], r["name"])):
+                fh.write(f"{t['artist']} | {t['name']} | {t['album']} | {t['location_decoded']}\n")
         print(
             f"# wrote {len(missing_tracks)} missing-track entries to {missing_path}",
             file=sys.stderr,

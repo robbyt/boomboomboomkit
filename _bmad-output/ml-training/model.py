@@ -53,7 +53,6 @@ def write_model_artifacts(out_dir: Path) -> None:
     """Write model_summary.txt + model_metadata.json (Tasks 4.3-4.4)."""
     import json
 
-    import torch
     import torchinfo
 
     model = build_reference_model()
@@ -89,9 +88,7 @@ def write_model_artifacts(out_dir: Path) -> None:
         "feature_set_version": "v1",
         "tensor_names": {"input": "input", "output": "output"},
     }
-    (out_dir / "model_metadata.json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True)
-    )
+    (out_dir / "model_metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

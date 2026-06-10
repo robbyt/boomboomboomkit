@@ -936,7 +936,7 @@ struct BPMAnalyzer {
           melFmin: melFmin,
           melFmax: effectiveFmax,
           logCompressionScale: logCompressionScale,
-          featureSetVersion: "v1"
+          featureSetVersion: MLFeatureFrames.currentFeatureSetVersion
         )
       } catch {
         return nil

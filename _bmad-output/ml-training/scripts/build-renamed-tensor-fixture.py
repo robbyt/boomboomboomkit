@@ -98,9 +98,7 @@ def main() -> int:
         shutil.rmtree(with_renamed)
     print(f"saving intermediate mlpackage: {with_renamed}", file=sys.stderr)
     source_weights_dir = SOURCE_MLPACKAGE / "Data/com.apple.CoreML/weights"
-    ct.utils.save_spec(
-        spec, str(with_renamed), weights_dir=str(source_weights_dir)
-    )
+    ct.utils.save_spec(spec, str(with_renamed), weights_dir=str(source_weights_dir))
 
     # Compile via xcrun coremlc into the fixture dir's parent so the produced
     # `.mlmodelc` lands at the fixture path.
@@ -135,11 +133,7 @@ def main() -> int:
     metadata_path = FIXTURE_DIR / "metadata.json"
     with metadata_path.open() as f:
         metadata = json.load(f)
-    output_names = {
-        entry["name"]
-        for block in metadata
-        for entry in block.get("outputSchema", [])
-    }
+    output_names = {entry["name"] for block in metadata for entry in block.get("outputSchema", [])}
     if NEW_OUTPUT_NAME not in output_names:
         print(
             f"ERROR: renamed fixture's metadata.json does not contain "

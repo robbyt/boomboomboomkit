@@ -1,5 +1,6 @@
 import AppKit
 import BoomBoomBoomKit
+import BoomBoomBoomKitML
 import Foundation
 import Observation
 import Synchronization
@@ -188,6 +189,32 @@ final class AnalysisViewModel {
 
   var options: AudioAnalysisService.Options = .init()
 
+  // MARK: - BYOW ML (Epic 7 close-out)
+  // Bring-your-own-weights: load a compiled `.mlmodelc` and run it through the
+  // production runtime path (`BNNSTechnique(modelURL:)` -> `analyzeBPM` with
+  // `ensemblePolicy = .mlOnly`). Default off keeps the demo DSP-only + byte-
+  // identical to its prior behavior (the library default `ensemblePolicy` is
+  // `.dspOnly`; setting `mlTechnique` has no effect until ML is enabled here).
+
+  /// Display name of the loaded model (the `.mlmodelc` last path component), or
+  /// `nil` when no model is loaded.
+  var mlModelName: String?
+
+  /// When `true` (and a model is loaded), analysis runs `.mlOnly`. Bound to the
+  /// ContentView toggle; flipping it triggers a re-analyze.
+  var mlEnabled: Bool = false
+
+  /// Surfaces a model-load failure (e.g. raw `.mlmodel` instead of compiled
+  /// `.mlmodelc`, or a tensor-contract mismatch) to the UI.
+  var mlModelError: String?
+
+  // The loaded technique. @ObservationIgnored — it is operational, not display
+  // state; the observed `mlModelName`/`mlEnabled` drive the UI. `any MLTechnique`
+  // (BNNSTechnique is @unchecked Sendable) so it crosses into the detached
+  // analyze task on `options`.
+  @ObservationIgnored
+  private var mlTechnique: (any MLTechnique)?
+
   // CRITICAL invariant — DD #5 atomicity + DD #10 re-render coupling:
   // SwiftUI only re-renders when an OBSERVED property mutates. This
   // property is @ObservationIgnored, so every write MUST pair with a
@@ -296,6 +323,15 @@ final class AnalysisViewModel {
     // the snapshot line to preserve snapshot-at-launch semantics and
     // remain idempotent against external mutation.
     opts.enableTrace = true
+    // BYOW ML (Epic 7): when a model is loaded AND the toggle is on, run the
+    // production .mlOnly path so the ML prediction wins. enableMLDiagnostics
+    // surfaces the decoded BPM / softmax on the trace. Off by default -> the
+    // .dspOnly path is byte-identical to the demo's prior behavior.
+    if mlEnabled, let technique = mlTechnique {
+      opts.mlTechnique = technique
+      opts.ensemblePolicy = .mlOnly
+      opts.enableMLDiagnostics = true
+    }
     opts.isCancelled = { @Sendable in cancelFlag.load(ordering: .acquiring) }
     let started = ContinuousClock.now
 
@@ -560,6 +596,48 @@ final class AnalysisViewModel {
       error = .clipboardCopy
     }
     return didCopy
+  }
+
+  // MARK: - BYOW Model Loading
+
+  /// Present an open panel for a compiled `.mlmodelc`, load it via
+  /// `BNNSTechnique(modelURL:)`, and enable ML on success. Mirrors
+  /// `exportTrace`'s security-scoped-resource handling for the sandbox. A raw
+  /// (uncompiled) `.mlmodel`, a missing bundle, or a tensor-contract mismatch
+  /// surfaces as `mlModelError` and leaves ML disabled. UI-agnostic: the caller
+  /// re-analyzes after a successful load.
+  @discardableResult
+  func pickAndLoadMLModel() -> Bool {
+    guard #available(macOS 15.0, *) else {
+      mlModelError = "ML inference requires macOS 15 or later."
+      return false
+    }
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = true  // a .mlmodelc is a directory bundle
+    panel.allowsMultipleSelection = false
+    panel.message = "Choose a compiled Core ML model (.mlmodelc)"
+    let response = panel.runModal()
+    guard response == .OK, let url = panel.url else { return false }
+    let didStart = url.startAccessingSecurityScopedResource()
+    defer {
+      if didStart {
+        url.stopAccessingSecurityScopedResource()
+      }
+    }
+    do {
+      mlTechnique = try BNNSTechnique(modelURL: url)
+      mlModelName = url.lastPathComponent
+      mlEnabled = true
+      mlModelError = nil
+      return true
+    } catch {
+      mlTechnique = nil
+      mlModelName = nil
+      mlEnabled = false
+      mlModelError = "Could not load model: \(error)"
+      return false
+    }
   }
 
   // CRITICAL: MUST NOT reassign `currentTaskID`. The cancelled task
