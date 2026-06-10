@@ -884,6 +884,14 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 
 ### Story 8.1: LUFS public API — `analyzeLUFS(url:options:)` + `LUFSReport` promotion
 
+> **AMENDED 2026-06-10 — story spec is authoritative** (`_bmad-output/implementation-artifacts/8-1-lufs-public-api-and-lufsreport-promotion.md`). Four factual errors in the ACs below, found by the mandatory pre-spec grep, plus one operator-directed design change:
+> 1. `analyzeLUFS` ALREADY EXISTS (`AudioAnalysisService.swift:1001`, `(url:maxSeconds:) throws -> Double?`) — the story is a reshape, not a new sibling.
+> 2. Audio fixtures live at `Sources/BoomBoomBoomKitTestSupport/Resources/AudioFixtures/` (not `Tests/BoomBoomBoomKitTests/Fixtures/`), and no CAF fixture exists — the story generates one.
+> 3. The cited Story-6.2 seam surfaces (`analyzeShared(url:options:)` helpers, `BPMDiagnosticTrace` `decodedAudio` field) were never built; the seam-mitigation AC reduces to DocC + README documentation of the new LUFS surface. `DecodedAudio` consumer wiring remains Story 8.2.
+> 4. `PCMBufferReaderError.unsupportedSampleRate` is the wrong error domain (the reader CAN decode 22.05 kHz; the K-weighting coefficient table is what cannot proceed) — a new `LUFSAnalysisError.unsupportedSampleRate` is introduced instead.
+> 5. **`LUFSReport` is NOT "exactly three fields."** Operator direction (2026-06-10): integrated LUFS as a single number misdescribes dynamic material (quiet intro / loud middle). The report carries the three scalars PLUS momentary (400ms) and short-term (3s) loudness series on the shared 100ms grid (EBU Tech 3341 §2.2), LRA P10/P95 band edges (EBU Tech 3342 §3.1), and a Foundation-only Swift Charts sample adapter — shape proven by rendering through Swift Charts before spec freeze. `Hashable` dropped (`EnsembleDecision` value-carrier precedent); true-peak ships as the single normative max (no time series — BS.1770-5 defines none). `LUFSOptions.maxSeconds` defaults to full-file (was 30s) so integrated/LRA are whole-program per the standard.
+> Demo consumption of the chart lands in existing Story 10.4 (`LUFSReadoutView`), whose true dependency is 8.1 only — it may be pulled forward immediately after 8.1 closes; `Demo/BoomBoomBoomBPM/LUFSChartSchemaProbe.swift` (untracked) is its seed. Original text preserved below for the audit trail.
+
 **As a** library consumer,
 **I want** a public `AudioAnalysisService.analyzeLUFS(url:options:) -> LUFSReport` sibling to `analyzeBPM`,
 **So that** I can extract ITU-R BS.1770-5 integrated loudness, true-peak, and loudness range (LRA) from any supported audio file without touching the internal `LUFSAnalyzer` type.
