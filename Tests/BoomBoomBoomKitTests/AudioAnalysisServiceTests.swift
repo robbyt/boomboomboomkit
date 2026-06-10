@@ -102,16 +102,18 @@ struct AudioAnalysisServiceEdgeCaseTests {
 @Suite("AudioAnalysisService — LUFS Analysis")
 struct AudioAnalysisServiceLUFSTests {
 
-  @Test("analyzeLUFS with MP3 fixture returns non-nil Double")
+  @Test("analyzeLUFS with MP3 fixture returns non-nil LUFSReport")
   func analyzeLUFSWithMP3() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
-    let result = try #require(
+    let report = try #require(
       try AudioAnalysisService.analyzeLUFS(url: url),
-      "Expected non-nil LUFS result for real MP3")
+      "Expected non-nil LUFSReport for real MP3")
     // LUFS values are typically negative, between -70 and 0
     #expect(
-      result < 0 && result > -70,
-      "Expected plausible LUFS value (-70 to 0), got \(result)")
+      report.integratedLUFS < 0 && report.integratedLUFS > -70,
+      "Expected plausible LUFS value (-70 to 0), got \(report.integratedLUFS)")
+    #expect(!report.momentaryLUFS.isEmpty)
+    #expect(report.stepSeconds == 0.1)
   }
 
   @Test("analyzeLUFS with short FLAC fixture handles gracefully")
@@ -119,24 +121,37 @@ struct AudioAnalysisServiceLUFSTests {
     let url = try AudioFixtures.url(for: "test-audio", extension: "flac")
     // test-audio.flac is ~1 second — above LUFSAnalyzer's 400ms minimum,
     // so it may or may not return a result depending on content.
-    // Key invariant: doesn't crash, and if non-nil, value is plausible.
-    let result = try? AudioAnalysisService.analyzeLUFS(url: url)
-    if let lufs = result {
-      #expect(lufs < 0 && lufs > -70, "Expected plausible LUFS (-70 to 0), got \(lufs)")
+    // Key invariant: doesn't crash; if non-nil, the value is plausible and the
+    // short-term series is empty (< 3s of input).
+    // `try` (not `try?`): the fixture is a supported 44.1 kHz decode, so a
+    // throw here is an infrastructure/decode regression that must fail loudly
+    // rather than silently skip the assertions.
+    let report = try AudioAnalysisService.analyzeLUFS(url: url)
+    if let report {
+      #expect(
+        report.integratedLUFS < 0 && report.integratedLUFS > -70,
+        "Expected plausible LUFS (-70 to 0), got \(report.integratedLUFS)")
+      #expect(report.shortTermLUFS.isEmpty, "sub-3s input must yield an empty short-term series")
     }
   }
 
   @Test("analyzeLUFS result matches LUFSAnalyzer directly (same value)")
   func analyzeLUFSMatchesDirectCall() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
-    let serviceResult = try AudioAnalysisService.analyzeLUFS(url: url)
+    // maxSeconds pinned to 30 on BOTH paths (the service default is now
+    // full-file per Story 8.1 DD #9).
+    var options = LUFSOptions()
+    options.maxSeconds = 30
+    let report = try AudioAnalysisService.analyzeLUFS(url: url, options: options)
 
     // Direct call for comparison
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 30)
-    let directResult = LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: sampleRate)?
-      .integratedLoudness
+    let direct = LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: sampleRate)
 
-    #expect(serviceResult == directResult, "Service and direct call should return identical values")
+    #expect(
+      report?.integratedLUFS == direct?.integratedLoudness,
+      "Service and direct call should return identical values")
+    #expect(report?.momentaryLUFS == direct?.blockLoudnessValues)
   }
 }
 
