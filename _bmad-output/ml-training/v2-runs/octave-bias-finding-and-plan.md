@@ -41,15 +41,25 @@ GiantSteps per band, Acc1 (exact) vs Acc2 (octave-tolerant), + octave direction:
    representation / training fix, not decode.
 
 ### The ceiling, precisely
-- Perfect octave decode caps at **Acc2 = 401/661 (61%)** — free +53 over 348.
+- Perfect octave decode caps at **Acc2 = 401/661 (61%)** — i.e. up to **+53 tracks of
+  octave-confusion HEADROOM** over 348. CAVEAT (Codex review 2026-06-09): 401 is an
+  *oracle* ceiling (truth-aware octave equivalence). It is NOT a guaranteed decode
+  recovery — and it cannot be replayed offline from the current dumps, which carry
+  only decoded BPM + `softmaxMax`, not the full 256-bin posterior. Actual no-retrain
+  recovery must be MEASURED with full-posterior dumps + DSP arbitration, and gated on
+  per-band NET impact (a "prefer fundamental" rule can damage the correct 120-175 bands).
 - The gate is 537 (81%). So **+136 beyond octave-perfect is genuine error** that
   decode cannot touch. That residual is the representation/training problem.
 
 ## Root-cause consensus (roundtable, 2026-06-09)
-- **Fixed [1,1,128,512] input is the prime suspect for the genuine errors.** A 30/60/90s
-  window resampled to 512 frames is ~5.7 frames/sec — sharp at DnB tempo (corpus
-  prior), smearing the onset envelope at slow tempo. The representation is sharp
-  where the corpus lives and blind where it fails. (Winston)
+- **Fixed [1,1,128,512] input is the prime suspect for the genuine errors** — but for
+  tempo-scale invariance + corpus-prior leakage, NOT a frame-rate "smear." CORRECTION
+  (Codex review 2026-06-09): the naive frame-rate argument is backwards. At ~5.7 fps a
+  60-BPM track gets ~5.7 frames/beat while a 174-BPM track gets ~2 — so *fast* tempo is
+  nearer temporal Nyquist, not slow. The slow-tempo failure is the model learning the
+  DnB-dominant metrical level as a prior (the representation is sharp where the corpus
+  lives), not the resample destroying slow periodicity. Original (Winston) framing
+  retained for the record but superseded by this correction.
 - **The octave bias is a DnB-prior + loss-shape problem.** 256-bin hard cross-entropy
   gives no partial credit for octave errors and no reason to prefer the fundamental;
   a fast-music corpus teaches "when in doubt, fast." Well-documented in MIR

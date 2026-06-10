@@ -271,7 +271,7 @@ development_status:
   epic-6-retrospective: done
 
   # Epic 7: ML retraining on Tony's hand-labeled corpus — FR-18 promotion-gate epic. Stories 7.1-7.4 Python prefix can parallelize with Epic 6; 7.5 substrate-bound training depends on Epic 6 close; 7.6/7.7 gate the bundle-vs-BYOW decision.
-  epic-7: in-progress
+  epic-7: done
   7-1-corpus-diagnostics-label-tier-policy-and-split-audit: done
   7-2-non-rekordbox-audio-expansion-and-provenance-tiering: done
   7-3-ablation-harness-octave-aware-loss-and-weightingprofile-v1: done
@@ -279,7 +279,7 @@ development_status:
   7-5-substrate-bound-tempocnn-training-v2-multi-seed: done
   7-6-fr18-promotion-gate-and-fr23-octave-consistency-report: done
   7-7-confidence-calibration-reproducibility-and-byow-export: done
-  epic-7-retrospective: optional
+  epic-7-retrospective: done
 
   # Epic 8: LUFS + beat-grid + ModelRegistry public APIs — Davies & Plumbley DP beat-tracking (step 11 insertion). Story 8.8 is the one-time JAMS migration; 8.7 introduces mir_eval F-measure via Python sidecar.
   epic-8: backlog

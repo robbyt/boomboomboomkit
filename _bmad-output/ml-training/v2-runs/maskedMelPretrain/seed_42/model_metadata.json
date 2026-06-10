@@ -14,5 +14,7 @@
   "splitVersionHash": "b89f8d7c6272165e1b20f7b17844b5b30e32789c0811e150abfdf0ee13b4b742",
   "tempoBandRebalanced": true,
   "trainingVariant": "maskedMelPretrain",
-  "weightingProfile": "uniform"
+  "weightingProfile": "uniform",
+  "epic7CloseDecision": "byow",
+  "gitTag": "epic-7-close"
 }
