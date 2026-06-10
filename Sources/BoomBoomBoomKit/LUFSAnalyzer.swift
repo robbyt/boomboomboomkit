@@ -448,6 +448,13 @@ struct LUFSAnalyzer {
     return taps.map { Float($0 / sum) }
   }()
 
+  /// Pre-reversed form of ``truePeakMidpointTaps2x`` for `vDSP_conv`, hoisted
+  /// to match the `truePeakPhases4xReversed` sibling (no per-call reversal
+  /// allocation). Value-inert for these symmetric taps; kept for the
+  /// reversed-form discipline.
+  private static let truePeakMidpointTaps2xReversed: [Float] = Array(
+    truePeakMidpointTaps2x.reversed())
+
   /// Measures max true-peak in dBTP over the original-rate signal.
   ///
   /// Chunked: per chunk, each polyphase subfilter runs `vDSP_conv` over the
@@ -467,7 +474,7 @@ struct LUFSAnalyzer {
     // literal "≥192 kHz" wording, standard practice); 2× at 96 kHz.
     let phases: [[Float]] =
       sampleRate >= 96000
-      ? [Array(truePeakMidpointTaps2x.reversed())]
+      ? [truePeakMidpointTaps2xReversed]
       : truePeakPhases4xReversed
 
     let tapCount = 12

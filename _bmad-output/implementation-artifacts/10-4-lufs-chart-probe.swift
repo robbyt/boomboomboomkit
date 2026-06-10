@@ -2,9 +2,12 @@
 //  LUFSChartSchemaProbe.swift
 //  BoomBoomBoomBPM
 //
-//  SCRATCH FILE - Story 8.1 schema validation probe. DO NOT COMMIT.
-//  Verifies the proposed LUFSReport shape plugs into Swift Charts
-//  with zero adaptation.
+//  ARCHIVED ARTIFACT - Story 8.1 schema validation probe, preserved as the
+//  seed for Story 10-4 (demo LUFSReadoutView). Not a member of any build
+//  target. Originally a working-tree-only scratch in Demo/BoomBoomBoomBPM/;
+//  relocated here at Story 8.1 close-out (commit b901608).
+//  Verifies the LUFSReport shape plugs into Swift Charts with zero
+//  adaptation (rendered via Xcode RenderPreview during Story 8.1).
 //
 
 import Charts

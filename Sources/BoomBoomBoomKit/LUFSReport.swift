@@ -26,8 +26,11 @@ import Foundation
 /// sentinel floor in every stored field at construction.
 public struct LUFSReport: Sendable, Equatable, CustomStringConvertible {
 
-  /// Sentinel floor for non-finite or below-measurable values (matches the
-  /// analyzer's block-loudness display floor).
+  /// Sentinel substituted for non-finite (NaN/±Inf) stored values at
+  /// construction. It is the same value the analyzer uses for silent /
+  /// non-measurable display buckets (the block-loudness display floor) — but
+  /// this initializer does NOT impose it as a general finite minimum: finite
+  /// values below `-100.0` are preserved as supplied.
   public static let sentinelFloor: Double = -100.0
 
   // MARK: Stored — scalars

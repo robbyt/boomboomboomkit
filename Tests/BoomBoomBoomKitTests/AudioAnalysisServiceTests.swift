@@ -123,8 +123,11 @@ struct AudioAnalysisServiceLUFSTests {
     // so it may or may not return a result depending on content.
     // Key invariant: doesn't crash; if non-nil, the value is plausible and the
     // short-term series is empty (< 3s of input).
-    let report = try? AudioAnalysisService.analyzeLUFS(url: url)
-    if let report = report ?? nil {
+    // `try` (not `try?`): the fixture is a supported 44.1 kHz decode, so a
+    // throw here is an infrastructure/decode regression that must fail loudly
+    // rather than silently skip the assertions.
+    let report = try AudioAnalysisService.analyzeLUFS(url: url)
+    if let report {
       #expect(
         report.integratedLUFS < 0 && report.integratedLUFS > -70,
         "Expected plausible LUFS (-70 to 0), got \(report.integratedLUFS)")
