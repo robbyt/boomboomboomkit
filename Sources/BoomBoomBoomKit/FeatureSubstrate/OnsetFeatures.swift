@@ -41,8 +41,9 @@ extension FeatureSubstrate {
     public let tensorLayout: TensorLayout
     public let weighting: WeightingProfile
 
-    /// Pre-`vvlogf` pipeline version tag. Story 6.2 ships `"v1"` against the
-    /// current `BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands` pre-image.
+    /// Pre-`vvlogf` pipeline version tag. Story 7.5 ships `"v2"` (the
+    /// substrate-locked feature contract) against the current
+    /// `BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands` pre-image.
     /// ANY change to the following invalidates downstream consumer assumptions
     /// (FR-21 train/runtime parity) and MUST bump the string (`"v2"`, `"v3"`, …):
     ///

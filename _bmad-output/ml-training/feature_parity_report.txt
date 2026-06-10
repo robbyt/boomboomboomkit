@@ -10,6 +10,7 @@ STAGE_TOLERANCES:
   Stage 2: abs ≤ 1e-05, rel ≤ 0.0001
   Stage 3: abs ≤ 1e-04, rel ≤ 0.001
   Stage 4: abs ≤ 1e-04, rel ≤ 0.001
+  Stage 5: abs ≤ 1e-04, rel ≤ 0.001
 
 stage name                      flag           max_abs       max_rel  note
 --------------------------------------------------------------------------------------------------------------
@@ -18,9 +19,11 @@ stage name                      flag           max_abs       max_rel  note
 2     sine_440Hz_1s             OK        1.250000e-01  9.667209e-01  shape=(96, 128); tol abs≤1e-05 rel≤0.0001
 3     sine_440Hz_1s             OK        4.303455e-05  1.000000e+00  shape=(96, 128); tol abs≤1e-04 rel≤0.001
 4     sine_440Hz_1s             info      6.024122e-03  3.506321e-02  INFORMATIONAL (degenerate signal); active_bands=32/128; NOT counted in OVERALL — click is the Stage 4 binding gate
+5     sine_440Hz_1s             info      1.388839e+00  1.000000e+00  INFORMATIONAL (degenerate signal); active_bands=32/128; NOT counted in OVERALL — click is the stage-5 binding gate
 2     click_120bpm_5s           OK        1.525879e-04  5.225490e-06  shape=(496, 128); tol abs≤1e-05 rel≤0.0001
 3     click_120bpm_5s           OK        9.536743e-07  1.000000e+00  shape=(496, 128); tol abs≤1e-04 rel≤0.001
 4     click_120bpm_5s           OK        9.536743e-07  3.362097e-07  active_bands=128/128; degenerate_threshold_std=1e-03; tol abs≤1e-04 rel≤0.001
+5     click_120bpm_5s           OK        1.125336e-04  5.347722e-01  model-input tensor [128, 512]; active_bands=128/128; tol abs<=1e-04 rel<=0.001
 --------------------------------------------------------------------------------------------------------------
 
 OVERALL (gating rows only): PASS

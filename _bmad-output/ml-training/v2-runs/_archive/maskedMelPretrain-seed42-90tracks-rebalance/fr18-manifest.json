@@ -1,0 +1,13 @@
+{
+  "actualTrackCount" : 1212,
+  "checkpointPath" : "\/Users\/rterhaar\/Dropbox\/research\/swift\/BoomBoomBoomKit\/_bmad-output\/ml-models\/giantsteps_v2_seed_42.mlmodelc",
+  "checkpointSha256" : "4fa2ce5b12f028698f9d3041fc9deb7ad5230895cc9f64c75c32b600c5745976",
+  "expectedTrackCount" : 1212,
+  "gitSha" : "be91867-dirty",
+  "harnessVersion" : 1,
+  "modelIdentifier" : "giantsteps_v2_seed_42",
+  "seed" : 42,
+  "unresolvedTracks" : [
+
+  ]
+}

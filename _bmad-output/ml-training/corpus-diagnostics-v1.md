@@ -1,0 +1,641 @@
+# Corpus Diagnostics v1 (Story 7.1, FR-12)
+
+> Develop-only diagnostic artifact. Every confidence/ECE figure here is a LABEL-confidence diagnostic over the disagreement signals, NOT a model metric (Guardrail 2). Produces NO transferable FR-18 accuracy claim.
+
+Machine-readable companion: `corpus-diagnostics-v1.json`. This Markdown has exactly one `##` section per top-level JSON key (grep-checkable reviewer structure).
+
+## REVIEWER SIGNOFF (KDD-B4 gate)
+
+`REVIEWER_SIGNOFF: signed`
+
+The operator fills this by TRANSCRIBING what they actually verified, then changes the marker above to `signed`. `audit-corpus-splits.py --check-gate` exits non-zero until then. **7.1 'done' = evidence assembled + review pending, NOT corpus-safe-to-train** — that flips only when this is signed (it gates Story 7.5 train.py, not 7.1 close).
+
+- [x] tierHistogram.computed transcribed and matches expectation  →  _verified value:_ `523 Strong / 745 Solid / 241 Marginal / 25 Reject; snapshotDelta 0 (PRD snapshot bumped 423->523 for the intentional +190 hand-labeled augmentation; 100 net-new tracks over the prior +90 batch, 120-140-weighted)`
+- [x] count of representativeManualReviewFindings reviewed (>= 10, >= 2 Marginal)  →  _verified value:_ `10 reviewed (2 Marginal) — base-corpus review carried forward UNCHANGED; the +190 hand-labels (operator-warped truth) add no new review findings`
+- [x] count of labelOctaveErrorAudit candidates spot-checked against audio (with track IDs)  →  _verified value:_ `Base-corpus spot-checks carried forward: Carne 43042112=160, Kemal 261646565=173.96, Night Squid 56889039=170, Fried 70330910=175 (Tony's BPM/2 entries correctly doubled). The +190 hand-labeled tracks (track_id 900000001+) add NO octave-error candidates (operator-warped truth, all DSP/grid/rekordbox signals 'missing').`
+- [x] audit-corpus-splits.py near-dup REVIEW FLAGS resolved (each genuinely-differently-named same-recording pair excluded or confirmed distinct, with IDs)  →  _verified value:_ `1 review flag: train[124231707] 'Homemade Weapons & Voidloss' <-> val[89469905] 'OA298-1-Homemade_Weapons_Voi' (cosine 1.000, same recording). Crosses tony.train/tony.val ONLY — does NOT touch the OA300/GiantSteps FR-18 bundle gates (the cross-corpus residual check is 0). At most ~1/108 tony.val trajectory inflation; accepted as non-gating. AUDIT PASSED, 0 failures, 1 flag.`
+- [x] driftBlockThreshold.blocksTraining is false  →  _verified value:_ `false (maxAbsTierDrift 0 after the snapshot bump 423->523)`
+
+## schemaVersion
+
+`1`
+
+## generator
+
+`corpus_diagnostics.py`
+
+## gitSha
+
+`be91867-dirty`
+
+## provenance
+
+- **labelsPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/tony-corpus/tony-truth-labels.json`
+- **labelsSha256**: `b33b836acd404e91b7eb76050fb9cce64c62c41fd87ac76244531e8f13d07962`
+- **labelerScriptPath**: `/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/scripts/tony-tunes-labels.py`
+- **labelerScriptSha256**: `aa3effa7b31d7d24f7cd71769478c83abb270c51f7c3e050bc810cb9c4f6b3a6`
+- **trackCount**: `1534`
+- **note**: `The corpus is develop-local/gitignored; these hashes pin the EXACT label file + labeler that produced the figures below. A regenerated label file changes labelsSha256 and invalidates this artifact (AC9).`
+
+## resolvedVsTotal
+
+- **total**: `1534`
+- **resolvedAudio**: `1534`
+- **unresolvedCount**: `0`
+- **unresolved**:
+- **note**: `M1 loud-fail: audio resolution is reported, never silently filtered. The labeler's resolve_status filter and the builder's skip-missing-audio counters must not shrink the corpus unannounced.`
+
+## tierHistogram
+
+- **computed**:
+  - **Strong**: `523`
+  - **Solid**: `745`
+  - **Marginal**: `241`
+  - **Reject**: `25`
+- **prdSnapshot**:
+  - **Strong**: `523`
+  - **Solid**: `745`
+  - **Marginal**: `241`
+  - **Reject**: `25`
+- **snapshotDelta**:
+  - **Strong**: `0`
+  - **Solid**: `0`
+  - **Marginal**: `0`
+  - **Reject**: `0`
+- **note**: `Computed by banding truth_confidence with exact half-open intervals (NOT transcribed from the PRD). FR-14 says 'currently' — drift is reported as a snapshot delta, not coerced (AC10).`
+
+## driftBlockThreshold
+
+- **maxAbsTierDrift**: `0`
+- **thresholdAbs**: `27`
+- **blocksTraining**: `False`
+- **note**: `AC9 — tier-count drift beyond threshold (or any tier crossing a documented bound) BLOCKS training pending review. `blocksTraining: true` means Story 7.5 train.py MUST halt until re-reviewed.`
+
+## labelSourceBias
+
+- **axis**: `relation-to-assigned-truth (same/half/double/near/far)`
+- **signals**:
+  - `rekordbox_average`
+  - `grid_bpm`
+  - `dsp`
+  - `playlist`
+- **matrix**:
+  - **rekordbox_average**:
+    - **rekordbox_average**:
+      - **agreement**: `1.0`
+      - **n**: `1319`
+    - **grid_bpm**:
+      - **agreement**: `1.0`
+      - **n**: `1319`
+    - **dsp**:
+      - **agreement**: `0.3124`
+      - **n**: `1319`
+    - **playlist**:
+      - **agreement**: `0.2257`
+      - **n**: `483`
+  - **grid_bpm**:
+    - **rekordbox_average**:
+      - **agreement**: `1.0`
+      - **n**: `1319`
+    - **grid_bpm**:
+      - **agreement**: `1.0`
+      - **n**: `1319`
+    - **dsp**:
+      - **agreement**: `0.3124`
+      - **n**: `1319`
+    - **playlist**:
+      - **agreement**: `0.2257`
+      - **n**: `483`
+  - **dsp**:
+    - **rekordbox_average**:
+      - **agreement**: `0.3124`
+      - **n**: `1319`
+    - **grid_bpm**:
+      - **agreement**: `0.3124`
+      - **n**: `1319`
+    - **dsp**:
+      - **agreement**: `1.0`
+      - **n**: `1319`
+    - **playlist**:
+      - **agreement**: `0.3375`
+      - **n**: `483`
+  - **playlist**:
+    - **rekordbox_average**:
+      - **agreement**: `0.2257`
+      - **n**: `483`
+    - **grid_bpm**:
+      - **agreement**: `0.2257`
+      - **n**: `483`
+    - **dsp**:
+      - **agreement**: `0.3375`
+      - **n**: `483`
+    - **playlist**:
+      - **agreement**: `1.0`
+      - **n**: `483`
+- **degenerateAxisPairs**:
+  -
+    - `rekordbox_average`
+    - `grid_bpm`
+- **degenerateAxisNote**: `Signal pairs with agreement 1.0 carry an IDENTICAL relation on every co-present record — they are not independent axes. On this corpus rekordbox_average and grid_bpm are such an alias pair; the matrix is 4x4 by emitted key (DD #6) but effectively rank-deficient on the relation axis.`
+- **playlistNote**: `playlist is relation-only (no bpm); 'missing' on tracks with no matching playlist prior is treated as 'did not speak'.`
+- **signal3StructuralAbsence**:
+  - **name**: `grid_spacing (inter-Inizio grid spacing)`
+  - **coverage**: `0`
+  - **note**: `DECLARED-but-UNWIRED: the survey never emits full grid arrays (tony-tunes-survey.py), so no `grid_spacing` key exists on any record. Reported as a structural absence, NOT a sparse signal. The matrix is 4×4 over the emitted signals, not 5×5 (DD #6).`
+
+## octaveAmbiguityRate
+
+- **rate**: `0.5017`
+- **ambiguousCount**: `757`
+- **resolvableCount**: `1509`
+- **definition**: `Rekordbox AverageBpm vs DSP winner form a 2:1 ratio within 0.04 relative tolerance (same metric the labeler uses).`
+
+## labelOctaveErrorAudit
+
+- **definition**: `Strong+Solid tracks where assigned truth is an octave off the human Rekordbox tag (rekordbox relation 'half' => truth=2×rekordbox).`
+- **doubledCount**: `665`
+- **doubledNote**: `Mostly the EXPECTED DnB half-time tagging convention (DJ grids to the half for mixing); NOT a label error on its own. Reported for transparency.`
+- **highRiskCount**: `20`
+- **highRiskDefinition**: `doubled AND DSP did not independently confirm the full tempo (dsp relation != 'same') — the confidently-wrong octave class: the full-tempo label rests on grid/boost with no independent onset corroboration.`
+- **halvedCount**: `0`
+- **highRiskSample**:
+  -
+    - **track_id**: `43042112`
+    - **name**: `Carne`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `261646565`
+    - **name**: `Kemal - Re-Animation (Kemal + Rob Data Remix ARX005 remastered)`
+    - **bpm_truth**: `173.96`
+    - **rekordbox_bpm**: `86.98`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `3456547`
+    - **name**: `Make Some Noise`
+    - **bpm_truth**: `165.0`
+    - **rekordbox_bpm**: `82.5`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `52271828`
+    - **name**: `Wrong Foot Forward (Original Mix)`
+    - **bpm_truth**: `167.0`
+    - **rekordbox_bpm**: `83.5`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `168883878`
+    - **name**: `Monrroe - Understand`
+    - **bpm_truth**: `168.0`
+    - **rekordbox_bpm**: `84.0`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `122253010`
+    - **name**: `Normal Function`
+    - **bpm_truth**: `165.0`
+    - **rekordbox_bpm**: `82.5`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `117853529`
+    - **name**: `Sorbet Rose`
+    - **bpm_truth**: `165.0`
+    - **rekordbox_bpm**: `82.5`
+    - **dspRelation**: `half`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `191553337`
+    - **name**: `Sealed Fate`
+    - **bpm_truth**: `166.04`
+    - **rekordbox_bpm**: `83.02`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `212227183`
+    - **name**: `M25 Orbital`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `245924856`
+    - **name**: `Swarm Behaviour`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `230941984`
+    - **name**: `LOVE YOUR ENEMIES [Feat. Cameo Blush]`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `201416600`
+    - **name**: `WITH A VENGEANCE`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `220585624`
+    - **name**: `Raving Cru`
+    - **bpm_truth**: `160.0`
+    - **rekordbox_bpm**: `80.0`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `211934123`
+    - **name**: `Heavy Vibes`
+    - **bpm_truth**: `159.66`
+    - **rekordbox_bpm**: `79.83`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `223510826`
+    - **name**: `Tears in the Rain`
+    - **bpm_truth**: `170.0`
+    - **rekordbox_bpm**: `85.0`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `94420904`
+    - **name**: `Nights (Not Just A Dub Mix)`
+    - **bpm_truth**: `164.0`
+    - **rekordbox_bpm**: `82.0`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+  -
+    - **track_id**: `211761592`
+    - **name**: `Digitalis (Original Mix)`
+    - **bpm_truth**: `166.0`
+    - **rekordbox_bpm**: `83.0`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `143115955`
+    - **name**: `Papaya Whip`
+    - **bpm_truth**: `167.0`
+    - **rekordbox_bpm**: `83.5`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `123870338`
+    - **name**: `Scorched Earth B1`
+    - **bpm_truth**: `167.0`
+    - **rekordbox_bpm**: `83.5`
+    - **dspRelation**: `far`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `playlist_prior`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `4`
+  -
+    - **track_id**: `263046269`
+    - **name**: `Recognized`
+    - **bpm_truth**: `175.0`
+    - **rekordbox_bpm**: `87.5`
+    - **dspRelation**: `near`
+    - **winnerClusterSources**:
+      - `dsp`
+      - `grid_bpm`
+      - `rekordbox_average`
+    - **winnerSourceCount**: `3`
+- **halvedSample**:
+- **guardrailNote**: `LABEL-quality audit, not a model metric (Guardrail 2). Feeds KDD-B3 reopen-trigger 3 (half/double confusions); high-risk track IDs are the spot-check list for the reviewer signoff (AC8).`
+
+## confidenceCalibrationByTier
+
+- **perTier**:
+  - **Strong**:
+    - **n**: `523`
+    - **meanConfidence**: `0.9216`
+    - **proxyAgreementAccuracy**: `0.6367`
+  - **Solid**:
+    - **n**: `745`
+    - **meanConfidence**: `0.6835`
+    - **proxyAgreementAccuracy**: `0.1074`
+  - **Marginal**:
+    - **n**: `241`
+    - **meanConfidence**: `0.6143`
+    - **proxyAgreementAccuracy**: `0.1245`
+- **labelECE**: `0.5221`
+- **eceBins**:
+  -
+    - **bin**: `0`
+    - **n**: `67`
+    - **meanConfidence**: `0.574`
+    - **proxyAccuracy**: `0.1791`
+  -
+    - **bin**: `1`
+    - **n**: `123`
+    - **meanConfidence**: `0.623`
+    - **proxyAccuracy**: `0.122`
+  -
+    - **bin**: `2`
+    - **n**: `563`
+    - **meanConfidence**: `0.6641`
+    - **proxyAccuracy**: `0.0213`
+  -
+    - **bin**: `3`
+    - **n**: `166`
+    - **meanConfidence**: `0.7048`
+    - **proxyAccuracy**: `0.1024`
+  -
+    - **bin**: `4`
+    - **n**: `44`
+    - **meanConfidence**: `0.7523`
+    - **proxyAccuracy**: `0.7045`
+  -
+    - **bin**: `5`
+    - **n**: `42`
+    - **meanConfidence**: `0.799`
+    - **proxyAccuracy**: `1.0`
+  -
+    - **bin**: `6`
+    - **n**: `78`
+    - **meanConfidence**: `0.8459`
+    - **proxyAccuracy**: `1.0`
+  -
+    - **bin**: `7`
+    - **n**: `207`
+    - **meanConfidence**: `0.8889`
+    - **proxyAccuracy**: `1.0`
+  -
+    - **bin**: `8`
+    - **n**: `28`
+    - **meanConfidence**: `0.9156`
+    - **proxyAccuracy**: `1.0`
+  -
+    - **bin**: `9`
+    - **n**: `191`
+    - **meanConfidence**: `1.0`
+    - **proxyAccuracy**: `0.0052`
+- **binning**: `10 equal-width bins over the observed truth_confidence range; ECE = sum_b (n_b/N) |meanConfidence_b - proxyAccuracy_b|.`
+- **proxyDefinition**: `>=2 of 3 BPM-bearing signals (rekordbox/grid/dsp) agree with the assigned truth at same octave (relation=='same').`
+- **GUARDRAIL_2**: `This ECE measures LABEL-confidence calibration against a signal-agreement proxy, NOT model calibration. It produces NO transferable FR-18 metric. A featureSetVersion bump does not affect it because no model is involved.`
+
+## clusterStability
+
+- **k**: `4`
+- **seeds**: `5`
+- **featureVector**:
+  - `truth_confidence`
+  - `log2(rekordbox/truth)`
+  - `log2(grid/truth)`
+  - `log2(dsp/truth)`
+- **method**: `scipy.cluster.vq.kmeans2 (++init, whiten-standardized features)`
+- **coAssignmentConsistency**: `0.9651`
+- **consistencyDefinition**: `Over a fixed 5000-pair sample, mean of max(frac_same_cluster, 1-frac_same_cluster) across seeds — 1.0 = perfectly stable, 0.5 = seed-dependent. Permutation-invariant (no label alignment).`
+- **distortionMean**: `0.3979`
+- **distortionStd**: `0.0246`
+
+## representativeManualReviewFindings
+
+-
+  - **track_id**: `189657605`
+  - **name**: `ADMM48D2 - Ironik - Fantasy (Dark mix)`
+  - **artist**: `(empty)`
+  - **tier**: `Strong`
+  - **truth_confidence**: `0.899`
+  - **bpm_truth**: `157.31`
+  - **qa_flags**:
+  - **note**: `Strong-tier clean exemplar: all three BPM signals (rekordbox/grid/dsp) agree with the assigned truth at the same octave.`
+-
+  - **track_id**: `7965951`
+  - **name**: `ADMM58D1 - Origin Unknown - Eastern Promise (Mix 1)`
+  - **artist**: `(empty)`
+  - **tier**: `Strong`
+  - **truth_confidence**: `0.92`
+  - **bpm_truth**: `145.85`
+  - **qa_flags**:
+  - **note**: `Strong-tier clean exemplar: all three BPM signals (rekordbox/grid/dsp) agree with the assigned truth at the same octave.`
+-
+  - **track_id**: `3275693`
+  - **name**: `ADMM1001D - Ironik - Cybernetic (1995)`
+  - **artist**: `(empty)`
+  - **tier**: `Solid`
+  - **truth_confidence**: `0.678`
+  - **bpm_truth**: `168.0`
+  - **qa_flags**:
+  - **note**: `Solid-tier octave split: Rekordbox+grid tag the half-time; DSP carried the full-tempo winner. Watch for wrong-octave risk (E1).`
+-
+  - **track_id**: `256407739`
+  - **name**: `ADMM49D1 - Origin Unknown - Voyage to the Future`
+  - **artist**: `(empty)`
+  - **tier**: `Solid`
+  - **truth_confidence**: `0.663`
+  - **bpm_truth**: `157.84`
+  - **qa_flags**:
+  - **note**: `Solid-tier octave split: Rekordbox+grid tag the half-time; DSP carried the full-tempo winner. Watch for wrong-octave risk (E1).`
+-
+  - **track_id**: `190148769`
+  - **name**: `02 Not Mad (Helix Bootleg)`
+  - **artist**: `L-Vis 1990`
+  - **tier**: `Marginal`
+  - **truth_confidence**: `0.552`
+  - **bpm_truth**: `136.01`
+  - **qa_flags**:
+    - `ambiguous_cluster`
+  - **note**: `Marginal-tier ambiguous cluster: winner barely beat the runner-up; tempo geometry is genuinely contested. Failure-categorization candidate (Story 7.4).`
+-
+  - **track_id**: `194629347`
+  - **name**: `Deadly Technique (Original Mix)`
+  - **artist**: `Natural Forces`
+  - **tier**: `Marginal`
+  - **truth_confidence**: `0.552`
+  - **bpm_truth**: `172.0`
+  - **qa_flags**:
+    - `ambiguous_cluster`
+  - **note**: `Marginal-tier ambiguous cluster: winner barely beat the runner-up; tempo geometry is genuinely contested. Failure-categorization candidate (Story 7.4).`
+-
+  - **track_id**: `43042112`
+  - **name**: `Carne`
+  - **artist**: `Amor Satyr & Toma Kami`
+  - **tier**: `Solid`
+  - **truth_confidence**: `0.651`
+  - **bpm_truth**: `160.0`
+  - **qa_flags**:
+  - **note**: `Label-octave-error HIGH-RISK candidate (E1): assigned truth is 2× the human Rekordbox tag AND DSP did not independently land on the full tempo. If the DJ tag was right, this is a confidently-wrong octave label.`
+-
+  - **track_id**: `261646565`
+  - **name**: `Kemal - Re-Animation (Kemal + Rob Data Remix ARX005 remastered)`
+  - **artist**: `Architecture Recordings`
+  - **tier**: `Solid`
+  - **truth_confidence**: `0.677`
+  - **bpm_truth**: `173.96`
+  - **qa_flags**:
+  - **note**: `Label-octave-error HIGH-RISK candidate (E1): assigned truth is 2× the human Rekordbox tag AND DSP did not independently land on the full tempo. If the DJ tag was right, this is a confidently-wrong octave label.`
+-
+  - **track_id**: `28554427`
+  - **name**: `MNCH069-3-Gred_Lvov_Kybel-Fearless`
+  - **artist**: `(empty)`
+  - **tier**: `Reject`
+  - **truth_confidence**: `0.513`
+  - **bpm_truth**: `None`
+  - **qa_flags**:
+    - `low_confidence`
+    - `ambiguous_cluster`
+    - `single_source_truth`
+  - **note**: `single_source_truth flag: winner cluster rests on < 2 distinct non-playlist sources; lands in Marginal/Reject (no single-source track reaches the trainable tier).`
+-
+  - **track_id**: `196212456`
+  - **name**: `Dub Phizix - Wasted`
+  - **artist**: `Various Artists`
+  - **tier**: `Strong`
+  - **truth_confidence**: `0.838`
+  - **bpm_truth**: `116.2`
+  - **qa_flags**:
+  - **note**: `Strong-tier with DSP 'far': Rekordbox+grid consensus carried a confident label despite the DSP estimate being off — DSP-disagreement exemplar.`
+
+## singleSourceTruthPolicy
+
+- **singleSourceTotal**: `10`
+- **singleSourceInTrainable**: `0`
+- **decision**: `INCLUDE — moot on this corpus: 0 single-source tracks reach the Strong/Solid trainable tier (the single_source_truth flag co-occurs with low_confidence and tiers into Marginal/Reject). The trainable set of 1268 is fully multi-source. If a future relabel pushes a single-source track into Strong/Solid, this decision MUST be revisited.`
+
+## marginalTierDisagreementGeometry
+
+- **marginalTierCount**: `241`
+- **categorizationModule**: `marginal_failure_categorize.py`
+- **perCategory**:
+  - **dspFailure**:
+    - **count**: `30`
+    - **meanDspConfidence**: `0.658603`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **metadataConflict**:
+    - **count**: `2`
+    - **meanDspConfidence**: `0.862624`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **halfDoubleOctave**:
+    - **count**: `199`
+    - **meanDspConfidence**: `0.686071`
+    - **halfDoubleRate**: `1.0`
+    - **coveredForProximity**: `16`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **harmonicAmbiguity**:
+    - **count**: `8`
+    - **meanDspConfidence**: `0.754616`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+  - **unresolved**:
+    - **count**: `2`
+    - **meanDspConfidence**: `0.770405`
+    - **halfDoubleRate**: `0.0`
+    - **coveredForProximity**: `0`
+    - **meanNearestStrongDistance**: `None`
+    - **proximityStatus**: `insufficientCoverage`
+- **halfDoubleRateDefinition**: `fraction of the category's tracks whose runner_up_cluster centroid is a 2x/0.5x (octave) ratio of the truth_cluster centroid (canonical_ratio within OCTAVE_RATIO_TOL).`
+- **proximity**:
+  - **metric**: `cosine distance to the nearest Strong-tier neighbor in the librosa-mfcc-chroma-timbral-v2 fingerprint space (per-dimension standardized across the union, exhaustive argmin, ties -> lowest Strong track_id).`
+  - **marginalCoverage**: `16/241`
+  - **strongCoverage**: `411/523`
+  - **coverageFloor**: `0.8`
+  - **minPerCategory**: `10`
+  - **coverageMet**: `False`
+  - **note**: `DD #5 — the fingerprint cache was built over SPLIT tracks; Marginal is split-excluded (FR-14), so coverage is far below the floor on a dev-agent run and per-category meanNearestStrongDistance is null with proximityStatus 'insufficientCoverage'. This is EXPECTED and gates nothing. Numeric proximity appears only after the corpus_diagnostics.py --fingerprint-fill flag (needs Tony audio + librosa) raises coverage above the floor.`
+  - **fillRan**: `False`
+  - **fillNewVectors**: `0`
+
+## reviewerSignoff
+
+See REVIEWER SIGNOFF section above. State: `pending`.
+

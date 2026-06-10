@@ -140,7 +140,7 @@ struct BNNSTechniqueTests {
         logMelData: [Float](repeating: 0.5, count: 128 * 16),
         sampleRate: 44_100, fftSize: 2048, hopSize: 441,
         melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v1"
+        featureSetVersion: "v2"
       )
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = features
@@ -172,7 +172,7 @@ struct BNNSTechniqueTests {
         melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: data,
         sampleRate: 44_100, fftSize: 2048, hopSize: 441,
         melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v1"
+        featureSetVersion: "v2"
       )
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = features
@@ -363,7 +363,7 @@ struct BNNSTechniqueTests {
         melBands: 128, frames: frames, tensorLayout: .nchw, logMelData: data,
         sampleRate: 44_100, fftSize: 2048, hopSize: 441,
         melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v1"
+        featureSetVersion: "v2"
       )
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = features
@@ -420,13 +420,13 @@ struct BNNSTechniqueTests {
         melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: nchwData,
         sampleRate: 44_100, fftSize: 2048, hopSize: 441,
         melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v1")
+        featureSetVersion: "v2")
       let frameFeatures = try MLFeatureFrames(
         melBands: mb, frames: frames, tensorLayout: .frameMajorLogMel,
         logMelData: frameMajorData,
         sampleRate: 44_100, fftSize: 2048, hopSize: 441,
         melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v1")
+        featureSetVersion: "v2")
       var nchwTrace = BPMDiagnosticTrace()
       nchwTrace.mlFeatures = nchwFeatures
       var frameTrace = BPMDiagnosticTrace()

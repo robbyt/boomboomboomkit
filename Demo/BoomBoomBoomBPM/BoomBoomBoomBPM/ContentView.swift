@@ -224,6 +224,41 @@ struct ContentView: View {
           triggerReanalyze()
         }
 
+        // BYOW ML (Epic 7): load a compiled `.mlmodelc` and run `.mlOnly`
+        // inference through the production runtime path. Default off keeps the
+        // demo DSP-only. The toggle appears once a model is loaded; flipping it
+        // re-analyzes the current file.
+        VStack(alignment: .leading, spacing: 4) {
+          HStack(spacing: 8) {
+            Button("Load Model…") {
+              if viewModel.pickAndLoadMLModel() {
+                triggerReanalyze()
+              }
+            }
+            .buttonStyle(.bordered)
+            if viewModel.mlModelName != nil {
+              Toggle("ML (.mlOnly)", isOn: $viewModel.mlEnabled)
+                .toggleStyle(.switch)
+                .onChange(of: viewModel.mlEnabled) { _, _ in
+                  triggerReanalyze()
+                }
+            }
+          }
+          if let name = viewModel.mlModelName {
+            Text("Model: \(name)")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .truncationMode(.middle)
+          }
+          if let mlError = viewModel.mlModelError {
+            Text(mlError)
+              .font(.caption)
+              .foregroundStyle(.red)
+              .lineLimit(2)
+          }
+        }
+
         // Cancel / Re-analyze / Copy Config / Export Trace.
         // Cancel + Re-analyze are mutually exclusive (analyzing vs
         // idle); Copy Config is always visible; Export Trace requires

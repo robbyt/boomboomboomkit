@@ -52,6 +52,34 @@ let package = Package(
       ],
       path: "Sources/tony-dsp-prepass"
     ),
+    // dump-model-input: Story 7.5 Task 1 / DD #15. Depends on BoomBoomBoomKit
+    // + BoomBoomBoomKitML; single-sources BNNSTechnique.modelInputTensor to dump
+    // the post-featurize [1,1,128,512] model-input tensor (mel-major + z-scored
+    // + resampled-to-512) for the test_feature_parity.py stage-5 model-input
+    // parity check. Reads the parity signals dump-fixture emits to
+    // ../parity_signals/. Develop-only — never ships to main.
+    .executableTarget(
+      name: "dump-model-input",
+      dependencies: [
+        .product(name: "BoomBoomBoomKit", package: "BoomBoomBoomKit"),
+        .product(name: "BoomBoomBoomKitML", package: "BoomBoomBoomKit"),
+      ],
+      path: "Sources/dump-model-input"
+    ),
+    // dump-real-track: Phase 1.5 (Epic 7 close-out). Runs the FULL
+    // AudioAnalysisService path on one REAL audio file and dumps the selected
+    // window's log-mel + model-input tensor + window manifest, so the Python
+    // feature_substrate_v2 z-score+resample is verified against the runtime on a
+    // real multi-minute track (large F), not just the short parity fixtures.
+    // Develop-only — never ships to main.
+    .executableTarget(
+      name: "dump-real-track",
+      dependencies: [
+        .product(name: "BoomBoomBoomKit", package: "BoomBoomBoomKit"),
+        .product(name: "BoomBoomBoomKitML", package: "BoomBoomBoomKit"),
+      ],
+      path: "Sources/dump-real-track"
+    ),
     // bnns-probe: Story 4-5 Task 1.5b + 1.5d verification probe. Loads a
     // .mlmodelc via raw BNNSGraph C API, probes graph.data's malloc zone
     // to determine whether `free(graph.data)` is the correct destructor

@@ -38,7 +38,6 @@ Usage:
 import argparse
 import collections
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -58,11 +57,11 @@ CLUSTER_PCT = 0.04
 
 # Source weights (Codex Strategy 4 starting values).
 WEIGHTS = {
-    "grid_bpm": 3.0,         # explicit <TEMPO Bpm>
-    "grid_spacing": 3.5,     # inter-Inizio derived
-    "playlist_prior": 2.0,   # base playlist weight (multiplied by Gaussian closeness)
+    "grid_bpm": 3.0,  # explicit <TEMPO Bpm>
+    "grid_spacing": 3.5,  # inter-Inizio derived
+    "playlist_prior": 2.0,  # base playlist weight (multiplied by Gaussian closeness)
     "rekordbox_average": 1.5,
-    "audio_metadata": 0.8,   # ID3 TBPM / MP4 tmpo (not yet wired)
+    "audio_metadata": 0.8,  # ID3 TBPM / MP4 tmpo (not yet wired)
     # DSP weight is dynamic: 1.0 + 3.0 * confidence (see add_dsp_signal).
 }
 
@@ -80,7 +79,9 @@ NEAR_PCT = 0.05
 
 # Abstention thresholds.
 MIN_TRUTH_CONFIDENCE = 0.55
-MIN_RUNNER_UP_GAP = 0.20  # winner / total >= MIN_TRUTH_CONFIDENCE AND runner_up / winner < (1 - this)
+MIN_RUNNER_UP_GAP = (
+    0.20  # winner / total >= MIN_TRUTH_CONFIDENCE AND runner_up / winner < (1 - this)
+)
 
 # Playlist priors: (center_bpm, sigma_bpm). Sigma is roughly the half-width of
 # the tempo band the playlist name implies; Gaussian decay scales the
@@ -144,16 +145,12 @@ class TempoClusters:
                 cluster["total_weight"] = total
                 cluster["members"].append(member)
                 return
-        self.clusters.append(
-            {"centroid": bpm, "total_weight": weight, "members": [member]}
-        )
+        self.clusters.append({"centroid": bpm, "total_weight": weight, "members": [member]})
 
     def winner_and_runner_up(self) -> tuple[dict | None, dict | None, float]:
         if not self.clusters:
             return None, None, 0.0
-        sorted_clusters = sorted(
-            self.clusters, key=lambda c: c["total_weight"], reverse=True
-        )
+        sorted_clusters = sorted(self.clusters, key=lambda c: c["total_weight"], reverse=True)
         total = sum(c["total_weight"] for c in self.clusters)
         winner = sorted_clusters[0]
         runner_up = sorted_clusters[1] if len(sorted_clusters) > 1 else None
@@ -261,9 +258,7 @@ def add_dsp_signal(
         return
     conf = dsp_confidence if dsp_confidence is not None else 0.5
     base_weight = 1.0 + 3.0 * max(0.0, min(1.0, conf))
-    add_bpm_signal(
-        clusters, "dsp", dsp_bpm, base_weight, {"confidence": conf, "rank": "winner"}
-    )
+    add_bpm_signal(clusters, "dsp", dsp_bpm, base_weight, {"confidence": conf, "rank": "winner"})
     # Also add DSP's lower-ranked candidates at reduced weight — they hint at
     # the octave alternative the DSP saw but didn't pick.
     for i, c in enumerate(candidates[:3], start=1):
@@ -278,7 +273,9 @@ def add_dsp_signal(
         )
 
 
-def add_grid_signals(clusters: TempoClusters, tempo_count: int, first_tempo_bpm: float | None) -> None:
+def add_grid_signals(
+    clusters: TempoClusters, tempo_count: int, first_tempo_bpm: float | None
+) -> None:
     """Add the explicit grid BPM (single-marker tracks only have first_tempo_bpm)."""
     # NOTE: inter-Inizio spacing requires multiple TEMPO entries with timestamps,
     # which the current survey JSON does not emit (only first_tempo_bpm).
@@ -364,7 +361,9 @@ def build_disagreement_report(
         "priors_used": contributed_playlists,
         # `relation` for playlists is nearest-prior-center vs truth.
         "relation": (
-            relation(min(contributed_playlists, key=lambda p: abs(p["center"] - truth))["center"], truth)
+            relation(
+                min(contributed_playlists, key=lambda p: abs(p["center"] - truth))["center"], truth
+            )
             if contributed_playlists
             else "missing"
         ),
@@ -375,6 +374,35 @@ def build_disagreement_report(
 # ---------------------------------------------------------------------------
 # Per-track label
 # ---------------------------------------------------------------------------
+
+
+# Source preference for the truth VALUE (not the octave decision). Tony's
+# Rekordbox AverageBpm is his hand-validated tag; grid_bpm is his Inizio
+# beatgrid. Both are operator-validated; DSP/playlist are noisy votes used only
+# to pick the OCTAVE, never to set the value.
+_TRUTH_VALUE_SOURCES = ("rekordbox_average", "grid_bpm")
+
+
+def _truth_value_from_winner(winner: dict) -> float:
+    """bpm_truth = Tony's validated value, at the octave the cluster chose.
+
+    The winning cluster decided the octave (DSP/grid/playlist votes detect the
+    half-time entries that need doubling — Tony's DnB convention). But the VALUE
+    must be Tony's, not the weighted centroid: the centroid blends in the DSP
+    estimate (often octave-wrong/far) and the playlist prior, dragging a clean
+    whole-number tempo off by up to ~2 BPM (e.g. Carne 80x2=160 -> centroid
+    160.991; Fried 87.5x2=175 -> 174.937). Each winning member already carries
+    `canonical_bpm` = raw_bpm x octave_factor, so picking the rekordbox member's
+    canonical_bpm gives the octave-corrected Tony value exactly. Falls back to
+    grid_bpm, then the centroid, only if neither Tony source is in the winner
+    (rare). Epic 7 corpus signoff (robbyt 2026-06-06): the prior centroid blend
+    was training-jank; reproduces the operator's DAW-verified values 4/4
+    (Carne 160, Night Squid 170, Fried 175, Kemal 173.96)."""
+    for source in _TRUTH_VALUE_SOURCES:
+        members = [m for m in winner["members"] if m["source"] == source]
+        if members:
+            return float(max(members, key=lambda m: m["weight"])["canonical_bpm"])
+    return float(winner["centroid"])
 
 
 def label_one(track: dict, dsp: dict | None) -> dict:
@@ -430,14 +458,14 @@ def label_one(track: dict, dsp: dict | None) -> dict:
         if runner_ratio > (1.0 - MIN_RUNNER_UP_GAP):
             qa_flags.append("ambiguous_cluster")
         non_playlist_sources = {
-            m["source"]
-            for m in winner["members"]
-            if m["source"] != "playlist_prior"
+            m["source"] for m in winner["members"] if m["source"] != "playlist_prior"
         }
         if len(non_playlist_sources) < 2:
             qa_flags.append("single_source_truth")
         if "low_confidence" not in qa_flags:
-            truth = round(winner["centroid"], 3)
+            # bpm_truth = Tony's validated value at the cluster's chosen octave,
+            # NOT the DSP/playlist-blended centroid (Epic 7 corpus signoff).
+            truth = round(_truth_value_from_winner(winner), 3)
 
     signals = build_disagreement_report(track, dsp, truth, contributed)
 
@@ -529,9 +557,7 @@ def emit_summary(labels: list[dict], out=sys.stderr) -> None:
     n = len(labels)
     truth_set = [lbl for lbl in labels if lbl["bpm_truth"] is not None]
     abstained = n - len(truth_set)
-    flag_h = collections.Counter(
-        f for lbl in labels for f in lbl["qa_flags"]
-    )
+    flag_h = collections.Counter(f for lbl in labels for f in lbl["qa_flags"])
     rel_h = collections.Counter(
         lbl["signals"].get("rekordbox_average", {}).get("relation", "missing")
         for lbl in labels
@@ -572,8 +598,7 @@ def main() -> int:
     parser.add_argument(
         "--dsp-json",
         required=False,
-        help="output of tony-dsp-prepass Swift CLI (optional; "
-        "labeler runs DSP-free if absent)",
+        help="output of tony-dsp-prepass Swift CLI (optional; labeler runs DSP-free if absent)",
     )
     parser.add_argument("--output", required=True, help="path to write tony-truth-labels.json")
     parser.add_argument(

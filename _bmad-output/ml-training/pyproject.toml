@@ -12,9 +12,23 @@ dependencies = [
   "coremltools>=8.0",
   "tqdm>=4.66",
   "torchinfo>=1.8",
+  "mutagen>=1.47.0",
+  "matplotlib>=3.8",
 ]
 
 [dependency-groups]
 dev = [
   "pytest>=8.0",
+  "ruff>=0.15.15",
+  "ty>=0.0.40",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ty.environment]
+python-version = "3.11"
+# scripts/audit-corpus-splits.py inserts this dir on sys.path at runtime to import
+# corpus_common; make ty resolve it statically too.
+extra-paths = ["."]

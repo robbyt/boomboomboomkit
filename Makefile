@@ -274,9 +274,16 @@ oracle-generate:
 fmt:
 	swift format --recursive --in-place Sources/ Tests/
 
-## lint: Run SwiftLint code quality checks
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob.
+.PHONY: py-lint
+py-lint:
+	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
+	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py
+
+## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
-lint:
+lint: py-lint
 	swiftlint lint .
 
 ## lint-fix: Run SwiftLint with auto-fix
@@ -316,6 +323,15 @@ TRAIN_SEED ?= 42
 TRAIN_EPOCHS ?= 60
 TRAIN_BATCH ?= 32
 TRAIN_WORKERS ?= 4
+# Decoded-PCM cache (Epic 7 perf): decode each track once, read the cache every
+# later epoch instead of re-running librosa's slow MP3/M4A decode. Develop-only,
+# operator path (like the corpus paths above). Empty = caching off.
+PCM_CACHE_DIR ?= /Volumes/ssd-raid/NoTM/tmp/mltraining-cache
+# Deterministic-feature cache (Epic 7 perf): the non-augmented [128,512] v2
+# substrate tensors (masked-mel pretrain pool + val/LAO eval) are identical every
+# epoch, so compute once and reload — eliminates per-epoch STFT/mel/resample, the
+# CPU bottleneck that leaves the GPU idle. Augmented finetune is never cached.
+FEATURE_CACHE_DIR ?= /Volumes/ssd-raid/NoTM/tmp/mltraining-feature-cache
 
 ## ml-train-deps: Sync Python deps for the training pipeline (idempotent)
 .PHONY: ml-train-deps
@@ -333,10 +349,37 @@ ml-dump-fixture:
 ml-parity:
 	cd $(ML_TRAINING_DIR) && uv run python test_feature_parity.py
 
-## ml-splits: Build corpus_splits.json with leak and DnB-triplet checks
+## ml-splits: Build the namespaced corpus_splits.json (Story 7.1: tony.{train,val,leaveArtistOut} + externalEval.{giantsteps,oa300}, schema_version 2). Corpus paths are passed so externalEval rebuilds; Tony alone needs no external corpus.
 .PHONY: ml-splits
 ml-splits:
-	cd $(ML_TRAINING_DIR) && uv run python dataset.py
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run python dataset.py
+
+## corpus-diagnostics: Story 7.1 — emit corpus-diagnostics-v1.{json,md} from tony-truth-labels.json (FR-12; develop-only, no external corpus needed)
+.PHONY: corpus-diagnostics
+corpus-diagnostics:
+	cd $(ML_TRAINING_DIR) && uv run python corpus_diagnostics.py
+
+## marginal-failure-categorize: Story 7.4 — emit marginal-failure-categorization.json (use-a) + marginal-watchlist.json (use-c) for the 241 Marginal-tier tracks (FR-14/KDD-B4; develop-only, decode-free, no external corpus needed)
+.PHONY: marginal-failure-categorize
+marginal-failure-categorize:
+	uv run --project $(ML_TRAINING_DIR) python scripts/marginal-failure-categorize.py
+
+## curate-sentinels: Story 7.1 — emit the 12-track JAMS sentinel manifest (Tests/.../12-dnb-sentinels-expanded.json, ships to main) + expanded-sentinels-curation.md (develop-only)
+.PHONY: curate-sentinels
+curate-sentinels:
+	cd $(ML_TRAINING_DIR) && uv run python curate_sentinels.py
+
+## audit-corpus-splits: Story 7.1/7.4 — contamination audit over corpus_splits.json (AC4/5/6/7 gates + DD #3 fingerprint + Story 7.4 FR-14 --reject-marginal). Corpus paths feed the GiantSteps overlap pass + audio fingerprint.
+.PHONY: audit-corpus-splits
+audit-corpus-splits:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/audit-corpus-splits.py \
+		--check-sentinels-against Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/12-dnb-sentinels-expanded.json \
+		--reject-marginal
 
 ## ml-summary: Regenerate model_summary.txt and model_metadata.json
 .PHONY: ml-summary
@@ -355,6 +398,34 @@ ml-train:
 	cd $(ML_TRAINING_DIR) && uv run python train.py \
 		--seed $(TRAIN_SEED) --epochs $(TRAIN_EPOCHS) \
 		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS)
+
+## pcm-cache-build: Pre-decode the corpus into the PCM cache (PCM_CACHE_DIR) AND pre-compute the deterministic v2 feature cache (FEATURE_CACHE_DIR) for the masked-mel pretrain pool + val/LAO, so training epochs skip both librosa decode and the STFT/mel substrate (Epic 7 perf). Re-run after adding tracks; idempotent. Parallel across cores.
+.PHONY: pcm-cache-build
+pcm-cache-build:
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	BBB_PCM_CACHE_DIR="$(PCM_CACHE_DIR)" \
+	BBB_FEATURE_CACHE_DIR="$(FEATURE_CACHE_DIR)" \
+	uv run python ablation/precompute_pcm_cache.py
+
+## ml-train-v2: Authoritative substrate-v2 training (Epic 7). VARIANT= {maskedMelPretrain|supervisedAugmented} + SEED= {42|43|44} required. Requires the KDD-B4 signoff signed (train.py's gate fails closed otherwise). Writes _bmad-output/ml-training/v2-runs/<VARIANT>/seed_<SEED>/model.pt + promotable metadata. Run the full 3-seed x 2-arm matrix under caffeinate.
+.PHONY: ml-train-v2
+ml-train-v2:
+ifndef VARIANT
+	$(error VARIANT is not set. Usage: make ml-train-v2 VARIANT=maskedMelPretrain SEED=42)
+endif
+ifndef SEED
+	$(error SEED is not set. Usage: make ml-train-v2 VARIANT=maskedMelPretrain SEED=42)
+endif
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	BBB_PCM_CACHE_DIR="$(PCM_CACHE_DIR)" \
+	BBB_FEATURE_CACHE_DIR="$(FEATURE_CACHE_DIR)" \
+	uv run python train.py \
+		--variant $(VARIANT) --seed $(SEED) --weighting-profile uniform \
+		--epochs $(TRAIN_EPOCHS) --pretrain-epochs 30 \
+		--batch-size $(TRAIN_BATCH) --num-workers $(TRAIN_WORKERS) \
+		$(if $(REBALANCE),--rebalance,)
 
 ## ml-train-resume: Resume training from a checkpoint (CHECKPOINT=path/to/epoch_N.pt; project-root-relative paths are resolved automatically)
 .PHONY: ml-train-resume
@@ -440,3 +511,166 @@ tony-labels:
 ## tony-corpus: Full pipeline — survey → DSP prepass → labeler
 .PHONY: tony-corpus
 tony-corpus: tony-survey tony-dsp-prepass tony-labels
+
+## non-rekordbox-survey: Story 7.2 — survey the ~4,700 audio files outside the Rekordbox <COLLECTION>, BPM-tag-blind DSP + independent mutagen tags, tier into secondarySupervised/unsupervisedPool/reject. Develop-only. Pass LIMIT=N to smoke-test a subset; OA300_CORPUS_PATH is the sentinel-exclusion source (FR-17).
+.PHONY: non-rekordbox-survey
+non-rekordbox-survey:
+	TONY_XML="$(TONY_XML)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/non-rekordbox-survey.py \
+		$(if $(LIMIT),--limit $(LIMIT),)
+
+# ---------------------------------------------------------------------------
+# Story 7.3 — KDD-B2 ablation harness (develop-only, v1 scaffolding).
+# Full 60-epoch runs are an operator-run step (need Tony audio + MPS + hours);
+# the dev-agent step ships + smoke-verifies the harness. `done` is gated on the
+# winner-bearing kdd-b2-comparison-v1.md (Story 7.3 AC12).
+# ---------------------------------------------------------------------------
+ABLATION_DIR := $(ML_TRAINING_DIR)/ablation
+
+## ablation-unsupervised-manifest: Derive the committed FR-15-clean unsupervised-pretrain manifest from the (gitignored) survey
+.PHONY: ablation-unsupervised-manifest
+ablation-unsupervised-manifest:
+	cd $(ML_TRAINING_DIR) && uv run python ablation/build_unsupervised_manifest.py
+
+## ablation-tests: Run the Story 7.3 pytest suite (metadata schema, octave loss, split-join)
+.PHONY: ablation-tests
+ablation-tests:
+	cd $(ML_TRAINING_DIR) && uv run pytest ablation/tests/
+
+## ablation-supervised: Run the supervisedAugmented arm (smoke: ABLATION_ARGS="--epochs 1 --subset 32"; DD #6 run B: ABLATION_ARGS="--random-split")
+.PHONY: ablation-supervised
+ablation-supervised:
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python ablation/train_supervised_augmented.py \
+		--seed 42 --epochs 60 --batch-size 32 --weighting-profile uniform $(ABLATION_ARGS)
+
+## ablation-masked-mel: Run the maskedMelPretrain arm (smoke: ABLATION_ARGS="--epochs 1 --pretrain-epochs 1 --subset 32"; DD #6 run B: ABLATION_ARGS="--random-split")
+.PHONY: ablation-masked-mel
+ablation-masked-mel:
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python ablation/train_masked_mel_pretrain.py \
+		--seed 42 --epochs 60 --pretrain-epochs 30 --batch-size 32 --weighting-profile uniform $(ABLATION_ARGS)
+
+## ablation-compare: Generate kdd-b2-comparison-v1.md from both trained variants (operator-run; AC5/AC6/AC12)
+.PHONY: ablation-compare
+ablation-compare:
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python ablation/compare_kdd_b2.py --weighting-profile uniform
+
+# ---------------------------------------------------------------------------
+# Story 7.6 — FR-18 promotion-gate evaluation (develop-only, operator-run).
+# Two-step: (1) `fr18-produce` runs the PRODUCTION Swift runtime path
+# (FR18EvaluationHarnessTests -> BNNSTechnique(modelURL:) -> analyzeBPM .mlOnly)
+# once per seed, dumping per-track predictions to seed_<N>/; (2) `fr18-evaluate`
+# aggregates the 5 gates across seeds (>=2-of-3 + dispersion) + emits the
+# KDD-B5 decision. Run fr18-produce 3x (SEED=42/43/44, BNNS_MODEL_URL pointing
+# at each giantsteps_v2_seed_<N>.mlmodel) into a shared FR18_PRED_DIR, then
+# fr18-evaluate once. The v2 checkpoints are produced by Story 7.5's operator
+# training run (gated on the pending KDD-B4 corpus signoff).
+# ---------------------------------------------------------------------------
+FR18_PRED_DIR ?= $(CURDIR)/_bmad-output/ml-training/fr18-predictions
+
+## fr18-produce: Run the Swift runtime producer for ONE seed (SEED=, BNNS_MODEL_URL=, optional SUBSET=, optional ARM= for Story 7.7 FR-24 per-arm dirs)
+.PHONY: fr18-produce
+fr18-produce:
+ifndef BNNS_MODEL_URL
+	$(error BNNS_MODEL_URL is not set. Usage: SEED=42 BNNS_MODEL_URL=path/to/giantsteps_v2_seed_42.mlmodel make fr18-produce)
+endif
+ifndef SEED
+	$(error SEED is not set. Usage: SEED=42 BNNS_MODEL_URL=... make fr18-produce)
+endif
+	@mkdir -p "$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)"
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python build_fr18_input.py --seed $(SEED) \
+		--output "$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)/fr18-eval-input-seed-$(SEED).json" \
+		$(if $(SUBSET),--subset $(SUBSET),)
+	FR18_EVAL=1 \
+	BNNS_MODEL_URL="$(BNNS_MODEL_URL)" \
+	FR18_EVAL_INPUT="$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)/fr18-eval-input-seed-$(SEED).json" \
+	FR18_EVAL_OUT_DIR="$(FR18_PRED_DIR)$(if $(ARM),/$(ARM),)" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.FR18EvaluationHarnessTests/fr18RuntimeEvaluation
+
+## fr18-evaluate: Aggregate the 5 FR-18 gates across all seed dirs in FR18_PRED_DIR + emit the KDD-B5 decision
+.PHONY: fr18-evaluate
+fr18-evaluate:
+	cd $(ML_TRAINING_DIR) && uv run python evaluate_fr18.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training" \
+		$(FR18_EVAL_ARGS)
+
+# ---------------------------------------------------------------------------
+# Story 7.7 — Epic 7 close-out harness (develop-only, operator-run for the
+# authoritative numbers). The v2 model does not exist yet (KDD-B4 signoff
+# pending -> 7.5 training -> 7.6 eval), so these smoke against the v1 negative
+# control / synthetic fixtures and the authoritative runs are operator-owned.
+# ---------------------------------------------------------------------------
+EPIC7_V2_CHECKPOINT ?= $(CURDIR)/_bmad-output/ml-training/model.pt
+
+## ml-export-v2: Export a v2 checkpoint to CoreML (Story 7.7 AC1; CHECKPOINT= overrides; fails closed if absent)
+.PHONY: ml-export-v2
+ml-export-v2:
+	@if [ ! -e "$(abspath $(EPIC7_V2_CHECKPOINT))" ]; then \
+		echo "Error: v2 checkpoint not found at $(abspath $(EPIC7_V2_CHECKPOINT))."; \
+		echo "Override with: make ml-export-v2 EPIC7_V2_CHECKPOINT=path/to/giantsteps_v2_seed_N.pt"; \
+		exit 1; \
+	fi
+	@mkdir -p "$(CURDIR)/_bmad-output/ml-models"
+	cd $(ML_TRAINING_DIR) && uv run python export.py \
+		--checkpoint "$(abspath $(EPIC7_V2_CHECKPOINT))" --output ../ml-models/giantsteps_v2.mlmodel
+
+## holdout-sample: Sample the sealed stratified GiantSteps holdout (Story 7.7 AC6; needs GIANTSTEPS_CORPUS_PATH)
+.PHONY: holdout-sample
+holdout-sample:
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/sample-giantsteps-holdout.py $(HOLDOUT_ARGS)
+
+## holdout-gap: GiantSteps holdout-gap over Story-7.6 dumps (Story 7.7 AC6; FR18_PRED_DIR=)
+.PHONY: holdout-gap
+holdout-gap:
+	cd $(ML_TRAINING_DIR) && uv run python holdout_gap.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training" $(HOLDOUT_GAP_ARGS)
+
+## calibration-verify: FR-25 calibration verification + reliability PNG (Story 7.7 AC3/AC4; FR18_PRED_DIR=)
+.PHONY: calibration-verify
+calibration-verify:
+	cd $(ML_TRAINING_DIR) && uv run python calibration_verification.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training" $(CALIBRATION_ARGS)
+
+## fr24-net-benefit: FR-24 semi-supervised net-benefit gate (Story 7.7 AC5; FR18_PRED_DIR holds <arm>/seed_N/)
+.PHONY: fr24-net-benefit
+fr24-net-benefit:
+	cd $(ML_TRAINING_DIR) && uv run python fr24_net_benefit.py \
+		--runtime-predictions "$(FR18_PRED_DIR)" \
+		--out-dir "$(CURDIR)/_bmad-output/ml-training"
+
+## epic7-freeze: FR-20 reproducibility freeze (Story 7.7 AC7; DECISION=bundle|byow, default byow)
+.PHONY: epic7-freeze
+epic7-freeze:
+	cd $(ML_TRAINING_DIR) && uv run python epic7_freeze.py --decision $(if $(DECISION),$(DECISION),byow)
+
+## post-bundle-watchlist: Post-bundle regression watchlist v2 (Story 7.7 AC8; FR18_PRED_DIR=)
+.PHONY: post-bundle-watchlist
+post-bundle-watchlist:
+	cd $(ML_TRAINING_DIR) && uv run python post_bundle_watchlist.py \
+		--runtime-predictions "$(FR18_PRED_DIR)"

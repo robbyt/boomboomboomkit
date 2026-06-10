@@ -31,6 +31,11 @@ struct CLI: Sendable {
   var concurrency: Int
   var intensity: Int
   var limit: Int?
+  /// When true, runs DSP with `MetadataPolicy.disabled` so `result.bpm` is a
+  /// BPM-tag-blind DSP estimate (no ID3/MP4/Vorbis corroboration). Used by the
+  /// non-Rekordbox expansion survey (Story 7.2) to keep the DSP signal
+  /// provenance-independent of the file-metadata BPM it is later compared with.
+  var noMetadata: Bool
 
   static func parse(_ argv: [String]) -> CLI {
     var surveyJSON: URL?
@@ -38,6 +43,7 @@ struct CLI: Sendable {
     var concurrency = ProcessInfo.processInfo.activeProcessorCount
     var intensity = 7
     var limit: Int?
+    var noMetadata = false
 
     var i = 1
     while i < argv.count {
@@ -58,6 +64,8 @@ struct CLI: Sendable {
       case "--limit":
         i += 1
         limit = Int(argv[i])
+      case "--no-metadata":
+        noMetadata = true
       case "--help", "-h":
         printUsage()
         exit(0)
@@ -77,7 +85,8 @@ struct CLI: Sendable {
 
     return CLI(
       surveyJSON: surveyJSON, output: output,
-      concurrency: concurrency, intensity: intensity, limit: limit)
+      concurrency: concurrency, intensity: intensity, limit: limit,
+      noMetadata: noMetadata)
   }
 }
 
@@ -85,11 +94,16 @@ func printUsage() {
   let usage = """
     usage: tony-dsp-prepass --survey-json <path> --output <path>
                             [--concurrency N] [--intensity 1..10] [--limit N]
+                            [--no-metadata]
 
     Reads a survey JSON produced by scripts/tony-tunes-survey.py, filters to
     tracks where resolve_status == "ok", runs AudioAnalysisService.analyzeBPM
     against each in a bounded TaskGroup, and writes per-track DSP results to
     --output.
+
+    --no-metadata  Run DSP with MetadataPolicy.disabled (BPM-tag-blind: no
+                   ID3/MP4/Vorbis corroboration). Used by the Story 7.2
+                   non-Rekordbox expansion survey.
     """
   fputs(usage + "\n", stderr)
 }
@@ -152,6 +166,7 @@ struct DSPRunMetadata: Encodable, Sendable {
   let intensity: Int
   let concurrency: Int
   let trackCount: Int
+  let noMetadata: Bool
 
   enum CodingKeys: String, CodingKey {
     case schemaVersion = "schema_version"
@@ -160,6 +175,7 @@ struct DSPRunMetadata: Encodable, Sendable {
     case intensity
     case concurrency
     case trackCount = "track_count"
+    case noMetadata = "no_metadata"
   }
 }
 
@@ -172,7 +188,7 @@ struct DSPOutput: Encodable, Sendable {
 // Single-track analysis (synchronous — analyzeBPM is sync `throws`)
 // ---------------------------------------------------------------------------
 
-func analyze(track: SurveyTrack, intensity: Int) -> DSPTrackResult {
+func analyze(track: SurveyTrack, intensity: Int, noMetadata: Bool) -> DSPTrackResult {
   guard let path = track.localPath, track.resolveStatus == "ok" else {
     return DSPTrackResult(
       trackId: track.trackId, localPath: track.localPath ?? "",
@@ -183,6 +199,11 @@ func analyze(track: SurveyTrack, intensity: Int) -> DSPTrackResult {
   let url = URL(fileURLWithPath: path)
   var options = AudioAnalysisService.Options()
   options.intensity = AnalysisIntensity(rawValue: intensity)
+  if noMetadata {
+    // BPM-tag-blind DSP: suppress ID3/MP4/Vorbis tag I/O and merge-stage
+    // corroboration so result.bpm is a pure DSP estimate (Story 7.2 DD #2).
+    options.metadataPolicy = .disabled
+  }
 
   do {
     guard let result = try AudioAnalysisService.analyzeBPM(url: url, options: options) else {
@@ -211,7 +232,7 @@ func analyze(track: SurveyTrack, intensity: Int) -> DSPTrackResult {
 // ---------------------------------------------------------------------------
 
 func runBatch(
-  tracks: [SurveyTrack], concurrency: Int, intensity: Int
+  tracks: [SurveyTrack], concurrency: Int, intensity: Int, noMetadata: Bool
 ) async -> [DSPTrackResult] {
   let total = tracks.count
   let completedCounter = Counter()
@@ -229,7 +250,7 @@ func runBatch(
       inflight += 1
       group.addTask {
         let started = Date()
-        let result = analyze(track: track, intensity: intensity)
+        let result = analyze(track: track, intensity: intensity, noMetadata: noMetadata)
         let done = await completedCounter.increment()
         let elapsed = Date().timeIntervalSince(started)
         let basename = (track.localPath as NSString?)?.lastPathComponent ?? track.trackId
@@ -303,7 +324,8 @@ struct App {
 
     let started = Date()
     let results = await runBatch(
-      tracks: resolved, concurrency: cli.concurrency, intensity: cli.intensity)
+      tracks: resolved, concurrency: cli.concurrency, intensity: cli.intensity,
+      noMetadata: cli.noMetadata)
     let elapsed = Date().timeIntervalSince(started)
 
     let okCount = results.filter { $0.error == nil }.count
@@ -319,7 +341,8 @@ struct App {
       surveySource: cli.surveyJSON.path,
       intensity: cli.intensity,
       concurrency: cli.concurrency,
-      trackCount: results.count)
+      trackCount: results.count,
+      noMetadata: cli.noMetadata)
     let output = DSPOutput(metadata: metadata, tracks: results)
 
     let encoder = JSONEncoder()

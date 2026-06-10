@@ -127,9 +127,7 @@ def main(argv=None) -> int:
     convert_start = time.time()
     ml_model = ct.convert(
         traced,
-        inputs=[
-            ct.TensorType(name="input", shape=(1, 1, 128, 512), dtype=np.float32)
-        ],
+        inputs=[ct.TensorType(name="input", shape=(1, 1, 128, 512), dtype=np.float32)],
         outputs=[ct.TensorType(name="output", dtype=np.float32)],
         minimum_deployment_target=ct.target.macOS15,
         compute_units=ct.ComputeUnit.CPU_ONLY,
@@ -159,7 +157,10 @@ def main(argv=None) -> int:
         staging_pkg = staging_dir / "model.mlpackage"
         ml_model.save(str(staging_pkg))
         if not staging_pkg.exists():
-            print(f"\n*** HALT (b): coremltools.save did not produce {staging_pkg} ***", file=sys.stderr)
+            print(
+                f"\n*** HALT (b): coremltools.save did not produce {staging_pkg} ***",
+                file=sys.stderr,
+            )
             return 2
 
         if out_path.suffix == ".mlpackage":
@@ -176,19 +177,26 @@ def main(argv=None) -> int:
         staged_in = [i.name for i in staged_spec.description.input]
         staged_out = [o.name for o in staged_spec.description.output]
         if staged_in != ["input"]:
-            print(f"\n*** HALT (b): staged input tensor name {staged_in} != ['input'] ***", file=sys.stderr)
+            print(
+                f"\n*** HALT (b): staged input tensor name {staged_in} != ['input'] ***",
+                file=sys.stderr,
+            )
             return 2
         if staged_out != ["output"]:
             # Defensive fallback: rename and re-save.
             print(f"Output name {staged_out} != ['output']; applying ct.utils.rename_feature...")
-            ct.utils.rename_feature(staged_spec, staged_out[0], "output", rename_inputs=False, rename_outputs=True)
+            ct.utils.rename_feature(
+                staged_spec, staged_out[0], "output", rename_inputs=False, rename_outputs=True
+            )
             staged_loaded = ct.models.MLModel(staged_spec, weights_dir=staged_loaded.weights_dir)
             staged_loaded.save(str(staged_final))
             staged_loaded = ct.models.MLModel(str(staged_final))
             staged_spec = staged_loaded.get_spec()
             staged_out = [o.name for o in staged_spec.description.output]
             if staged_out != ["output"]:
-                print(f"\n*** HALT (b): output rename failed; still {staged_out} ***", file=sys.stderr)
+                print(
+                    f"\n*** HALT (b): output rename failed; still {staged_out} ***", file=sys.stderr
+                )
                 return 2
 
         # Promote staged artifact → consumer's --output (crash-recoverable).
@@ -263,7 +271,7 @@ def main(argv=None) -> int:
     print(f"PyTorch params: {n_params}")
     print(f"Eager-vs-traced max abs: {eager_vs_traced_max_abs:.6e}")
     print(f"Convert-roundtrip max abs: {roundtrip_max:.6e}")
-    print(f"Tensor names: input='input', output='output'")
+    print("Tensor names: input='input', output='output'")
 
     # Emit a small convert-report next to the model
     report = {

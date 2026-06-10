@@ -1,0 +1,13 @@
+{
+  "architecture": "TempoCNN",
+  "corpusVersionHash": "960ad78d0b565588440bd0a1dcd0980020217c58f2faaba6533b158dcbdaa47e",
+  "epochCount": 60,
+  "featureSetVersion": "v1",
+  "harnessGitSha": "1de1b34",
+  "metadataSchema": "ablation-v1",
+  "promotable": false,
+  "scaffoldingNote": "v1 features \u2014 FR-18 metrics do not transfer to v2",
+  "seed": 42,
+  "trainingVariant": "supervisedAugmented",
+  "weightingProfile": "uniform"
+}

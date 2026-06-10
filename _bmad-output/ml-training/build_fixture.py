@@ -46,7 +46,7 @@ def main() -> int:
         h.update(f.read())
     actual_sha = h.hexdigest()
     if actual_sha != expected_sha:
-        print(f"ERROR: SHA-256 mismatch", file=sys.stderr)
+        print("ERROR: SHA-256 mismatch", file=sys.stderr)
         print(f"  expected: {expected_sha}", file=sys.stderr)
         print(f"  actual:   {actual_sha}", file=sys.stderr)
         return 1

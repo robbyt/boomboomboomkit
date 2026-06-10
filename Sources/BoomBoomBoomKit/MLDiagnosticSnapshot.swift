@@ -32,7 +32,7 @@ import Foundation
 /// and the harness derives the histogram bucket from
 /// `MLEvaluation == nil && mlDiagnosticSnapshot == nil` plus trace-state
 /// inspection (`mlFeatures == nil` → ``FailureStage/featuresAbsent``;
-/// `featureSetVersion != "v1"` → ``FailureStage/featureVersionMismatch``).
+/// `featureSetVersion != "v2"` → ``FailureStage/featureVersionMismatch``).
 ///
 /// ## Population matrix
 ///

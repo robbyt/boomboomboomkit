@@ -337,7 +337,7 @@ struct MLFeatureFramesTests {
     // conformance) whose retention path emits mel-major bytes.
     #expect(features.tensorLayout == .frameMajorLogMel)
     #expect(features.logMelData.count == features.melBands * features.frames)
-    #expect(features.featureSetVersion == "v1")
+    #expect(features.featureSetVersion == "v2")
     #expect(features.fftSize == 2048)
     #expect(features.logCompressionScale == 100.0)
   }
@@ -380,7 +380,7 @@ struct MLFeatureFramesTests {
     #expect(features.melBands == 128)
     #expect(features.frames > 0)
     #expect(features.logMelData.count == features.melBands * features.frames)
-    #expect(features.featureSetVersion == "v1")
+    #expect(features.featureSetVersion == "v2")
     #expect(features.tensorLayout == .frameMajorLogMel)
   }
 
@@ -460,7 +460,7 @@ struct MLFeatureFramesTests {
     #expect(captured.logMelData.count == captured.melBands * captured.frames)
     #expect(captured.melBands == 128)
     #expect(captured.tensorLayout == TensorLayout.frameMajorLogMel)
-    #expect(captured.featureSetVersion == "v1")
+    #expect(captured.featureSetVersion == "v2")
 
     // All values must be finite — if vvlogf produced NaN/Inf for any
     // reason, that's the bug HALT (h) is built to catch.
