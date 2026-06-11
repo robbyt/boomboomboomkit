@@ -836,6 +836,14 @@ public struct AudioAnalysisService {
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
       from: url, maxSeconds: options.maxSeconds
     )
+    // Story 8-2 commit 1: wrap in the DecodedAudio currency with placeholder
+    // provenance (carrier-only — nothing downstream branches on it). The
+    // content-true codec tagging arrives with the `decodeOnce` funnel /
+    // `readDecodedAudio` producer in the seam commit.
+    let decoded = FeatureSubstrate.DecodedAudio(
+      samples: samples, sampleRate: sampleRate,
+      codecPriming: FeatureSubstrate.PrimingInfo(
+        codec: .unknown, trimState: .unknown))
 
     // Resolve the technique set once: explicit override wins, otherwise derive from
     // intensity. BPMAnalyzer.estimateBPM repeats this resolution internally, but we need
@@ -864,7 +872,7 @@ public struct AudioAnalysisService {
 
       guard
         let bpmResult = BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate,
+          decoded: decoded,
           options: .init(
             analysisWindowSeconds: windowSeconds,
             intensity: options.intensity,
@@ -1037,10 +1045,13 @@ public struct AudioAnalysisService {
       throw LUFSAnalysisError.unsupportedSampleRate(
         sampleRate: sampleRate, supported: LUFSAnalyzer.supportedSampleRates)
     }
-    guard
-      let result = LUFSAnalyzer.measureLoudness(
-        samples: samples, sampleRate: sampleRate)
-    else {
+    // Story 8-2 commit 1: DecodedAudio currency with placeholder provenance
+    // (see runPreCorroborationPipeline for the rationale).
+    let decoded = FeatureSubstrate.DecodedAudio(
+      samples: samples, sampleRate: sampleRate,
+      codecPriming: FeatureSubstrate.PrimingInfo(
+        codec: .unknown, trimState: .unknown))
+    guard let result = LUFSAnalyzer.measureLoudness(decoded: decoded) else {
       return nil
     }
     return LUFSReport(

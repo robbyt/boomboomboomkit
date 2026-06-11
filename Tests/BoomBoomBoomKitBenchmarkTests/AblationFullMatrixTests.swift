@@ -519,7 +519,7 @@ struct AblationMatrixTests {
               let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
                 from: url, maxSeconds: 120)
               let r = BPMAnalyzer.estimateBPM(
-                samples: samples, sampleRate: sampleRate,
+                decoded: .synthetic(samples, sampleRate: sampleRate),
                 options: .init(techniqueSet: techniqueSet))
               return (i, track.bpm, r?.bpm)
             } catch {
@@ -594,10 +594,10 @@ struct AblationMatrixTests {
             let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
               from: url, maxSeconds: 120)
             let off = BPMAnalyzer.estimateBPM(
-              samples: samples, sampleRate: sampleRate,
+              decoded: .synthetic(samples, sampleRate: sampleRate),
               options: .init(techniqueSet: withoutClick, enableTrace: true))
             let on = BPMAnalyzer.estimateBPM(
-              samples: samples, sampleRate: sampleRate,
+              decoded: .synthetic(samples, sampleRate: sampleRate),
               options: .init(techniqueSet: withClick, enableTrace: true))
             let preOff = off?.candidates.first?.bpm
             let preOn = on?.candidates.first?.bpm
@@ -707,10 +707,10 @@ struct AblationMatrixTests {
             }
 
             let off = BPMAnalyzer.estimateBPM(
-              samples: samples, sampleRate: sampleRate,
+              decoded: .synthetic(samples, sampleRate: sampleRate),
               options: .init(techniqueSet: techniqueSet, enableTrace: true))
             let on = BPMAnalyzer.estimateBPM(
-              samples: samples, sampleRate: sampleRate,
+              decoded: .synthetic(samples, sampleRate: sampleRate),
               options: .init(
                 techniqueSet: techniqueSet,
                 enableTrace: true,
@@ -879,7 +879,8 @@ struct AblationMatrixTests {
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
       guard
         let result = BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate, options: .init(techniqueSet: techniqueSet))
+          decoded: .synthetic(samples, sampleRate: sampleRate),
+          options: .init(techniqueSet: techniqueSet))
       else {
         total += 1
         continue
@@ -909,7 +910,8 @@ struct AblationMatrixTests {
 
       let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 120)
       if let result = BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, options: .init(techniqueSet: techniqueSet))
+        decoded: .synthetic(samples, sampleRate: sampleRate),
+        options: .init(techniqueSet: techniqueSet))
       {
         results[track.filename] = result.bpm
       }

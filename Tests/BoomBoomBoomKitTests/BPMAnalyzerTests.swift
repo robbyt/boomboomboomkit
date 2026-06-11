@@ -26,7 +26,7 @@ struct BPMAnalyzer120BPMTests {
   @Test("detects 120 BPM from synthetic click track")
   func detect120BPM() throws {
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 118 && result.bpm <= 122,
       "Expected ~120 BPM, got \(result.bpm)")
@@ -35,7 +35,7 @@ struct BPMAnalyzer120BPMTests {
   @Test("120 BPM click track has confidence > 0.5")
   func confidence120BPM() throws {
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.confidence > 0.5,
       "Expected confidence > 0.5, got \(result.confidence)")
@@ -45,7 +45,7 @@ struct BPMAnalyzer120BPMTests {
   func detect120BPMat48kHz() throws {
     let samples48k = generateClickTrack(bpm: 120, sampleRate: 48000, durationSeconds: 15)
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples48k, sampleRate: 48000))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples48k, sampleRate: 48000)))
     #expect(
       result.bpm >= 118 && result.bpm <= 122,
       "Expected ~120 BPM at 48kHz, got \(result.bpm)")
@@ -68,7 +68,7 @@ struct BPMAnalyzer140BPMTests {
   @Test("detects 140 BPM from synthetic click track")
   func detect140BPM() throws {
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 138 && result.bpm <= 142,
       "Expected ~140 BPM, got \(result.bpm)")
@@ -77,7 +77,7 @@ struct BPMAnalyzer140BPMTests {
   @Test("140 BPM click track has confidence > 0.5")
   func confidence140BPM() throws {
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.confidence > 0.5,
       "Expected confidence > 0.5, got \(result.confidence)")
@@ -92,7 +92,7 @@ struct BPMAnalyzerSilenceTests {
   @Test("silence returns nil")
   func silenceReturnsNil() {
     let samples = [Float](repeating: 0, count: Int(44100 * 10))
-    let result = BPMAnalyzer.estimateBPM(samples: samples, sampleRate: 44100)
+    let result = BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: 44100))
     #expect(result == nil, "Silence should return nil")
   }
 }
@@ -107,7 +107,7 @@ struct BPMAnalyzerFixtureTests {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 30)
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate),
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)),
       "Expected non-nil BPM for real audio")
     #expect(result.confidence > 0, "Expected positive confidence")
     #expect(
@@ -125,13 +125,13 @@ struct BPMAnalyzerEdgeCaseTests {
   func shortInputReturnsNil() {
     // 0.5 seconds of non-silent audio
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 0.5)
-    let result = BPMAnalyzer.estimateBPM(samples: samples, sampleRate: 44100)
+    let result = BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: 44100))
     #expect(result == nil, "Short input should return nil")
   }
 
   @Test("empty samples returns nil")
   func emptyReturnsNil() {
-    let result = BPMAnalyzer.estimateBPM(samples: [], sampleRate: 44100)
+    let result = BPMAnalyzer.estimateBPM(decoded: .synthetic([], sampleRate: 44100))
     #expect(result == nil, "Empty input should return nil")
   }
 
@@ -143,7 +143,7 @@ struct BPMAnalyzerEdgeCaseTests {
       // Map UInt64 to [-1.0, 1.0]
       Float(Double(rng.next()) / Double(UInt64.max)) * 2.0 - 1.0
     }
-    let result = BPMAnalyzer.estimateBPM(samples: samples, sampleRate: 44100)
+    let result = BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: 44100))
     if let result {
       #expect(
         result.confidence < 0.5,
@@ -174,7 +174,7 @@ struct BPMAnalyzer85BPMTests {
     // that doesn't affect real music (where the fundamental is stronger).
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, options: .init(intensity: 4)))
+        decoded: .synthetic(samples, sampleRate: sampleRate), options: .init(intensity: 4)))
     #expect(
       result.bpm >= 83 && result.bpm <= 87,
       "Expected ~85 BPM, got \(result.bpm)")
@@ -188,7 +188,8 @@ struct BPMAnalyzer85BPMTests {
       let intensity = AnalysisIntensity(rawValue: level)
       let result = try #require(
         BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate, options: .init(intensity: intensity)))
+          decoded: .synthetic(samples, sampleRate: sampleRate), options: .init(intensity: intensity)
+        ))
       let topCandidate = result.candidates.first!.bpm
       #expect(
         topCandidate >= 83 && topCandidate <= 87,
@@ -287,8 +288,7 @@ struct BPMAnalyzerTraceTests {
   @Test("trace is nil when enableTrace is false")
   func traceNilByDefault() {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
-    let result = BPMAnalyzer.estimateBPM(
-      samples: samples, sampleRate: 44100)
+    let result = BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: 44100))
     #expect(result?.trace == nil)
   }
 
@@ -297,7 +297,7 @@ struct BPMAnalyzerTraceTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, options: .init(enableTrace: true)))
+        decoded: .synthetic(samples, sampleRate: 44100), options: .init(enableTrace: true)))
     let trace = try #require(result.trace)
     #expect(trace.onsetEnvelopeLength > 0)
     #expect(!trace.rawCandidates.isEmpty)
@@ -311,7 +311,8 @@ struct BPMAnalyzerTraceTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, options: .init(intensity: 1, enableTrace: true)))
+        decoded: .synthetic(samples, sampleRate: 44100),
+        options: .init(intensity: 1, enableTrace: true)))
     let trace = try #require(result.trace)
     #expect(trace.subBandEnergies == .zero)
     #expect(trace.refinedBPM == nil)
@@ -329,7 +330,7 @@ struct BPMAnalyzerIntensityTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, options: .init(intensity: 1)))
+        decoded: .synthetic(samples, sampleRate: 44100), options: .init(intensity: 1)))
     #expect(
       result.bpm >= 116 && result.bpm <= 124,
       "Expected ~120 BPM at intensity 1, got \(result.bpm)")
@@ -339,7 +340,7 @@ struct BPMAnalyzerIntensityTests {
   func defaultIntensityRegression() throws {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: 44100))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: 44100)))
     #expect(
       result.bpm >= 118 && result.bpm <= 122,
       "Expected ~120 BPM at default intensity, got \(result.bpm)")
@@ -357,7 +358,7 @@ struct BPMAnalyzerIntensityTests {
         let intensity = AnalysisIntensity(rawValue: level)
         let result = try #require(
           BPMAnalyzer.estimateBPM(
-            samples: samples, sampleRate: 44100, options: .init(intensity: intensity)),
+            decoded: .synthetic(samples, sampleRate: 44100), options: .init(intensity: intensity)),
           "\(tc.bpm) BPM at intensity \(level) should not be nil")
         #expect(
           abs(result.bpm - tc.bpm) <= tc.tolerance,
@@ -379,7 +380,7 @@ struct BPMAnalyzerMelOnsetTests {
 
     // Test via the public API — if estimateBPM returns a result, the onset envelope worked
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate),
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)),
       "Expected non-nil result for 120 BPM click track (onset envelope must be non-empty)")
     #expect(result.bpm >= 118 && result.bpm <= 122, "Expected ~120 BPM, got \(result.bpm)")
   }
@@ -447,7 +448,7 @@ struct BPMAnalyzerFineGridPrecisionTests {
     let actualBPM = sampleRate * 60.0 / Double(samplesPerBeat)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate,
+        decoded: .synthetic(samples, sampleRate: sampleRate),
         options: .init(intensity: 7, enableTrace: true)),
       "\(trueBPM) BPM @ \(sampleRate) Hz click track should produce a result")
     #expect(
@@ -482,7 +483,7 @@ struct BPMAnalyzerFineGridPrecisionTests {
         bpm: trueBPM, sampleRate: Self.traceSampleRate, durationSeconds: Self.durationSeconds)
       let result = try #require(
         BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: Self.traceSampleRate,
+          decoded: .synthetic(samples, sampleRate: Self.traceSampleRate),
           options: .init(intensity: 7, enableTrace: true)),
         "\(trueBPM) BPM click track should produce a result")
       let trace = try #require(result.trace, "trace must be populated when enableTrace: true")
@@ -514,7 +515,7 @@ struct BPMAnalyzer160BPMTests {
   @Test("detects 160 BPM from synthetic click track (not 80)")
   func detect160BPM() throws {
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 158 && result.bpm <= 162,
       "Expected ~160 BPM, got \(result.bpm)")
@@ -536,7 +537,7 @@ struct BPMAnalyzer80BPMTests {
   @Test("detects 80 BPM from synthetic click track (not 160)")
   func detect80BPM() throws {
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 78 && result.bpm <= 82,
       "Expected ~80 BPM, got \(result.bpm)")
@@ -558,7 +559,7 @@ struct BPMAnalyzer170BPMTests {
   @Test("detects 170 BPM from synthetic click track")
   func detect170BPM() throws {
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 168 && result.bpm <= 172,
       "Expected ~170 BPM, got \(result.bpm)")
@@ -580,7 +581,7 @@ struct BPMAnalyzerEnergyScanTests {
     let combined = silenceSamples + clickSamples
 
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: combined, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(combined, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 118 && result.bpm <= 122,
       "Expected ~120 BPM with silence intro, got \(result.bpm)")
@@ -591,7 +592,7 @@ struct BPMAnalyzerEnergyScanTests {
     let sampleRate: Double = 44100
     let samples = generateClickTrack(bpm: 120, sampleRate: sampleRate, durationSeconds: 15)
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 118 && result.bpm <= 122,
       "Expected ~120 BPM for constant energy, got \(result.bpm)")
@@ -600,7 +601,7 @@ struct BPMAnalyzerEnergyScanTests {
   @Test("full silence returns nil")
   func fullSilenceReturnsNil() {
     let samples = [Float](repeating: 0, count: Int(44100 * 40))
-    let result = BPMAnalyzer.estimateBPM(samples: samples, sampleRate: 44100)
+    let result = BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: 44100))
     #expect(result == nil, "Full silence should return nil")
   }
 }
@@ -785,7 +786,7 @@ struct BPMAnalyzerSubBandVotingTests {
 
     // The full pipeline (with sub-band voting as promotion-only) should still detect 160 BPM
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate)))
     #expect(
       result.bpm >= 158 && result.bpm <= 162,
       "Expected ~160 BPM from full pipeline, got \(result.bpm)")
@@ -895,7 +896,7 @@ struct BPMAnalyzerReviewFixTests {
 
   @Test("silence detection on empty array")
   func silenceEmptyArray() {
-    let result = BPMAnalyzer.estimateBPM(samples: [], sampleRate: 44100)
+    let result = BPMAnalyzer.estimateBPM(decoded: .synthetic([], sampleRate: 44100))
     #expect(result == nil)
   }
 
@@ -904,7 +905,7 @@ struct BPMAnalyzerReviewFixTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100,
+        decoded: .synthetic(samples, sampleRate: 44100),
         options: .init(techniqueSet: .optimal, enableTrace: true)))
     let trace = try #require(result.trace)
     // Sub-band voting runs with .optimal (contains .subBandVoting)
@@ -1788,7 +1789,7 @@ struct BPMAnalyzerHarmonicRatioTests {
     let samples = generateClickTrack(bpm: 160, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100,
+        decoded: .synthetic(samples, sampleRate: 44100),
         options: .init(techniqueSet: .optimal, enableTrace: true)))
     let trace = try #require(result.trace)
     let detail = try #require(trace.harmonicRatioDetail)

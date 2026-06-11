@@ -4,6 +4,7 @@
 //
 
 import Accelerate
+import BoomBoomBoomKitTestSupport
 import Foundation
 import Testing
 
@@ -75,9 +76,9 @@ struct LUFSKWeightingTests {
       frequencyHz: 100, sampleRate: 48000, durationSeconds: 5.0, targetLUFS: -20.0)
 
     let result3k = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples3k, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples3k, sampleRate: 48000)))
     let result100 = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples100, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples100, sampleRate: 48000)))
 
     #expect(
       result3k.integratedLoudness > result100.integratedLoudness,
@@ -94,9 +95,9 @@ struct LUFSKWeightingTests {
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 5.0, targetLUFS: -20.0)
 
     let result30 = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples30, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples30, sampleRate: 48000)))
     let result997 = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples997, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples997, sampleRate: 48000)))
 
     // High-pass should attenuate 30Hz significantly (>8 dB difference)
     let difference = result997.integratedLoudness - result30.integratedLoudness
@@ -116,7 +117,7 @@ struct LUFSCalibrationTests {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 10.0, targetLUFS: -23.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
 
     let error = abs(result.integratedLoudness - (-23.0))
     #expect(
@@ -131,7 +132,7 @@ struct LUFSCalibrationTests {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 10.0, targetLUFS: -14.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
 
     let error = abs(result.integratedLoudness - (-14.0))
     #expect(
@@ -148,7 +149,7 @@ struct LUFSEdgeCaseTests {
   @Test("silence (all zeros) returns nil")
   func silenceReturnsNil() {
     let samples = [Float](repeating: 0, count: Int(48000 * 10))
-    let result = LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000)
+    let result = LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000))
     #expect(result == nil, "Silence should return nil, not a numeric LUFS value")
   }
 
@@ -157,13 +158,13 @@ struct LUFSEdgeCaseTests {
     // 200ms of audio — cannot form a single 400ms block
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 0.2, targetLUFS: -14.0)
-    let result = LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000)
+    let result = LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000))
     #expect(result == nil, "Short signal (< 400ms) should return nil")
   }
 
   @Test("empty samples returns nil")
   func emptyReturnsNil() {
-    let result = LUFSAnalyzer.measureLoudness(samples: [], sampleRate: 48000)
+    let result = LUFSAnalyzer.measureLoudness(decoded: .synthetic([], sampleRate: 48000))
     #expect(result == nil, "Empty samples should return nil")
   }
 
@@ -171,7 +172,7 @@ struct LUFSEdgeCaseTests {
   func unsupportedSampleRateReturnsNil() {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 22050, durationSeconds: 5.0, targetLUFS: -14.0)
-    let result = LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 22050)
+    let result = LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 22050))
     #expect(result == nil, "Unsupported sample rate (22050) should return nil")
   }
 }
@@ -192,7 +193,7 @@ struct LUFSGatingTests {
     let mixed = loud1 + silence + loud2
 
     let mixedResult = try #require(
-      LUFSAnalyzer.measureLoudness(samples: mixed, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(mixed, sampleRate: 48000)))
 
     // With gating, silence is excluded. Result should be close to -14 LUFS (loud sections only).
     let gatingError = abs(mixedResult.integratedLoudness - (-14.0))
@@ -217,7 +218,7 @@ struct LUFSSampleRateTests {
       let samples = generateSineWave(
         frequencyHz: 997, sampleRate: rate, durationSeconds: 10.0, targetLUFS: -20.0)
       let result = try #require(
-        LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: rate),
+        LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: rate)),
         "Expected non-nil result at \(rate) Hz")
       results.append((rate: rate, lufs: result.integratedLoudness))
     }
@@ -246,7 +247,7 @@ struct LUFSPerformanceTests {
       frequencyHz: 997, sampleRate: 44100, durationSeconds: 30.0, targetLUFS: -14.0)
 
     let start = CFAbsoluteTimeGetCurrent()
-    let result = LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 44100)
+    let result = LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 44100))
     let elapsed = CFAbsoluteTimeGetCurrent() - start
 
     #expect(result != nil, "Should produce a result for 30s audio")
@@ -270,7 +271,7 @@ struct LUFSBlockLoudnessTests {
       targetLUFS: -14.0)
 
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: sampleRate))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: sampleRate)))
 
     let blockSize = Int(0.4 * sampleRate)
     let stepSize = Int(0.1 * sampleRate)
@@ -288,7 +289,7 @@ struct LUFSBlockLoudnessTests {
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 5.0, targetLUFS: -14.0)
 
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
 
     // Skip first few blocks (filter settling time)
     let stableBlocks = Array(result.blockLoudnessValues.dropFirst(5))
@@ -313,7 +314,7 @@ struct LUFSBlockLoudnessTests {
     let samples = generateLoudQuietLoud(sampleRate: sampleRate)
 
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: sampleRate))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: sampleRate)))
 
     let blocks = result.blockLoudnessValues
     let totalBlocks = blocks.count
@@ -367,7 +368,7 @@ struct LUFSShortTermTests {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 10.0, targetLUFS: -20.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
     #expect(result.shortTermLoudnessValues.count == 71)
   }
 
@@ -376,7 +377,7 @@ struct LUFSShortTermTests {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 2.0, targetLUFS: -14.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
     #expect(result.shortTermLoudnessValues.isEmpty)
     #expect(!result.blockLoudnessValues.isEmpty)
   }
@@ -386,7 +387,7 @@ struct LUFSShortTermTests {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 10.0, targetLUFS: -14.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
     // Compare stable interior values (skip filter settle).
     let momentary = result.blockLoudnessValues[40]
     let shortTerm = result.shortTermLoudnessValues[40]
@@ -404,7 +405,7 @@ struct LUFSShortTermTests {
     let loud = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 5.0, targetLUFS: -10.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: quiet + loud, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(quiet + loud, sampleRate: 48000)))
 
     let st = result.shortTermLoudnessValues
     #expect(st.count == 71)
@@ -447,7 +448,7 @@ struct LUFSLoudnessRangeTests {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 30.0, targetLUFS: -14.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
     #expect(result.loudnessRange == nil)
     #expect(result.lraLow == -100.0)
     #expect(result.lraHigh == -100.0)
@@ -462,7 +463,7 @@ struct LUFSLoudnessRangeTests {
     let samples = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 60.0, targetLUFS: -14.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
     let lra = try #require(
       result.loudnessRange, "60.0s fully-gated programme must yield non-nil LRA")
     #expect(
@@ -479,7 +480,7 @@ struct LUFSLoudnessRangeTests {
     let loud = generateSineWave(
       frequencyHz: 997, sampleRate: 48000, durationSeconds: 35.0, targetLUFS: -10.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: quiet + loud, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(quiet + loud, sampleRate: 48000)))
 
     let lra = try #require(result.loudnessRange, "70s gated program must yield non-nil LRA")
     #expect(abs(lra - 20.0) <= 0.5, "expected LRA ≈ 20 LU, got \(lra)")
@@ -507,7 +508,7 @@ struct LUFSReferenceToleranceTests {
       frequencyHz: 997, sampleRate: sampleRate, durationSeconds: 10.0,
       targetLUFS: targetLUFS)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: sampleRate))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: sampleRate)))
     return result.integratedLoudness
   }
 
@@ -659,7 +660,7 @@ struct LUFSTruePeakTests {
   func truePeakOnResult() throws {
     let samples = interSamplePeakSine(sampleRate: 48000, amplitude: 0.5, durationSeconds: 2.0)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: 48000))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: 48000)))
     #expect(abs(result.maxTruePeakDBTP - 20.0 * log10(0.5)) <= 0.3)
   }
 }
@@ -679,9 +680,9 @@ struct LUFSDCOffsetTests {
       dcOffset: 0.1)
 
     let cleanResult = try #require(
-      LUFSAnalyzer.measureLoudness(samples: cleanSamples, sampleRate: sampleRate))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(cleanSamples, sampleRate: sampleRate)))
     let dcResult = try #require(
-      LUFSAnalyzer.measureLoudness(samples: dcSamples, sampleRate: sampleRate))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(dcSamples, sampleRate: sampleRate)))
 
     let diff = abs(cleanResult.integratedLoudness - dcResult.integratedLoudness)
     #expect(

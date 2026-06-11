@@ -284,7 +284,7 @@ struct OA300BenchmarkTests {
         var windowResults: [BPMResult] = []
         for windowSeconds in AnalysisIntensity.default.windowSizes {
           if let result = BPMAnalyzer.estimateBPM(
-            samples: audio.samples, sampleRate: audio.sampleRate,
+            decoded: .synthetic(audio.samples, sampleRate: audio.sampleRate),
             options: .init(
               analysisWindowSeconds: windowSeconds,
               intensity: .default))
@@ -361,7 +361,7 @@ struct OA300BenchmarkTests {
       var windowResults: [BPMResult] = []
       for windowSeconds in AnalysisIntensity.default.windowSizes {
         if let result = BPMAnalyzer.estimateBPM(
-          samples: audio.samples, sampleRate: audio.sampleRate,
+          decoded: .synthetic(audio.samples, sampleRate: audio.sampleRate),
           options: .init(
             analysisWindowSeconds: windowSeconds,
             intensity: .default))

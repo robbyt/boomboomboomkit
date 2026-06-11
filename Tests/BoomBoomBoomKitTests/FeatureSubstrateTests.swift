@@ -25,7 +25,7 @@ struct FeatureSubstrateTests {
       samples: samples,
       sampleRate: sampleRate,
       codecPriming: FeatureSubstrate.PrimingInfo(
-        codec: .wav, leadingTrimFrames: 0, trailingTrimFrames: 0)
+        codec: .linearPCM, trimState: .knownNone)
     )
 
     let produced = try FeatureSubstrate.OnsetFeaturesBuilder.build(
@@ -67,7 +67,7 @@ struct FeatureSubstrateTests {
       samples: samples,
       sampleRate: sampleRate,
       codecPriming: FeatureSubstrate.PrimingInfo(
-        codec: .wav, leadingTrimFrames: 0, trailingTrimFrames: 0)
+        codec: .linearPCM, trimState: .knownNone)
     )
     let produced = try FeatureSubstrate.OnsetFeaturesBuilder.build(
       decoded: decoded, weighting: .uniform)
@@ -106,7 +106,7 @@ struct FeatureSubstrateTests {
       samples: samples,
       sampleRate: sampleRate,
       codecPriming: FeatureSubstrate.PrimingInfo(
-        codec: .wav, leadingTrimFrames: 0, trailingTrimFrames: 0)
+        codec: .linearPCM, trimState: .knownNone)
     )
     let weights = FeatureSubstrate.SubBandWeights(
       kickBandWeight: 1.0,
@@ -274,7 +274,7 @@ struct FeatureSubstrateTests {
 
   @Test func builderFailurePathsThrow() throws {
     let priming = FeatureSubstrate.PrimingInfo(
-      codec: .wav, leadingTrimFrames: 0, trailingTrimFrames: 0)
+      codec: .linearPCM, trimState: .knownNone)
     // (a) audio too short — empty samples yields .empty from
     // computeMelOnsetEnvelopeWithSubBands → builder throws featurizationFailed
     let tooShort = FeatureSubstrate.DecodedAudio(
