@@ -228,6 +228,20 @@ super-flux-impact-report:
 	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests/superFluxImpactReport
 
+## shared-decode-impact-report: Story 8-2 AC8 — per-format sequential-vs-shared wall-clock gates + JSON to _bmad-output/implementation-artifacts/8-2-shared-decode-impact.json. Release config (timing-honest); gate 2 (never slower) asserts, the 0.8x-decode floor reports.
+.PHONY: shared-decode-impact-report
+shared-decode-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	SHARED_DECODE_IMPACT=1 \
+	SHARED_DECODE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.SharedDecodeImpactGateTests
+
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
 .PHONY: bnns-impact-report
 bnns-impact-report:

@@ -19,22 +19,17 @@ struct FeatureSubstrateTests {
 
   @Test func uniformWeightingByteIdentity() throws {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
-    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url)
-
-    let decoded = FeatureSubstrate.DecodedAudio(
-      samples: samples,
-      sampleRate: sampleRate,
-      codecPriming: FeatureSubstrate.PrimingInfo(
-        codec: .linearPCM, trimState: .knownNone)
-    )
+    // Story 8-2 AC4a (additive replacement of the manual construction):
+    // the PRODUCTION producer now feeds the byte-identity scaffold.
+    let decoded = try PCMBufferReader.readDecodedAudio(from: url)
 
     let produced = try FeatureSubstrate.OnsetFeaturesBuilder.build(
       decoded: decoded, weighting: .uniform)
 
-    let hopSize = Int(sampleRate / 100)
+    let hopSize = Int(decoded.sampleRate / 100)
     let direct = BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(
-      samples: samples,
-      sampleRate: sampleRate,
+      samples: decoded.samples,
+      sampleRate: decoded.sampleRate,
       hopSize: hopSize,
       computeSubBands: true,
       normalizeSubBands: false,
@@ -46,6 +41,42 @@ struct FeatureSubstrateTests {
     for i in 0..<produced.logMelData.count {
       #expect(NumericTestHelpers.bitEqual(produced.logMelData[i], retained.logMelData[i]))
     }
+  }
+
+  // MARK: - Story 8-2 AC4: cross-consumer substrate assertion (epic AC6 corrected)
+
+  /// From ONE `readDecodedAudio`-produced `DecodedAudio`: (a) the builder
+  /// facade is bit-equal to the direct `BPMAnalyzer` path (covered above on
+  /// the same producer), (b) the `BeatGridAnalyzer` stub returns bit-equal
+  /// `OnsetFeatures` for the same input, (c) the service LUFS decoded path
+  /// measures the SAME `DecodedAudio` value — LUFS shares the DECODE, not
+  /// the onset features (it K-weights raw samples; no mel/onset stage).
+  @Test func crossConsumerSharedSubstrate() throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let decoded = try PCMBufferReader.readDecodedAudio(from: url)
+
+    // (b) Beat-grid stub vs builder facade: bit-equal OnsetFeatures.
+    let viaBuilder = try FeatureSubstrate.OnsetFeaturesBuilder.build(
+      decoded: decoded, weighting: .uniform)
+    let viaBeatGrid = try BeatGridAnalyzer.onsetFeatures(
+      for: decoded, weighting: .uniform)
+    #expect(viaBeatGrid.melBands == viaBuilder.melBands)
+    #expect(viaBeatGrid.frames == viaBuilder.frames)
+    try #require(viaBeatGrid.logMelData.count == viaBuilder.logMelData.count)
+    for i in 0..<viaBeatGrid.logMelData.count {
+      #expect(
+        NumericTestHelpers.bitEqual(
+          viaBeatGrid.logMelData[i], viaBuilder.logMelData[i]))
+    }
+
+    // (c) LUFS consumes the same carrier value, through the SERVICE seam
+    // (Codex review thread 019eb486: a direct-analyzer call plus identity
+    // re-checks on immutable value data was vacuous). The service decoded
+    // path must measure this exact carrier; the full url-vs-decoded
+    // equality lock lives in `LUFSDecodedEqualityTests`.
+    let lufs = try #require(try AudioAnalysisService.analyzeLUFS(decoded: decoded))
+    #expect(lufs.integratedLUFS.isFinite)
+    #expect(!lufs.momentaryLUFS.isEmpty)
   }
 
   // MARK: - AC #5 featureSetVersion lock

@@ -105,6 +105,213 @@ enum SharedDecodeProbe {
   }
 }
 
+// MARK: - T8 impact harness (DD #10 / AC8 — runs AFTER the seam lands)
+
+private struct FormatImpact: Encodable {
+  let sequentialMedian: Double
+  let sharedMedian: Double
+  let decodeMedian: Double
+  let achievedSaving: Double
+  let floorMet: Bool?
+  let fileCount: Int
+}
+
+private struct ImpactReport: Encodable {
+  let gitSHA: String
+  let date: String
+  let configuration: String
+  let matchedMaxSeconds: Double
+  let measuredReps: Int
+  let perFormat: [String: FormatImpact]
+  let defaultsConfig: [String: Double]
+}
+
+@Suite(
+  "Shared-Decode Impact Gates",
+  .enabled(
+    if: ProcessInfo.processInfo.environment["SHARED_DECODE_IMPACT"] == "1"
+      && SharedDecodeProbe.corpusPath() != nil),
+  .serialized)
+struct SharedDecodeImpactGateTests {
+
+  /// AC8 gates over the live seam:
+  /// - Hard gate 2 (directional, asserted): shared-path wall-clock must not
+  ///   exceed sequential wall-clock beyond measurement noise, per format.
+  /// - Probe-derived floor (reported, NOT asserted — AC8: floor misses are
+  ///   findings + operator decision, not HALT-theater): achieved saving
+  ///   (sequential − shared) ≥ 0.8 × same-run decode median on the
+  ///   decode-heavy formats (mp3, flac). wav-class is reported-only.
+  /// - Secondary informational number at library defaults (BPM 120s cap,
+  ///   LUFS full-file), labeled secondary — never the headline.
+  /// Gate 1 (decode-count == 1) is structural and lives in the unit suite
+  /// (`DecodeCountTests`), not here.
+  @Test func impactGatesAndReport() async throws {
+    let corpus = try #require(SharedDecodeProbe.corpusPath())
+    let byFormat = try SharedDecodeProbe.filesByFormat(corpusPath: corpus)
+
+    let matchedSeconds = 120.0
+    let measuredReps = 3
+    let perFormatCap = 10
+    // Generous noise allowance for the HARD gate: per-file medians on a
+    // shared machine jitter a few percent; the gate exists to catch the
+    // seam being structurally slower, not scheduler noise.
+    let noiseMargin = 1.10
+
+    var bpmOptions = AudioAnalysisService.Options()
+    bpmOptions.maxSeconds = matchedSeconds
+    var lufsOptions = LUFSOptions()
+    lufsOptions.maxSeconds = matchedSeconds
+
+    func sequentialOnce(_ url: URL) throws -> Double {
+      try SharedDecodeProbe.time {
+        _ = try AudioAnalysisService.analyzeBPM(url: url, options: bpmOptions)
+        _ = try AudioAnalysisService.analyzeLUFS(url: url, options: lufsOptions)
+      }
+    }
+    func sharedOnce(_ url: URL) throws -> Double {
+      try SharedDecodeProbe.time {
+        let decoded = try PCMBufferReader.readDecodedAudio(
+          from: url, maxSeconds: matchedSeconds)
+        _ = try AudioAnalysisService.analyzeBPM(decoded: decoded, options: bpmOptions)
+        _ = try AudioAnalysisService.analyzeLUFS(decoded: decoded, options: lufsOptions)
+      }
+    }
+
+    print("\n=== Story 8-2 shared-decode impact (matched maxSeconds=120) ===")
+    #if DEBUG
+      print("WARNING: Debug configuration — timings not representative. Use -c release.")
+    #endif
+
+    var perFormat: [String: FormatImpact] = [:]
+    for format in ProbeFormat.allCases {
+      let candidates = byFormat[format] ?? []
+      guard !candidates.isEmpty else { continue }
+      let files = SharedDecodeProbe.select(candidates, cap: perFormatCap, seed: 0x8_2)
+
+      var sequentialMedians: [Double] = []
+      var sharedMedians: [Double] = []
+      var decodeMedians: [Double] = []
+      for fileURL in files {
+        // Warmups.
+        _ = try sequentialOnce(fileURL)
+        _ = try sharedOnce(fileURL)
+        var seqs: [Double] = []
+        var shareds: [Double] = []
+        var decodes: [Double] = []
+        for _ in 0..<measuredReps {
+          seqs.append(try sequentialOnce(fileURL))
+          shareds.append(try sharedOnce(fileURL))
+          decodes.append(
+            try SharedDecodeProbe.time {
+              _ = try PCMBufferReader.readDecodedAudio(
+                from: fileURL, maxSeconds: matchedSeconds)
+            })
+        }
+        sequentialMedians.append(SharedDecodeProbe.median(seqs))
+        sharedMedians.append(SharedDecodeProbe.median(shareds))
+        decodeMedians.append(SharedDecodeProbe.median(decodes))
+      }
+
+      let sequential = SharedDecodeProbe.median(sequentialMedians)
+      let shared = SharedDecodeProbe.median(sharedMedians)
+      let decode = SharedDecodeProbe.median(decodeMedians)
+      let saving = sequential - shared
+      let isGatedFormat = format == .mp3 || format == .flac
+      let floorMet: Bool? = isGatedFormat ? saving >= 0.8 * decode : nil
+
+      perFormat[format.rawValue] = FormatImpact(
+        sequentialMedian: sequential,
+        sharedMedian: shared,
+        decodeMedian: decode,
+        achievedSaving: saving,
+        floorMet: floorMet,
+        fileCount: files.count)
+
+      print(
+        """
+        \(format.rawValue) (n=\(files.count), reps=\(measuredReps)):
+          sequential = \(String(format: "%.4f", sequential))s
+          shared     = \(String(format: "%.4f", shared))s
+          decode D   = \(String(format: "%.4f", decode))s
+          saving     = \(String(format: "%.4f", saving))s (floor 0.8*D = \(String(format: "%.4f", 0.8 * decode))s)
+          floorMet   = \(floorMet.map(String.init(describing:)) ?? "n/a (reported-only)")
+        """)
+
+      // HARD gate 2: never slower than sequential beyond noise.
+      #expect(
+        shared <= sequential * noiseMargin,
+        "AC8 gate 2 FAILED for \(format.rawValue): shared \(shared)s > sequential \(sequential)s × \(noiseMargin)"
+      )
+      if let floorMet, !floorMet {
+        print(
+          "FLOOR MISS (\(format.rawValue)): finding for operator decision — "
+            + "saving \(String(format: "%.4f", saving))s < 0.8 × D "
+            + "\(String(format: "%.4f", 0.8 * decode))s. NOT a HALT.")
+      }
+    }
+
+    // Secondary informational number at library defaults (BPM maxSeconds
+    // 120 default, LUFS full-file default) on the mp3 set — labeled
+    // secondary, never the headline.
+    var defaultsConfig: [String: Double] = [:]
+    if let mp3Files = byFormat[.mp3], !mp3Files.isEmpty {
+      let files = SharedDecodeProbe.select(mp3Files, cap: 5, seed: 0x8_2)
+      var seqs: [Double] = []
+      var shareds: [Double] = []
+      for fileURL in files {
+        _ = try AudioAnalysisService.analyzeBPM(url: fileURL)
+        seqs.append(
+          try SharedDecodeProbe.time {
+            _ = try AudioAnalysisService.analyzeBPM(url: fileURL)
+            _ = try AudioAnalysisService.analyzeLUFS(url: fileURL)
+          })
+        shareds.append(
+          try SharedDecodeProbe.time {
+            // Library defaults diverge: BPM caps at 120s, LUFS is
+            // full-file. A shared decode must cover the larger window
+            // (full file) to serve both.
+            let decoded = try PCMBufferReader.readDecodedAudio(from: fileURL)
+            _ = try AudioAnalysisService.analyzeBPM(decoded: decoded)
+            _ = try AudioAnalysisService.analyzeLUFS(decoded: decoded)
+          })
+      }
+      defaultsConfig["sequentialMedian"] = SharedDecodeProbe.median(seqs)
+      defaultsConfig["sharedMedian"] = SharedDecodeProbe.median(shareds)
+      defaultsConfig["achievedSaving"] =
+        SharedDecodeProbe.median(seqs) - SharedDecodeProbe.median(shareds)
+      print(
+        "defaults-config (SECONDARY, mp3 n=\(files.count)): sequential "
+          + "\(String(format: "%.4f", defaultsConfig["sequentialMedian"] ?? 0))s, shared "
+          + "\(String(format: "%.4f", defaultsConfig["sharedMedian"] ?? 0))s")
+    }
+
+    // JSON emit.
+    let outDir =
+      ProcessInfo.processInfo.environment["SHARED_DECODE_IMPACT_OUT_DIR"]
+      ?? FileManager.default.currentDirectoryPath
+    let report = ImpactReport(
+      gitSHA: ProcessInfo.processInfo.environment["GIT_SHA"] ?? "unknown",
+      date: ISO8601DateFormatter().string(from: Date()),
+      configuration: {
+        #if DEBUG
+          return "debug"
+        #else
+          return "release"
+        #endif
+      }(),
+      matchedMaxSeconds: matchedSeconds,
+      measuredReps: measuredReps,
+      perFormat: perFormat,
+      defaultsConfig: defaultsConfig)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    let outURL = URL(fileURLWithPath: outDir)
+      .appendingPathComponent("8-2-shared-decode-impact.json")
+    try encoder.encode(report).write(to: outURL)
+    print("impact report written: \(outURL.path)")
+  }
+}
+
 // MARK: - T0 probe (DD #10 — runs BEFORE the seam lands)
 
 @Suite(
