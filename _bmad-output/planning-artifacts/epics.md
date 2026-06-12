@@ -928,35 +928,37 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 
 ### Story 8.2: Shared-decode wiring — three analyzers consume one `DecodedAudio`
 
+> PATCHED by the Story 8-2 PR (spec-validation corrections + the DD #10 perf-AC replacement; original wording preserved in git history). Corrections applied: (1) `PCMBufferReader.read(url:)` never existed — the decode entry is `readMonoSamples(from:maxSeconds:targetSampleRate:)`, and the seam producer is the new `readDecodedAudio(from:maxSeconds:)`; (2) the original AC2's "typically a `DecodedAudio` accessor on `BPMDiagnosticTrace` plus a `decodeOnce` parameter on the service Options struct" was REJECTED at spec review (multi-MB PCM in every Sendable trace snapshot; an Options-level DI seam nothing needs) — the promotion list is the one in the story spec's DD #1; (3) the original AC6 was factually impossible — `LUFSAnalyzer` never consumes `OnsetFeatures` (it K-weights raw samples); corrected to: all three consume the SAME `DecodedAudio`, `OnsetFeatures` bit-identity applies to the onset consumers only; (4) the Tier-3 builder inversion is NOT this story (Story 8.4's step-11 insertion owns it, per Story 6.2 DD #8); (5) the ≥ 35% perf gate was asserted, not derived (Codex CRITICAL, panel unanimous) — replaced by the probe-first formulation below; the T0 probe measured the THEORETICAL ceiling (decode share of sequential) at 33.7% (mp3) / 31.3% (flac) / 6.4% (wav-class), so 35% was physically unreachable; (6) `AudioCodec` reshaped to codec semantics + `PrimingInfo` to `{codec, trimState}` (operator-approved pre-1.0 breaks).
+
 **As a** library consumer,
-**I want** `analyzeBPM`, `analyzeLUFS`, and the forthcoming `analyzeBeatGrid` to share a single decode pass when orchestrated by `AudioAnalysisService`,
-**So that** combined analysis no longer pays 3× file-decode cost, and the `DecodedAudio` seam is in place before any unified `analyze(...)` follow-up.
+**I want** `analyzeBPM` and `analyzeLUFS` (and the forthcoming `analyzeBeatGrid`) to share a single decode pass via public `DecodedAudio`-accepting overloads on `AudioAnalysisService`,
+**So that** combined analysis never pays for the same decode twice (FR-35, structural), and the KDD-C4 seam is in place before Story 8.4's step-11 insertion and any unified `analyze(...)` follow-up.
 
-**Acceptance Criteria:**
+**Acceptance Criteria (as corrected):**
 
-**Given** `AudioAnalysisService` is refactored to expose an internal `decodeOnce(url:options:) -> FeatureSubstrate.DecodedAudio` helper,
-**When** `analyzeBPM` and `analyzeLUFS` are called within the same outer call frame on the same URL,
-**Then** `PCMBufferReader.read(url:)` is invoked exactly once (verified by a test-only injectable decode counter on the service).
+**Given** the internal `decodeOnce(url:maxSeconds:isCancelled:observer:)` funnel,
+**When** `analyzeBPM(url:)` or `analyzeLUFS(url:)` runs,
+**Then** `PCMBufferReader.readDecodedAudio` is invoked exactly once per analysis (verified via the internal `decodeObserver` parameter seam), and the shared pattern — one `readDecodedAudio` + `analyzeBPM(decoded:)` + `analyzeLUFS(decoded:)` — decodes once BY CONSTRUCTION (the decoded overloads have no URL parameter).
 
-**Given** Mary's seam-mitigation rule,
-**When** Story 6.2 left the `FeatureSubstrate.DecodedAudio` type `public` (already) but `AudioAnalysisService`'s decode-orchestration helpers `internal`,
-**Then** this story promotes whichever orchestration touchpoint the public sibling methods need (typically a `DecodedAudio` accessor on `BPMDiagnosticTrace` plus a `decodeOnce` parameter on the service Options struct) to `public` — the promotion list is explicitly enumerated in the PR description.
+**Given** the promotion list in the story spec DD #1 (`readDecodedAudio`, the two decoded overloads, `LUFSOptions.isCancelled`, the `AudioCodec`/`PrimingInfo` reshapes, `DecodedAudio.synthetic` in TestSupport),
+**When** the PR lands,
+**Then** the promotion/removal list appears verbatim in the PR description; no other public surface changes.
 
-**Given** the existing `BPMAnalyzer.estimateBPM` entrypoint,
-**When** the analyzer is refactored to accept `DecodedAudio` instead of `[Float]` + sampleRate scalars,
-**Then** `BPMAnalyzer` signature changes are confined to internal callers (no consumer-facing API change), and `BPMAnalyzerTests` still pass with semantic equality vs the pre-Story-8.2 OA300 measurement (Acc1 ≥ 58/82, Acc2 ≥ 74/82).
+**Given** the removed `estimateBPM(samples:sampleRate:options:)` / `measureLoudness(samples:sampleRate:)` entries (operator no-cruft directive),
+**When** the migration commit (commit 1, mechanical) lands,
+**Then** the full unit suite plus all four corpus floors hold at the exact pre-migration measurement (OA300 Acc1 = 58/82, Acc2 = 74/82; GiantSteps 537/661, 546/661).
 
-**Given** `LUFSAnalyzer` is similarly retargeted to consume `DecodedAudio`,
+**Given** `LUFSAnalyzer` retargeted to consume `DecodedAudio`,
 **When** the test suite runs,
-**Then** integrated LUFS for every test fixture is byte-identical to the Story-8.1 measurement (decode reuse cannot perturb the K-weighting filter output — Double precision preserved end-to-end).
+**Then** `LUFSByteIdentityTests`' bitPattern literals are untouched and green (decode reuse cannot perturb the K-weighting filter output — Double precision preserved end-to-end), and url-vs-decoded `LUFSReport` equality holds on LPCM/FLAC fixtures at matched `maxSeconds`.
 
-**Given** `make perf-benchmark` runs after Story 8.2 lands,
-**When** OA300 wall-clock is measured for combined BPM + LUFS analysis,
-**Then** the combined call is ≥ 35% faster than two sequential calls against the same URL.
+**Given** the perf instrumentation (replaces the original ≥ 35% gate),
+**When** `make shared-decode-impact-report` runs in release config,
+**Then** (hard, structural) decode-count == 1 on every path; (hard, directional) combined shared-path wall-clock ≤ sequential wall-clock per format within measurement noise; (probe-derived floor, reported) achieved saving ≥ 0.8 × same-run decode median on MP3 + FLAC, wav-class reported-only; the JSON report lands in `_bmad-output/implementation-artifacts/8-2-shared-decode-impact.json`.
 
 **Given** `FeatureSubstrateTests.swift` from Story 6.2,
-**When** the cross-consumer byte-identity assertion runs against the new combined orchestration path,
-**Then** `BPMAnalyzer`, `LUFSAnalyzer`, and a placeholder `BeatGridAnalyzer` stub all receive identical `OnsetFeatures` for the same `(decoded, weighting)` input.
+**When** the cross-consumer assertion runs against one `readDecodedAudio`-produced carrier,
+**Then** the `OnsetFeaturesBuilder` facade and the placeholder `BeatGridAnalyzer` stub return bit-identical `OnsetFeatures` for the same `(decoded, weighting)` input, and `LUFSAnalyzer` consumes the SAME `DecodedAudio` value (LUFS shares the decode, not the onset features).
 
 **FRs covered:** FR-35.
 **KDDs implemented:** C4.

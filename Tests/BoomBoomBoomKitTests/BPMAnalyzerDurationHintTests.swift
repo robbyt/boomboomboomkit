@@ -311,7 +311,7 @@ struct DurationHintIntegrationTests {
     opts.analysisWindowSeconds = 30  // Cap analysis window — file is 240s.
 
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate, options: opts))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate), options: opts))
 
     // Sanity: detected BPM within 2% of 128.
     #expect(abs(result.bpm - bpm) / bpm < 0.02)
@@ -337,7 +337,7 @@ struct DurationHintIntegrationTests {
     // fileDurationSeconds left nil.
 
     let result = try #require(
-      BPMAnalyzer.estimateBPM(samples: samples, sampleRate: sampleRate, options: opts))
+      BPMAnalyzer.estimateBPM(decoded: .synthetic(samples, sampleRate: sampleRate), options: opts))
 
     #expect(result.trace?.durationHintDetail == nil)
   }

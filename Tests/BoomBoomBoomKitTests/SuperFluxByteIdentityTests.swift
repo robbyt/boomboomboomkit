@@ -198,12 +198,12 @@ struct SuperFluxByteIdentityTests {
 
     let baselineResult = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, options: baselineOpts),
+        decoded: .synthetic(samples, sampleRate: sampleRate), options: baselineOpts),
       "baseline BPMAnalyzer.estimateBPM returned nil on synthesized boundary fixture"
     )
     let variantResult = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, options: variantOpts),
+        decoded: .synthetic(samples, sampleRate: sampleRate), options: variantOpts),
       "variant BPMAnalyzer.estimateBPM returned nil on synthesized boundary fixture"
     )
 

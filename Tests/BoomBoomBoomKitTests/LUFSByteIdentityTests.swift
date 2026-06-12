@@ -82,7 +82,7 @@ struct LUFSByteIdentitySynthesizedTests {
     sourceLocation: SourceLocation = #_sourceLocation
   ) throws {
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: sampleRate),
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: sampleRate)),
       sourceLocation: sourceLocation)
     let blocks = result.blockLoudnessValues
     #expect(
@@ -165,7 +165,8 @@ struct LUFSByteIdentityLosslessFixtureTests {
     // maxSeconds: 30 pinned explicitly — the analyzeLUFS default changed to
     // full-file in Story 8.1 (DD #9); these literals were captured at 30s.
     let (samples, rate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 30)
-    return try #require(LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: rate))
+    return try #require(
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: rate)))
   }
 
   @Test("test-bwf.wav — integrated + block series bit-identical")
@@ -202,7 +203,7 @@ struct LUFSByteIdentityLossyFixtureTests {
     let url = try AudioFixtures.url(for: name, extension: ext)
     let (samples, rate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 30)
     let result = try #require(
-      LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: rate))
+      LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: rate)))
     return result.integratedLoudness
   }
 

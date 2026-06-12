@@ -44,6 +44,9 @@ public struct PCMBufferReader {
   /// - Parameters:
   ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
   ///   - maxSeconds: If provided, only read the first N seconds of audio.
+  ///     Non-finite or Int64-overflowing caps fall back to a full-file read
+  ///     (never a trap); use ``readDecodedAudio(from:maxSeconds:)`` for the
+  ///     fully sanitized (DD #3b) entry point.
   ///   - targetSampleRate: If provided, downsample output to this rate using AVAudioConverter.
   /// - Returns: A tuple of mono samples and the output sample rate.
   /// - Throws: `PCMBufferReaderError` for file access, format, or conversion failures.
@@ -52,14 +55,123 @@ public struct PCMBufferReader {
     maxSeconds: Double? = nil,
     targetSampleRate: Double? = nil
   ) throws -> (samples: [Float], sampleRate: Double) {
-    // Open file — AVAudioFile handles all format decoding (MP3, AAC, FLAC → PCM)
-    let file: AVAudioFile
+    try readMonoSamples(
+      file: try openFile(url), url: url,
+      maxSeconds: maxSeconds, targetSampleRate: targetSampleRate)
+  }
+
+  /// Reads an audio file into the ``FeatureSubstrate/DecodedAudio`` carrier:
+  /// mono samples normalized to [-1.0, 1.0] plus content-true codec and
+  /// trim-state provenance (Story 8-2 DD #1/#7/#7a — the public producer for
+  /// the shared-decode seam).
+  ///
+  /// The codec tag derives from
+  /// `AVAudioFile.fileFormat.streamDescription.pointee.mFormatID` — the
+  /// ENCODED on-disk format. `processingFormat` would be wrong here: it
+  /// describes the decoded PCM side and would tag everything `.linearPCM`.
+  /// Trim state follows the DD #7a population rule: `.knownNone` iff the
+  /// payload is linear PCM (no priming concept); `.unknown` for every other
+  /// codec ("trim already applied by the decoder, or leaked undetectably —
+  /// caller must not assume either").
+  ///
+  /// Decoding happens exactly once per call (single `AVAudioFile` open,
+  /// single PCM read — same core as ``readMonoSamples(from:maxSeconds:targetSampleRate:)``).
+  /// This method does NOT check cooperative cancellation — it is a plain
+  /// throwing reader call, same contract as `readMonoSamples`; cancellation
+  /// checkpoints live in `AudioAnalysisService`.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
+  ///   - maxSeconds: If provided, only read the first N seconds. Non-finite,
+  ///     non-positive, or absurdly large (≥ 1e9 s) values are sanitized to
+  ///     nil (full file) — never a trap (DD #3b).
+  /// - Returns: A ``FeatureSubstrate/DecodedAudio`` carrying the mono
+  ///   samples, the file's native sample rate, and codec/trim provenance.
+  /// - Throws: `PCMBufferReaderError` for file access, format, or read
+  ///   failures.
+  public static func readDecodedAudio(
+    from url: URL,
+    maxSeconds: Double? = nil
+  ) throws -> FeatureSubstrate.DecodedAudio {
+    let file = try openFile(url)
+    let codec = codec(forFormatID: file.fileFormat.streamDescription.pointee.mFormatID)
+    let (samples, sampleRate) = try readMonoSamples(
+      file: file, url: url,
+      maxSeconds: sanitizedMaxSeconds(maxSeconds), targetSampleRate: nil)
+    return FeatureSubstrate.DecodedAudio(
+      samples: samples,
+      sampleRate: sampleRate,
+      codecPriming: FeatureSubstrate.PrimingInfo(
+        codec: codec,
+        trimState: codec == .linearPCM ? .knownNone : .unknown))
+  }
+
+  /// DD #3b shared `maxSeconds` sanitization — the single rule applied at
+  /// all three seam entry points (`readDecodedAudio`, `analyzeLUFS`, and the
+  /// BPM decoded overload's prefix slice via ``cappedSampleCount(sampleRate:maxSeconds:totalSamples:)``).
+  /// Non-finite, non-positive, or absurdly large (≥ 1e9 s ≈ 31.7 years)
+  /// values collapse to nil (full file): unsanitized, `Int64(sampleRate *
+  /// maxSeconds)` in the cap arithmetic traps on NaN/Inf/overflow.
+  static func sanitizedMaxSeconds(_ value: Double?) -> Double? {
+    value.flatMap { $0.isFinite && $0 > 0 && $0 < 1.0e9 ? $0 : nil }
+  }
+
+  /// Mirror of the reader's partial-read cap arithmetic (DD #3b) for the
+  /// decoded-path prefix slice: `min(AVAudioFrameCount(clamping:
+  /// Int64(sampleRate * maxSeconds)), total)` — bit-for-bit the same
+  /// truncation/rounding the url path applies at decode time, so a capped
+  /// decoded-overload analysis sees exactly the frames a capped url-path
+  /// read would have produced. Sanitizes internally; nil/invalid
+  /// `maxSeconds` returns `totalSamples` (no cap).
+  static func cappedSampleCount(
+    sampleRate: Double, maxSeconds: Double?, totalSamples: Int
+  ) -> Int {
+    guard let maxSeconds = sanitizedMaxSeconds(maxSeconds) else { return totalSamples }
+    let cappedFrames = sampleRate * maxSeconds
+    // `DecodedAudio.init` admits any finite rate >= 8 kHz, so the product can
+    // exceed Int64's domain (e.g. a synthetic 1e20 Hz carrier) — `Int64.init`
+    // would trap. A cap that large cannot bound any real buffer; no-op it.
+    guard cappedFrames.isFinite, cappedFrames < Double(Int64.max) else {
+      return totalSamples
+    }
+    let maxFrames = AVAudioFrameCount(clamping: Int64(cappedFrames))
+    return min(Int(maxFrames), totalSamples)
+  }
+
+  /// Opens `url` for reading, folding every `AVAudioFile(forReading:)`
+  /// failure mode into `PCMBufferReaderError.fileNotReadable`.
+  private static func openFile(_ url: URL) throws -> AVAudioFile {
     do {
-      file = try AVAudioFile(forReading: url)
+      return try AVAudioFile(forReading: url)
     } catch {
       throw PCMBufferReaderError.fileNotReadable(url)
     }
+  }
 
+  /// Maps an encoded-format `mFormatID` to the closed ``FeatureSubstrate/AudioCodec``
+  /// set (DD #7). Unmapped IDs surface as `.unknown`, never a guess.
+  private static func codec(
+    forFormatID formatID: AudioFormatID
+  ) -> FeatureSubstrate.AudioCodec {
+    switch formatID {
+    case kAudioFormatLinearPCM: return .linearPCM
+    case kAudioFormatMPEG4AAC: return .aac
+    case kAudioFormatAppleLossless: return .alac
+    case kAudioFormatMPEGLayer3: return .mp3
+    case kAudioFormatFLAC: return .flac
+    default: return .unknown
+    }
+  }
+
+  /// Single-open core shared by ``readMonoSamples(from:maxSeconds:targetSampleRate:)``
+  /// and ``readDecodedAudio(from:maxSeconds:)`` — the producer must not pay
+  /// (or risk diverging through) a second decode path.
+  private static func readMonoSamples(
+    file: AVAudioFile,
+    url: URL,
+    maxSeconds: Double?,
+    targetSampleRate: Double?
+  ) throws -> (samples: [Float], sampleRate: Double) {
     let format = file.processingFormat
     // Sample-rate sanity check at the file-read boundary — recoverable
     // validation lives here (not at FeatureSubstrate.DecodedAudio.init, which
@@ -89,11 +201,19 @@ public struct PCMBufferReader {
       return (samples: [], sampleRate: format.sampleRate)
     }
 
-    // Calculate frames to read (partial read support — AC4)
+    // Calculate frames to read (partial read support — AC4). The product
+    // guard mirrors `cappedSampleCount`: a non-finite or Int64-overflowing
+    // cap (NaN/Inf `maxSeconds` reaching this un-sanitized entry, or an
+    // absurd reported sample rate) cannot bound a real file — read fully
+    // instead of trapping in `Int64.init`.
     let framesToRead: AVAudioFrameCount
     if let maxSeconds {
-      let maxFrames = AVAudioFrameCount(clamping: Int64(format.sampleRate * maxSeconds))
-      framesToRead = min(maxFrames, totalFrames)
+      let cappedFrames = format.sampleRate * maxSeconds
+      if cappedFrames.isFinite, cappedFrames < Double(Int64.max) {
+        framesToRead = min(AVAudioFrameCount(clamping: Int64(cappedFrames)), totalFrames)
+      } else {
+        framesToRead = totalFrames
+      }
     } else {
       framesToRead = totalFrames
     }

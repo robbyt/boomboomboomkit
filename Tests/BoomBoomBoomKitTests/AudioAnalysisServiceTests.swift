@@ -146,7 +146,7 @@ struct AudioAnalysisServiceLUFSTests {
 
     // Direct call for comparison
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: 30)
-    let direct = LUFSAnalyzer.measureLoudness(samples: samples, sampleRate: sampleRate)
+    let direct = LUFSAnalyzer.measureLoudness(decoded: .synthetic(samples, sampleRate: sampleRate))
 
     #expect(
       report?.integratedLUFS == direct?.integratedLoudness,

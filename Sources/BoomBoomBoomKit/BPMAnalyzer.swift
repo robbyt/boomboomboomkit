@@ -166,37 +166,29 @@ struct BPMAnalyzer {
 
   // MARK: - Public API
 
-  /// Estimates the tempo (BPM) of audio samples using multi-estimator fusion.
+  /// Estimates the tempo (BPM) of decoded audio using multi-estimator fusion.
   ///
   /// Pipeline: energy scan → mel onset → autocorrelation + Fourier tempogram →
   /// periodicity fusion → TPS2 enhancement → peak extraction → range normalization →
   /// octave disambiguation → confidence.
   ///
-  /// - Parameters:
-  ///   - samples: Mono PCM samples as `[Float]` (up to 120s for energy scan).
-  ///   - sampleRate: Sample rate of the audio (e.g., 44100.0).
-  /// - Returns: A `BPMResult` with BPM and confidence, or `nil` for
-  ///   silence/noise/too-short input.
-  static func estimateBPM(
-    samples: [Float],
-    sampleRate: Double
-  ) -> BPMResult? {
-    estimateBPM(samples: samples, sampleRate: sampleRate, options: .init())
-  }
-
-  /// Estimates the tempo (BPM) of audio samples using multi-estimator fusion.
+  /// The single entry point since Story 8-2 (DD #4 — the
+  /// `samples:sampleRate:` forms are removed, no shim). `decoded` is a pure
+  /// carrier: the pipeline reads only `samples` and `sampleRate`; provenance
+  /// fields (`codecPriming`) never influence output (locked by the
+  /// provenance-invariance test in `SharedDecodeTests`).
   ///
   /// - Parameters:
-  ///   - samples: Mono PCM samples as `[Float]` (up to 120s for energy scan).
-  ///   - sampleRate: Sample rate of the audio (e.g., 44100.0).
+  ///   - decoded: Decoded mono PCM carrier (up to 120s for energy scan).
   ///   - options: Configuration controlling analysis window, intensity, technique set, and tracing.
   /// - Returns: A `BPMResult` with BPM and confidence, or `nil` for
   ///   silence/noise/too-short input.
   static func estimateBPM(
-    samples: [Float],
-    sampleRate: Double,
-    options: Options
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options = .init()
   ) -> BPMResult? {
+    let samples = decoded.samples
+    let sampleRate = decoded.sampleRate
     let techniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
     guard !samples.isEmpty else { return nil }
 
