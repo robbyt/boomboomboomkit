@@ -322,19 +322,109 @@ public struct AudioAnalysisService {
     url: URL,
     options: Options
   ) throws -> AudioAnalysisResult? {
-    // Story 4.3 + ADR-6 reconciled by Story 4.4 DD #2: trace is built when
-    // `mlTechnique != nil` AND the selected policy can consume the
-    // evaluation. Under `.dspOnly` the trace ML branch is moot because
-    // `MLTechnique.evaluate(trace:)` is short-circuited below — building the
-    // trace there would be wasted work and would also create the false
-    // expectation that ML inference is running.
-    let shouldBuildTrace =
-      options.enableTrace
-      || (options.mlTechnique != nil && options.ensemblePolicy.invokesMLInference)
+    try analyzeBPM(url: url, options: options, decodeObserver: nil)
+  }
 
+  /// Internal observer-threaded overload (Story 8-2 DD #9): the public
+  /// method passes `decodeObserver: nil`; AC1's structural decode-count
+  /// tests reach this seam via `@testable import`. The url path IS the
+  /// funnel (DD #2): URL-bound signal gathering + `decodeOnce` + the SAME
+  /// shared core (`preCorroborationCore` → `finishBPMAnalysis`) that
+  /// ``analyzeBPM(decoded:options:)`` calls.
+  static func analyzeBPM(
+    url: URL,
+    options: Options,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> AudioAnalysisResult? {
     let pre = try Self.runPreCorroborationPipeline(
-      url: url, options: options, enableTrace: shouldBuildTrace)
+      url: url, options: options,
+      enableTrace: shouldBuildTrace(options),
+      decodeObserver: decodeObserver)
+    return try finishBPMAnalysis(pre: pre, options: options)
+  }
 
+  /// Analyzes the BPM of already-decoded audio — the Story 8-2 shared-decode
+  /// seam (KDD-C4). Pair with ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``
+  /// and ``analyzeLUFS(decoded:options:)`` so combined analysis pays for the
+  /// decode exactly once:
+  ///
+  /// ```swift
+  /// let decoded = try PCMBufferReader.readDecodedAudio(from: url)
+  /// let bpm = try AudioAnalysisService.analyzeBPM(decoded: decoded)
+  /// let loudness = try AudioAnalysisService.analyzeLUFS(decoded: decoded)
+  /// ```
+  ///
+  /// **URL-bound signals are absent on this path (DD #2, by design):**
+  /// file-metadata corroboration never runs (no URL — `FileMetadataReader`
+  /// has nothing to read; ``AudioAnalysisResult/metadataEvidence`` is always
+  /// empty), and the duration-derived BPM hint is off
+  /// (`fileDurationSeconds = nil`; it is NOT derived from `samples.count`,
+  /// which would be wrong under a capped decode). Under
+  /// ``Options/metadataPolicy`` `.disabled` and ``Options/durationHint``
+  /// `false`, output is regression-locked equal to the url path on
+  /// LPCM-payload and FLAC fixtures — verified by tests, not guaranteed by
+  /// the platform (Apple documents no bit-stability contract for
+  /// `AVAudioFile`).
+  ///
+  /// ``Options/maxSeconds`` applies as a prefix slice mirroring the reader's
+  /// partial-read cap arithmetic bit-for-bit (DD #3b), so a capped analysis
+  /// of a full decode equals an analysis of a capped decode on the locked
+  /// fixture set (the locked path has no sample-rate conversion).
+  ///
+  /// Cancellation (``Options/isCancelled``) is checked before each analysis
+  /// window — same semantics as the url path. Progress
+  /// (``Options/onProgress``) fires before each window.
+  ///
+  /// - Parameters:
+  ///   - decoded: Decoded mono PCM carrier, typically from
+  ///     ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``.
+  ///   - options: Same options as the url path; URL-bound fields
+  ///     (`metadataPolicy`, `durationHint`) are inert here as documented.
+  /// - Returns: An `AudioAnalysisResult`, or `nil` for silence, too-short
+  ///   input, or non-musical content.
+  /// - Throws: `CancellationError` if cancelled via `options.isCancelled`.
+  public static func analyzeBPM(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options = .init()
+  ) throws -> AudioAnalysisResult? {
+    // Early checkpoint BEFORE the maxSeconds prefix slice — a pre-cancelled
+    // call must not pay a potentially multi-MB prefix copy first (mirrors
+    // the url path's pre-decode check and the LUFS decoded path's ordering).
+    // The window loop re-checks before each window as on the url path.
+    if options.isCancelled() { throw CancellationError() }
+    // No URL → metadata can never participate; the empty input mirrors what
+    // `buildMetadataInput` produces for a tag-free file.
+    let emptyMetadata = MetadataCorroborationInput(
+      consensusBPM: nil, participatingTags: [],
+      conflictDetected: false, policy: options.metadataPolicy)
+    let pre = try preCorroborationCore(
+      decoded: applyCap(decoded, maxSeconds: options.maxSeconds),
+      metadataInput: emptyMetadata,
+      fileDurationSeconds: nil,
+      options: options,
+      enableTrace: shouldBuildTrace(options))
+    return try finishBPMAnalysis(pre: pre, options: options)
+  }
+
+  /// Story 4.3 + ADR-6 reconciled by Story 4.4 DD #2: trace is built when
+  /// `mlTechnique != nil` AND the selected policy can consume the
+  /// evaluation. Under `.dspOnly` the trace ML branch is moot because
+  /// `MLTechnique.evaluate(trace:)` is short-circuited in
+  /// `finishBPMAnalysis` — building the trace there would be wasted work and
+  /// would also create the false expectation that ML inference is running.
+  private static func shouldBuildTrace(_ options: Options) -> Bool {
+    options.enableTrace
+      || (options.mlTechnique != nil && options.ensemblePolicy.invokesMLInference)
+  }
+
+  /// Post-pipeline half shared VERBATIM by the url and decoded paths
+  /// (Story 8-2 DD #2 — one code path, so the trace-write / ML-trace /
+  /// progress divergence class is shared behavior, not a reconciliation
+  /// burden): pool selection → ML evaluation → ensemble combination →
+  /// effective-intensity reporting → result assembly.
+  private static func finishBPMAnalysis(
+    pre: PreCorroborationOutput, options: Options
+  ) throws -> AudioAnalysisResult? {
     // Story 6.5b (KDD-A6 Stage 3): Phase 1 (cross-window aggregation) + Phase 2a
     // (pool-authoritative multiplicative metadata corroboration) collapse into a
     // single pool-consuming entry point — `BPMSelectionPolicy.select(from:)`. The
@@ -811,7 +901,8 @@ public struct AudioAnalysisService {
   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
   ///   `CancellationError` if cancelled via `options.isCancelled`.
   static func runPreCorroborationPipeline(
-    url: URL, options: Options, enableTrace: Bool
+    url: URL, options: Options, enableTrace: Bool,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)? = nil
   ) throws -> PreCorroborationOutput {
     // Early cancellation check — avoid ~10MB PCM read on pre-cancelled calls.
     if options.isCancelled() { throw CancellationError() }
@@ -833,10 +924,32 @@ public struct AudioAnalysisService {
         .flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
       : nil
 
-    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
-      from: url, maxSeconds: options.maxSeconds
-    )
+    // Story 8-2 (DD #9 / AC1): the funnel — the only PCM decode on this path.
+    let decoded = try decodeOnce(
+      url: url, maxSeconds: options.maxSeconds,
+      isCancelled: options.isCancelled, observer: decodeObserver)
 
+    return try preCorroborationCore(
+      decoded: decoded,
+      metadataInput: metadataInput,
+      fileDurationSeconds: fileDurationSeconds,
+      options: options,
+      enableTrace: enableTrace)
+  }
+
+  /// Decode-agnostic half of the pre-corroboration pipeline, shared VERBATIM
+  /// by the url path (via ``runPreCorroborationPipeline(url:options:enableTrace:decodeObserver:)``)
+  /// and the decoded overload ``analyzeBPM(decoded:options:)`` — Story 8-2
+  /// DD #2's "the url path IS the funnel". Window loop ordering
+  /// (cancellation → progress → window) is unchanged from the pre-8.2
+  /// production order.
+  private static func preCorroborationCore(
+    decoded: FeatureSubstrate.DecodedAudio,
+    metadataInput: MetadataCorroborationInput,
+    fileDurationSeconds: Double?,
+    options: Options,
+    enableTrace: Bool
+  ) throws -> PreCorroborationOutput {
     // Resolve the technique set once: explicit override wins, otherwise derive from
     // intensity. BPMAnalyzer.estimateBPM repeats this resolution internally, but we need
     // the resolved set here for `candidateCount` so the merge step matches what the
@@ -864,7 +977,7 @@ public struct AudioAnalysisService {
 
       guard
         let bpmResult = BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate,
+          decoded: decoded,
           options: .init(
             analysisWindowSeconds: windowSeconds,
             intensity: options.intensity,
@@ -912,6 +1025,45 @@ public struct AudioAnalysisService {
       weight: 1.0)
 
     return PreCorroborationOutput(metadataInput: metadataInput, pool: pool)
+  }
+
+  // MARK: - Story 8-2: decodeOnce funnel + decoded-path cap (DD #9 / DD #3b)
+
+  /// The ONLY decode entry inside `AudioAnalysisService` (AC1d — grep-locked:
+  /// no direct `readMonoSamples` call survives in this file). Checks
+  /// cancellation immediately before the decode, decodes exactly once via
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``, and fires the
+  /// internal `observer` once per actual decode (the AC1 structural-gate
+  /// seam — public Options structs are untouched, DD #9).
+  static func decodeOnce(
+    url: URL,
+    maxSeconds: Double?,
+    isCancelled: @Sendable () -> Bool,
+    observer: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> FeatureSubstrate.DecodedAudio {
+    if isCancelled() { throw CancellationError() }
+    let decoded = try PCMBufferReader.readDecodedAudio(
+      from: url, maxSeconds: maxSeconds)
+    observer?(decoded)
+    return decoded
+  }
+
+  /// Applies a `maxSeconds` prefix slice to an already-decoded carrier,
+  /// mirroring the reader's partial-read cap arithmetic bit-for-bit via
+  /// ``PCMBufferReader/cappedSampleCount(sampleRate:maxSeconds:totalSamples:)``
+  /// (DD #3b — sanitization included). No-op (and no copy) when the cap
+  /// meets or exceeds the sample count.
+  private static func applyCap(
+    _ decoded: FeatureSubstrate.DecodedAudio, maxSeconds: Double?
+  ) -> FeatureSubstrate.DecodedAudio {
+    let capped = PCMBufferReader.cappedSampleCount(
+      sampleRate: decoded.sampleRate, maxSeconds: maxSeconds,
+      totalSamples: decoded.samples.count)
+    guard capped < decoded.samples.count else { return decoded }
+    return FeatureSubstrate.DecodedAudio(
+      samples: Array(decoded.samples.prefix(capped)),
+      sampleRate: decoded.sampleRate,
+      codecPriming: decoded.codecPriming)
   }
 
   // MARK: - Story 6.5b: weight resolution (KDD-A5)
@@ -1005,9 +1157,16 @@ public struct AudioAnalysisService {
   /// measured but produced no result (all-silence after gating, or input
   /// shorter than one 400ms gating block).
   ///
-  /// Runs to completion — no cooperative cancellation in this entry point
-  /// (decode dominates wall-clock; the DSP passes are O(n) vDSP). Cancellation
-  /// plumbing arrives with Story 8.2's shared-decode orchestration.
+  /// Supports cooperative cancellation via ``LUFSOptions/isCancelled``
+  /// (default `Task.isCancelled`): checked before the decode and after the
+  /// decode / before measurement. An in-flight measurement runs to
+  /// completion (O(n) vDSP passes — service-level granularity only, same
+  /// ADR-1 rationale as the BPM side's between-windows-only checks).
+  ///
+  /// For combined BPM + loudness analysis, decode once via
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)`` and use
+  /// ``analyzeLUFS(decoded:options:)`` — this url entry point pays its own
+  /// decode.
   ///
   /// - Parameters:
   ///   - url: Path to the audio file.
@@ -1017,30 +1176,83 @@ public struct AudioAnalysisService {
   /// - Throws: `PCMBufferReaderError` if the file cannot be read;
   ///   ``LUFSAnalysisError/unsupportedSampleRate(sampleRate:supported:)`` if
   ///   the decoded rate has no K-weighting coefficient set (44.1/48/96 kHz
-  ///   are supported).
+  ///   are supported); `CancellationError` if cancelled via
+  ///   ``LUFSOptions/isCancelled``.
   public static func analyzeLUFS(
     url: URL,
     options: LUFSOptions = LUFSOptions()
   ) throws -> LUFSReport? {
-    // Sanitize maxSeconds at the use site (the votingThreshold silently-clamp
-    // precedent): non-finite, non-positive, or absurdly large values are
-    // treated as nil (full file). Unsanitized, Int64(sampleRate * maxSeconds)
-    // inside the reader traps on NaN/Inf/overflow. 1e9 s ≈ 31.7 years — far
-    // above any real file, safely below Int64 overflow at any supported rate.
-    let maxSeconds = options.maxSeconds.flatMap { value in
-      value.isFinite && value > 0 && value < 1.0e9 ? value : nil
-    }
-    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
-      from: url, maxSeconds: maxSeconds
-    )
-    guard LUFSAnalyzer.supportedSampleRates.contains(sampleRate) else {
+    try analyzeLUFS(url: url, options: options, decodeObserver: nil)
+  }
+
+  /// Internal observer-threaded overload (Story 8-2 DD #9) — same seam
+  /// pattern as the BPM side; the public method passes `decodeObserver: nil`.
+  ///
+  /// Cancellation checkpoints (DD #8): before decode (inside ``decodeOnce``;
+  /// a pre-cancelled call observes decode count 0) and after decode / before
+  /// measurement. An in-flight measurement runs to completion.
+  static func analyzeLUFS(
+    url: URL,
+    options: LUFSOptions,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> LUFSReport? {
+    // DD #3b: the shared sanitize rule (PCMBufferReader.sanitizedMaxSeconds)
+    // replaces 8-1's inline use-site sanitization. `decodeOnce` →
+    // `readDecodedAudio` re-applies it idempotently; sanitizing here keeps
+    // the rule visible at the service entry as well.
+    let decoded = try decodeOnce(
+      url: url,
+      maxSeconds: PCMBufferReader.sanitizedMaxSeconds(options.maxSeconds),
+      isCancelled: options.isCancelled,
+      observer: decodeObserver)
+    // Post-decode / pre-measurement checkpoint (DD #8).
+    if options.isCancelled() { throw CancellationError() }
+    return try lufsReport(decoded: decoded)
+  }
+
+  /// Measures loudness of already-decoded audio — the Story 8-2 shared-decode
+  /// seam (KDD-C4). Pair with ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``
+  /// and ``analyzeBPM(decoded:options:)`` so combined analysis pays for the
+  /// decode exactly once (see ``analyzeBPM(decoded:options:)`` for the
+  /// shared snippet).
+  ///
+  /// Same nil-vs-throw contract as the url path: throwing means the
+  /// measurement could not run (unsupported sample rate), `nil` means the
+  /// audio was measured but produced no result. ``LUFSOptions/maxSeconds``
+  /// applies as a prefix slice mirroring the reader's cap arithmetic
+  /// bit-for-bit (DD #3b). ``LUFSOptions/isCancelled`` is checked once,
+  /// before measurement; an in-flight measurement runs to completion.
+  ///
+  /// - Parameters:
+  ///   - decoded: Decoded mono PCM carrier, typically from
+  ///     ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``.
+  ///   - options: Analysis options; the default measures the full carrier.
+  /// - Returns: A ``LUFSReport``, or `nil` for silence or sub-400ms input.
+  /// - Throws: ``LUFSAnalysisError/unsupportedSampleRate(sampleRate:supported:)``
+  ///   if `decoded.sampleRate` has no K-weighting coefficient set (44.1/48/96
+  ///   kHz are supported); `CancellationError` if cancelled.
+  public static func analyzeLUFS(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: LUFSOptions = LUFSOptions()
+  ) throws -> LUFSReport? {
+    // Pre-measurement checkpoint (DD #8) — the decoded path never decodes
+    // (no URL parameter), so this is its only checkpoint.
+    if options.isCancelled() { throw CancellationError() }
+    return try lufsReport(decoded: applyCap(decoded, maxSeconds: options.maxSeconds))
+  }
+
+  /// Measurement core shared VERBATIM by the url and decoded LUFS paths:
+  /// rate guard (throw = cannot measure) → analyzer (nil = measured, no
+  /// result) → report assembly.
+  private static func lufsReport(
+    decoded: FeatureSubstrate.DecodedAudio
+  ) throws -> LUFSReport? {
+    guard LUFSAnalyzer.supportedSampleRates.contains(decoded.sampleRate) else {
       throw LUFSAnalysisError.unsupportedSampleRate(
-        sampleRate: sampleRate, supported: LUFSAnalyzer.supportedSampleRates)
+        sampleRate: decoded.sampleRate,
+        supported: LUFSAnalyzer.supportedSampleRates)
     }
-    guard
-      let result = LUFSAnalyzer.measureLoudness(
-        samples: samples, sampleRate: sampleRate)
-    else {
+    guard let result = LUFSAnalyzer.measureLoudness(decoded: decoded) else {
       return nil
     }
     return LUFSReport(

@@ -110,15 +110,23 @@ struct LUFSAnalyzer {
   /// Returns both the headline integrated loudness and per-block momentary
   /// loudness values (100ms step) for future time-series visualization.
   ///
+  /// The single entry point since Story 8-2 (DD #5 — the
+  /// `samples:sampleRate:` form is removed, no shim). `decoded` is a pure
+  /// carrier: only `samples` and `sampleRate` are read; provenance fields
+  /// never influence output. Analyzer contract unchanged: returns nil for
+  /// no-result, never throws — unsupported-rate THROWING stays at the
+  /// service layer (`LUFSAnalysisError.unsupportedSampleRate`).
+  ///
   /// - Parameters:
-  ///   - samples: Mono audio samples (from PCMBufferReader)
-  ///   - sampleRate: Sample rate in Hz. Supported: 44100, 48000, 96000.
+  ///   - decoded: Decoded mono PCM carrier. Supported rates: 44100, 48000,
+  ///     96000 — anything else returns nil (no K-weighting coefficients).
   /// - Returns: Integrated loudness + block time-series in LUFS,
   ///   or nil for silence/too-short audio/unsupported sample rate.
   static func measureLoudness(
-    samples: [Float],
-    sampleRate: Double
+    decoded: FeatureSubstrate.DecodedAudio
   ) -> LUFSResult? {
+    let samples = decoded.samples
+    let sampleRate = decoded.sampleRate
     // Task 6.1: Guard against empty samples
     guard !samples.isEmpty else { return nil }
 

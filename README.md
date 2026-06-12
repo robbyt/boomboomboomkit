@@ -176,6 +176,25 @@ struct LoudnessChart: View {
 }
 ```
 
+## Shared decode
+
+`analyzeBPM(url:)` and `analyzeLUFS(url:)` each pay their own decode. When you want both numbers for the same file, decode once and hand the same `DecodedAudio` to both analyzers:
+
+```swift
+let decoded = try PCMBufferReader.readDecodedAudio(from: url)
+let bpm = try AudioAnalysisService.analyzeBPM(decoded: decoded)
+let loudness = try AudioAnalysisService.analyzeLUFS(decoded: decoded)
+```
+
+On decode-heavy formats (MP3, FLAC) this recovers roughly the full cost of one decode — about a third of the combined sequential wall-clock; for uncompressed payloads (WAV/AIFF) decode is trivial and the saving is small.
+
+What you need to know about the decoded path:
+
+- **URL-bound signals are off by design.** File-metadata BPM corroboration never runs (there is no URL to read tags from — `metadataEvidence` is always empty), and the duration-derived BPM hint is off (it is not derived from `samples.count`, which would be wrong for a capped decode). Under `metadataPolicy = .disabled` + `durationHint = false`, decoded-path output is regression-locked equal to the url path on linear-PCM and FLAC fixtures — verified by tests, not guaranteed by the platform (Apple documents no bit-stability contract for `AVAudioFile`).
+- `Options.maxSeconds` / `LUFSOptions.maxSeconds` still apply on the decoded path, as a prefix slice that mirrors the reader's partial-read cap arithmetic bit-for-bit.
+- `DecodedAudio.codecPriming` carries content-true provenance: the codec comes from the encoded on-disk format (an ALAC `.m4a` reads `.alac`, not `.aac`), and `trimState` is honest about priming — `.knownNone` only for linear PCM; `.unknown` for every compressed codec (the decoder either already trimmed declared priming, or a headerless stream leaked it undetectably). Nothing in the analysis pipeline branches on provenance — it is forensic context, not configuration.
+- `analyzeLUFS` (both paths) supports cooperative cancellation via `LUFSOptions.isCancelled`, checked before decode and before measurement; an in-flight measurement runs to completion.
+
 ## Batch workflow patterns
 
 The library is window-grained cancellable (between window iterations, never mid-window) and emits per-window progress via `Options.onProgress`. The three patterns below cover the cases most apps hit: sequential progress reporting, concurrent fan-out with cancellation, and preserving completed results when a batch is cancelled mid-flight.
@@ -301,8 +320,10 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `ProgressUpdate` | Per-window progress payload for the `Options.onProgress` callback |
 | `LUFSReport` | Chart-ready loudness report (integrated, true peak, LRA + band edges, momentary/short-term series) |
 | `LoudnessSample`, `LoudnessSeries` | Foundation-only plotting adapter for `LUFSReport.samples` |
-| `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file) |
+| `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file; `isCancelled` cooperative-cancellation closure) |
 | `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
+| `FeatureSubstrate.DecodedAudio` | Decoded mono PCM carrier for the shared-decode seam (see "Shared decode") |
+| `FeatureSubstrate.PrimingInfo`, `FeatureSubstrate.AudioCodec`, `FeatureSubstrate.TrimState` | Content-true codec + trim-state provenance carried on `DecodedAudio.codecPriming` |
 
 ## Test Support
 

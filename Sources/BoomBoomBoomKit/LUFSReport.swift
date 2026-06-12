@@ -236,6 +236,20 @@ public struct LUFSOptions: Sendable {
   /// and treated as `nil` (full file).
   public var maxSeconds: Double?
 
+  /// Closure checked at the documented cancellation points (Story 8-2 DD #8,
+  /// exact mirror of `AudioAnalysisService.Options.isCancelled`): url path —
+  /// before decode and after decode / before measurement; decoded path —
+  /// before measurement. When it returns `true` at a checkpoint, the call
+  /// throws `CancellationError`. Defaults to `Task.isCancelled` for
+  /// automatic structured-concurrency support; inject a custom closure for
+  /// deterministic testing.
+  ///
+  /// SERVICE-LEVEL granularity only: an in-flight measurement runs to
+  /// completion (O(n) vDSP passes — same ADR-1 rationale as BPM's
+  /// between-windows-only checks). `PCMBufferReader.readDecodedAudio` does
+  /// not check cancellation.
+  public var isCancelled: @Sendable () -> Bool = { Task.isCancelled }
+
   /// Creates options with the defaults (full-file analysis).
   public init() {}
 }

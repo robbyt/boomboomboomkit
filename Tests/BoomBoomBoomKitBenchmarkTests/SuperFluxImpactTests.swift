@@ -139,10 +139,10 @@ struct SuperFluxImpactTests {
             let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
               from: url, maxSeconds: 120)
             let off = BPMAnalyzer.estimateBPM(
-              samples: samples, sampleRate: sampleRate,
+              decoded: .synthetic(samples, sampleRate: sampleRate),
               options: .init(techniqueSet: baseline))
             let on = BPMAnalyzer.estimateBPM(
-              samples: samples, sampleRate: sampleRate,
+              decoded: .synthetic(samples, sampleRate: sampleRate),
               options: .init(techniqueSet: variant))
             // P7: a silent abstain on a corpus fixture is a gate failure.
             guard let baselineBPM = off?.bpm else {
