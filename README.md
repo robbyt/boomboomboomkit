@@ -195,6 +195,26 @@ What you need to know about the decoded path:
 - `DecodedAudio.codecPriming` carries content-true provenance: the codec comes from the encoded on-disk format (an ALAC `.m4a` reads `.alac`, not `.aac`), and `trimState` is honest about priming — `.knownNone` only for linear PCM; `.unknown` for every compressed codec (the decoder either already trimmed declared priming, or a headerless stream leaked it undetectably). Nothing in the analysis pipeline branches on provenance — it is forensic context, not configuration.
 - `analyzeLUFS` (both paths) supports cooperative cancellation via `LUFSOptions.isCancelled`, checked before decode and before measurement; an in-flight measurement runs to completion.
 
+## Beat grid
+
+`BeatGrid` is the typed result container for beat-and-downbeat extraction: the detected beats, a tri-state downbeat outcome, the grid's own tempo estimate, an overall confidence, and whether that tempo agreed with the BPM stage.
+
+```swift
+public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
+  public let beats: [BeatTimestamp]            // each beat's time + confidence + strength
+  public let downbeats: DownbeatResult         // .notAttempted / .noneDetected / .detected(beats:)
+  public let estimatedTempo: Double            // BPM; 0.0 is the "no valid estimate" sentinel
+  public let confidence: Float                 // [0, 1]
+  public let tempoAgreedWithBPMStage: Bool?    // nil when no BPM analysis ran alongside
+}
+```
+
+`DownbeatResult` is deliberately tri-state so a consumer can tell "downbeat detection never ran" (`.notAttempted`) apart from "it ran and found nothing" (`.noneDetected`) — these are distinct, not collapsed into an empty array.
+
+Every float field is clamped finite at construction (and on `Codable` decode), so `BeatGrid` and `BeatTimestamp` are soundly `Hashable`. `estimatedTempo` normalizes both non-finite and non-positive inputs to the `0.0` "no valid estimate" sentinel; gate validity with `estimatedTempo > 0`. The canonical "no beat-grid run" value is `BeatGrid(beats: [], downbeats: .notAttempted, estimatedTempo: 0, confidence: 0, tempoAgreedWithBPMStage: nil)`.
+
+This is the result shape only. The `analyzeBeatGrid(url:options:)` service method that populates and returns it — running the beat-tracking algorithm as a parallel pipeline stage — lands in a later release.
+
 ## Batch workflow patterns
 
 The library is window-grained cancellable (between window iterations, never mid-window) and emits per-window progress via `Options.onProgress`. The three patterns below cover the cases most apps hit: sequential progress reporting, concurrent fan-out with cancellation, and preserving completed results when a batch is cancelled mid-flight.
@@ -322,6 +342,9 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `LoudnessSample`, `LoudnessSeries` | Foundation-only plotting adapter for `LUFSReport.samples` |
 | `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file; `isCancelled` cooperative-cancellation closure) |
 | `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
+| `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, BPM-agreement; see "Beat grid") |
+| `BeatTimestamp` | One detected beat: `presentationTime` + per-beat `confidence` + `strength` (all clamped finite) |
+| `DownbeatResult` | Tri-state downbeat outcome (`.notAttempted` / `.noneDetected` / `.detected(beats:)`) |
 | `FeatureSubstrate.DecodedAudio` | Decoded mono PCM carrier for the shared-decode seam (see "Shared decode") |
 | `FeatureSubstrate.PrimingInfo`, `FeatureSubstrate.AudioCodec`, `FeatureSubstrate.TrimState` | Content-true codec + trim-state provenance carried on `DecodedAudio.codecPriming` |
 
