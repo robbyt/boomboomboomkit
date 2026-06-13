@@ -638,6 +638,31 @@ struct BPMDecodedOrderingTests {
     }
     #expect(log.values.isEmpty)
   }
+
+  /// Decoded path, MID-FLIGHT (review 2026-06-11): window 0 completes, then
+  /// the per-window check cancels before window 1. The script's false budget
+  /// covers exactly the decoded overload's early check + the window-0 check,
+  /// so this locks the AC5 "before EACH window" claim beyond window 0 — the
+  /// always-true and pre-window-0 variants above can both be satisfied by a
+  /// single check site.
+  @Test func cancellationMidFlightAfterWindowZero() throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let decoded = try PCMBufferReader.readDecodedAudio(from: url)
+    let log = ProgressLog()
+    let script = CancellationScript(falseCount: 2)
+    var options = AudioAnalysisService.Options()
+    options.isCancelled = { script.isCancelled() }
+    options.onProgress = { log.record($0) }
+    #expect(throws: CancellationError.self) {
+      _ = try AudioAnalysisService.analyzeBPM(decoded: decoded, options: options)
+    }
+    let updates = log.values
+    // Default intensity is progressive (3 windows): exactly one progress
+    // update fired (window 0 began and completed), none for window 1+.
+    try #require(updates.count == 1)
+    #expect(updates[0].windowsCompleted == 0)
+    #expect(updates[0].windowsTotal > 1)
+  }
 }
 
 // MARK: - AC6 (type-level): AudioCodec / PrimingInfo reshape invariants

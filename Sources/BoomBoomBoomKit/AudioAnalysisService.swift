@@ -86,6 +86,13 @@ public struct AudioAnalysisService {
     /// performs energy scan on this buffer to find the musical onset, then
     /// takes analysis windows (30s/60s/90s) from that point. The default of
     /// 120s covers ~30s of intro headroom plus the longest 90s analysis window.
+    ///
+    /// Non-finite, non-positive, or absurdly large (≥ 1e9 s) values are
+    /// sanitized to a FULL-FILE read (DD #3b, same rule as
+    /// ``LUFSOptions/maxSeconds``) — never a trap and never an empty read.
+    /// Callers computing a dynamic budget must not let it underflow to 0
+    /// expecting a cheap call: pre-8.2 a non-positive cap read zero frames,
+    /// post-8.2 it reads (and analyzes) the entire file.
     public var maxSeconds: Double = 120
 
     /// Analysis intensity level (default: `.default`, which is level 7).

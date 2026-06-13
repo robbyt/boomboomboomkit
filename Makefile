@@ -143,7 +143,11 @@ perf-benchmark:
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	PERF_BASELINE_DIR="$(CURDIR)/_bmad-output/perf-baselines" \
-	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.PerformanceBenchmarkTests
 
 ## ablation: Run full 128-combination ablation matrix against OA300 corpus (ABLATION_PARALLELISM override range [1, 128]; default auto-detected)
