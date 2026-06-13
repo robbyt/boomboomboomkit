@@ -139,8 +139,11 @@ struct SharedDecodeImpactGateTests {
   ///   exceed sequential wall-clock beyond measurement noise, per format.
   /// - Probe-derived floor (reported, NOT asserted — AC8: floor misses are
   ///   findings + operator decision, not HALT-theater): achieved saving
-  ///   (sequential − shared) ≥ 0.8 × same-run decode median on the
-  ///   decode-heavy formats (mp3, flac). wav-class is reported-only.
+  ///   (median of paired per-file savings) ≥ 0.8 × SAME-RUN decode median on
+  ///   the decode-heavy formats (mp3, flac). wav-class is reported-only.
+  ///   Deliberately the same-run D, not the frozen T0-probe numbers (story
+  ///   Debug Log) — same machine, same run is the honest denominator; the T0
+  ///   floors are the historical derivation (review 2026-06-11).
   /// - Secondary informational number at library defaults (BPM 120s cap,
   ///   LUFS full-file), labeled secondary — never the headline.
   /// Gate 1 (decode-count == 1) is structural and lives in the unit suite
@@ -156,6 +159,11 @@ struct SharedDecodeImpactGateTests {
     // shared machine jitter a few percent; the gate exists to catch the
     // seam being structurally slower, not scheduler noise.
     let noiseMargin = 1.10
+    // Absolute epsilon alongside the relative margin (review 2026-06-11):
+    // wav-class medians are decode-trivial, where relative-only jitter
+    // bounds are routinely exceeded by scheduler noise — the hard gate must
+    // not flake on a format the story classifies as reported-only.
+    let noiseEpsilonSeconds = 0.020
 
     var bpmOptions = AudioAnalysisService.Options()
     bpmOptions.maxSeconds = matchedSeconds
@@ -191,6 +199,7 @@ struct SharedDecodeImpactGateTests {
       var sequentialMedians: [Double] = []
       var sharedMedians: [Double] = []
       var decodeMedians: [Double] = []
+      var perFileSavings: [Double] = []
       for fileURL in files {
         // Warmups.
         _ = try sequentialOnce(fileURL)
@@ -198,24 +207,39 @@ struct SharedDecodeImpactGateTests {
         var seqs: [Double] = []
         var shareds: [Double] = []
         var decodes: [Double] = []
-        for _ in 0..<measuredReps {
-          seqs.append(try sequentialOnce(fileURL))
-          shareds.append(try sharedOnce(fileURL))
+        for rep in 0..<measuredReps {
+          // Review 2026-06-11: alternate measurement order per rep — a fixed
+          // sequential-then-shared order let the shared path always run on
+          // page-cache/codec state warmed by the immediately preceding
+          // sequential pass, biasing the comparison in the seam's favor.
+          if rep.isMultiple(of: 2) {
+            seqs.append(try sequentialOnce(fileURL))
+            shareds.append(try sharedOnce(fileURL))
+          } else {
+            shareds.append(try sharedOnce(fileURL))
+            seqs.append(try sequentialOnce(fileURL))
+          }
           decodes.append(
             try SharedDecodeProbe.time {
               _ = try PCMBufferReader.readDecodedAudio(
                 from: fileURL, maxSeconds: matchedSeconds)
             })
         }
-        sequentialMedians.append(SharedDecodeProbe.median(seqs))
-        sharedMedians.append(SharedDecodeProbe.median(shareds))
+        let seqMedian = SharedDecodeProbe.median(seqs)
+        let sharedMedian = SharedDecodeProbe.median(shareds)
+        sequentialMedians.append(seqMedian)
+        sharedMedians.append(sharedMedian)
         decodeMedians.append(SharedDecodeProbe.median(decodes))
+        perFileSavings.append(seqMedian - sharedMedian)
       }
 
       let sequential = SharedDecodeProbe.median(sequentialMedians)
       let shared = SharedDecodeProbe.median(sharedMedians)
       let decode = SharedDecodeProbe.median(decodeMedians)
-      let saving = sequential - shared
+      // Review 2026-06-11: the achieved saving is the median of PAIRED
+      // per-file savings, not a difference of independent format-level
+      // medians — the latter can misstate the typical per-file improvement.
+      let saving = SharedDecodeProbe.median(perFileSavings)
       let isGatedFormat = format == .mp3 || format == .flac
       let floorMet: Bool? = isGatedFormat ? saving >= 0.8 * decode : nil
 
@@ -239,8 +263,8 @@ struct SharedDecodeImpactGateTests {
 
       // HARD gate 2: never slower than sequential beyond noise.
       #expect(
-        shared <= sequential * noiseMargin,
-        "AC8 gate 2 FAILED for \(format.rawValue): shared \(shared)s > sequential \(sequential)s × \(noiseMargin)"
+        shared <= sequential * noiseMargin + noiseEpsilonSeconds,
+        "AC8 gate 2 FAILED for \(format.rawValue): shared \(shared)s > sequential \(sequential)s × \(noiseMargin) + \(noiseEpsilonSeconds)s"
       )
       if let floorMet, !floorMet {
         print(
@@ -250,6 +274,13 @@ struct SharedDecodeImpactGateTests {
       }
     }
 
+    // Review 2026-06-11: the gates must not pass vacuously — assert the
+    // decode-heavy gated formats actually resolved files and were measured.
+    // A corpus-layout issue would otherwise skip mp3/flac silently while the
+    // suite reports green.
+    #expect(perFormat["mp3"] != nil, "AC8 coverage: no mp3 files resolved from the corpus")
+    #expect(perFormat["flac"] != nil, "AC8 coverage: no flac files resolved from the corpus")
+
     // Secondary informational number at library defaults (BPM maxSeconds
     // 120 default, LUFS full-file default) on the mp3 set — labeled
     // secondary, never the headline.
@@ -258,14 +289,15 @@ struct SharedDecodeImpactGateTests {
       let files = SharedDecodeProbe.select(mp3Files, cap: 5, seed: 0x8_2)
       var seqs: [Double] = []
       var shareds: [Double] = []
-      for fileURL in files {
+      for (index, fileURL) in files.enumerated() {
         _ = try AudioAnalysisService.analyzeBPM(url: fileURL)
-        seqs.append(
+        func sequentialDefaults() throws -> Double {
           try SharedDecodeProbe.time {
             _ = try AudioAnalysisService.analyzeBPM(url: fileURL)
             _ = try AudioAnalysisService.analyzeLUFS(url: fileURL)
-          })
-        shareds.append(
+          }
+        }
+        func sharedDefaults() throws -> Double {
           try SharedDecodeProbe.time {
             // Library defaults diverge: BPM caps at 120s, LUFS is
             // full-file. A shared decode must cover the larger window
@@ -273,7 +305,17 @@ struct SharedDecodeImpactGateTests {
             let decoded = try PCMBufferReader.readDecodedAudio(from: fileURL)
             _ = try AudioAnalysisService.analyzeBPM(decoded: decoded)
             _ = try AudioAnalysisService.analyzeLUFS(decoded: decoded)
-          })
+          }
+        }
+        // Review 2026-06-11: alternate order per file (same warming-bias
+        // rationale as the matched-window loop above).
+        if index.isMultiple(of: 2) {
+          seqs.append(try sequentialDefaults())
+          shareds.append(try sharedDefaults())
+        } else {
+          shareds.append(try sharedDefaults())
+          seqs.append(try sequentialDefaults())
+        }
       }
       defaultsConfig["sequentialMedian"] = SharedDecodeProbe.median(seqs)
       defaultsConfig["sharedMedian"] = SharedDecodeProbe.median(shareds)
