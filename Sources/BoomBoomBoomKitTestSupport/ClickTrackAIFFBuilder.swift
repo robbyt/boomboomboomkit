@@ -9,10 +9,18 @@
 
 import Foundation
 
+/// Synthetic AIFF writer: click-track PCM plus an embedded ID3v2.3 `TBPM`
+/// tag. Builds the tagged fixtures that metadata-corroboration and
+/// shared-decode divergence-lock tests exercise without committing binary
+/// audio files.
 public enum ClickTrackAIFFBuilder {
 
   /// Returns the URL of a temp AIFF file with `bpm` click track and `tbpm`
   /// metadata. Caller is responsible for cleanup.
+  ///
+  /// Parameters are precondition-guarded (review 2026-06-11): degenerate
+  /// values previously trapped deep in the synthesis arithmetic with no
+  /// diagnostic (`Int(±Inf)`, zero-stride, negative array count).
   public static func write(
     clickBPM: Double,
     durationSeconds: Double,
@@ -20,9 +28,23 @@ public enum ClickTrackAIFFBuilder {
     sampleRate: Double = 44100,
     tbpmFrames: [String]? = nil
   ) throws -> URL {
+    precondition(
+      clickBPM.isFinite && clickBPM > 0,
+      "clickBPM must be finite and > 0 (got \(clickBPM))")
+    precondition(
+      durationSeconds.isFinite && durationSeconds >= 0,
+      "durationSeconds must be finite and >= 0 (got \(durationSeconds))")
+    precondition(
+      sampleRate.isFinite && sampleRate >= 1,
+      "sampleRate must be finite and >= 1 Hz (got \(sampleRate)) — the ieee80 "
+        + "encoder is restricted to integer Hz rates")
     let sampleCount = Int(sampleRate * durationSeconds)
-    var samples = [Int16](repeating: 0, count: sampleCount)
     let samplesPerBeat = Int(sampleRate * 60.0 / clickBPM)
+    precondition(
+      samplesPerBeat > 0,
+      "clickBPM \(clickBPM) too high for sampleRate \(sampleRate) — "
+        + "zero samples per beat")
+    var samples = [Int16](repeating: 0, count: sampleCount)
     for beatStart in stride(from: 0, to: sampleCount, by: samplesPerBeat) {
       let impulseEnd = min(beatStart + 64, sampleCount)
       for i in beatStart..<impulseEnd {

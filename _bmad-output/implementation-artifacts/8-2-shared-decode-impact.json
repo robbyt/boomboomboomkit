@@ -1,37 +1,37 @@
 {
   "configuration" : "release",
-  "date" : "2026-06-11T02:02:38Z",
+  "date" : "2026-06-12T02:46:28Z",
   "defaultsConfig" : {
-    "achievedSaving" : 0.135732417,
-    "sequentialMedian" : 0.56592875,
-    "sharedMedian" : 0.430196333
+    "achievedSaving" : 0.11837854200000003,
+    "sequentialMedian" : 0.557012959,
+    "sharedMedian" : 0.438634417
   },
-  "gitSHA" : "75da815-dirty",
+  "gitSHA" : "39f75c4-dirty",
   "matchedMaxSeconds" : 120,
   "measuredReps" : 3,
   "perFormat" : {
     "flac" : {
-      "achievedSaving" : 0.099198917,
-      "decodeMedian" : 0.096965958,
+      "achievedSaving" : 0.1031425,
+      "decodeMedian" : 0.098108959,
       "fileCount" : 3,
       "floorMet" : true,
-      "sequentialMedian" : 0.307931417,
-      "sharedMedian" : 0.2087325
+      "sequentialMedian" : 0.313830875,
+      "sharedMedian" : 0.210688375
     },
     "mp3" : {
-      "achievedSaving" : 0.10933510400000002,
-      "decodeMedian" : 0.111555333,
+      "achievedSaving" : 0.11069362549999998,
+      "decodeMedian" : 0.1115323755,
       "fileCount" : 10,
       "floorMet" : true,
-      "sequentialMedian" : 0.3296448335,
-      "sharedMedian" : 0.2203097295
+      "sequentialMedian" : 0.328755979,
+      "sharedMedian" : 0.22038875000000002
     },
     "wav-class" : {
-      "achievedSaving" : 0.007374229499999996,
-      "decodeMedian" : 0.0081440835,
+      "achievedSaving" : 0.009229083999999992,
+      "decodeMedian" : 0.007485688000000001,
       "fileCount" : 10,
-      "sequentialMedian" : 0.1266450835,
-      "sharedMedian" : 0.11927085400000001
+      "sequentialMedian" : 0.126185271,
+      "sharedMedian" : 0.1184435415
     }
   }
 }

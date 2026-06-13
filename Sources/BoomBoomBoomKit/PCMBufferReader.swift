@@ -45,8 +45,10 @@ public struct PCMBufferReader {
   ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
   ///   - maxSeconds: If provided, only read the first N seconds of audio.
   ///     Non-finite or Int64-overflowing caps fall back to a full-file read
-  ///     (never a trap); use ``readDecodedAudio(from:maxSeconds:)`` for the
-  ///     fully sanitized (DD #3b) entry point.
+  ///     (never a trap); a FINITE non-positive value clamps to zero frames
+  ///     (empty result). Use ``readDecodedAudio(from:maxSeconds:)`` for the
+  ///     fully sanitized (DD #3b) entry point, where non-positive values
+  ///     also collapse to a full-file read.
   ///   - targetSampleRate: If provided, downsample output to this rate using AVAudioConverter.
   /// - Returns: A tuple of mono samples and the output sample rate.
   /// - Throws: `PCMBufferReaderError` for file access, format, or conversion failures.
