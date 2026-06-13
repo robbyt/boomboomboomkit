@@ -102,6 +102,9 @@ enum BeatGridClamp {
   /// `0.0`. Used for confidence/strength unit-interval fields.
   static func clampUnit(_ x: Float) -> Float {
     guard x.isFinite else { return 0.0 }
+    // `max(x, 0.0)` returns the `+0.0` literal on a tie (Swift.max is
+    // `y >= x ? y : x`, and `0.0 >= -0.0` is true), so a `-0.0` input
+    // canonicalizes to `+0.0` — locked by `clampCanonicalizesNegativeZero`.
     return min(max(x, 0.0), 1.0)
   }
 

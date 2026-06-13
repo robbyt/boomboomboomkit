@@ -23,7 +23,7 @@
 ///
 /// ## Conformance
 /// Not `CaseIterable`: this is **forced, not chosen** — the compiler suppresses
-/// `CaseIterable` synthesis for any enum carrying an associated value (SE-0295),
+/// `CaseIterable` synthesis for any enum carrying an associated value (SE-0194),
 /// and `.detected`'s payload is unbounded so `.allCases` would be meaningless
 /// anyway. Do not hand-roll `allCases`. `Hashable` is sound because the
 /// `.detected` payload is NaN-free (every `BeatTimestamp` is clamped finite).
