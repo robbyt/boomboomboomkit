@@ -1280,10 +1280,13 @@ public struct AudioAnalysisService {
   ///
   /// Runs the DSP BPM pipeline on a single analysis window with step-11 beat-grid
   /// extraction enabled, then returns the resulting ``BeatGrid``. The grid's
-  /// ``BeatGrid/estimatedTempo`` agrees with ``analyzeBPM(url:options:)`` on the
-  /// same file to within a few BPM; its beats carry track-relative
-  /// ``BeatTimestamp/presentationTime`` (offset by the energy-scan drop, Story
-  /// 8.4) and a per-beat onset ``BeatTimestamp/strength``.
+  /// ``BeatGrid/estimatedTempo`` is octave-locked to the tempo resolved for
+  /// tracking *in this call*. Because that tempo comes from a single-window,
+  /// DSP-only `BPMAnalyzer` pass — not the multi-window, metadata-corroborated
+  /// ``analyzeBPM(url:options:)`` — it can differ from `analyzeBPM` on the same
+  /// file, including by an octave; do not assume close agreement between the two.
+  /// Beats carry track-relative ``BeatTimestamp/presentationTime`` (offset by the
+  /// energy-scan drop, Story 8.4) and a per-beat onset ``BeatTimestamp/strength``.
   ///
   /// **Story 8.4 scope.** Beats only: ``BeatGrid/downbeats`` is
   /// ``DownbeatResult/notAttempted`` and ``BeatGrid/tempoAgreedWithBPMStage`` is
