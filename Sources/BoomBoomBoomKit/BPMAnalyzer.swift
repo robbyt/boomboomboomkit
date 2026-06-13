@@ -18,6 +18,29 @@ struct BPMResult: Sendable {
   let candidates: [(bpm: Double, score: Float)]
   /// Diagnostic trace capturing per-step pipeline state. Nil unless `enableTrace` was true.
   let trace: BPMDiagnosticTrace?
+  /// Beat grid from the optional step-11 fan-out (Story 8.4). `nil` on the
+  /// default path (`Options.computeBeatGrid == false`) — keeping it `nil`
+  /// (and never entering the fan-out branch) is what makes the default-path
+  /// output byte-identical to the pre-8.4 pipeline.
+  let beatGrid: BeatGrid?
+
+  /// Memberwise initializer with `beatGrid` defaulted to `nil`. Written
+  /// explicitly (rather than relying on synthesis) so the ~40 existing
+  /// four-argument `BPMResult(bpm:confidence:candidates:trace:)` call sites keep
+  /// compiling unchanged while step 11 can supply a grid.
+  init(
+    bpm: Double,
+    confidence: Double,
+    candidates: [(bpm: Double, score: Float)],
+    trace: BPMDiagnosticTrace?,
+    beatGrid: BeatGrid? = nil
+  ) {
+    self.bpm = bpm
+    self.confidence = confidence
+    self.candidates = candidates
+    self.trace = trace
+    self.beatGrid = beatGrid
+  }
 }
 
 /// Estimates tempo from decoded PCM audio samples using spectral flux onset
@@ -162,6 +185,16 @@ struct BPMAnalyzer {
     /// the spectrogram intermediate stays purely transient (the heavy `[Float]`
     /// payload is NEVER allocated).
     var captureMLFeatures: Bool = false
+
+    /// Story 8.4 — when `true`, the pipeline fans out to
+    /// ``BeatGridAnalyzer/estimateBeatGrid(onsetEnvelope:onsetRate:hopSize:sampleRate:acf:tempoBPM:windowStartSample:)``
+    /// after step 10c (the optional step-11 beat-grid extraction) and surfaces the
+    /// result on ``BPMResult/beatGrid``. Default `false` keeps the DSP path
+    /// byte-identical: the fan-out branch is not entered, no beat-grid buffer is
+    /// allocated, and `BPMResult.beatGrid` stays `nil`. Beat grid is a PARALLEL
+    /// step-11 output — it does not feed BPM winner selection, so no
+    /// ``BPMDiagnosticTrace`` field is added and KDD-T0 does not trigger.
+    var computeBeatGrid: Bool = false
   }
 
   // MARK: - Public API
@@ -451,7 +484,28 @@ struct BPMAnalyzer {
     let bpm = winner.bpm
     guard bpm >= minBPM && bpm <= maxBPM else { return nil }
 
-    // Step 11: Confidence
+    // Step 11: Beat-grid extraction (optional fan-out, Story 8.4).
+    // Gated by `options.computeBeatGrid` (default `false` → branch not entered →
+    // byte-identical default-path output). Reuses the in-scope `onsetEnvelope`,
+    // `acf`, `onsetRate`, `hopSize`, `sampleRate`, and the step-1 `dropOffset`
+    // (all still alive — the `acfBufs`/`pipelineBuffers` `defer`s have not fired),
+    // so no new onset/ACF buffer is allocated in the hot path. Beat grid is a
+    // PARALLEL output: it does not feed BPM winner selection, so KDD-T0 does not
+    // trigger and no `BPMDiagnosticTrace` field is added (W74 stays armed for a
+    // future beat-grid pool producer).
+    var beatGrid: BeatGrid?
+    if options.computeBeatGrid {
+      beatGrid = BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: onsetEnvelope,
+        onsetRate: onsetRate,
+        hopSize: hopSize,
+        sampleRate: sampleRate,
+        acf: acf,
+        tempoBPM: bpm,
+        windowStartSample: dropOffset)
+    }
+
+    // Step 12: Confidence
     let confidence = computeConfidence(fused: fused, winnerBPM: bpm, bpmMin: bpmMin)
 
     trace?.confidence = confidence
@@ -459,7 +513,8 @@ struct BPMAnalyzer {
     // BPMResult.candidates carries rescored + duration-hinted values (DD#11 contract);
     // trace.rawCandidates above preserves the pre-rescore signal for diagnostics.
     return BPMResult(
-      bpm: bpm, confidence: confidence, candidates: hintedCandidates, trace: trace)
+      bpm: bpm, confidence: confidence, candidates: hintedCandidates, trace: trace,
+      beatGrid: beatGrid)
   }
 
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)

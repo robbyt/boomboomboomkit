@@ -246,6 +246,20 @@ shared-decode-impact-report:
 	) \
 	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.SharedDecodeImpactGateTests
 
+## beat-grid-impact-report: Story 8-4 AC8 — per-format beat-grid overhead gate (estimateBPM with vs without step-11 fan-out, shared decode) + JSON to _bmad-output/implementation-artifacts/8-4-beat-grid-impact.json. Release config; asserts +grid wall-clock <= BPM-only x1.25 per format.
+.PHONY: beat-grid-impact-report
+beat-grid-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	BEAT_GRID_IMPACT=1 \
+	BEAT_GRID_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridImpactGateTests
+
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
 .PHONY: bnns-impact-report
 bnns-impact-report:
