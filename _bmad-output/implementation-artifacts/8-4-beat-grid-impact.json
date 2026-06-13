@@ -1,0 +1,31 @@
+{
+  "configuration" : "release",
+  "date" : "2026-06-13T16:37:06Z",
+  "gitSHA" : "ca88856-dirty",
+  "matchedMaxSeconds" : 120,
+  "measuredReps" : 3,
+  "overheadMargin" : 1.25,
+  "perFormat" : {
+    "flac" : {
+      "bpmOnlyMedian" : 0.015107959,
+      "fileCount" : 3,
+      "overheadFraction" : 0.06242014556698219,
+      "overheadGateMet" : true,
+      "withGridMedian" : 0.016051
+    },
+    "mp3" : {
+      "bpmOnlyMedian" : 0.0149595,
+      "fileCount" : 10,
+      "overheadFraction" : 0.0021544169256992683,
+      "overheadGateMet" : true,
+      "withGridMedian" : 0.014991728999999999
+    },
+    "wav-class" : {
+      "bpmOnlyMedian" : 0.015365875000000001,
+      "fileCount" : 10,
+      "overheadFraction" : -0.006025267028398967,
+      "overheadGateMet" : true,
+      "withGridMedian" : 0.015273291500000001
+    }
+  }
+}
