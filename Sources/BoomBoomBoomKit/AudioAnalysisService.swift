@@ -1272,6 +1272,112 @@ public struct AudioAnalysisService {
       shortTermLUFS: result.shortTermLoudnessValues,
       stepSeconds: result.blockStepSeconds)
   }
+
+  // MARK: - Story 8.4: beat-grid extraction
+
+  /// Extracts a beat grid from an audio file — the public sibling of
+  /// ``analyzeBPM(url:options:)`` and ``analyzeLUFS(url:options:)``.
+  ///
+  /// Runs the DSP BPM pipeline on a single analysis window with step-11 beat-grid
+  /// extraction enabled, then returns the resulting ``BeatGrid``. The grid's
+  /// ``BeatGrid/estimatedTempo`` agrees with ``analyzeBPM(url:options:)`` on the
+  /// same file to within a few BPM; its beats carry track-relative
+  /// ``BeatTimestamp/presentationTime`` (offset by the energy-scan drop, Story
+  /// 8.4) and a per-beat onset ``BeatTimestamp/strength``.
+  ///
+  /// **Story 8.4 scope.** Beats only: ``BeatGrid/downbeats`` is
+  /// ``DownbeatResult/notAttempted`` and ``BeatGrid/tempoAgreedWithBPMStage`` is
+  /// `nil` (no BPM stage runs in the same call). Full playback-time alignment
+  /// (codec-priming trim, long-file drift) and the BPM/beat-grid consistency
+  /// contract land in Story 8.5.
+  ///
+  /// - Note: Assumes a **constant tempo**. The tracker does not detect or adapt
+  ///   to tempo changes (accelerando, rubato, tempo-change sections); on
+  ///   variable-tempo material the beats drift out of phase. Supply
+  ///   constant-tempo audio for a meaningful grid.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file.
+  ///   - options: Analysis options; ``Options/intensity``,
+  ///     ``Options/techniqueSet``, ``Options/maxSeconds``, and
+  ///     ``Options/isCancelled`` apply. URL-bound and ensemble fields
+  ///     (`metadataPolicy`, `ensemblePolicy`, `mlTechnique`) do not affect the
+  ///     grid.
+  /// - Returns: A ``BeatGrid``, or `nil` for silence, too-short input, or
+  ///   non-musical content (the same nil contract as ``analyzeBPM(url:options:)``).
+  /// - Throws: `PCMBufferReaderError` if the file cannot be read;
+  ///   `CancellationError` if cancelled via ``Options/isCancelled``.
+  public static func analyzeBeatGrid(
+    url: URL,
+    options: Options = .init()
+  ) throws -> BeatGrid? {
+    try analyzeBeatGrid(url: url, options: options, decodeObserver: nil)
+  }
+
+  /// Internal observer-threaded overload (Story 8-2 DD #9 seam) — the public
+  /// method passes `decodeObserver: nil`. Cancellation checkpoints mirror
+  /// ``analyzeLUFS(url:options:decodeObserver:)``: before decode (inside
+  /// ``decodeOnce``) and after decode / before analysis.
+  static func analyzeBeatGrid(
+    url: URL,
+    options: Options,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> BeatGrid? {
+    let decoded = try decodeOnce(
+      url: url,
+      maxSeconds: PCMBufferReader.sanitizedMaxSeconds(options.maxSeconds),
+      isCancelled: options.isCancelled,
+      observer: decodeObserver)
+    // Post-decode / pre-analysis checkpoint.
+    if options.isCancelled() { throw CancellationError() }
+    return beatGrid(decoded: decoded, options: options)
+  }
+
+  /// Extracts a beat grid from already-decoded audio — the Story 8-2
+  /// shared-decode seam (KDD-C4). Pair with
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``,
+  /// ``analyzeBPM(decoded:options:)``, and ``analyzeLUFS(decoded:options:)`` so
+  /// combined analysis pays for the decode exactly once.
+  ///
+  /// ``Options/maxSeconds`` applies as a prefix slice mirroring the reader's cap
+  /// arithmetic (DD #3b). ``Options/isCancelled`` is checked once, before
+  /// analysis. See ``analyzeBeatGrid(url:options:)`` for the Story 8.4 scope.
+  ///
+  /// - Note: Assumes a **constant tempo** — see ``analyzeBeatGrid(url:options:)``.
+  ///   Variable-tempo material (accelerando, rubato, tempo-change sections) is
+  ///   not tracked; the beats drift out of phase.
+  ///
+  /// - Parameters:
+  ///   - decoded: Decoded mono PCM carrier, typically from
+  ///     ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``.
+  ///   - options: Same options as the url path.
+  /// - Returns: A ``BeatGrid``, or `nil` for silence, too-short, or non-musical
+  ///   input.
+  /// - Throws: `CancellationError` if cancelled via ``Options/isCancelled``.
+  public static func analyzeBeatGrid(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options = .init()
+  ) throws -> BeatGrid? {
+    if options.isCancelled() { throw CancellationError() }
+    return beatGrid(decoded: applyCap(decoded, maxSeconds: options.maxSeconds), options: options)
+  }
+
+  /// Beat-grid core shared by the url and decoded paths: runs the BPM pipeline
+  /// with step-11 beat-grid extraction enabled on a single window and returns the
+  /// grid. The beat grid is a parallel pipeline output, so no metadata
+  /// corroboration / ensemble / multi-window pool path is involved — this calls
+  /// ``BPMAnalyzer/estimateBPM(decoded:options:)`` directly (single representative
+  /// window). ``BeatGrid/tempoAgreedWithBPMStage`` is `nil` by construction
+  /// (the analyzer sets it; no BPM result is surfaced alongside).
+  private static func beatGrid(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options
+  ) -> BeatGrid? {
+    let bpmOptions = BPMAnalyzer.Options(
+      intensity: options.intensity,
+      techniqueSet: options.techniqueSet,
+      computeBeatGrid: true)
+    return BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.beatGrid
+  }
 }
 
 // MARK: - Story 6.4 (W52): BPMResult value-type forwarding
@@ -1294,6 +1400,7 @@ extension BPMResult {
       bpm: newBPM ?? bpm,
       confidence: newConfidence ?? confidence,
       candidates: candidates,
-      trace: newTrace)
+      trace: newTrace,
+      beatGrid: beatGrid)
   }
 }
