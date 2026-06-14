@@ -221,6 +221,38 @@ struct BeatGridAnalyzerTests {
       lastFrame > 200, "noisy tail (> silenceEps) retains a ghost past frame 200, got \(lastFrame)")
   }
 
+  /// A2 scale-invariance (Codex PR #40): the trim threshold is RELATIVE to `envMax`, so a
+  /// scaled-down envelope (`envMax << 1`, even below `1e-4`) keeps the same edge beats as
+  /// the loud one — the tracker normalizes by `envMax` everywhere and the trim must too.
+  /// An absolute floor would strip every edge beat once the peak dropped below it.
+  @Test func ghostTrimIsScaleInvariant() throws {
+    let sr = 44100.0
+    let hop = 441
+    let onsetRate = 100.0
+    let period = 50
+    var env = [Float](repeating: 0, count: 350)
+    for f in stride(from: 0, to: 201, by: period) { env[f] = 1 }
+    env[0] = 0.02  // quiet fade-in first beat
+    env[200] = 0.02  // quiet fade-out last beat
+
+    func edgeFrames(scale: Float) throws -> (first: Int, last: Int) {
+      let scaled = env.map { $0 * scale }
+      let grid = try #require(
+        BeatGridAnalyzer.estimateBeatGrid(
+          onsetEnvelope: scaled, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
+          acf: scaled, tempoBPM: 120, windowStartSample: 0))
+      let frames = grid.beats.map { Int(($0.presentationTime * sr / Double(hop)).rounded()) }
+      return (frames.first!, frames.last!)
+    }
+
+    // Loud (envMax = 1) keeps the quiet edges; a 1e-5-scaled copy (envMax = 1e-5 << 1e-4)
+    // must keep exactly the same edges — not get stripped by an absolute floor.
+    #expect(try edgeFrames(scale: 1) == (0, 200))
+    #expect(
+      try edgeFrames(scale: 1e-5) == (0, 200),
+      "scaled-down envelope (envMax << 1) must keep the edge beats")
+  }
+
   @Test func presentationTimeIsTrackRelative() throws {
     let env = Self.impulseEnvelope(frames: 1000, periodFrames: 50)
     let offsetSamples = 44100  // 1 second of leading audio before the window

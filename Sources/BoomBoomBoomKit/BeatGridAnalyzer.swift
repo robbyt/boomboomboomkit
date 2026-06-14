@@ -261,7 +261,13 @@ enum BeatGridAnalyzer {
     // span. Honest limits: an onset already zeroed by `adaptiveThreshold` can still be
     // trimmed, and low-level noise/reverb inside the span can retain a ghost — both are
     // conservative (keeping a beat is safer than dropping a real one).
-    let silenceEps = max(envMax, 1) * 1e-4
+    //
+    // The threshold is RELATIVE to the envelope's own peak (like the `localScore`
+    // normalization above), so the trim is scale-invariant — a quieter recording yields the
+    // same grid. A bare absolute floor would strip every edge beat once `envMax` dropped
+    // below it. `envMax > 0` is guaranteed above, so no clamp is needed; for a vanishing
+    // peak the product underflows toward 0 and only an exactly-empty span is trimmed.
+    let silenceEps = envMax * 1e-4
     // Max of `onsetEnvelope` over the half-open frame range `[lo, hi)` (0 if empty).
     func windowMax(_ lo: Int, _ hi: Int) -> Float {
       guard lo < hi else { return 0 }
