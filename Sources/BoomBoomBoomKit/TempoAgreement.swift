@@ -73,4 +73,81 @@ public enum TempoAgreement: Sendable, Hashable, Codable, CustomStringConvertible
       return "disagree"
     }
   }
+
+  // MARK: - Codable (custom: fold an out-of-range decoded factor to `.disagree`)
+
+  /// Top-level keys = the case names. `encode` emits the SE-0295 single-key form
+  /// (`{"agree":{}}`, `{"octaveEquivalent":{"factor":2}}`, …); `decode` is intentionally
+  /// lenient (priority-ordered, mirroring ``DownbeatResult``) — a multi-key payload
+  /// resolves to the first recognized case, and only a no-recognized-key payload throws.
+  private enum CodingKeys: String, CodingKey {
+    case notCompared, agree, octaveEquivalent, disagree
+  }
+
+  /// Nested key for the ``octaveEquivalent(factor:)`` payload — the single labeled
+  /// `factor` key (never a positional `_0`).
+  private enum OctaveCodingKeys: String, CodingKey {
+    case factor
+  }
+
+  /// Decodes the agreement, **folding an out-of-range `octaveEquivalent` factor to
+  /// ``disagree``**. The classifier only ever emits `factor ∈ {-2, +2}` (its single
+  /// source of truth), so any other value — `{"octaveEquivalent":{"factor":4}}`, `0`,
+  /// … — is a stale or tampered cache. ``disagree`` is the operationally-correct fold
+  /// (an unknown octave relationship must NOT auto-sync), mirroring ``DownbeatResult``'s
+  /// structurally-invalid `.detected` → `.noneDetected`. The fold also covers an
+  /// **unreadable** `.octaveEquivalent` payload (missing / `null` / wrong-type `factor`,
+  /// or a non-object value) — folded to ``disagree`` rather than thrown. Only a payload
+  /// with no recognized case key (or a non-object top-level value) throws — a
+  /// schema-boundary signal that the cache is not a `TempoAgreement` at all.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    if container.contains(.octaveEquivalent) {
+      // A recognized `.octaveEquivalent` whose factor is unreadable (missing / null /
+      // wrong-type / non-object payload) OR out-of-range folds to `.disagree` (an octave
+      // we can't trust must not auto-sync); it never throws.
+      let factor =
+        (try? container.nestedContainer(keyedBy: OctaveCodingKeys.self, forKey: .octaveEquivalent))
+        .flatMap { try? $0.decode(Int.self, forKey: .factor) }
+      if let factor, factor == 2 || factor == -2 {
+        self = .octaveEquivalent(factor: factor)
+      } else {
+        self = .disagree
+      }
+    } else if container.contains(.agree) {
+      self = .agree
+    } else if container.contains(.disagree) {
+      self = .disagree
+    } else if container.contains(.notCompared) {
+      self = .notCompared
+    } else {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(
+          codingPath: container.codingPath,
+          debugDescription:
+            "TempoAgreement: no recognized case key "
+            + "(expected notCompared / agree / octaveEquivalent / disagree)"
+        ))
+    }
+  }
+
+  /// Encodes the SE-0295 single-key wire shape with the labeled `factor:` payload
+  /// (never a positional `_0`). The classifier only emits `factor ∈ {-2, +2}`; an
+  /// out-of-range in-memory factor encodes faithfully and folds to ``disagree`` on the
+  /// next decode (mirrors ``DownbeatResult``).
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch self {
+    case .notCompared:
+      _ = container.nestedContainer(keyedBy: OctaveCodingKeys.self, forKey: .notCompared)
+    case .agree:
+      _ = container.nestedContainer(keyedBy: OctaveCodingKeys.self, forKey: .agree)
+    case .disagree:
+      _ = container.nestedContainer(keyedBy: OctaveCodingKeys.self, forKey: .disagree)
+    case .octaveEquivalent(let factor):
+      var nested = container.nestedContainer(
+        keyedBy: OctaveCodingKeys.self, forKey: .octaveEquivalent)
+      try nested.encode(factor, forKey: .factor)
+    }
+  }
 }
