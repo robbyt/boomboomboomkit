@@ -197,42 +197,81 @@ What you need to know about the decoded path:
 
 ## Beat grid
 
-`BeatGrid` is the typed result container for beat-and-downbeat extraction: the detected beats, a tri-state downbeat outcome, the grid's own tempo estimate, an overall confidence, and whether that tempo agreed with the BPM stage.
+`BeatGrid` is the typed result container for beat extraction: the detected beats, a tri-state downbeat outcome, the grid's own tempo estimate, an overall confidence, an extrapolation **anchor**, what span the beats cover, and how that tempo relates to the BPM stage.
 
 ```swift
 public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
-  public let beats: [BeatTimestamp]            // each beat's time + confidence + strength
-  public let downbeats: DownbeatResult         // .notAttempted / .noneDetected / .detected(beats:)
-  public let estimatedTempo: Double            // BPM; 0.0 is the "no valid estimate" sentinel
-  public let confidence: Float                 // [0, 1]
-  public let tempoAgreedWithBPMStage: Bool?    // nil when no BPM analysis ran alongside
+  public let beats: [BeatTimestamp]          // each beat's time + confidence + strength
+  public let downbeats: DownbeatResult       // .notAttempted / .noneDetected / .detected(beats:)
+  public let estimatedTempo: Double          // BPM; 0.0 is the "no valid estimate" sentinel
+  public let confidence: Float               // [0, 1]
+  public let tempoAgreement: TempoAgreement  // .notCompared / .agree / .octaveEquivalent / .disagree
+  public let gridOrigin: BeatGridAnchor?     // the Rekordbox-style extrapolation anchor (nil if no beats)
+  public let coverage: BeatGridCoverage      // .analysisWindow / .window(seconds:) / .fullTrack
 }
 ```
 
-`DownbeatResult` is deliberately tri-state so a consumer can tell "downbeat detection never ran" (`.notAttempted`) apart from "it ran and found nothing" (`.noneDetected`) — these are distinct, not collapsed into an empty array.
+### Extrapolate from the anchor — don't trust every beat
 
-Every float field is clamped finite at construction (and on `Codable` decode), so `BeatGrid` and `BeatTimestamp` are soundly `Hashable`. `estimatedTempo` normalizes both non-finite and non-positive inputs to the `0.0` "no valid estimate" sentinel; gate validity with `estimatedTempo > 0`. The canonical "no beat-grid run" value is `BeatGrid(beats: [], downbeats: .notAttempted, estimatedTempo: 0, confidence: 0, tempoAgreedWithBPMStage: nil)`.
+For beat math (continuous sync, sub-beat quantize), anchor on `gridOrigin` and extrapolate the grid rather than trusting each entry of `beats`:
 
-`analyzeBeatGrid` populates and returns it, running a causal dynamic-programming beat-tracker (Davies & Plumbley) as a parallel step-11 stage on top of the shared onset envelope and autocorrelation the BPM pipeline already computes:
+```swift
+// n-th beat after the anchor — drift-free on constant-tempo material:
+let t = anchor.presentationTime + (60.0 / grid.estimatedTempo) * Double(n)
+```
+
+`gridOrigin` is the single most-trustworthy reference beat, chosen by **phase consistency** (how well its neighbors line up to `time + k·period`), not by raw onset strength or "first beat". The dynamic-programming tracker can occasionally drop or double a beat, which corrupts sub-beat midpoints and accumulates sync error if you trust the whole array; the anchor + tempo is drift-free by construction on constant tempo. This is why `coverage` defaults to `.analysisWindow` (the beats span only the analysis window, at zero extra cost) — the anchor + tempo already covers mid-track positions. Request `.window(seconds:)` or `.fullTrack` (a second, O(track) onset pass) only when you actually need the detected-beat array across the file, e.g. for a waveform overlay.
+
+### Tempo agreement
+
+`TempoAgreement` reports how the grid tempo relates to the BPM stage — distinguishing a clean octave error (87 vs 174 BPM, still syncable by halving/doubling) from genuine disagreement (120 vs 137 BPM, reject):
+
+```swift
+public enum TempoAgreement: Sendable, Hashable, Codable {
+  case notCompared                   // standalone grid (no BPM result compared)
+  case agree                         // within ~2% relative
+  case octaveEquivalent(factor: Int) // +2 = grid ≈ 2× bpm, -2 = grid ≈ ½× bpm
+  case disagree                      // neither — do not auto-sync
+}
+```
+
+It is `.notCompared` for a standalone `analyzeBeatGrid`; it is resolved only by the combined `analyze` entry point, which compares the grid against the full multi-window BPM result. Both raw tempos stay accessible (`result.bpm.bpm` and `result.beatGrid?.estimatedTempo`) so you can reconcile an octave case yourself.
+
+### Combined BPM + beat grid over one decode
 
 ```swift
 import BoomBoomBoomKit
 
-// From a URL (pays its own decode):
-if let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL) {
-    print("\(grid.beats.count) beats at ~\(grid.estimatedTempo) BPM")
-    for beat in grid.beats {
-        print("  \(beat.presentationTime)s  strength \(beat.strength)")
+if let result = try AudioAnalysisService.analyze(url: fileURL) {
+    print("\(result.bpm.bpm) BPM")
+    if let grid = result.beatGrid {
+        switch grid.tempoAgreement {
+        case .agree:                       autoSync(to: grid)
+        case .octaveEquivalent(let f):     autoSync(to: grid, octaveFactor: f)
+        case .disagree, .notCompared:      askForManualConfirmation()
+        }
     }
 }
-
-// Or share one decode across BPM + loudness + beat grid:
-let decoded = try PCMBufferReader.readDecodedAudio(from: fileURL)
-let bpm  = try AudioAnalysisService.analyzeBPM(decoded: decoded)
-let grid = try AudioAnalysisService.analyzeBeatGrid(decoded: decoded)
 ```
 
-Beat `presentationTime`s are **track-relative** — offset to the start of the file by the energy-scan drop, but not yet adjusted for codec priming or long-file clock drift. In this release `downbeats` is always `.notAttempted` (the tracker recovers beats, not bar starts) and `tempoAgreedWithBPMStage` is always `nil` (no BPM stage runs in the same call). Full playback-time alignment, downbeat detection, and the BPM/beat-grid tempo-agreement contract land in a later release. `analyzeBeatGrid` returns `nil` for silence, too-short, or non-musical input — the same contract as `analyzeBPM`.
+`analyze` decodes once and runs both the full BPM pipeline and beat-grid extraction over that single decode — cheaper than calling `analyzeBPM` and `analyzeBeatGrid` separately. (`analyze` covers BPM + beat grid only; for loudness, decode once and call `analyzeLUFS(decoded:)` on the same carrier.) `analyzeBeatGrid` remains available standalone:
+
+```swift
+let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL)   // pays its own decode
+```
+
+`DownbeatResult` is deliberately tri-state so a consumer can tell "downbeat detection never ran" (`.notAttempted`) apart from "it ran and found nothing" (`.noneDetected`). The current release recovers beats, not bar starts, so `downbeats` is `.notAttempted`; downbeat detection lands in a follow-up. Every float field is clamped finite at construction (and on `Codable` decode), so the value types are soundly `Hashable`; gate tempo validity with `estimatedTempo > 0`.
+
+### Timestamp contract — decoded-PCM-relative
+
+Beat and anchor `presentationTime`s are **relative to the decoded-PCM origin**: `t = 0` is the start of the file as decoded, energy-scan drop included, with **no codec-priming subtraction**. Two consumers that decode the same file through AVFoundation share this origin, so the grid lines up with their own playback clock without per-codec offset guesswork.
+
+- **Lossless** input (WAV, FLAC, AIFF, CAF-LPCM) → sample-exact alignment.
+- **Lossy** input (MP3, AAC) → aligned to *our* AVFoundation decode. A different decoder may differ by an undetectable encoder delay. The worst-case bound is AAC's ~2112-sample encoder priming (≈ **48 ms at 44.1 kHz**) *if a decoder does not trim it*; in practice AVFoundation pre-trims declared priming, so the practical offset is near zero. That near-zero is empirical, not a published platform guarantee, and a precise figure awaits a future release — treat the ~48 ms as a documented upper bound, not a promise.
+
+`confidence` is `0.5·meanOnsetStrength + 0.5·acfStrengthAtPeriod` (half "how strong are the beats we picked", half "how periodic is the signal at the tracked tempo"); `BeatGridAnchor.confidence` is the anchor beat's per-beat confidence. Treat these as stability contracts — compose thresholds (e.g. a `0.5` floor) against them.
+
+`analyze` / `analyzeBeatGrid` return `nil` for silence, too-short, or non-musical input — the same contract as `analyzeBPM`.
 
 The beat-tracker assumes a **constant tempo**: it fixes beat phase against a single tempo and does not detect or adapt to tempo changes (accelerando, rubato, tempo-change sections). On variable-tempo material the beats hold a near-constant spacing and drift out of phase with the music — supply constant-tempo audio for a meaningful grid. Variable-tempo tracking is not planned.
 
@@ -336,7 +375,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 
 | Type | Role |
 |------|------|
-| `AudioAnalysisService` | Public facade composing reader + analyzers (`analyzeBPM`, `analyzeLUFS`, `analyzeBeatGrid` — each with a `url:` and a shared-decode `decoded:` overload) |
+| `AudioAnalysisService` | Public facade composing reader + analyzers (`analyzeBPM`, `analyzeLUFS`, `analyzeBeatGrid`, and the combined `analyze` — each with a `url:` and a shared-decode `decoded:` overload) |
 | `AudioAnalysisResult` | BPM + confidence + candidates + optional trace + optional metadata evidence |
 | `PCMBufferReader` | Audio file → `[Float]` mono samples |
 | `PCMBufferReaderError` | Error cases for file reading |
@@ -363,8 +402,12 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `LoudnessSample`, `LoudnessSeries` | Foundation-only plotting adapter for `LUFSReport.samples` |
 | `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file; `isCancelled` cooperative-cancellation closure) |
 | `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
-| `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, BPM-agreement) returned by `AudioAnalysisService.analyzeBeatGrid(url:options:)` / `analyzeBeatGrid(decoded:options:)`; see "Beat grid" |
+| `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, `gridOrigin` anchor, `coverage`, `tempoAgreement`) returned by `analyzeBeatGrid` / `analyze`; see "Beat grid" |
 | `BeatTimestamp` | One detected beat: `presentationTime` + per-beat `confidence` + `strength` (all clamped finite) |
+| `BeatGridAnchor` / `BeatGridAnchorSource` | The Rekordbox-style extrapolation anchor on `BeatGrid.gridOrigin` (phase-consistency selected) + its provenance |
+| `BeatGridCoverage` | What span the detected `beats` cover (`.analysisWindow` default / `.window(seconds:)` / `.fullTrack`); set via `Options.beatGridCoverage` |
+| `TempoAgreement` | How the grid tempo relates to the BPM stage (`.notCompared` / `.agree` / `.octaveEquivalent(factor:)` / `.disagree`) |
+| `CombinedAnalysisResult` | BPM + beat grid over one shared decode, returned by `AudioAnalysisService.analyze(url:options:)` / `analyze(decoded:options:)` |
 | `DownbeatResult` | Tri-state downbeat outcome (`.notAttempted` / `.noneDetected` / `.detected(beats:)`) |
 | `FeatureSubstrate.DecodedAudio` | Decoded mono PCM carrier for the shared-decode seam (see "Shared decode") |
 | `FeatureSubstrate.PrimingInfo`, `FeatureSubstrate.AudioCodec`, `FeatureSubstrate.TrimState` | Content-true codec + trim-state provenance carried on `DecodedAudio.codecPriming` |

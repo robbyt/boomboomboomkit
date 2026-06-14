@@ -1076,6 +1076,19 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **KDDs implemented:** C3.
 **Pressure-release valve:** If the playback-alignment-oracle fixture cannot be hand-clicked within the story's window, defer the AAC/MP3 priming-trim AC to Story 8.7 (acceptance corpus) and ship FLAC/WAV/AIFF/CAF coverage here. Document the deviation in `_bmad-output/implementation-artifacts/8-5-pressure-release.md`.
 
+### Story 8.5a: Downbeat detection — fixed-meter downbeat-phase estimation
+
+**As a** library consumer (Rekordbox-style DJ app doing bar/half-bar quantized launch),
+**I want** `DownbeatResult.detected` populated with a first-downbeat anchor + the assumed meter when rhythmic evidence is strong, and an honest `.noneDetected` abstain otherwise,
+**So that** I can extrapolate bar lines (`anchorTime + barIndex × beatsPerBar / (tempo/60)`) and snap launches to the top of the bar without the library ever fabricating a downbeat it isn't sure of.
+
+A quick follow-up to Story 8.5 (depends on it: consumes `BeatGrid.gridOrigin`/`BeatGridAnchorSource.downbeat`). **First story to POPULATE `DownbeatResult`** — closes the gap that no Epic-8 story did so (8.5 DD #13). Conservative pure-DSP downbeat-*phase* estimator: assume 4/4 (`MeterEstimate { beatsPerBar: 4, source: .assumed }` — NOT pretend-detected), per-beat low-band/percussive accent (reuses `OnsetEnvelopes.subBands` kick/snareCrack/full-band) folded modulo `beatsPerBar` with median aggregation, margin+support confidence, and a 4-part abstain gate (≥3 bars, winner ≥1.25× runner-up, confidence ≥0.4, multi-bar support) → `.noneDetected` when weak (a wrong downbeat on a live deck is worse than none). On success: `gridOrigin.source == .downbeat`. Enriches `DownbeatResult.detected(beats:)` → `.detected(estimate: DownbeatEstimate { beats, meter, confidence, phaseIndex })` (labeled for a stable `Codable` wire-shape; additive-extensible to a future per-beat `Battito` payload). Opt-in `Options.detectDownbeats = false` → BPM byte-identical. aubio fence held — academic references only (Goto; Klapuri/Eronen/Astola; Durand et al. + Böck et al. cited as the ML direction deliberately NOT taken). Full spec: `_bmad-output/implementation-artifacts/8-5a-downbeat-detection.md`.
+
+**FRs covered:** FR-28 (downbeat tri-state — first to populate it).
+**KDDs implemented:** C2 (beat/downbeat provenance).
+**Deferred:** non-4/4 meter detection, per-beat `Battito` labels, harmonic-change/section downbeats, full-track downbeat correction, ML/DBN models, variable-tempo bar tracking.
+**Pressure-release valve:** If the estimator + the type enrichment can't both land in one window, ship the enriched `DownbeatResult`/`MeterEstimate`/`DownbeatEstimate` types + the opt-in flag wired to always-`.noneDetected` (types land, detection deferred), OR ship the estimator against the existing `.detected(beats:)`. Prefer landing the estimator — types without a populator repeat the 8.3 gap. Document in `8-5a-pressure-release.md`.
+
 ### Story 8.6: `ModelRegistry` + `ModelRegistryEntry` + `ModelRegistryError` + CryptoKit SHA-256
 
 **As a** library consumer,

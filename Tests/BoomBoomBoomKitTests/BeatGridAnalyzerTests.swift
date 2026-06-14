@@ -15,8 +15,10 @@
 //  `AudioAnalysisService.analyzeBeatGrid`.
 //
 
+import AVFoundation
 import BoomBoomBoomKitTestSupport
 import Foundation
+import Synchronization
 import Testing
 
 @testable import BoomBoomBoomKit
@@ -57,10 +59,8 @@ struct BeatGridAnalyzerTests {
     #expect(grid.beats.count > 0)
     #expect(grid.estimatedTempo > 0)
     // Octave-tolerant vs the click track's true tempo: octave correctness is the
-    // BPM stage's job (the grid faithfully inherits the octave it was handed,
-    // covered by the OA300/GiantSteps benchmarks). That the grid's reported tempo
-    // is octave-LOCKED to the tempo it actually tracked — the C2 snap's
-    // contract — is proven deterministically by `nearestOctaveEquivalentSnapsToReferenceOctave`.
+    // BPM stage's job (the grid reports the BPM-stage tempo it tracked against,
+    // whose octave is covered by the OA300/GiantSteps benchmarks).
     #expect(Self.matchesWithinOctave(grid.estimatedTempo, expectedBPM))
 
     // Monotonically increasing presentation times.
@@ -76,9 +76,10 @@ struct BeatGridAnalyzerTests {
     }
     #expect(grid.confidence >= 0 && grid.confidence <= 1)
 
-    // Story 8.4 scope: beats only, no BPM stage alongside.
+    // Standalone beat grid: no BPM stage compared alongside (Story 8.5 sets
+    // tempoAgreement only inside the combined `analyze(...)` path).
     #expect(grid.downbeats == .notAttempted)
-    #expect(grid.tempoAgreedWithBPMStage == nil)
+    #expect(grid.tempoAgreement == .notCompared)
   }
 
   // MARK: - Real-fixture agreement with analyzeBPM (AC6)
@@ -93,10 +94,9 @@ struct BeatGridAnalyzerTests {
     #expect(grid.estimatedTempo > 0)
     // Octave-tolerant on purpose: `analyzeBPM` aggregates multiple windows +
     // metadata corroboration, while `analyzeBeatGrid` tracks a single window, so
-    // their octave choices can legitimately differ. The strict C2 contract (the
-    // grid agreeing with the SAME single-window tempo it tracked against) is
-    // proven by `nearestOctaveEquivalentSnapsToReferenceOctave`; cross-stage
-    // octave agreement is not what this fixture-level check asserts.
+    // their octave choices can legitimately differ. Cross-stage octave agreement
+    // is the combined-`analyze` consistency contract's job (TempoAgreement), not
+    // what this standalone fixture-level check asserts.
     #expect(Self.matchesWithinOctave(grid.estimatedTempo, bpmResult.bpm))
   }
 
@@ -126,24 +126,32 @@ struct BeatGridAnalyzerTests {
     }
   }
 
-  // MARK: - C2 octave snap (deterministic)
+  /// Regression for the windowed-endpoint silent-tail GHOST beat (Codex diff
+  /// review): onsets at frames 0/50/100/150/200 followed by > dMax (= 2·period =
+  /// 100) frames of silence. The real last beat (frame 200) is excluded from the
+  /// final endpoint window `[n − dMax, n)`, and the DP's inherited score stays
+  /// positive through the silent tail, so without trimming the endpoint lands on
+  /// a ghost beat in the silence. After trimming, every detected beat sits on a
+  /// real onset and the last beat IS the last real onset.
+  @Test func trimsGhostBeatsInTrailingSilence() throws {
+    let sr = 44100.0
+    let hop = 441
+    let onsetRate = 100.0
+    let period = 50
+    var env = [Float](repeating: 0, count: 350)  // last onset at 200, silence to 349
+    for f in stride(from: 0, to: 201, by: period) { env[f] = 1 }
 
-  /// Proves the `estimatedTempo` octave-lock contract directly on the snap
-  /// helper: a half/double tracked tempo snaps to the BPM-stage octave, in-octave
-  /// drift is preserved, a non-octave ratio passes through unchanged, and a
-  /// degenerate `measured` returns the reference. (With `tightness = 100` the DP
-  /// will not produce an octave-split median from a clean periodic envelope, so
-  /// the snap's non-identity behavior is proven here at the unit level rather than
-  /// end-to-end.)
-  @Test func nearestOctaveEquivalentSnapsToReferenceOctave() {
-    #expect(BeatGridAnalyzer.nearestOctaveEquivalent(of: 240, to: 120) == 120)  // double -> snap down
-    #expect(BeatGridAnalyzer.nearestOctaveEquivalent(of: 60, to: 120) == 120)  // half -> snap up
-    // In-octave drift preserved (not forced to the reference).
-    #expect(abs(BeatGridAnalyzer.nearestOctaveEquivalent(of: 119.3, to: 120) - 119.3) < 1e-9)
-    // Non-octave (3:4) passes through unchanged — resolving that is not the snap's job.
-    #expect(BeatGridAnalyzer.nearestOctaveEquivalent(of: 75, to: 100) == 75)
-    // Degenerate measured -> reference.
-    #expect(BeatGridAnalyzer.nearestOctaveEquivalent(of: 0, to: 120) == 120)
+    let grid = try #require(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
+        acf: env, tempoBPM: 120, windowStartSample: 0))
+
+    // No beat in the silent tail: every detected beat has real onset strength.
+    #expect(grid.beats.allSatisfy { $0.strength > 0 })
+    // The last beat is the last real onset (frame 200), not a ghost past it.
+    let lastFrame = Int((grid.beats.last!.presentationTime * sr / Double(hop)).rounded())
+    #expect(
+      lastFrame == 200, "last beat at frame \(lastFrame) — expected the last real onset (200)")
   }
 
   @Test func presentationTimeIsTrackRelative() throws {
@@ -240,5 +248,396 @@ struct BeatGridAnalyzerTests {
       #expect(augmented.candidates[i].bpm.bitPattern == baseline.candidates[i].bpm.bitPattern)
       #expect(augmented.candidates[i].score.bitPattern == baseline.candidates[i].score.bitPattern)
     }
+  }
+
+  // MARK: - Story 8.5 helpers
+
+  /// Decode-count probe for the shared-decode structural test (Mutex-backed so
+  /// the `@Sendable` observer is strict-concurrency-clean).
+  private final class DecodeProbe: Sendable {
+    private let state = Mutex<Int>(0)
+    func record() { state.withLock { $0 += 1 } }
+    var count: Int { state.withLock { $0 } }
+  }
+
+  /// Writes mono `samples` to a temp lossless file (WAV LPCM or FLAC) via
+  /// AVFoundation, then returns the URL. Lossless → the decoded PCM is
+  /// sample-exact, so detected beats land on the known impulse positions (AC3).
+  private static func writeLossless(
+    _ samples: [Float], sampleRate: Double, formatID: AudioFormatID, ext: String
+  ) throws -> URL {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("bbb-grid-\(UUID().uuidString).\(ext)")
+    var settings: [String: Any] = [
+      AVFormatIDKey: formatID,
+      AVSampleRateKey: sampleRate,
+      AVNumberOfChannelsKey: 1,
+      AVLinearPCMBitDepthKey: 16,
+    ]
+    if formatID == kAudioFormatLinearPCM {
+      settings[AVLinearPCMIsFloatKey] = false
+      settings[AVLinearPCMIsBigEndianKey] = false
+    }
+    let file = try AVAudioFile(forWriting: url, settings: settings)
+    let srcFormat = try #require(
+      AVAudioFormat(
+        commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1,
+        interleaved: false))
+    let buffer = try #require(
+      AVAudioPCMBuffer(
+        pcmFormat: srcFormat, frameCapacity: AVAudioFrameCount(samples.count)))
+    buffer.frameLength = AVAudioFrameCount(samples.count)
+    let dst = try #require(buffer.floatChannelData)
+    samples.withUnsafeBufferPointer { src in
+      dst[0].update(from: src.baseAddress!, count: samples.count)
+    }
+    try file.write(from: buffer)
+    return url
+  }
+
+  /// Distance (in samples) from `samplePos` to the nearest impulse `k·period`.
+  private static func distanceToNearestImpulse(samplePos: Double, period: Int) -> Double {
+    let k = (samplePos / Double(period)).rounded()
+    return abs(samplePos - k * Double(period))
+  }
+
+  // MARK: - AC3: decoded-PCM-relative alignment (independent ground truth)
+
+  /// The decoded-PCM-relative timestamp contract (FR-30), tested via independent
+  /// ground truth — NOT the circular `presentationTime → frame` round-trip.
+  ///
+  /// Click → lossless FLAC AND lossless WAV on disk → decode each via
+  /// `PCMBufferReader` → assert:
+  ///
+  /// 1. **Codec-independence (the decisive check).** FLAC and WAV are both
+  ///    lossless, so they decode to the same PCM with the same origin — the beats
+  ///    land at the SAME times (within one hop). If priming were subtracted for
+  ///    one container and not the other, they'd diverge by the encoder delay
+  ///    (~thousands of samples). Equal times prove "decoded-PCM-relative, no
+  ///    codec-dependent priming correction".
+  /// 2. **Clean periodic grid with a constant, bounded onset latency.** Detected
+  ///    beats sit at `impulse + L` for a single fixed `L` (the mel-onset / spectral-
+  ///    flux detection delay — a DSP constant, NOT codec priming): every beat's
+  ///    signed distance to its nearest impulse is within one hop of the mean, and
+  ///    `|L|` is small (≤ ~10 hops). This is the honest form of "beats land on the
+  ///    impulse grid": on-grid up to a fixed detection latency, not zero-latency.
+  @Test func decodedPCMRelativeAlignmentIsCodecIndependent() throws {
+    let bpm = 120.0
+    let sampleRate = 44100.0
+    let samplesPerBeat = Int(sampleRate * 60.0 / bpm)  // 22050
+    let hopSize = Int(sampleRate / 100)  // 441
+    let samples = generateClickTrack(bpm: bpm, sampleRate: sampleRate, durationSeconds: 40)
+
+    let flacURL = try Self.writeLossless(
+      samples, sampleRate: sampleRate, formatID: kAudioFormatFLAC, ext: "flac")
+    let wavURL = try Self.writeLossless(
+      samples, sampleRate: sampleRate, formatID: kAudioFormatLinearPCM, ext: "wav")
+    defer {
+      try? FileManager.default.removeItem(at: flacURL)
+      try? FileManager.default.removeItem(at: wavURL)
+    }
+
+    let flacGrid = try #require(
+      try AudioAnalysisService.analyzeBeatGrid(
+        decoded: PCMBufferReader.readDecodedAudio(from: flacURL)))
+    let wavGrid = try #require(
+      try AudioAnalysisService.analyzeBeatGrid(
+        decoded: PCMBufferReader.readDecodedAudio(from: wavURL)))
+    #expect(flacGrid.beats.count > 0)
+
+    // (1) Codec-independent decoded-PCM-relative timing: lossless FLAC and WAV
+    // yield the SAME beat times (no priming subtraction differs between formats).
+    try #require(flacGrid.beats.count == wavGrid.beats.count)
+    let hopSeconds = Double(hopSize) / sampleRate
+    for (f, w) in zip(flacGrid.beats, wavGrid.beats) {
+      #expect(
+        abs(f.presentationTime - w.presentationTime) <= hopSeconds,
+        "FLAC beat \(f.presentationTime)s vs WAV \(w.presentationTime)s differ by more than one hop — a codec-dependent priming offset"
+      )
+    }
+
+    // (2) Periodic grid at a constant, bounded onset latency — robust to the
+    // occasional off-grid beat the DP places at a window edge (which is exactly
+    // WHY a consumer anchors on `gridOrigin` instead of trusting every beat).
+    // Use the MEDIAN phase and require the vast majority of beats to sit on it.
+    let phases = wavGrid.beats.map { beat -> Double in
+      let pos = beat.presentationTime * sampleRate
+      let k = (pos / Double(samplesPerBeat)).rounded()
+      return pos - k * Double(samplesPerBeat)  // signed distance to nearest impulse
+    }
+    let medianPhase = phases.sorted()[phases.count / 2]
+    let onGrid = phases.filter { abs($0 - medianPhase) <= Double(hopSize) }.count
+    let fraction = Double(onGrid) / Double(phases.count)
+    #expect(
+      fraction >= 0.9,
+      "only \(Int(fraction * 100))% of beats sit on the constant-latency grid (median phase \(medianPhase))"
+    )
+    #expect(
+      abs(medianPhase) <= Double(10 * hopSize),
+      "onset latency \(medianPhase) samples exceeds the ~10-hop bound — unexpectedly large detection delay"
+    )
+  }
+
+  // MARK: - AC4: gridOrigin lands on a real beat, phase-consistency selected
+
+  @Test func gridOriginIsPhaseConsistent() throws {
+    let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 40)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 44100)
+    let grid = try #require(try AudioAnalysisService.analyzeBeatGrid(decoded: decoded))
+
+    let anchor = try #require(grid.gridOrigin)
+    // Anchor indexes a real beat and reports that beat's exact time.
+    try #require(anchor.beatIndex >= 0 && anchor.beatIndex < grid.beats.count)
+    #expect(anchor.presentationTime == grid.beats[anchor.beatIndex].presentationTime)
+    #expect(anchor.confidence >= 0 && anchor.confidence <= 1)
+    #expect(anchor.strength >= 0 && anchor.strength <= 1)
+    // A clean periodic click → phase consistency fires (not a fallback).
+    #expect(anchor.source == .medianConsistentBeat)
+  }
+
+  @Test func gridOriginNilWhenNoBeats() {
+    // All-zero envelope → no beats → estimateBeatGrid returns nil (so no anchor
+    // to test); the empty-grid `nil` anchor path is covered by the sentinel
+    // shape in BeatGridTypesTests. Here we assert the degenerate analyzer path.
+    #expect(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: [Float](repeating: 0, count: 500), onsetRate: 100, hopSize: 441,
+        sampleRate: 44100, acf: [Float](repeating: 0, count: 500), tempoBPM: 120,
+        windowStartSample: 0) == nil)
+  }
+
+  // MARK: - AC7: tempo-agreement classification (deterministic, on the classifier)
+
+  @Test func tempoAgreementClassification() {
+    // Octave: grid is 2× the BPM stage → +2; grid is ½× → -2 (2manyDJs 87/174).
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 174, bpmTempo: 87)
+        == .octaveEquivalent(factor: 2))
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 87, bpmTempo: 174)
+        == .octaveEquivalent(factor: -2))
+    // Within ~2% relative → agree.
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 120, bpmTempo: 121)
+        == .agree)
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 128, bpmTempo: 128)
+        == .agree)
+    // Non-octave mismatch → disagree (120 vs 137).
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 120, bpmTempo: 137)
+        == .disagree)
+    // 4× is NOT an octave-equivalent (2× only) → disagree.
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 120, bpmTempo: 30)
+        == .disagree)
+    // Degenerate inputs → the safe "don't auto-sync" answer.
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 0, bpmTempo: 120) == .disagree)
+    #expect(
+      AudioAnalysisService.classifyTempoAgreement(gridTempo: 120, bpmTempo: .nan)
+        == .disagree)
+  }
+
+  // MARK: - AC6 / AC10: combined analyze() shares one decode + leaves BPM byte-identical
+
+  @Test func combinedAnalyzeSharesOneDecode() throws {
+    let url = try AudioFixtures.url(for: "Quantum_Cascade", extension: "mp3")
+    let probe = DecodeProbe()
+    let result = try AudioAnalysisService.analyze(
+      url: url, options: .init(), decodeObserver: { _ in probe.record() })
+    #expect(result != nil)
+    #expect(probe.count == 1, "analyze(url:) must decode exactly once (FR-35)")
+  }
+
+  @Test func combinedAnalyzeLeavesStandaloneBPMByteIdentical() throws {
+    let url = try AudioFixtures.url(for: "Quantum_Cascade", extension: "mp3")
+    let standalone = try #require(try AudioAnalysisService.analyzeBPM(url: url))
+    let combined = try #require(try AudioAnalysisService.analyze(url: url))
+
+    #expect(combined.bpm.bpm.bitPattern == standalone.bpm.bitPattern)
+    #expect(combined.bpm.confidence.bitPattern == standalone.confidence.bitPattern)
+    try #require(combined.bpm.candidates.count == standalone.candidates.count)
+    for i in 0..<standalone.candidates.count {
+      #expect(combined.bpm.candidates[i].bpm.bitPattern == standalone.candidates[i].bpm.bitPattern)
+      #expect(
+        combined.bpm.candidates[i].score.bitPattern == standalone.candidates[i].score.bitPattern)
+    }
+  }
+
+  @Test func combinedAnalyzeResolvesTempoAgreement() throws {
+    let url = try AudioFixtures.url(for: "Quantum_Cascade", extension: "mp3")
+    let result = try #require(try AudioAnalysisService.analyze(url: url))
+    let grid = try #require(result.beatGrid)
+    // Both stages ran → agreement was compared (never .notCompared on this path).
+    #expect(grid.tempoAgreement != .notCompared)
+    // Both raw tempos remain accessible (2manyDJs recovers octave cases from them).
+    #expect(result.bpm.bpm > 0)
+    #expect(grid.estimatedTempo > 0)
+  }
+
+  // MARK: - AC8: per-file consistency invariant over enumerated committed fixtures
+
+  /// Enumerated ANALYZABLE committed fixtures only. The 1-second
+  /// `sample-with-cover.*` / `test-audio.*` / `sample.wav` clips the spec listed
+  /// are below the BPM pipeline's 4 s minimum, so `analyze` correctly returns
+  /// `nil` (no BPM stage) — they cannot exercise a BPM/grid consistency invariant.
+  /// The real-music fixtures (30 s) + the 5 s BWF + the committed click WAVs are
+  /// the honest set.
+  @Test(
+    arguments: [
+      ("Meta_Man", "mp3"), ("Quantum_Cascade", "mp3"), ("Submerged_Lament", "mp3"),
+      ("test-bwf", "wav"),
+      ("bpm-85-click", "wav"), ("bpm-120-click", "wav"),
+      ("bpm-140-click", "wav"), ("bpm-170-click", "wav"),
+    ])
+  func consistencyContract(name: String, ext: String) throws {
+    let url = try AudioFixtures.url(for: name, extension: ext)
+    let result = try #require(
+      try AudioAnalysisService.analyze(url: url),
+      "\(name).\(ext): analyze returned nil")
+    let grid = try #require(result.beatGrid, "\(name).\(ext): no beat grid")
+    // Both stages ran.
+    #expect(
+      grid.tempoAgreement != .notCompared,
+      "\(name).\(ext): tempoAgreement is .notCompared — a stage did not run")
+    // Non-pathological committed music: sync-usable (agree or a recoverable octave),
+    // never a hard disagreement.
+    let usable: Bool
+    switch grid.tempoAgreement {
+    case .agree, .octaveEquivalent:
+      usable = true
+    case .disagree, .notCompared:
+      usable = false
+    }
+    #expect(
+      usable,
+      "\(name).\(ext): tempoAgreement is \(grid.tempoAgreement) (grid \(grid.estimatedTempo) vs bpm \(result.bpm.bpm)) — expected agree/octaveEquivalent"
+    )
+  }
+
+  // MARK: - AC2: long-file sync stability
+
+  /// Primary (default `.analysisWindow`, the consumer path): anchor + tempo
+  /// extrapolation is drift-free on constant tempo. Uses an integer-frame-period
+  /// BPM (120 → 50 onset frames/beat exactly) so the grid's `estimatedTempo` is
+  /// the EXACT tempo — the precondition for the "drift-free by construction"
+  /// claim. The audio need only be long enough for a solid anchor; "minute 5" is
+  /// the mathematical true-beat position, not decoded audio.
+  ///
+  /// **What this constrains** (three independent checks, so the 30 ms bound is
+  /// not vacuous). Uses a NON-integer-frame-period BPM (127 → samplesPerBeat =
+  /// Int(20834.6) = 20834 ≈ 47.24 onset frames/beat) precisely so the tempo
+  /// estimate must be sub-frame accurate to pass — the bound genuinely bites:
+  /// 1. **Tempo accuracy** — `estimatedTempo` lands on the true tempo within a
+  ///    fraction of a BPM. The sub-frame inlier-mean estimator achieves this; the
+  ///    old median-of-integer-frame estimate would round 47.24 → 47 and report
+  ///    ~127.66 BPM (0.66 off), failing both this check and the drift bound below
+  ///    (a 0.66-BPM error is ~1.5 s of drift at minute 5).
+  /// 2. **Anchor accuracy** — the anchor lands on a real beat near a true impulse
+  ///    (within the bounded onset-detection latency), not on garbage.
+  /// 3. **Drift** — the ACCUMULATED spacing error `n·|extrapPeriod − truePeriod|`
+  ///    over the ~600 beats to minute 5 stays ≤ 30 ms. The constant onset latency
+  ///    is anchored out (it is an offset, not drift); the residual is pure tempo
+  ///    error × distance, which check (1) keeps small.
+  @Test func longFileSyncStabilityAnchorExtrapolation() throws {
+    let bpm = 127.0
+    let sampleRate = 44100.0
+    let samplesPerBeat = Int(sampleRate * 60.0 / bpm)  // 20834 (non-integer-exact)
+    let truePeriod = Double(samplesPerBeat) / sampleRate
+    let trueTempo = 60.0 / truePeriod
+    let hopSize = Int(sampleRate / 100)
+    let samples = generateClickTrack(bpm: bpm, sampleRate: sampleRate, durationSeconds: 45)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: sampleRate)
+
+    let grid = try #require(try AudioAnalysisService.analyzeBeatGrid(decoded: decoded))
+    let anchor = try #require(grid.gridOrigin)
+    try #require(grid.estimatedTempo > 0)
+
+    // (1) Tempo accuracy: the reported tempo equals the true generator tempo to
+    // within 0.1 BPM (the old integer-frame median missed by ~0.66, an inlier-mean
+    // re-measurement by ~0.22 — both would fail here and the drift bound below).
+    #expect(
+      abs(grid.estimatedTempo - trueTempo) <= 0.1,
+      "estimatedTempo \(grid.estimatedTempo) is not the true tempo \(trueTempo)")
+
+    // (2) Anchor accuracy: the anchor is a real beat sitting within the bounded
+    // onset latency (~10 hops) of a true impulse.
+    #expect(anchor.presentationTime == grid.beats[anchor.beatIndex].presentationTime)
+    let anchorPos = anchor.presentationTime * sampleRate
+    let anchorImpulseDist = Self.distanceToNearestImpulse(
+      samplePos: anchorPos, period: samplesPerBeat)
+    #expect(
+      anchorImpulseDist <= Double(10 * hopSize),
+      "anchor at sample \(anchorPos) is \(anchorImpulseDist) samples from the nearest impulse (> 10 hops)"
+    )
+
+    // (3) Drift: accumulated spacing error from the anchor out to minute 5.
+    let extrapPeriod = 60.0 / grid.estimatedTempo
+    let n = ((300.0 - anchor.presentationTime) / extrapPeriod).rounded()
+    let driftMs = abs(extrapPeriod * n - truePeriod * n) * 1000.0
+    #expect(
+      driftMs <= 30.0,
+      "anchor+tempo extrapolation accumulates \(driftMs) ms of drift to minute 5 (> 30 ms)")
+  }
+
+  /// Secondary (`.fullTrack`): over a real 5+ minute decode at a NON-integer-exact
+  /// BPM (127 → samplesPerBeat = Int(20834.6) = 20834), the detected grid HOLDS
+  /// PHASE across the whole file — the late beats sit at the same offset-to-impulse
+  /// as the early beats, so there is no accumulating drift.
+  ///
+  /// **Drift, not latency.** Each detected beat carries the same constant
+  /// onset-detection latency (~50 ms — see the codec-independence test). That is
+  /// not drift. So compare the LAST beat's phase (signed distance to the nearest
+  /// true generator-period impulse) to the FIRST beat's phase: the constant
+  /// latency cancels and the difference is the accumulated drift over 5 minutes.
+  /// Compared against the generator's KNOWN integer period (independent ground
+  /// truth), NOT the grid's own `estimatedTempo` (which would round-trip).
+  @Test func longFileSyncStabilityFullTrackDrift() throws {
+    let bpm = 127.0
+    let sampleRate = 44100.0
+    let samplesPerBeat = Int(sampleRate * 60.0 / bpm)  // 20834 (non-integer-exact)
+    let truePeriod = Double(samplesPerBeat) / sampleRate
+    let samples = generateClickTrack(bpm: bpm, sampleRate: sampleRate, durationSeconds: 305)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: sampleRate)
+
+    var options = AudioAnalysisService.Options()
+    options.beatGridCoverage = .fullTrack
+    options.maxSeconds = 400  // admit the full 305 s decode
+
+    let grid = try #require(
+      try AudioAnalysisService.analyzeBeatGrid(decoded: decoded, options: options))
+    #expect(grid.coverage == .fullTrack)
+    // Full coverage → far more than the ~64 beats a 30 s window would yield.
+    #expect(grid.beats.count > 400, "expected full-track beat coverage, got \(grid.beats.count)")
+
+    let last = try #require(grid.beats.last)
+    #expect(
+      last.presentationTime > 290.0,
+      "last detected beat at \(last.presentationTime)s — full track not covered")
+
+    // Signed phase (distance to nearest true impulse, in seconds).
+    func phase(_ t: Double) -> Double {
+      let k = (t / truePeriod).rounded()
+      return t - k * truePeriod
+    }
+    func median(_ xs: ArraySlice<Double>) -> Double {
+      let s = xs.sorted()
+      return s[s.count / 2]
+    }
+    // Compare the MEDIAN phase of the first 10% of beats to the last 10%. Medians
+    // are robust to the handful of loose beats at the DP's window edges (the
+    // endpoint beat in particular is chosen by score, not guaranteed on-impulse);
+    // any real ACCUMULATING drift would shift the late median away from the early
+    // one. Phase-locked tracking → the two medians match within 30 ms.
+    let phases = grid.beats.map { phase($0.presentationTime) }
+    let chunk = max(1, phases.count / 10)
+    let earlyMedian = median(phases.prefix(chunk))
+    let lateMedian = median(phases.suffix(chunk))
+    let driftMs = abs(lateMedian - earlyMedian) * 1000.0
+    #expect(
+      driftMs <= 30.0,
+      "grid phase drifts \(driftMs) ms from the first 10% to the last 10% of beats over 5 min (> 30 ms)"
+    )
   }
 }
