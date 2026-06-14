@@ -87,6 +87,78 @@ public enum BeatGridCoverage: Sendable, Codable, CustomStringConvertible {
       return "fullTrack"
     }
   }
+
+  // MARK: - Codable (custom: round-trips the `sanitized` form, NaN-free)
+
+  /// Top-level keys = the case names. `encode` always emits the SE-0295 single-key wire
+  /// shape (`{"window":{"seconds":45.5}}`, `{"analysisWindow":{}}`, `{"fullTrack":{}}`).
+  /// `decode` is intentionally lenient (priority-ordered, mirroring ``DownbeatResult``): a
+  /// malformed multi-key payload resolves to the first recognized case, and only a
+  /// no-recognized-key payload throws — the house "decode untrusted persistence into safe
+  /// values, do not throw on hostile input" doctrine.
+  private enum CodingKeys: String, CodingKey {
+    case analysisWindow, window, fullTrack
+  }
+
+  /// Nested key for the ``window(seconds:)`` payload — the single labeled `seconds`
+  /// key (never a positional `_0`); also the (empty) nested-container key type for
+  /// the no-payload cases.
+  private enum WindowCodingKeys: String, CodingKey {
+    case seconds
+  }
+
+  /// Decodes the coverage, **storing the ``sanitized`` form** so a degenerate decoded
+  /// `.window` (non-finite, `≤ 0`, or `≥ 1e9`) becomes ``analysisWindow`` rather than
+  /// persisting an unsound value. Synthesized `Codable` would faithfully reconstruct a
+  /// `.window(.nan)`; this closes that decode hole (the house faithful-but-safe
+  /// doctrine — untrusted persistence decodes into safe values). An **unreadable**
+  /// `.window` payload (missing / `null` / wrong-type `seconds`, or a non-object value)
+  /// also folds to ``analysisWindow`` rather than throwing. Only a payload with no
+  /// recognized case key (or a non-object top-level value) throws — a schema-boundary
+  /// signal that the cache is not a `BeatGridCoverage` at all.
+  ///
+  /// - Note: This hardens *decode/encode* only. A `.window(.nan)` remains directly
+  ///   constructible in-memory, but its `==` / `hash(into:)` / ``description`` already
+  ///   canonicalize it to ``analysisWindow``, and persistence can no longer surface it.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let raw: BeatGridCoverage
+    if container.contains(.window) {
+      // A recognized `.window` whose seconds is unreadable (missing / null / wrong-type /
+      // non-object payload) folds to `.analysisWindow` (via `sanitized` below); never throws.
+      let seconds =
+        (try? container.nestedContainer(keyedBy: WindowCodingKeys.self, forKey: .window))
+        .flatMap { try? $0.decode(Double.self, forKey: .seconds) }
+      raw = seconds.map { .window(seconds: $0) } ?? .analysisWindow
+    } else if container.contains(.fullTrack) {
+      raw = .fullTrack
+    } else if container.contains(.analysisWindow) {
+      raw = .analysisWindow
+    } else {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(
+          codingPath: container.codingPath,
+          debugDescription:
+            "BeatGridCoverage: no recognized case key (expected analysisWindow / window / fullTrack)"
+        ))
+    }
+    self = raw.sanitized
+  }
+
+  /// Encodes the **sanitized** SE-0295 single-key wire shape — a degenerate window is
+  /// never persisted (it serializes as `{"analysisWindow":{}}`).
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    switch sanitized {
+    case .analysisWindow:
+      _ = container.nestedContainer(keyedBy: WindowCodingKeys.self, forKey: .analysisWindow)
+    case .fullTrack:
+      _ = container.nestedContainer(keyedBy: WindowCodingKeys.self, forKey: .fullTrack)
+    case .window(let seconds):
+      var nested = container.nestedContainer(keyedBy: WindowCodingKeys.self, forKey: .window)
+      try nested.encode(seconds, forKey: .seconds)
+    }
+  }
 }
 
 // MARK: - Hashable (NaN-free via `sanitized`)

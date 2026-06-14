@@ -1350,7 +1350,9 @@ public struct AudioAnalysisService {
   /// file, including by an octave; do not assume close agreement between the two.
   /// Beats carry decoded-PCM-relative ``BeatTimestamp/presentationTime`` (`t=0`
   /// is the decoded file start, energy-scan drop included, with no codec-priming
-  /// subtraction) and a per-beat onset ``BeatTimestamp/strength``.
+  /// subtraction — AVFoundation already removes declared priming; apply any
+  /// output-latency or manual offset with ``BeatGrid/offset(by:)``) and a per-beat
+  /// onset ``BeatTimestamp/strength``.
   ///
   /// **Standalone scope.** This entry does NOT compare against a BPM result, so
   /// ``BeatGrid/tempoAgreement`` is ``TempoAgreement/notCompared`` — use the

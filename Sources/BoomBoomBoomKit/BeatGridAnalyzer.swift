@@ -247,16 +247,44 @@ enum BeatGridAnalyzer {
     // transition penalty is zero at the exact period), so the final-window
     // endpoint — or a backtrace through a silent head — can land on a frame past
     // the last real onset (or before the first), producing a beat whose
-    // `presentationTime` sits in silence. A ghost has ~zero local onset; a real
-    // beat (even a quiet one) does not. INTERIOR interpolated beats — the DP
+    // `presentationTime` sits in silence. INTERIOR interpolated beats — the DP
     // filling a missing onset at the tracked period within the music — are
     // intentionally KEPT (a beat grid wants every beat position, onset or not);
-    // only the silent head and tail are trimmed.
-    let ghostFloor = envMax * 0.05
-    while frames.count > 1, onsetEnvelope[frames[frames.count - 1]] <= ghostFloor {
+    // only a silent head/tail is trimmed.
+    //
+    // The test is a CONTIGUOUS-SILENT-REGION check on the inter-beat span between an
+    // edge beat and its neighbour, NOT the edge beat's salience vs the global `envMax`.
+    // The old `<= envMax * 0.05` gate compared each edge beat to the loudest beat in the
+    // track, so a genuine but QUIET fade-in/out beat (well below 5% of a loud drop) was
+    // wrongly trimmed. A local span keeps a quiet-but-real fade beat (its span carries
+    // its own onset energy) and drops only a beat extrapolated across a genuinely empty
+    // span. Honest limits: an onset already zeroed by `adaptiveThreshold` can still be
+    // trimmed, and low-level noise/reverb inside the span can retain a ghost — both are
+    // conservative (keeping a beat is safer than dropping a real one).
+    //
+    // The threshold is RELATIVE to the envelope's own peak (like the `localScore`
+    // normalization above), so the trim is scale-invariant — a quieter recording yields the
+    // same grid. A bare absolute floor would strip every edge beat once `envMax` dropped
+    // below it. `envMax > 0` is guaranteed above, so no clamp is needed; for a vanishing
+    // peak the product underflows toward 0 and only an exactly-empty span is trimmed.
+    let silenceEps = envMax * 1e-4
+    // Max of `onsetEnvelope` over the half-open frame range `[lo, hi)` (0 if empty).
+    func windowMax(_ lo: Int, _ hi: Int) -> Float {
+      guard lo < hi else { return 0 }
+      var m: Float = 0
+      onsetEnvelope.withUnsafeBufferPointer { buf in
+        vDSP_maxv(buf.baseAddress! + lo, 1, &m, vDSP_Length(hi - lo))
+      }
+      return m
+    }
+    // Trailing: drop the last beat while the span `(prev, last]` carries no onset.
+    while frames.count > 1,
+      windowMax(frames[frames.count - 2] + 1, frames[frames.count - 1] + 1) <= silenceEps
+    {
       frames.removeLast()
     }
-    while frames.count > 1, onsetEnvelope[frames[0]] <= ghostFloor {
+    // Leading: drop the first beat while the span `[first, next)` carries no onset.
+    while frames.count > 1, windowMax(frames[0], frames[1]) <= silenceEps {
       frames.removeFirst()
     }
 
