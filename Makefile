@@ -260,6 +260,27 @@ beat-grid-impact-report:
 	) \
 	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridImpactGateTests
 
+## combined-analyze-impact-report: Story 8-5 AC10 — per-format shared-decode gate (analyze() one decode <= analyzeBPM + analyzeBeatGrid two decodes, x1.10 margin) + full-track-coverage overhead REPORT + JSON to _bmad-output/implementation-artifacts/8-5-combined-analyze-impact.json. Release config.
+.PHONY: combined-analyze-impact-report
+combined-analyze-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	COMBINED_ANALYZE_IMPACT=1 \
+	COMBINED_ANALYZE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.CombinedAnalyzeImpactGateTests
+
+## consistency-rate-oa300: Story 8-5 AC8 — over OA300, assert >= 90% of analyzable tracks are sync-usable (analyze() tempoAgreement != .disagree) + print the agree/octave/disagree breakdown. Accuracy gate (config-agnostic).
+.PHONY: consistency-rate-oa300
+consistency-rate-oa300:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	OA300_CONSISTENCY=1 \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.ConsistencyContractCorpusTests
+
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
 .PHONY: bnns-impact-report
 bnns-impact-report:

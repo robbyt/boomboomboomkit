@@ -517,6 +517,118 @@ struct BPMAnalyzer {
       beatGrid: beatGrid)
   }
 
+  // MARK: - Full-track beat-grid seam (Story 8.5, DD #10)
+
+  /// Builds a ``BeatGrid`` over a coverage span LONGER than the BPM analysis
+  /// window — the Story-8.5 full-track / explicit-window seam (DD #10).
+  ///
+  /// This is a **separate entry**, NOT a widened ``estimateBPM(decoded:options:)``:
+  /// folding the 30 s window out of a single full-track envelope would change the
+  /// onset/ACF the BPM pipeline sees and break the default-path byte-identity
+  /// contract (DD #9). The default ``BeatGridCoverage/analysisWindow`` path never
+  /// reaches here — the service reuses the cheap in-scope step-11 fan-out for it
+  /// (zero second onset pass). The service calls this only for
+  /// ``BeatGridCoverage/window(seconds:)`` / ``BeatGridCoverage/fullTrack`` AFTER
+  /// it has resolved `tempoBPM` (the single-window DSP tempo), and checks
+  /// cancellation immediately before calling — cancellation is a service concern,
+  /// so this pure-DSP entry carries none.
+  ///
+  /// Builds the coverage-length onset envelope + ACF (mirroring the technique-set
+  /// gating of ``estimateBPM(decoded:options:)`` for the full-band envelope:
+  /// SuperFlux vs log-mel, adaptive threshold, ACF sharpening), then runs the same
+  /// ``BeatGridAnalyzer/estimateBeatGrid(onsetEnvelope:onsetRate:hopSize:sampleRate:acf:tempoBPM:windowStartSample:coverage:)``
+  /// tracker the step-11 fan-out uses. Cost is O(track) — linear in the coverage
+  /// length (DD #5).
+  ///
+  /// - Parameters:
+  ///   - decoded: The same decoded carrier the BPM pass used (already
+  ///     `maxSeconds`-capped by the service); `.fullTrack` therefore spans up to
+  ///     `maxSeconds` of audio, like every other decode in the library.
+  ///   - tempoBPM: The tempo to track against — the single-window DSP tempo, so
+  ///     the grid's reported ``BeatGrid/estimatedTempo`` stays an independent
+  ///     estimate the consistency contract can compare against the full BPM
+  ///     result (AC7 — NOT tautological).
+  ///   - coverage: ``BeatGridCoverage/window(seconds:)`` or
+  ///     ``BeatGridCoverage/fullTrack``; recorded (sanitized) on the result.
+  ///   - options: Supplies `intensity` / `techniqueSet` (onset variant + gating)
+  ///     and `analysisWindowSeconds` (the fallback span if a degenerate coverage
+  ///     sanitizes to `.analysisWindow`).
+  /// - Returns: A ``BeatGrid`` over the coverage span, or `nil` for silence,
+  ///   too-short coverage, or non-musical input.
+  static func estimateBeatGrid(
+    decoded: FeatureSubstrate.DecodedAudio,
+    tempoBPM: Double,
+    coverage: BeatGridCoverage,
+    options: Options = .init()
+  ) -> BeatGrid? {
+    let samples = decoded.samples
+    let sampleRate = decoded.sampleRate
+    let techniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
+    guard !samples.isEmpty, sampleRate > 0 else { return nil }
+    guard tempoBPM.isFinite, tempoBPM > 0 else { return nil }
+
+    // Step 1: energy scan — the SAME drop offset estimateBPM derives, so the
+    // coverage span shares the BPM window's musical start and beats stay
+    // track-relative (decoded-PCM-relative `t=0` = file start).
+    let dropOffset = findEnergyTransition(samples: samples, sampleRate: sampleRate)
+
+    // Resolve the coverage span (in samples) from the sanitized coverage.
+    let cov = coverage.sanitized
+    let spanSamples: Int
+    switch cov {
+    case .analysisWindow:
+      spanSamples = Int(options.analysisWindowSeconds * sampleRate)
+    case .window(let seconds):
+      spanSamples = Int(seconds * sampleRate)
+    case .fullTrack:
+      spanSamples = samples.count - dropOffset
+    }
+    let endSample = min(dropOffset + spanSamples, samples.count)
+    guard endSample > dropOffset else { return nil }
+    let coverageWindow = Array(samples[dropOffset..<endSample])
+
+    guard !isSilent(coverageWindow) else { return nil }
+    let coverageDuration = Double(coverageWindow.count) / sampleRate
+    guard coverageDuration >= minimumDurationSeconds else { return nil }
+
+    let hopSize = Int(sampleRate / 100)
+    let onsetRate = sampleRate / Double(hopSize)
+
+    // Full-band onset envelope (sub-bands unused by the tracker → not computed).
+    let onsetResult: OnsetEnvelopes
+    if techniqueSet.contains(.superFluxOnset) {
+      onsetResult = computeSuperFluxOnsetEnvelope(
+        samples: coverageWindow, sampleRate: sampleRate, hopSize: hopSize,
+        computeSubBands: false, normalizeSubBands: false, captureMLFeatures: false)
+    } else {
+      onsetResult = computeMelOnsetEnvelopeWithSubBands(
+        samples: coverageWindow, sampleRate: sampleRate, hopSize: hopSize,
+        computeSubBands: false, normalizeSubBands: false, captureMLFeatures: false)
+    }
+    var onsetEnvelope = onsetResult.fullBand
+    guard !onsetEnvelope.isEmpty else { return nil }
+
+    if techniqueSet.contains(.adaptiveThreshold) {
+      onsetEnvelope = adaptiveThreshold(envelope: onsetEnvelope, onsetRate: onsetRate)
+    }
+
+    var acf = computeAutocorrelation(onsetEnvelope)
+    guard !acf.isEmpty else { return nil }
+    if techniqueSet.contains(.acfSharpening) {
+      vDSP_vsq(acf, 1, &acf, 1, vDSP_Length(acf.count))
+    }
+
+    return BeatGridAnalyzer.estimateBeatGrid(
+      onsetEnvelope: onsetEnvelope,
+      onsetRate: onsetRate,
+      hopSize: hopSize,
+      sampleRate: sampleRate,
+      acf: acf,
+      tempoBPM: tempoBPM,
+      windowStartSample: dropOffset,
+      coverage: cov)
+  }
+
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)
 
   /// Number of mel bands for onset detection.

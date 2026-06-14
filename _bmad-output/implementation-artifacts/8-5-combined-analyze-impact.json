@@ -1,0 +1,37 @@
+{
+  "configuration" : "release",
+  "date" : "2026-06-14T00:12:24Z",
+  "gitSHA" : "5476333-dirty",
+  "matchedMaxSeconds" : 120,
+  "measuredReps" : 3,
+  "perFormat" : {
+    "flac" : {
+      "combinedMedian" : 0.205276583,
+      "fileCount" : 3,
+      "fullTrackMedian" : 0.247565084,
+      "fullTrackOverheadFraction" : 0.20600742852388562,
+      "savingFraction" : 0.3144900504679369,
+      "sequentialMedian" : 0.299450917,
+      "sharedDecodeGateMet" : true
+    },
+    "mp3" : {
+      "combinedMedian" : 0.2135611875,
+      "fileCount" : 10,
+      "fullTrackMedian" : 0.255842479,
+      "fullTrackOverheadFraction" : 0.19798209588060103,
+      "savingFraction" : 0.3367288207305106,
+      "sequentialMedian" : 0.3219817085,
+      "sharedDecodeGateMet" : true
+    },
+    "wav-class" : {
+      "combinedMedian" : 0.11159335449999999,
+      "fileCount" : 10,
+      "fullTrackMedian" : 0.15953927099999998,
+      "fullTrackOverheadFraction" : 0.4296484921958323,
+      "savingFraction" : 0.03828747390585398,
+      "sequentialMedian" : 0.116036083,
+      "sharedDecodeGateMet" : true
+    }
+  },
+  "sharedDecodeMargin" : 1.1
+}
