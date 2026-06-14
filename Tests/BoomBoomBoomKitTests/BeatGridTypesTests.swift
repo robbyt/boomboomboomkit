@@ -69,7 +69,13 @@ struct BeatGridTypesTests {
     #expect(grid.estimatedTempo == 128.0)
     #expect(grid.confidence == 0.9)
     #expect(grid.tempoAgreement == .agree)
-    #expect(grid.gridOrigin == Self.sampleAnchor)
+    // gridOrigin is rebuilt from beats[2] (== ts) — beatIndex + source preserved, the
+    // float fields taken from the indexed beat (sampleAnchor's strength 0.6 → ts's 0.5).
+    #expect(
+      grid.gridOrigin
+        == BeatGridAnchor(
+          beatIndex: 2, presentationTime: ts.presentationTime, confidence: ts.confidence,
+          strength: ts.strength, source: Self.sampleAnchor.source))
     #expect(grid.coverage == .fullTrack)
   }
 
@@ -529,6 +535,47 @@ struct BeatGridTypesTests {
     #expect(payload["_0"] == nil)
   }
 
+  /// The no-payload cases encode with the SE-0295 empty-object shape (`{"agree":{}}`),
+  /// matching the synthesized conformance the hand-written `encode(to:)` replaces.
+  @Test(arguments: [
+    (TempoAgreement.notCompared, "notCompared"), (.agree, "agree"), (.disagree, "disagree"),
+  ])
+  func tempoAgreementNoPayloadWireShapes(value: TempoAgreement, key: String) throws {
+    let data = try JSONEncoder().encode(value)
+    let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(obj.count == 1)
+    #expect((obj[key] as? [String: Any])?.isEmpty == true)
+  }
+
+  /// An out-of-range decoded `octaveEquivalent` factor folds to `.disagree` — only ±2
+  /// are produced, so anything else is a stale/tampered cache that must NOT auto-sync.
+  @Test(arguments: ["4", "0", "-3", "1", "999"])
+  func hostileOctaveFactorDecodesToDisagree(factor: String) throws {
+    let json = "{\"octaveEquivalent\":{\"factor\": \(factor)}}"
+    let decoded = try JSONDecoder().decode(TempoAgreement.self, from: Data(json.utf8))
+    #expect(decoded == .disagree)
+  }
+
+  /// The valid ±2 factors survive decode unchanged (the fold does not over-reach).
+  @Test(arguments: [2, -2])
+  func validOctaveFactorDecodesUnchanged(factor: Int) throws {
+    let json = "{\"octaveEquivalent\":{\"factor\": \(factor)}}"
+    let decoded = try JSONDecoder().decode(TempoAgreement.self, from: Data(json.utf8))
+    #expect(decoded == .octaveEquivalent(factor: factor))
+  }
+
+  /// A `BeatGrid` whose decoded `tempoAgreement` carries a hostile factor inherits the
+  /// fold — the fix lives on the type, so every decode site is protected for free.
+  @Test func beatGridNestedHostileOctaveFactorFoldsToDisagree() throws {
+    let json = #"""
+      {"beats": [], "downbeats": {"notAttempted": {}}, "estimatedTempo": 120,
+       "confidence": 0.5, "tempoAgreement": {"octaveEquivalent": {"factor": 7}},
+       "coverage": {"analysisWindow": {}}}
+      """#
+    let grid = try JSONDecoder().decode(BeatGrid.self, from: Data(json.utf8))
+    #expect(grid.tempoAgreement == .disagree)
+  }
+
   // MARK: - Story 8.5: BeatGridAnchor
 
   @Test func beatGridAnchorClampsEveryField() {
@@ -618,6 +665,46 @@ struct BeatGridTypesTests {
     #expect(BeatGridCoverage.window(seconds: .nan).description == "analysisWindow")
   }
 
+  /// Each case encodes with the exact SE-0295 single-key object shape the synthesized
+  /// conformance would — the hand-written `encode(to:)` must not drift the wire format.
+  @Test func beatGridCoverageWireShapesAreLabeled() throws {
+    func object(_ value: BeatGridCoverage) throws -> [String: Any] {
+      let data = try JSONEncoder().encode(value)
+      return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+    let aw = try object(.analysisWindow)
+    #expect(aw.count == 1)
+    #expect((aw["analysisWindow"] as? [String: Any])?.isEmpty == true)
+
+    let ft = try object(.fullTrack)
+    #expect(ft.count == 1)
+    #expect((ft["fullTrack"] as? [String: Any])?.isEmpty == true)
+
+    let payload = try #require(try object(.window(seconds: 45.5))["window"] as? [String: Any])
+    #expect(payload["seconds"] as? Double == 45.5)
+    #expect(payload["_0"] == nil)
+  }
+
+  /// A degenerate decoded `.window` (absurd / ≤ 0) decodes to `.analysisWindow`: the
+  /// custom `init(from:)` stores the ``sanitized`` form, closing the synthesized-Codable
+  /// hole that would otherwise reconstruct an unsound value from persistence.
+  @Test(arguments: ["1e300", "-5", "0"])
+  func degenerateWindowJSONDecodesToAnalysisWindow(seconds: String) throws {
+    let json = "{\"window\":{\"seconds\": \(seconds)}}"
+    let decoded = try JSONDecoder().decode(BeatGridCoverage.self, from: Data(json.utf8))
+    #expect(decoded == .analysisWindow)
+  }
+
+  /// Encoding an in-memory `.window(.nan)` emits the `analysisWindow` shape — a
+  /// degenerate window can never be persisted.
+  @Test func nanWindowEncodesAsAnalysisWindow() throws {
+    let data = try JSONEncoder().encode(BeatGridCoverage.window(seconds: .nan))
+    let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(obj.count == 1)
+    #expect(obj["analysisWindow"] != nil)
+    #expect(obj["window"] == nil)
+  }
+
   // MARK: - Story 8.5: gridOrigin beatIndex invariant (cross-field hardening)
 
   /// `gridOrigin` invariant: a non-nil anchor always indexes a real beat. An
@@ -643,12 +730,20 @@ struct BeatGridTypesTests {
       coverage: .analysisWindow)
     #expect(empty.gridOrigin == nil)
 
-    // In-range anchor is preserved (sampleAnchor.beatIndex 2 < 8).
+    // In-range anchor (sampleAnchor.beatIndex 2 < 8) is REBUILT from beats[2]
+    // (time/confidence/strength), with beatIndex + source preserved — so it agrees with
+    // the indexed beat even though sampleAnchor's own conf/strength differ.
+    let beats8 = Self.makeBeats(8)
     let valid = BeatGrid(
-      beats: Self.makeBeats(8), downbeats: .notAttempted, estimatedTempo: 120,
+      beats: beats8, downbeats: .notAttempted, estimatedTempo: 120,
       confidence: 0.5, tempoAgreement: .notCompared, gridOrigin: Self.sampleAnchor,
       coverage: .analysisWindow)
-    #expect(valid.gridOrigin == Self.sampleAnchor)
+    let validAnchor = try #require(valid.gridOrigin)
+    #expect(validAnchor.beatIndex == 2)
+    #expect(validAnchor.source == Self.sampleAnchor.source)
+    #expect(validAnchor.presentationTime == beats8[2].presentationTime)
+    #expect(validAnchor.confidence == beats8[2].confidence)
+    #expect(validAnchor.strength == beats8[2].strength)
 
     // Hostile JSON: out-of-range beatIndex on decode → nil, beats intact.
     let json = #"""
@@ -664,6 +759,120 @@ struct BeatGridTypesTests {
     if let origin = decoded.gridOrigin {
       #expect(origin.beatIndex < decoded.beats.count)
     }
+  }
+
+  /// A4: an in-range hostile `gridOrigin` (wrong time/conf/strength, and a `.downbeat`
+  /// source while downbeats are NOT detected) is rebuilt from `beats[beatIndex]` —
+  /// `beatIndex`/`source` preserved — so the anchor agrees with its beat. `source`
+  /// stays untrusted: `.downbeat` here does not imply usable downbeats (the dual-gate).
+  @Test func inRangeGridOriginRebuiltFromBeatPreservingSource() throws {
+    let beats = Self.makeBeats(8)
+    let hostile = BeatGridAnchor(
+      beatIndex: 0, presentationTime: 999, confidence: 0.1, strength: 0.05,
+      source: .downbeat)
+    let grid = BeatGrid(
+      beats: beats, downbeats: .noneDetected, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: hostile, coverage: .analysisWindow)
+    let anchor = try #require(grid.gridOrigin)
+    #expect(anchor.beatIndex == 0)
+    #expect(anchor.presentationTime == beats[0].presentationTime)
+    #expect(anchor.confidence == beats[0].confidence)
+    #expect(anchor.strength == beats[0].strength)
+    #expect(anchor.source == .downbeat)  // preserved verbatim…
+
+    // …but `.downbeat` source ALONE is not a bar-snap signal: downbeats are not
+    // `.detected`, so the documented dual-gate is false.
+    var barSnapUsable = false
+    if case .detected = grid.downbeats, anchor.source == .downbeat { barSnapUsable = true }
+    #expect(barSnapUsable == false)
+
+    // An honest anchor (already equal to its beat) round-trips byte-identically — the
+    // rebuild is a no-op on producer output.
+    let honestAnchor = BeatGridAnchor(
+      beatIndex: 3, presentationTime: beats[3].presentationTime,
+      confidence: beats[3].confidence, strength: beats[3].strength,
+      source: .medianConsistentBeat)
+    let honest = BeatGrid(
+      beats: beats, downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: honestAnchor, coverage: .analysisWindow)
+    #expect(honest.gridOrigin == honestAnchor)
+  }
+
+  // MARK: - BeatGrid.offset(by:) consumer-controlled alignment
+
+  @Test func offsetShiftsUniformlyPreservingSpacing() throws {
+    // Beats at 1.0/1.5/2.0/2.5 (minTime 1.0); downbeats detected at the bar starts.
+    let beats = [1.0, 1.5, 2.0, 2.5].map {
+      BeatTimestamp(presentationTime: $0, confidence: 0.8, strength: 0.6)
+    }
+    let estimate = DownbeatEstimate(
+      beats: [beats[0], beats[2]], meter: MeterEstimate(beatsPerBar: 2, source: .assumed),
+      confidence: 0.7, phaseIndex: 0)
+    let grid = BeatGrid(
+      beats: beats, downbeats: .detected(estimate: estimate), estimatedTempo: 120,
+      confidence: 0.9, tempoAgreement: .agree,
+      gridOrigin: BeatGridAnchor(
+        beatIndex: 0, presentationTime: 1.0, confidence: 0.8, strength: 0.6,
+        source: .downbeat),
+      coverage: .fullTrack, schemaVersion: 1)
+
+    // Positive shift: every timestamp + 0.25, spacing intact; gridOrigin + downbeats move.
+    let plus = grid.offset(by: 0.25)
+    #expect(plus.beats.map(\.presentationTime) == [1.25, 1.75, 2.25, 2.75])
+    #expect(plus.gridOrigin?.presentationTime == 1.25)
+    #expect(plus.gridOrigin?.beatIndex == 0)
+    #expect(plus.gridOrigin?.source == .downbeat)
+    if case .detected(let e) = plus.downbeats {
+      #expect(e.beats.map(\.presentationTime) == [1.25, 2.25])
+      #expect(e.phaseIndex == 0)
+      #expect(e.meter.beatsPerBar == 2)
+    } else {
+      Issue.record("downbeats should remain .detected after offset")
+    }
+    // Non-time fields preserved.
+    #expect(plus.estimatedTempo == 120)
+    #expect(plus.tempoAgreement == .agree)
+    #expect(plus.coverage == .fullTrack)
+    #expect(plus.schemaVersion == 1)
+
+    // Negative shift larger than minTime (−5) lands the earliest beat at EXACTLY 0 with
+    // spacing intact — NOT all collapsed to 0 (the clamp-the-delta-once contract).
+    let minus = grid.offset(by: -5)
+    #expect(minus.beats.map(\.presentationTime) == [0.0, 0.5, 1.0, 1.5])
+    #expect(minus.gridOrigin?.presentationTime == 0.0)
+
+    // Identity no-ops: 0 and non-finite shifts.
+    let original = beats.map(\.presentationTime)
+    #expect(grid.offset(by: 0).beats.map(\.presentationTime) == original)
+    #expect(grid.offset(by: .nan).beats.map(\.presentationTime) == original)
+    #expect(grid.offset(by: .infinity).beats.map(\.presentationTime) == original)
+
+    // Round-trip (binary-exact 0.5, no clamp engaged) is identity.
+    let roundTrip = grid.offset(by: 0.5).offset(by: -0.5)
+    #expect(roundTrip.beats.map(\.presentationTime) == original)
+  }
+
+  @Test func offsetThatWouldOverflowToInfinityIsNoOp() {
+    // A beat already near the finite ceiling + a huge shift would overflow to +Inf, which
+    // `BeatTimestamp` clamps to 0 (a silent beat→start collapse that destroys spacing).
+    // The `(maxTime + effective).isFinite` guard makes it a no-op instead. (A merely huge
+    // FINITE result — an absurd offset on normal beats — is acceptable GIGO, not guarded.)
+    let ceiling = BeatGrid(
+      beats: [
+        BeatTimestamp(presentationTime: .greatestFiniteMagnitude, confidence: 0.5, strength: 0.5)
+      ],
+      downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+    let shifted = ceiling.offset(by: .greatestFiniteMagnitude)
+    #expect(shifted.beats.first?.presentationTime == .greatestFiniteMagnitude)
+  }
+
+  @Test func offsetOnEmptyGridIsNoOp() {
+    let empty = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 0, confidence: 0,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+    #expect(empty.offset(by: 1.0).beats.isEmpty)
+    #expect(empty.offset(by: 1.0).gridOrigin == nil)
   }
 
   // MARK: - Story 8.5a: MeterEstimate / MeterSource / DownbeatEstimate (AC1 / AC8e)

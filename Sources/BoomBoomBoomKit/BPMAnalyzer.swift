@@ -79,6 +79,30 @@ struct BPMAnalyzer {
   /// Minimum audio duration in seconds for reliable BPM estimation
   private static let minimumDurationSeconds: Double = 4.0
 
+  /// Minimum sample rate for onset framing. Mirrors `DecodedAudio`'s 8 kHz floor
+  /// (`DecodedAudio.init` precondition-traps below it), so the carrier boundary and
+  /// these analyzer statics enforce one contract. Defense-in-depth: a synthetic/test
+  /// carrier or a future caller could reach these statics directly, where
+  /// `hopSize = Int(sampleRate / 100)` would round to 0.
+  private static let minOnsetSampleRate: Double = 8_000
+
+  /// Upper sample-rate bound (8× 96 kHz — covers every real / high-res audio rate). A
+  /// rate above this is rejected so `Int(sampleRate / 100)` and `Int(sampleRate)` cannot
+  /// overflow on a huge-but-finite carrier; the range check also excludes `NaN`/`±Inf`.
+  private static let maxOnsetSampleRate: Double = 768_000
+
+  /// Converts a seconds span to a sample count, clamped to `[0, cap]`, so a hostile
+  /// `Options.analysisWindowSeconds` can never trap `Int(...)` overflow: a non-positive or
+  /// `NaN` `seconds` yields `0`, and a `+Inf` or over-long `seconds` yields `cap` (the
+  /// whole available span). `cap` is the post-drop remaining buffer, so the caller adds
+  /// `dropOffset` without a further `min`. (`sampleRate` is finite and within
+  /// `[minOnsetSampleRate, maxOnsetSampleRate]` at the call sites.)
+  private static func sampleSpan(seconds: Double, sampleRate: Double, cap: Int) -> Int {
+    let product = seconds * sampleRate
+    guard product > 0 else { return 0 }
+    return product >= Double(cap) ? cap : Int(product)
+  }
+
   /// Default analysis window duration in seconds (applied after energy scan)
   private static let defaultAnalysisWindowSeconds: Double = 30.0
 
@@ -233,15 +257,25 @@ struct BPMAnalyzer {
     let samples = decoded.samples
     let sampleRate = decoded.sampleRate
     let techniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
-    guard !samples.isEmpty else { return nil }
+    // Defense-in-depth: bound the rate to `[minOnsetSampleRate, maxOnsetSampleRate]` so
+    // no `Int(... * sampleRate)` / `Int(sampleRate / 100)` can trap (overflow or
+    // non-finite), and route every seconds→samples conversion through `sampleSpan` so a
+    // hostile `analysisWindowSeconds` clamps instead of trapping. Production is already
+    // safe (DecodedAudio's >= 8 kHz precondition); this protects synthetic/test carriers
+    // and future callers. See `minOnsetSampleRate` / `maxOnsetSampleRate`.
+    guard !samples.isEmpty, sampleRate >= Self.minOnsetSampleRate,
+      sampleRate <= Self.maxOnsetSampleRate
+    else { return nil }
 
     let duration = Double(samples.count) / sampleRate
     guard duration >= minimumDurationSeconds else { return nil }
 
     // Step 1: Energy scan — find the "drop" for analysis window selection
     let dropOffset = findEnergyTransition(samples: samples, sampleRate: sampleRate)
-    let windowSamples = Int(options.analysisWindowSeconds * sampleRate)
-    let endSample = min(dropOffset + windowSamples, samples.count)
+    let remainingSamples = samples.count - dropOffset
+    let windowSamples = sampleSpan(
+      seconds: options.analysisWindowSeconds, sampleRate: sampleRate, cap: remainingSamples)
+    let endSample = dropOffset + windowSamples
     guard endSample > dropOffset else { return nil }
     let analysisWindow = Array(samples[dropOffset..<endSample])
 
@@ -259,6 +293,7 @@ struct BPMAnalyzer {
 
     // Adaptive hop: always 10ms regardless of sample rate
     let hopSize = Int(sampleRate / 100)
+    guard hopSize > 0 else { return nil }
     let onsetRate = sampleRate / Double(hopSize)
 
     // Step 3: Mel-spectrogram onset detection with sub-band envelopes.
@@ -582,7 +617,12 @@ struct BPMAnalyzer {
     let samples = decoded.samples
     let sampleRate = decoded.sampleRate
     let techniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
-    guard !samples.isEmpty, sampleRate > 0 else { return nil }
+    // Defense-in-depth: bound the rate so no `Int(... * sampleRate)` / `Int(sampleRate /
+    // 100)` can trap. Mirrors `estimateBPM`; production is safe via DecodedAudio's >= 8
+    // kHz precondition. See `minOnsetSampleRate` / `maxOnsetSampleRate`.
+    guard !samples.isEmpty, sampleRate >= Self.minOnsetSampleRate,
+      sampleRate <= Self.maxOnsetSampleRate
+    else { return nil }
     guard tempoBPM.isFinite, tempoBPM > 0 else { return nil }
 
     // Step 1: energy scan — the SAME drop offset estimateBPM derives, so the
@@ -592,16 +632,18 @@ struct BPMAnalyzer {
 
     // Resolve the coverage span (in samples) from the sanitized coverage.
     let cov = coverage.sanitized
+    let remainingSamples = samples.count - dropOffset
     let spanSamples: Int
     switch cov {
     case .analysisWindow:
-      spanSamples = Int(options.analysisWindowSeconds * sampleRate)
+      spanSamples = sampleSpan(
+        seconds: options.analysisWindowSeconds, sampleRate: sampleRate, cap: remainingSamples)
     case .window(let seconds):
-      spanSamples = Int(seconds * sampleRate)
+      spanSamples = sampleSpan(seconds: seconds, sampleRate: sampleRate, cap: remainingSamples)
     case .fullTrack:
-      spanSamples = samples.count - dropOffset
+      spanSamples = remainingSamples
     }
-    let endSample = min(dropOffset + spanSamples, samples.count)
+    let endSample = dropOffset + spanSamples
     guard endSample > dropOffset else { return nil }
     let coverageWindow = Array(samples[dropOffset..<endSample])
 
@@ -610,6 +652,7 @@ struct BPMAnalyzer {
     guard coverageDuration >= minimumDurationSeconds else { return nil }
 
     let hopSize = Int(sampleRate / 100)
+    guard hopSize > 0 else { return nil }
     let onsetRate = sampleRate / Double(hopSize)
 
     // Full-band onset envelope. Sub-bands are unused by the beat tracker, so they

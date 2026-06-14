@@ -154,6 +154,73 @@ struct BeatGridAnalyzerTests {
       lastFrame == 200, "last beat at frame \(lastFrame) — expected the last real onset (200)")
   }
 
+  /// A2: the first/last REAL onsets are QUIET (0.02 — below the old `envMax * 0.05` =
+  /// 0.05 global floor). The old per-beat-salience trim wrongly dropped them as ghosts;
+  /// the local contiguous-silent-region test keeps them (their span carries their own
+  /// onset) and trims only the genuinely silent tail. Fails under the old logic.
+  @Test func keepsQuietRealEdgeBeats() throws {
+    let sr = 44100.0
+    let hop = 441
+    let onsetRate = 100.0
+    let period = 50
+    var env = [Float](repeating: 0, count: 350)
+    for f in stride(from: 0, to: 201, by: period) { env[f] = 1 }
+    env[0] = 0.02  // quiet fade-in first beat
+    env[200] = 0.02  // quiet fade-out last beat
+
+    let grid = try #require(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
+        acf: env, tempoBPM: 120, windowStartSample: 0))
+
+    let frames = grid.beats.map { Int(($0.presentationTime * sr / Double(hop)).rounded()) }
+    #expect(frames.first == 0, "quiet first beat (frame 0) must be kept, got \(frames)")
+    #expect(frames.last == 200, "quiet last beat (frame 200) must be kept, got \(frames)")
+  }
+
+  /// A2 honest limit (Codex): a real beat whose onset envelope is exactly 0 (e.g. an
+  /// onset `adaptiveThreshold` zeroed upstream) is INDISTINGUISHABLE from a ghost and is
+  /// trimmed. Locked so the limitation is intentional, not accidental.
+  @Test func thresholdedToZeroEdgeBeatIsTrimmed() throws {
+    let sr = 44100.0
+    let hop = 441
+    let onsetRate = 100.0
+    let period = 50
+    var env = [Float](repeating: 0, count: 350)
+    for f in stride(from: 0, to: 201, by: period) { env[f] = 1 }
+    env[200] = 0  // a real last beat whose onset was zeroed → trimmed (cannot tell from a ghost)
+
+    let grid = try #require(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
+        acf: env, tempoBPM: 120, windowStartSample: 0))
+
+    let lastFrame = Int((grid.beats.last!.presentationTime * sr / Double(hop)).rounded())
+    #expect(lastFrame == 150, "a zeroed-onset last beat is trimmed; last real onset is 150")
+  }
+
+  /// A2 honest limit (Codex): a silent tail with a low-level noise floor ABOVE
+  /// `silenceEps` (0.0005 > envMax·1e-4 = 1e-4) is not "silent" to the local test, so a
+  /// DP ghost in it is RETAINED. Conservative by design (keeping a beat is safer than
+  /// dropping a real one); locked so the limit is intentional, not accidentally "fixed".
+  @Test func noisyTailRetainsGhostConservatively() throws {
+    let sr = 44100.0
+    let hop = 441
+    let onsetRate = 100.0
+    let period = 50
+    var env = [Float](repeating: 0.0005, count: 350)  // noise floor in the "silent" tail
+    for f in stride(from: 0, to: 201, by: period) { env[f] = 1 }
+
+    let grid = try #require(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
+        acf: env, tempoBPM: 120, windowStartSample: 0))
+
+    let lastFrame = Int((grid.beats.last!.presentationTime * sr / Double(hop)).rounded())
+    #expect(
+      lastFrame > 200, "noisy tail (> silenceEps) retains a ghost past frame 200, got \(lastFrame)")
+  }
+
   @Test func presentationTimeIsTrackRelative() throws {
     let env = Self.impulseEnvelope(frames: 1000, periodFrames: 50)
     let offsetSamples = 44100  // 1 second of leading audio before the window
@@ -219,6 +286,54 @@ struct BeatGridAnalyzerTests {
     let samples = [Float](repeating: 0, count: 44100 * 10)
     let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 44100)
     #expect(try AudioAnalysisService.analyzeBeatGrid(decoded: decoded) == nil)
+  }
+
+  @Test func floorSampleRateIsAcceptedNotRejected() throws {
+    // A1: the analyzer's `minOnsetSampleRate` floor (8 kHz) mirrors `DecodedAudio`'s
+    // precondition and must be INCLUSIVE — a carrier at exactly 8 kHz still produces a
+    // grid. The guard prevents the `hopSize == 0` / non-finite-`Int` trap; it must not
+    // over-reject the floor. Sub-8 kHz (and non-finite) rates are unconstructable via
+    // `DecodedAudio`'s precondition, so the guard's rejection path is defense-in-depth.
+    let samples = generateClickTrack(bpm: 120, sampleRate: 8000, durationSeconds: 12)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 8000)
+    #expect(try AudioAnalysisService.analyzeBeatGrid(decoded: decoded) != nil)
+  }
+
+  @Test func absurdSampleRateOrWindowIsRejectedNotTrapped() throws {
+    // A1: a huge-but-finite sample rate (allowed by DecodedAudio's `>= 8000` precondition)
+    // is above the onset ceiling → rejected (nil), so `Int(sampleRate)` / `Int(sampleRate
+    // / 100)` cannot overflow-trap.
+    let samples = generateClickTrack(bpm: 120, sampleRate: 48000, durationSeconds: 12)
+    let tooHigh = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 1_000_000)
+    #expect(try AudioAnalysisService.analyzeBeatGrid(decoded: tooHigh) == nil)
+
+    // A hostile huge-but-finite `analysisWindowSeconds` must CLAMP to the buffer, not trap
+    // `Int(seconds * sampleRate)` — a valid result still comes back.
+    let ok = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 48000)
+    var bpmOptions = BPMAnalyzer.Options()
+    bpmOptions.analysisWindowSeconds = 1e300
+    #expect(BPMAnalyzer.estimateBPM(decoded: ok, options: bpmOptions) != nil)
+  }
+
+  @Test func withTempoAgreementKeepsAnchorConsistent() throws {
+    // A4 composition: `with(tempoAgreement:)` re-enters `BeatGrid.init`, so the anchor
+    // rebuild composes through the W52 forwarding copy. The grid's anchor is already
+    // repaired at construction (a hostile in-range anchor → rebuilt from its beat); the
+    // restamp keeps it consistent (the rebuild is idempotent — no drift).
+    let beats = (0..<6).map {
+      BeatTimestamp(presentationTime: Double($0) * 0.5, confidence: 0.8, strength: 0.5)
+    }
+    let grid = BeatGrid(
+      beats: beats, downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared,
+      gridOrigin: BeatGridAnchor(
+        beatIndex: 1, presentationTime: 999, confidence: 0.1, strength: 0.05,
+        source: .strongestBeat),
+      coverage: .analysisWindow)
+    #expect(grid.gridOrigin?.presentationTime == beats[1].presentationTime)  // repaired
+    let restamped = grid.with(tempoAgreement: .agree)
+    #expect(restamped.tempoAgreement == .agree)
+    #expect(restamped.gridOrigin == grid.gridOrigin)  // idempotent, stays consistent
   }
 
   // MARK: - Default-path byte-identity (AC4)
@@ -519,11 +634,12 @@ struct BeatGridAnalyzerTests {
   // MARK: - AC2: long-file sync stability
 
   /// Primary (default `.analysisWindow`, the consumer path): anchor + tempo
-  /// extrapolation is drift-free on constant tempo. Uses an integer-frame-period
-  /// BPM (120 → 50 onset frames/beat exactly) so the grid's `estimatedTempo` is
-  /// the EXACT tempo — the precondition for the "drift-free by construction"
-  /// claim. The audio need only be long enough for a solid anchor; "minute 5" is
-  /// the mathematical true-beat position, not decoded audio.
+  /// extrapolation is drift-free on constant tempo. Uses a NON-integer-frame-period
+  /// BPM (127 → samplesPerBeat = Int(20834.6) = 20834 ≈ 47.24 onset frames/beat) so
+  /// the tempo estimate must be sub-frame accurate for the "drift-free by
+  /// construction" claim to hold — the bound genuinely bites. The audio need only be
+  /// long enough for a solid anchor; "minute 5" is the mathematical true-beat
+  /// position, not decoded audio.
   ///
   /// **What this constrains** (three independent checks, so the 30 ms bound is
   /// not vacuous). Uses a NON-integer-frame-period BPM (127 → samplesPerBeat =
@@ -593,6 +709,18 @@ struct BeatGridAnalyzerTests {
   /// latency cancels and the difference is the accumulated drift over 5 minutes.
   /// Compared against the generator's KNOWN integer period (independent ground
   /// truth), NOT the grid's own `estimatedTempo` (which would round-trip).
+  ///
+  /// **Why relative phase, not the AC's literal "last detected beat" bound.** AC2's
+  /// literal secondary names `firstBeatTime + period·beatIndex` for the last *detected*
+  /// beat. The raw detected beats snap to the nearest ~10 ms onset frame, and that
+  /// per-beat quantization accumulates to ~40-50 ms over 5 minutes — so an absolute
+  /// raw-last-beat bound is NOT a property the library guarantees. The drift-free
+  /// mid-track contract is `gridOrigin + estimatedTempo` EXTRAPOLATION (proven ≤ 30 ms
+  /// in `longFileSyncStabilityAnchorExtrapolation`); consumers extrapolate rather than
+  /// trusting each raw `beats` entry. This test bounds the detected grid's RELATIVE
+  /// phase stability (early vs late median) — the faithful "no accumulating drift"
+  /// realization for the detected beats — and the absolute bound lives with the
+  /// extrapolation, where the contract puts it.
   @Test func longFileSyncStabilityFullTrackDrift() throws {
     let bpm = 127.0
     let sampleRate = 44100.0

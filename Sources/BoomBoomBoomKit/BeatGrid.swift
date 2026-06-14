@@ -21,8 +21,18 @@
 /// (60.0/estimatedTempo)·n` rather than trusting each entry of ``beats`` — the
 /// dynamic-programming tracker can occasionally drop or double a beat, and that
 /// corrupts sub-beat midpoints and accumulates sync error. On constant-tempo
-/// material the anchor+tempo grid is drift-free by construction. See
+/// material the anchor+tempo grid is drift-free by construction (the raw detected
+/// ``beats`` carry per-beat onset quantization that can accumulate tens of
+/// milliseconds over several minutes — extrapolate, don't trust them absolutely). See
 /// ``BeatGridAnchor``.
+///
+/// ## Applying a presentation offset
+/// Timestamps are decoded-PCM-relative; AVFoundation already removes declared AAC/MP3
+/// encoder priming, so the grid is already playback-aligned. To compensate for
+/// output-device latency or apply a manual nudge, use ``offset(by:)`` — a
+/// non-destructive copy that shifts every beat, every detected downbeat, and the
+/// ``gridOrigin`` uniformly. Do NOT subtract codec priming yourself — it would
+/// double-correct.
 ///
 /// ## Canonical "no beat-grid run" sentinel
 /// The value
@@ -163,7 +173,12 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///   - tempoAgreement: How the grid tempo relates to the BPM stage
   ///     (``TempoAgreement/notCompared`` when none ran alongside).
   ///   - gridOrigin: The extrapolation anchor, or `nil` when no beats. An anchor
-  ///     whose `beatIndex` is out of range for `beats` is dropped to `nil`.
+  ///     whose `beatIndex` is out of range for `beats` is dropped to `nil`; an
+  ///     in-range anchor is rebuilt from `beats[beatIndex]` (time/confidence/strength)
+  ///     so it always agrees with the indexed beat. `source` is preserved as
+  ///     provenance — on a decoded payload it is untrusted, so a bar-snap consumer
+  ///     must gate on `source == .downbeat` AND `downbeats` being `.detected`, never
+  ///     `source` alone.
   ///   - coverage: What span `beats` cover (sanitized on the way in).
   ///   - schemaVersion: The persisted semantic-contract version. Defaulted to
   ///     ``currentSchemaVersion`` so every producer auto-stamps the current
@@ -184,12 +199,27 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     self.estimatedTempo = BeatGridClamp.clampNonNegative(estimatedTempo)
     self.confidence = BeatGridClamp.clampUnit(confidence)
     self.tempoAgreement = tempoAgreement
-    // Enforce the gridOrigin invariant: a non-nil anchor always indexes a real
-    // beat. ``BeatGridAnchor`` clamps `beatIndex ≥ 0` but cannot bound it above
-    // (it does not know `beats.count`), so a hostile/inconsistent anchor with
-    // `beatIndex >= beats.count` is dropped to `nil` here so consumers can index
-    // `beats[gridOrigin.beatIndex]` without their own bounds check.
-    self.gridOrigin = gridOrigin.flatMap { $0.beatIndex < beats.count ? $0 : nil }
+    // Enforce the gridOrigin contract: a non-nil anchor not only indexes a real beat
+    // but AGREES with it. ``BeatGridAnchor`` clamps `beatIndex ≥ 0` but cannot bound it
+    // above (it does not know `beats.count`), so an out-of-range anchor drops to `nil`.
+    // An IN-range anchor is rebuilt from `beats[beatIndex]` (time/confidence/strength),
+    // preserving `beatIndex` + `source`. The analyzer always constructs anchors this way
+    // (so this is a no-op on honest grids), but a hostile/stale decoded anchor with an
+    // in-range index and a mismatched `presentationTime` would otherwise break the
+    // extrapolation contract `gridOrigin.presentationTime + period·n`. `source` is left
+    // as untrusted provenance on a decoded payload — a bar-snap consumer must gate on
+    // `source == .downbeat` AND `downbeats` being `.detected`, never `source` alone (so
+    // we do NOT invent a different source here, only repair the mechanical invariant).
+    self.gridOrigin = gridOrigin.flatMap { origin -> BeatGridAnchor? in
+      guard origin.beatIndex < beats.count else { return nil }
+      let beat = beats[origin.beatIndex]
+      return BeatGridAnchor(
+        beatIndex: origin.beatIndex,
+        presentationTime: beat.presentationTime,
+        confidence: beat.confidence,
+        strength: beat.strength,
+        source: origin.source)
+    }
     self.coverage = coverage.sanitized
   }
 
@@ -279,5 +309,83 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     return "BeatGrid(beats: \(beats.count), downbeats: \(downbeats), "
       + "tempo: \(estimatedTempo), conf: \(confidence), "
       + "agreement: \(tempoAgreement), origin: \(origin), coverage: \(coverage))"
+  }
+}
+
+// MARK: - Consumer-controlled alignment offset
+
+extension BeatGrid {
+
+  /// Returns a copy of this grid with every beat, every detected downbeat, and the
+  /// ``gridOrigin`` shifted in time by `seconds` (positive = later, negative = earlier).
+  ///
+  /// Non-destructive — it does NOT re-run detection. The shift is applied UNIFORMLY so
+  /// beat spacing is preserved: a negative `seconds` that would push the earliest
+  /// timestamp below `0` is reduced (clamped as a single delta) so the earliest timestamp
+  /// lands exactly at `0`, rather than clamping each timestamp independently (which would
+  /// collapse early beats and distort the grid). A non-finite `seconds`, a `0` shift, an
+  /// empty grid, or a shift that nets to zero after clamping is a no-op.
+  ///
+  /// ``estimatedTempo``, ``confidence``, ``tempoAgreement``, ``coverage`` (which describes
+  /// the analyzed *span length*, not an absolute start time), and ``schemaVersion`` are
+  /// unchanged — `offset` shifts presentation coordinates only.
+  ///
+  /// Use for output-device latency compensation (e.g. `AVAudioEngine.outputLatency`) or a
+  /// manual nudge. Do **not** use it for codec encoder priming: AVFoundation already
+  /// removes declared AAC/MP3/M4A/CAF priming, so the timestamps are already
+  /// playback-aligned and subtracting priming would double-correct.
+  ///
+  /// - Parameter seconds: The shift to apply, in seconds (`+` later, `−` earlier).
+  /// - Returns: A new grid with shifted presentation times.
+  public func offset(by seconds: Double) -> BeatGrid {
+    guard seconds.isFinite, seconds != 0, !beats.isEmpty else { return self }
+
+    // Minimum presentation time across EVERY timestamp that will move (beats + detected
+    // downbeats; `gridOrigin` mirrors `beats[beatIndex]`, so it is already covered).
+    var minTime = beats.lazy.map(\.presentationTime).min() ?? 0
+    var maxTime = beats.lazy.map(\.presentationTime).max() ?? 0
+    if case .detected(let estimate) = downbeats {
+      for t in estimate.beats.lazy.map(\.presentationTime) {
+        minTime = min(minTime, t)
+        maxTime = max(maxTime, t)
+      }
+    }
+
+    // Clamp the DELTA once: a too-negative shift is reduced so the earliest timestamp
+    // lands at 0; positive shifts pass through. Spacing is preserved either way. An
+    // offset so large the latest timestamp would overflow to non-finite is
+    // unrepresentable — return self rather than collapse the grid (`BeatTimestamp` would
+    // clamp a `+Inf` time to 0, destroying spacing).
+    let effective = max(seconds, -minTime)
+    guard effective != 0, (maxTime + effective).isFinite else { return self }
+
+    func shifted(_ b: BeatTimestamp) -> BeatTimestamp {
+      BeatTimestamp(
+        presentationTime: b.presentationTime + effective, confidence: b.confidence,
+        strength: b.strength)
+    }
+
+    let shiftedDownbeats: DownbeatResult
+    switch downbeats {
+    case .notAttempted, .noneDetected:
+      shiftedDownbeats = downbeats
+    case .detected(let estimate):
+      shiftedDownbeats = .detected(
+        estimate: DownbeatEstimate(
+          beats: estimate.beats.map(shifted), meter: estimate.meter,
+          confidence: estimate.confidence, phaseIndex: estimate.phaseIndex))
+    }
+
+    // Pass the original `gridOrigin`: `init` rebuilds the anchor from the SHIFTED
+    // `beats[beatIndex]`, so the anchor's time follows the shift consistently (A4).
+    return BeatGrid(
+      beats: beats.map(shifted),
+      downbeats: shiftedDownbeats,
+      estimatedTempo: estimatedTempo,
+      confidence: confidence,
+      tempoAgreement: tempoAgreement,
+      gridOrigin: gridOrigin,
+      coverage: coverage,
+      schemaVersion: schemaVersion)
   }
 }

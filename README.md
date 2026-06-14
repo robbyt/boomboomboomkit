@@ -301,6 +301,8 @@ Beat and anchor `presentationTime`s are **relative to the decoded-PCM origin**: 
 - **Lossless** input (WAV, FLAC, AIFF, CAF-LPCM) → sample-exact alignment.
 - **Lossy** input (MP3, AAC) → aligned to *our* AVFoundation decode. A different decoder may differ by an undetectable encoder delay. The worst-case bound is AAC's ~2112-sample encoder priming (≈ **48 ms at 44.1 kHz**) *if a decoder does not trim it*; in practice AVFoundation pre-trims declared priming, so the practical offset is near zero. That near-zero is empirical, not a published platform guarantee, and a precise figure awaits a future release — treat the ~48 ms as a documented upper bound, not a promise.
 
+**Applying your own offset.** For output-device latency compensation, a manual nudge, or a residual offset on an exotic headerless stream, use `BeatGrid.offset(by:)` — a non-destructive copy that shifts every beat, every detected downbeat, and the `gridOrigin` uniformly (a negative shift that would cross zero is clamped as a single delta, so beat spacing is preserved). Source the value from your own runtime (e.g. `AVAudioEngine.outputLatency`); do **not** subtract codec priming yourself — AVFoundation already removes it, so a manual priming subtraction would double-correct.
+
 `confidence` is `0.5·meanOnsetStrength + 0.5·acfStrengthAtPeriod` (half "how strong are the beats we picked", half "how periodic is the signal at the tracked tempo"); `BeatGridAnchor.confidence` is the anchor beat's per-beat confidence. Treat these as stability contracts — compose thresholds (e.g. a `0.5` floor) against them.
 
 `analyze` / `analyzeBeatGrid` return `nil` for silence, too-short, or non-musical input — the same contract as `analyzeBPM`.
