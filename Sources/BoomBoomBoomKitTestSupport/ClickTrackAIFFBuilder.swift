@@ -35,11 +35,29 @@ public enum ClickTrackAIFFBuilder {
       durationSeconds.isFinite && durationSeconds >= 0,
       "durationSeconds must be finite and >= 0 (got \(durationSeconds))")
     precondition(
-      sampleRate.isFinite && sampleRate >= 1,
-      "sampleRate must be finite and >= 1 Hz (got \(sampleRate)) — the ieee80 "
-        + "encoder is restricted to integer Hz rates")
-    let sampleCount = Int(sampleRate * durationSeconds)
-    let samplesPerBeat = Int(sampleRate * 60.0 / clickBPM)
+      sampleRate.isFinite
+        && sampleRate >= 1
+        && sampleRate.rounded(.towardZero) == sampleRate
+        && sampleRate <= Double(UInt64.max),
+      "sampleRate must be a finite integer Hz value in 1...\(UInt64.max) "
+        + "(got \(sampleRate)) — the ieee80 encoder is restricted to integer Hz rates")
+    let rawSampleCount = sampleRate * durationSeconds
+    precondition(
+      rawSampleCount.isFinite,
+      "sampleRate × durationSeconds must stay finite (got \(sampleRate) × \(durationSeconds))")
+    let sampleCount = boundedTruncatingInt(
+      rawSampleCount, label: "sampleRate × durationSeconds")
+    let maxSampleCount = Int((UInt32.max - 8) / 2)
+    precondition(
+      sampleCount <= maxSampleCount,
+      "sampleCount must fit AIFF SSND/COMM chunk fields (max = \(maxSampleCount), got \(sampleCount))"
+    )
+    let rawSamplesPerBeat = sampleRate * 60.0 / clickBPM
+    precondition(
+      rawSamplesPerBeat.isFinite,
+      "sampleRate × 60 / clickBPM must stay finite (got \(sampleRate) × 60 / \(clickBPM))")
+    let samplesPerBeat = boundedTruncatingInt(
+      rawSamplesPerBeat, label: "sampleRate × 60 / clickBPM")
     precondition(
       samplesPerBeat > 0,
       "clickBPM \(clickBPM) too high for sampleRate \(sampleRate) — "
@@ -89,6 +107,9 @@ public enum ClickTrackAIFFBuilder {
       chunkBytes("COMM", payload: commPayload)
       + chunkBytes("SSND", payload: ssndPayload)
       + chunkBytes("ID3 ", payload: id3Tag)
+    precondition(
+      chunks.count <= Int(UInt32.max) - 4,
+      "AIFF FORM size must fit UInt32 size field (got \(chunks.count + 4) bytes)")
     var formSize = UInt32(4 + chunks.count).bigEndian
     withUnsafeBytes(of: &formSize) { aiff.append(contentsOf: $0) }
     aiff.append(contentsOf: [0x41, 0x49, 0x46, 0x46])  // AIFF
@@ -101,6 +122,9 @@ public enum ClickTrackAIFFBuilder {
   }
 
   private static func chunkBytes(_ id: String, payload: Data) -> Data {
+    precondition(
+      payload.count <= Int(UInt32.max),
+      "AIFF chunk \(id) payload must fit UInt32 size field (got \(payload.count) bytes)")
     var chunk = Data()
     chunk.append(contentsOf: Array(id.utf8))
     var sz = UInt32(payload.count).bigEndian
@@ -126,6 +150,13 @@ public enum ClickTrackAIFFBuilder {
   /// AIFF-spec 80-bit IEEE big-endian sample rate. Restricted to integer Hz
   /// in the practical range — sufficient for click-track tests.
   private static func ieee80SampleRate(_ rate: Double) -> [UInt8] {
+    precondition(
+      rate.isFinite
+        && rate >= 1
+        && rate.rounded(.towardZero) == rate
+        && rate <= Double(UInt64.max),
+      "ieee80SampleRate requires a finite integer Hz value in 1...\(UInt64.max) (got \(rate))"
+    )
     let r = UInt64(rate)
     // Find the highest bit set.
     let highBit = 63 - r.leadingZeroBitCount
@@ -140,6 +171,14 @@ public enum ClickTrackAIFFBuilder {
       bytes.append(UInt8((mantissa >> i) & 0xFF))
     }
     return bytes
+  }
+
+  private static func boundedTruncatingInt(_ value: Double, label: String) -> Int {
+    precondition(
+      value >= 0 && value <= Double(Int.max),
+      "\(label) must be representable as Int before truncation (Int.max = \(Int.max), got \(value))"
+    )
+    return Int(value.rounded(.towardZero))
   }
 
   private static func synchsafe(_ n: UInt32) -> [UInt8] {
