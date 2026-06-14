@@ -95,16 +95,25 @@ public enum TempoAgreement: Sendable, Hashable, Codable, CustomStringConvertible
   /// source of truth), so any other value — `{"octaveEquivalent":{"factor":4}}`, `0`,
   /// … — is a stale or tampered cache. ``disagree`` is the operationally-correct fold
   /// (an unknown octave relationship must NOT auto-sync), mirroring ``DownbeatResult``'s
-  /// structurally-invalid `.detected` → `.noneDetected`. House faithful-but-safe
-  /// doctrine: untrusted persistence decodes into safe values, never an error and never
-  /// a fabricated state.
+  /// structurally-invalid `.detected` → `.noneDetected`. The fold also covers an
+  /// **unreadable** `.octaveEquivalent` payload (missing / `null` / wrong-type `factor`,
+  /// or a non-object value) — folded to ``disagree`` rather than thrown. Only a payload
+  /// with no recognized case key (or a non-object top-level value) throws — a
+  /// schema-boundary signal that the cache is not a `TempoAgreement` at all.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     if container.contains(.octaveEquivalent) {
-      let nested = try container.nestedContainer(
-        keyedBy: OctaveCodingKeys.self, forKey: .octaveEquivalent)
-      let factor = try nested.decode(Int.self, forKey: .factor)
-      self = (factor == 2 || factor == -2) ? .octaveEquivalent(factor: factor) : .disagree
+      // A recognized `.octaveEquivalent` whose factor is unreadable (missing / null /
+      // wrong-type / non-object payload) OR out-of-range folds to `.disagree` (an octave
+      // we can't trust must not auto-sync); it never throws.
+      let factor =
+        (try? container.nestedContainer(keyedBy: OctaveCodingKeys.self, forKey: .octaveEquivalent))
+        .flatMap { try? $0.decode(Int.self, forKey: .factor) }
+      if let factor, factor == 2 || factor == -2 {
+        self = .octaveEquivalent(factor: factor)
+      } else {
+        self = .disagree
+      }
     } else if container.contains(.agree) {
       self = .agree
     } else if container.contains(.disagree) {

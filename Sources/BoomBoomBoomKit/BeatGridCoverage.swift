@@ -111,7 +111,11 @@ public enum BeatGridCoverage: Sendable, Codable, CustomStringConvertible {
   /// `.window` (non-finite, `≤ 0`, or `≥ 1e9`) becomes ``analysisWindow`` rather than
   /// persisting an unsound value. Synthesized `Codable` would faithfully reconstruct a
   /// `.window(.nan)`; this closes that decode hole (the house faithful-but-safe
-  /// doctrine — untrusted persistence decodes into safe values).
+  /// doctrine — untrusted persistence decodes into safe values). An **unreadable**
+  /// `.window` payload (missing / `null` / wrong-type `seconds`, or a non-object value)
+  /// also folds to ``analysisWindow`` rather than throwing. Only a payload with no
+  /// recognized case key (or a non-object top-level value) throws — a schema-boundary
+  /// signal that the cache is not a `BeatGridCoverage` at all.
   ///
   /// - Note: This hardens *decode/encode* only. A `.window(.nan)` remains directly
   ///   constructible in-memory, but its `==` / `hash(into:)` / ``description`` already
@@ -120,8 +124,12 @@ public enum BeatGridCoverage: Sendable, Codable, CustomStringConvertible {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let raw: BeatGridCoverage
     if container.contains(.window) {
-      let nested = try container.nestedContainer(keyedBy: WindowCodingKeys.self, forKey: .window)
-      raw = .window(seconds: try nested.decode(Double.self, forKey: .seconds))
+      // A recognized `.window` whose seconds is unreadable (missing / null / wrong-type /
+      // non-object payload) folds to `.analysisWindow` (via `sanitized` below); never throws.
+      let seconds =
+        (try? container.nestedContainer(keyedBy: WindowCodingKeys.self, forKey: .window))
+        .flatMap { try? $0.decode(Double.self, forKey: .seconds) }
+      raw = seconds.map { .window(seconds: $0) } ?? .analysisWindow
     } else if container.contains(.fullTrack) {
       raw = .fullTrack
     } else if container.contains(.analysisWindow) {

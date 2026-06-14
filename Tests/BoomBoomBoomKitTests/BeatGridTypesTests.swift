@@ -705,6 +705,74 @@ struct BeatGridTypesTests {
     #expect(obj["window"] == nil)
   }
 
+  // MARK: - Decode hardening: fold an unreadable case payload to the safe sentinel
+
+  /// A recognized `.window` case whose `seconds` is unreadable (missing / null / wrong-type
+  /// / non-object payload) folds to `.analysisWindow`, never throws (tamper-resistant
+  /// decode). Each variant hits a different `nestedContainer`/`decode` failure path.
+  @Test(arguments: [
+    #"{"window":{}}"#, #"{"window":{"seconds":"x"}}"#, #"{"window":{"seconds":null}}"#,
+    #"{"window":5}"#, #"{"window":[]}"#, #"{"window":null}"#,
+  ])
+  func unreadableWindowPayloadDecodesToAnalysisWindow(json: String) throws {
+    #expect(
+      try JSONDecoder().decode(BeatGridCoverage.self, from: Data(json.utf8)) == .analysisWindow)
+  }
+
+  /// A recognized `.octaveEquivalent` case whose `factor` is unreadable folds to `.disagree`.
+  @Test(arguments: [
+    #"{"octaveEquivalent":{}}"#, #"{"octaveEquivalent":{"factor":"x"}}"#,
+    #"{"octaveEquivalent":{"factor":null}}"#, #"{"octaveEquivalent":5}"#,
+    #"{"octaveEquivalent":null}"#,
+  ])
+  func unreadableOctavePayloadDecodesToDisagree(json: String) throws {
+    #expect(try JSONDecoder().decode(TempoAgreement.self, from: Data(json.utf8)) == .disagree)
+  }
+
+  /// A recognized `.detected` case whose `estimate` is unreadable OR structurally invalid
+  /// folds to `.noneDetected` (the `{"beats":[]}` case proves `try? decode` also catches the
+  /// estimate's own internal `keyNotFound`).
+  @Test(arguments: [
+    #"{"detected":{}}"#, #"{"detected":{"estimate":"x"}}"#, #"{"detected":{"estimate":[]}}"#,
+    #"{"detected":{"estimate":null}}"#, #"{"detected":{"estimate":{"beats":[]}}}"#,
+    #"{"detected":null}"#,
+  ])
+  func unreadableDetectedPayloadDecodesToNoneDetected(json: String) throws {
+    #expect(try JSONDecoder().decode(DownbeatResult.self, from: Data(json.utf8)) == .noneDetected)
+  }
+
+  /// A `BeatGrid` whose `tempoAgreement` carries an unreadable octaveEquivalent payload
+  /// inherits the fold (the fix lives on the type, protecting every decode site).
+  @Test func beatGridNestedUnreadableOctaveFoldsToDisagree() throws {
+    let json = #"""
+      {"beats": [], "downbeats": {"notAttempted": {}}, "estimatedTempo": 120,
+       "confidence": 0.5, "tempoAgreement": {"octaveEquivalent": {}},
+       "coverage": {"analysisWindow": {}}}
+      """#
+    let grid = try JSONDecoder().decode(BeatGrid.self, from: Data(json.utf8))
+    #expect(grid.tempoAgreement == .disagree)
+  }
+
+  /// The retained schema boundary: a no-recognized-key object, or a non-object top-level
+  /// value, still THROWS (the cache is not this type at all) — locked so a future change
+  /// cannot silently broaden the fold.
+  @Test func unrecognizedKeyOrNonObjectStillThrows() {
+    func threw<T: Decodable>(_: T.Type, _ json: String) -> Bool {
+      do {
+        _ = try JSONDecoder().decode(T.self, from: Data(json.utf8))
+        return false
+      } catch { return true }
+    }
+    // No recognized case key.
+    #expect(threw(TempoAgreement.self, "{}"))
+    #expect(threw(BeatGridCoverage.self, #"{"bogus":{}}"#))
+    #expect(threw(DownbeatResult.self, #"{"future":{}}"#))
+    // Non-object top-level value (container(keyedBy:) throws).
+    #expect(threw(TempoAgreement.self, "5"))
+    #expect(threw(BeatGridCoverage.self, "[]"))
+    #expect(threw(DownbeatResult.self, #""x""#))
+  }
+
   // MARK: - Story 8.5: gridOrigin beatIndex invariant (cross-field hardening)
 
   /// `gridOrigin` invariant: a non-nil anchor always indexes a real beat. An

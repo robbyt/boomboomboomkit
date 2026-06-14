@@ -86,22 +86,31 @@ public enum DownbeatResult: Sendable, Hashable, Codable, CustomStringConvertible
   /// tampered cache**. Rather than hand a consumer a "success" it cannot use, an
   /// invalid `.detected` decodes as ``noneDetected`` — the tri-state already models
   /// "ran, nothing usable", and a corrupt cached success has the same operational
-  /// meaning. This follows the codebase's faithful-but-safe decode doctrine: a
-  /// structurally-broken estimate has no honest repair, so it is neither clamped
-  /// into a fake `.detected` nor thrown (the house style decodes untrusted
-  /// persistence into safe values, not errors).
+  /// meaning. The same fold covers an **unreadable** `.detected` payload (missing /
+  /// `null` / wrong-type / structurally-broken `estimate`, or a non-object value):
+  /// ``noneDetected`` rather than a throw. Only a payload with no recognized case key
+  /// (or a non-object top-level value) throws. This follows the codebase's
+  /// faithful-but-safe decode doctrine: untrusted persistence decodes into safe values,
+  /// not errors.
   ///
   /// - Important: The round-trip is intentionally **non-identity for already-broken
-  ///   data** — a valid `.detected` round-trips exactly, an invalid one normalizes
-  ///   to ``noneDetected``. A well-formed estimate from the analyzer is always
+  ///   data** — a valid `.detected` round-trips exactly, an invalid or unreadable one
+  ///   normalizes to ``noneDetected``. A well-formed estimate from the analyzer is always
   ///   structurally usable, so its round-trip is identity.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     if container.contains(.detected) {
-      let nested = try container.nestedContainer(
-        keyedBy: DetectedCodingKeys.self, forKey: .detected)
-      let estimate = try nested.decode(DownbeatEstimate.self, forKey: .estimate)
-      self = estimate.isStructurallyUsable ? .detected(estimate: estimate) : .noneDetected
+      // A recognized `.detected` whose estimate is unreadable (missing / null /
+      // wrong-type / non-object payload) OR structurally invalid folds to `.noneDetected`
+      // (ran, nothing usable); it never throws.
+      let estimate =
+        (try? container.nestedContainer(keyedBy: DetectedCodingKeys.self, forKey: .detected))
+        .flatMap { try? $0.decode(DownbeatEstimate.self, forKey: .estimate) }
+      if let estimate, estimate.isStructurallyUsable {
+        self = .detected(estimate: estimate)
+      } else {
+        self = .noneDetected
+      }
     } else if container.contains(.noneDetected) {
       self = .noneDetected
     } else if container.contains(.notAttempted) {
