@@ -30,6 +30,16 @@ struct BeatGridTypesTests {
     }
   }
 
+  /// Builds a representative `DownbeatEstimate` carrying `n` downbeat beats
+  /// (Story 8.5a: the `.detected` payload is a `DownbeatEstimate`, not raw beats).
+  private static func makeEstimate(_ n: Int, phaseIndex: Int = 0) -> DownbeatEstimate {
+    DownbeatEstimate(
+      beats: makeBeats(n),
+      meter: MeterEstimate(beatsPerBar: 4, source: .assumed),
+      confidence: 0.8,
+      phaseIndex: phaseIndex)
+  }
+
   /// A representative anchor for round-trip / construction tests.
   private static let sampleAnchor = BeatGridAnchor(
     beatIndex: 2, presentationTime: 1.0, confidence: 0.8, strength: 0.6,
@@ -51,7 +61,8 @@ struct BeatGridTypesTests {
     // 3 beats so `sampleAnchor.beatIndex == 2` is in range (the gridOrigin
     // invariant — an out-of-range anchor would be dropped to nil).
     let grid = BeatGrid(
-      beats: [ts, ts, ts], downbeats: .detected(beats: [ts]), estimatedTempo: 128.0,
+      beats: [ts, ts, ts],
+      downbeats: .detected(estimate: Self.makeEstimate(1)), estimatedTempo: 128.0,
       confidence: 0.9, tempoAgreement: .agree, gridOrigin: Self.sampleAnchor,
       coverage: .fullTrack)
     #expect(grid.beats.count == 3)
@@ -66,8 +77,8 @@ struct BeatGridTypesTests {
     #expect(DownbeatResult.notAttempted.description == "notAttempted")
     #expect(DownbeatResult.noneDetected.description == "noneDetected")
     #expect(
-      DownbeatResult.detected(beats: Self.makeBeats(3)).description
-        == "detected(3 beats)")
+      DownbeatResult.detected(estimate: Self.makeEstimate(3, phaseIndex: 2)).description
+        == "detected(3 downbeats, phase 2)")
   }
 
   @Test func noRunSentinelShape() {
@@ -170,22 +181,29 @@ struct BeatGridTypesTests {
     #expect(ts == ts2)
     #expect(ts.hashValue == ts2.hashValue)
 
+    // NaN confidence on the estimate must clamp finite (Hashable soundness).
+    let meter = MeterEstimate(beatsPerBar: 4, source: .assumed)
+    let est1 = DownbeatEstimate(beats: [ts], meter: meter, confidence: .nan, phaseIndex: 0)
+    let est2 = DownbeatEstimate(beats: [ts2], meter: meter, confidence: .nan, phaseIndex: 0)
+    #expect(est1 == est2)
+    #expect(est1.hashValue == est2.hashValue)
+
     let grid = BeatGrid(
-      beats: [ts], downbeats: .detected(beats: [ts]), estimatedTempo: .nan,
+      beats: [ts], downbeats: .detected(estimate: est1), estimatedTempo: .nan,
       confidence: .nan, tempoAgreement: .notCompared, gridOrigin: nil,
       coverage: .analysisWindow)
     #expect(grid == grid)
     #expect(grid.hashValue == grid.hashValue)
 
     let grid2 = BeatGrid(
-      beats: [ts2], downbeats: .detected(beats: [ts2]), estimatedTempo: .nan,
+      beats: [ts2], downbeats: .detected(estimate: est2), estimatedTempo: .nan,
       confidence: .nan, tempoAgreement: .notCompared, gridOrigin: nil,
       coverage: .analysisWindow)
     #expect(grid == grid2)
     #expect(grid.hashValue == grid2.hashValue)
 
-    let dr1 = DownbeatResult.detected(beats: [ts])
-    let dr2 = DownbeatResult.detected(beats: [ts2])
+    let dr1 = DownbeatResult.detected(estimate: est1)
+    let dr2 = DownbeatResult.detected(estimate: est2)
     #expect(dr1 == dr2)
     #expect(dr1.hashValue == dr2.hashValue)
   }
@@ -202,29 +220,91 @@ struct BeatGridTypesTests {
     }
     #expect(classify(.notAttempted) == 0)
     #expect(classify(.noneDetected) == 1)
-    #expect(classify(.detected(beats: [])) == 2)
+    #expect(classify(.detected(estimate: Self.makeEstimate(0))) == 2)
   }
 
   // MARK: - AC6: Codable round-trip
 
-  @Test(arguments: [0, 1, 200])
+  /// Only structurally-USABLE payloads round-trip as `.detected`; a `0`-beat (or
+  /// otherwise invalid) payload normalizes to `.noneDetected` on decode — see
+  /// ``decodedInvalidDetectedNormalizesToNoneDetected``.
+  @Test(arguments: [1, 200])
   func detectedRoundTrip(beatCount: Int) throws {
     let beats = Self.makeBeats(beatCount)
-    let result = DownbeatResult.detected(beats: beats)
+    let estimate = DownbeatEstimate(
+      beats: beats, meter: MeterEstimate(beatsPerBar: 4, source: .assumed),
+      confidence: 0.73, phaseIndex: 1)
+    let result = DownbeatResult.detected(estimate: estimate)
     let data = try JSONEncoder().encode(result)
     let decoded = try JSONDecoder().decode(DownbeatResult.self, from: data)
     #expect(decoded == result)
 
-    guard case .detected(let decodedBeats) = decoded else {
+    guard case .detected(let decodedEstimate) = decoded else {
       Issue.record("expected .detected after round-trip")
       return
     }
-    #expect(decodedBeats.count == beatCount)
-    for (a, b) in zip(decodedBeats, beats) {
+    #expect(decodedEstimate.beats.count == beatCount)
+    #expect(decodedEstimate.meter == MeterEstimate(beatsPerBar: 4, source: .assumed))
+    #expect(decodedEstimate.phaseIndex == 1)
+    #expect(NumericTestHelpers.bitEqual(decodedEstimate.confidence, 0.73))
+    for (a, b) in zip(decodedEstimate.beats, beats) {
       #expect(NumericTestHelpers.bitEqual(a.presentationTime, b.presentationTime))
       #expect(NumericTestHelpers.bitEqual(a.confidence, b.confidence))
       #expect(NumericTestHelpers.bitEqual(a.strength, b.strength))
     }
+  }
+
+  // MARK: - AC6: structurally-invalid decoded .detected normalizes to .noneDetected
+
+  /// A stale or tampered cache is the only source of a structurally-invalid
+  /// `.detected` (the estimator never emits one). `DownbeatResult.init(from:)`
+  /// normalizes such a payload to `.noneDetected` rather than surface an unusable
+  /// "success" (Codex-adjudicated decode doctrine, code review 2026-06-14). A VALID
+  /// `.detected` still round-trips exactly.
+  @Test func decodedInvalidDetectedNormalizesToNoneDetected() throws {
+    func decode(_ json: String) throws -> DownbeatResult {
+      try JSONDecoder().decode(DownbeatResult.self, from: Data(json.utf8))
+    }
+
+    // (1) empty beats — no bar-extrapolation anchor.
+    let emptyBeats = #"""
+      {"detected": {"estimate": {"beats": [],
+       "meter": {"beatsPerBar": 4, "source": "assumed"},
+       "confidence": 0.8, "phaseIndex": 0}}}
+      """#
+    #expect(try decode(emptyBeats) == .noneDetected)
+
+    // (2) beatsPerBar < 1 — degenerate meter.
+    let badMeter = #"""
+      {"detected": {"estimate": {"beats": [
+       {"presentationTime": 1.0, "confidence": 0.8, "strength": 0.6}],
+       "meter": {"beatsPerBar": 0, "source": "assumed"},
+       "confidence": 0.8, "phaseIndex": 0}}}
+      """#
+    #expect(try decode(badMeter) == .noneDetected)
+
+    // (3) phaseIndex out of range (>= beatsPerBar).
+    let badPhase = #"""
+      {"detected": {"estimate": {"beats": [
+       {"presentationTime": 1.0, "confidence": 0.8, "strength": 0.6}],
+       "meter": {"beatsPerBar": 4, "source": "assumed"},
+       "confidence": 0.8, "phaseIndex": 4}}}
+      """#
+    #expect(try decode(badPhase) == .noneDetected)
+
+    // A structurally-valid .detected is preserved (in-range phase, non-empty beats).
+    let valid = #"""
+      {"detected": {"estimate": {"beats": [
+       {"presentationTime": 1.0, "confidence": 0.8, "strength": 0.6}],
+       "meter": {"beatsPerBar": 4, "source": "assumed"},
+       "confidence": 0.8, "phaseIndex": 2}}}
+      """#
+    guard case .detected(let est) = try decode(valid) else {
+      Issue.record("a structurally-valid .detected must be preserved on decode")
+      return
+    }
+    #expect(est.phaseIndex == 2)
+    #expect(est.beats.count == 1)
   }
 
   @Test func beatGridRoundTrip() throws {
@@ -235,7 +315,8 @@ struct BeatGridTypesTests {
         confidence: 0.66, tempoAgreement: .disagree, gridOrigin: nil,
         coverage: .window(seconds: 60)),
       BeatGrid(
-        beats: Self.makeBeats(8), downbeats: .detected(beats: Self.makeBeats(2)),
+        beats: Self.makeBeats(8),
+        downbeats: .detected(estimate: Self.makeEstimate(2)),
         estimatedTempo: 128.0, confidence: 0.95,
         tempoAgreement: .octaveEquivalent(factor: 2), gridOrigin: Self.sampleAnchor,
         coverage: .fullTrack),
@@ -289,11 +370,17 @@ struct BeatGridTypesTests {
     let ndPayload = try #require(nd["noneDetected"] as? [String: Any])
     #expect(ndPayload.isEmpty)
 
-    let det = try topLevel(.detected(beats: Self.makeBeats(2)))
+    // `.detected` carries a LABELED `estimate:` payload (`{"detected":{"estimate":
+    // {…}}}`), not a positional `_0` (SE-0295 / DD #3). The downbeat beats live
+    // one level deeper, inside the estimate.
+    let det = try topLevel(.detected(estimate: Self.makeEstimate(2, phaseIndex: 3)))
     let detPayload = try #require(det["detected"] as? [String: Any])
-    let beatsArray = try #require(detPayload["beats"] as? [Any])
-    #expect(beatsArray.count == 2)
     #expect(detPayload["_0"] == nil)
+    let estimatePayload = try #require(detPayload["estimate"] as? [String: Any])
+    let beatsArray = try #require(estimatePayload["beats"] as? [Any])
+    #expect(beatsArray.count == 2)
+    #expect(estimatePayload["phaseIndex"] as? Int == 3)
+    #expect((estimatePayload["meter"] as? [String: Any]) != nil)
   }
 
   // MARK: - AC6: hostile-decode (finite out-of-range) re-clamps
@@ -327,10 +414,15 @@ struct BeatGridTypesTests {
   // MARK: - AC6: decode → encode → decode
 
   @Test func hostileDoubleRoundTrip() throws {
+    // The `.detected` payload is now a labeled `estimate` object whose own
+    // `confidence` AND nested beats re-clamp on decode (DownbeatEstimate +
+    // BeatTimestamp both route hostile JSON through their clamping inits).
     let gridJSON = #"""
       {"beats": [{"presentationTime": -1.0, "confidence": 5.0, "strength": -2.0}],
-       "downbeats": {"detected": {"beats":
-         [{"presentationTime": 2.0, "confidence": -0.5, "strength": 3.0}]}},
+       "downbeats": {"detected": {"estimate": {
+         "beats": [{"presentationTime": 2.0, "confidence": -0.5, "strength": 3.0}],
+         "meter": {"beatsPerBar": 4, "source": "assumed"},
+         "confidence": 9.0, "phaseIndex": 0}}},
        "estimatedTempo": -120.0, "confidence": 5.0}
       """#
     let first = try JSONDecoder().decode(BeatGrid.self, from: Data(gridJSON.utf8))
@@ -339,9 +431,10 @@ struct BeatGridTypesTests {
     #expect(second == first)
     #expect(first.estimatedTempo == 0.0)
     #expect(first.beats.first?.confidence == 1.0)
-    if case .detected(let inner) = first.downbeats {
-      #expect(inner.first?.strength == 1.0)
-      #expect(inner.first?.confidence == 0.0)
+    if case .detected(let estimate) = first.downbeats {
+      #expect(estimate.confidence == 1.0)  // hostile 9.0 clamped to [0, 1]
+      #expect(estimate.beats.first?.strength == 1.0)
+      #expect(estimate.beats.first?.confidence == 0.0)
     } else {
       Issue.record("expected .detected downbeats")
     }
@@ -571,5 +664,116 @@ struct BeatGridTypesTests {
     if let origin = decoded.gridOrigin {
       #expect(origin.beatIndex < decoded.beats.count)
     }
+  }
+
+  // MARK: - Story 8.5a: MeterEstimate / MeterSource / DownbeatEstimate (AC1 / AC8e)
+
+  /// `MeterSource` is `String`-backed → its `Codable` wire shape is a bare string
+  /// (mirrors `BeatGridAnchorSource`), not the SE-0295 single-key object.
+  @Test func meterSourceEncodesAsBareString() throws {
+    #expect(try JSONEncoder().encode(MeterSource.assumed) == Data(#""assumed""#.utf8))
+    #expect(try JSONEncoder().encode(MeterSource.detected) == Data(#""detected""#.utf8))
+    #expect(MeterSource.assumed.rawValue == "assumed")
+    #expect(MeterSource.detected.rawValue == "detected")
+  }
+
+  @Test(arguments: [
+    MeterEstimate(beatsPerBar: 4, source: .assumed),
+    MeterEstimate(beatsPerBar: 3, source: .detected),
+  ])
+  func meterEstimateRoundTrips(value: MeterEstimate) throws {
+    let data = try JSONEncoder().encode(value)
+    #expect(try JSONDecoder().decode(MeterEstimate.self, from: data) == value)
+  }
+
+  /// `DownbeatEstimate.confidence` clamps non-finite / out-of-range at construction
+  /// AND on `Codable` decode, keeping the synthesized `Hashable` sound (AC8e).
+  @Test func downbeatEstimateClampsConfidence() throws {
+    let meter = MeterEstimate(beatsPerBar: 4, source: .assumed)
+    #expect(
+      DownbeatEstimate(beats: [], meter: meter, confidence: .nan, phaseIndex: 0)
+        .confidence == 0.0)
+    #expect(
+      DownbeatEstimate(beats: [], meter: meter, confidence: 5.0, phaseIndex: 0)
+        .confidence == 1.0)
+
+    // Hostile JSON confidence re-clamps on decode.
+    let json = #"""
+      {"beats": [], "meter": {"beatsPerBar": 4, "source": "assumed"},
+       "confidence": -2.0, "phaseIndex": 2}
+      """#
+    let decoded = try JSONDecoder().decode(DownbeatEstimate.self, from: Data(json.utf8))
+    #expect(decoded.confidence == 0.0)
+    #expect(decoded.phaseIndex == 2)
+  }
+
+  @Test func downbeatEstimateRoundTripAndHashable() throws {
+    let estimate = Self.makeEstimate(3, phaseIndex: 1)
+    let data = try JSONEncoder().encode(estimate)
+    let back = try JSONDecoder().decode(DownbeatEstimate.self, from: data)
+    #expect(back == estimate)
+    #expect(back.hashValue == estimate.hashValue)
+
+    // phaseIndex is a real field: two estimates differing only in it are unequal.
+    let other = Self.makeEstimate(3, phaseIndex: 2)
+    #expect(estimate != other)
+  }
+
+  // MARK: - Story 8.5a: BeatGrid.schemaVersion semantic-contract stamp (AC9 / DD #9)
+
+  /// The current version is pinned to `1` so a future bump is a visible diff
+  /// against this test (the closest an inert field gets to enforcement), and a
+  /// default-constructed grid auto-stamps it.
+  @Test func schemaVersionCurrentIsOneAndDefaultStamped() {
+    #expect(BeatGrid.currentSchemaVersion == 1)
+    #expect(Self.noRunSentinel.schemaVersion == 1)
+    let grid = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+    #expect(grid.schemaVersion == 1)
+  }
+
+  /// A legacy payload WITHOUT the key decodes to `schemaVersion == 1` (absent → 1),
+  /// and the encoder ALWAYS emits the key.
+  @Test func schemaVersionAbsentDefaultsToOneAndIsAlwaysEmitted() throws {
+    let legacyJSON = #"""
+      {"beats": [], "downbeats": {"notAttempted": {}}, "estimatedTempo": 120,
+       "confidence": 0.5}
+      """#
+    let decoded = try JSONDecoder().decode(BeatGrid.self, from: Data(legacyJSON.utf8))
+    #expect(decoded.schemaVersion == 1)
+
+    let grid = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+    let obj = try #require(
+      try JSONSerialization.jsonObject(with: JSONEncoder().encode(grid)) as? [String: Any])
+    #expect(obj["schemaVersion"] as? Int == 1)
+  }
+
+  /// An unknown FUTURE version decodes faithfully (stored as-is, no throw) — the
+  /// library does not judge compatibility; the consumer gates.
+  @Test func schemaVersionUnknownFutureDecodesFaithfully() throws {
+    let futureJSON = #"""
+      {"beats": [], "downbeats": {"notAttempted": {}}, "estimatedTempo": 120,
+       "confidence": 0.5, "schemaVersion": 99}
+      """#
+    let decoded = try JSONDecoder().decode(BeatGrid.self, from: Data(futureJSON.utf8))
+    #expect(decoded.schemaVersion == 99)
+  }
+
+  /// `schemaVersion` is a real stored field: two grids differing only in it are
+  /// unequal and hash differently.
+  @Test func schemaVersionParticipatesInEqualityAndHash() {
+    let v1 = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow,
+      schemaVersion: 1)
+    let v2 = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow,
+      schemaVersion: 2)
+    #expect(v1 != v2)
+    #expect(v1.hashValue != v2.hashValue)
   }
 }

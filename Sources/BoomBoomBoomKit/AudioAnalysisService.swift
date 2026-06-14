@@ -325,6 +325,20 @@ public struct AudioAnalysisService {
     /// is bounded by ``maxSeconds`` like every decode.
     public var beatGridCoverage: BeatGridCoverage = .analysisWindow
 
+    /// Opt-in downbeat (bar-start) detection (Story 8.5a). Default `false` keeps
+    /// ``BeatGrid/downbeats`` ``DownbeatResult/notAttempted`` and the BPM/beat-grid
+    /// output byte-identical to 8.5. When `true`, ``analyzeBeatGrid(url:options:)``
+    /// (both overloads) and the grid produced by ``analyze(url:options:)`` run a
+    /// conservative, fixed-4/4 downbeat-phase estimator: ``BeatGrid/downbeats``
+    /// becomes ``DownbeatResult/detected(estimate:)`` on a strong recurring accent
+    /// (and ``BeatGrid/gridOrigin`` is repointed to the first downbeat with
+    /// ``BeatGridAnchorSource/downbeat``), or ``DownbeatResult/noneDetected`` — an
+    /// honest abstain — when the rhythmic evidence is weak. A wrong downbeat on a
+    /// live deck is worse than no downbeat, so the estimator abstains rather than
+    /// guess; gate bar-snap on `gridOrigin.source == .downbeat`. Ignored by
+    /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
+    public var detectDownbeats: Bool = false
+
     /// Closure checked before each analysis window. When it returns `true`,
     /// the analysis throws `CancellationError`. Defaults to `Task.isCancelled`,
     /// giving automatic structured-concurrency support.
@@ -1341,8 +1355,11 @@ public struct AudioAnalysisService {
   /// **Standalone scope.** This entry does NOT compare against a BPM result, so
   /// ``BeatGrid/tempoAgreement`` is ``TempoAgreement/notCompared`` — use the
   /// combined ``analyze(url:options:)`` to get a resolved agreement. ``BeatGrid/downbeats``
-  /// is ``DownbeatResult/notAttempted`` (the tracker recovers beats, not bar
-  /// starts; downbeat detection lands in a follow-up). For continuous sync /
+  /// is ``DownbeatResult/notAttempted`` unless ``Options/detectDownbeats`` is set,
+  /// in which case the conservative fixed-4/4 downbeat-phase estimator runs and the
+  /// grid carries ``DownbeatResult/detected(estimate:)`` (``BeatGrid/gridOrigin``
+  /// repointed to the first downbeat, ``BeatGridAnchorSource/downbeat``) or an
+  /// honest ``DownbeatResult/noneDetected`` abstain. For continuous sync /
   /// sub-beat math, anchor on ``BeatGrid/gridOrigin`` + ``BeatGrid/estimatedTempo``
   /// rather than trusting every entry of ``BeatGrid/beats``.
   ///
@@ -1450,14 +1467,19 @@ public struct AudioAnalysisService {
       let bpmOptions = BPMAnalyzer.Options(
         intensity: options.intensity,
         techniqueSet: options.techniqueSet,
-        computeBeatGrid: true)
+        computeBeatGrid: true,
+        detectDownbeats: options.detectDownbeats)
       return BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.beatGrid
     }
 
-    // .window(seconds:) / .fullTrack — second-pass coverage seam.
+    // .window(seconds:) / .fullTrack — second-pass coverage seam. The shared
+    // `bpmOptions` carries `detectDownbeats` for the second-pass grid; the
+    // tempo-resolution pass leaves `computeBeatGrid` false, so forcing sub-bands
+    // (gated on `computeBeatGrid && detectDownbeats`) does not affect it.
     let bpmOptions = BPMAnalyzer.Options(
       intensity: options.intensity,
-      techniqueSet: options.techniqueSet)
+      techniqueSet: options.techniqueSet,
+      detectDownbeats: options.detectDownbeats)
     guard let tempo = BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.bpm
     else { return nil }
     // Checkpoint before the long O(track) onset pass (DD #4).

@@ -34,9 +34,13 @@ import Foundation
 /// no dependency: only `Foundation` and `Accelerate` are imported.
 ///
 /// ## Scope
-/// Beats only. Downbeat (bar-start) detection is not attempted, so the returned
-/// grid carries ``DownbeatResult/notAttempted`` (downbeat detection lands in a
-/// follow-up). The analyzer always emits ``TempoAgreement/notCompared``; the
+/// Beats by default; downbeats opt-in. When `detectDownbeats` is `false` (the
+/// default) the returned grid carries ``DownbeatResult/notAttempted``. When
+/// `true`, ``DownbeatAnalyzer`` runs over the tracked beats + sub-band envelopes
+/// (Story 8.5a) and the grid carries ``DownbeatResult/detected(estimate:)`` (with
+/// ``BeatGrid/gridOrigin`` repointed to the first downbeat) or an honest
+/// ``DownbeatResult/noneDetected`` abstain. The analyzer always emits
+/// ``TempoAgreement/notCompared``; the
 /// combined ``AudioAnalysisService/analyze(url:options:)`` path re-stamps the
 /// resolved agreement against the full BPM result (Story 8.5). The analyzer also
 /// selects ``BeatGrid/gridOrigin`` (the phase-consistency anchor) and records the
@@ -93,6 +97,18 @@ enum BeatGridAnalyzer {
   ///     verbatim on ``BeatGrid/coverage``. Defaults to
   ///     ``BeatGridCoverage/analysisWindow`` (the step-11 fan-out reuses the BPM
   ///     window envelope); the full-track seam passes the requested coverage.
+  ///   - subBands: The four per-frame sub-band onset envelopes
+  ///     `[kick, snareLow, snareCrack, hiHat]` (window-relative, frame-aligned to
+  ///     `onsetEnvelope`), consumed by the Story-8.5a downbeat estimator. Empty
+  ///     (default) when downbeats are not requested.
+  ///   - detectDownbeats: When `true`, runs the Story-8.5a downbeat-phase
+  ///     estimator over the tracked beats + `subBands` and sets
+  ///     ``BeatGrid/downbeats`` to ``DownbeatResult/detected(estimate:)`` (also
+  ///     repointing ``BeatGrid/gridOrigin`` to the first downbeat with
+  ///     ``BeatGridAnchorSource/downbeat``) or ``DownbeatResult/noneDetected``.
+  ///     When `false` (default), ``BeatGrid/downbeats`` is
+  ///     ``DownbeatResult/notAttempted`` and the 8.5 phase-consistency anchor is
+  ///     preserved.
   /// - Returns: A populated ``BeatGrid``, or `nil` for degenerate input (empty
   ///   envelope, non-positive/non-finite tempo, all-zero envelope, or a window
   ///   shorter than one beat period).
@@ -104,7 +120,9 @@ enum BeatGridAnalyzer {
     acf: [Float],
     tempoBPM: Double,
     windowStartSample: Int,
-    coverage: BeatGridCoverage = .analysisWindow
+    coverage: BeatGridCoverage = .analysisWindow,
+    subBands: [[Float]] = [],
+    detectDownbeats: Bool = false
   ) -> BeatGrid? {
     let n = onsetEnvelope.count
     guard n > 0, hopSize > 0, sampleRate > 0, onsetRate > 0 else { return nil }
@@ -248,6 +266,12 @@ enum BeatGridAnalyzer {
     // how close the interval to the previous beat is to the known period.
     var beats: [BeatTimestamp] = []
     beats.reserveCapacity(frames.count)
+    // The window-relative beat frames, kept parallel to `beats` so the downbeat
+    // estimator samples the sub-band envelopes at exactly the beats' frames (DD
+    // #5). Built alongside `beats` so the two stay aligned even if the defensive
+    // guard below ever skips a frame.
+    var beatFrames: [Int] = []
+    beatFrames.reserveCapacity(frames.count)
     var strengthSum: Float = 0
     for (k, f) in frames.enumerated() {
       // f is a DP index, always in 0..<n; guard defensively per AC5.
@@ -269,6 +293,7 @@ enum BeatGridAnalyzer {
           presentationTime: presentationTime,
           confidence: beatConfidence,
           strength: strength))
+      beatFrames.append(f)
     }
     guard !beats.isEmpty else { return nil }
 
@@ -297,12 +322,44 @@ enum BeatGridAnalyzer {
     let confidence = 0.5 * meanStrength + 0.5 * periodConfidence
 
     // The Rekordbox-style extrapolation anchor (Story 8.5, DD #11): the single
-    // most-trustworthy reference beat, picked by phase consistency.
-    let gridOrigin = selectGridOrigin(beats: beats, estimatedTempo: estimatedTempo)
+    // most-trustworthy reference beat, picked by phase consistency. On a
+    // successful downbeat detection below it is repointed to the first downbeat.
+    var gridOrigin = selectGridOrigin(beats: beats, estimatedTempo: estimatedTempo)
+
+    // Story 8.5a: optional downbeat-phase estimation. When requested, run the
+    // conservative estimator over the tracked beats + sub-band envelopes; on a
+    // confident detection set `.detected(estimate:)` and repoint the anchor to the
+    // first downbeat (`source == .downbeat`); on an honest abstain set
+    // `.noneDetected` and keep the 8.5 phase-consistency anchor. When not
+    // requested the grid carries `.notAttempted` exactly as Story 8.4/8.5.
+    let downbeats: DownbeatResult
+    if detectDownbeats {
+      switch DownbeatAnalyzer.estimate(
+        beatFrames: beatFrames,
+        beats: beats,
+        fullBand: onsetEnvelope,
+        subBands: subBands,
+        periodFrames: period,
+        estimatedTempo: estimatedTempo)
+      {
+      case .detected(let estimate, let firstIdx):
+        downbeats = .detected(estimate: estimate)
+        gridOrigin = BeatGridAnchor(
+          beatIndex: firstIdx,
+          presentationTime: beats[firstIdx].presentationTime,
+          confidence: beats[firstIdx].confidence,
+          strength: beats[firstIdx].strength,
+          source: .downbeat)
+      case .noneDetected:
+        downbeats = .noneDetected
+      }
+    } else {
+      downbeats = .notAttempted
+    }
 
     return BeatGrid(
       beats: beats,
-      downbeats: .notAttempted,
+      downbeats: downbeats,
       estimatedTempo: estimatedTempo,
       confidence: confidence,
       tempoAgreement: .notCompared,

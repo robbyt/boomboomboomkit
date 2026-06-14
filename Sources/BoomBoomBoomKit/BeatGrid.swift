@@ -52,6 +52,12 @@
 /// only payload is an `Int` (not a `Double`), which is `Hashable`-clean.
 public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
 
+  // MARK: Schema version
+
+  /// The current ``schemaVersion`` a freshly-produced ``BeatGrid`` carries. Bump
+  /// this when the persisted *semantic* contract changes (see ``schemaVersion``).
+  public static let currentSchemaVersion = 1
+
   // MARK: Stored
 
   /// The detected beats, in playback order, spanning ``coverage``. Empty for
@@ -98,6 +104,43 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// regardless of this; ``coverage`` only describes the detected-beat array.
   public let coverage: BeatGridCoverage
 
+  /// The persisted-shape **semantic** contract version this grid was produced
+  /// under. A freshly-produced grid carries ``currentSchemaVersion``.
+  ///
+  /// ## What it identifies
+  /// It stamps the meaning of the serialized ``BeatGrid`` graph — the top-level
+  /// fields *and* the nested types (``BeatTimestamp`` / ``BeatGridAnchor`` /
+  /// ``BeatGridCoverage`` / ``TempoAgreement`` / ``DownbeatResult``). A *breaking
+  /// shape* change (a renamed/removed required key) already throws at
+  /// ``init(from:)`` — this field does nothing there. Its only job is the
+  /// orthogonal class the throw misses: a change that keeps every key decodable
+  /// but **redefines meaning** (the ``confidence`` formula, the
+  /// ``estimatedTempo``/``BeatTimestamp/presentationTime`` provenance or units,
+  /// or the ``TempoAgreement`` octave factor sign).
+  ///
+  /// ## Read-side consumer contract
+  /// A consumer that **caches** a raw ``BeatGrid`` should compare its
+  /// ``schemaVersion`` against ``currentSchemaVersion`` (or the version its cache
+  /// was written under) and **re-index on mismatch**. The library does **not**
+  /// migrate old grids: ``init(from:)`` decodes the stored integer faithfully
+  /// (including an unknown future value) and never throws on an unrecognized
+  /// version — only the consumer can judge whether a given version is compatible
+  /// with how it cached.
+  ///
+  /// ## When to bump (hand-maintained)
+  /// Bump on a ``confidence``-formula change, an
+  /// ``estimatedTempo``/``presentationTime`` provenance or units change, a
+  /// ``TempoAgreement`` factor-sign change, or a nested-enum meaning change. Do
+  /// **not** bump for pure accuracy improvements that preserve the contract. This
+  /// is a top-level *assertion* over the nested graph: it is not compiler-enforced
+  /// and does not structurally witness a change *inside* a nested type, so its
+  /// correctness depends entirely on this bump discipline. It is **not**
+  /// backwards-compatibility and **not** cache protection (a consumer's own cache
+  /// envelope version owns that) — it is a semantic-drift / forensic stamp the
+  /// consumer may gate on. It is `Int` (ordered comparison is all a version
+  /// envelope needs) and stays `Hashable`-clean.
+  public let schemaVersion: Int
+
   // MARK: Init
 
   /// Creates a beat grid, clamping its float fields finite and recording the
@@ -122,6 +165,9 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///   - gridOrigin: The extrapolation anchor, or `nil` when no beats. An anchor
   ///     whose `beatIndex` is out of range for `beats` is dropped to `nil`.
   ///   - coverage: What span `beats` cover (sanitized on the way in).
+  ///   - schemaVersion: The persisted semantic-contract version. Defaulted to
+  ///     ``currentSchemaVersion`` so every producer auto-stamps the current
+  ///     version with no call-site change; stored faithfully (not range-validated).
   public init(
     beats: [BeatTimestamp],
     downbeats: DownbeatResult,
@@ -129,8 +175,10 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     confidence: Float,
     tempoAgreement: TempoAgreement,
     gridOrigin: BeatGridAnchor?,
-    coverage: BeatGridCoverage
+    coverage: BeatGridCoverage,
+    schemaVersion: Int = BeatGrid.currentSchemaVersion
   ) {
+    self.schemaVersion = schemaVersion
     self.beats = beats
     self.downbeats = downbeats
     self.estimatedTempo = BeatGridClamp.clampNonNegative(estimatedTempo)
@@ -163,7 +211,11 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       confidence: confidence,
       tempoAgreement: newAgreement,
       gridOrigin: gridOrigin,
-      coverage: coverage)
+      coverage: coverage,
+      // Forward the instance's version (W52 forward-every-field): a
+      // decoded-then-restamped grid keeps its original version, not the current
+      // one.
+      schemaVersion: schemaVersion)
   }
 
   // MARK: Codable
@@ -177,12 +229,16 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///
   /// `beats`, `downbeats`, `estimatedTempo`, and `confidence` are required
   /// (a missing key throws — a regression lock against a `?? 0` that would
-  /// bypass the clamp). `tempoAgreement`, `gridOrigin`, and `coverage` are
-  /// decoded with `decodeIfPresent` and default to their "no information"
-  /// values (``TempoAgreement/notCompared`` / `nil` / ``BeatGridCoverage/analysisWindow``),
-  /// mirroring how the Story-8.3 optional agreement flag defaulted to `nil` when
-  /// absent. The synthesized encoder always writes the non-optional fields, so
-  /// round-trips are exact; the decode is merely lenient about a partial payload.
+  /// bypass the clamp). `tempoAgreement`, `gridOrigin`, `coverage`, and
+  /// `schemaVersion` are decoded with `decodeIfPresent` and default to their
+  /// "no information" values (``TempoAgreement/notCompared`` / `nil` /
+  /// ``BeatGridCoverage/analysisWindow`` / `1`), mirroring how the Story-8.3
+  /// optional agreement flag defaulted to `nil` when absent. A legacy grid
+  /// serialized before ``schemaVersion`` existed therefore decodes as version `1`
+  /// (absent → 1; it cannot retroactively distinguish a true v1 — the field only
+  /// versions forward). The synthesized encoder always writes the non-optional
+  /// fields, so round-trips are exact; the decode is merely lenient about a
+  /// partial payload.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let beats = try container.decode([BeatTimestamp].self, forKey: .beats)
@@ -196,6 +252,14 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     let coverage =
       try container.decodeIfPresent(BeatGridCoverage.self, forKey: .coverage)
       ?? .analysisWindow
+    // Faithful decode: store whatever integer is present (including an unknown
+    // future version), defaulting absent → 1; NEVER throw on an unrecognized
+    // version (the consumer gates compatibility, the library does not migrate).
+    // Mirrors the in-repo `BaselineRecord.schemaVersion: Int` warn-and-skip
+    // precedent and this type's decode-faithfully-then-route-through-the-clamping
+    // -init doctrine.
+    let schemaVersion =
+      try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
     self.init(
       beats: beats,
       downbeats: downbeats,
@@ -203,7 +267,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       confidence: confidence,
       tempoAgreement: tempoAgreement,
       gridOrigin: gridOrigin,
-      coverage: coverage)
+      coverage: coverage,
+      schemaVersion: schemaVersion)
   }
 
   // MARK: CustomStringConvertible
