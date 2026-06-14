@@ -202,14 +202,17 @@ What you need to know about the decoded path:
 ```swift
 public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   public let beats: [BeatTimestamp]          // each beat's time + confidence + strength
-  public let downbeats: DownbeatResult       // .notAttempted / .noneDetected / .detected(beats:)
+  public let downbeats: DownbeatResult       // .notAttempted / .noneDetected / .detected(estimate:)
   public let estimatedTempo: Double          // BPM; 0.0 is the "no valid estimate" sentinel
   public let confidence: Float               // [0, 1]
   public let tempoAgreement: TempoAgreement  // .notCompared / .agree / .octaveEquivalent / .disagree
   public let gridOrigin: BeatGridAnchor?     // the Rekordbox-style extrapolation anchor (nil if no beats)
   public let coverage: BeatGridCoverage      // .analysisWindow / .window(seconds:) / .fullTrack
+  public let schemaVersion: Int              // persisted-shape semantic-contract version (currentSchemaVersion)
 }
 ```
+
+`schemaVersion` stamps the persisted `BeatGrid` *semantic* contract (the `confidence` formula, the time/tempo provenance, the enum meanings) — not backwards compatibility, and not cache protection. If you cache a raw `BeatGrid`, compare its `schemaVersion` against `BeatGrid.currentSchemaVersion` (or the version your cache was written under) and re-index on a mismatch; the library decodes any version faithfully and never migrates old grids.
 
 ### Extrapolate from the anchor — don't trust every beat
 
@@ -260,7 +263,36 @@ if let result = try AudioAnalysisService.analyze(url: fileURL) {
 let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL)   // pays its own decode
 ```
 
-`DownbeatResult` is deliberately tri-state so a consumer can tell "downbeat detection never ran" (`.notAttempted`) apart from "it ran and found nothing" (`.noneDetected`). The current release recovers beats, not bar starts, so `downbeats` is `.notAttempted`; downbeat detection lands in a follow-up. Every float field is clamped finite at construction (and on `Codable` decode), so the value types are soundly `Hashable`; gate tempo validity with `estimatedTempo > 0`.
+`DownbeatResult` is deliberately tri-state so a consumer can tell "downbeat detection never ran" (`.notAttempted`) apart from "it ran and found nothing" (`.noneDetected`) apart from "it found a downbeat" (`.detected(estimate:)`). Every float field is clamped finite at construction (and on `Codable` decode), so the value types are soundly `Hashable`; gate tempo validity with `estimatedTempo > 0`.
+
+### Downbeats (opt-in)
+
+Downbeat detection is **off by default** (`downbeats` is `.notAttempted`). Set `Options.detectDownbeats = true` and `analyzeBeatGrid` / `analyze` run a conservative, fixed-4/4 downbeat-**phase** estimator: it estimates *which* beat-in-bar is beat 1 for percussive, constant-tempo, common-time music, and **abstains** (`.noneDetected`) when the rhythmic evidence is weak. A wrong downbeat on a live deck is worse than no downbeat, so it would rather say nothing than guess — gate bar-snap on `gridOrigin.source == .downbeat`.
+
+```swift
+public struct DownbeatEstimate: Sendable, Hashable, Codable {
+  public let beats: [BeatTimestamp]   // the downbeat beats (bar starts), in order
+  public let meter: MeterEstimate     // { beatsPerBar: 4, source: .assumed }
+  public let confidence: Float        // [0, 1]
+  public let phaseIndex: Int          // which beat-in-bar (0..<beatsPerBar) is the downbeat
+}
+```
+
+On a confident detection `gridOrigin` is repointed to the first downbeat (`source == .downbeat`), so you can extrapolate bar lines:
+
+```swift
+var options = AudioAnalysisService.Options()
+options.detectDownbeats = true
+if let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL, options: options),
+   case .detected(let estimate) = grid.downbeats,
+   let firstDownbeat = estimate.beats.first {
+    let barSeconds = 60.0 / grid.estimatedTempo * Double(estimate.meter.beatsPerBar)
+    // k-th bar start after the first downbeat (constant tempo):
+    let barStart = firstDownbeat.presentationTime + barSeconds * Double(k)
+}
+```
+
+The meter is **assumed** 4/4, not measured (`meter.source == .assumed`); non-4/4 meter detection and per-beat bar positions are out of scope. It assumes a constant tempo (like the beat tracker).
 
 ### Timestamp contract — decoded-PCM-relative
 
@@ -408,7 +440,9 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `BeatGridCoverage` | What span the detected `beats` cover (`.analysisWindow` default / `.window(seconds:)` / `.fullTrack`); set via `Options.beatGridCoverage` |
 | `TempoAgreement` | How the grid tempo relates to the BPM stage (`.notCompared` / `.agree` / `.octaveEquivalent(factor:)` / `.disagree`) |
 | `CombinedAnalysisResult` | BPM + beat grid over one shared decode, returned by `AudioAnalysisService.analyze(url:options:)` / `analyze(decoded:options:)` |
-| `DownbeatResult` | Tri-state downbeat outcome (`.notAttempted` / `.noneDetected` / `.detected(beats:)`) |
+| `DownbeatResult` | Tri-state downbeat outcome (`.notAttempted` / `.noneDetected` / `.detected(estimate:)`) |
+| `DownbeatEstimate` | The `.detected` payload: the downbeat beats, `meter`, `confidence`, and `phaseIndex` (opt-in via `Options.detectDownbeats`) |
+| `MeterEstimate` / `MeterSource` | The assumed-or-detected meter on a `DownbeatEstimate` (always `{ beatsPerBar: 4, source: .assumed }` today) |
 | `FeatureSubstrate.DecodedAudio` | Decoded mono PCM carrier for the shared-decode seam (see "Shared decode") |
 | `FeatureSubstrate.PrimingInfo`, `FeatureSubstrate.AudioCodec`, `FeatureSubstrate.TrimState` | Content-true codec + trim-state provenance carried on `DecodedAudio.codecPriming` |
 

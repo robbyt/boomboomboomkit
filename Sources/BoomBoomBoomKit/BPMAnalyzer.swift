@@ -195,6 +195,16 @@ struct BPMAnalyzer {
     /// step-11 output — it does not feed BPM winner selection, so no
     /// ``BPMDiagnosticTrace`` field is added and KDD-T0 does not trigger.
     var computeBeatGrid: Bool = false
+
+    /// Story 8.5a — when `true` AND `computeBeatGrid` is `true`, the step-11
+    /// fan-out forces sub-band onset computation and runs the downbeat-phase
+    /// estimator, populating ``BeatGrid/downbeats`` with
+    /// ``DownbeatResult/detected(estimate:)`` or ``DownbeatResult/noneDetected``.
+    /// Default `false` keeps ``BeatGrid/downbeats`` ``DownbeatResult/notAttempted``.
+    /// Forcing sub-bands is additive: they feed only the downbeat estimator (and
+    /// sub-band voting iff `.subBandVoting` is independently on), never the
+    /// full-band envelope or the BPM winner — the BPM result stays byte-identical.
+    var detectDownbeats: Bool = false
   }
 
   // MARK: - Public API
@@ -257,17 +267,23 @@ struct BPMAnalyzer {
     // r=1). Same step number (3), same downstream contract (`OnsetEnvelopes`),
     // same callers — only the per-frame reference construction differs. See
     // `computeSuperFluxOnsetEnvelope` and Story 4-7 DD #2 / AC #2.
+    // Story 8.5a AC6: force sub-band onset computation when the step-11 fan-out
+    // will run the downbeat estimator, independent of the technique set. This is
+    // additive — `normalizeSubBandsInPlace` only touches the sub-band arrays, and
+    // sub-band ACFs / voting stay gated on `.subBandVoting`, so the full-band
+    // envelope and the BPM winner are unchanged (BPM byte-identity, AC2/AC8 d′).
+    let forceSubBands = options.computeBeatGrid && options.detectDownbeats
     let onsetResult: OnsetEnvelopes
     if techniqueSet.contains(.superFluxOnset) {
       onsetResult = computeSuperFluxOnsetEnvelope(
         samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
-        computeSubBands: techniqueSet.contains(.subBandVoting),
+        computeSubBands: techniqueSet.contains(.subBandVoting) || forceSubBands,
         normalizeSubBands: techniqueSet.contains(.subBandNormalization),
         captureMLFeatures: options.captureMLFeatures)
     } else {
       onsetResult = computeMelOnsetEnvelopeWithSubBands(
         samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
-        computeSubBands: techniqueSet.contains(.subBandVoting),
+        computeSubBands: techniqueSet.contains(.subBandVoting) || forceSubBands,
         normalizeSubBands: techniqueSet.contains(.subBandNormalization),
         captureMLFeatures: options.captureMLFeatures)
     }
@@ -502,7 +518,9 @@ struct BPMAnalyzer {
         sampleRate: sampleRate,
         acf: acf,
         tempoBPM: bpm,
-        windowStartSample: dropOffset)
+        windowStartSample: dropOffset,
+        subBands: onsetResult.subBands,
+        detectDownbeats: options.detectDownbeats)
     }
 
     // Step 12: Confidence
@@ -594,16 +612,20 @@ struct BPMAnalyzer {
     let hopSize = Int(sampleRate / 100)
     let onsetRate = sampleRate / Double(hopSize)
 
-    // Full-band onset envelope (sub-bands unused by the tracker → not computed).
+    // Full-band onset envelope. Sub-bands are unused by the beat tracker, so they
+    // are computed ONLY when the downbeat estimator needs them (Story 8.5a AC6 —
+    // the `.window` / `.fullTrack` coverage paths honor `detectDownbeats` too).
     let onsetResult: OnsetEnvelopes
     if techniqueSet.contains(.superFluxOnset) {
       onsetResult = computeSuperFluxOnsetEnvelope(
         samples: coverageWindow, sampleRate: sampleRate, hopSize: hopSize,
-        computeSubBands: false, normalizeSubBands: false, captureMLFeatures: false)
+        computeSubBands: options.detectDownbeats, normalizeSubBands: false,
+        captureMLFeatures: false)
     } else {
       onsetResult = computeMelOnsetEnvelopeWithSubBands(
         samples: coverageWindow, sampleRate: sampleRate, hopSize: hopSize,
-        computeSubBands: false, normalizeSubBands: false, captureMLFeatures: false)
+        computeSubBands: options.detectDownbeats, normalizeSubBands: false,
+        captureMLFeatures: false)
     }
     var onsetEnvelope = onsetResult.fullBand
     guard !onsetEnvelope.isEmpty else { return nil }
@@ -626,7 +648,9 @@ struct BPMAnalyzer {
       acf: acf,
       tempoBPM: tempoBPM,
       windowStartSample: dropOffset,
-      coverage: cov)
+      coverage: cov,
+      subBands: onsetResult.subBands,
+      detectDownbeats: options.detectDownbeats)
   }
 
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)
