@@ -1,0 +1,4 @@
+{
+  "name": "tampered",
+  "note": "Synthetic, non-loadable directory bundle used only by ModelRegistryTests to exercise the SHA-256 integrity-mismatch path. The registry hashes bytes; it does not load this as a CoreML model."
+}

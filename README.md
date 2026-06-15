@@ -526,6 +526,46 @@ let result = try AudioAnalysisService.analyzeBPM(url: trackURL, options: options
 
 To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project). It supports the reference architecture (the one the historical `giantsteps_v1` was trained on) as well as fully custom architectures via your own `nn.Module` class.
 
+## Model registry
+
+When you ship more than one model — a bundled default, a few the user adds, a known public reference — it helps to have one place that catalogs them and checks that each one is what you think it is. `ModelRegistry` is that catalog. It hashes a model bundle's contents with SHA-256 at registration time, so a corrupted download, a wrong-version checkpoint, or a silently swapped file on disk surfaces as a typed error instead of as quietly-wrong tempo output.
+
+It is a standalone, opt-in catalog. It is **not** wired into `analyzeBPM` — registering models does not change analysis results. Wire a registered model into analysis yourself via `Options.mlTechnique` (see *Using your own tempo model* above).
+
+```swift
+import BoomBoomBoomKit
+
+let registry = ModelRegistry()
+
+// Trust-on-first-use: record whatever is on disk now, detect a swap later.
+let entry = try registry.register(
+    url: modelURL,
+    metadata: ModelMetadata(
+        identifier: "my_tempo_model_v1",
+        capabilities: [.tempoEstimation],
+        license: "Apache-2.0"))
+
+print(entry.digestHexString)            // e.g. "a3f1…"  (display as `Integrity: verified`)
+registry.lookup(identifier: "my_tempo_model_v1")  // -> entry
+```
+
+Two integrity modes:
+
+- **Trust-on-first-use** (`expectedDigest: nil`, the default) records the digest of whatever is on disk the first time you register. This is *pin-now-detect-later* — it can catch a later swap, but it does not vouch for the original bytes. The digest is computed once per file URL and cached for the registry's lifetime, so a swap is detected when you re-register on a fresh launch (a new registry re-hashes), not by re-registering the same URL in the same session.
+- **Pinned** verifies against a digest you already know. Reconstruct it from a hash published in a manifest (or one you persisted as hex) and pass it in; a mismatch throws and the model is not registered:
+
+```swift
+let pinned = try ModelDigest(hex: publishedHexFromYourManifest)
+do {
+    _ = try registry.register(url: modelURL, expectedDigest: pinned,
+                              metadata: ModelMetadata(identifier: "reference_v2"))
+} catch let ModelRegistryError.integrityCheckFailed(expected, actual) {
+    print("model on disk does not match: expected \(expected.hexString), got \(actual.hexString)")
+}
+```
+
+The registry is **in-memory only** — there is no `save`/`load`. Persisting registrations across launches is your app's job (store a security-scoped bookmark for the file plus the identifier and the `ModelDigest` hex, then re-register on launch). `ModelDigest` is `Codable`, so the fingerprint persists directly; `ModelRegistryEntry` is intentionally not `Codable`, because its file URL would not round-trip a sandboxed path.
+
 ## References
 
 - Davies, M.E.P. & Plumbley, M.D. (2007). "Context-dependent beat tracking of musical audio"

@@ -56,6 +56,10 @@ public struct MLEvaluation: Sendable {
   /// CoreML conformances coexist (e.g., `"bnns_tempo_v1"`,
   /// `"coreml_resnet18_v3"`). Pass `nil` if the model has no stable
   /// identifier or the consumer does not need to distinguish models.
+  ///
+  /// Should match the ``ModelRegistryEntry/identifier`` of the model in a
+  /// ``ModelRegistry`` so trace logs can be joined back to a registered,
+  /// integrity-checked model.
   public let modelIdentifier: String?
 
   /// Creates an immutable ML evaluation record.
