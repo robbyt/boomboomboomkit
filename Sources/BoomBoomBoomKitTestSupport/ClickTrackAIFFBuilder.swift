@@ -38,9 +38,11 @@ public enum ClickTrackAIFFBuilder {
       sampleRate.isFinite
         && sampleRate >= 1
         && sampleRate.rounded(.towardZero) == sampleRate
-        && sampleRate <= Double(UInt64.max),
-      "sampleRate must be a finite integer Hz value in 1...\(UInt64.max) "
-        + "(got \(sampleRate)) — the ieee80 encoder is restricted to integer Hz rates")
+        && sampleRate < Double(UInt64.max),
+      "sampleRate must be a finite integer Hz value with 1 <= rate < 2^64 "
+        + "(got \(sampleRate)) — the ieee80 encoder is restricted to integer Hz rates. "
+        + "The bound is strict: Double(UInt64.max) rounds up to 2^64, so `<= Double(UInt64.max)` "
+        + "would admit 2^64 and trap in UInt64(rate)")
     let rawSampleCount = sampleRate * durationSeconds
     precondition(
       rawSampleCount.isFinite,
@@ -154,8 +156,9 @@ public enum ClickTrackAIFFBuilder {
       rate.isFinite
         && rate >= 1
         && rate.rounded(.towardZero) == rate
-        && rate <= Double(UInt64.max),
-      "ieee80SampleRate requires a finite integer Hz value in 1...\(UInt64.max) (got \(rate))"
+        && rate < Double(UInt64.max),
+      "ieee80SampleRate requires a finite integer Hz value with 1 <= rate < 2^64 (got \(rate)) "
+        + "— strict upper bound because Double(UInt64.max) rounds up to 2^64, which UInt64(rate) cannot hold"
     )
     let r = UInt64(rate)
     // Find the highest bit set.
@@ -175,8 +178,10 @@ public enum ClickTrackAIFFBuilder {
 
   private static func boundedTruncatingInt(_ value: Double, label: String) -> Int {
     precondition(
-      value >= 0 && value <= Double(Int.max),
-      "\(label) must be representable as Int before truncation (Int.max = \(Int.max), got \(value))"
+      value >= 0 && value < Double(Int.max),
+      "\(label) must be representable as Int before truncation (must satisfy 0 <= value < 2^63; "
+        + "Int.max = \(Int.max), got \(value)) — strict upper bound because Double(Int.max) rounds "
+        + "up to 2^63, which Int(value) cannot hold"
     )
     return Int(value.rounded(.towardZero))
   }
