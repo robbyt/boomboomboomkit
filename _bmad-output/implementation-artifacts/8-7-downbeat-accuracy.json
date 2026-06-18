@@ -1,0 +1,14 @@
+{
+  "abstain_rate" : 0.95727848101265822,
+  "fire_rate" : 0.042721518987341771,
+  "gated_metric" : "mean_downbeat_f_octave_constant",
+  "mean_downbeat_f_octave_all" : 0.14072416746169797,
+  "mean_downbeat_f_octave_constant" : 0.1444427783149459,
+  "metric" : "octave-tolerant downbeat F over ALL detected downbeats vs oracle Battito==1",
+  "n_evaluated" : 1264,
+  "n_fired" : 54,
+  "n_pass_failures" : 0,
+  "n_scored_all" : 54,
+  "n_scored_constant" : 42,
+  "tolerance_ms" : 70
+}

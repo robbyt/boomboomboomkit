@@ -14,6 +14,13 @@ dependencies = [
   "torchinfo>=1.8",
   "mutagen>=1.47.0",
   "matplotlib>=3.8",
+  # Story 8.7 (develop-only): beat-grid acceptance F-measure. `mir_eval.beat.f_measure`
+  # has been API-stable across 0.x; pinned below the 1.0 major boundary (epic version-pin
+  # guard). The `jams` library is intentionally NOT added: the multi-track `{ "entries": [...] }`
+  # corpus wrapper (DD-9) is not loadable by `jams.load()` anyway, and both the generator
+  # (scripts/rekordbox-beats.py) and the sidecar (eval-beatgrid.py) read/write the JAMS-shaped
+  # JSON with the stdlib — so `jams` would be a dead dependency.
+  "mir_eval>=0.7,<1.0",
 ]
 
 [dependency-groups]
