@@ -153,6 +153,19 @@ See `tools/coreml-convert/README.md` for the four consumer paths (same-arch over
 5. Update `BoomBoomBoomKitML/Sources/...` to load the new artifact (Story 4-5 ships `BNNSTechnique` with `bundledReferenceURL` — point it at the new artifact).
 6. The previous bundled `<corpus>_v(N-1).mlmodelc` may be removed in the same commit OR retained as a co-bundled fixture for migration testing — your call. Pre-1.0, removal is fine; post-1.0, retain at least one prior version for one minor release.
 
+---
+
+## Beat-grid acceptance (DSP, not an ML model)
+
+The beat grid is a pure-DSP feature (no model involved), but its accuracy is disclosed here alongside the model accuracy for a single place to judge what the library promises.
+
+- **Metric:** standard MIR beat **F-measure** at a **±70 ms** tolerance, with tempo-octave equivalence allowed (a correct half- or double-time grid is not penalized).
+- **Reference:** a beat grid exported from DJ software, over a real-world, constant-tempo drum & bass corpus.
+- **Measured mean F-measure:** **≈ 0.37**, with a committed regression floor of **0.33** enforced by the test suite.
+- **Opt-in downbeat detector:** deliberately conservative — it abstains on the large majority of tracks; when it does commit to a bar phase, agreement with the reference is moderate. Treat a detected downbeat as a hint, not a guarantee.
+
+This is moderate agreement with an auto-analyzed reference on heavily-produced material, dominated by fine tempo/phase disagreement that accumulates across a track rather than gross errors. For sync-critical work, prefer the anchor + tempo extrapolation, gate on `confidence`, and validate against your own material.
+
 ## License
 
 The bundled `giantsteps_v1.mlmodelc` is distributed under the same license as `BoomBoomBoomKit` (see [LICENSE](./LICENSE)). The training corpora (GiantSteps Tempo Dataset, OA300) are not redistributed by this repository; consumers wanting to re-train can obtain them from their original sources.
