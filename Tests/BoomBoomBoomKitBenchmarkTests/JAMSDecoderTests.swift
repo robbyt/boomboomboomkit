@@ -158,6 +158,48 @@ struct JAMSDecoderTests {
     }
   }
 
+  // MARK: Legacy constant_tempo location (tolerant decode)
+
+  @Test("constant_tempo is read from sandbox, falling back to legacy file_metadata")
+  func legacyConstantTempoFallback() throws {
+    // A stale oracle carries constant_tempo in file_metadata (no sandbox): it must still
+    // decode rather than silently defaulting to constant-tempo (tolerant-on-decode).
+    let legacy = Data(
+      """
+      { "entries": [ { "file_metadata": {
+          "duration": 10, "jams_version": "0.4.0", "constant_tempo": false,
+          "identifiers": { "track_id": "1" } },
+        "annotations": [ { "namespace": "beat", "data": [],
+          "annotation_metadata": {} } ] } ] }
+      """.utf8)
+    let legacyFile = try #require(
+      try JSONDecoder().decode(JAMSCorpus.self, from: legacy).entries.first)
+    #expect(legacyFile.constantTempo == false, "legacy file_metadata.constant_tempo must be read")
+
+    // sandbox wins when both are present.
+    let both = Data(
+      """
+      { "entries": [ { "file_metadata": {
+          "duration": 10, "jams_version": "0.4.0", "constant_tempo": false,
+          "identifiers": { "track_id": "1" } },
+        "annotations": [ { "namespace": "beat", "data": [], "annotation_metadata": {} } ],
+        "sandbox": { "constant_tempo": true } } ] }
+      """.utf8)
+    let bothFile = try #require(
+      try JSONDecoder().decode(JAMSCorpus.self, from: both).entries.first)
+    #expect(bothFile.constantTempo == true, "sandbox takes precedence over legacy file_metadata")
+
+    // Re-encoding a legacy file must NOT re-emit file_metadata.constant_tempo (strict home
+    // is sandbox; emitting it would break jams.load).
+    let reencoded = try JSONEncoder().encode(JAMSCorpus(entries: [legacyFile]))
+    let root = try #require(JSONSerialization.jsonObject(with: reencoded) as? [String: Any])
+    let entry = try #require((root["entries"] as? [[String: Any]])?.first)
+    let meta = try #require(entry["file_metadata"] as? [String: Any])
+    #expect(
+      !meta.keys.contains("constant_tempo"),
+      "legacy constant_tempo must not be re-emitted in file_metadata")
+  }
+
   // MARK: Unknown-namespace rejection
 
   @Test("an unknown namespace throws JAMSDecodingError.unknownNamespace")

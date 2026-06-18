@@ -190,16 +190,23 @@ struct JAMSFileMetadata: Codable, Equatable, Sendable {
   /// encode (fallback `"0.4.0"`) so every emitted entry is standalone-valid.
   let jamsVersion: String?
   let identifiers: JAMSIdentifiers?
+  /// LEGACY decode-only fallback: a `constant_tempo` flag that older oracles wrote here
+  /// before it moved to the top-level `sandbox` (its strict-valid home). Read so a stale
+  /// oracle is not silently mis-scoped as constant-tempo (tolerant-on-decode), but NEVER
+  /// re-encoded — `encode` omits it so emitted entries stay `jams.load`-valid. Prefer
+  /// ``JAMSFile/constantTempo``, which reads `sandbox` first and falls back to this.
+  let constantTempo: Bool?
 
   init(
     title: String?, artist: String?, duration: Double?,
-    identifiers: JAMSIdentifiers?, jamsVersion: String? = "0.4.0"
+    identifiers: JAMSIdentifiers?, jamsVersion: String? = "0.4.0", constantTempo: Bool? = nil
   ) {
     self.title = title
     self.artist = artist
     self.duration = duration
     self.identifiers = identifiers
     self.jamsVersion = jamsVersion
+    self.constantTempo = constantTempo
   }
 
   func encode(to encoder: any Encoder) throws {
@@ -211,12 +218,15 @@ struct JAMSFileMetadata: Codable, Equatable, Sendable {
     try c.encode(duration ?? 0, forKey: .duration)
     try c.encode(jamsVersion ?? "0.4.0", forKey: .jamsVersion)
     try c.encodeIfPresent(identifiers, forKey: .identifiers)
+    // `constantTempo` is intentionally NOT written here — its strict-valid home is the
+    // top-level `sandbox`; emitting it in file_metadata would break `jams.load`.
   }
 
   private enum CodingKeys: String, CodingKey {
     case title, artist, duration
     case jamsVersion = "jams_version"
     case identifiers
+    case constantTempo = "constant_tempo"
   }
 }
 
@@ -266,8 +276,10 @@ struct JAMSFile: Codable, Equatable, Sendable {
     self.sandbox = sandbox
   }
 
-  /// `constant_tempo` provenance, read from the `sandbox` (its strict-valid home).
-  var constantTempo: Bool? { sandbox?.constantTempo }
+  /// `constant_tempo` provenance: the `sandbox` (its strict-valid home) first, falling
+  /// back to the legacy `file_metadata.constant_tempo` so a stale oracle that predates the
+  /// relocation is still read correctly rather than silently defaulting to constant-tempo.
+  var constantTempo: Bool? { sandbox?.constantTempo ?? fileMetadata.constantTempo }
 
   private enum CodingKeys: String, CodingKey {
     case fileMetadata = "file_metadata"
