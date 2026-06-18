@@ -252,12 +252,18 @@ def jams_entry(
     # our constant-tempo tracker documents support for, so the gated acceptance metrics
     # (F-measure / FR-29 drift / downbeat) scope to it (story DD-19).
     constant_tempo = len(record["markers"]) == 1
+    # JAMS 0.4 requires file_metadata.duration (a number) and jams_version. Fall back to
+    # the last beat time when the Rekordbox <TRACK> carries no TotalTime, so the entry is
+    # never emitted with a null duration.
+    duration = record["total_time"]
+    if duration is None:
+        duration = beats[-1][0] if beats else 0.0
     return {
         "file_metadata": {
             "title": record["name"],
             "artist": record["artist"],
-            "duration": record["total_time"],
-            "constant_tempo": constant_tempo,
+            "duration": duration,
+            "jams_version": "0.4.0",
             "identifiers": {
                 "basename": record["basename"],
                 "local_path": local_path,
@@ -274,6 +280,10 @@ def jams_entry(
                 },
             }
         ],
+        # constant_tempo lives in the JAMS top-level `sandbox`, NOT in file_metadata: the
+        # real `jams` library builds a typed FileMetadata and rejects unknown keys there,
+        # but accepts arbitrary `sandbox` attributes (story DD-19 develop-only field).
+        "sandbox": {"constant_tempo": constant_tempo},
     }
 
 
