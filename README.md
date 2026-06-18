@@ -309,6 +309,12 @@ Beat and anchor `presentationTime`s are **relative to the decoded-PCM origin**: 
 
 The beat-tracker assumes a **constant tempo**: it fixes beat phase against a single tempo and does not detect or adapt to tempo changes (accelerando, rubato, tempo-change sections). On variable-tempo material the beats hold a near-constant spacing and drift out of phase with the music — supply constant-tempo audio for a meaningful grid. Variable-tempo tracking is not planned.
 
+### Accuracy
+
+Beat-position accuracy is measured as the standard MIR beat **F-measure** (±70 ms tolerance) of the extrapolated grid against a reference beat grid exported from DJ software, over a real-world, constant-tempo drum & bass corpus, with tempo-octave equivalence allowed (a half- or double-time grid is not penalized). The current mean F-measure is **≈ 0.37**, with a committed regression floor of **0.33** that the test suite enforces.
+
+This is honest about the present state: agreement with an auto-analyzed DJ-software reference on heavily-produced, real-world material is moderate, and the figure reflects fine tempo and phase disagreements that accumulate across a track rather than gross errors. The opt-in downbeat detector is **deliberately conservative** — it abstains on the large majority of tracks and, when it does commit to a bar phase, its agreement with the reference is itself moderate, so treat a detected downbeat as a hint, not a guarantee. Prefer the anchor + tempo extrapolation for sync, gate on `confidence`, and validate against your own material before relying on the grid for beat-critical work.
+
 ## Batch workflow patterns
 
 The library is window-grained cancellable (between window iterations, never mid-window) and emits per-window progress via `Options.onProgress`. The three patterns below cover the cases most apps hit: sequential progress reporting, concurrent fan-out with cancellation, and preserving completed results when a batch is cancelled mid-flight.

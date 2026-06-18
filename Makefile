@@ -6,6 +6,11 @@ GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-data
 ML_MODEL_INPUT ?= _bmad-output/ml-models/giantsteps_v1.mlmodel
 ML_MODEL_OUT_DIR ?= _bmad-output/ml-models
 BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/perf-baselines/bnns-impact
+# Story 8.7 beat-grid acceptance (develop-only): the Rekordbox-derived JAMS beat
+# oracle + the per-track estimated/accuracy artifacts. TONY_XML / TONY_AUDIO_ROOT
+# are defined in the Tony-corpus section below (recursive vars resolve at use).
+BEAT_ORACLE_JAMS ?= $(CURDIR)/_bmad-output/ml-training/tony-corpus/rekordbox-beats.jams.json
+BEAT_GRID_ACCURACY_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts
 
 .PHONY: all
 all: help
@@ -281,6 +286,21 @@ consistency-rate-oa300:
 	OA300_CONSISTENCY=1 \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.ConsistencyContractCorpusTests
 
+## benchmark-beatgrid: Story 8.7 — beat-grid acceptance F-measure + FR-29 drift + downbeat validation against the Rekordbox JAMS oracle. Three-step make-orchestration (DD-12): (1) Swift emits estimated beats + asserts coverage/drift/downbeat, (2) the develop-only Python sidecar computes mir_eval F-measure, (3) Swift asserts the committed F-measure floor against the sidecar's JSON. Requires $(BEAT_ORACLE_JAMS) (run `make oracle-generate-beats` first). Release config (timing-honest, full corpus). Fails loudly on a main-only checkout (the Python sidecar is develop-only — the ml-* convention; consumers don't run it). Pass BEAT_GRID_LIMIT=N to smoke a subset.
+.PHONY: benchmark-beatgrid
+benchmark-beatgrid:
+	@mkdir -p "$(BEAT_GRID_ACCURACY_OUT_DIR)"
+	BEAT_GRID_ORACLE="$(BEAT_ORACLE_JAMS)" \
+	BEAT_GRID_OUT_DIR="$(BEAT_GRID_ACCURACY_OUT_DIR)" \
+	$(if $(BEAT_GRID_LIMIT),BEAT_GRID_LIMIT="$(BEAT_GRID_LIMIT)",) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridBenchmarkTests
+	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/eval-beatgrid.py \
+		--reference "$(BEAT_ORACLE_JAMS)" \
+		--estimated "$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-estimated-beats.jams.json" \
+		--out "$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json"
+	BEAT_GRID_ACCURACY_JSON="$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json" \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridFloorTests
+
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
 .PHONY: bnns-impact-report
 bnns-impact-report:
@@ -322,6 +342,14 @@ oracle-generate:
 		--match Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
 		> "$(OA300_CORPUS_PATH)/daw-oracle.json"
 
+## oracle-generate-beats: Story 8.7 — build the JAMS beat oracle from Tony's Rekordbox XML grid (develop-only; story DD-13). Per-beat positions + Battito bar-phase from <TEMPO> markers. Writes $(BEAT_ORACLE_JAMS) (develop-only, NOT committed — mirrors daw-oracle.json). Fails loudly on a main-only checkout (the Python generator is develop-only — the ml-* convention; consumers don't run it).
+.PHONY: oracle-generate-beats
+oracle-generate-beats:
+	@mkdir -p "$(dir $(BEAT_ORACLE_JAMS))"
+	uv run scripts/rekordbox-beats.py "$(TONY_XML)" \
+		--audio-root "$(TONY_AUDIO_ROOT)" \
+		> "$(BEAT_ORACLE_JAMS)"
+
 ## fmt: Format Swift source code
 .PHONY: fmt
 fmt:
@@ -332,7 +360,7 @@ fmt:
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
