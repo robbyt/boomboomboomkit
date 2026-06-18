@@ -153,7 +153,7 @@ struct BeatGridBenchmarkTests {
           basename: ids.basename ?? url.lastPathComponent,
           url: url,
           durationSeconds: file.fileMetadata.duration,
-          constantTempo: file.fileMetadata.constantTempo ?? true,
+          constantTempo: file.constantTempo ?? true,
           oracleBeats: beat.beatTimes,
           oracleDownbeats: beat.downbeatTimes))
       if limit > 0 && rows.count >= limit { break }
@@ -260,9 +260,14 @@ struct BeatGridBenchmarkTests {
     // --- Emit estimated JAMS for the sidecar (write BEFORE asserting, so a coverage
     //     failure still leaves the artifact for inspection during calibration). ---
     let estimatedFiles = evaluated.map { a in
+      // JAMS 0.4 requires file_metadata.duration: use the oracle duration, falling back
+      // to the last extrapolated beat so it is never nil. Per-beat value/confidence stay
+      // nil (Pass A has no per-beat phase or calibrated confidence) — the strict encoder
+      // writes them as JSON `null`, which the `beat` namespace permits.
       JAMSFile(
         fileMetadata: JAMSFileMetadata(
-          title: nil, artist: nil, duration: a.row.durationSeconds,
+          title: nil, artist: nil,
+          duration: max(a.row.durationSeconds ?? 0, a.beats.last ?? 0),
           identifiers: JAMSIdentifiers(
             basename: a.row.basename, localPath: a.row.url.path, trackId: a.row.trackId)),
         annotations: [
@@ -271,7 +276,9 @@ struct BeatGridBenchmarkTests {
             data: a.beats.sorted().map {
               JAMSObservation(time: $0, value: nil, confidence: nil, duration: 0)
             },
-            annotationMetadata: nil)
+            annotationMetadata: JAMSAnnotationMetadata(
+              curator: nil, dataSource: "BoomBoomBoomKit DSP beat grid (anchor+tempo extrapolation)"
+            ))
         ])
     }
     try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
