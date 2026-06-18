@@ -17,8 +17,13 @@ Rekordbox extrapolated grid, octave-tolerant, ±70 ms.
 | Downbeat correctness-when-fired (octave-tolerant, constant) | **0.1444** (n=42 fired) | — (AC7 measure-first) | **0.10** |
 | FR-29 P95 last-beat drift | **1652 ms** (median 176 ms, n=450 ≥5 min) | 30 ms (AC6) | **2.0 s** (regression ceiling, NOT the 30 ms aspiration) |
 
-Reported (not gated): raw all-corpus F-measure 0.2622; octave all-corpus 0.3725; downbeat
-fire-rate **4.4%** (55/1264), abstain-rate 95.6%.
+Reported (not gated): raw all-corpus F-measure 0.2622; octave all-corpus 0.3721; downbeat
+fire-rate **4.3%** (54/1264), abstain-rate 95.7%.
+
+(The oracle audio-path resolution was made deterministic across machines — sorted
+basename-collision candidates, Copilot review — which shifted the reported fire-rate by one
+track and the all-corpus octave mean by 0.0004; the GATED constant-tempo numbers above are
+unchanged.)
 
 ## Why the numbers are this low (analysis, not excuse)
 

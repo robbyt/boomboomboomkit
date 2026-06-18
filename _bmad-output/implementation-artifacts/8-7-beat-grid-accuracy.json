@@ -6,7 +6,7 @@
   "tolerance_ms": 70,
   "gated_metric": "mean_f_measure_octave_constant",
   "mean_f_measure_octave_constant": 0.3718,
-  "mean_f_measure_octave_all": 0.3725,
+  "mean_f_measure_octave_all": 0.3721,
   "mean_f_measure_raw_all": 0.2622,
   "per_track": [
     {
@@ -5821,7 +5821,7 @@
       "n_ref_beats": 552,
       "n_est_beats": 553,
       "f_measure_raw": 0.0,
-      "f_measure_octave": 0.5021
+      "f_measure_octave": 0.0
     },
     {
       "track_id": "228809949",

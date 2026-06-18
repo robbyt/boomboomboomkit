@@ -129,11 +129,18 @@ def build_basename_index(audio_root: Path) -> dict[str, list[Path]]:
     for p in audio_root.rglob("*"):
         if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
             index[p.name].append(p)
+    # Sort each basename's candidate list so resolve_path()'s first-match is DETERMINISTIC
+    # across machines/filesystems. `rglob` traversal order is filesystem-dependent, and
+    # on-disk basename collisions exist in this corpus, so an unsorted list would let the
+    # chosen audio (hence the oracle population + the calibrated floors) vary by machine.
+    for paths in index.values():
+        paths.sort()
     return index
 
 
 def resolve_path(basename: str, index: dict[str, list[Path]]) -> str | None:
-    """First on-disk match for a basename, skipping 0-byte cloud-only stubs."""
+    """First (lexicographically smallest) on-disk match for a basename, skipping 0-byte
+    cloud-only stubs."""
     if not basename:
         return None
     for p in index.get(basename, []):
