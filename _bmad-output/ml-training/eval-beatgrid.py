@@ -52,9 +52,15 @@ def load_corpus(path: str) -> dict[str, dict]:
                 continue
             beats = [obs["time"] for obs in ann.get("data", []) if obs.get("time") is not None]
             break
+        # constant_tempo lives in the JAMS top-level `sandbox` (its strict-valid home — the
+        # real `jams` library rejects unknown file_metadata keys). Absent OR explicit null
+        # -> True, matching the Swift reader's `file.constantTempo ?? true` (a non-bool/null
+        # must not silently read as variable-tempo).
+        sandbox = entry.get("sandbox", {}) or {}
+        constant = sandbox.get("constant_tempo", True)
         out[track_id] = {
             "basename": ids.get("basename", ""),
-            "constant_tempo": bool(meta.get("constant_tempo", True)),
+            "constant_tempo": constant if isinstance(constant, bool) else True,
             "beats": np.array(sorted(beats), dtype=float),
         }
     return out

@@ -6,8 +6,15 @@
 //  for the Story-8.7 beat-grid acceptance corpus. NOT in BoomBoomBoomKitTestSupport
 //  (that product is public and would leak an MIR-format decoder onto consumer test
 //  packages — story DD-7). Decodes the multi-track `{ "entries": [ <JAMS> ] }`
-//  corpus wrapper (DD-9) plus the `beat` / `tempo` / `tag_open` namespaces, and
-//  round-trips both ways so the benchmark can also ENCODE estimated beats.
+//  corpus wrapper (DD-9) plus the `beat` / `tempo` namespaces, and round-trips both
+//  ways so the benchmark can also ENCODE estimated beats.
+//
+//  Compliance contract (JAMS 0.4, marl/jams-schema): the `entries` wrapper is
+//  intentionally NOT a JAMS file (the schema root admits only file_metadata /
+//  annotations / sandbox), so it is an internal corpus container; the strict-validity
+//  claim is PER-ENTRY — each `entries[i]` is a standalone-valid JAMS object. The model
+//  is tolerant on decode (optional fields, `decodeIfPresent`) but strict on encode for
+//  the emitted `beat` namespace (required keys always written).
 //
 
 import Foundation
@@ -25,12 +32,15 @@ enum JAMSDecodingError: Error, Equatable, Sendable {
 
 /// The JAMS annotation namespaces this decoder models. `beat` (8.7 oracle) carries
 /// a per-beat bar-phase `value` (`1` = downbeat); `tempo` (8.8 migrated artifacts)
-/// carries a BPM `value`; `tag_open` is a free string tag. Any other namespace
+/// carries a BPM `value`. Both have a numeric `value` that ``JAMSValue`` represents
+/// faithfully. The `tag_open` namespace (a required *string* `value`) is deliberately
+/// NOT modeled — ``JAMSValue`` is numeric-only and would throw on its string payload,
+/// so claiming support would be false; it returns alongside a string-capable
+/// ``JAMSValue`` in Story 8.8 when a real payload exists. Any unmodeled namespace
 /// throws ``JAMSDecodingError/unknownNamespace(_:)``.
 enum JAMSNamespace: String, Codable, Equatable, Sendable {
   case tempo
   case beat
-  case tagOpen = "tag_open"
 
   init(from decoder: any Decoder) throws {
     let raw = try decoder.singleValueContainer().decode(String.self)
@@ -100,8 +110,12 @@ struct JAMSObservation: Codable, Equatable, Sendable {
   func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(time, forKey: .time)
-    try c.encodeIfPresent(value, forKey: .value)
-    try c.encodeIfPresent(confidence, forKey: .confidence)
+    // Strict-on-encode (JAMS 0.4 SparseObservation requires time/duration/value/
+    // confidence): always write `value` and `confidence` — a nil optional encodes as
+    // JSON `null`, which the `beat` namespace permits for both. `encodeIfPresent`
+    // would omit the key and break required-field validity.
+    try c.encode(value, forKey: .value)
+    try c.encode(confidence, forKey: .confidence)
     try c.encode(duration, forKey: .duration)
   }
 
@@ -114,10 +128,30 @@ struct JAMSObservation: Codable, Equatable, Sendable {
 
 /// One JAMS annotation: a namespace plus its sparse observation list and optional
 /// provenance metadata.
+///
+/// Strict-on-encode is *guaranteed for the `beat` namespace* (the only one we emit):
+/// `annotation_metadata` is always written (JAMS 0.4 marks it required), and the
+/// observation encoder always writes `value`/`confidence`. `Codable` can still encode
+/// a schema-invalid `tempo` (its `value`/`confidence` must be non-null numbers, with
+/// `confidence ∈ [0, 1]`) because the generic encoder does not validate that — a
+/// namespace guard for `.tempo` is the Story 8.8 follow-up, added when tempo is
+/// actually emitted.
 struct JAMSAnnotation: Codable, Equatable, Sendable {
   let namespace: JAMSNamespace
   let data: [JAMSObservation]
   let annotationMetadata: JAMSAnnotationMetadata?
+
+  func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(namespace, forKey: .namespace)
+    try c.encode(data, forKey: .data)
+    // `annotation_metadata` is required by JAMS 0.4. Always write it; when the model
+    // carries none, emit an empty object (AnnotationMetadata has no required
+    // sub-fields) so the entry stays standalone-valid.
+    try c.encode(
+      annotationMetadata ?? JAMSAnnotationMetadata(curator: nil, dataSource: nil),
+      forKey: .annotationMetadata)
+  }
 
   private enum CodingKeys: String, CodingKey {
     case namespace, data
@@ -151,26 +185,37 @@ struct JAMSFileMetadata: Codable, Equatable, Sendable {
   let title: String?
   let artist: String?
   let duration: Double?
-  /// `true` when the source grid was a single constant-tempo anchor (a develop-only
-  /// extension field — Story DD-19; `nil` on a payload that predates it). The gated
-  /// acceptance metrics scope to constant-tempo tracks, the tracker's documented domain.
-  let constantTempo: Bool?
+  /// JAMS spec version (`jams.json` requires it, pattern `^0\.[2-4]\.[0-9]+$`).
+  /// Decoded tolerantly (`nil` on a payload that predates it) but always written on
+  /// encode (fallback `"0.4.0"`) so every emitted entry is standalone-valid.
+  let jamsVersion: String?
   let identifiers: JAMSIdentifiers?
 
   init(
-    title: String?, artist: String?, duration: Double?, constantTempo: Bool? = nil,
-    identifiers: JAMSIdentifiers?
+    title: String?, artist: String?, duration: Double?,
+    identifiers: JAMSIdentifiers?, jamsVersion: String? = "0.4.0"
   ) {
     self.title = title
     self.artist = artist
     self.duration = duration
-    self.constantTempo = constantTempo
     self.identifiers = identifiers
+    self.jamsVersion = jamsVersion
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encodeIfPresent(title, forKey: .title)
+    try c.encodeIfPresent(artist, forKey: .artist)
+    // JAMS 0.4 requires `duration` and `jams_version`; always write them (concrete
+    // fallbacks) so the entry stays standalone-valid even if the model left them nil.
+    try c.encode(duration ?? 0, forKey: .duration)
+    try c.encode(jamsVersion ?? "0.4.0", forKey: .jamsVersion)
+    try c.encodeIfPresent(identifiers, forKey: .identifiers)
   }
 
   private enum CodingKeys: String, CodingKey {
     case title, artist, duration
-    case constantTempo = "constant_tempo"
+    case jamsVersion = "jams_version"
     case identifiers
   }
 }
@@ -189,17 +234,44 @@ struct JAMSIdentifiers: Codable, Equatable, Sendable {
   }
 }
 
+// MARK: - JAMSSandbox
+
+/// The JAMS top-level `sandbox` — a free-form object for non-standard, pipeline-only
+/// data. We carry `constant_tempo` here rather than in `file_metadata`: the real `jams`
+/// library constructs a typed `FileMetadata` and rejects unknown keys there, but accepts
+/// arbitrary attributes on `sandbox` (Story DD-19 develop-only field; `nil` predates it).
+struct JAMSSandbox: Codable, Equatable, Sendable {
+  let constantTempo: Bool?
+
+  private enum CodingKeys: String, CodingKey {
+    case constantTempo = "constant_tempo"
+  }
+}
+
 // MARK: - JAMSFile
 
-/// A standalone-valid JAMS object: top-level `file_metadata` + `annotations`
-/// (DD-9 — each corpus entry is independently valid).
+/// A standalone-valid JAMS object: top-level `file_metadata` + `annotations` (+ optional
+/// `sandbox`). DD-9 — each corpus entry is independently valid and loadable by the real
+/// `jams` library.
 struct JAMSFile: Codable, Equatable, Sendable {
   let fileMetadata: JAMSFileMetadata
   let annotations: [JAMSAnnotation]
+  let sandbox: JAMSSandbox?
+
+  init(
+    fileMetadata: JAMSFileMetadata, annotations: [JAMSAnnotation], sandbox: JAMSSandbox? = nil
+  ) {
+    self.fileMetadata = fileMetadata
+    self.annotations = annotations
+    self.sandbox = sandbox
+  }
+
+  /// `constant_tempo` provenance, read from the `sandbox` (its strict-valid home).
+  var constantTempo: Bool? { sandbox?.constantTempo }
 
   private enum CodingKeys: String, CodingKey {
     case fileMetadata = "file_metadata"
-    case annotations
+    case annotations, sandbox
   }
 }
 

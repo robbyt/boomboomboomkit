@@ -73,9 +73,14 @@ struct JAMSDecoderTests {
 
   @Test("a hand-built estimated corpus round-trips through encode/decode")
   func encodeEstimatedCorpus() throws {
+    // Built already-strict (concrete duration + real annotation_metadata, as the
+    // benchmark emit now does) so encode is a true identity. A `nil` observation value
+    // still round-trips (encodes as JSON null, decodes back to nil); but a `nil`
+    // duration/annotation_metadata would NOT — strict-on-encode materializes them, so
+    // they are supplied here rather than relying on the fill-in fallbacks.
     let file = JAMSFile(
       fileMetadata: JAMSFileMetadata(
-        title: "Est", artist: nil, duration: nil,
+        title: "Est", artist: nil, duration: 12.0,
         identifiers: JAMSIdentifiers(basename: "x.wav", localPath: nil, trackId: "42")),
       annotations: [
         JAMSAnnotation(
@@ -84,7 +89,7 @@ struct JAMSDecoderTests {
             JAMSObservation(time: 0.0, value: JAMSValue(1), confidence: 0.9, duration: 0),
             JAMSObservation(time: 0.4, value: nil, confidence: 0.9, duration: 0),
           ],
-          annotationMetadata: nil)
+          annotationMetadata: JAMSAnnotationMetadata(curator: nil, dataSource: "test"))
       ])
     let corpus = JAMSCorpus(entries: [file])
     let data = try JSONEncoder().encode(corpus)
@@ -92,6 +97,65 @@ struct JAMSDecoderTests {
     #expect(back == corpus)
     #expect(back.entries[0].beatAnnotation?.beatTimes == [0.0, 0.4])
     #expect(back.entries[0].beatAnnotation?.downbeatTimes == [0.0])
+  }
+
+  // MARK: Strict-emit conformance (JAMS 0.4 required keys)
+
+  @Test("encoded beat corpus always carries JAMS-required keys (strict on encode)")
+  func strictEmitRequiredKeys() throws {
+    // Build through the SAME constructors the benchmark emit uses, with the nil
+    // value/confidence/metadata it passes — the encoder must still write every
+    // JAMS-0.4-required key (value/confidence as JSON null) so each entry is
+    // standalone-valid. This locks "strict on encode" against an encodeIfPresent regress.
+    let file = JAMSFile(
+      fileMetadata: JAMSFileMetadata(
+        title: nil, artist: nil, duration: 12.5,
+        identifiers: JAMSIdentifiers(basename: "x.wav", localPath: nil, trackId: "7")),
+      annotations: [
+        JAMSAnnotation(
+          namespace: .beat,
+          data: [
+            JAMSObservation(time: 0.0, value: nil, confidence: nil, duration: 0),
+            JAMSObservation(time: 0.5, value: nil, confidence: nil, duration: 0),
+          ],
+          annotationMetadata: nil)
+      ],
+      sandbox: JAMSSandbox(constantTempo: true))
+    let data = try JSONEncoder().encode(JAMSCorpus(entries: [file]))
+
+    // Re-parse generically so we assert on the actual JSON key presence, not the model.
+    let root = try #require(
+      JSONSerialization.jsonObject(with: data) as? [String: Any], "top-level object")
+    let entries = try #require(root["entries"] as? [[String: Any]], "entries array")
+    let entry = try #require(entries.first, "one entry")
+
+    let meta = try #require(entry["file_metadata"] as? [String: Any], "file_metadata")
+    #expect(meta.keys.contains("jams_version"), "file_metadata must carry jams_version")
+    #expect(meta.keys.contains("duration"), "file_metadata must carry duration")
+    #expect(meta["jams_version"] as? String == "0.4.0")
+    // constant_tempo must live in the JAMS `sandbox`, NOT file_metadata — the real `jams`
+    // library rejects unknown file_metadata keys (FileMetadata.__init__ refuses kwargs).
+    #expect(!meta.keys.contains("constant_tempo"), "constant_tempo must NOT be in file_metadata")
+    let sandbox = try #require(entry["sandbox"] as? [String: Any], "entry-level sandbox")
+    #expect(sandbox["constant_tempo"] as? Bool == true)
+
+    let annotations = try #require(entry["annotations"] as? [[String: Any]], "annotations")
+    let annotation = try #require(annotations.first, "one annotation")
+    for key in ["annotation_metadata", "namespace", "data"] {
+      #expect(annotation.keys.contains(key), "annotation must carry \(key)")
+    }
+
+    let observations = try #require(annotation["data"] as? [[String: Any]], "observation data")
+    #expect(observations.count == 2)
+    for obs in observations {
+      for key in ["time", "duration", "value", "confidence"] {
+        #expect(obs.keys.contains(key), "observation must carry \(key)")
+      }
+      // value/confidence are present as JSON null (valid for the beat namespace).
+      #expect(obs["value"] is NSNull, "nil beat value must encode as JSON null, not be omitted")
+      #expect(
+        obs["confidence"] is NSNull, "nil confidence must encode as JSON null, not be omitted")
+    }
   }
 
   // MARK: Unknown-namespace rejection
