@@ -52,6 +52,23 @@ AUDIO_EXTS = {".mp3", ".wav", ".aif", ".aiff", ".flac", ".m4a", ".caf"}
 CORPUS_TAG = "tony-rekordbox-beats-v1"
 DATA_SOURCE = "Rekordbox beat grid (TEMPO markers)"
 
+# Operator-curated disambiguation for known basename collisions — different audio files
+# that happen to share a filename. The Rekordbox XML `Location` attrs encode a foreign
+# machine layout (`/Users/echtoo-mbp/.../Computer Music/...`) reorganized differently from
+# this audio root, so neither full nor relative Location matching resolves them; basename
+# is the only robust join, and these few basenames map to >1 distinct on-disk file. Rather
+# than edit the XML, the importer carries the operator's verified picks (2026-06-19):
+#   - Ron Mercy - Junkin Da Trunk.mp3 -> the Bass Music master (the newest copy)
+#   - Todd Bucher - Proem/Onyx.wav    -> the newest copy (Seminal Catalog/SMNL002)
+# Each value is a path substring that must select EXACTLY ONE candidate; any other
+# content-ambiguous collision (or an override that fails to select exactly one) still
+# hard-fails loudly.
+COLLISION_OVERRIDES = {
+    "Ron Mercy - Junkin Da Trunk.mp3": "/Bass Music/",
+    "Todd Bucher - Proem.wav": "/Seminal Catalog/SMNL002/",
+    "Todd Bucher - Onyx.wav": "/Seminal Catalog/SMNL002/",
+}
+
 
 # ---------------------------------------------------------------------------
 # Rekordbox XML parsing
@@ -198,6 +215,17 @@ def resolve_path(
     digests = {sha256_file(p, hash_cache) for p in candidates}
     if len(digests) == 1:
         return str(candidates[0]), []  # byte-identical duplicates: safe deterministic pick
+    # Genuinely different content. Consult the operator-curated override before refusing:
+    # the substring must select EXACTLY ONE candidate, else fall through to a loud hard-fail.
+    override = COLLISION_OVERRIDES.get(basename)
+    if override is not None:
+        selected = [p for p in candidates if override in str(p)]
+        if len(selected) == 1:
+            print(
+                f"# collision-override: {basename} -> {selected[0]} (operator-curated)",
+                file=sys.stderr,
+            )
+            return str(selected[0]), []
     return None, candidates  # genuinely different content: ambiguous -> hard-fail in main
 
 
