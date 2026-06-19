@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import json
 import subprocess
 import sys
@@ -97,12 +98,27 @@ def parse_tracks(xml_root: ET.Element) -> list[dict]:
         location = _decode_location(t.get("Location", ""))
         basename = location.rsplit("/", 1)[-1] if location else ""
         markers: list[dict] = []
+        # Malformed TEMPO markers are RECORDED (not silently dropped): a resolved, gridded
+        # track carrying any of these hard-fails in main() rather than feeding a quietly
+        # wrong grid (operator principle: no quiet fixes/guesses). Unresolved or gridless
+        # tracks never reach that gate, so a bad marker on an off-disk track is harmless.
+        marker_errors: list[str] = []
         for te in t.findall("TEMPO"):
             inizio = _maybe_float(te.get("Inizio"))
             bpm = _maybe_float(te.get("Bpm"))
             battito = _maybe_int(te.get("Battito"))
             metro = te.get("Metro", "")
             if inizio is None or bpm is None or bpm <= 0 or battito is None:
+                marker_errors.append(
+                    f"unparseable marker (Inizio={te.get('Inizio')!r} "
+                    f"Bpm={te.get('Bpm')!r} Battito={te.get('Battito')!r})"
+                )
+                continue
+            if battito not in (1, 2, 3, 4):
+                marker_errors.append(f"Battito out of 1..4: {battito}")
+                continue
+            if metro and metro != "4/4":
+                marker_errors.append(f"unsupported Metro (expect 4/4 or empty): {metro!r}")
                 continue
             markers.append({"inizio": inizio, "bpm": bpm, "battito": battito, "metro": metro})
         markers.sort(key=lambda m: m["inizio"])
@@ -114,6 +130,7 @@ def parse_tracks(xml_root: ET.Element) -> list[dict]:
                 "total_time": _maybe_float(t.get("TotalTime")),
                 "basename": basename,
                 "markers": markers,
+                "marker_errors": marker_errors,
             }
         )
     return records
@@ -138,18 +155,50 @@ def build_basename_index(audio_root: Path) -> dict[str, list[Path]]:
     return index
 
 
-def resolve_path(basename: str, index: dict[str, list[Path]]) -> str | None:
-    """First (lexicographically smallest) on-disk match for a basename, skipping 0-byte
-    cloud-only stubs."""
+def _nonempty(p: Path) -> bool:
+    try:
+        return p.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def sha256_file(path: Path, cache: dict[Path, str]) -> str:
+    """SHA-256 of a file's bytes, memoized by Path (one collision file can recur across
+    duplicate XML rows)."""
+    cached = cache.get(path)
+    if cached is not None:
+        return cached
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    digest = h.hexdigest()
+    cache[path] = digest
+    return digest
+
+
+def resolve_path(
+    basename: str, index: dict[str, list[Path]], hash_cache: dict[Path, str]
+) -> tuple[str | None, list[Path]]:
+    """Resolve a basename to its on-disk path, skipping 0-byte cloud-only stubs.
+
+    Returns ``(path, ambiguous)``. On a basename collision (>1 non-empty candidate) the
+    candidates are SHA-256'd: byte-identical duplicates collapse to the first
+    (deterministic, and PROVABLY the same audio — not a guess); genuinely different
+    content returns ``(None, candidates)`` so main() hard-fails rather than silently
+    attaching the grid to whichever file sorts first (operator principle: no guesses).
+    """
     if not basename:
-        return None
-    for p in index.get(basename, []):
-        try:
-            if p.stat().st_size > 0:
-                return str(p)
-        except OSError:
-            continue
-    return None
+        return None, []
+    candidates = [p for p in index.get(basename, []) if _nonempty(p)]
+    if not candidates:
+        return None, []
+    if len(candidates) == 1:
+        return str(candidates[0]), []
+    digests = {sha256_file(p, hash_cache) for p in candidates}
+    if len(digests) == 1:
+        return str(candidates[0]), []  # byte-identical duplicates: safe deterministic pick
+    return None, candidates  # genuinely different content: ambiguous -> hard-fail in main
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +233,9 @@ def beats_from_markers(markers: list[dict], total_time: float | None) -> list[tu
         k = 0
         while True:
             t = start + k * period
-            if t >= cutoff - 1e-9 and not (i + 1 == n and k == 0):
+            # Always emit k==0 (the marker's OWN beat — every <TEMPO Inizio> is a real beat);
+            # the cutoff only suppresses extra beats before the next marker owns the boundary.
+            if k > 0 and t >= cutoff - 1e-9:
                 break
             if t < 0:
                 k += 1
@@ -319,16 +370,31 @@ def main(argv: list[str] | None = None) -> int:
     skipped_no_grid = 0
     skipped_unresolved = 0
     collapsed_dup_path = 0
-    failed: list[str] = []
+    failed: list[str] = []  # gridded + resolved but yielded zero beats
+    ambiguous: list[tuple[str, list[Path]]] = []  # basename collision, DIFFERENT content (D1)
+    invalid_duration: list[tuple[str, float | None, float]] = []  # missing/short TotalTime (P1)
+    invalid_marker: list[tuple[str, list[str]]] = []  # malformed TEMPO markers (P4)
     seen_paths: set[str] = set()
+    hash_cache: dict[Path, str] = {}
 
     for rec in records:
-        if not rec["markers"]:
+        # Genuinely gridless tracks (no markers AND none malformed) are simply not in the
+        # DJ's beat grid — skip quietly. A track WITH malformed markers is handled below,
+        # but only once we know it resolves on disk (an off-disk bad marker is harmless).
+        if not rec["markers"] and not rec["marker_errors"]:
             skipped_no_grid += 1
             continue
-        local_path = resolve_path(rec["basename"], index)
+        local_path, amb = resolve_path(rec["basename"], index, hash_cache)
+        if amb:
+            ambiguous.append((rec["basename"], amb))
+            continue
         if local_path is None:
             skipped_unresolved += 1
+            continue
+        # Resolved + gridded: any malformed marker now hard-fails (operator principle —
+        # no quiet fixes) rather than feeding a partial/mislabeled grid.
+        if rec["marker_errors"]:
+            invalid_marker.append((rec["basename"], rec["marker_errors"]))
             continue
         # One oracle entry per PHYSICAL audio file. Two Rekordbox tracks can share a
         # basename (different TrackIDs -> same on-disk file); the benchmark analyzes
@@ -338,6 +404,17 @@ def main(argv: list[str] | None = None) -> int:
             collapsed_dup_path += 1
             continue
         seen_paths.add(local_path)
+        # A genuinely MISSING TotalTime leaves the forward grid unbounded past the last
+        # marker (a single-marker track then collapses to [0, inizio]); the back-fill still
+        # yields >=1 beat, so the zero-beat gate below would NOT catch it. Refuse rather than
+        # guess a span. A PRESENT TotalTime that merely sits a few tenths below the last
+        # marker (whole-second rounding vs a marker placed at the very end) is benign — the
+        # marker IS the track end and the markers already define the full grid — so only a
+        # `None` TotalTime hard-fails.
+        max_inizio = max(m["inizio"] for m in rec["markers"])
+        if rec["total_time"] is None:
+            invalid_duration.append((rec["basename"], rec["total_time"], max_inizio))
+            continue
         beats = beats_from_markers(rec["markers"], rec["total_time"])
         if not beats:
             # A gridded, on-disk-resolved track that yields no beats is a generator
@@ -348,14 +425,42 @@ def main(argv: list[str] | None = None) -> int:
         if args.limit and len(entries) >= args.limit:
             break
 
-    if failed:
+    # Any refusal bucket is FATAL: a partial/mislabeled oracle silently biases the
+    # F-measure floor (DD-10/DD-17; operator principle — no quiet fixes/guesses).
+    if ambiguous or invalid_duration or invalid_marker or failed:
         print(
-            f"error: {len(failed)} gridded+resolved track(s) produced zero beats "
-            f"(partial oracle refused, DD-10/DD-17):",
-            file=sys.stderr,
+            "error: oracle generation refused — unresolved data-integrity issues:", file=sys.stderr
         )
-        for b in failed[:20]:
-            print(f"  - {b}", file=sys.stderr)
+        if ambiguous:
+            print(
+                f"  {len(ambiguous)} basename collision(s) with DIFFERENT content "
+                f"(ambiguous — cannot tell which file the grid belongs to):",
+                file=sys.stderr,
+            )
+            for b, paths in ambiguous[:20]:
+                print(f"    - {b}", file=sys.stderr)
+                for pth in paths:
+                    print(f"        {pth}", file=sys.stderr)
+        if invalid_duration:
+            print(
+                f"  {len(invalid_duration)} track(s) with MISSING TotalTime "
+                f"(unbounded forward grid — a single-marker track would truncate to [0, inizio]):",
+                file=sys.stderr,
+            )
+            for b, tt, mi in invalid_duration[:20]:
+                print(f"    - {b} (TotalTime={tt}, last marker inizio={mi:.3f})", file=sys.stderr)
+        if invalid_marker:
+            print(
+                f"  {len(invalid_marker)} track(s) with malformed TEMPO markers:", file=sys.stderr
+            )
+            for b, errs in invalid_marker[:20]:
+                print(f"    - {b}: {'; '.join(errs)}", file=sys.stderr)
+        if failed:
+            print(
+                f"  {len(failed)} gridded+resolved track(s) produced zero beats:", file=sys.stderr
+            )
+            for b in failed[:20]:
+                print(f"    - {b}", file=sys.stderr)
         return 1
 
     corpus = {

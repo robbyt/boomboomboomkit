@@ -209,6 +209,18 @@ struct JAMSFileMetadata: Codable, Equatable, Sendable {
     self.constantTempo = constantTempo
   }
 
+  init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    title = try c.decodeIfPresent(String.self, forKey: .title)
+    artist = try c.decodeIfPresent(String.self, forKey: .artist)
+    duration = try c.decodeIfPresent(Double.self, forKey: .duration)
+    jamsVersion = try c.decodeIfPresent(String.self, forKey: .jamsVersion)
+    identifiers = try c.decodeIfPresent(JAMSIdentifiers.self, forKey: .identifiers)
+    // Tolerant on decode (parity with eval-beatgrid.py, which coerces a non-bool to its
+    // default): a present but non-Bool `constant_tempo` decodes to nil rather than throwing.
+    constantTempo = (try? c.decodeIfPresent(Bool.self, forKey: .constantTempo)) ?? nil
+  }
+
   func encode(to encoder: any Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encodeIfPresent(title, forKey: .title)
@@ -252,6 +264,14 @@ struct JAMSIdentifiers: Codable, Equatable, Sendable {
 /// arbitrary attributes on `sandbox` (Story DD-19 develop-only field; `nil` predates it).
 struct JAMSSandbox: Codable, Equatable, Sendable {
   let constantTempo: Bool?
+
+  init(constantTempo: Bool?) { self.constantTempo = constantTempo }
+
+  init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    // Tolerant on decode: a present but non-Bool `constant_tempo` decodes to nil, not a throw.
+    constantTempo = (try? c.decodeIfPresent(Bool.self, forKey: .constantTempo)) ?? nil
+  }
 
   private enum CodingKeys: String, CodingKey {
     case constantTempo = "constant_tempo"
