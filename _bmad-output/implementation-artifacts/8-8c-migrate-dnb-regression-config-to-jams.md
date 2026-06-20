@@ -4,7 +4,7 @@ baseline_commit: b2f10675457d8552b6efa1fc72072387c399e627
 
 # Story 8.8c: Migrate the DnB triplet regression config to JAMS (in place)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -43,6 +43,18 @@ See 8.8a §Context for the shared operator rulings. This is the **pressure-relea
 - [x] **Task 3 — Swift consumers (AC: 5).** Migrate `BNNSImpactTests`, `SuperFluxImpactTests`, `DnBTargetsFileLoadingTests` to the shared decoder; preserve every invariant + the prefix join rule; collapse local mirrors onto the public 8.8a types where practical.
 - [x] **Task 4 — Python consumer (AC: 6).** Update `curate_sentinels.py` to read DnB JAMS.
 - [x] **Task 5 — Report + gauntlet (AC: 7).** Append the DnB report row; run the gauntlet; `jams.load` spot-check.
+
+### Review Findings
+
+Adversarial review of the full 8-8a/b/c branch (blind hunter + edge-case hunter + acceptance auditor). 3 patch findings (all fixed in `8c2479f`), 4 deferred (pre-existing/latent), 4 dismissed.
+
+- [x] [Review][Patch] DnB readers silently drop unexpected/absent-partition entries under the `controls >= 4` floor [SuperFluxImpactTests.swift, DnBTargetsFileLoadingTests.swift] — fixed: assert `targets + controls == entries.count`
+- [x] [Review][Patch] Migrator validated only idempotent re-runs, not its forward-conversion output; no `daw` validation branch [migrate-to-jams.py] — fixed: `validate_jams(result, artifact)` on the forward path + a `daw` branch
+- [x] [Review][Patch] `convert_daw` `bool(...)`-coerced `rekordbox_disagrees` (a stray string `"false"` → True) [migrate-to-jams.py:145] — fixed: pass-through + loud non-bool rejection
+- [x] [Review][Defer] `tempoBPM()` has no BPM positivity/range guard (0/negative decodes silently) [JAMSDecoder.swift] — deferred, pre-existing (flat decoder had the same gap; values benchmark-proven)
+- [x] [Review][Defer] Swift `first-non-nil value` vs Python `data[0]` decode asymmetry [JAMSDecoder.swift / jams_corpus.py] — deferred, latent (single-observation today)
+- [x] [Review][Defer] No `track_id` uniqueness guard for oa300/daw migration [migrate-to-jams.py] — deferred, latent (no consumer enforces; 8-8b scope)
+- [x] [Review][Defer] `jams_corpus.load_oa300_rows` accepts missing required fields as None [jams_corpus.py] — deferred, pre-existing (OA300 JAMS validated; Swift loud-fails)
 
 ## Dev Notes
 
