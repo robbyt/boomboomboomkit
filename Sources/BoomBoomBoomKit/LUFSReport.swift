@@ -183,18 +183,31 @@ public struct LoudnessSample: Sendable, Identifiable, Hashable {
   public var id: String { "\(series.rawValue)@\(time)" }
 
   /// Window start time in seconds from the start of the analyzed audio.
+  /// Non-finite inputs (NaN/±Inf) and `-0.0` normalize to `0.0` at
+  /// construction (see ``init(time:lufs:series:)``).
   public let time: Double
 
-  /// Loudness in LUFS (floored at `-100.0` for silent windows).
+  /// Loudness in LUFS (floored at `-100.0` for silent windows). Non-finite
+  /// inputs are replaced with the `-100.0` sentinel at construction; finite
+  /// values below `-100.0` are preserved.
   public let lufs: Double
 
   /// Which series this point belongs to.
   public let series: LoudnessSeries
 
   /// Creates a plottable loudness point.
+  ///
+  /// Non-finite `time`/`lufs` are replaced (`time` → `0.0`, `lufs` →
+  /// `-100.0`) and `-0.0` time is canonicalized to `+0.0`, so the synthesized
+  /// `Hashable`/`Equatable` over the `Double` fields stays reflexive and
+  /// ``id`` stays consistent for equal values.
   public init(time: Double, lufs: Double, series: LoudnessSeries) {
-    self.time = time
-    self.lufs = lufs
+    // Sanitize non-finite to the finite grid origin, then canonicalize -0.0 to
+    // 0.0 so ==-equal samples render identical `id` strings ("\(-0.0)" is
+    // "-0.0", "\(0.0)" is "0.0").
+    let sanitizedTime = time.isFinite ? time : 0.0
+    self.time = sanitizedTime == 0.0 ? 0.0 : sanitizedTime
+    self.lufs = lufs.isFinite ? lufs : LUFSReport.sentinelFloor
     self.series = series
   }
 }
