@@ -170,6 +170,51 @@ struct LUFSReportTypeTests {
   func loudnessSeriesCaseCount() {
     #expect(LoudnessSeries.allCases.count == 2)
   }
+
+  @Test(
+    "LoudnessSample init sanitizes non-finite time/lufs so Hashable stays reflexive",
+    arguments: [Double.nan, .signalingNaN, .infinity, -.infinity])
+  func loudnessSampleNonFiniteSanitized(bad: Double) {
+    // Non-finite in EITHER field: the sanitized value must keep the synthesized
+    // Equatable/Hashable over Double reflexive and Set membership consistent.
+    let badTime = LoudnessSample(time: bad, lufs: -14.0, series: .momentary)
+    #expect(badTime.time.isFinite, "non-finite time \(bad) must become finite")
+    #expect(badTime.time == 0.0, "non-finite time \(bad) must normalize to 0.0")
+
+    let badLufs = LoudnessSample(time: 1.5, lufs: bad, series: .shortTerm)
+    #expect(
+      badLufs.lufs == LUFSReport.sentinelFloor,
+      "non-finite lufs \(bad) must become the sentinel")
+
+    for sample in [badTime, badLufs] {
+      #expect(sample == sample, "sanitized sample must be reflexive for \(bad)")
+      var set: Set<LoudnessSample> = [sample]
+      #expect(set.contains(sample), "sanitized sample must be Set-locatable for \(bad)")
+      #expect(!set.insert(sample).inserted, "duplicate insert must be a no-op for \(bad)")
+    }
+  }
+
+  @Test("LoudnessSample canonicalizes -0.0 time so equal values share one id and one Set slot")
+  func loudnessSampleSignedZeroId() {
+    let negZero = LoudnessSample(time: -0.0, lufs: -14.0, series: .momentary)
+    let posZero = LoudnessSample(time: 0.0, lufs: -14.0, series: .momentary)
+    // Direct proof of canonicalization, not only via id.
+    #expect(negZero.time.sign == .plus)
+    #expect(negZero == posZero)
+    #expect(negZero.id == posZero.id)
+    #expect(Set([negZero, posZero]).count == 1)
+  }
+
+  @Test("LoudnessSample preserves valid finite payloads (finite sub-sentinel lufs is not floored)")
+  func loudnessSampleFinitePreserved() {
+    let sample = LoudnessSample(time: 1.5, lufs: -14.0, series: .momentary)
+    #expect(sample.time == 1.5)
+    #expect(sample.lufs == -14.0)
+    // The init replaces only NON-finite lufs; a finite value below the sentinel
+    // is preserved (same contract as LUFSReport).
+    let deep = LoudnessSample(time: 2.0, lufs: -150.0, series: .shortTerm)
+    #expect(deep.lufs == -150.0)
+  }
 }
 
 // MARK: - AC4: fixture matrix
