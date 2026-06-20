@@ -18,6 +18,8 @@ import json
 import os
 from pathlib import Path
 
+from jams_corpus import load_oa300_rows
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 FIXTURES = REPO / "Tests" / "BoomBoomBoomKitBenchmarkTests" / "Fixtures"
@@ -46,7 +48,7 @@ def _tony_audio_path(local_path: str) -> str:
 def resolve_oa300(corpus_path: str) -> list[dict]:
     if not corpus_path:
         return []
-    gt = json.loads((FIXTURES / "oa300-ground-truth.json").read_text())
+    gt = load_oa300_rows(FIXTURES / "oa300-ground-truth.json")
     out: list[dict] = []
     for t in gt:
         sub = t.get("subdir")

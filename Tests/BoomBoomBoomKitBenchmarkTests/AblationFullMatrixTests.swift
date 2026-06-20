@@ -102,7 +102,7 @@ struct AblationMatrixTests {
         forResource: "Fixtures/oa300-ground-truth", withExtension: "json")
     guard let url = jsonURL else { throw AblationError.groundTruthNotFound }
     let data = try Data(contentsOf: url)
-    groundTruth = try JSONDecoder().decode([OA300Track].self, from: data)
+    groundTruth = try OA300Track.loadCorpus(from: data)
   }
 
   @Test("full 256-combination ablation matrix", .timeLimit(.minutes(60)))

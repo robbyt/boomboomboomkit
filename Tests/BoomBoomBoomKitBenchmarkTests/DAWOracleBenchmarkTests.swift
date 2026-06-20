@@ -59,7 +59,7 @@ struct DAWOracleBenchmarkTests {
       ?? Bundle.module.url(forResource: "Fixtures/oa300-ground-truth", withExtension: "json")
     guard let url = gtURL else { throw DAWOracleError.groundTruthNotFound }
     let gtData = try Data(contentsOf: url)
-    groundTruth = try JSONDecoder().decode([OA300Track].self, from: gtData)
+    groundTruth = try OA300Track.loadCorpus(from: gtData)
 
     // Load DAW oracle from corpus directory
     let oraclePath = (path as NSString).appendingPathComponent("daw-oracle.json")
@@ -68,8 +68,7 @@ struct DAWOracleBenchmarkTests {
       throw DAWOracleError.oracleNotFound
     }
     let oracleData = try Data(contentsOf: oracleURL)
-    let decoder = JSONDecoder()
-    dawOracle = try decoder.decode([DAWOracleTrack].self, from: oracleData)
+    dawOracle = try DAWOracleTrack.loadCorpus(from: oracleData)
 
     var lookup: [String: DAWOracleTrack] = [:]
     for track in dawOracle {

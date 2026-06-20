@@ -352,6 +352,27 @@ oracle-generate-beats:
 		--audio-root "$(TONY_AUDIO_ROOT)" \
 		> "$(BEAT_ORACLE_JAMS)"
 
+## oracle-migrate-to-jams: Story 8.8 — one-time in-place migration of the flat ground-truth artifacts to JAMS 0.4 (develop-only; oa300 committed fixture + the corpus-local daw-oracle.json). Idempotent + validating: re-running on already-JAMS files validates the artifact min-shape and is a no-op (Codex P3). Fails loudly on a main-only checkout (the migrator is develop-only — consumers don't run it). Story 8.8c adds the DnB artifact.
+.PHONY: oracle-migrate-to-jams
+oracle-migrate-to-jams:
+	@mkdir -p _bmad-output/implementation-artifacts
+	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/migrate-to-jams.py \
+		--artifact oa300 \
+		--input Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
+		--report _bmad-output/implementation-artifacts/8-8-migration-report.md
+	@if [ -f "$(OA300_CORPUS_PATH)/daw-oracle.json" ]; then \
+		uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/migrate-to-jams.py \
+			--artifact daw \
+			--input "$(OA300_CORPUS_PATH)/daw-oracle.json" \
+			--report _bmad-output/implementation-artifacts/8-8-migration-report.md; \
+	else \
+		echo "Note: $(OA300_CORPUS_PATH)/daw-oracle.json not found; skipping daw migration (run make oracle-generate first)."; \
+	fi
+	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/migrate-to-jams.py \
+		--artifact dnb \
+		--input Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json \
+		--report _bmad-output/implementation-artifacts/8-8-migration-report.md
+
 ## fmt: Format Swift source code
 .PHONY: fmt
 fmt:
@@ -362,7 +383,7 @@ fmt:
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
