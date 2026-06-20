@@ -450,6 +450,16 @@ struct BeatGridFloorTests {
     print("  octave-normalized (all):     \(String(format: "%.4f", allOctave))")
     print("  octave-normalized (constant, GATED): \(String(format: "%.4f", gated))")
     print("  floor: \(String(format: "%.4f", Self.fMeasureFloor))")
+    // SMOKE MODE: a BEAT_GRID_LIMIT subset scores only a slice, so the full-corpus floor is
+    // meaningless — report the measured F but do NOT gate. The full CI run (BEAT_GRID_LIMIT
+    // unset) is the real gate; the Python sidecar likewise requires --allow-missing-constant
+    // for a subset, so a partial number can never masquerade as the committed floor.
+    if let limit = ProcessInfo.processInfo.environment["BEAT_GRID_LIMIT"].flatMap(Int.init),
+      limit > 0
+    {
+      print("  SMOKE MODE — F-measure floor not gated (BEAT_GRID_LIMIT=\(limit))")
+      return
+    }
     #expect(
       gated >= Self.fMeasureFloor,
       "octave-normalized constant-tempo mean F-measure \(String(format: "%.4f", gated)) below floor \(String(format: "%.4f", Self.fMeasureFloor))"

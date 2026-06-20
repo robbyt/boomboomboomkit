@@ -108,6 +108,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--reference", required=True, help="JAMS oracle (rekordbox-beats.jams.json)")
     p.add_argument("--estimated", required=True, help="Swift-emitted estimated JAMS")
     p.add_argument("--out", required=True, help="Output accuracy JSON")
+    p.add_argument(
+        "--allow-missing-constant",
+        action="store_true",
+        help="Permit constant-tempo oracle rows to be absent from the estimated artifact "
+        "(smoke/subset runs). Without it, a missing constant-tempo row is FATAL so a "
+        "truncated estimated JAMS cannot silently score only the survivors.",
+    )
     args = p.parse_args(argv if argv is not None else sys.argv[1:])
 
     ref = load_corpus(args.reference)
@@ -133,12 +140,24 @@ def main(argv: list[str] | None = None) -> int:
     missing_constant = sorted(ref_constant - set(est))
     if missing_constant:
         frac = len(set(est) & ref_constant) / max(1, len(ref_constant))
-        print(
-            f"warning: {len(missing_constant)} of {len(ref_constant)} constant-tempo oracle "
-            f"rows are absent from the estimated artifact (est covers {frac:.1%}); "
-            f"verify this is unavailable-audio, not a truncated estimated JAMS.",
-            file=sys.stderr,
+        msg = (
+            f"{len(missing_constant)} of {len(ref_constant)} constant-tempo oracle rows are "
+            f"absent from the estimated artifact (est covers {frac:.1%})"
         )
+        if args.allow_missing_constant:
+            print(
+                f"warning: {msg}; --allow-missing-constant set, scoring the survivors only.",
+                file=sys.stderr,
+            )
+        else:
+            # Default: a truncated estimated JAMS would silently score only the survivors and
+            # inflate the gated mean. Refuse rather than report a partial number as the floor.
+            print(
+                f"error: {msg}. This is a partial estimated artifact; pass "
+                f"--allow-missing-constant for an intentional smoke/subset run.",
+                file=sys.stderr,
+            )
+            return 1
 
     per_track = []
     octs_constant: list[float] = []  # gated subset (constant-tempo, DD-19)
