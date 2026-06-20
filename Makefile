@@ -300,6 +300,7 @@ benchmark-beatgrid:
 		$(if $(BEAT_GRID_LIMIT),--allow-missing-constant,) \
 		--out "$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json"
 	BEAT_GRID_ACCURACY_JSON="$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json" \
+	$(if $(BEAT_GRID_LIMIT),BEAT_GRID_LIMIT="$(BEAT_GRID_LIMIT)",) \
 	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridFloorTests
 
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)

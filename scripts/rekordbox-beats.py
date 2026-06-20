@@ -42,6 +42,7 @@ import argparse
 import collections
 import hashlib
 import json
+import math
 import subprocess
 import sys
 import urllib.parse
@@ -79,9 +80,14 @@ def _maybe_float(v: str | None) -> float | None:
     if v is None or v == "":
         return None
     try:
-        return float(v)
+        f = float(v)
     except ValueError:
         return None
+    # Reject non-finite values: `float("nan")`/`float("inf")` parse cleanly, but a non-finite
+    # Bpm yields period 0 (the 200k-iteration loop guard) and a non-finite Inizio yields NaN
+    # beat times. Returning None routes them to the loud malformed-marker / missing-TotalTime
+    # hard-fail paths instead.
+    return f if math.isfinite(f) else None
 
 
 def _maybe_int(v: str | None) -> int | None:
@@ -181,15 +187,21 @@ def _nonempty(p: Path) -> bool:
 
 def sha256_file(path: Path, cache: dict[Path, str]) -> str:
     """SHA-256 of a file's bytes, memoized by Path (one collision file can recur across
-    duplicate XML rows)."""
+    duplicate XML rows). An unreadable candidate (deleted between indexing and hashing,
+    permission/IO error) yields a UNIQUE sentinel digest so it never collapses as a
+    byte-identical duplicate and instead forces the ambiguous hard-fail — a structured
+    refusal rather than a mid-run traceback."""
     cached = cache.get(path)
     if cached is not None:
         return cached
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    digest = h.hexdigest()
+    try:
+        h = hashlib.sha256()
+        with path.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        digest = h.hexdigest()
+    except OSError:
+        digest = f"<unreadable:{path}>"
     cache[path] = digest
     return digest
 
