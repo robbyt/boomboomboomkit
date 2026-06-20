@@ -297,7 +297,7 @@ benchmark-beatgrid:
 	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/eval-beatgrid.py \
 		--reference "$(BEAT_ORACLE_JAMS)" \
 		--estimated "$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-estimated-beats.jams.json" \
-		$(if $(BEAT_GRID_LIMIT),--allow-missing-constant,) \
+		$(if $(filter-out 0,$(BEAT_GRID_LIMIT)),--allow-missing-constant,) \
 		--out "$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json"
 	BEAT_GRID_ACCURACY_JSON="$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json" \
 	$(if $(BEAT_GRID_LIMIT),BEAT_GRID_LIMIT="$(BEAT_GRID_LIMIT)",) \
