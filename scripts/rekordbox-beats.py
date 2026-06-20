@@ -228,17 +228,21 @@ def resolve_path(
     if len(digests) == 1:
         return str(candidates[0]), []  # byte-identical duplicates: safe deterministic pick
     # Genuinely different content. Consult the operator-curated override before refusing:
-    # the substring must select EXACTLY ONE candidate, else fall through to a loud hard-fail.
+    # the substring must select EXACTLY ONE candidate AND that candidate must be readable
+    # (its digest is not the sha256_file OSError sentinel), else fall through to a loud
+    # hard-fail — an override must never resolve to an unusable audio file.
     override = COLLISION_OVERRIDES.get(basename)
     if override is not None:
         selected = [p for p in candidates if override in str(p)]
         if len(selected) == 1:
-            print(
-                f"# collision-override: {basename} -> {selected[0]} (operator-curated)",
-                file=sys.stderr,
-            )
-            return str(selected[0]), []
-    return None, candidates  # genuinely different content: ambiguous -> hard-fail in main
+            digest = sha256_file(selected[0], hash_cache)  # cached from the digests set above
+            if not digest.startswith("<unreadable:"):
+                print(
+                    f"# collision-override: {basename} -> {selected[0]} (operator-curated)",
+                    file=sys.stderr,
+                )
+                return str(selected[0]), []
+    return None, candidates  # different content / unreadable override pick: ambiguous -> hard-fail
 
 
 # ---------------------------------------------------------------------------
@@ -412,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
     collapsed_dup_path = 0
     failed: list[str] = []  # gridded + resolved but yielded zero beats
     ambiguous: list[tuple[str, list[Path]]] = []  # basename collision, DIFFERENT content (D1)
-    invalid_duration: list[tuple[str, float | None, float]] = []  # missing/short TotalTime (P1)
+    invalid_duration: list[tuple[str, float | None, float]] = []  # missing/past-end TotalTime (P1)
     invalid_marker: list[tuple[str, list[str]]] = []  # malformed TEMPO markers (P4)
     seen_paths: set[str] = set()
     hash_cache: dict[Path, str] = {}
@@ -449,10 +453,18 @@ def main(argv: list[str] | None = None) -> int:
         # yields >=1 beat, so the zero-beat gate below would NOT catch it. Refuse rather than
         # guess a span. A PRESENT TotalTime that merely sits a few tenths below the last
         # marker (whole-second rounding vs a marker placed at the very end) is benign — the
-        # marker IS the track end and the markers already define the full grid — so only a
-        # `None` TotalTime hard-fails.
-        max_inizio = max(m["inizio"] for m in rec["markers"])
-        if rec["total_time"] is None:
+        # marker IS the track end and the markers already define the full grid. But a PRESENT
+        # TotalTime that sits MORE than a 4/4 bar before the last marker is an inconsistency
+        # (stale/wrong duration, or a marker placed past the track end), and the emitted grid
+        # would extend past file_metadata.duration — so it hard-fails too. The tolerance is
+        # clamped: a 1 s floor keeps whole-second rounding benign even above 240 BPM (where one
+        # bar is < 1 s), and a 4 s cap keeps the guard live for a pathologically-slow last
+        # marker (a 5 BPM marker would otherwise grant a ~48 s tolerance).
+        last_marker = rec["markers"][-1]  # markers are inizio-sorted (parse_tracks)
+        max_inizio = last_marker["inizio"]
+        one_bar = 4 * 60.0 / last_marker["bpm"]
+        duration_slop = max(1.0, min(one_bar, 4.0))
+        if rec["total_time"] is None or rec["total_time"] < max_inizio - duration_slop:
             invalid_duration.append((rec["basename"], rec["total_time"], max_inizio))
             continue
         beats = beats_from_markers(rec["markers"], rec["total_time"])
@@ -483,8 +495,8 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"        {pth}", file=sys.stderr)
         if invalid_duration:
             print(
-                f"  {len(invalid_duration)} track(s) with MISSING TotalTime "
-                f"(unbounded forward grid — a single-marker track would truncate to [0, inizio]):",
+                f"  {len(invalid_duration)} track(s) with MISSING or marker-past-end TotalTime "
+                f"(unbounded forward grid, or a grid extending past the declared duration):",
                 file=sys.stderr,
             )
             for b, tt, mi in invalid_duration[:20]:
