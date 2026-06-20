@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from jams_corpus import load_oa300_rows
+
 if TYPE_CHECKING:
     import numpy as np
 
@@ -317,9 +319,8 @@ def build_external_index(
     was skipped rather than silently passing.
     """
     idx = ExternalIndex()
-    oa = json.loads(oa300_gt_path.read_text())
-    if not isinstance(oa, list):
-        raise ValueError(f"{oa300_gt_path} is not a JSON list of track records.")
+    # OA300 GT is a JAMS tempo corpus post-Story-8.8b (read back into flat rows).
+    oa = load_oa300_rows(oa300_gt_path)
     for t in oa:
         idx.add("oa300", t.get("title") or t.get("filename", ""))
     idx.corpora_checked.append("oa300")

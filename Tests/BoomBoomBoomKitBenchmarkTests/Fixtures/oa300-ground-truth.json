@@ -1,576 +1,2944 @@
-[
-  {
-    "filename": "8. Jonah K_Shadow Work (Esthetic Remix).wav",
-    "bpm": 150.0,
-    "subdir": null,
-    "title": "8. Jonah K_Shadow Work (Esthetic Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "6. HEFT_Fuyu (Akinsa Remix).wav",
-    "bpm": 170.0,
-    "subdir": null,
-    "title": "6. HEFT_Fuyu (Akinsa Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav",
-    "bpm": 85.0,
-    "subdir": null,
-    "title": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav",
-    "bpm": 170.0,
-    "subdir": null,
-    "title": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "11. Sorse_Remorse (Jonah K Remix).wav",
-    "bpm": 86.0,
-    "subdir": null,
-    "title": "11. Sorse_Remorse (Jonah K Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "2. Ahmad_The Wrong Place (Artilect Remix).wav",
-    "bpm": 85.0,
-    "subdir": null,
-    "title": "2. Ahmad_The Wrong Place (Artilect Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "10. Hellacopta_Assemby (Xiûa Remix).wav",
-    "bpm": 170.0,
-    "subdir": null,
-    "title": "10. Hellacopta_Assemby (Xiûa Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Hooverian Blur - Cut and Dried EP - 01 Cut and Dried.mp3",
-    "bpm": 81.0,
-    "subdir": "T Tunes",
-    "title": "Cut and Dried",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 04 Your Love (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Your Love (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 01 Jericho (Neekeetone Jungle Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Jericho (Neekeetone Jungle Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 07 Claustrophobic Sting (Neekeetone Jungle Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Claustrophobic Sting (Neekeetone Jungle Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Outer Heaven - UVB76-025 - 02 More Hardcore.mp3",
-    "bpm": 150.0,
-    "subdir": "T Tunes",
-    "title": "More Hardcore",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Outer Heaven - UVB76-025 - 03 Minority Industrial.mp3",
-    "bpm": 95.0,
-    "subdir": "T Tunes",
-    "title": "Minority Industrial",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 04 Speedway (Neekeetone Jungle Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Speedway (Neekeetone Jungle Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Release - The Jungle (Remaster ope).wav",
-    "bpm": 153.94,
-    "subdir": "T Tunes",
-    "title": "Release - The Jungle (Remaster ope)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 03 Full Throttle (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Full Throttle (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Fire (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Skylined (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 05 The Heat (The Energy) (Neekeetone Jungle Rework).aiff",
-    "bpm": 159.99,
-    "subdir": "T Tunes",
-    "title": "The Heat (The Energy) (Neekeetone Jungle Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Amor Satyr & Fetus - Half Half - 01 Amor Satyr & Fetus - Baby Check.mp3",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Amor Satyr & Fetus - Baby Check",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet Feat Kemal & Rob Data - Clockwork - Remastered 2014 - 02 BiosFear.mp3",
-    "bpm": 172.99,
-    "subdir": "T Tunes",
-    "title": "BiosFear",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3",
-    "bpm": 172.96,
-    "subdir": "T Tunes",
-    "title": "Altitude",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Ironik - The Calling (Remaster).wav",
-    "bpm": 157.85,
-    "subdir": "T Tunes",
-    "title": "Ironik - The Calling (Remaster)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 01 Break & Enter (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Break & Enter (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 11 Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss).aiff",
-    "bpm": 79.99,
-    "subdir": "T Tunes",
-    "title": "Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 08 Spider Monkey.mp3",
-    "bpm": 86.48,
-    "subdir": "T Tunes",
-    "title": "Spider Monkey",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 05 Hyperspeed (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Hyperspeed (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 08 Everybody In The Place (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Everybody In The Place (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 10 So Confused.mp3",
-    "bpm": 172.96,
-    "subdir": "T Tunes",
-    "title": "So Confused",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 02 Dream World.aiff",
-    "bpm": 84.92,
-    "subdir": "T Tunes",
-    "title": "Dream World",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Proxima_Trapped_Original Mix.mp3",
-    "bpm": 140.0,
-    "subdir": "T Tunes",
-    "title": "Trapped (Original Mix)",
-    "genre": "breaks"
-  },
-  {
-    "filename": "Stakka & Skynet Feat Skinny - Clockwork - Remastered 2014 - 06 Straight Jacket.mp3",
-    "bpm": 172.95,
-    "subdir": "T Tunes",
-    "title": "Straight Jacket",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 01 Ya Don't Stop.aiff",
-    "bpm": 84.92,
-    "subdir": "T Tunes",
-    "title": "Ya Don't Stop",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Skanna - Nightstalker (Remaster).wav",
-    "bpm": 154.91,
-    "subdir": "T Tunes",
-    "title": "Skanna - Nightstalker (Remaster)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Ron Mercy - Junkin Da Trunk.wav",
-    "bpm": 150.0,
-    "subdir": "T Tunes",
-    "title": "Ron Mercy - Junkin Da Trunk",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 08 Scienide (Neekeetone 160 Rework).aiff",
-    "bpm": 160.32,
-    "subdir": "T Tunes",
-    "title": "Scienide (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 02 Music Reach (Neekeetone 160 Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Music Reach (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Aeon Flux - Reality (Repitch Remaster).wav",
-    "bpm": 155.98,
-    "subdir": "T Tunes",
-    "title": "Aeon Flux - Reality (Repitch Remaster)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 01 Decoy.mp3",
-    "bpm": 172.96,
-    "subdir": "T Tunes",
-    "title": "Decoy",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Hooverian Blur - Cut and Dried EP - 04 Slower Violence.mp3",
-    "bpm": 162.0,
-    "subdir": "T Tunes",
-    "title": "Slower Violence",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Sam Binga & Foreign Concept - Sam Binga & Foreign Concept - One Up Top EP - 03 BAMF.mp3",
-    "bpm": 140.0,
-    "subdir": "T Tunes",
-    "title": "BAMF",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Sully - The Still - 02 Lies.mp3",
-    "bpm": 166.0,
-    "subdir": "T Tunes",
-    "title": "Lies",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 02 Their Law (Neekeetone 160 Rework).aiff",
-    "bpm": 80.0,
-    "subdir": "T Tunes",
-    "title": "Their Law (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Sully - The Still - 01 The Still.mp3",
-    "bpm": 84.0,
-    "subdir": "T Tunes",
-    "title": "The Still",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Release - The Jungle 155bpm (Remaster).mp3",
-    "bpm": 149.04,
-    "subdir": "T Tunes",
-    "title": "Release - The Jungle 155bpm (Remaster)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff",
-    "bpm": 160.1,
-    "subdir": "T Tunes",
-    "title": "Weather Experience (Neekeetone 160 Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Hooverian Blur - Cut and Dried EP - 03 Red Scare.mp3",
-    "bpm": 162.0,
-    "subdir": "T Tunes",
-    "title": "Red Scare",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff",
-    "bpm": 85.0,
-    "subdir": "T Tunes",
-    "title": "Wind It Up (Neekeetone Jungle Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Outer Heaven - UVB76-025 - 01 The Observatory.mp3",
-    "bpm": 85.0,
-    "subdir": "T Tunes",
-    "title": "The Observatory",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 07 Out Of Space (Neekeetone Jungle Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Out Of Space (Neekeetone Jungle Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet feat Keaton - Clockwork - Remastered 2014 - 04 Isolation.mp3",
-    "bpm": 172.97,
-    "subdir": "T Tunes",
-    "title": "Isolation",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Ironik - The Calling (Remaster).mp3",
-    "bpm": 157.84,
-    "subdir": "T Tunes",
-    "title": "Ironik - The Calling (Remaster)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 03 Clockwork.mp3",
-    "bpm": 86.48,
-    "subdir": "T Tunes",
-    "title": "Clockwork",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Hooverian Blur - Cut and Dried EP - 02 Twice Removed.mp3",
-    "bpm": 162.0,
-    "subdir": "T Tunes",
-    "title": "Twice Removed",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "MattU_Empty Inside_Original Mix.mp3",
-    "bpm": 140.0,
-    "subdir": "T Tunes",
-    "title": "Empty Inside (Original Mix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - Music For The 160 Generation - 09 We Eat Rhythm (Neekeetone Dub Rework) (Bonus).aiff",
-    "bpm": 82.0,
-    "subdir": "T Tunes",
-    "title": "We Eat Rhythm (Neekeetone Dub Rework) (Bonus)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & K-Tee - Living for the Night - After Hours - 02 After Hours.aiff",
-    "bpm": 83.66,
-    "subdir": "T Tunes",
-    "title": "After Hours",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 05 TImelines.mp3",
-    "bpm": 172.96,
-    "subdir": "T Tunes",
-    "title": "TImelines",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Legal Offence - Burnin' Up (Piano Mix) (Remaster).wav",
-    "bpm": 159.85,
-    "subdir": "T Tunes",
-    "title": "Legal Offence - Burnin' Up (Piano Mix) (Remaster)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Aeon Flux - Reality (Remaster).wav",
-    "bpm": 150.95,
-    "subdir": "T Tunes",
-    "title": "Aeon Flux - Reality (Remaster)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & K-Tee - Living for the Night - After Hours - 01 Living for the Night.aiff",
-    "bpm": 162.14,
-    "subdir": "T Tunes",
-    "title": "Living for the Night",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Stakka & Skynet - Clockwork - Remastered 2014 - 11 9000 Series.mp3",
-    "bpm": 172.96,
-    "subdir": "T Tunes",
-    "title": "9000 Series",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Charly (Neekeetone Jungle Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "The Prodigy - 160 Experience - 12 Death Of The Prodigy Dancers (Neekeetone Dub Rework).aiff",
-    "bpm": 160.0,
-    "subdir": "T Tunes",
-    "title": "Death Of The Prodigy Dancers (Neekeetone Dub Rework)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "3. D3Z_Axons (Offish Remix).wav",
-    "bpm": 170.0,
-    "subdir": null,
-    "title": "3. D3Z_Axons (Offish Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "9. HEFT_Anagram 6 (Owl Remix).wav",
-    "bpm": 85.0,
-    "subdir": null,
-    "title": "9. HEFT_Anagram 6 (Owl Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Boymerang - Autumnal (Leaf).wav",
-    "bpm": 164.78,
-    "subdir": "R Tunes",
-    "title": "Boymerang - Autumnal (Leaf)",
-    "genre": "breaks"
-  },
-  {
-    "filename": "07 - Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces.flac",
-    "bpm": 102.05,
-    "subdir": "R Tunes/Liam Howlett - Prodigy Presents The Dirtchamber Sessions Vol.1 - FLAC",
-    "title": "Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces",
-    "genre": "breaks"
-  },
-  {
-    "filename": "05 - New York - Punk To Funk - I'm Sick.flac",
-    "bpm": 135.91,
-    "subdir": "R Tunes/Liam Howlett - Prodigy Presents The Dirtchamber Sessions Vol.1 - FLAC",
-    "title": "New York - Punk To Funk - I'm Sick",
-    "genre": "breaks"
-  },
-  {
-    "filename": "12. Smalltown Boy (12' Version).flac",
-    "bpm": 135.85,
-    "subdir": "R Tunes",
-    "title": "Smalltown Boy (12\" Version)",
-    "genre": "breaks"
-  },
-  {
-    "filename": "Boymerang - Rules (Leaf).wav",
-    "bpm": 82.86,
-    "subdir": "R Tunes",
-    "title": "Boymerang - Rules (Leaf)",
-    "genre": "breaks"
-  },
-  {
-    "filename": "1. The Faraday_Bunker (D-Struct Remix).wav",
-    "bpm": 170.0,
-    "subdir": null,
-    "title": "1. The Faraday_Bunker (D-Struct Remix)",
-    "genre": "half-time-dnb"
-  },
-  {
-    "filename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).mp3",
-    "bpm": 170.0,
-    "subdir": null,
-    "title": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)",
-    "genre": "drum-and-bass"
-  },
-  {
-    "filename": "Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3",
-    "bpm": 130.0,
-    "subdir": "Bad BPM",
-    "title": "Conundrum",
-    "genre": "breaks"
-  },
-  {
-    "filename": "Nautical Divine - Makara.mp3",
-    "bpm": 128.0,
-    "subdir": "Bad BPM",
-    "title": "Makara",
-    "genre": "techno"
-  },
-  {
-    "filename": "03 TVR.m4a",
-    "bpm": 130.0,
-    "subdir": "Bad BPM",
-    "title": "TVR",
-    "genre": "tech-house"
-  },
-  {
-    "filename": "Echtoo - Chakra - Seminal Sounds.wav",
-    "bpm": 160.0,
-    "subdir": "Bad BPM",
-    "title": "Chakra",
-    "genre": "breaks"
-  },
-  {
-    "filename": "Icicle - Condense.wav",
-    "bpm": 126.0,
-    "subdir": "Bad BPM",
-    "title": "Icicle - Condense",
-    "genre": "techno"
-  },
-  {
-    "filename": "Echtoo - The Mummy - Seminal Sounds.wav",
-    "bpm": 160.0,
-    "subdir": "Bad BPM",
-    "title": "The Mummy",
-    "genre": "footwork"
-  },
-  {
-    "filename": "Echtoo - Chakra.wav",
-    "bpm": 160.0,
-    "subdir": "Bad BPM",
-    "title": "Echtoo - Chakra",
-    "genre": "breaks"
-  },
-  {
-    "filename": "College Hill - Undercurrents Vol 3 - 08 Self Immolation.mp3",
-    "bpm": 126.0,
-    "subdir": "Bad BPM",
-    "title": "Self Immolation",
-    "genre": "breaks"
-  },
-  {
-    "filename": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav",
-    "bpm": 160.0,
-    "subdir": null,
-    "title": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix)",
-    "genre": "drum-and-bass"
-  }
-]
+{
+  "entries": [
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "8. Jonah K_Shadow Work (Esthetic Remix).wav",
+          "local_path": "8. Jonah K_Shadow Work (Esthetic Remix).wav",
+          "track_id": "8. Jonah K_Shadow Work (Esthetic Remix)"
+        },
+        "title": "8. Jonah K_Shadow Work (Esthetic Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 150.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "6. HEFT_Fuyu (Akinsa Remix).wav",
+          "local_path": "6. HEFT_Fuyu (Akinsa Remix).wav",
+          "track_id": "6. HEFT_Fuyu (Akinsa Remix)"
+        },
+        "title": "6. HEFT_Fuyu (Akinsa Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav",
+          "local_path": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav",
+          "track_id": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)"
+        },
+        "title": "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 85.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav",
+          "local_path": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav",
+          "track_id": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)"
+        },
+        "title": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "11. Sorse_Remorse (Jonah K Remix).wav",
+          "local_path": "11. Sorse_Remorse (Jonah K Remix).wav",
+          "track_id": "11. Sorse_Remorse (Jonah K Remix)"
+        },
+        "title": "11. Sorse_Remorse (Jonah K Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 86.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "2. Ahmad_The Wrong Place (Artilect Remix).wav",
+          "local_path": "2. Ahmad_The Wrong Place (Artilect Remix).wav",
+          "track_id": "2. Ahmad_The Wrong Place (Artilect Remix)"
+        },
+        "title": "2. Ahmad_The Wrong Place (Artilect Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 85.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "10. Hellacopta_Assemby (Xiûa Remix).wav",
+          "local_path": "10. Hellacopta_Assemby (Xiûa Remix).wav",
+          "track_id": "10. Hellacopta_Assemby (Xiûa Remix)"
+        },
+        "title": "10. Hellacopta_Assemby (Xiûa Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Hooverian Blur - Cut and Dried EP - 01 Cut and Dried.mp3",
+          "local_path": "T Tunes/Hooverian Blur - Cut and Dried EP - 01 Cut and Dried.mp3",
+          "track_id": "Cut and Dried"
+        },
+        "title": "Cut and Dried"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 81.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 04 Your Love (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 04 Your Love (Neekeetone 160 Rework).aiff",
+          "track_id": "Your Love (Neekeetone 160 Rework)"
+        },
+        "title": "Your Love (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 01 Jericho (Neekeetone Jungle Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 01 Jericho (Neekeetone Jungle Rework).aiff",
+          "track_id": "Jericho (Neekeetone Jungle Rework)"
+        },
+        "title": "Jericho (Neekeetone Jungle Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 07 Claustrophobic Sting (Neekeetone Jungle Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 07 Claustrophobic Sting (Neekeetone Jungle Rework).aiff",
+          "track_id": "Claustrophobic Sting (Neekeetone Jungle Rework)"
+        },
+        "title": "Claustrophobic Sting (Neekeetone Jungle Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Outer Heaven - UVB76-025 - 02 More Hardcore.mp3",
+          "local_path": "T Tunes/Outer Heaven - UVB76-025 - 02 More Hardcore.mp3",
+          "track_id": "More Hardcore"
+        },
+        "title": "More Hardcore"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 150.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Outer Heaven - UVB76-025 - 03 Minority Industrial.mp3",
+          "local_path": "T Tunes/Outer Heaven - UVB76-025 - 03 Minority Industrial.mp3",
+          "track_id": "Minority Industrial"
+        },
+        "title": "Minority Industrial"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 95.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 04 Speedway (Neekeetone Jungle Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 04 Speedway (Neekeetone Jungle Rework).aiff",
+          "track_id": "Speedway (Neekeetone Jungle Rework)"
+        },
+        "title": "Speedway (Neekeetone Jungle Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Release - The Jungle (Remaster ope).wav",
+          "local_path": "T Tunes/Release - The Jungle (Remaster ope).wav",
+          "track_id": "Release - The Jungle (Remaster ope)"
+        },
+        "title": "Release - The Jungle (Remaster ope)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 153.94,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 03 Full Throttle (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 03 Full Throttle (Neekeetone 160 Rework).aiff",
+          "track_id": "Full Throttle (Neekeetone 160 Rework)"
+        },
+        "title": "Full Throttle (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff",
+          "track_id": "Fire (Neekeetone 160 Rework)"
+        },
+        "title": "Fire (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff",
+          "track_id": "Skylined (Neekeetone 160 Rework)"
+        },
+        "title": "Skylined (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 05 The Heat (The Energy) (Neekeetone Jungle Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 05 The Heat (The Energy) (Neekeetone Jungle Rework).aiff",
+          "track_id": "The Heat (The Energy) (Neekeetone Jungle Rework)"
+        },
+        "title": "The Heat (The Energy) (Neekeetone Jungle Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 159.99,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Amor Satyr & Fetus - Half Half - 01 Amor Satyr & Fetus - Baby Check.mp3",
+          "local_path": "T Tunes/Amor Satyr & Fetus - Half Half - 01 Amor Satyr & Fetus - Baby Check.mp3",
+          "track_id": "Amor Satyr & Fetus - Baby Check"
+        },
+        "title": "Amor Satyr & Fetus - Baby Check"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet Feat Kemal & Rob Data - Clockwork - Remastered 2014 - 02 BiosFear.mp3",
+          "local_path": "T Tunes/Stakka & Skynet Feat Kemal & Rob Data - Clockwork - Remastered 2014 - 02 BiosFear.mp3",
+          "track_id": "BiosFear"
+        },
+        "title": "BiosFear"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.99,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3",
+          "local_path": "T Tunes/Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3",
+          "track_id": "Altitude"
+        },
+        "title": "Altitude"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.96,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Ironik - The Calling (Remaster).wav",
+          "local_path": "T Tunes/Ironik - The Calling (Remaster).wav",
+          "track_id": "Ironik - The Calling (Remaster)"
+        },
+        "title": "Ironik - The Calling (Remaster)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 157.85,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 01 Break & Enter (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 01 Break & Enter (Neekeetone 160 Rework).aiff",
+          "track_id": "Break & Enter (Neekeetone 160 Rework)"
+        },
+        "title": "Break & Enter (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 11 Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 11 Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss).aiff",
+          "track_id": "Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss)"
+        },
+        "title": "Ruff In The Jungle Bizniss (Neekeetone Jungle Bizniss)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 79.99,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet - Clockwork - Remastered 2014 - 08 Spider Monkey.mp3",
+          "local_path": "T Tunes/Stakka & Skynet - Clockwork - Remastered 2014 - 08 Spider Monkey.mp3",
+          "track_id": "Spider Monkey"
+        },
+        "title": "Spider Monkey"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 86.48,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 05 Hyperspeed (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 05 Hyperspeed (Neekeetone 160 Rework).aiff",
+          "track_id": "Hyperspeed (Neekeetone 160 Rework)"
+        },
+        "title": "Hyperspeed (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 08 Everybody In The Place (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 08 Everybody In The Place (Neekeetone 160 Rework).aiff",
+          "track_id": "Everybody In The Place (Neekeetone 160 Rework)"
+        },
+        "title": "Everybody In The Place (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet - Clockwork - Remastered 2014 - 10 So Confused.mp3",
+          "local_path": "T Tunes/Stakka & Skynet - Clockwork - Remastered 2014 - 10 So Confused.mp3",
+          "track_id": "So Confused"
+        },
+        "title": "So Confused"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.96,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 02 Dream World.aiff",
+          "local_path": "T Tunes/Stakka & K-Tee - Ya Don't Stop - Dream World - 02 Dream World.aiff",
+          "track_id": "Dream World"
+        },
+        "title": "Dream World"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 84.92,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Proxima_Trapped_Original Mix.mp3",
+          "local_path": "T Tunes/Proxima_Trapped_Original Mix.mp3",
+          "track_id": "Trapped (Original Mix)"
+        },
+        "title": "Trapped (Original Mix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 140.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet Feat Skinny - Clockwork - Remastered 2014 - 06 Straight Jacket.mp3",
+          "local_path": "T Tunes/Stakka & Skynet Feat Skinny - Clockwork - Remastered 2014 - 06 Straight Jacket.mp3",
+          "track_id": "Straight Jacket"
+        },
+        "title": "Straight Jacket"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.95,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & K-Tee - Ya Don't Stop - Dream World - 01 Ya Don't Stop.aiff",
+          "local_path": "T Tunes/Stakka & K-Tee - Ya Don't Stop - Dream World - 01 Ya Don't Stop.aiff",
+          "track_id": "Ya Don't Stop"
+        },
+        "title": "Ya Don't Stop"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 84.92,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Skanna - Nightstalker (Remaster).wav",
+          "local_path": "T Tunes/Skanna - Nightstalker (Remaster).wav",
+          "track_id": "Skanna - Nightstalker (Remaster)"
+        },
+        "title": "Skanna - Nightstalker (Remaster)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 154.91,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Ron Mercy - Junkin Da Trunk.wav",
+          "local_path": "T Tunes/Ron Mercy - Junkin Da Trunk.wav",
+          "track_id": "Ron Mercy - Junkin Da Trunk"
+        },
+        "title": "Ron Mercy - Junkin Da Trunk"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 150.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 08 Scienide (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 08 Scienide (Neekeetone 160 Rework).aiff",
+          "track_id": "Scienide (Neekeetone 160 Rework)"
+        },
+        "title": "Scienide (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.32,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 02 Music Reach (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 02 Music Reach (Neekeetone 160 Rework).aiff",
+          "track_id": "Music Reach (Neekeetone 160 Rework)"
+        },
+        "title": "Music Reach (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Aeon Flux - Reality (Repitch Remaster).wav",
+          "local_path": "T Tunes/Aeon Flux - Reality (Repitch Remaster).wav",
+          "track_id": "Aeon Flux - Reality (Repitch Remaster)"
+        },
+        "title": "Aeon Flux - Reality (Repitch Remaster)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 155.98,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet - Clockwork - Remastered 2014 - 01 Decoy.mp3",
+          "local_path": "T Tunes/Stakka & Skynet - Clockwork - Remastered 2014 - 01 Decoy.mp3",
+          "track_id": "Decoy"
+        },
+        "title": "Decoy"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.96,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Hooverian Blur - Cut and Dried EP - 04 Slower Violence.mp3",
+          "local_path": "T Tunes/Hooverian Blur - Cut and Dried EP - 04 Slower Violence.mp3",
+          "track_id": "Slower Violence"
+        },
+        "title": "Slower Violence"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 162.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Sam Binga & Foreign Concept - Sam Binga & Foreign Concept - One Up Top EP - 03 BAMF.mp3",
+          "local_path": "T Tunes/Sam Binga & Foreign Concept - Sam Binga & Foreign Concept - One Up Top EP - 03 BAMF.mp3",
+          "track_id": "BAMF"
+        },
+        "title": "BAMF"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 140.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Sully - The Still - 02 Lies.mp3",
+          "local_path": "T Tunes/Sully - The Still - 02 Lies.mp3",
+          "track_id": "Lies"
+        },
+        "title": "Lies"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 166.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 02 Their Law (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 02 Their Law (Neekeetone 160 Rework).aiff",
+          "track_id": "Their Law (Neekeetone 160 Rework)"
+        },
+        "title": "Their Law (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 80.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Sully - The Still - 01 The Still.mp3",
+          "local_path": "T Tunes/Sully - The Still - 01 The Still.mp3",
+          "track_id": "The Still"
+        },
+        "title": "The Still"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 84.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Release - The Jungle 155bpm (Remaster).mp3",
+          "local_path": "T Tunes/Release - The Jungle 155bpm (Remaster).mp3",
+          "track_id": "Release - The Jungle 155bpm (Remaster)"
+        },
+        "title": "Release - The Jungle 155bpm (Remaster)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 149.04,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff",
+          "track_id": "Weather Experience (Neekeetone 160 Rework)"
+        },
+        "title": "Weather Experience (Neekeetone 160 Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.1,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Hooverian Blur - Cut and Dried EP - 03 Red Scare.mp3",
+          "local_path": "T Tunes/Hooverian Blur - Cut and Dried EP - 03 Red Scare.mp3",
+          "track_id": "Red Scare"
+        },
+        "title": "Red Scare"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 162.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff",
+          "track_id": "Wind It Up (Neekeetone Jungle Rework)"
+        },
+        "title": "Wind It Up (Neekeetone Jungle Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 85.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Outer Heaven - UVB76-025 - 01 The Observatory.mp3",
+          "local_path": "T Tunes/Outer Heaven - UVB76-025 - 01 The Observatory.mp3",
+          "track_id": "The Observatory"
+        },
+        "title": "The Observatory"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 85.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 07 Out Of Space (Neekeetone Jungle Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 07 Out Of Space (Neekeetone Jungle Rework).aiff",
+          "track_id": "Out Of Space (Neekeetone Jungle Rework)"
+        },
+        "title": "Out Of Space (Neekeetone Jungle Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet feat Keaton - Clockwork - Remastered 2014 - 04 Isolation.mp3",
+          "local_path": "T Tunes/Stakka & Skynet feat Keaton - Clockwork - Remastered 2014 - 04 Isolation.mp3",
+          "track_id": "Isolation"
+        },
+        "title": "Isolation"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.97,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Ironik - The Calling (Remaster).mp3",
+          "local_path": "T Tunes/Ironik - The Calling (Remaster).mp3",
+          "track_id": "Ironik - The Calling (Remaster)"
+        },
+        "title": "Ironik - The Calling (Remaster)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 157.84,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet - Clockwork - Remastered 2014 - 03 Clockwork.mp3",
+          "local_path": "T Tunes/Stakka & Skynet - Clockwork - Remastered 2014 - 03 Clockwork.mp3",
+          "track_id": "Clockwork"
+        },
+        "title": "Clockwork"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 86.48,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Hooverian Blur - Cut and Dried EP - 02 Twice Removed.mp3",
+          "local_path": "T Tunes/Hooverian Blur - Cut and Dried EP - 02 Twice Removed.mp3",
+          "track_id": "Twice Removed"
+        },
+        "title": "Twice Removed"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 162.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "MattU_Empty Inside_Original Mix.mp3",
+          "local_path": "T Tunes/MattU_Empty Inside_Original Mix.mp3",
+          "track_id": "Empty Inside (Original Mix)"
+        },
+        "title": "Empty Inside (Original Mix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 140.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - Music For The 160 Generation - 09 We Eat Rhythm (Neekeetone Dub Rework) (Bonus).aiff",
+          "local_path": "T Tunes/The Prodigy - Music For The 160 Generation - 09 We Eat Rhythm (Neekeetone Dub Rework) (Bonus).aiff",
+          "track_id": "We Eat Rhythm (Neekeetone Dub Rework) (Bonus)"
+        },
+        "title": "We Eat Rhythm (Neekeetone Dub Rework) (Bonus)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 82.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & K-Tee - Living for the Night - After Hours - 02 After Hours.aiff",
+          "local_path": "T Tunes/Stakka & K-Tee - Living for the Night - After Hours - 02 After Hours.aiff",
+          "track_id": "After Hours"
+        },
+        "title": "After Hours"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 83.66,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet - Clockwork - Remastered 2014 - 05 TImelines.mp3",
+          "local_path": "T Tunes/Stakka & Skynet - Clockwork - Remastered 2014 - 05 TImelines.mp3",
+          "track_id": "TImelines"
+        },
+        "title": "TImelines"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.96,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Legal Offence - Burnin' Up (Piano Mix) (Remaster).wav",
+          "local_path": "T Tunes/Legal Offence - Burnin' Up (Piano Mix) (Remaster).wav",
+          "track_id": "Legal Offence - Burnin' Up (Piano Mix) (Remaster)"
+        },
+        "title": "Legal Offence - Burnin' Up (Piano Mix) (Remaster)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 159.85,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Aeon Flux - Reality (Remaster).wav",
+          "local_path": "T Tunes/Aeon Flux - Reality (Remaster).wav",
+          "track_id": "Aeon Flux - Reality (Remaster)"
+        },
+        "title": "Aeon Flux - Reality (Remaster)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 150.95,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & K-Tee - Living for the Night - After Hours - 01 Living for the Night.aiff",
+          "local_path": "T Tunes/Stakka & K-Tee - Living for the Night - After Hours - 01 Living for the Night.aiff",
+          "track_id": "Living for the Night"
+        },
+        "title": "Living for the Night"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 162.14,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Stakka & Skynet - Clockwork - Remastered 2014 - 11 9000 Series.mp3",
+          "local_path": "T Tunes/Stakka & Skynet - Clockwork - Remastered 2014 - 11 9000 Series.mp3",
+          "track_id": "9000 Series"
+        },
+        "title": "9000 Series"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 172.96,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff",
+          "track_id": "Charly (Neekeetone Jungle Rework)"
+        },
+        "title": "Charly (Neekeetone Jungle Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "The Prodigy - 160 Experience - 12 Death Of The Prodigy Dancers (Neekeetone Dub Rework).aiff",
+          "local_path": "T Tunes/The Prodigy - 160 Experience - 12 Death Of The Prodigy Dancers (Neekeetone Dub Rework).aiff",
+          "track_id": "Death Of The Prodigy Dancers (Neekeetone Dub Rework)"
+        },
+        "title": "Death Of The Prodigy Dancers (Neekeetone Dub Rework)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "T Tunes",
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "3. D3Z_Axons (Offish Remix).wav",
+          "local_path": "3. D3Z_Axons (Offish Remix).wav",
+          "track_id": "3. D3Z_Axons (Offish Remix)"
+        },
+        "title": "3. D3Z_Axons (Offish Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "9. HEFT_Anagram 6 (Owl Remix).wav",
+          "local_path": "9. HEFT_Anagram 6 (Owl Remix).wav",
+          "track_id": "9. HEFT_Anagram 6 (Owl Remix)"
+        },
+        "title": "9. HEFT_Anagram 6 (Owl Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 85.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Boymerang - Autumnal (Leaf).wav",
+          "local_path": "R Tunes/Boymerang - Autumnal (Leaf).wav",
+          "track_id": "Boymerang - Autumnal (Leaf)"
+        },
+        "title": "Boymerang - Autumnal (Leaf)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 164.78,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "R Tunes",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "07 - Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces.flac",
+          "local_path": "R Tunes/Liam Howlett - Prodigy Presents The Dirtchamber Sessions Vol.1 - FLAC/07 - Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces.flac",
+          "track_id": "Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces"
+        },
+        "title": "Get Down - Humpty Dance - Dope On Plastic - Beats & Pieces"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 102.05,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "R Tunes/Liam Howlett - Prodigy Presents The Dirtchamber Sessions Vol.1 - FLAC",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "05 - New York - Punk To Funk - I'm Sick.flac",
+          "local_path": "R Tunes/Liam Howlett - Prodigy Presents The Dirtchamber Sessions Vol.1 - FLAC/05 - New York - Punk To Funk - I'm Sick.flac",
+          "track_id": "New York - Punk To Funk - I'm Sick"
+        },
+        "title": "New York - Punk To Funk - I'm Sick"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 135.91,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "R Tunes/Liam Howlett - Prodigy Presents The Dirtchamber Sessions Vol.1 - FLAC",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "12. Smalltown Boy (12' Version).flac",
+          "local_path": "R Tunes/12. Smalltown Boy (12' Version).flac",
+          "track_id": "Smalltown Boy (12\" Version)"
+        },
+        "title": "Smalltown Boy (12\" Version)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 135.85,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "R Tunes",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Boymerang - Rules (Leaf).wav",
+          "local_path": "R Tunes/Boymerang - Rules (Leaf).wav",
+          "track_id": "Boymerang - Rules (Leaf)"
+        },
+        "title": "Boymerang - Rules (Leaf)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 82.86,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "R Tunes",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "1. The Faraday_Bunker (D-Struct Remix).wav",
+          "local_path": "1. The Faraday_Bunker (D-Struct Remix).wav",
+          "track_id": "1. The Faraday_Bunker (D-Struct Remix)"
+        },
+        "title": "1. The Faraday_Bunker (D-Struct Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "half-time-dnb"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).mp3",
+          "local_path": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).mp3",
+          "track_id": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)"
+        },
+        "title": "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 170.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3",
+          "local_path": "Bad BPM/Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3",
+          "track_id": "Conundrum"
+        },
+        "title": "Conundrum"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 130.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Nautical Divine - Makara.mp3",
+          "local_path": "Bad BPM/Nautical Divine - Makara.mp3",
+          "track_id": "Makara"
+        },
+        "title": "Makara"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 128.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "techno"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "03 TVR.m4a",
+          "local_path": "Bad BPM/03 TVR.m4a",
+          "track_id": "TVR"
+        },
+        "title": "TVR"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 130.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "tech-house"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Echtoo - Chakra - Seminal Sounds.wav",
+          "local_path": "Bad BPM/Echtoo - Chakra - Seminal Sounds.wav",
+          "track_id": "Chakra"
+        },
+        "title": "Chakra"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Icicle - Condense.wav",
+          "local_path": "Bad BPM/Icicle - Condense.wav",
+          "track_id": "Icicle - Condense"
+        },
+        "title": "Icicle - Condense"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 126.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "techno"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Echtoo - The Mummy - Seminal Sounds.wav",
+          "local_path": "Bad BPM/Echtoo - The Mummy - Seminal Sounds.wav",
+          "track_id": "The Mummy"
+        },
+        "title": "The Mummy"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "footwork"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "Echtoo - Chakra.wav",
+          "local_path": "Bad BPM/Echtoo - Chakra.wav",
+          "track_id": "Echtoo - Chakra"
+        },
+        "title": "Echtoo - Chakra"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "College Hill - Undercurrents Vol 3 - 08 Self Immolation.mp3",
+          "local_path": "Bad BPM/College Hill - Undercurrents Vol 3 - 08 Self Immolation.mp3",
+          "track_id": "Self Immolation"
+        },
+        "title": "Self Immolation"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 126.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "subdir": "Bad BPM",
+        "genre": "breaks"
+      }
+    },
+    {
+      "file_metadata": {
+        "duration": 0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav",
+          "local_path": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav",
+          "track_id": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix)"
+        },
+        "title": "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix)"
+      },
+      "annotations": [
+        {
+          "namespace": "tempo",
+          "data": [
+            {
+              "time": 0.0,
+              "duration": 0.0,
+              "value": 160.0,
+              "confidence": 1.0
+            }
+          ],
+          "annotation_metadata": {
+            "curator": {
+              "name": "Robert Terhaar",
+              "email": "robbyt@robbyt.net"
+            },
+            "data_source": "OA300 hand-labeled ground truth"
+          }
+        }
+      ],
+      "sandbox": {
+        "genre": "drum-and-bass"
+      }
+    }
+  ]
+}

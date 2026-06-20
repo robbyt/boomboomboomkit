@@ -12,9 +12,11 @@ Example (writes the canonical fixture location):
         -o Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json
 
 Reads the Rekordbox TSV export (`.txt`) from the corpus directory, matches
-track titles to audio files on disk, and emits JSON (`{filename, bpm, subdir,
-title}` per row; no `genre` — see warning below). With `-o/--output`, writes
-to that path; otherwise writes to stdout. Informational logs go to stderr.
+track titles to audio files on disk, and emits a JAMS 0.4 `tempo` corpus
+(Story 8.8b — one entry per track: bpm in a `tempo` observation, title/filename in
+`file_metadata`, subdir/genre in the per-entry `sandbox`; no `genre` from the TSV —
+see warning below). With `-o/--output`, writes to that path; otherwise writes to
+stdout. Informational logs go to stderr.
 
 Supported audio formats: .wav, .mp3, .flac, .m4a, .aiff
 
@@ -67,8 +69,77 @@ ALLOWED_GENRES = [
 import argparse
 import json
 import os
+import subprocess
 import sys
 from collections import Counter, defaultdict
+
+
+def _curator():
+    def cfg(key, fallback):
+        try:
+            out = subprocess.run(
+                ["git", "config", key], capture_output=True, text=True, check=True
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return fallback
+        return out.stdout.strip() or fallback
+
+    return {
+        "name": cfg("user.name", "Robert Terhaar"),
+        "email": cfg("user.email", "robbyt@gmail.com"),
+    }
+
+
+def to_jams(rows, curator):
+    """Convert flat {filename, bpm, subdir, title, genre?} rows to a JAMS tempo corpus.
+
+    Mirrors `_bmad-output/ml-training/migrate-to-jams.py`. genre rides the per-entry
+    sandbox when present; the Rekordbox TSV has no genre, so a fresh conversion omits it
+    and the result must be re-tagged before it loads through `OA300Track` (see WARNING above).
+    """
+    entries = []
+    for row in rows:
+        basename = row["filename"]
+        subdir = row.get("subdir")
+        local_path = f"{subdir}/{basename}" if subdir else basename
+        sandbox = {}
+        if subdir is not None:
+            sandbox["subdir"] = subdir
+        if row.get("genre") is not None:
+            sandbox["genre"] = row["genre"]
+        entry = {
+            "file_metadata": {
+                "title": row["title"],
+                "duration": 0,
+                "jams_version": "0.4.0",
+                "identifiers": {
+                    "basename": basename,
+                    "local_path": local_path,
+                    "track_id": row["title"],
+                },
+            },
+            "annotations": [
+                {
+                    "namespace": "tempo",
+                    "data": [
+                        {
+                            "time": 0.0,
+                            "duration": 0.0,
+                            "value": float(row["bpm"]),
+                            "confidence": 1.0,
+                        }
+                    ],
+                    "annotation_metadata": {
+                        "curator": curator,
+                        "data_source": "OA300 hand-labeled ground truth",
+                    },
+                }
+            ],
+        }
+        if sandbox:
+            entry["sandbox"] = sandbox
+        entries.append(entry)
+    return {"entries": entries}
 
 
 def parse_rekordbox_tsv(tsv_path: str) -> list[dict]:
@@ -273,14 +344,15 @@ def main():
         print(f"\nBPM range: {min(bpms)} - {max(bpms)}", file=sys.stderr)
         print(f"Unique BPMs: {len(set(bpms))}", file=sys.stderr)
 
-    # Write output — stdout by default, -o/--output to a file.
+    # Write output as a JAMS tempo corpus (Story 8.8b) — stdout by default, -o to a file.
+    jams = to_jams(deduped, _curator())
     if args.output:
         with open(args.output, "w") as f:
-            json.dump(deduped, f, indent=2, ensure_ascii=False)
+            json.dump(jams, f, indent=2, ensure_ascii=False)
             f.write("\n")
         print(f"\nWrote {len(deduped)} entries to {args.output}", file=sys.stderr)
     else:
-        json.dump(deduped, sys.stdout, indent=2, ensure_ascii=False)
+        json.dump(jams, sys.stdout, indent=2, ensure_ascii=False)
         sys.stdout.write("\n")
 
 

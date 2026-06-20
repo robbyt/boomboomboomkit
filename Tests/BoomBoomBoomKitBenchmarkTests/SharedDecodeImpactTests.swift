@@ -64,7 +64,7 @@ enum SharedDecodeProbe {
       ?? Bundle.module.url(
         forResource: "Fixtures/oa300-ground-truth", withExtension: "json")
     let url = try #require(jsonURL, "oa300-ground-truth.json not found in bundle")
-    let tracks = try JSONDecoder().decode([OA300Track].self, from: Data(contentsOf: url))
+    let tracks = try OA300Track.loadCorpus(from: Data(contentsOf: url))
     let base = URL(fileURLWithPath: corpusPath)
     var result: [ProbeFormat: [URL]] = [:]
     for track in tracks {
