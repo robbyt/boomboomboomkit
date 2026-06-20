@@ -104,9 +104,14 @@ struct ClickTrackAIFFBuilderStructureTests {
     #expect(Array(payload[0..<3]) == Array("ID3".utf8))  // ID3 magic
     // The TBPM frame id appears somewhere in the tag body.
     let tbpmId = Array("TBPM".utf8)
-    let containsTBPM = (0...(payload.count - tbpmId.count)).contains {
-      Array(payload[$0..<$0 + tbpmId.count]) == tbpmId
-    }
+    // Guard the range: a malformed payload shorter than the id makes
+    // `0...(payload.count - tbpmId.count)` a `0...negative` trap, which would
+    // mask the real assertion failure. Short-circuit so it fails via #expect.
+    let containsTBPM =
+      payload.count >= tbpmId.count
+      && (0...(payload.count - tbpmId.count)).contains {
+        Array(payload[$0..<$0 + tbpmId.count]) == tbpmId
+      }
     #expect(containsTBPM)
   }
 }
