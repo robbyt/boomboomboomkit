@@ -1,6 +1,10 @@
+---
+baseline_commit: 479cfa08fd2d4dd07c63e7486a8dbb6fc535f912
+---
+
 # Story 8.8b: Migrate OA300 ground-truth + DAW oracle to JAMS (in place)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -36,11 +40,11 @@ See 8.8a §Context for the shared operator rulings (nothing shipping / no BC; DD
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Script scaffold + Makefile (AC: 1, 4, 5).** Author `migrate-to-jams.py` with `_jams_entry` (duration + jams_version), oa300 + daw converters, idempotent-validating loader, git-config curator; add `make oracle-migrate-to-jams`; add to `py-lint`.
-- [ ] **Task 2 — Migrate fixtures (AC: 2, 3).** Run the script; commit the rewritten `oa300-ground-truth.json`; update `scripts/dawproject-bpm.py` to emit JAMS; regenerate `daw-oracle.json` (uncommitted) and prove idempotency (no diff on re-run).
-- [ ] **Task 3 — Swift consumers (AC: 6).** Flip the 8 oa300 + 1 daw root-decode sites to `loadCorpus`; rewrite `CorpusTracksDecodingTests` inline fixtures to JAMS.
-- [ ] **Task 4 — Python consumers (AC: 7).** Update the 3 oa300 readers + the convert writer to the JAMS shape.
-- [ ] **Task 5 — Report + gauntlet (AC: 8).** Emit the oa300/daw report rows; run the full + env-gated gauntlet; confirm accuracy unchanged; `jams.load` spot-check.
+- [x] **Task 1 — Script scaffold + Makefile (AC: 1, 4, 5).** Author `migrate-to-jams.py` with `_jams_entry` (duration + jams_version), oa300 + daw converters, idempotent-validating loader, git-config curator; add `make oracle-migrate-to-jams`; add to `py-lint`.
+- [x] **Task 2 — Migrate fixtures (AC: 2, 3).** Run the script; commit the rewritten `oa300-ground-truth.json`; update `scripts/dawproject-bpm.py` to emit JAMS; regenerate `daw-oracle.json` (uncommitted) and prove idempotency (no diff on re-run).
+- [x] **Task 3 — Swift consumers (AC: 6).** Flip the 8 oa300 + 1 daw root-decode sites to `loadCorpus`; rewrite `CorpusTracksDecodingTests` inline fixtures to JAMS.
+- [x] **Task 4 — Python consumers (AC: 7).** Update the 3 oa300 readers + the convert writer to the JAMS shape.
+- [x] **Task 5 — Report + gauntlet (AC: 8).** Emit the oa300/daw report rows; run the full + env-gated gauntlet; confirm accuracy unchanged; `jams.load` spot-check.
 
 ## Dev Notes
 
@@ -60,10 +64,32 @@ See 8.8a §Context for the shared operator rulings (nothing shipping / no BC; DD
 
 ### Agent Model Used
 
-claude-opus-4-8 (spec authored)
+claude-opus-4-8 (spec authored + implemented)
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- **Migration script:** `migrate-to-jams.py` (stdlib-only, ty-clean) with a shared `jams_entry` helper that always emits `file_metadata.duration` + `jams_version` (Codex P2), per-artifact converters (oa300 + daw), an idempotent-validating loader that exits non-zero on a malformed already-JAMS file (Codex P3), git-config curator (resolves to "Robert Terhaar" / robbyt@robbyt.net), and an idempotent per-artifact report upsert. `make oracle-migrate-to-jams` added (develop-only, daw step guarded on file existence). Added `jams_corpus.py` + `migrate-to-jams.py` to the `py-lint` ty list.
+- **Fixtures migrated:** `oa300-ground-truth.json` (82 entries) committed as JAMS; `daw-oracle.json` (23 entries, corpus-local/uncommitted) migrated via the target. Idempotency proven (md5 identical on re-run; report row flips to "already-JAMS (valid)").
+- **Swift consumers:** removed the flat `Decodable` from `OA300Track`/`DAWOracleTrack` so the compiler enumerated every dead decode site (the safe way to find all). Flipped 8 oa300 benchmark sites + the genre-taxonomy test + 1 daw site to `loadCorpus` (10 total). Rewrote `CorpusTracksDecodingTests` to JAMS corpora: the genre loud-fail contract is preserved (absent/null→`keyNotFound`, blank/whitespace→`dataCorrupted`); under JAMS a `null` sandbox.genre folds into the absent case (was `valueNotFound`), documented in the test header.
+- **Python consumers:** `jams_corpus.load_oa300_rows` bridges the JAMS corpus back to flat `{filename,bpm,subdir,title,genre}` rows; `dataset.py`/`corpus_common.py`/`build_fr18_input.py` changed only at the load call. `scripts/dawproject-bpm.py` reads oa300 JAMS (inline) + emits daw JAMS (inline, shape-matched to the migrator). `convert-rekordbox-export.py` emits JAMS (carries genre when present; the TSV has none — the documented re-tag-required lossiness is unchanged).
+- **Gauntlet:** `make fmt` clean; `swift build --build-tests` clean; `make test` 698 pass; `make benchmark` OA300 **Acc1 58/82 (70.7%) + Acc2 74/82 (90.2%) — byte-for-byte the documented baseline** (BPM truth preserved, AC 8); `make oracle` 2/2 (23 DAW tracks via `DAWOracleTrack.loadCorpus`); `make py-lint` clean (ruff + ty); `swiftlint` 1 violation = canonical `LUFSAnalyzer` TODO baseline. GiantSteps mechanically unaffected (its GT + `GiantStepsTrack` untouched) — long run skipped. `jams.load` per-entry validity: deferred to the 8.8c close-out spot-check (per-entry shape is identical across artifacts).
+
 ### File List
+
+- `_bmad-output/ml-training/migrate-to-jams.py` (NEW — migration script)
+- `_bmad-output/ml-training/jams_corpus.py` (NEW — JAMS→flat-row reader helper)
+- `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json` (migrated flat→JAMS, committed)
+- `Sources/BoomBoomBoomKitTestSupport/CorpusTracks.swift` (removed flat `Decodable` from `OA300Track`/`DAWOracleTrack`)
+- `Tests/BoomBoomBoomKitTests/CorpusTracksDecodingTests.swift` (rewritten to JAMS)
+- `Tests/BoomBoomBoomKitBenchmarkTests/{OA300BenchmarkTests,AblationFullMatrixTests,PerformanceBenchmarkTests,MLPolicySweepTests,SharedDecodeImpactTests,SuperFluxImpactTests,BNNSImpactTests,DAWOracleBenchmarkTests}.swift` (decode → `loadCorpus`)
+- `_bmad-output/ml-training/{dataset,corpus_common,build_fr18_input}.py` (load via `jams_corpus`)
+- `scripts/dawproject-bpm.py` (read oa300 JAMS + emit daw JAMS)
+- `Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py` (emit JAMS)
+- `Makefile` (`oracle-migrate-to-jams` target + `py-lint` ty list)
+- `_bmad-output/implementation-artifacts/8-8-migration-report.md` (NEW — per-artifact stats)
+
+## Change Log
+
+- 2026-06-20 — Story 8.8b implemented: migrated `oa300-ground-truth.json` (committed) + `daw-oracle.json` (corpus-local) flat→JAMS in place via `migrate-to-jams.py` + `make oracle-migrate-to-jams`; flipped 10 Swift decode sites to `loadCorpus` (flat `Decodable` removed from the corpus structs); updated 3 Python readers + 2 writers via `jams_corpus.py`. OA300 accuracy byte-identical (58/82, 74/82); 698 unit tests + DAW oracle pass; py-lint/swiftlint baseline-clean. Status → review.

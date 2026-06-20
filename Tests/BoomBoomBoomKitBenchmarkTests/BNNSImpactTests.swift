@@ -261,7 +261,7 @@ struct BNNSImpactTests {
       throw BNNSImpactError.groundTruthNotFound
     }
     let data = try Data(contentsOf: url)
-    groundTruth = try JSONDecoder().decode([OA300Track].self, from: data)
+    groundTruth = try OA300Track.loadCorpus(from: data)
 
     // Canonical DnB targets bundled under Tests/.../Fixtures/ so the test
     // ships to `main` without any `_bmad-output/` dependency. The two

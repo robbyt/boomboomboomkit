@@ -53,7 +53,7 @@ struct SuperFluxImpactTests {
         ?? Bundle.module.url(forResource: "Fixtures/oa300-ground-truth", withExtension: "json"),
       "oa300-ground-truth.json fixture missing")
     let gtData = try Data(contentsOf: gtURL)
-    self.groundTruth = try JSONDecoder().decode([OA300Track].self, from: gtData)
+    self.groundTruth = try OA300Track.loadCorpus(from: gtData)
 
     // 4-dnb-triplet-targets.json (schema_version 3, contains named failures +
     // DSP-correct controls). Decoded with snake_case keys preserved.

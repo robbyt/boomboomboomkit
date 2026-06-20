@@ -49,7 +49,7 @@ struct OA300BenchmarkTests {
     }
 
     let data = try Data(contentsOf: url)
-    groundTruth = try JSONDecoder().decode([OA300Track].self, from: data)
+    groundTruth = try OA300Track.loadCorpus(from: data)
   }
 
   @Test("benchmark at default intensity (7)")

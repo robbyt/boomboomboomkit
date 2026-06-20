@@ -2,10 +2,15 @@
 //  CorpusTracksDecodingTests.swift
 //  BoomBoomBoomKitTests
 //
-//  Guards the non-optional `genre` contract on `OA300Track` (Story 2-4).
-//  Without these tests, a future careless edit that flips `genre` back to
-//  optional, or a ground-truth regeneration that drops the column, would
-//  silently skip rows instead of failing the benchmark suite loudly.
+//  Guards the non-optional `genre` contract on `OA300Track` (Story 2-4), now decoded
+//  from the migrated JAMS `tempo` corpus (Story 8.8b — genre rides the per-entry
+//  `sandbox`). Without these tests, a future careless edit that drops the genre
+//  loud-fail, or a ground-truth regeneration that loses the column, would silently
+//  skip rows instead of failing the benchmark suite loudly.
+//
+//  Note (Story 8.8b): under JAMS a `null` `sandbox.genre` is indistinguishable from an
+//  absent key (both decode to nil), so the legacy "null -> valueNotFound" case now folds
+//  into the absent -> keyNotFound case. Blank/whitespace still throw dataCorrupted.
 //
 
 import BoomBoomBoomKitTestSupport
@@ -15,22 +20,26 @@ import Testing
 @Suite("OA300Track decoding contract")
 struct CorpusTracksDecodingTests {
 
+  /// Build a one-entry JAMS `tempo` corpus with a configurable `sandbox` body, so each
+  /// genre case is exercised through the real `OA300Track.loadCorpus` path.
+  private func corpusJSON(sandboxBody: String) -> Data {
+    Data(
+      """
+      { "entries": [ {
+        "file_metadata": { "title": "x", "duration": 0, "jams_version": "0.4.0",
+          "identifiers": { "basename": "x.wav", "local_path": "x.wav", "track_id": "x" } },
+        "annotations": [ { "namespace": "tempo",
+          "data": [ { "time": 0, "duration": 0, "value": 120.0, "confidence": 1.0 } ],
+          "annotation_metadata": {} } ],
+        "sandbox": { \(sandboxBody) } } ] }
+      """.utf8)
+  }
+
   // MARK: - Happy path
 
-  @Test("OA300Track decodes with genre field")
+  @Test("OA300Track decodes a JAMS entry with a genre")
   func decodesWithGenre() throws {
-    let json = Data(
-      """
-      [{
-        "filename": "x.wav",
-        "bpm": 120.0,
-        "subdir": null,
-        "title": "x",
-        "genre": "techno"
-      }]
-      """.utf8)
-
-    let tracks = try JSONDecoder().decode([OA300Track].self, from: json)
+    let tracks = try OA300Track.loadCorpus(from: corpusJSON(sandboxBody: #""genre": "techno""#))
     let track = try #require(tracks.first)
     #expect(track.genre == "techno")
     #expect(track.filename == "x.wav")
@@ -39,28 +48,12 @@ struct CorpusTracksDecodingTests {
     #expect(track.title == "x")
   }
 
-  // MARK: - Loud fail on missing genre
+  // MARK: - Loud fail on missing / null genre (both -> keyNotFound under JAMS)
 
-  @Test("OA300Track throws keyNotFound when genre is missing")
+  @Test("OA300Track throws keyNotFound when sandbox.genre is absent")
   func throwsWhenGenreMissing() {
-    let json = Data(
-      """
-      [{
-        "filename": "x.wav",
-        "bpm": 120.0,
-        "subdir": null,
-        "title": "x"
-      }]
-      """.utf8)
-
-    #expect(throws: DecodingError.self) {
-      try JSONDecoder().decode([OA300Track].self, from: json)
-    }
-
-    // Verify the thrown error is specifically a keyNotFound for "genre",
-    // not some other DecodingError (e.g., typeMismatch on another field).
     do {
-      _ = try JSONDecoder().decode([OA300Track].self, from: json)
+      _ = try OA300Track.loadCorpus(from: corpusJSON(sandboxBody: #""subdir": null"#))
       Issue.record("Expected decode to throw DecodingError.keyNotFound")
     } catch let DecodingError.keyNotFound(key, _) {
       #expect(key.stringValue == "genre")
@@ -69,17 +62,24 @@ struct CorpusTracksDecodingTests {
     }
   }
 
-  // MARK: - Loud fail on blank or null genre
+  @Test("OA300Track throws keyNotFound when sandbox.genre is null")
+  func throwsWhenGenreNull() {
+    do {
+      _ = try OA300Track.loadCorpus(from: corpusJSON(sandboxBody: #""genre": null"#))
+      Issue.record("Expected decode to throw DecodingError.keyNotFound for null genre")
+    } catch let DecodingError.keyNotFound(key, _) {
+      #expect(key.stringValue == "genre")
+    } catch {
+      Issue.record("Expected keyNotFound for 'genre', got: \(error)")
+    }
+  }
+
+  // MARK: - Loud fail on blank / whitespace genre
 
   @Test("OA300Track throws dataCorrupted when genre is empty string")
   func throwsWhenGenreEmpty() {
-    let json = Data(
-      """
-      [{"filename": "x.wav", "bpm": 120.0, "subdir": null, "title": "x", "genre": ""}]
-      """.utf8)
-
     do {
-      _ = try JSONDecoder().decode([OA300Track].self, from: json)
+      _ = try OA300Track.loadCorpus(from: corpusJSON(sandboxBody: #""genre": """#))
       Issue.record("Expected decode to throw DecodingError.dataCorrupted for empty genre")
     } catch let DecodingError.dataCorrupted(context) {
       #expect(context.codingPath.last?.stringValue == "genre")
@@ -90,35 +90,13 @@ struct CorpusTracksDecodingTests {
 
   @Test("OA300Track throws dataCorrupted when genre is whitespace-only")
   func throwsWhenGenreWhitespace() {
-    let json = Data(
-      """
-      [{"filename": "x.wav", "bpm": 120.0, "subdir": null, "title": "x", "genre": "   \\n\\t "}]
-      """.utf8)
-
     do {
-      _ = try JSONDecoder().decode([OA300Track].self, from: json)
+      _ = try OA300Track.loadCorpus(from: corpusJSON(sandboxBody: #""genre": "   \n\t ""#))
       Issue.record("Expected decode to throw DecodingError.dataCorrupted for whitespace genre")
     } catch let DecodingError.dataCorrupted(context) {
       #expect(context.codingPath.last?.stringValue == "genre")
     } catch {
       Issue.record("Expected dataCorrupted for 'genre', got: \(error)")
-    }
-  }
-
-  @Test("OA300Track throws valueNotFound when genre is null")
-  func throwsWhenGenreNull() {
-    let json = Data(
-      """
-      [{"filename": "x.wav", "bpm": 120.0, "subdir": null, "title": "x", "genre": null}]
-      """.utf8)
-
-    do {
-      _ = try JSONDecoder().decode([OA300Track].self, from: json)
-      Issue.record("Expected decode to throw DecodingError.valueNotFound for null genre")
-    } catch let DecodingError.valueNotFound(_, context) {
-      #expect(context.codingPath.last?.stringValue == "genre")
-    } catch {
-      Issue.record("Expected valueNotFound for 'genre', got: \(error)")
     }
   }
 
@@ -173,7 +151,7 @@ struct CorpusTracksDecodingTests {
       .appending(components: "BoomBoomBoomKitBenchmarkTests", "Fixtures", "oa300-ground-truth.json")
 
     let data = try Data(contentsOf: fixtureURL)
-    let tracks = try JSONDecoder().decode([OA300Track].self, from: data)
+    let tracks = try OA300Track.loadCorpus(from: data)
 
     #expect(tracks.count == 82, "OA300 ground truth should have 82 entries")
 
