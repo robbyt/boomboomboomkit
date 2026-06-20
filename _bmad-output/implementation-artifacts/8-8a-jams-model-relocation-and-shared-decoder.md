@@ -1,6 +1,10 @@
+---
+baseline_commit: 3c7c796c12597a5396850f500512ddc87a6608e6
+---
+
 # Story 8.8a: Relocate + extend the shared JAMS model (decoder, tempo-encode guard, corpus loaders)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -38,11 +42,11 @@ The epic AC (`epics.md` §"Story 8.8", 2026-05-26) predates 8.7's JAMS work and 
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Relocate the model (AC: 1).** `git mv` `JAMSDecoder.swift` → `Sources/BoomBoomBoomKitTestSupport/JAMS/`; make types `public`; update the header for DD-1; fix the two 8.7 import sites; confirm 8.7 `beat` tests green.
-- [ ] **Task 2 — Tempo-encode guard (AC: 2).** Add `JAMSEncodingError`; guard `tempo` in `JAMSObservation.encode`/`JAMSAnnotation.encode`; remove the "Story 8.8 follow-up" comment; add an encode-rejection test.
-- [ ] **Task 3 — Sandbox union + corpus sandbox (AC: 3).** Extend `JAMSSandbox` (keep `constantTempo`); add the corpus-level sandbox type; thread onto `JAMSCorpus`.
-- [ ] **Task 4 — Validators + adapters (AC: 4, 5).** Add the throwing artifact accessors; add `init(jamsFile:)` + `loadCorpus(from:)` to `OA300Track`/`DAWOracleTrack`, preserving the genre loud-fail.
-- [ ] **Task 5 — Seam test + gauntlet (AC: 6, 7).** Add the synthetic-entry adapter test; `make fmt`/`make lint`/`make build`/`make test` green; confirm no fixture or existing-call-site changes (`git diff` touches only `Sources/BoomBoomBoomKitTestSupport/`, `CorpusTracks.swift`, the relocated decoder, and the new test).
+- [x] **Task 1 — Relocate the model (AC: 1).** `git mv` `JAMSDecoder.swift` → `Sources/BoomBoomBoomKitTestSupport/JAMS/`; make types `public`; update the header for DD-1; fix the two 8.7 import sites; confirm 8.7 `beat` tests green.
+- [x] **Task 2 — Tempo-encode guard (AC: 2).** Add `JAMSEncodingError`; guard `tempo` in `JAMSObservation.encode`/`JAMSAnnotation.encode`; remove the "Story 8.8 follow-up" comment; add an encode-rejection test.
+- [x] **Task 3 — Sandbox union + corpus sandbox (AC: 3).** Extend `JAMSSandbox` (keep `constantTempo`); add the corpus-level sandbox type; thread onto `JAMSCorpus`.
+- [x] **Task 4 — Validators + adapters (AC: 4, 5).** Add the throwing artifact accessors; add `init(jamsFile:)` + `loadCorpus(from:)` to `OA300Track`/`DAWOracleTrack`, preserving the genre loud-fail.
+- [x] **Task 5 — Seam test + gauntlet (AC: 6, 7).** Add the synthetic-entry adapter test; `make fmt`/`make lint`/`make build`/`make test` green; confirm no fixture or existing-call-site changes (`git diff` touches only `Sources/BoomBoomBoomKitTestSupport/`, `CorpusTracks.swift`, the relocated decoder, and the new test).
 
 ## Dev Notes
 
@@ -64,10 +68,25 @@ The epic AC (`epics.md` §"Story 8.8", 2026-05-26) predates 8.7's JAMS work and 
 
 ### Agent Model Used
 
-claude-opus-4-8 (spec authored)
+claude-opus-4-8 (spec authored + implemented)
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- **Task 1 (relocate):** `git mv` `JAMSDecoder.swift` → `Sources/BoomBoomBoomKitTestSupport/JAMS/`; all types/inits/accessors made `public`; header rewritten to record DD-1 (8.7 DD-7 reversed). `BeatGridBenchmarkTests` already imported `BoomBoomBoomKitTestSupport` (no change). `JAMSDecoderTests` gained the import + stale-DD-7 header fix. The empty `Tests/.../Helpers/` dir is harmless (SPM/git ignore empty dirs).
+- **Task 2 (tempo guard):** added `JAMSEncodingError { tempoValueMissing, tempoConfidenceOutOfRange(Double?) }`; the guard lives in `JAMSAnnotation.encode` (the observation has no namespace knowledge) and fires only for `.tempo` — validates non-nil finite `value` + `confidence ∈ [0,1]` BEFORE the observation encoder writes a schema-invalid null. `beat` emit unchanged. "Story 8.8 follow-up" deferral comment removed.
+- **Task 3 (sandbox):** `JAMSSandbox` kept `constantTempo` and gained 10 typed optional fields (genre/subdir/rekordbox*/partition/source/current*/rationale) — no `[String: Any]`. New `JAMSCorpusSandbox` (`schema_version`/`regression_threshold`/`captured_with`, with typed `JAMSRegressionThreshold` + `JAMSCapturedWith` sub-objects) threaded onto `JAMSCorpus` as an optional `sandbox`. `JAMSCorpus` round-trip identity preserved (synthesized encode omits nil sandbox via `encodeIfPresent`).
+- **Task 4 (validators + adapters):** `JAMSFile.tempoBPM() throws` + `dnbPartition() throws` (+ `tempoAnnotation`); `JAMSValidationError { missingTempoObservation, missingDnBPartition }`. `OA300Track`/`DAWOracleTrack` gained `init(jamsFile:) throws` + `static loadCorpus(from:) throws` as same-file extensions (access the `private` CodingKeys). Genre loud-fail reproduced exactly: absent `sandbox.genre` → `DecodingError.keyNotFound("genre")`, blank/whitespace → `DecodingError.dataCorrupted` with `codingPath.last == "genre"`. The flat `init(from:)` paths are UNTOUCHED (AC 6 — no call-site flips; 8.8a is non-breaking and independently shippable).
+- **Task 5 (gauntlet):** new `Tests/BoomBoomBoomKitTests/JAMSCorpusAdapterTests.swift` (9 tests) proves adapter decode, `loadCorpus`, genre loud-fail (do/catch parity with `CorpusTracksDecodingTests`), missing-tempo loud-fail, DAW adapter, and the tempo-encode guard (nil value + out-of-range confidence). Gauntlet: `make fmt` clean; `swift build` clean; `make test` 698 pass (+9 vs 8-7's 689); `swift test --filter BoomBoomBoomKitBenchmarkTests.JAMSDecoderTests` 7/7 pass (relocation + corpus-sandbox addition did not break the 8.7 round-trip identity); `make lint` 1 violation = canonical `LUFSAnalyzer` TODO baseline, py-lint clean (zero Python touched). `git diff` scope: relocated decoder + `CorpusTracks.swift` + `JAMSDecoderTests.swift` (import/header) + new adapter test — no fixture or existing-call-site changes (AC 6 ✓).
+
 ### File List
+
+- `Sources/BoomBoomBoomKitTestSupport/JAMS/JAMSDecoder.swift` (relocated from `Tests/BoomBoomBoomKitBenchmarkTests/Helpers/`, made public + extended)
+- `Sources/BoomBoomBoomKitTestSupport/CorpusTracks.swift` (added `init(jamsFile:)` + `loadCorpus` adapters)
+- `Tests/BoomBoomBoomKitBenchmarkTests/JAMSDecoderTests.swift` (import + stale-header fix)
+- `Tests/BoomBoomBoomKitTests/JAMSCorpusAdapterTests.swift` (NEW — 9 seam tests)
+
+## Change Log
+
+- 2026-06-20 — Story 8.8a implemented: relocated the JAMS model to public `BoomBoomBoomKitTestSupport` (DD-1), added the `tempo`-encode guard + `JAMSEncodingError`, the typed sandbox union + corpus-level sandbox, artifact validators, and the `OA300Track`/`DAWOracleTrack` JAMS adapters. Flat decode paths untouched (non-breaking). 698 unit tests pass; 7/7 relocated 8.7 JAMS tests pass; lint/py-lint baseline-clean. Status → review.

@@ -6,12 +6,14 @@
 //  the multi-track corpus, the decode->encode->decode identity the estimated-JAMS
 //  encode path relies on, and typed rejection of an unknown namespace.
 //
-//  Lives in the benchmark target (DD-7 — the decoder must not leak onto consumer
-//  test packages via BoomBoomBoomKitTestSupport). These tests need no corpus; run
-//  them with `swift test --filter BoomBoomBoomKitBenchmarkTests.JAMSDecoderTests`
+//  The decoder moved to BoomBoomBoomKitTestSupport in Story 8.8a (DD-1 reversed 8.7
+//  DD-7 — see JAMSDecoder.swift). These tests still live in the benchmark target and
+//  need no corpus; run them with
+//  `swift test --filter BoomBoomBoomKitBenchmarkTests.JAMSDecoderTests`
 //  (a bare `swift test` includes them too — they are not env-gated).
 //
 
+import BoomBoomBoomKitTestSupport
 import Foundation
 import Testing
 

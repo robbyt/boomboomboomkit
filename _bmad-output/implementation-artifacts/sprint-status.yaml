@@ -291,7 +291,7 @@ development_status:
   8-5a-downbeat-detection: done
   8-6-modelregistry-and-cryptokit-sha256-integrity: done
   8-7-beat-grid-acceptance-corpus-and-mir-eval-f-measure-floor: review
-  8-8a-jams-model-relocation-and-shared-decoder: ready-for-dev
+  8-8a-jams-model-relocation-and-shared-decoder: review
   8-8b-migrate-oa300-and-daw-oracle-to-jams: ready-for-dev
   8-8c-migrate-dnb-regression-config-to-jams: ready-for-dev
   epic-8-retrospective: optional
