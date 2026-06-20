@@ -12,12 +12,21 @@ Usage:
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
+from typing import TypeGuard
+
+
+def _is_json_number(x: object) -> TypeGuard[float]:
+    """True iff `x` is a real (non-`bool`) finite JSON number. Mirrors the same guard in
+    `_bmad-output/ml-training/migrate-to-jams.py` (a different uv project this script cannot
+    import): `bool` is an `int` subclass and `json` parses `NaN`/`Infinity` into floats."""
+    return not isinstance(x, bool) and isinstance(x, (int, float)) and math.isfinite(x)
 
 
 # --- JAMS interop (Story 8.8b) -------------------------------------------------
@@ -43,12 +52,18 @@ def _load_oa300_rows(path: str) -> list[dict]:
             if ann.get("namespace") == "tempo":
                 data = ann.get("data") or []
                 if data:
-                    bpm = float(data[0]["value"])
+                    bpm = data[0].get("value")
                 break
+        # Fail loudly with a sourced message rather than letting a None/non-numeric BPM reach
+        # classify_disagreement downstream as an obscure TypeError.
+        if not _is_json_number(bpm):
+            raise ValueError(
+                f"{path}: JAMS entry {identifiers.get('basename')!r} has no finite numeric tempo value"
+            )
         rows.append(
             {
                 "filename": identifiers.get("basename"),
-                "bpm": bpm,
+                "bpm": float(bpm),
                 "subdir": sandbox.get("subdir"),
                 "title": file_metadata.get("title"),
             }
@@ -82,7 +97,10 @@ def _daw_oracle_to_jams(oracle: list[dict], curator: dict) -> dict:
         if subdir is not None:
             sandbox["subdir"] = subdir
         sandbox["rekordbox_bpm"] = float(row["rekordbox_bpm"])
-        sandbox["rekordbox_disagrees"] = bool(row["rekordbox_disagrees"])
+        # Preserve the source type (it is already a real bool from match_to_ground_truth);
+        # do NOT bool()-coerce, which would flip a stray string to True. The migrator's daw
+        # validator enforces a real bool on the resulting file.
+        sandbox["rekordbox_disagrees"] = row["rekordbox_disagrees"]
         sandbox["disagreement_type"] = row.get("disagreement_type")
         entries.append(
             {

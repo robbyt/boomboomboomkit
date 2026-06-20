@@ -36,12 +36,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypeGuard, cast
 
 JAMS_VERSION = "0.4.0"
+
+
+def _is_json_number(x: object) -> TypeGuard[float]:
+    """True iff `x` is a real (non-`bool`) finite JSON number. Mirrors Swift JSON decoding:
+    `bool` is an `int` subclass in Python, and `json` parses `NaN`/`Infinity` into floats —
+    both must be rejected for a valid JAMS tempo `value` / `confidence`. A `TypeGuard` so the
+    caller can compare/`float()` the narrowed value without a type-checker complaint."""
+    return not isinstance(x, bool) and isinstance(x, (int, float)) and math.isfinite(x)
+
 
 DATA_SOURCE: dict[str, str] = {
     "oa300": "OA300 hand-labeled ground truth",
@@ -223,8 +233,13 @@ def validate_jams(doc: dict[str, Any], artifact: str) -> None:
             raise SystemExit(f"[{artifact}] entry {i} has no `tempo` annotation")
         first = (tempo.get("data") or [{}])[0]
         value = first.get("value")
-        if not isinstance(value, (int, float)):
-            raise SystemExit(f"[{artifact}] entry {i} tempo `value` is not numeric")
+        if not _is_json_number(value):
+            raise SystemExit(f"[{artifact}] entry {i} tempo `value` is not a finite number")
+        confidence = first.get("confidence")
+        if not _is_json_number(confidence) or not (0.0 <= confidence <= 1.0):
+            raise SystemExit(
+                f"[{artifact}] entry {i} tempo `confidence` is not a finite number in [0, 1]"
+            )
         sandbox = entry.get("sandbox") or {}
         if artifact == "oa300":
             genre = sandbox.get("genre")
