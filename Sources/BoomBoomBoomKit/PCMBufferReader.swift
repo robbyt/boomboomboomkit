@@ -203,21 +203,38 @@ public struct PCMBufferReader {
       return (samples: [], sampleRate: format.sampleRate)
     }
 
-    // Calculate frames to read (partial read support — AC4). The product
-    // guard mirrors `cappedSampleCount`: a non-finite or Int64-overflowing
-    // cap (NaN/Inf `maxSeconds` reaching this un-sanitized entry, or an
-    // absurd reported sample rate) cannot bound a real file — read fully
-    // instead of trapping in `Int64.init`.
+    // Calculate frames to read (partial read support — AC4). This is the
+    // UN-sanitized entry (`readMonoSamples(from:)` forwards `maxSeconds`
+    // verbatim), so the cap arithmetic must not trap on adversarial values.
+    // Three-way policy (`cappedSampleCount` reaches the same ends by
+    // sanitizing first, so this no longer literally mirrors it):
+    //   - non-finite (NaN/±Inf) or positive-overflow (`>= Int64.max`, e.g. an
+    //     absurd reported sample rate) cannot bound a real file → read fully.
+    //   - FINITE non-positive (incl. a large-magnitude negative whose product
+    //     underflows past `Int64.min`) → zero frames; guarded BEFORE the
+    //     `Int64.init` so it cannot trap.
+    //   - otherwise → `min(cap, total)`.
     let framesToRead: AVAudioFrameCount
     if let maxSeconds {
       let cappedFrames = format.sampleRate * maxSeconds
-      if cappedFrames.isFinite, cappedFrames < Double(Int64.max) {
-        framesToRead = min(AVAudioFrameCount(clamping: Int64(cappedFrames)), totalFrames)
-      } else {
+      if !cappedFrames.isFinite || cappedFrames >= Double(Int64.max) {
         framesToRead = totalFrames
+      } else if cappedFrames <= 0 {
+        framesToRead = 0
+      } else {
+        framesToRead = min(AVAudioFrameCount(clamping: Int64(cappedFrames)), totalFrames)
       }
     } else {
       framesToRead = totalFrames
+    }
+
+    // Honor the documented "empty result" for a zero-frame cap without
+    // allocating a 0-capacity AVAudioPCMBuffer (mirrors the totalFrames == 0
+    // early return above). Report the requested output rate when set — for an
+    // empty downsampled read the rate contract still points at the target,
+    // even with no samples to convert.
+    if framesToRead == 0 {
+      return (samples: [], sampleRate: targetSampleRate ?? format.sampleRate)
     }
 
     // Allocate buffer and read
