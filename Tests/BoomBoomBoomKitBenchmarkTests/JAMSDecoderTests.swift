@@ -200,6 +200,38 @@ struct JAMSDecoderTests {
       "legacy constant_tempo must not be re-emitted in file_metadata")
   }
 
+  // MARK: Non-bool constant_tempo (tolerant decode / Swift-Python parity)
+
+  @Test("a present non-bool constant_tempo decodes to nil instead of throwing the whole corpus")
+  func nonBoolConstantTempoDecodesTolerantly() throws {
+    // A loose/legacy oracle carrying constant_tempo as a STRING or NUMBER must not abort the
+    // entire decode — it decodes to nil (parity with eval-beatgrid.py, which coerces a non-bool
+    // to its default), honoring the tolerant-on-decode contract. Covers both the sandbox and the
+    // legacy file_metadata location.
+    let stringSandbox = Data(
+      """
+      { "entries": [ { "file_metadata": {
+          "duration": 10, "jams_version": "0.4.0", "identifiers": { "track_id": "1" } },
+        "annotations": [ { "namespace": "beat", "data": [], "annotation_metadata": {} } ],
+        "sandbox": { "constant_tempo": "true" } } ] }
+      """.utf8)
+    let f1 = try #require(
+      try JSONDecoder().decode(JAMSCorpus.self, from: stringSandbox).entries.first)
+    #expect(
+      f1.constantTempo == nil, "non-bool sandbox constant_tempo must decode to nil, not throw")
+
+    let intLegacy = Data(
+      """
+      { "entries": [ { "file_metadata": {
+          "duration": 10, "jams_version": "0.4.0", "constant_tempo": 1,
+          "identifiers": { "track_id": "1" } },
+        "annotations": [ { "namespace": "beat", "data": [], "annotation_metadata": {} } ] } ] }
+      """.utf8)
+    let f2 = try #require(
+      try JSONDecoder().decode(JAMSCorpus.self, from: intLegacy).entries.first)
+    #expect(f2.constantTempo == nil, "non-bool legacy constant_tempo must decode to nil, not throw")
+  }
+
   // MARK: Unknown-namespace rejection
 
   @Test("an unknown namespace throws JAMSDecodingError.unknownNamespace")
