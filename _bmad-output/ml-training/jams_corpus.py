@@ -9,8 +9,18 @@ This helper bridges the two so the readers change only at the load call.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
+
+
+def is_json_number(x: object) -> TypeGuard[float]:
+    """True iff `x` is a real (non-`bool`) finite JSON number. Mirrors Swift JSON decoding:
+    `bool` is an `int` subclass in Python, and `json` parses `NaN`/`Infinity` into floats —
+    both must be rejected for a valid JAMS tempo `value`. The project-wide tempo-number guard
+    (also imported by `migrate-to-jams.py`); `scripts/dawproject-bpm.py` keeps its own copy as a
+    different uv project that cannot import this module."""
+    return not isinstance(x, bool) and isinstance(x, (int, float)) and math.isfinite(x)
 
 
 def _entries(doc: Any, path: Path) -> list[dict[str, Any]]:
@@ -22,13 +32,25 @@ def _entries(doc: Any, path: Path) -> list[dict[str, Any]]:
     return entries
 
 
-def _tempo_value(entry: dict[str, Any], path: Path) -> float:
-    for ann in entry.get("annotations", []):
-        if ann.get("namespace") == "tempo":
-            data = ann.get("data") or []
-            if data and isinstance(data[0].get("value"), (int, float)):
-                return float(data[0]["value"])
-    raise ValueError(f"{path}: a JAMS entry has no numeric tempo observation")
+def tempo_value(entry: dict[str, Any], path: Path) -> float:
+    """The entry's canonical tempo BPM: the first `tempo` annotation's first observation value.
+
+    Structurally defensive — a non-list `annotations`, non-dict annotation, non-list/empty
+    `data`, non-dict observation, or a missing/`None`/bool/`NaN`/`Inf` `value` all fall through
+    to the one path-sourced `ValueError` (never a leaked `TypeError`/`KeyError`). The FIRST
+    `tempo` annotation is authoritative: if it is malformed, fail loudly rather than scanning
+    past it (which would hide fixture corruption / duplicate-tempo ambiguity)."""
+    annotations = entry.get("annotations")
+    if isinstance(annotations, list):
+        for ann in annotations:
+            if isinstance(ann, dict) and ann.get("namespace") == "tempo":
+                data = ann.get("data")
+                if isinstance(data, list) and data and isinstance(data[0], dict):
+                    value = data[0].get("value")
+                    if is_json_number(value):
+                        return float(value)
+                break  # first tempo annotation is authoritative; don't scan past a bad one
+    raise ValueError(f"{path}: a JAMS entry has no finite numeric tempo observation")
 
 
 def load_oa300_rows(path: str | Path) -> list[dict[str, Any]]:
@@ -43,7 +65,7 @@ def load_oa300_rows(path: str | Path) -> list[dict[str, Any]]:
         rows.append(
             {
                 "filename": identifiers.get("basename"),
-                "bpm": _tempo_value(entry, path),
+                "bpm": tempo_value(entry, path),
                 "subdir": sandbox.get("subdir"),
                 "title": file_metadata.get("title"),
                 "genre": sandbox.get("genre"),

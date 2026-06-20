@@ -29,6 +29,7 @@ import json
 import sys
 
 import corpus_common as cc
+import jams_corpus
 
 OUT_JAMS = (
     cc.REPO_ROOT
@@ -122,11 +123,12 @@ def load_originals() -> list[dict]:
         sandbox = entry.get("sandbox") or {}
         if sandbox.get("partition") != "target":
             continue
-        tempo = next(a for a in entry["annotations"] if a["namespace"] == "tempo")
+        # Reuse the shared, structurally-defensive extractor (raises a clear ValueError on a
+        # malformed corpus instead of StopIteration/IndexError; rejects bool/NaN/string).
         out.append(
             {
                 "track_id": entry["file_metadata"]["identifiers"]["track_id"],
-                "bpm": float(tempo["data"][0]["value"]),
+                "bpm": jams_corpus.tempo_value(entry, CANONICAL_ORIGINALS),
                 "confidence": 1.0,
                 "source": sandbox.get("source", "dawproject"),
             }
