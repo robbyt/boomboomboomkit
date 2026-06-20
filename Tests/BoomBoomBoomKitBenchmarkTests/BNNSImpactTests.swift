@@ -276,38 +276,57 @@ struct BNNSImpactTests {
       throw BNNSImpactError.dnbTargetsNotFound
     }
     let dnbData = try Data(contentsOf: dnbURL)
-    let dnbFile = try JSONDecoder().decode(DnBTargetsFile.self, from: dnbData)
+    // Story 8.8c: `4-dnb-triplet-targets.json` is now a JAMS corpus. Decode it through
+    // the shared `JAMSCorpus` model and adapt into the thin domain structs the harness
+    // logic reads: `ground_truth_bpm` from each entry's `tempo` value, `track_id` from
+    // `identifiers`, `target`/`control` from the per-entry sandbox `partition`, and the
+    // config (`schema_version`, `regression_threshold`) from the corpus-level sandbox.
+    let dnbCorpus = try JSONDecoder().decode(JAMSCorpus.self, from: dnbData)
     // Review fix N8: enforce schema_version and uniqueness invariants the
     // v1 loader silently ignored. A schema bump or duplicate `track_id`
     // now fails fast at suite-init time.
-    guard dnbFile.schema_version == DnBTargetsFile.expectedSchemaVersion else {
+    let schemaVersion = dnbCorpus.sandbox?.schemaVersion ?? -1
+    guard schemaVersion == DnBTargetsFile.expectedSchemaVersion else {
       throw BNNSImpactError.dnbTargetsSchemaMismatch(
-        expected: DnBTargetsFile.expectedSchemaVersion, got: dnbFile.schema_version)
+        expected: DnBTargetsFile.expectedSchemaVersion, got: schemaVersion)
     }
+    var targets: [DnBTarget] = []
+    var controls: [DnBControl] = []
     var seenIDs = Set<String>()
-    for target in dnbFile.targets {
-      if !seenIDs.insert(target.track_id).inserted {
-        throw BNNSImpactError.dnbTargetsDuplicateTrackID(target.track_id)
+    for entry in dnbCorpus.entries {
+      guard let trackID = entry.fileMetadata.identifiers?.trackId else {
+        throw BNNSImpactError.dnbTargetsMissingTrackID
       }
-    }
-    // Story 4-6 DD #4: uniqueness extends across the union of `targets`
-    // and `dsp_correct_controls`. A control track that's ALSO a named
-    // failure would be incoherent (the same audio can't be both
-    // "DSP-correct" and "named-DnB-failure" in the same baseline).
-    for control in dnbFile.dsp_correct_controls {
-      if !seenIDs.insert(control.track_id).inserted {
-        throw BNNSImpactError.dnbTargetsDuplicateTrackID(control.track_id)
+      let bpm = try entry.tempoBPM()
+      // Story 4-6 DD #4: uniqueness extends across the union of `targets`
+      // and `dsp_correct_controls`. A control track that's ALSO a named
+      // failure would be incoherent (the same audio can't be both
+      // "DSP-correct" and "named-DnB-failure" in the same baseline).
+      if !seenIDs.insert(trackID).inserted {
+        throw BNNSImpactError.dnbTargetsDuplicateTrackID(trackID)
+      }
+      switch try entry.dnbPartition() {
+      case "target":
+        targets.append(DnBTarget(track_id: trackID, ground_truth_bpm: bpm))
+      case "control":
+        controls.append(
+          DnBControl(
+            track_id: trackID, ground_truth_bpm: bpm, rationale: entry.sandbox?.rationale ?? ""))
+      case let other:
+        throw BNNSImpactError.dnbTargetsUnknownPartition(other)
       }
     }
     // DD #4 requires ≥4 controls. Lighter than enforcing an exact count
     // so future stories adding more controls don't break the load.
-    guard dnbFile.dsp_correct_controls.count >= 4 else {
-      throw BNNSImpactError.dnbControlsCountInsufficient(
-        got: dnbFile.dsp_correct_controls.count, required: 4)
+    guard controls.count >= 4 else {
+      throw BNNSImpactError.dnbControlsCountInsufficient(got: controls.count, required: 4)
     }
-    dnbTargets = dnbFile.targets
-    dnbControls = dnbFile.dsp_correct_controls
-    regressionThreshold = dnbFile.regression_threshold
+    guard let jamsThreshold = dnbCorpus.sandbox?.regressionThreshold else {
+      throw BNNSImpactError.dnbRegressionThresholdMissing
+    }
+    dnbTargets = targets
+    dnbControls = controls
+    regressionThreshold = try RegressionThreshold(jams: jamsThreshold)
   }
 
   private func trackURL(_ track: OA300Track) -> URL {
@@ -1008,50 +1027,41 @@ private enum BNNSImpactError: Error {
   case dnbTargetsNotFound
   case dnbTargetsSchemaMismatch(expected: Int, got: Int)
   case dnbTargetsDuplicateTrackID(String)
+  case dnbTargetsMissingTrackID
+  case dnbTargetsUnknownPartition(String)
   case dnbControlsCountInsufficient(got: Int, required: Int)
+  case dnbRegressionThresholdMissing
 }
 
-// MARK: - 4-dnb-triplet-targets.json decode shape
+// MARK: - 4-dnb-triplet-targets.json domain model (Story 8.8c: adapted from JAMS)
 
-/// Wire-format root of `4-dnb-triplet-targets.json` (review fix C5).
-/// Schema v3 per the artifact's `schema_version` field. Story 4-6 DD #4
-/// added the `dsp_correct_controls` partition. Review fix N8 (extended
-/// by Story 4-6): decode the full envelope so the test actually
-/// validates that the artifact on disk has the expected shape —
-/// bumping `schema_version` in the JSON without updating this struct
-/// fails fast at load.
-struct DnBTargetsFile: Decodable {
+/// Story 8.8c migrated `4-dnb-triplet-targets.json` to a JAMS corpus, so the file is no
+/// longer decoded directly into a wire-format root. The suite decodes the shared
+/// ``JAMSCorpus`` and adapts each entry into the thin domain structs below; this
+/// namespace retains only the expected-schema constant the loader gates on.
+enum DnBTargetsFile {
   /// Expected schema version. Tests refuse to run when the artifact
   /// reports a different version — protects against silently consuming
-  /// stale or future-incompatible fixtures. Story 4-6 bumped from 2 → 3.
+  /// stale or future-incompatible fixtures. Story 4-6 bumped from 2 → 3;
+  /// Story 8.8c reads it from the JAMS corpus-level `sandbox.schema_version`.
   static let expectedSchemaVersion = 3
-
-  let schema_version: Int
-  let targets: [DnBTarget]
-  /// Story 4-6 DD #4: ≥4 DSP-correct DnB control tracks. Provides the
-  /// "did ML quietly break a track DSP got right?" symmetric gate to
-  /// the named-failure list. Optional in `Codable` decode for forward
-  /// compatibility with future schema bumps that might split it
-  /// further; tests must verify `>= 4` entries at load time.
-  let dsp_correct_controls: [DnBControl]
-  let regression_threshold: RegressionThreshold
 }
 
-/// Per-track DnB-triplet target row. Frozen at SHA `9185698` (Story
-/// 4-5); consumed for both ground-truth lookup (review fix C5) and
-/// named-DnB membership test (review fix m17).
-struct DnBTarget: Decodable {
+/// Per-track DnB-triplet target row. Adapted from the JAMS `target`-partition entries
+/// (Story 8.8c): `track_id` from `identifiers`, `ground_truth_bpm` from the `tempo`
+/// observation. Consumed for both ground-truth lookup and named-DnB membership.
+struct DnBTarget {
   let track_id: String
   let ground_truth_bpm: Double
 }
 
-/// Per-track DSP-correct control row introduced in Story 4-6 DD #4.
-/// Same shape as ``DnBTarget`` plus a `rationale` string explaining
-/// why each entry qualifies as a control (e.g., DnB-genre, heavily-
-/// mastered, in 155-175 BPM band). The control set's symmetric gate
-/// (≥4/4 preserved at default config) is the Branch A success
+/// Per-track DSP-correct control row introduced in Story 4-6 DD #4. Adapted from the
+/// JAMS `control`-partition entries (Story 8.8c) — same shape as ``DnBTarget`` plus a
+/// `rationale` string (from the per-entry sandbox) explaining why each entry qualifies
+/// as a control (e.g., DnB-genre, heavily-mastered, in 155-175 BPM band). The control
+/// set's symmetric gate (≥4/4 preserved at default config) is the Branch A success
 /// criterion alongside ≥2/4 named DnB resolved (DD #8).
-struct DnBControl: Decodable {
+struct DnBControl {
   let track_id: String
   let ground_truth_bpm: Double
   /// Plain-text justification for the control's inclusion. Surfaced in
@@ -1060,17 +1070,32 @@ struct DnBControl: Decodable {
   let rationale: String
 }
 
-/// Regression-threshold envelope from `4-dnb-triplet-targets.json`.
-/// Review fix N8: previously decoded but unused; now drives the
-/// `min_resolved`, `tolerance_bpm`, `min_oa300_acc1`, and
-/// `min_giantsteps_acc1` constants the test asserts against. Changing
-/// any of these values in the artifact propagates to the test gate at
-/// load time, NOT via separate hardcoded literals that could drift.
-struct RegressionThreshold: Decodable {
+/// Regression-threshold envelope from `4-dnb-triplet-targets.json`. Adapted from the
+/// JAMS corpus-level `sandbox.regression_threshold` (Story 8.8c). Drives the
+/// `min_resolved`, `tolerance_bpm`, `min_oa300_acc1`, and `min_giantsteps_acc1`
+/// constants the test asserts against, so changing any value in the artifact propagates
+/// to the test gate at load time rather than via separate hardcoded literals.
+struct RegressionThreshold {
   let min_resolved: Int
   let tolerance_bpm: Double
   let min_oa300_acc1: Int
   let min_giantsteps_acc1: Int
+
+  /// Adapts the optional-field JAMS threshold sub-object into the non-optional domain
+  /// struct, throwing if any required field is absent (a malformed corpus sandbox).
+  init(jams: JAMSRegressionThreshold) throws {
+    guard let minResolved = jams.minResolved,
+      let toleranceBpm = jams.toleranceBpm,
+      let minOA300 = jams.minOA300Acc1,
+      let minGiantSteps = jams.minGiantStepsAcc1
+    else {
+      throw BNNSImpactError.dnbRegressionThresholdMissing
+    }
+    self.min_resolved = minResolved
+    self.tolerance_bpm = toleranceBpm
+    self.min_oa300_acc1 = minOA300
+    self.min_giantsteps_acc1 = minGiantSteps
+  }
 }
 
 // MARK: - ImpactBaselineStore (Story 4-6 schema v3 — canonical perf-baselines convention)

@@ -20,8 +20,11 @@ Idempotent but validating: an already-JAMS input (top-level `entries`) is NOT re
 but is still checked against the artifact-specific minimum shape and a failure exits
 non-zero — never a blind skip (Codex round-1 P3).
 
-The DnB regression-config artifact is migrated by Story 8.8c, which adds an `--artifact
-dnb` converter to this same script.
+The DnB regression-config artifact (`--artifact dnb`, Story 8.8c) is the
+pressure-release-valve case: it is a nested config dict, not a flat per-track array, so
+its per-track tempo truth routes to `tempo` observations while its non-tempo fields route
+to `sandbox` — per-entry (`partition`, `source`, predicted-bpm, abs-error, `rationale`)
+and corpus-level (`schema_version`, `regression_threshold`, `captured_with`).
 
 Usage:
   uv run python migrate-to-jams.py --artifact oa300 \
@@ -149,7 +152,50 @@ def convert_daw(rows: list[dict[str, Any]], curator: dict[str, str]) -> dict[str
     return {"entries": entries}
 
 
-CONVERTERS = {"oa300": convert_oa300, "daw": convert_daw}
+def convert_dnb(doc: dict[str, Any], curator: dict[str, str]) -> dict[str, Any]:
+    """Convert the nested DnB regression config to a JAMS corpus (Story 8.8c).
+
+    Per-track tempo truth (`ground_truth_bpm`) rides a `tempo` observation; the
+    per-track regression fields (`source`, `current_predicted_bpm`, `current_abs_error`,
+    `rationale`) plus a `partition` discriminator (`target` / `control`) ride the
+    per-entry sandbox. The config/provenance that is NOT per-track —
+    `schema_version`, `regression_threshold`, `captured_with` — rides the CORPUS-level
+    sandbox on the `{entries, sandbox}` wrapper (the JAMS extension point). No source
+    field is dropped.
+    """
+
+    def entry_for(row: dict[str, Any], partition: str) -> dict[str, Any]:
+        sandbox_extra: dict[str, Any] = {
+            "partition": partition,
+            "source": row["source"],
+            "current_predicted_bpm": float(row["current_predicted_bpm"]),
+            "current_abs_error": float(row["current_abs_error"]),
+        }
+        if "rationale" in row:
+            sandbox_extra["rationale"] = row["rationale"]
+        return jams_entry(
+            title=None,
+            basename=row["track_id"],
+            subdir=None,
+            bpm=float(row["ground_truth_bpm"]),
+            data_source=DATA_SOURCE["dnb"],
+            curator=curator,
+            sandbox_extra=sandbox_extra,
+        )
+
+    entries = [entry_for(row, "target") for row in doc["targets"]]
+    entries += [entry_for(row, "control") for row in doc["dsp_correct_controls"]]
+    return {
+        "entries": entries,
+        "sandbox": {
+            "schema_version": doc["schema_version"],
+            "regression_threshold": doc["regression_threshold"],
+            "captured_with": doc["captured_with"],
+        },
+    }
+
+
+CONVERTERS = {"oa300": convert_oa300, "daw": convert_daw, "dnb": convert_dnb}
 
 
 def validate_jams(doc: dict[str, Any], artifact: str) -> None:
@@ -177,6 +223,16 @@ def validate_jams(doc: dict[str, Any], artifact: str) -> None:
             genre = (entry.get("sandbox") or {}).get("genre")
             if not isinstance(genre, str) or not genre.strip():
                 raise SystemExit(f"[{artifact}] entry {i} missing sandbox.genre")
+        if artifact == "dnb":
+            partition = (entry.get("sandbox") or {}).get("partition")
+            if partition not in ("target", "control"):
+                raise SystemExit(f"[{artifact}] entry {i} sandbox.partition is not target/control")
+    if artifact == "dnb":
+        corpus_sandbox = doc.get("sandbox") or {}
+        if not isinstance(corpus_sandbox.get("schema_version"), int):
+            raise SystemExit(f"[{artifact}] corpus sandbox missing schema_version")
+        if not isinstance(corpus_sandbox.get("regression_threshold"), dict):
+            raise SystemExit(f"[{artifact}] corpus sandbox missing regression_threshold")
 
 
 def sandbox_fields(artifact: str) -> str:
@@ -245,14 +301,24 @@ def main() -> int:
             )
         return 0
 
-    if not isinstance(doc, list):
-        raise SystemExit(f"[{artifact}] expected a flat JSON array, got {type(doc).__name__}")
+    # oa300/daw are flat arrays (one row -> one entry); dnb is a nested config dict
+    # (targets[] + dsp_correct_controls[] -> entries, the rest -> corpus sandbox).
+    if artifact == "dnb":
+        if not isinstance(doc, dict):
+            raise SystemExit(f"[dnb] expected a JSON object, got {type(doc).__name__}")
+        input_shape = "nested config"
+    else:
+        if not isinstance(doc, list):
+            raise SystemExit(f"[{artifact}] expected a flat JSON array, got {type(doc).__name__}")
+        input_shape = "flat array"
 
     curator = get_curator()
     result = CONVERTERS[artifact](doc, curator)
     output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+    entry_count = len(result["entries"])
     print(
-        f"[{artifact}] migrated {len(doc)} rows (flat array) -> JAMS tempo corpus at {output_path}"
+        f"[{artifact}] migrated {entry_count} entries ({input_shape}) "
+        f"-> JAMS tempo corpus at {output_path}"
     )
 
     if args.report:
@@ -260,9 +326,9 @@ def main() -> int:
             args.report,
             {
                 "artifact": input_path.name,
-                "input_shape": "flat array",
+                "input_shape": input_shape,
                 "namespace": "tempo",
-                "entries": str(len(doc)),
+                "entries": str(entry_count),
                 "curator": curator["name"],
                 "fields": sandbox_fields(artifact),
             },

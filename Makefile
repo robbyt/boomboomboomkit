@@ -368,6 +368,10 @@ oracle-migrate-to-jams:
 	else \
 		echo "Note: $(OA300_CORPUS_PATH)/daw-oracle.json not found; skipping daw migration (run make oracle-generate first)."; \
 	fi
+	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/migrate-to-jams.py \
+		--artifact dnb \
+		--input Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json \
+		--report _bmad-output/implementation-artifacts/8-8-migration-report.md
 
 ## fmt: Format Swift source code
 .PHONY: fmt

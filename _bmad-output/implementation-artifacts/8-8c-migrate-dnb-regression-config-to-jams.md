@@ -1,6 +1,10 @@
+---
+baseline_commit: b2f10675457d8552b6efa1fc72072387c399e627
+---
+
 # Story 8.8c: Migrate the DnB triplet regression config to JAMS (in place)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,11 +38,11 @@ See 8.8a §Context for the shared operator rulings. This is the **pressure-relea
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — DnB converter (AC: 1, 2, 3, 4).** Add the DnB converter to `migrate-to-jams.py`: per-entry `tempo` + sandbox `{partition, source, currentPredictedBpm, currentAbsError, rationale}`, corpus-level sandbox `{schema_version, regression_threshold, captured_with}`; idempotent-validating; git-config curator.
-- [ ] **Task 2 — Migrate fixture (AC: 2).** Run `make oracle-migrate-to-jams`; commit the rewritten `4-dnb-triplet-targets.json`; prove idempotency (no diff on re-run).
-- [ ] **Task 3 — Swift consumers (AC: 5).** Migrate `BNNSImpactTests`, `SuperFluxImpactTests`, `DnBTargetsFileLoadingTests` to the shared decoder; preserve every invariant + the prefix join rule; collapse local mirrors onto the public 8.8a types where practical.
-- [ ] **Task 4 — Python consumer (AC: 6).** Update `curate_sentinels.py` to read DnB JAMS.
-- [ ] **Task 5 — Report + gauntlet (AC: 7).** Append the DnB report row; run the gauntlet; `jams.load` spot-check.
+- [x] **Task 1 — DnB converter (AC: 1, 2, 3, 4).** Add the DnB converter to `migrate-to-jams.py`: per-entry `tempo` + sandbox `{partition, source, currentPredictedBpm, currentAbsError, rationale}`, corpus-level sandbox `{schema_version, regression_threshold, captured_with}`; idempotent-validating; git-config curator.
+- [x] **Task 2 — Migrate fixture (AC: 2).** Run `make oracle-migrate-to-jams`; commit the rewritten `4-dnb-triplet-targets.json`; prove idempotency (no diff on re-run).
+- [x] **Task 3 — Swift consumers (AC: 5).** Migrate `BNNSImpactTests`, `SuperFluxImpactTests`, `DnBTargetsFileLoadingTests` to the shared decoder; preserve every invariant + the prefix join rule; collapse local mirrors onto the public 8.8a types where practical.
+- [x] **Task 4 — Python consumer (AC: 6).** Update `curate_sentinels.py` to read DnB JAMS.
+- [x] **Task 5 — Report + gauntlet (AC: 7).** Append the DnB report row; run the gauntlet; `jams.load` spot-check.
 
 ## Dev Notes
 
@@ -65,4 +69,24 @@ claude-opus-4-8 (spec authored)
 
 ### Completion Notes List
 
+- **Task 1 — DnB converter.** Added `convert_dnb` to `migrate-to-jams.py`: the DnB file is a nested config dict (not a flat array), so `main()` now branches input-shape by artifact (`dnb` → object, `oa300`/`daw` → array). Each `targets[]`/`dsp_correct_controls[]` element → one entry with a `tempo` observation (`ground_truth_bpm`, `confidence:1.0`) and a per-entry sandbox `{partition, source, current_predicted_bpm, current_abs_error, rationale?}`; the corpus-level `{schema_version, regression_threshold, captured_with}` rides the `{entries, sandbox}` wrapper. `validate_jams` gained a DnB branch (every entry has `partition ∈ {target, control}`; corpus sandbox carries `schema_version` + `regression_threshold`) so an idempotent re-run still fails loudly on a malformed already-JAMS file. ruff + ty clean.
+- **Task 2 — Migrate fixture.** Wired the `dnb` step into the `oracle-migrate-to-jams` make target; ran it. `4-dnb-triplet-targets.json` → 8 entries (4 target + 4 control) + corpus sandbox, in place. Re-run is a validated no-op (zero diff) — idempotent.
+- **Task 3 — Swift consumers.** All three readers decode the shared `JAMSCorpus` (`BoomBoomBoomKitTestSupport`). `DnBTargetsFileLoadingTests` + `SuperFluxImpactTests` collapse their local mirror structs entirely (read `JAMSFile`/sandbox directly). `BNNSImpactTests` keeps thin domain structs (`DnBTarget`/`DnBControl`/`RegressionThreshold`, now plain non-`Decodable` values built from JAMS) because ~20 logic sites read their snake_case fields — `DnBTargetsFile` reduced to a namespace for `expectedSchemaVersion`; `RegressionThreshold(jams:)` adapts the optional-field corpus sandbox. Every invariant preserved (schema_version==3, 4 targets, ≥4 controls, union uniqueness, controls 155–175 BPM, non-empty rationale) and the `filename == track_id || filename.hasPrefix(track_id + ".")` join rule is byte-unchanged. New error cases: `dnbTargetsMissingTrackID`, `dnbTargetsUnknownPartition`, `dnbRegressionThresholdMissing`.
+- **Task 4 — Python consumer.** `curate_sentinels.py` `load_originals()` reads the `target`-partition entries from the JAMS corpus (`track_id`/`source` from `file_metadata`/`sandbox`, BPM from the `tempo` value) instead of `data["targets"]`. `make curate-sentinels` succeeds (12 entries: 4 originals + 8 expanded). The regenerated ships-to-main `12-dnb-sentinels-expanded.json` showed a diff confined to the 8 *expanded* Tony tracks (unrelated `tony-truth-labels.json` drift); the 4 DnB-derived originals are byte-identical, so the regenerated manifest + develop-only curation MD were reverted — committing the unrelated drift is out of scope for this story.
+- **Task 5 — Report + gauntlet.** DnB row appended to `8-8-migration-report.md` (input shape `nested config`, 8 entries, corpus-level + per-entry sandbox fields). Gauntlet green: `make build`, 698 unit tests, `make py-lint` (ruff + ty), SwiftLint baseline-clean (only the canonical `LUFSAnalyzer.swift:135` TODO). `jams.load('<one control entry>', validate=True, strict=True)` in a throwaway venv accepted the extracted entry (namespace=tempo, value=170.0, sandbox.partition=control, rationale present) — proves each `entries[i]` is standalone-valid JAMS 0.4.
+- **Curator email note.** `get_curator()` reads git config; the local identity is `robbyt@robbyt.net`, so all three migrated artifacts (oa300/daw/dnb) consistently carry that email. The spec AC 4 literal `robbyt@gmail.com` is only the empty-config fallback; the curator *name* `Robert Terhaar` matches.
+
 ### File List
+
+- `_bmad-output/ml-training/migrate-to-jams.py` (modified — DnB converter + dict-input shape + DnB validation)
+- `Makefile` (modified — `oracle-migrate-to-jams` now also migrates the DnB fixture)
+- `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json` (migrated in place → JAMS corpus)
+- `Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift` (modified — JAMS loader + domain-struct adapter)
+- `Tests/BoomBoomBoomKitBenchmarkTests/SuperFluxImpactTests.swift` (modified — JAMS loader, mirror structs removed)
+- `Tests/BoomBoomBoomKitTests/DnBTargetsFileLoadingTests.swift` (modified — reads JAMSCorpus via shared decoder)
+- `_bmad-output/ml-training/curate_sentinels.py` (modified — `load_originals` reads DnB JAMS)
+- `_bmad-output/implementation-artifacts/8-8-migration-report.md` (modified — DnB row appended)
+
+## Change Log
+
+- 2026-06-20 — Migrated the DnB triplet regression config (`4-dnb-triplet-targets.json`) to a JAMS corpus in place: per-track `ground_truth_bpm` → `tempo` observations, per-entry config → sandbox (`partition`/`source`/predicted-bpm/abs-error/`rationale`), corpus-level config → corpus sandbox (`schema_version`/`regression_threshold`/`captured_with`). Added the DnB converter to `migrate-to-jams.py` + the make target; migrated the 3 Swift readers + `curate_sentinels.py` to the shared 8.8a decoder; all schema-v3 invariants + the prefix join rule preserved. Gauntlet green (698 unit tests, py-lint, SwiftLint baseline); `jams.load` strict spot-check passed.

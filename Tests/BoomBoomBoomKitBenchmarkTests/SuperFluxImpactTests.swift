@@ -37,8 +37,10 @@ struct SuperFluxImpactTests {
 
   private let corpusPath: String
   private let groundTruth: [OA300Track]
-  private let namedDnB: [DnBTargetEntry]
-  private let dspControls: [DnBControlEntry]
+  /// DnB named-failure `track_id`s (the `target` partition of the JAMS corpus).
+  private let namedDnB: [String]
+  /// DSP-correct control `track_id`s (the `control` partition of the JAMS corpus).
+  private let dspControls: [String]
   private let dnbTargetsSchemaVersion: Int
 
   init() throws {
@@ -56,17 +58,23 @@ struct SuperFluxImpactTests {
     self.groundTruth = try OA300Track.loadCorpus(from: gtData)
 
     // 4-dnb-triplet-targets.json (schema_version 3, contains named failures +
-    // DSP-correct controls). Decoded with snake_case keys preserved.
+    // DSP-correct controls). Story 8.8c: a JAMS corpus — `partition` discriminates
+    // target vs control, `schema_version` rides the corpus sandbox.
     let dnbURL = try #require(
       Bundle.module.url(forResource: "4-dnb-triplet-targets", withExtension: "json")
         ?? Bundle.module.url(
           forResource: "Fixtures/4-dnb-triplet-targets", withExtension: "json"),
       "4-dnb-triplet-targets.json fixture missing")
     let dnbData = try Data(contentsOf: dnbURL)
-    let dnbFile = try JSONDecoder().decode(DnBTargetsFileLite.self, from: dnbData)
-    self.namedDnB = dnbFile.targets
-    self.dspControls = dnbFile.dsp_correct_controls
-    self.dnbTargetsSchemaVersion = dnbFile.schema_version
+    let dnbCorpus = try JSONDecoder().decode(JAMSCorpus.self, from: dnbData)
+    self.namedDnB = dnbCorpus.entries
+      .filter { $0.sandbox?.partition == "target" }
+      .compactMap { $0.fileMetadata.identifiers?.trackId }
+    self.dspControls = dnbCorpus.entries
+      .filter { $0.sandbox?.partition == "control" }
+      .compactMap { $0.fileMetadata.identifiers?.trackId }
+    self.dnbTargetsSchemaVersion = try #require(
+      dnbCorpus.sandbox?.schemaVersion, "DnB corpus sandbox missing schema_version")
   }
 
   /// AC #6: per-track impact report. Branch decision driver — Task 7 parses
@@ -86,8 +94,8 @@ struct SuperFluxImpactTests {
     let baselineTechniqueSet = TechniqueSet.optimal
     let variantTechniqueSet = TechniqueSet.optimal.inserting(.superFluxOnset)
 
-    let namedDnBSet = Set(namedDnB.map(\.track_id))
-    let dspControlsSet = Set(dspControls.map(\.track_id))
+    let namedDnBSet = Set(namedDnB)
+    let dspControlsSet = Set(dspControls)
 
     // P7 (Codex review 2026-05-17): Row.baselineBPM / variantBPM are non-optional.
     // A silent analyzer abstain on a known-good fixture is a gate failure, not a
@@ -267,8 +275,8 @@ struct SuperFluxImpactTests {
         actualNamedDnBIDs.map { ($0 as NSString).deletingPathExtension })
       let actualControlStems = Set(
         actualControlIDs.map { ($0 as NSString).deletingPathExtension })
-      let expectedNamedDnBIDs = Set(namedDnB.map(\.track_id))
-      let expectedControlIDs = Set(dspControls.map(\.track_id))
+      let expectedNamedDnBIDs = Set(namedDnB)
+      let expectedControlIDs = Set(dspControls)
       let missingNamedDnB = expectedNamedDnBIDs.subtracting(actualNamedDnBStems)
         .subtracting(actualNamedDnBIDs)
       let missingControls = expectedControlIDs.subtracting(actualControlStems)
@@ -373,24 +381,7 @@ private enum ImpactReportError: Error, CustomStringConvertible {
   }
 }
 
-// MARK: - Local DnB targets decoder (lite — file is also decoded fully by BNNSImpactTests)
-
-/// File-local decoder for `4-dnb-triplet-targets.json` that only pulls the
-/// fields SuperFluxImpactTests needs. Story 4-7 explicitly avoids depending on
-/// BNNSImpactTests' `DnBTargetsFile` symbol (different test file, different
-/// suite) so the impact harness is self-contained.
-private struct DnBTargetsFileLite: Decodable {
-  let schema_version: Int  // swiftlint:disable:this identifier_name
-  let targets: [DnBTargetEntry]
-  let dsp_correct_controls: [DnBControlEntry]  // swiftlint:disable:this identifier_name
-}
-
-private struct DnBTargetEntry: Decodable {
-  let track_id: String  // swiftlint:disable:this identifier_name
-  let ground_truth_bpm: Double  // swiftlint:disable:this identifier_name
-}
-
-private struct DnBControlEntry: Decodable {
-  let track_id: String  // swiftlint:disable:this identifier_name
-  let ground_truth_bpm: Double  // swiftlint:disable:this identifier_name
-}
+// Story 8.8c: the file-local `DnBTargetsFileLite`/`DnBTargetEntry`/`DnBControlEntry`
+// mirrors were removed — the suite now reads `4-dnb-triplet-targets.json` through the
+// shared `JAMSCorpus` decoder (`BoomBoomBoomKitTestSupport`), splitting the named
+// failures and DSP-correct controls by the per-entry sandbox `partition`.

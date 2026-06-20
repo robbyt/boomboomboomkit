@@ -9,34 +9,22 @@
 //  than `Bundle.module` (the unit test target doesn't ship the
 //  benchmark target's resources).
 //
+//  Story 8.8c migrated the fixture to a JAMS corpus, so this test now reads it
+//  through the shared `JAMSCorpus` decoder (`BoomBoomBoomKitTestSupport`) instead of
+//  a local mirror struct: `schema_version`/`regression_threshold` from the corpus
+//  sandbox, per-track `ground_truth_bpm`/`rationale`/`partition` from the entries.
+//
 
+import BoomBoomBoomKitTestSupport
 import Foundation
 import Testing
 
 @Suite("DnB targets file (Story 4-6 AC #6)")
 struct DnBTargetsFileLoadingTests {
 
-  /// Minimal mirror of the fixture's decode shape used only for this
-  /// test. Mirrors `DnBTargetsFile` in `Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift`
-  /// but avoids cross-target import.
-  private struct File: Decodable {
-    let schema_version: Int
-    let targets: [Entry]
-    let dsp_correct_controls: [Control]
-  }
-  private struct Entry: Decodable {
-    let track_id: String
-    let ground_truth_bpm: Double
-  }
-  private struct Control: Decodable {
-    let track_id: String
-    let ground_truth_bpm: Double
-    let rationale: String
-  }
-
   /// AC #6: load the schema-v3 fixture and assert the invariants the
   /// impact-report harness depends on:
-  ///  - schema_version == 3
+  ///  - schema_version == 3 (corpus sandbox)
   ///  - targets.count == 4 (named-failure partition unchanged from v2)
   ///  - dsp_correct_controls.count >= 4 (DD #4 minimum)
   ///  - No duplicate track_id across targets ∪ dsp_correct_controls
@@ -46,28 +34,35 @@ struct DnBTargetsFileLoadingTests {
   func loadsSchemaVersion3() throws {
     let fileURL = Self.fixtureURL()
     let data = try Data(contentsOf: fileURL)
-    let file = try JSONDecoder().decode(File.self, from: data)
+    let corpus = try JSONDecoder().decode(JAMSCorpus.self, from: data)
 
-    #expect(file.schema_version == 3)
-    #expect(file.targets.count == 4)
-    #expect(file.dsp_correct_controls.count >= 4)
+    #expect(corpus.sandbox?.schemaVersion == 3)
+
+    let targets = corpus.entries.filter { $0.sandbox?.partition == "target" }
+    let controls = corpus.entries.filter { $0.sandbox?.partition == "control" }
+    #expect(targets.count == 4)
+    #expect(controls.count >= 4)
 
     var seenIDs = Set<String>()
-    for t in file.targets {
+    for t in targets {
+      let trackID = try #require(t.fileMetadata.identifiers?.trackId, "target missing track_id")
       #expect(
-        seenIDs.insert(t.track_id).inserted,
-        "duplicate track_id in targets: \(t.track_id)")
+        seenIDs.insert(trackID).inserted,
+        "duplicate track_id in targets: \(trackID)")
     }
-    for c in file.dsp_correct_controls {
+    for c in controls {
+      let trackID = try #require(c.fileMetadata.identifiers?.trackId, "control missing track_id")
       #expect(
-        seenIDs.insert(c.track_id).inserted,
-        "duplicate track_id across targets ∪ controls: \(c.track_id)")
+        seenIDs.insert(trackID).inserted,
+        "duplicate track_id across targets ∪ controls: \(trackID)")
       // DD #4: controls must be in 155-175 BPM range so the half-tempo
       // failure mode is mechanically possible.
+      let bpm = try c.tempoBPM()
       #expect(
-        c.ground_truth_bpm >= 155.0 && c.ground_truth_bpm <= 175.0,
-        "\(c.track_id) ground_truth_bpm \(c.ground_truth_bpm) outside 155-175 range")
-      #expect(!c.rationale.isEmpty, "\(c.track_id) missing rationale")
+        bpm >= 155.0 && bpm <= 175.0,
+        "\(trackID) ground_truth_bpm \(bpm) outside 155-175 range")
+      let rationale = c.sandbox?.rationale ?? ""
+      #expect(!rationale.isEmpty, "\(trackID) missing rationale")
     }
   }
 
