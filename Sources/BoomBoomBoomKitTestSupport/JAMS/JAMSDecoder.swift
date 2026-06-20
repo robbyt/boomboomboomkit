@@ -59,6 +59,19 @@ public enum JAMSEncodingError: Error, Equatable, Sendable {
 public enum JAMSValidationError: Error, Equatable, Sendable {
   case missingTempoObservation
   case missingDnBPartition
+  case missingDnBTrackID
+  case unknownDnBPartition(String)
+}
+
+// MARK: - Tolerant decode helper
+
+extension KeyedDecodingContainer {
+  /// Decode an optional `Bool`, tolerating a present-but-non-Bool payload (decodes to
+  /// `nil` rather than throwing). The shared tolerant-on-decode rule for the legacy
+  /// `constant_tempo` / `rekordbox_disagrees` flags that older artifacts wrote loosely.
+  func decodeTolerantBoolIfPresent(forKey key: Key) -> Bool? {
+    (try? decodeIfPresent(Bool.self, forKey: key)) ?? nil
+  }
 }
 
 // MARK: - JAMSNamespace
@@ -185,13 +198,8 @@ public struct JAMSAnnotation: Codable, Equatable, Sendable {
     self.annotationMetadata = annotationMetadata
   }
 
-  public init(from decoder: any Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    namespace = try c.decode(JAMSNamespace.self, forKey: .namespace)
-    data = try c.decode([JAMSObservation].self, forKey: .data)
-    annotationMetadata = try c.decodeIfPresent(
-      JAMSAnnotationMetadata.self, forKey: .annotationMetadata)
-  }
+  // `init(from:)` is the compiler-synthesized decoder (namespace/data decoded,
+  // annotationMetadata `decodeIfPresent`) — only the strict `encode(to:)` below is custom.
 
   public func encode(to encoder: any Encoder) throws {
     // Strict `tempo` guard (Story 8.8a): validate BEFORE the observation encoder writes
@@ -292,7 +300,7 @@ public struct JAMSFileMetadata: Codable, Equatable, Sendable {
     identifiers = try c.decodeIfPresent(JAMSIdentifiers.self, forKey: .identifiers)
     // Tolerant on decode (parity with eval-beatgrid.py, which coerces a non-bool to its
     // default): a present but non-Bool `constant_tempo` decodes to nil rather than throwing.
-    constantTempo = (try? c.decodeIfPresent(Bool.self, forKey: .constantTempo)) ?? nil
+    constantTempo = c.decodeTolerantBoolIfPresent(forKey: .constantTempo)
   }
 
   public func encode(to encoder: any Encoder) throws {
@@ -396,11 +404,11 @@ public struct JAMSSandbox: Codable, Equatable, Sendable {
   public init(from decoder: any Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     // Tolerant on decode: a present but non-Bool `constant_tempo` decodes to nil, not a throw.
-    constantTempo = (try? c.decodeIfPresent(Bool.self, forKey: .constantTempo)) ?? nil
+    constantTempo = c.decodeTolerantBoolIfPresent(forKey: .constantTempo)
     genre = try c.decodeIfPresent(String.self, forKey: .genre)
     subdir = try c.decodeIfPresent(String.self, forKey: .subdir)
     rekordboxBpm = try c.decodeIfPresent(Double.self, forKey: .rekordboxBpm)
-    rekordboxDisagrees = (try? c.decodeIfPresent(Bool.self, forKey: .rekordboxDisagrees)) ?? nil
+    rekordboxDisagrees = c.decodeTolerantBoolIfPresent(forKey: .rekordboxDisagrees)
     disagreementType = try c.decodeIfPresent(String.self, forKey: .disagreementType)
     partition = try c.decodeIfPresent(String.self, forKey: .partition)
     source = try c.decodeIfPresent(String.self, forKey: .source)
@@ -569,18 +577,53 @@ public struct JAMSCorpus: Codable, Equatable, Sendable {
     self.sandbox = sandbox
   }
 
-  public init(from decoder: any Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    entries = try c.decode([JAMSFile].self, forKey: .entries)
-    sandbox = try c.decodeIfPresent(JAMSCorpusSandbox.self, forKey: .sandbox)
-  }
+  // Codable is fully synthesized: `entries` decodes, `sandbox` is `decodeIfPresent`.
 
   private enum CodingKeys: String, CodingKey {
     case entries, sandbox
   }
 }
 
+// MARK: - JAMSDnBEntry
+
+/// A DnB regression-config entry resolved from a JAMS corpus: the source ``JAMSFile``
+/// plus the join key and tempo every DnB reader needs, with the `partition` already
+/// classified. Produced by ``JAMSCorpus/dnbPartitioned()``.
+public struct JAMSDnBEntry: Sendable {
+  public let file: JAMSFile
+  public let trackID: String
+  public let bpm: Double
+}
+
 // MARK: - Convenience accessors
+
+extension JAMSCorpus {
+  /// Splits the DnB regression-config corpus into its `target` and `control` partitions,
+  /// enforcing the invariants every DnB reader needs: each entry carries a non-nil
+  /// `track_id`, a numeric `tempo` value, and a `partition ∈ {target, control}`. Throws
+  /// on any violation — an absent/unknown `partition`
+  /// (``JAMSValidationError/missingDnBPartition`` / ``JAMSValidationError/unknownDnBPartition(_:)``),
+  /// a missing `track_id` (``JAMSValidationError/missingDnBTrackID``), or a missing tempo
+  /// (``JAMSValidationError/missingTempoObservation``) — so a malformed entry fails loudly
+  /// instead of being silently dropped. Completeness is implied: every entry lands in
+  /// exactly one partition or the call throws.
+  public func dnbPartitioned() throws -> (targets: [JAMSDnBEntry], controls: [JAMSDnBEntry]) {
+    var targets: [JAMSDnBEntry] = []
+    var controls: [JAMSDnBEntry] = []
+    for entry in entries {
+      guard let trackID = entry.fileMetadata.identifiers?.trackId else {
+        throw JAMSValidationError.missingDnBTrackID
+      }
+      let resolved = JAMSDnBEntry(file: entry, trackID: trackID, bpm: try entry.tempoBPM())
+      switch try entry.dnbPartition() {
+      case "target": targets.append(resolved)
+      case "control": controls.append(resolved)
+      case let other: throw JAMSValidationError.unknownDnBPartition(other)
+      }
+    }
+    return (targets, controls)
+  }
+}
 
 extension JAMSFile {
   /// The first `beat`-namespace annotation, or `nil` if the file carries none.

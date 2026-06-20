@@ -290,42 +290,33 @@ struct BNNSImpactTests {
       throw BNNSImpactError.dnbTargetsSchemaMismatch(
         expected: DnBTargetsFile.expectedSchemaVersion, got: schemaVersion)
     }
-    var targets: [DnBTarget] = []
-    var controls: [DnBControl] = []
+    // `dnbPartitioned()` supplies completeness + non-nil track_id + numeric tempo per
+    // entry (throwing on a malformed one); the harness layers the union-uniqueness and
+    // ≥4-controls invariants on top and adapts into its thin domain structs.
+    let (jamsTargets, jamsControls) = try dnbCorpus.dnbPartitioned()
+    // Story 4-6 DD #4: uniqueness extends across the union of `targets` and
+    // `dsp_correct_controls`. A control track that's ALSO a named failure would be
+    // incoherent (the same audio can't be both "DSP-correct" and "named-DnB-failure").
     var seenIDs = Set<String>()
-    for entry in dnbCorpus.entries {
-      guard let trackID = entry.fileMetadata.identifiers?.trackId else {
-        throw BNNSImpactError.dnbTargetsMissingTrackID
-      }
-      let bpm = try entry.tempoBPM()
-      // Story 4-6 DD #4: uniqueness extends across the union of `targets`
-      // and `dsp_correct_controls`. A control track that's ALSO a named
-      // failure would be incoherent (the same audio can't be both
-      // "DSP-correct" and "named-DnB-failure" in the same baseline).
-      if !seenIDs.insert(trackID).inserted {
-        throw BNNSImpactError.dnbTargetsDuplicateTrackID(trackID)
-      }
-      switch try entry.dnbPartition() {
-      case "target":
-        targets.append(DnBTarget(track_id: trackID, ground_truth_bpm: bpm))
-      case "control":
-        controls.append(
-          DnBControl(
-            track_id: trackID, ground_truth_bpm: bpm, rationale: entry.sandbox?.rationale ?? ""))
-      case let other:
-        throw BNNSImpactError.dnbTargetsUnknownPartition(other)
+    for entry in jamsTargets + jamsControls {
+      if !seenIDs.insert(entry.trackID).inserted {
+        throw BNNSImpactError.dnbTargetsDuplicateTrackID(entry.trackID)
       }
     }
     // DD #4 requires ≥4 controls. Lighter than enforcing an exact count
     // so future stories adding more controls don't break the load.
-    guard controls.count >= 4 else {
-      throw BNNSImpactError.dnbControlsCountInsufficient(got: controls.count, required: 4)
+    guard jamsControls.count >= 4 else {
+      throw BNNSImpactError.dnbControlsCountInsufficient(got: jamsControls.count, required: 4)
     }
     guard let jamsThreshold = dnbCorpus.sandbox?.regressionThreshold else {
       throw BNNSImpactError.dnbRegressionThresholdMissing
     }
-    dnbTargets = targets
-    dnbControls = controls
+    dnbTargets = jamsTargets.map { DnBTarget(track_id: $0.trackID, ground_truth_bpm: $0.bpm) }
+    dnbControls = jamsControls.map {
+      DnBControl(
+        track_id: $0.trackID, ground_truth_bpm: $0.bpm,
+        rationale: $0.file.sandbox?.rationale ?? "")
+    }
     regressionThreshold = try RegressionThreshold(jams: jamsThreshold)
   }
 
@@ -1027,8 +1018,6 @@ private enum BNNSImpactError: Error {
   case dnbTargetsNotFound
   case dnbTargetsSchemaMismatch(expected: Int, got: Int)
   case dnbTargetsDuplicateTrackID(String)
-  case dnbTargetsMissingTrackID
-  case dnbTargetsUnknownPartition(String)
   case dnbControlsCountInsufficient(got: Int, required: Int)
   case dnbRegressionThresholdMissing
 }

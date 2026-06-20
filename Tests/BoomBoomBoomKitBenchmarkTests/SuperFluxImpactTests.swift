@@ -67,20 +67,12 @@ struct SuperFluxImpactTests {
       "4-dnb-triplet-targets.json fixture missing")
     let dnbData = try Data(contentsOf: dnbURL)
     let dnbCorpus = try JSONDecoder().decode(JAMSCorpus.self, from: dnbData)
-    self.namedDnB = dnbCorpus.entries
-      .filter { $0.sandbox?.partition == "target" }
-      .compactMap { $0.fileMetadata.identifiers?.trackId }
-    self.dspControls = dnbCorpus.entries
-      .filter { $0.sandbox?.partition == "control" }
-      .compactMap { $0.fileMetadata.identifiers?.trackId }
-    // Completeness: every entry must contribute a target or control track_id. A
-    // partition typo or a missing track_id would otherwise be silently dropped from
-    // both sets (and the brutal-gate coverage checks built from them), so fail loudly
-    // at suite init instead.
-    let dnbUnclassified = dnbCorpus.entries.count - namedDnB.count - dspControls.count
-    try #require(
-      dnbUnclassified == 0,
-      "DnB corpus has \(dnbUnclassified) entries with an unknown partition or missing track_id")
+    // `dnbPartitioned()` requires every entry to carry a non-nil track_id and a known
+    // partition (throws otherwise), so a partition typo or missing track_id fails loudly
+    // at suite init instead of being silently dropped from the brutal-gate coverage sets.
+    let (dnbTargets, dnbControls) = try dnbCorpus.dnbPartitioned()
+    self.namedDnB = dnbTargets.map(\.trackID)
+    self.dspControls = dnbControls.map(\.trackID)
     self.dnbTargetsSchemaVersion = try #require(
       dnbCorpus.sandbox?.schemaVersion, "DnB corpus sandbox missing schema_version")
   }

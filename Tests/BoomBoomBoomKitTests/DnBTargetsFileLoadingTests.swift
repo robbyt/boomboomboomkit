@@ -38,38 +38,30 @@ struct DnBTargetsFileLoadingTests {
 
     #expect(corpus.sandbox?.schemaVersion == 3)
 
-    let targets = corpus.entries.filter { $0.sandbox?.partition == "target" }
-    let controls = corpus.entries.filter { $0.sandbox?.partition == "control" }
+    // `dnbPartitioned()` enforces completeness + non-nil track_id + numeric tempo for
+    // every entry (throws on a malformed one), so an unexpected/absent partition can no
+    // longer hide under the `controls >= 4` floor.
+    let (targets, controls) = try corpus.dnbPartitioned()
     #expect(targets.count == 4)
     #expect(controls.count >= 4)
-    // Completeness: every entry must classify as a target or a control. Without this,
-    // an entry with an unexpected/absent `partition` is silently dropped from BOTH
-    // filters, and the `controls >= 4` floor would mask a lost control.
-    let unclassified = corpus.entries.count - targets.count - controls.count
-    #expect(
-      unclassified == 0,
-      "every entry must be target or control; \(unclassified) unclassified")
 
     var seenIDs = Set<String>()
     for t in targets {
-      let trackID = try #require(t.fileMetadata.identifiers?.trackId, "target missing track_id")
       #expect(
-        seenIDs.insert(trackID).inserted,
-        "duplicate track_id in targets: \(trackID)")
+        seenIDs.insert(t.trackID).inserted,
+        "duplicate track_id in targets: \(t.trackID)")
     }
     for c in controls {
-      let trackID = try #require(c.fileMetadata.identifiers?.trackId, "control missing track_id")
       #expect(
-        seenIDs.insert(trackID).inserted,
-        "duplicate track_id across targets ∪ controls: \(trackID)")
+        seenIDs.insert(c.trackID).inserted,
+        "duplicate track_id across targets ∪ controls: \(c.trackID)")
       // DD #4: controls must be in 155-175 BPM range so the half-tempo
       // failure mode is mechanically possible.
-      let bpm = try c.tempoBPM()
       #expect(
-        bpm >= 155.0 && bpm <= 175.0,
-        "\(trackID) ground_truth_bpm \(bpm) outside 155-175 range")
-      let rationale = c.sandbox?.rationale ?? ""
-      #expect(!rationale.isEmpty, "\(trackID) missing rationale")
+        c.bpm >= 155.0 && c.bpm <= 175.0,
+        "\(c.trackID) ground_truth_bpm \(c.bpm) outside 155-175 range")
+      let rationale = c.file.sandbox?.rationale ?? ""
+      #expect(!rationale.isEmpty, "\(c.trackID) missing rationale")
     }
   }
 
