@@ -73,6 +73,14 @@ struct SuperFluxImpactTests {
     self.dspControls = dnbCorpus.entries
       .filter { $0.sandbox?.partition == "control" }
       .compactMap { $0.fileMetadata.identifiers?.trackId }
+    // Completeness: every entry must contribute a target or control track_id. A
+    // partition typo or a missing track_id would otherwise be silently dropped from
+    // both sets (and the brutal-gate coverage checks built from them), so fail loudly
+    // at suite init instead.
+    let dnbUnclassified = dnbCorpus.entries.count - namedDnB.count - dspControls.count
+    try #require(
+      dnbUnclassified == 0,
+      "DnB corpus has \(dnbUnclassified) entries with an unknown partition or missing track_id")
     self.dnbTargetsSchemaVersion = try #require(
       dnbCorpus.sandbox?.schemaVersion, "DnB corpus sandbox missing schema_version")
   }

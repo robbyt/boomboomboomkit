@@ -42,6 +42,13 @@ struct DnBTargetsFileLoadingTests {
     let controls = corpus.entries.filter { $0.sandbox?.partition == "control" }
     #expect(targets.count == 4)
     #expect(controls.count >= 4)
+    // Completeness: every entry must classify as a target or a control. Without this,
+    // an entry with an unexpected/absent `partition` is silently dropped from BOTH
+    // filters, and the `controls >= 4` floor would mask a lost control.
+    let unclassified = corpus.entries.count - targets.count - controls.count
+    #expect(
+      unclassified == 0,
+      "every entry must be target or control; \(unclassified) unclassified")
 
     var seenIDs = Set<String>()
     for t in targets {

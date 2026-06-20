@@ -143,7 +143,10 @@ def convert_daw(rows: list[dict[str, Any]], curator: dict[str, str]) -> dict[str
             curator=curator,
             sandbox_extra={
                 "rekordbox_bpm": float(row["rekordbox_bpm"]),
-                "rekordbox_disagrees": bool(row["rekordbox_disagrees"]),
+                # Pass the source bool through unchanged — do NOT `bool(...)`-coerce, which
+                # would silently flip a stray string `"false"` to True. `validate_jams`'s
+                # daw branch rejects a non-bool loudly instead.
+                "rekordbox_disagrees": row["rekordbox_disagrees"],
                 "disagreement_type": row.get("disagreement_type"),
             },
         )
@@ -199,14 +202,17 @@ CONVERTERS = {"oa300": convert_oa300, "daw": convert_daw, "dnb": convert_dnb}
 
 
 def validate_jams(doc: dict[str, Any], artifact: str) -> None:
-    """Validate an already-JAMS document against the artifact minimum shape.
+    """Validate a JAMS corpus document against the artifact minimum shape.
 
-    Raises SystemExit(1) on any failure so an idempotent re-run cannot mask a bad
-    partial migration (Codex round-1 P3).
+    Runs on BOTH paths: the freshly-converted forward output (so a bad migration fails
+    at migration time, not at benchmark time) and the already-JAMS re-run input (so an
+    idempotent re-run cannot mask a bad partial migration — Codex round-1 P3). Every
+    artifact's required sandbox fields — the ones the Swift decoders fail loudly on —
+    are asserted here. Raises SystemExit(1) on any failure.
     """
     entries = doc.get("entries")
     if not isinstance(entries, list) or not entries:
-        raise SystemExit(f"[{artifact}] already-JAMS but `entries` is missing or empty")
+        raise SystemExit(f"[{artifact}] JAMS corpus `entries` is missing or empty")
     for i, raw_entry in enumerate(entries):
         if not isinstance(raw_entry, dict):
             raise SystemExit(f"[{artifact}] entry {i} is not a JSON object")
@@ -219,12 +225,19 @@ def validate_jams(doc: dict[str, Any], artifact: str) -> None:
         value = first.get("value")
         if not isinstance(value, (int, float)):
             raise SystemExit(f"[{artifact}] entry {i} tempo `value` is not numeric")
+        sandbox = entry.get("sandbox") or {}
         if artifact == "oa300":
-            genre = (entry.get("sandbox") or {}).get("genre")
+            genre = sandbox.get("genre")
             if not isinstance(genre, str) or not genre.strip():
                 raise SystemExit(f"[{artifact}] entry {i} missing sandbox.genre")
+        if artifact == "daw":
+            # The fields DAWOracleTrack.init(jamsFile:) reads off the sandbox.
+            if not isinstance(sandbox.get("rekordbox_bpm"), (int, float)):
+                raise SystemExit(f"[{artifact}] entry {i} missing sandbox.rekordbox_bpm")
+            if not isinstance(sandbox.get("rekordbox_disagrees"), bool):
+                raise SystemExit(f"[{artifact}] entry {i} missing sandbox.rekordbox_disagrees")
         if artifact == "dnb":
-            partition = (entry.get("sandbox") or {}).get("partition")
+            partition = sandbox.get("partition")
             if partition not in ("target", "control"):
                 raise SystemExit(f"[{artifact}] entry {i} sandbox.partition is not target/control")
     if artifact == "dnb":
@@ -314,6 +327,10 @@ def main() -> int:
 
     curator = get_curator()
     result = CONVERTERS[artifact](doc, curator)
+    # Validate the freshly-converted output BEFORE writing, so a bad migration (empty
+    # genre, missing rekordbox field, absent partition) fails at migration time rather
+    # than at benchmark/decode time — the same min-shape gate the already-JAMS re-run uses.
+    validate_jams(result, artifact)
     output_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
     entry_count = len(result["entries"])
     print(
