@@ -1171,6 +1171,8 @@ A quick follow-up to Story 8.5 (depends on it: consumes `BeatGrid.gridOrigin`/`B
 
 ### Story 8.8: Migrate existing oracle and sentinel artifacts to JAMS format
 
+> **Split 2026-06-20 (operator decision):** During spec creation a factual-claims grep found this AC understates the blast radius (real ~13 Swift + 5 Python consumers + the shipping `CorpusTracks` decoders, not the 3 named here) and that 8.7's JAMS decoder is benchmark-internal. Operator ruled "nothing shipping / no BC," so the work was split 3 ways: **8.8a** (relocate the JAMS model into public `BoomBoomBoomKitTestSupport` + add the deferred `tempo`-encode guard + `loadCorpus` adapters; no migration), **8.8b** (OA300 + DAW oracle in-place migration + consumers + `migrate-to-jams.py` + `make oracle-migrate-to-jams`), **8.8c** (DnB regression-config migration — corpus-level `sandbox` for `schema_version`/`regression_threshold`/`captured_with`). 8.8a is the prerequisite for b and c. The AC below is the combined source of truth; per-slice ACs live in `_bmad-output/implementation-artifacts/8-8{a,b,c}-*.md`.
+
 **As a** library maintainer adopting JAMS as the canonical annotation format,
 **I want** the existing `daw-oracle.json`, `oa300-ground-truth.json`, and `4-dnb-triplet-targets.json` artifacts converted to JAMS shape via a one-time migration script,
 **So that** Story 8.7's beat-grid benchmark + Story 1-1's BPM benchmark + all future ground-truth-consuming benchmarks share a single canonical annotation format with mir_eval interop and curator metadata discipline.
