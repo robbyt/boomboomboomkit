@@ -234,8 +234,41 @@ struct ReadDecodedAudioProducerTests {
     let (nanCap, _) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: .nan)
     let (infCap, _) = try PCMBufferReader.readMonoSamples(
       from: url, maxSeconds: .infinity)
+    let (negInfCap, _) = try PCMBufferReader.readMonoSamples(
+      from: url, maxSeconds: -.infinity)
+    // -greatestFiniteMagnitude is finite as an input, but its product with the
+    // sample rate overflows Double to -inf → also a full read, not a trap.
+    let (negHugeCap, _) = try PCMBufferReader.readMonoSamples(
+      from: url, maxSeconds: -.greatestFiniteMagnitude)
     #expect(nanCap.count == full.count)
     #expect(infCap.count == full.count)
+    #expect(negInfCap.count == full.count)
+    #expect(negHugeCap.count == full.count)
+  }
+
+  /// Public `readMonoSamples` (un-sanitized entry): a FINITE non-positive cap
+  /// whose product with the sample rate stays finite — including `0`, a small
+  /// negative, and a large-magnitude negative that underflows past `Int64.min`
+  /// (the pre-fix `Int64(...)` trap) — clamps to zero frames (empty), never
+  /// traps (doc contract at `PCMBufferReader.swift`; Copilot PR #37
+  /// r3447381814). The `-1e15`/`-1e20` cases could not be written before the
+  /// fix — `Int64(-4.4e19)` / `Int64(-4.4e24)` trapped.
+  @Test(arguments: [0.0, -5.0, -1.0e15, -1.0e20])
+  func readMonoSamplesNonPositiveCapReadsEmpty(_ bad: Double) throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let (samples, _) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: bad)
+    #expect(samples.isEmpty)
+  }
+
+  /// An empty capped read still reports the requested output rate when a
+  /// `targetSampleRate` was supplied — the rate contract points at the target
+  /// even with no samples to convert.
+  @Test func readMonoSamplesEmptyCapReportsTargetRate() throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let (samples, rate) = try PCMBufferReader.readMonoSamples(
+      from: url, maxSeconds: -5, targetSampleRate: 22_050)
+    #expect(samples.isEmpty)
+    #expect(rate == 22_050)
   }
 
   /// Valid cap: maxSeconds = 1 on a 44.1 kHz fixture reads exactly 44100
