@@ -134,7 +134,7 @@ struct ContentView: View {
       // "nothing happened yet" while the first run is in flight.
       Group {
         if let snapshot = viewModel.lastRunSnapshot {
-          TraceView(snapshot: snapshot)
+          TraceView(snapshot: snapshot, gridVisualization: viewModel.gridVisualization)
         } else if viewModel.isAnalyzing {
           TraceInspectorAnalyzingView()
         } else {

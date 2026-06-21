@@ -34,8 +34,6 @@ struct BeatGridView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      header
-      legendKey
       controls
       ScrollView(.horizontal, showsIndicators: true) {
         Canvas { context, size in draw(in: context, size: size) }
@@ -74,71 +72,7 @@ struct BeatGridView: View {
     return []
   }
 
-  // MARK: - Header / controls / legend
-
-  // Each metric is its own chip with a hover tooltip (.help) explaining what it
-  // means — the fields are jargon-y on their own, so the explanation travels
-  // with the value instead of living in a separate doc.
-  @ViewBuilder
-  private var header: some View {
-    let grid = state.beatGrid
-    VStack(alignment: .leading, spacing: 4) {
-      HStack(spacing: 8) {
-        metricChip(
-          String(format: "Grid tempo %.2f BPM", grid.estimatedTempo),
-          help:
-            "The beat-grid analyzer's OWN tempo, measured by tracking beats across the whole "
-            + "track. Fractions of a BPM matter here: a ~0.1 BPM error makes the grid slowly "
-            + "slide off the beat over a few minutes, even when the BPM looks right.")
-        chipDivider
-        metricChip(
-          String(format: "BPM stage %.2f", state.bpmTempo),
-          help:
-            "The main DSP BPM detector's tempo — the same number the big BPM readout shows, "
-            + "computed independently from the grid.")
-        chipDivider
-        metricChip(
-          agreementLabel,
-          help:
-            "Whether the grid tempo and the BPM-stage tempo match. \"agree\" = same tempo; "
-            + "\"octave\" = one is double/half the other; \"disagree\" = they diverge.")
-      }
-      HStack(spacing: 8) {
-        metricChip(
-          "\(grid.beats.count) beats",
-          help: "How many individual beats the tracker detected across the analyzed span.")
-        chipDivider
-        metricChip(
-          downbeatLabel,
-          help:
-            "Detected downbeats — the \"1\" of each bar. \"none\" means downbeat detection ran "
-            + "but wasn't confident enough to mark any; it abstains rather than guess wrong.")
-        chipDivider
-        metricChip(
-          String(format: "confidence %.0f%%", Double(grid.confidence) * 100),
-          help:
-            "How strong and steady the tracked beat is (half \"how clear are the beats\", half "
-            + "\"how periodic is the pulse\"). Separate from the BPM detector's own confidence.")
-        chipDivider
-        metricChip(
-          coverageLabel,
-          help:
-            "How much of the track was scanned for beats. \"full track\" = the whole file "
-            + "(capped at 120s); \"analysis window\" = only the ~30s the BPM stage uses.")
-      }
-    }
-  }
-
-  @ViewBuilder
-  private func metricChip(_ text: String, help: String) -> some View {
-    Text(text)
-      .font(.caption).monospacedDigit()
-      .help(help)
-  }
-
-  private var chipDivider: some View {
-    Text("·").font(.caption).foregroundStyle(.tertiary)
-  }
+  // MARK: - Controls / legend
 
   @ViewBuilder
   private var controls: some View {
@@ -151,20 +85,6 @@ struct BeatGridView: View {
         Slider(value: $pointsPerSecond, in: 4...80)
           .frame(width: 140)
       }
-    }
-  }
-
-  // Compact one-line color key (swatch + short label per layer) so the colors
-  // stay legible at a glance, plus a (?) button that reveals the full annotated
-  // legend in a popover. The verbose descriptions used to sit always-on the page
-  // and pushed the waveform below the fold; the popover keeps the section compact.
-  @ViewBuilder
-  private var legendKey: some View {
-    HStack(spacing: 10) {
-      keySwatch(.blue, "Extrapolated grid")
-      keySwatch(.secondary, "Raw beats")
-      keySwatch(.pink, "Downbeats")
-      keySwatch(.orange, "Anchor")
       Button {
         showLegendHelp.toggle()
       } label: {
@@ -175,16 +95,6 @@ struct BeatGridView: View {
       .popover(isPresented: $showLegendHelp, arrowEdge: .bottom) {
         legendHelp.padding().frame(width: 360)
       }
-    }
-    .font(.caption2)
-    .foregroundStyle(.secondary)
-  }
-
-  @ViewBuilder
-  private func keySwatch(_ color: Color, _ label: String) -> some View {
-    HStack(spacing: 3) {
-      Rectangle().fill(color).frame(width: 12, height: 3)
-      Text(label)
     }
   }
 
@@ -222,34 +132,6 @@ struct BeatGridView: View {
         Text(description).font(.caption2).foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
       }
-    }
-  }
-
-  // MARK: - Labels
-
-  private var agreementLabel: String {
-    switch state.beatGrid.tempoAgreement {
-    case .agree: return "agree"
-    case .octaveEquivalent(let factor): return "octave ×\(factor)"
-    case .disagree: return "disagree"
-    case .notCompared: return "not compared"
-    }
-  }
-
-  private var downbeatLabel: String {
-    switch state.beatGrid.downbeats {
-    case .detected(let estimate):
-      return "\(estimate.beats.count) downbeats \(estimate.meter.beatsPerBar)/4"
-    case .noneDetected: return "downbeats: none"
-    case .notAttempted: return "downbeats: off"
-    }
-  }
-
-  private var coverageLabel: String {
-    switch state.beatGrid.coverage {
-    case .fullTrack: return "full track"
-    case .analysisWindow: return "analysis window"
-    case .window(let seconds): return String(format: "window %.0fs", seconds)
     }
   }
 
@@ -361,5 +243,62 @@ struct BeatGridView: View {
       n += 1
     }
     return times
+  }
+}
+
+/// The beat-grid numeric metadata, rendered as a `GroupBox` section for the trace
+/// inspector — the same place the BPM-detection detail lives. Moved out of the
+/// main-body waveform strip so that strip stays compact (waveform + controls only).
+struct BeatGridDetailSection: View {
+  let state: GridVisualizationState
+
+  var body: some View {
+    let grid = state.beatGrid
+    GroupBox("Beat grid") {
+      VStack(alignment: .leading, spacing: 6) {
+        LabeledContent("Grid tempo") {
+          Text(String(format: "%.2f BPM", grid.estimatedTempo)).monospacedDigit()
+        }
+        LabeledContent("BPM stage") {
+          Text(String(format: "%.2f BPM", state.bpmTempo)).monospacedDigit()
+        }
+        LabeledContent("Agreement", value: agreementLabel)
+        LabeledContent("Beats") {
+          Text("\(grid.beats.count)").monospacedDigit()
+        }
+        LabeledContent("Downbeats", value: downbeatLabel)
+        LabeledContent("Confidence") {
+          Text(String(format: "%.0f%%", Double(grid.confidence) * 100)).monospacedDigit()
+        }
+        LabeledContent("Coverage", value: coverageLabel)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private var agreementLabel: String {
+    switch state.beatGrid.tempoAgreement {
+    case .agree: return "agree"
+    case .octaveEquivalent(let factor): return "octave ×\(factor)"
+    case .disagree: return "disagree"
+    case .notCompared: return "not compared"
+    }
+  }
+
+  private var downbeatLabel: String {
+    switch state.beatGrid.downbeats {
+    case .detected(let estimate):
+      return "\(estimate.beats.count) (\(estimate.meter.beatsPerBar)/4)"
+    case .noneDetected: return "none"
+    case .notAttempted: return "off"
+    }
+  }
+
+  private var coverageLabel: String {
+    switch state.beatGrid.coverage {
+    case .fullTrack: return "full track"
+    case .analysisWindow: return "analysis window"
+    case .window(let seconds): return String(format: "window %.0fs", seconds)
+    }
   }
 }
