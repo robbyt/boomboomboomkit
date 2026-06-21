@@ -100,6 +100,61 @@ struct BeatGridAnalyzerTests {
     #expect(Self.matchesWithinOctave(grid.estimatedTempo, bpmResult.bpm))
   }
 
+  // MARK: - Tempo lock (BeatGridTempoLock)
+
+  /// Runs the combined `analyze(decoded:)` path over a 12 s synthetic click track
+  /// (computeBeatGrid on) for the given lock mode.
+  private static func analyzeClick(bpm: Double, lock: BeatGridTempoLock) throws
+    -> CombinedAnalysisResult
+  {
+    let samples = generateClickTrack(bpm: bpm, sampleRate: 44100, durationSeconds: 12)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 44100)
+    var opts = AudioAnalysisService.Options()
+    opts.beatGridTempoLock = lock
+    return try #require(try AudioAnalysisService.analyze(decoded: decoded, options: opts))
+  }
+
+  @Test func tempoLockBpmStageSnapsToAuthoritativeTempoAtGridOctave() throws {
+    let off = try Self.analyzeClick(bpm: 120, lock: .off)
+    let locked = try Self.analyzeClick(bpm: 120, lock: .bpmStage)
+    let offGrid = try #require(off.beatGrid)
+    let lockedGrid = try #require(locked.beatGrid)
+    // Locking never changes the octave: the locked tempo stays within the 2% band
+    // of the tracker's own tempo (it does NOT halve/double the grid).
+    #expect(
+      abs(lockedGrid.estimatedTempo - offGrid.estimatedTempo) / offGrid.estimatedTempo <= 0.02)
+    // The locked tempo IS the authoritative BPM-stage tempo, octave-normalized.
+    #expect(Self.matchesWithinOctave(lockedGrid.estimatedTempo, locked.bpm.bpm))
+    // When tracker and BPM stage already share an octave (the clean-click case),
+    // lock pulls the grid tempo exactly onto the BPM-stage value — drift removed.
+    if abs(offGrid.estimatedTempo - locked.bpm.bpm) / locked.bpm.bpm <= 0.02 {
+      #expect(lockedGrid.estimatedTempo == locked.bpm.bpm)
+    }
+  }
+
+  @Test func tempoLockOffKeepsTrackerTempoAndAgreementDiagnostic() throws {
+    let off = try Self.analyzeClick(bpm: 120, lock: .off)
+    let grid = try #require(off.beatGrid)
+    #expect(grid.estimatedTempo > 0)
+    // .off keeps the tracker's measured tempo and a real agreement classification
+    // (the combined path always classifies; locking only overrides the scalar).
+    #expect(grid.tempoAgreement != .notCompared)
+  }
+
+  @Test func tempoLockExplicitBPMLocksWithinOctaveAndIgnoresAbsurd() throws {
+    let off = try Self.analyzeClick(bpm: 120, lock: .off)
+    let offTempo = try #require(off.beatGrid).estimatedTempo
+
+    // Pin to the tracker's own tempo -> same octave -> locks to it exactly.
+    let pinned = try Self.analyzeClick(bpm: 120, lock: .bpm(offTempo))
+    #expect(try #require(pinned.beatGrid).estimatedTempo == offTempo)
+
+    // An absurd 1 BPM target disagrees by more than an octave -> NOT locked; the
+    // tracker's tempo stands (identical to .off on the same deterministic input).
+    let absurd = try Self.analyzeClick(bpm: 120, lock: .bpm(1.0))
+    #expect(try #require(absurd.beatGrid).estimatedTempo == offTempo)
+  }
+
   // MARK: - Deterministic DP recovery (no decode)
 
   @Test func recoversBeatsFromSyntheticPeriodicEnvelope() throws {

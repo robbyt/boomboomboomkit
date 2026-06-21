@@ -248,6 +248,27 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       schemaVersion: schemaVersion)
   }
 
+  /// Returns a copy of this grid with ``estimatedTempo`` overridden and every
+  /// other field forwarded from `self`.
+  ///
+  /// Used by the tempo-lock path (``BeatGridTempoLock``) to replace the tracker's
+  /// measured tempo with an authoritative constant BPM while keeping the existing
+  /// ``gridOrigin`` anchor, raw ``beats``, and the pre-lock ``tempoAgreement``
+  /// diagnostic. The new tempo routes through the clamping memberwise init, so a
+  /// non-finite/non-positive value normalizes to the `0.0` sentinel exactly as a
+  /// freshly-constructed grid would (W52 forward-every-field).
+  func with(estimatedTempo newTempo: Double) -> BeatGrid {
+    BeatGrid(
+      beats: beats,
+      downbeats: downbeats,
+      estimatedTempo: newTempo,
+      confidence: confidence,
+      tempoAgreement: tempoAgreement,
+      gridOrigin: gridOrigin,
+      coverage: coverage,
+      schemaVersion: schemaVersion)
+  }
+
   // MARK: Codable
 
   /// Decodes raw scalars into locals and constructs `self` through the clamping

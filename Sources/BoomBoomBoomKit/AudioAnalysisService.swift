@@ -339,6 +339,16 @@ public struct AudioAnalysisService {
     /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
     public var detectDownbeats: Bool = false
 
+    /// Locks the beat-grid tempo to an authoritative constant BPM instead of the
+    /// tracker's measured tempo — see ``BeatGridTempoLock``. Default
+    /// ``BeatGridTempoLock/off`` reproduces prior behavior byte-for-byte. Honored
+    /// only on the combined ``analyze(url:options:)`` / ``analyze(decoded:options:)``
+    /// path (which has the BPM-stage tempo); standalone
+    /// ``analyzeBeatGrid(url:options:)`` ignores it. The target tempo is
+    /// octave-normalized to the grid's tempo before it is applied, and a
+    /// more-than-an-octave disagreement leaves the grid unlocked.
+    public var beatGridTempoLock: BeatGridTempoLock = .off
+
     /// Closure checked before each analysis window. When it returns `true`,
     /// the analysis throws `CancellationError`. Defaults to `Task.isCancelled`,
     /// giving automatic structured-concurrency support.
@@ -1557,8 +1567,10 @@ public struct AudioAnalysisService {
     // Checkpoint before the (separate) beat-grid pass (AC6).
     if options.isCancelled() { throw CancellationError() }
     let grid = try beatGrid(decoded: decoded, options: options)
+    let resolved = grid.map { resolveTempoAgreement($0, against: bpm) }
     return CombinedAnalysisResult(
-      bpm: bpm, beatGrid: grid.map { resolveTempoAgreement($0, against: bpm) })
+      bpm: bpm,
+      beatGrid: applyTempoLock(resolved, lock: options.beatGridTempoLock, bpmStageTempo: bpm.bpm))
   }
 
   /// Combined analysis over an already-decoded carrier — the shared-decode seam
@@ -1582,8 +1594,10 @@ public struct AudioAnalysisService {
     guard let bpm = try analyzeBPM(decoded: capped, options: options) else { return nil }
     if options.isCancelled() { throw CancellationError() }
     let grid = try beatGrid(decoded: capped, options: options)
+    let resolved = grid.map { resolveTempoAgreement($0, against: bpm) }
     return CombinedAnalysisResult(
-      bpm: bpm, beatGrid: grid.map { resolveTempoAgreement($0, against: bpm) })
+      bpm: bpm,
+      beatGrid: applyTempoLock(resolved, lock: options.beatGridTempoLock, bpmStageTempo: bpm.bpm))
   }
 
   /// Stamps the resolved ``TempoAgreement`` onto a grid the analyzer produced
@@ -1595,6 +1609,41 @@ public struct AudioAnalysisService {
     grid.with(
       tempoAgreement: classifyTempoAgreement(
         gridTempo: grid.estimatedTempo, bpmTempo: bpm.bpm))
+  }
+
+  /// Applies ``BeatGridTempoLock`` to a grid in the combined-analysis path,
+  /// AFTER ``resolveTempoAgreement`` so the grid keeps its pre-lock
+  /// ``BeatGrid/tempoAgreement`` diagnostic (overriding the tempo first would
+  /// make it artificially ``TempoAgreement/agree`` and hide the exact drift this
+  /// feature exists to fix). The target tempo (the BPM stage's, or a
+  /// caller-supplied BPM) is octave-normalized to the grid's tempo; a target that
+  /// disagrees by more than an octave leaves the grid unlocked.
+  private static func applyTempoLock(
+    _ grid: BeatGrid?, lock: BeatGridTempoLock, bpmStageTempo: Double
+  ) -> BeatGrid? {
+    guard let grid else { return nil }
+    let target: Double
+    switch lock {
+    case .off: return grid
+    case .bpmStage: target = bpmStageTempo
+    case .bpm(let value): target = value
+    }
+    guard let locked = octaveNormalizedLockTempo(target: target, gridTempo: grid.estimatedTempo)
+    else { return grid }
+    return grid.with(estimatedTempo: locked)
+  }
+
+  /// Returns `target` octave-shifted (×1, ×2, or ×½) to whichever octave lands
+  /// within the 2% agreement band of `gridTempo`, or `nil` when none does (a
+  /// more-than-an-octave disagreement, or a non-finite/non-positive input). Reuses
+  /// ``classifyTempoAgreement`` so the lock's octave logic and the cross-stage
+  /// agreement classifier can never drift apart.
+  private static func octaveNormalizedLockTempo(target: Double, gridTempo: Double) -> Double? {
+    switch classifyTempoAgreement(gridTempo: gridTempo, bpmTempo: target) {
+    case .agree: return target
+    case .octaveEquivalent(let factor): return factor == 2 ? target * 2.0 : target * 0.5
+    case .disagree, .notCompared: return nil
+    }
   }
 
   /// Classifies how a beat-grid tempo relates to a BPM-stage tempo (AC7 / FR-31).
