@@ -31,8 +31,14 @@ struct BeatGridView: View {
   // Captured at the start of a pinch so magnification scales from the zoom level
   // the gesture began at (nil between gestures).
   @State private var pinchBasePPS: Double?
+  // The visible lane's measured size (width drives the fit-to-width zoom-out
+  // floor; height drives the fill-the-box lane height). `.zero` until the first
+  // layout pass measures it.
+  @State private var laneSize: CGSize = .zero
 
-  private let laneHeight: CGFloat = 160
+  /// Measured visible lane height, with a positive fallback so the pre-measure
+  /// layout pass still hands the Canvas a valid height.
+  private var laneHeight: CGFloat { max(laneSize.height, 1) }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -50,21 +56,45 @@ struct BeatGridView: View {
               .onChanged { value in
                 if pinchBasePPS == nil { pinchBasePPS = pointsPerSecond }
                 let base = pinchBasePPS ?? pointsPerSecond
-                pointsPerSecond = min(max(base * value.magnification, 4), 80)
+                let lo = minPointsPerSecond
+                let hi = max(80, lo * 4)
+                pointsPerSecond = min(max(base * value.magnification, lo), hi)
               }
               .onEnded { _ in pinchBasePPS = nil }
           )
       }
-      // Bound the horizontal ScrollView's cross-axis height. Without this a
-      // horizontal ScrollView reports an unbounded ideal height, which drives the
-      // window to fill the screen (and resist shrinking) and displaces the
-      // waveform. With it, the lane is a fixed height that scrolls only sideways.
-      .frame(height: laneHeight)
+      // Fill the box vertically (the lane height is then read back from the
+      // measured size below). Safe despite a horizontal ScrollView's unbounded
+      // ideal cross-axis height because the GroupBox's `.frame(maxHeight: 340)`
+      // hard-caps upward propagation — that cap is the resize guard now.
+      .frame(maxHeight: .infinity)
+      // Measure the visible lane. Layout-neutral (unlike a greedy GeometryReader).
+      // Width feeds the fit-to-width zoom-out floor; height feeds `laneHeight`.
+      .onGeometryChange(for: CGSize.self) { proxy in
+        proxy.size
+      } action: { newSize in
+        laneSize = newSize
+        // Re-clamp on resize / first layout so the displayed zoom never sits
+        // below the new fit-to-width floor. Guarded to avoid a redundant write
+        // each layout pass.
+        let lo = minPointsPerSecond
+        let hi = max(80, lo * 4)
+        let clamped = min(max(pointsPerSecond, lo), hi)
+        if pointsPerSecond != clamped { pointsPerSecond = clamped }
+      }
       controls
     }
   }
 
   // MARK: - Derived geometry
+
+  /// Fit-to-width zoom-out floor: the points-per-second at which the waveform
+  /// exactly fills the visible lane. Pinch-out cannot go below this, so the
+  /// waveform never shrinks narrower than the lane (no right-side dead space).
+  private var minPointsPerSecond: Double {
+    guard laneSize.width > 0, effectiveDuration > 0 else { return 4 }
+    return Double(laneSize.width) / effectiveDuration
+  }
 
   /// X-axis span. Prefers the decoded waveform duration; falls back to the last
   /// detected beat when the waveform decode failed (`duration == 0`), so the
@@ -94,7 +124,7 @@ struct BeatGridView: View {
   // pinch-to-zoom; the legend (?) moved next to the GroupBox title).
   @ViewBuilder
   private var controls: some View {
-    Toggle("Raw beats", isOn: $showRawBeats)
+    Toggle("Show raw beat indicators", isOn: $showRawBeats)
       .toggleStyle(.checkbox)
       .font(.caption)
   }
