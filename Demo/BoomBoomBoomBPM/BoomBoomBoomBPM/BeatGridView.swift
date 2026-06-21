@@ -28,23 +28,39 @@ struct BeatGridView: View {
 
   @State private var pointsPerSecond: Double = 16
   @State private var showRawBeats: Bool = true
-  @State private var showLegendHelp: Bool = false
+  // Captured at the start of a pinch so magnification scales from the zoom level
+  // the gesture began at (nil between gestures).
+  @State private var pinchBasePPS: Double?
 
-  private let laneHeight: CGFloat = 84
+  private let laneHeight: CGFloat = 160
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      controls
       ScrollView(.horizontal, showsIndicators: true) {
         Canvas { context, size in draw(in: context, size: size) }
           .frame(width: contentWidth, height: laneHeight)
           .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
+          // `.simultaneousGesture` on the canvas content (not the ScrollView) so
+          // trackpad pinch-to-zoom coexists with horizontal pan — they are
+          // distinct trackpad gestures. `.contentShape` gives the gesture a hit
+          // region across the full lane.
+          .contentShape(Rectangle())
+          .simultaneousGesture(
+            MagnifyGesture()
+              .onChanged { value in
+                if pinchBasePPS == nil { pinchBasePPS = pointsPerSecond }
+                let base = pinchBasePPS ?? pointsPerSecond
+                pointsPerSecond = min(max(base * value.magnification, 4), 80)
+              }
+              .onEnded { _ in pinchBasePPS = nil }
+          )
       }
       // Bound the horizontal ScrollView's cross-axis height. Without this a
       // horizontal ScrollView reports an unbounded ideal height, which drives the
       // window to fill the screen (and resist shrinking) and displaces the
-      // waveform. With it, the strip is a fixed 84 pt that scrolls only sideways.
+      // waveform. With it, the lane is a fixed height that scrolls only sideways.
       .frame(height: laneHeight)
+      controls
     }
   }
 
@@ -72,67 +88,15 @@ struct BeatGridView: View {
     return []
   }
 
-  // MARK: - Controls / legend
+  // MARK: - Controls
 
+  // Sits below the waveform now (the Zoom slider was replaced by trackpad
+  // pinch-to-zoom; the legend (?) moved next to the GroupBox title).
   @ViewBuilder
   private var controls: some View {
-    HStack(spacing: 12) {
-      Toggle("Raw beats", isOn: $showRawBeats)
-        .toggleStyle(.checkbox)
-        .font(.caption)
-      HStack(spacing: 4) {
-        Text("Zoom").font(.caption).foregroundStyle(.secondary)
-        Slider(value: $pointsPerSecond, in: 4...80)
-          .frame(width: 140)
-      }
-      Button {
-        showLegendHelp.toggle()
-      } label: {
-        Image(systemName: "questionmark.circle")
-      }
-      .buttonStyle(.borderless)
-      .help("What do these layers mean?")
-      .popover(isPresented: $showLegendHelp, arrowEdge: .bottom) {
-        legendHelp.padding().frame(width: 360)
-      }
-    }
-  }
-
-  // Full annotated legend shown inside the (?) popover: each layer's name + a
-  // plain-language explanation, because "raw beats" vs "extrapolated grid" is
-  // meaningless without it.
-  @ViewBuilder
-  private var legendHelp: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      legendRow(
-        .blue, "Extrapolated grid",
-        "The clean, evenly-spaced grid built from one anchor beat + the tempo. It never drifts, "
-          + "and it's what the library tells a sync feature (like a DJ app) to lock onto.")
-      legendRow(
-        .secondary, "Raw beats",
-        "Every individual beat the tracker actually detected, at the exact time it landed. These "
-          + "wobble and can occasionally double or drop — useful for spotting where detection "
-          + "struggled, but not what you'd sync to. Toggle to hide.")
-      legendRow(
-        .pink, "Downbeats",
-        "The detected start-of-bar beats (the \"1\" of each bar), shown only when the analyzer is "
-          + "confident enough to mark them.")
-      legendRow(
-        .orange, "Anchor",
-        "The single most-trusted beat that the extrapolated grid is built outward from.")
-    }
-  }
-
-  @ViewBuilder
-  private func legendRow(_ color: Color, _ label: String, _ description: String) -> some View {
-    HStack(alignment: .top, spacing: 6) {
-      Rectangle().fill(color).frame(width: 12, height: 3).padding(.top, 5)
-      VStack(alignment: .leading, spacing: 0) {
-        Text(label).font(.caption).bold()
-        Text(description).font(.caption2).foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-    }
+    Toggle("Raw beats", isOn: $showRawBeats)
+      .toggleStyle(.checkbox)
+      .font(.caption)
   }
 
   // MARK: - Drawing
@@ -145,18 +109,27 @@ struct BeatGridView: View {
     let width = size.width
     let midY = size.height / 2
 
-    // Waveform envelope (one path, light gray) centered on the midline.
-    if !state.peaks.isEmpty {
-      var wave = Path()
-      let amp = size.height / 2 * 0.9
-      let count = state.peaks.count
-      for i in 0..<count {
-        let cx = (CGFloat(i) + 0.5) / CGFloat(count) * width
-        let h = CGFloat(state.peaks[i]) * amp
-        wave.move(to: CGPoint(x: cx, y: midY - h))
-        wave.addLine(to: CGPoint(x: cx, y: midY + h))
+    // Waveform: a single closed, filled, mirrored envelope (DAW-style) — top edge
+    // left-to-right, bottom edge right-to-left, closed and filled. Much cleaner
+    // than per-column ticks.
+    let count = state.peaks.count
+    if count > 0 {
+      let amp = size.height / 2 * 0.92
+      func columnX(_ i: Int) -> CGFloat { (CGFloat(i) + 0.5) / CGFloat(count) * width }
+      func peak(_ i: Int) -> CGFloat {
+        let p = state.peaks[i]
+        return CGFloat(max(0, min(1, p.isFinite ? p : 0)))
       }
-      context.stroke(wave, with: .color(.gray.opacity(0.55)), lineWidth: 1)
+      var env = Path()
+      env.move(to: CGPoint(x: columnX(0), y: midY - peak(0) * amp))
+      for i in 1..<count {
+        env.addLine(to: CGPoint(x: columnX(i), y: midY - peak(i) * amp))
+      }
+      for i in stride(from: count - 1, through: 0, by: -1) {
+        env.addLine(to: CGPoint(x: columnX(i), y: midY + peak(i) * amp))
+      }
+      env.closeSubpath()
+      context.fill(env, with: .color(.gray.opacity(0.45)))
     }
 
     // Raw detected beats (faint short ticks from the top) — secondary layer.
@@ -243,6 +216,63 @@ struct BeatGridView: View {
       n += 1
     }
     return times
+  }
+}
+
+/// The `(?)` help button shown next to the "Beat grid" title. Self-contained — it
+/// owns the popover state and the annotated-legend content, so it can live in the
+/// GroupBox label (outside `BeatGridView`).
+struct BeatGridHelpButton: View {
+  @State private var showLegendHelp = false
+
+  var body: some View {
+    Button {
+      showLegendHelp.toggle()
+    } label: {
+      Image(systemName: "questionmark.circle")
+    }
+    .buttonStyle(.borderless)
+    .controlSize(.small)
+    .help("What do these layers mean?")
+    .popover(isPresented: $showLegendHelp, arrowEdge: .bottom) {
+      legendHelp.padding().frame(width: 360)
+    }
+  }
+
+  // Full annotated legend: each layer's name + a plain-language explanation,
+  // because "raw beats" vs "extrapolated grid" is meaningless without it.
+  @ViewBuilder
+  private var legendHelp: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      legendRow(
+        .blue, "Extrapolated grid",
+        "The clean, evenly-spaced grid built from one anchor beat + the tempo. It never drifts, "
+          + "and it's what the library tells a sync feature (like a DJ app) to lock onto.")
+      legendRow(
+        .secondary, "Raw beats",
+        "Every individual beat the tracker actually detected, at the exact time it landed. These "
+          + "wobble and can occasionally double or drop — useful for spotting where detection "
+          + "struggled, but not what you'd sync to. Toggle to hide.")
+      legendRow(
+        .pink, "Downbeats",
+        "The detected start-of-bar beats (the \"1\" of each bar), shown only when the analyzer is "
+          + "confident enough to mark them.")
+      legendRow(
+        .orange, "Anchor",
+        "The single most-trusted beat that the extrapolated grid is built outward from.")
+    }
+  }
+
+  @ViewBuilder
+  private func legendRow(_ color: Color, _ label: String, _ description: String) -> some View {
+    HStack(alignment: .top, spacing: 6) {
+      Rectangle().fill(color).frame(width: 12, height: 3).padding(.top, 5)
+      VStack(alignment: .leading, spacing: 0) {
+        Text(label).font(.caption).bold()
+        Text(description).font(.caption2).foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
   }
 }
 
