@@ -41,6 +41,11 @@ struct BeatGridView: View {
           .frame(width: contentWidth, height: laneHeight)
           .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
       }
+      // Bound the horizontal ScrollView's cross-axis height. Without this a
+      // horizontal ScrollView reports an unbounded ideal height, which drives the
+      // window to fill the screen (and resist shrinking) and displaces the
+      // waveform. With it, the strip is a fixed 84 pt that scrolls only sideways.
+      .frame(height: laneHeight)
     }
   }
 
