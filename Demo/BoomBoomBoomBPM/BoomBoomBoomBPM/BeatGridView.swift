@@ -28,13 +28,14 @@ struct BeatGridView: View {
 
   @State private var pointsPerSecond: Double = 16
   @State private var showRawBeats: Bool = true
+  @State private var showLegendHelp: Bool = false
 
   private let laneHeight: CGFloat = 84
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       header
-      legend
+      legendKey
       controls
       ScrollView(.horizontal, showsIndicators: true) {
         Canvas { context, size in draw(in: context, size: size) }
@@ -153,12 +154,46 @@ struct BeatGridView: View {
     }
   }
 
-  // Sits directly under the header (above the waveform): each colored layer in
-  // the overlay gets a name AND a one-line plain-language explanation, because
-  // "raw beats" vs "extrapolated grid" is meaningless without it.
+  // Compact one-line color key (swatch + short label per layer) so the colors
+  // stay legible at a glance, plus a (?) button that reveals the full annotated
+  // legend in a popover. The verbose descriptions used to sit always-on the page
+  // and pushed the waveform below the fold; the popover keeps the section compact.
   @ViewBuilder
-  private var legend: some View {
-    VStack(alignment: .leading, spacing: 4) {
+  private var legendKey: some View {
+    HStack(spacing: 10) {
+      keySwatch(.blue, "Extrapolated grid")
+      keySwatch(.secondary, "Raw beats")
+      keySwatch(.pink, "Downbeats")
+      keySwatch(.orange, "Anchor")
+      Button {
+        showLegendHelp.toggle()
+      } label: {
+        Image(systemName: "questionmark.circle")
+      }
+      .buttonStyle(.borderless)
+      .help("What do these layers mean?")
+      .popover(isPresented: $showLegendHelp, arrowEdge: .bottom) {
+        legendHelp.padding().frame(width: 360)
+      }
+    }
+    .font(.caption2)
+    .foregroundStyle(.secondary)
+  }
+
+  @ViewBuilder
+  private func keySwatch(_ color: Color, _ label: String) -> some View {
+    HStack(spacing: 3) {
+      Rectangle().fill(color).frame(width: 12, height: 3)
+      Text(label)
+    }
+  }
+
+  // Full annotated legend shown inside the (?) popover: each layer's name + a
+  // plain-language explanation, because "raw beats" vs "extrapolated grid" is
+  // meaningless without it.
+  @ViewBuilder
+  private var legendHelp: some View {
+    VStack(alignment: .leading, spacing: 8) {
       legendRow(
         .blue, "Extrapolated grid",
         "The clean, evenly-spaced grid built from one anchor beat + the tempo. It never drifts, "
@@ -167,7 +202,7 @@ struct BeatGridView: View {
         .secondary, "Raw beats",
         "Every individual beat the tracker actually detected, at the exact time it landed. These "
           + "wobble and can occasionally double or drop — useful for spotting where detection "
-          + "struggled, but not what you'd sync to. Toggle below to hide.")
+          + "struggled, but not what you'd sync to. Toggle to hide.")
       legendRow(
         .pink, "Downbeats",
         "The detected start-of-bar beats (the \"1\" of each bar), shown only when the analyzer is "
