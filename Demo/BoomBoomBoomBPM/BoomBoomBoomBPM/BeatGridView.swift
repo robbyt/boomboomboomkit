@@ -36,6 +36,23 @@ struct BeatGridView: View {
   // layout pass measures it.
   @State private var laneSize: CGSize = .zero
 
+  // --- Pointer-anchored pinch-zoom ---
+  // Drives programmatic horizontal scrolling so the content point under the cursor
+  // stays fixed as `pointsPerSecond` changes (zoom-where-you-point), instead of the
+  // default left-edge anchoring.
+  @State private var scrollPosition = ScrollPosition()
+  // The live horizontal scroll offset. Updated by `.onScrollGeometryChange`; read
+  // ONLY at pinch start (to map cursor viewport-x → content-x), so the programmatic
+  // scroll we issue during the pinch can't feed back into the anchor math.
+  @State private var currentOffsetX: CGFloat = 0
+  // Last cursor x in VIEWPORT space (`[0, laneWidth]`, scroll-independent). Viewport
+  // space — not content space — so panning between hover and pinch can't stale it.
+  @State private var hoverViewportX: CGFloat?
+  // Captured once per pinch: the content time under the cursor, and the cursor's
+  // (fixed) viewport x. `newOffset = anchorTime * newPPS − anchorViewportX`.
+  @State private var pinchAnchorTime: Double?
+  @State private var pinchAnchorViewportX: CGFloat?
+
   /// Measured visible lane height, with a positive fallback so the pre-measure
   /// layout pass still hands the Canvas a valid height.
   private var laneHeight: CGFloat { max(laneSize.height, 1) }
@@ -54,14 +71,57 @@ struct BeatGridView: View {
           .simultaneousGesture(
             MagnifyGesture()
               .onChanged { value in
-                if pinchBasePPS == nil { pinchBasePPS = pointsPerSecond }
+                if pinchBasePPS == nil {
+                  // Capture the anchor ONCE. Cursor viewport-x (invariant to panning),
+                  // or viewport-center when there's no active hover. The content-x is
+                  // derived from the offset NOW (`currentOffsetX + vx`), so a pan before
+                  // the pinch can't stale it. The viewport↔content origin coincidence
+                  // holds while the Canvas is the sole scroll content with no leading
+                  // gutter / contentMargins — revisit this mapping if that changes.
+                  pinchBasePPS = pointsPerSecond
+                  let vx = min(max(hoverViewportX ?? (laneSize.width / 2), 0), laneSize.width)
+                  let cx = currentOffsetX + vx
+                  pinchAnchorTime = Double(cx) / pointsPerSecond
+                  pinchAnchorViewportX = vx
+                }
                 let base = pinchBasePPS ?? pointsPerSecond
                 let lo = minPointsPerSecond
                 let hi = max(80, lo * 4)
-                pointsPerSecond = min(max(base * value.magnification, lo), hi)
+                let newPPS = min(max(base * value.magnification, lo), hi)
+                // Own the offset during the pinch: disable the scroll view's automatic
+                // content-offset adjustment so it doesn't fight our explicit scrollTo
+                // when contentWidth changes in the same layout pass.
+                var txn = Transaction()
+                txn.scrollContentOffsetAdjustmentBehavior = .disabled
+                withTransaction(txn) {
+                  pointsPerSecond = newPPS
+                  if let t = pinchAnchorTime, let vx = pinchAnchorViewportX {
+                    scrollPosition.scrollTo(x: CGFloat(max(0, t * newPPS - Double(vx))))
+                  }
+                }
               }
-              .onEnded { _ in pinchBasePPS = nil }
+              .onEnded { _ in
+                pinchBasePPS = nil
+                pinchAnchorTime = nil
+                pinchAnchorViewportX = nil
+              }
           )
+      }
+      .scrollPosition($scrollPosition)
+      // Track the live scroll offset for the pinch-anchor mapping. Read only at
+      // pinch start, so this firing during our own scrollTo is not a feedback loop.
+      .onScrollGeometryChange(for: CGFloat.self) { geometry in
+        geometry.contentOffset.x
+      } action: { _, newX in
+        currentOffsetX = newX
+      }
+      // Cursor position in VIEWPORT space (attached to the ScrollView, so `.local`
+      // is the scroll-independent container frame). Feeds the pinch anchor.
+      .onContinuousHover(coordinateSpace: .local) { phase in
+        switch phase {
+        case .active(let location): hoverViewportX = location.x
+        case .ended: hoverViewportX = nil
+        }
       }
       // Fill the box vertically (the lane height is then read back from the
       // measured size below). Safe despite a horizontal ScrollView's unbounded
