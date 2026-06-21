@@ -63,6 +63,7 @@ struct ContentView: View {
         primaryStateView
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         bannerView
+        beatGridSection
         controlsSection
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -180,6 +181,18 @@ struct ContentView: View {
   private func triggerReanalyze() {
     guard let url = viewModel.selectedFileURL else { return }
     viewModel.analyze(url: url, autoStarted: false)
+  }
+
+  // Beat-grid + waveform overlay for the current result. Shown only when a grid
+  // was tracked (`gridVisualization != nil`); a fixed-height GroupBox so the
+  // top-right BPM hero keeps its `maxHeight: .infinity` share above it.
+  @ViewBuilder
+  private var beatGridSection: some View {
+    if let grid = viewModel.gridVisualization {
+      GroupBox("Beat grid") {
+        BeatGridView(state: grid)
+      }
+    }
   }
 
   @ViewBuilder

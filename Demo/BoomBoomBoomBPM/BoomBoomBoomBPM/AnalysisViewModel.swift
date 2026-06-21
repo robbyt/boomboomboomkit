@@ -101,6 +101,19 @@ final class AnalysisViewModel {
     let elapsed: String
   }
 
+  // What the detached analysis task hands back: the combined BPM+grid result
+  // (nil when there is no analyzable audio) plus the best-effort waveform
+  // envelope (nil when the waveform decode failed — it must NOT fail the
+  // analysis). Both pieces are Sendable so the value crosses the task boundary.
+  private struct WaveformData: Sendable {
+    let peaks: [Float]
+    let duration: Double
+  }
+  private struct DetachedAnalysis: Sendable {
+    let combined: CombinedAnalysisResult?
+    let waveform: WaveformData?
+  }
+
   // `.nonFinite` covers NaN/Inf AND out-of-range (bpm <= 0, confidence
   // outside [0, 1], elapsedSeconds < 0). `.missingFields` means partial
   // or never-run state; callers fall back to their own empty/error UI.
@@ -160,6 +173,14 @@ final class AnalysisViewModel {
   var elapsedSeconds: Double?
   var error: AppError?
   var isAnalyzing: Bool = false
+
+  /// Beat-grid + waveform overlay payload for the current result, or `nil` when
+  /// no grid is available (pre-run, mid-run, no-BPM, or BPM-success-without-grid).
+  /// One atomic value so the ContentView show-gate (`gridVisualization != nil`)
+  /// flips without a partial render. Cleared at the analyze() prologue — UNLIKE
+  /// `lastRunSnapshot`, a stale grid/waveform for the prior file is misleading
+  /// while a new run is in flight.
+  var gridVisualization: GridVisualizationState?
 
   /// Display-layer convenience — derived from `error`. Read-only on
   /// purpose; producers assign the typed `error` case directly.
@@ -284,6 +305,12 @@ final class AnalysisViewModel {
     confidence = nil
     effectiveIntensity = nil
     elapsedSeconds = nil
+    // Clear the grid overlay at the prologue (Codex review 019ee763 #1):
+    // UNLIKE `lastRunSnapshot` (deliberately retained below to avoid a
+    // gradient crossfade flash), a stale beat grid / waveform for the PRIOR
+    // file is actively misleading while a new run is in flight. The fresh
+    // result reassigns it atomically on success.
+    gridVisualization = nil
     // F09 (Story 5-6 review): do NOT clear `lastRunSnapshot` at the
     // analyze() prologue. ContentView.backgroundStrategy reads
     // `lastRunSnapshot == nil ? nil : options.mergeStrategy`; clearing
@@ -323,6 +350,12 @@ final class AnalysisViewModel {
     // the snapshot line to preserve snapshot-at-launch semantics and
     // remain idempotent against external mutation.
     opts.enableTrace = true
+    // Beat-grid visualization: track the grid across the whole (120 s-capped)
+    // track — the default `.analysisWindow` only covers ~30 s and leaves the
+    // overlay sparse — and opt into downbeat detection (default off) so the
+    // downbeat layer populates.
+    opts.beatGridCoverage = .fullTrack
+    opts.detectDownbeats = true
     // BYOW ML (Epic 7): when a model is loaded AND the toggle is on, run the
     // production .mlOnly path so the ML prediction wins. enableMLDiagnostics
     // surfaces the decoded BPM / softmax on the trace. Off by default -> the
@@ -342,12 +375,33 @@ final class AnalysisViewModel {
         }
       }
 
-      let result: Result<AudioAnalysisResult?, Error>
+      let result: Result<DetachedAnalysis, Error>
       do {
         let optsForDetached = opts
         let value = try await withTaskCancellationHandler {
           try await Task.detached { @Sendable in
-            try AudioAnalysisService.analyzeBPM(url: url, options: optsForDetached)
+            // analyze() (not analyzeBPM) returns BPM + beat grid from ONE
+            // shared decode; `combined.bpm` is the same AudioAnalysisResult the
+            // hero already renders. URL path keeps file-metadata corroboration
+            // + duration-hint live (the decoded: overload inerts them).
+            let combined = try AudioAnalysisService.analyze(
+              url: url, options: optsForDetached)
+            // A cancel can land after analyze() returns; skip the extra
+            // (non-cancellation-polling) waveform decode so Cancel stays
+            // responsive instead of paying a full decode that's discarded.
+            if optsForDetached.isCancelled() { throw CancellationError() }
+            // Waveform is best-effort: a decode failure must NOT fail the
+            // analysis. Decode only when there is a grid to overlay, via the
+            // library's own decoder so the waveform shares the grid's exact
+            // decoded-PCM time origin / sample rate.
+            var waveform: WaveformData?
+            if combined?.beatGrid != nil,
+              let wf = try? Waveform.decode(
+                url: url, maxSeconds: optsForDetached.maxSeconds, columns: 2000)
+            {
+              waveform = WaveformData(peaks: wf.peaks, duration: wf.duration)
+            }
+            return DetachedAnalysis(combined: combined, waveform: waveform)
           }.value
         } onCancel: { @Sendable in
           cancelFlag.store(true, ordering: .releasing)
@@ -377,40 +431,68 @@ final class AnalysisViewModel {
 
       guard self.currentTaskID == taskID else { return }
 
+      // Codex review 019ee763 #3: a user cancel landing DURING/after the
+      // (non-cancellation-polling) waveform decode leaves analyze() already
+      // returned .success, so no CancellationError fires above. Re-check the
+      // cancel flag before committing so a pure cancel never paints a stale
+      // grid; mirror the CancellationError arm's isAnalyzing reset.
+      if cancelFlag.load(ordering: .acquiring) {
+        self.isAnalyzing = false
+        return
+      }
+
       switch result {
-      case .success(let value?):
-        // Clear any banner from an invalid drop that arrived during
-        // analysis; without this it persists past the successful
-        // render until the next analyze.
-        self.error = nil
-        self.detectedBPM = value.bpm
-        self.confidence = value.confidence
-        self.effectiveIntensity = value.effectiveIntensity
-        // Snapshot written AFTER observed properties — SwiftUI re-render
-        // is driven by the observed mutations; this @ObservationIgnored
-        // write piggybacks on the same MainActor turn.
-        if let trace = value.trace {
-          self.lastRunSnapshot = LastRunDiagnosticSnapshot(
-            trace: trace,
-            metadataEvidence: value.metadataEvidence,
-            runOptions: RunOptionsSnapshot(from: opts),
-            fileName: url.lastPathComponent,
-            result: value
-          )
+      case .success(let detached):
+        if let combined = detached.combined {
+          let value = combined.bpm
+          // Clear any banner from an invalid drop that arrived during
+          // analysis; without this it persists past the successful
+          // render until the next analyze.
+          self.error = nil
+          self.detectedBPM = value.bpm
+          self.confidence = value.confidence
+          self.effectiveIntensity = value.effectiveIntensity
+          // Snapshot written AFTER observed properties — SwiftUI re-render
+          // is driven by the observed mutations; this @ObservationIgnored
+          // write piggybacks on the same MainActor turn.
+          if let trace = value.trace {
+            self.lastRunSnapshot = LastRunDiagnosticSnapshot(
+              trace: trace,
+              metadataEvidence: value.metadataEvidence,
+              runOptions: RunOptionsSnapshot(from: opts),
+              fileName: url.lastPathComponent,
+              result: value
+            )
+          }
+          // BPM-success: surface the grid overlay when a grid was tracked. A
+          // non-nil result with `beatGrid == nil` is BPM-success-without-grid
+          // (hero renders, strip stays hidden) — NOT a no-BPM error.
+          if let grid = combined.beatGrid {
+            self.gridVisualization = GridVisualizationState(
+              beatGrid: grid,
+              peaks: detached.waveform?.peaks ?? [],
+              duration: detached.waveform?.duration ?? 0,
+              bpmTempo: value.bpm
+            )
+          } else {
+            self.gridVisualization = nil
+          }
+        } else {
+          // No analyzable audio (silence, too-short, or non-musical content).
+          self.error = .noBPMDetected
+          // P_D4 / D4 resolution (Codex thread 019e5812-5ce7-7840-9aae-4825dccd98ab):
+          // failure / no-BPM arms must clear the prior snapshot so the
+          // inspector + Export Trace button reflect the absence of a fresh
+          // result. clearPriorResult() is guarded by !isAnalyzing and
+          // would no-op here; the explicit nil-write at this terminal
+          // point is the smallest fix for the stuck-snapshot case without
+          // touching the DD #5 atomicity contract (snapshot rides with
+          // the observed-state writes — `self.error` above + the shared
+          // `self.elapsedSeconds`/`self.isAnalyzing = false` below — in
+          // the same MainActor turn per DD #10).
+          self.lastRunSnapshot = nil
+          self.gridVisualization = nil
         }
-      case .success(nil):
-        self.error = .noBPMDetected
-        // P_D4 / D4 resolution (Codex thread 019e5812-5ce7-7840-9aae-4825dccd98ab):
-        // failure / no-BPM arms must clear the prior snapshot so the
-        // inspector + Export Trace button reflect the absence of a fresh
-        // result. clearPriorResult() is guarded by !isAnalyzing and
-        // would no-op here; the explicit nil-write at this terminal
-        // point is the smallest fix for the stuck-snapshot case without
-        // touching the DD #5 atomicity contract (snapshot rides with
-        // the observed-state writes — `self.error` above + the shared
-        // `self.elapsedSeconds`/`self.isAnalyzing = false` below — in
-        // the same MainActor turn per DD #10).
-        self.lastRunSnapshot = nil
       case .failure(let readerError as PCMBufferReaderError):
         let sandboxDenied: Bool
         if case .fileNotReadable = readerError, !autoStarted, !didStart {
@@ -422,10 +504,12 @@ final class AnalysisViewModel {
           filename: url.lastPathComponent,
           sandboxDenied: sandboxDenied
         )
-        self.lastRunSnapshot = nil  // P_D4 — see comment in .success(nil) arm
+        self.lastRunSnapshot = nil  // P_D4 — see comment in no-audio arm
+        self.gridVisualization = nil
       case .failure(let other):
         self.error = .unexpected("\(other)")
-        self.lastRunSnapshot = nil  // P_D4 — see comment in .success(nil) arm
+        self.lastRunSnapshot = nil  // P_D4 — see comment in no-audio arm
+        self.gridVisualization = nil
       }
       self.elapsedSeconds = secs
       self.isAnalyzing = false
@@ -529,6 +613,7 @@ final class AnalysisViewModel {
     effectiveIntensity = nil
     elapsedSeconds = nil
     lastRunSnapshot = nil
+    gridVisualization = nil
   }
 
   // MARK: - Humanization
