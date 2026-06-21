@@ -203,14 +203,21 @@ struct ContentView: View {
   }
 
   // Beat-grid + waveform overlay for the current result. Shown only when a grid
-  // was tracked (`gridVisualization != nil`); a fixed-height GroupBox so the
-  // top-right BPM hero keeps its `maxHeight: .infinity` share above it.
+  // was tracked (`gridVisualization != nil`). The inner vertical ScrollView +
+  // `maxHeight` cap are load-bearing: BeatGridView (header + verbose legend +
+  // controls + 84 pt lane) is otherwise an unbounded, incompressible block that
+  // grows the window to fill the screen and starves `primaryStateView`'s
+  // `maxHeight: .infinity` share, hiding the BPM hero. Capping it (and letting it
+  // scroll on overflow) keeps the block bounded and the hero visible.
   @ViewBuilder
   private var beatGridSection: some View {
     if let grid = viewModel.gridVisualization {
       GroupBox("Beat grid") {
-        BeatGridView(state: grid)
+        ScrollView(.vertical) {
+          BeatGridView(state: grid)
+        }
       }
+      .frame(maxWidth: .infinity, maxHeight: 340, alignment: .topLeading)
     }
   }
 
