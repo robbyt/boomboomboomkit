@@ -294,6 +294,7 @@ development_status:
   8-8a-jams-model-relocation-and-shared-decoder: done
   8-8b-migrate-oa300-and-daw-oracle-to-jams: done
   8-8c-migrate-dnb-regression-config-to-jams: done
+  8-9-beat-grid-tempo-precision-refinement: ready-for-dev
   epic-8-retrospective: optional
 
   # Epic 9: Demo shell + ensemble picker — depends on Epic 6 only. Ships first after Epic 6 for fast demo feedback loop.
