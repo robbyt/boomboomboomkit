@@ -32,15 +32,15 @@ struct BeatGridView: View {
   private let laneHeight: CGFloat = 84
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: 8) {
       header
+      legend
       controls
       ScrollView(.horizontal, showsIndicators: true) {
         Canvas { context, size in draw(in: context, size: size) }
           .frame(width: contentWidth, height: laneHeight)
           .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
       }
-      legend
     }
   }
 
@@ -70,24 +70,68 @@ struct BeatGridView: View {
 
   // MARK: - Header / controls / legend
 
+  // Each metric is its own chip with a hover tooltip (.help) explaining what it
+  // means — the fields are jargon-y on their own, so the explanation travels
+  // with the value instead of living in a separate doc.
   @ViewBuilder
   private var header: some View {
     let grid = state.beatGrid
-    VStack(alignment: .leading, spacing: 2) {
-      Text(
-        String(
-          format: "Grid tempo %.2f BPM   ·   BPM stage %.2f   ·   %@",
-          grid.estimatedTempo, state.bpmTempo, agreementLabel)
-      )
-      .font(.caption).monospacedDigit()
-      Text(
-        String(
-          format: "%d beats   ·   %@   ·   confidence %.0f%%   ·   %@",
-          grid.beats.count, downbeatLabel, Double(grid.confidence) * 100,
-          coverageLabel)
-      )
-      .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(spacing: 8) {
+        metricChip(
+          String(format: "Grid tempo %.2f BPM", grid.estimatedTempo),
+          help:
+            "The beat-grid analyzer's OWN tempo, measured by tracking beats across the whole "
+            + "track. Fractions of a BPM matter here: a ~0.1 BPM error makes the grid slowly "
+            + "slide off the beat over a few minutes, even when the BPM looks right.")
+        chipDivider
+        metricChip(
+          String(format: "BPM stage %.2f", state.bpmTempo),
+          help:
+            "The main DSP BPM detector's tempo — the same number the big BPM readout shows, "
+            + "computed independently from the grid.")
+        chipDivider
+        metricChip(
+          agreementLabel,
+          help:
+            "Whether the grid tempo and the BPM-stage tempo match. \"agree\" = same tempo; "
+            + "\"octave\" = one is double/half the other; \"disagree\" = they diverge.")
+      }
+      HStack(spacing: 8) {
+        metricChip(
+          "\(grid.beats.count) beats",
+          help: "How many individual beats the tracker detected across the analyzed span.")
+        chipDivider
+        metricChip(
+          downbeatLabel,
+          help:
+            "Detected downbeats — the \"1\" of each bar. \"none\" means downbeat detection ran "
+            + "but wasn't confident enough to mark any; it abstains rather than guess wrong.")
+        chipDivider
+        metricChip(
+          String(format: "confidence %.0f%%", Double(grid.confidence) * 100),
+          help:
+            "How strong and steady the tracked beat is (half \"how clear are the beats\", half "
+            + "\"how periodic is the pulse\"). Separate from the BPM detector's own confidence.")
+        chipDivider
+        metricChip(
+          coverageLabel,
+          help:
+            "How much of the track was scanned for beats. \"full track\" = the whole file "
+            + "(capped at 120s); \"analysis window\" = only the ~30s the BPM stage uses.")
+      }
     }
+  }
+
+  @ViewBuilder
+  private func metricChip(_ text: String, help: String) -> some View {
+    Text(text)
+      .font(.caption).monospacedDigit()
+      .help(help)
+  }
+
+  private var chipDivider: some View {
+    Text("·").font(.caption).foregroundStyle(.tertiary)
   }
 
   @ViewBuilder
@@ -104,23 +148,40 @@ struct BeatGridView: View {
     }
   }
 
+  // Sits directly under the header (above the waveform): each colored layer in
+  // the overlay gets a name AND a one-line plain-language explanation, because
+  // "raw beats" vs "extrapolated grid" is meaningless without it.
   @ViewBuilder
   private var legend: some View {
-    HStack(spacing: 12) {
-      legendSwatch(.blue, "extrapolated grid")
-      if showRawBeats { legendSwatch(.secondary, "raw beats") }
-      legendSwatch(.pink, "downbeats")
-      legendSwatch(.orange, "anchor")
+    VStack(alignment: .leading, spacing: 4) {
+      legendRow(
+        .blue, "Extrapolated grid",
+        "The clean, evenly-spaced grid built from one anchor beat + the tempo. It never drifts, "
+          + "and it's what the library tells a sync feature (like a DJ app) to lock onto.")
+      legendRow(
+        .secondary, "Raw beats",
+        "Every individual beat the tracker actually detected, at the exact time it landed. These "
+          + "wobble and can occasionally double or drop — useful for spotting where detection "
+          + "struggled, but not what you'd sync to. Toggle below to hide.")
+      legendRow(
+        .pink, "Downbeats",
+        "The detected start-of-bar beats (the \"1\" of each bar), shown only when the analyzer is "
+          + "confident enough to mark them.")
+      legendRow(
+        .orange, "Anchor",
+        "The single most-trusted beat that the extrapolated grid is built outward from.")
     }
-    .font(.caption2)
-    .foregroundStyle(.secondary)
   }
 
   @ViewBuilder
-  private func legendSwatch(_ color: Color, _ label: String) -> some View {
-    HStack(spacing: 3) {
-      Rectangle().fill(color).frame(width: 10, height: 3)
-      Text(label)
+  private func legendRow(_ color: Color, _ label: String, _ description: String) -> some View {
+    HStack(alignment: .top, spacing: 6) {
+      Rectangle().fill(color).frame(width: 12, height: 3).padding(.top, 5)
+      VStack(alignment: .leading, spacing: 0) {
+        Text(label).font(.caption).bold()
+        Text(description).font(.caption2).foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 

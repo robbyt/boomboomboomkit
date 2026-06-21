@@ -161,6 +161,25 @@ struct ContentView: View {
     )
   }
 
+  // The analysis time cap (`Options.maxSeconds`) — caps the decode for BPM, beat
+  // grid, AND the waveform, so the visualization and the analysis stay in sync.
+  private var maxSecondsBinding: Binding<Double> {
+    Binding(
+      get: { viewModel.options.maxSeconds },
+      set: { viewModel.options.maxSeconds = $0 }
+    )
+  }
+
+  // Maps the 3-case `BeatGridTempoLock` to a simple on/off toggle for the demo:
+  // off <-> .off, on <-> .bpmStage (lock to the detected BPM). The `.bpm(Double)`
+  // pin-an-exact-BPM case is API-only.
+  private var lockToDetectedBPMBinding: Binding<Bool> {
+    Binding(
+      get: { viewModel.options.beatGridTempoLock == .bpmStage },
+      set: { viewModel.options.beatGridTempoLock = $0 ? .bpmStage : .off }
+    )
+  }
+
   private var intensityLabelText: String {
     let raw = viewModel.options.intensity.rawValue
     let suffix: String
@@ -216,6 +235,40 @@ struct ContentView: View {
             }
           )
         }
+
+        // Analysis time cap. Re-analyzes on drag-release (same debounce as the
+        // intensity slider).
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Analyze first \(Int(viewModel.options.maxSeconds)) s")
+            .font(.callout)
+          Slider(
+            value: maxSecondsBinding,
+            in: 30...600,
+            step: 30,
+            onEditingChanged: { editing in
+              if !editing {
+                triggerReanalyze()
+              }
+            }
+          )
+          .help(
+            "How many seconds of the track to decode and analyze — BPM, beat grid, AND the "
+              + "waveform. Caps cost on long files (600 ≈ 10 min). The grid + waveform you see "
+              + "cover exactly this span.")
+        }
+
+        // Beat-grid tempo lock. For constant-BPM electronic / DJ material, force
+        // the grid to extrapolate from the clean detected BPM so it stops drifting.
+        Toggle("Lock grid to detected BPM", isOn: lockToDetectedBPMBinding)
+          .toggleStyle(.checkbox)
+          .onChange(of: viewModel.options.beatGridTempoLock) { _, _ in
+            triggerReanalyze()
+          }
+          .help(
+            "Lock the beat grid to the clean detected BPM instead of the tracker's measured "
+              + "tempo — removes the slow drift that a fraction-of-a-BPM error accumulates over a "
+              + "track. Octave-normalized to the grid; ignored if the two disagree by more than "
+              + "an octave. Best for constant-tempo electronic / DJ music.")
 
         // `.onChange(of:)` fires for any mutation, including
         // programmatic writes — today only this Picker mutates the
