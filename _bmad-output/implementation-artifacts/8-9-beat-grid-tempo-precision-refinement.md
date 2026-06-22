@@ -1,6 +1,10 @@
+---
+baseline_commit: 53313c062ba91d3dd0843a4c8961efa0cb67a946
+---
+
 # Story 8-9: Beat-Grid Tempo-Precision Refinement
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -59,10 +63,12 @@ without drift" are different bars; this story closes the second one.
    contribution is separable from AC #1. Ships only if it is net-positive on the corpus.
 6. **Acceptance metric = absolute per-track phase-drift P95 (ms)** on oracle-validated
    constant-tempo tracks. F-measure is demoted to a reported diagnostic. The median:P95 spread ratio
-   is diagnostic-only (NOT a gate — a ratio can improve because the median worsens). A new per-track
-   phase-drift P95 assertion is added to the `BeatGridBenchmarkTests.swift` acceptance suite;
-   reported stats include median / P90 / P95 / P99 + the ratio, stratified by octave-correct /
-   octave-wrong / variable-tempo / low-confidence / short-vs-long.
+   is diagnostic-only (NOT a gate — a ratio can improve because the median worsens). The per-track
+   phase-drift P95 **gate** is the retained Story-8-7 regression net (`driftP95GateSeconds = 2.0 s`,
+   `BeatGridBenchmarkTests.swift:461-464`) — NOT a newly-introduced assertion. What this story **adds**
+   to the acceptance suite is the stratified drift **reporting** (median / P90 / P95 / P99 + the ratio,
+   stratified by octave-correct / octave-wrong / variable-tempo / low-confidence / short-vs-long) plus
+   the 50 ms aspirational share (reported, not gated).
 7. **Oracle audit (precondition for the gate).** Fit the Rekordbox oracle beats THEMSELVES to
    `phase + k · period` and report the oracle's own residual RMS/P95; exclude or separate tracks
    whose oracle is piecewise / hand-warped / coarsely quantized. Comparing our constant-tempo line
@@ -81,27 +87,124 @@ without drift" are different bars; this story closes the second one.
 10. **Out-of-scope carve-outs.** Octave/half-time correctness is tracked as its OWN metric (not
     folded into drift). Downbeat detection (0.144 @ 4.3% fire) is EXPLICITLY OUT OF SCOPE — it is a
     separate, much weaker subsystem and must not be conflated with beat-position drift.
-11. **Operator decisions recorded (blocking the final gate number).** Two decisions are surfaced and
-    must be answered before the drift-P95 acceptance floor is finalized: (a) the exact drift-P95
-    threshold (ms) that defines "DJ-syncable"; (b) confirmation that the metadata-viewer consumer is
-    instrumentation-only so downbeat stays carved out.
+11. **Operator decisions recorded (blocking the final gate number).** Both decisions are now
+    RESOLVED (2026-06-22):
+    - (a) **Drift-P95 threshold — two-tier.** Aspirational musical target = **50 ms** drift-P95,
+      carried as a *reported* metric alongside the AC #6 P50/P90/P95/P99 stratification (NOT a merge
+      gate). The *committed* regression floor asserted by `make benchmark-beatgrid` is set
+      **measured-after-refit − margin** (the 8-7 precedent), finalized in Task 6 once the refit
+      produces real numbers — never gate the merge on an unmeasured ambition (8-7's placeholder-target
+      mistake). Ratchet the committed floor toward 50 ms over subsequent measurements. Justification:
+      onset-asynchrony literature puts perceptually "tight" beat alignment under ~20-30 ms (jazz-trio
+      study: listeners preferred asynchronies < 19 ms; natural drummer spread 2-26 ms), so a P95 ≤ 50 ms
+      keeps even the worst 5% of tracks inside the beatmatchable zone. The Rekordbox oracle quantizes
+      beat positions (`Inizio`) to 1 ms — 50× finer than 50 ms — so oracle numeric precision is NOT the
+      binding constraint; correct constant-tempo track selection (AC #7) is. (Codex tie-break was
+      attempted but the backend was down at decision time; the literature + oracle inspection were
+      decisive without it.)
+    - (b) **Downbeat carve-out confirmed.** The metadata-viewer consumer is instrumentation-only;
+      nothing gates on downbeat correctness, so downbeat (0.144 @ 4.3% fire) stays OUT of 8-9 scope
+      per AC #10.
 
 ## Tasks / Subtasks
 
-1. **Decomposition + oracle audit spike** (AC #7, #8) — re-aggregate the existing per-track 8-7
-   output; fit the oracle to a line; emit the bucket breakdown + oracle residual report. Names the
-   target. Gates the *claim*, not the code; can run parallel to Task 2.
-2. **Robust ordinal-aware refit** (AC #1–#4) — implement the period-ordinal, confidence-weighted,
-   MAD-trimmed line fit + fail-closed guard + tempo band in `BeatGridAnalyzer.estimateBeatGrid`
-   (replacing line 344). Pure `vDSP`/Accelerate, zero new deps.
-3. **Per-track drift-P95 acceptance assertion** (AC #6) — add the absolute per-track phase-drift P95
-   assertion + stratified reporting to the acceptance suite in `BeatGridBenchmarkTests.swift`.
-4. **Secondary lever, measured separately** (AC #5) — parabolic tempogram-peak interpolation;
-   measure independently; ship only if net-positive.
-5. **Regression gauntlet** (AC #9) — `make test` green; `make benchmark` OA300 unchanged; `make
-   benchmark-beatgrid` shows drift P95 strictly down AND F not down beyond noise; floors held/raised.
-6. **Finalize gate + record decisions** (AC #11) — once the operator answers the two open questions,
-   set the committed drift-P95 floor and flip 8-7 to re-measure → `done`, closing Epic 8.
+1. **[x] Decomposition + oracle audit spike** (AC #7, #8) — `decompose_beatgrid.py` re-aggregates the
+   8-7 per-track output, fits each oracle to a line, emits the bucket breakdown + oracle residual
+   report (`8-9-decomposition.md`). Ran over the full 1264-track artifacts. THE LOAD-BEARING RESULT.
+2. **[reverted] Robust ordinal-aware refit** (AC #1–#4) — implemented (period-ordinal two-pass,
+   confidence·strength-weighted, MAD-trimmed, fail-closed, anchor snap), then **REVERTED**: the
+   authoritative full-corpus `benchmark-beatgrid` showed it **regressed** the F-measure 0.3718→0.3254
+   (below the 0.33 floor) while drift was unmoved. Negative result — see Completion Notes.
+3. **[x] Per-track drift-P95 acceptance assertion** (AC #6) — stratified median/P90/P95/P99 + med:P95
+   ratio (octave-correct/-wrong/variable/low-confidence/short/long) + the 50 ms aspirational report,
+   keeping the 2.0 s regression net, in `BeatGridBenchmarkTests.swift`. KEPT (reports on the Story-8.4
+   grid; independent of the reverted refit).
+4. **[dropped] Secondary lever** (AC #5) — parabolic tempogram-peak interpolation NOT pursued. The
+   decomposition shows no fractional-tempo headroom (failures are out-of-scope wrong-pulse F=0 misses),
+   and the tempo-refit negative result removes the rationale. Codex (thread 019eedd7) concurs it should
+   only be a separately-scoped future experiment, not part of 8-9.
+5. **[x] Regression gauntlet** (AC #9) — post-revert: `make test` 706 green; `make benchmark` OA300
+   byte-identical (58/82, 74/82); `make benchmark-beatgrid` F restored to the 0.3718 baseline (≥ 0.33),
+   drift gate passes (1652 ms ≤ 2000 ms).
+6. **[x] Decisions recorded; gate unchanged** (AC #11) — the two AC #11 decisions are recorded. With
+   the refit reverted there is no measured improvement to retighten the committed `driftP95GateSeconds`
+   to — it stays the 2.0 s regression net (already passing); the 50 ms aspirational target stays a
+   reported number. Story 8-7's floors are unchanged (no re-measure needed — the grid is byte-identical
+   to 8-7).
+
+### Review Findings
+
+_Adversarial code-review 2026-06-22 (Blind Hunter via Codex + Edge Case Hunter + Acceptance Auditor over the staged change set vs baseline `53313c0`). Negative-result story: `Sources/` byte-identical, so all findings land in the develop-only test/spike code. No HIGH-severity issues._
+
+- [x] [Review][Decision→Patch] AC #6 "new per-track P95 assertion" reads as new but is the retained 8-7 net — `BeatGridBenchmarkTests.swift:461-464` asserts `p95 <= driftP95GateSeconds (2.0 s)`, which is the pre-existing Story-8-7 gate; what this diff actually *added* is the stratified REPORTING + 50 ms aspirational share. **Resolved (operator): patched the AC #6 wording** to state the P95 gate is the retained 8-7 net and the stratified reporting + 50 ms share are what this story adds.
+- [x] [Review][Patch] Guard the two `np.corrcoef` calls against zero-variance NaN [decompose_beatgrid.py:209-210] — identical F / clipped-P95 / duration vectors yield `nan` + RuntimeWarning, silently printed as the correlation the report's conclusions rest on; the spec retains this spike for future re-runs, so a degenerate subset can hit it. **Fixed:** added the `corr_or_nan` helper and routed both call sites through it.
+- [x] [Review][Patch] "Worst 50" table renders only 25 rows under a "Worst 50" header [decompose_beatgrid.py:220,231] — `worst[:25]` under the `## Worst 50 tracks` heading; the aggregate `n_warped`/`n_variable` are correctly computed over `worst[:50]`, so only the table is a silent 25-row sample. **Fixed:** heading now reads "aggregate over 50, lowest-F 25 listed", mirrored in `8-9-decomposition.md`.
+- [x] [Review][Defer] Downbeat gate smoke-skip keyed on `limit > 0`, not on actual partial coverage [BeatGridBenchmarkTests.swift:367] — deferred, extends the surface of already-tracked **8-7-D1** (the F-measure floor uses the same convention; the robust coverage-signal fix in 8-7-D1 applies identically). An oversized `BEAT_GRID_LIMIT` would skip the gate despite full coverage.
+- [x] [Review][Defer] Full-run zero-fired-constant downbeat slice false-fails instead of skipping [BeatGridBenchmarkTests.swift:370] — deferred, near-unreachable on the real corpus (~42 constant tracks fire); `meanConstant` defaults to 0 < floor only if NO constant track fires a downbeat on a full run. Pre-existing default, not introduced by this diff.
+- [x] [Review][Defer] Even-`n` "median" picks the upper-middle element [BeatGridBenchmarkTests.swift:389,416,449] — deferred, REPORTED-only diagnostics (the gate uses P95); strata are large (hundreds) so the one-element offset is cosmetic. The IBI median at :389 feeds `octaveClass` but the 4% band absorbs a one-element shift.
+- [x] [Review][Defer→Patch] Python degenerate-input hardening in the decomposition spike [decompose_beatgrid.py] — **3 of 4 folded into PR #50** after Copilot re-flagged them: empty-`p95s` guard, empty-join fail-fast (`return 1`), and `acc_row.get("basename") or track_id` fallback. The 4th (no file-not-found/JSON-decode handling on `open()`) stays deferred as `8-9-D4` — a traceback is acceptable feedback for a develop-only one-shot spike.
+
+_Dismissed as noise (4): `bool(ct)` string-"false" misclassification — `rekordbox-beats.py:349,381` writes a real JSON bool, so unreachable on the actual oracle; missing-`constant_tempo`-defaults-to-True — oracle always writes the field; no file-not-found handling on the spike's `open()` — a traceback is acceptable operator feedback for a develop-only CLI; "0 ms residual" framing — `%.1f` rounding shorthand, defensible given the 1 ms oracle quantization (sub-0.05 ms true residuals)._
+
+## Dev Agent Record
+
+### Completion Notes
+
+**Outcome: NEGATIVE RESULT — the tempo refit does not work on this corpus and was reverted.**
+
+The headline deliverable (the DP-beat tempo+phase refit) was fully implemented and unit-tested, then
+the authoritative full-corpus `make benchmark-beatgrid` run **regressed** the beat F-measure
+**0.3718 → 0.3254** (below the committed 0.33 floor) while FR-29 drift was unmoved (median 176→172 ms,
+P95 1652 ms unchanged). Per the project rule "when a story's headline deliverable doesn't work, prefer
+deletion over a deprecation cycle" (Story 4-6 precedent), and confirmed by a Codex tie-break (thread
+019eedd7), the refit was **reverted** — `BeatGridAnalyzer.swift` is byte-identical to its pre-8-9
+`HEAD` (`estimatedTempo = tempoBPM`).
+
+**Root cause (the load-bearing finding).** The grid already reported `estimatedTempo = tempoBPM` — the
+upstream BPM-stage tempogram+fine-grid estimate. Story 8.4 had *deliberately removed* an earlier
+DP-beat re-measurement because it was noisier than `tempoBPM`. The refit re-introduced exactly that
+noise: it fits the (noisy) DP beats and moves the tempo off the clean `tempoBPM`. Because the
+F-measure scores a FULL-TRACK extrapolation, even a sub-0.1% wrong-direction tempo move accumulates
+over hundreds of beats and pushes late beats outside the ±70 ms match window → recall drops → F
+regresses. There was no fractional-tempo headroom to capture in the first place: the decomposition
+(below) shows the corpus failures are gross wrong-pulse/octave F=0 misses, not fractional drift, and
+the drift gate **already passed without the refit** (P95 1652 ms < 2000 ms).
+
+**Shipped (the genuinely-useful parts, kept):**
+- **Decomposition + oracle line-fit audit** (`decompose_beatgrid.py` → `8-9-decomposition.md`): the
+  oracle is a clean constant-tempo line — **910/910 constant-flagged oracles fit a line at 0 ms
+  residual**, `corr(octave-F, oracle-residual) = −0.006`, **0 of the 50 worst tracks** have a warped
+  oracle. So the 8-7 drift is genuine grid error (the gate is well-specified), but the corpus is
+  dominated by **F=0 wrong-pulse misses** — a separate onset/tempo-detection weakness, out of 8-9
+  scope. This is what proves the refit had nothing to gain and names where the real problem lives.
+- **Stratified drift-P95 reporting + 50 ms aspirational target** in `BeatGridBenchmarkTests.swift`:
+  median/P90/P95/P99 + med:P95 ratio across octave-correct/-wrong/variable/low-confidence/short/long,
+  plus the share within the 50 ms musical target (REPORTED, not gated). Reports on the Story-8.4 grid;
+  independent of the reverted refit. Also added the missing SMOKE-MODE skip to the in-suite downbeat
+  gate so `BEAT_GRID_LIMIT` subset runs don't false-fail (mirrors the F-measure floor's existing guard).
+- **AC #11 decisions recorded** (50 ms aspirational + measured−margin committed floor; downbeat
+  instrumentation-only) — retained in this spec for the next person who attempts beat-grid precision.
+
+**Verification (post-revert):** `make fmt`/`make lint` clean (1 pre-existing `LUFSAnalyzer.swift:135`
+TODO baseline); `make test` **706/706**; `make benchmark` OA300 **58/82, 74/82** (byte-identical);
+`make benchmark-beatgrid` full corpus — F restored to **0.3718 ≥ 0.33**, FR-29 P95 **1652 ms ≤ 2000 ms**,
+downbeat 0.1444/42 — every floor passes.
+
+### Pending user action (operator-owned)
+
+1. **Separate-LLM `/bmad-code-review`** on the kept change set (benchmark reporting + decomposition
+   spike), then the 1Password-signed commit / PR onto `rterhaar/epic-8`.
+2. **Epic 8 close-out:** Story 8-7's floors are unchanged (the grid is byte-identical to 8-7, so no
+   re-measure is needed) — 8-7 can flip to `done` and the epic retrospective can run. The beat-grid
+   precision question is closed as a negative result; any future attempt (e.g. phase-only, or fixing
+   the upstream wrong-pulse detection) is a NEW, separately-scoped story per Codex's recommendation.
+
+### File List
+
+- `Sources/BoomBoomBoomKit/BeatGridAnalyzer.swift` — (reverted to `HEAD`; net unchanged) the refit was implemented here then removed
+- `Tests/BoomBoomBoomKitBenchmarkTests/BeatGridBenchmarkTests.swift` — (modified, KEPT) stratified drift report + 50 ms aspirational + downbeat smoke guard
+- `_bmad-output/ml-training/decompose_beatgrid.py` — (new, develop-only) decomposition + oracle line-fit audit spike
+- `_bmad-output/implementation-artifacts/8-9-decomposition.md` — (new, develop-only) decomposition report (full 1264-track run)
 
 ## Dev Notes
 
@@ -165,3 +268,21 @@ without drift" are different bars; this story closes the second one.
   design review (thread 019ee7ed): the lock composes with this refit and applies AFTER it (AC #4a);
   octave-normalize the locked target, preserve the pre-lock agreement diagnostic, combined-path
   only. The refit's drift-P95 gate is measured lock-off; a locked pass is reported separately.
+- 2026-06-22 — AC #11 operator decisions resolved. Drift-P95: 50 ms aspirational (reported) +
+  measured-minus-margin committed floor (set in Task 6); justified by onset-asynchrony psychoacoustics
+  (tight < ~20-30 ms) and the Rekordbox oracle's 1 ms beat-position quantization (precision not the
+  binding constraint). Downbeat carve-out confirmed instrumentation-only. Story unblocked for dev.
+- 2026-06-22 — Refit implemented + unit-tested (two-pass ordinal-aware, weighted, MAD-trimmed,
+  fail-closed, anchor snap; downbeat isolated; 10 tests; stratified reporting; decomposition spike).
+- 2026-06-22 — **Refit REVERTED — negative result.** The authoritative full-corpus `benchmark-beatgrid`
+  showed the refit regressed the F-measure 0.3718→0.3254 (below the 0.33 floor) while drift was unmoved
+  (P95 1652 ms unchanged; the drift gate already passed without it). Root cause: the grid already
+  reported the clean BPM-stage `tempoBPM` (Story 8.4 deliberately removed a noisier DP-beat
+  re-measurement), and the refit re-introduced that noise — the full-track-extrapolated F-measure
+  punishes the accumulated wrong-direction tempo error. Decomposition confirmed no fractional-tempo
+  headroom (failures are out-of-scope wrong-pulse F=0 misses on a clean oracle). Per the project's
+  delete-don't-deprecate rule + a Codex tie-break (thread 019eedd7), reverted `BeatGridAnalyzer.swift`
+  to byte-identical `HEAD`; deleted the refit tests. KEPT the decomposition spike + stratified
+  reporting + recorded decisions as the 8-9 deliverable. Post-revert gauntlet: fmt/lint clean, 706 unit
+  tests, OA300 byte-identical 58/82·74/82, full benchmark-beatgrid F restored to 0.3718 ≥ 0.33, drift
+  gate passes. Story 8-7 floors unchanged (grid byte-identical to 8-7).

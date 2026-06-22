@@ -183,6 +183,8 @@ struct BeatGridBenchmarkTests {
       let downbeats: [Double]?  // nil == legitimate abstain (.noneDetected/.notAttempted)
       let downbeatPassFailed: Bool  // Pass B threw/nil despite Pass A success — a defect
       let drift: Double?  // |last RAW beat - anchor extrapolation|, nil if not computable
+      let estimatedTempo: Double  // grid tempo (Pass A) — for octave stratification
+      let confidence: Double  // grid confidence (Pass A) — for low-confidence stratification
     }
 
     let analyzed = await withTaskGroup(of: (Int, Analyzed?).self) { group in
@@ -245,7 +247,8 @@ struct BeatGridBenchmarkTests {
             i,
             Analyzed(
               row: row, beats: estimatedBeats, downbeats: downbeats,
-              downbeatPassFailed: downbeatPassFailed, drift: drift)
+              downbeatPassFailed: downbeatPassFailed, drift: drift,
+              estimatedTempo: gridA.estimatedTempo, confidence: Double(gridA.confidence))
           )
         }
       }
@@ -357,29 +360,103 @@ struct BeatGridBenchmarkTests {
     print("  downbeat accuracy -> \(downbeatURL.path)")
 
     // The single downbeat GATE (the safety-critical metric) over constant-tempo tracks.
-    // Locked from the calibration run (Task 5). 0.0 is the pre-calibration placeholder.
-    #expect(
-      meanConstant >= Self.downbeatCorrectnessFloor,
-      "downbeat correctness-when-fired (constant) \(fmt(meanConstant)) below floor \(fmt(Self.downbeatCorrectnessFloor))"
-    )
-
-    // --- FR-29 last-beat drift (AC6) over constant-tempo tracks >= 5 min. The
-    //     anchor+single-tempo extrapolation is drift-free by construction only on
-    //     constant-tempo material (DD-19). Computed from the SAME full-track grids. ---
-    let driftRows = evaluated.filter {
-      $0.row.constantTempo && ($0.row.durationSeconds ?? 0) >= 300
-    }
-    let drifts = driftRows.compactMap(\.drift).sorted()
-    if drifts.isEmpty {
-      print("  FR-29 drift: no constant-tempo tracks >= 5 min in this slice; skipped")
+    // Locked from the calibration run (Task 5). A BEAT_GRID_LIMIT subset scores only a
+    // slice (the floor was calibrated over the full ~42 fired tracks), so a partial
+    // number can't meet the full-corpus floor — report but do NOT gate under smoke,
+    // mirroring the F-measure floor's SMOKE MODE (the full CI run is the real gate).
+    if limit > 0 {
+      print("  SMOKE MODE — downbeat floor not gated (BEAT_GRID_LIMIT=\(limit))")
     } else {
-      // P95 index: ceil(0.95·n) − 1 (the 95th-percentile element, 1-based → 0-based).
+      #expect(
+        meanConstant >= Self.downbeatCorrectnessFloor,
+        "downbeat correctness-when-fired (constant) \(fmt(meanConstant)) below floor \(fmt(Self.downbeatCorrectnessFloor))"
+      )
+    }
+
+    // --- FR-29 last-beat phase-drift (Story 8-9 AC #6). The anchor+single-tempo
+    //     extrapolation is drift-free by construction only on constant-tempo
+    //     material (DD-19), so the GATE scopes to constant-tempo tracks >= 5 min;
+    //     the stratified breakdown is REPORTED across every analyzable track so a
+    //     bucket regression is visible. Computed from the SAME full-track grids. ---
+
+    // Oracle tempo (median inter-beat interval → BPM) for the octave strata.
+    func oracleTempo(_ a: Analyzed) -> Double? {
+      let beats = a.row.oracleBeats.sorted()
+      guard beats.count >= 2 else { return nil }
+      var ibis: [Double] = []
+      ibis.reserveCapacity(beats.count - 1)
+      for i in 1..<beats.count { ibis.append(beats[i] - beats[i - 1]) }
+      let med = ibis.sorted()[ibis.count / 2]
+      return med > 0 ? 60.0 / med : nil
+    }
+    // Octave classification of the grid tempo vs the oracle's: correct at unison
+    // (within 4%), "octave" at a clean half/double, else off.
+    func octaveClass(_ a: Analyzed) -> String {
+      guard a.estimatedTempo > 0, let ot = oracleTempo(a), ot > 0 else { return "unknown" }
+      let r = a.estimatedTempo / ot
+      func near(_ x: Double, _ y: Double) -> Bool { abs(x - y) / y <= 0.04 }
+      if near(r, 1) { return "octave-correct" }
+      if near(r, 0.5) || near(r, 2) { return "octave-wrong" }
+      return "octave-off"
+    }
+
+    // Stratified drift reporting (REPORTED, not gated). Each stratum prints the
+    // median / P90 / P95 / P99 and the median:P95 spread ratio (diagnostic only —
+    // a ratio can "improve" because the median worsens, so it never gates).
+    func report(_ label: String, _ rows: [Analyzed]) {
+      let d = rows.compactMap(\.drift).sorted()
+      guard !d.isEmpty else {
+        print("    \(label): (no tracks)")
+        return
+      }
+      func pctile(_ q: Double) -> Double {
+        let idx = max(0, Int((Double(d.count) * q).rounded(.up)) - 1)
+        return d[min(d.count - 1, idx)]
+      }
+      let med = d[d.count / 2]
+      let p95 = pctile(0.95)
+      let ratio = p95 > 0 ? med / p95 : 0
+      print(
+        "    \(label) (n=\(d.count)): median \(fmt(med * 1000)) / P90 \(fmt(pctile(0.90) * 1000)) "
+          + "/ P95 \(fmt(p95 * 1000)) / P99 \(fmt(pctile(0.99) * 1000)) ms; med:P95 ratio \(fmt(ratio))"
+      )
+    }
+
+    let withDrift = evaluated.filter { $0.drift != nil }
+    let constant = withDrift.filter { $0.row.constantTempo }
+    print("  FR-29 last-beat drift — stratified (REPORTED):")
+    report("all", withDrift)
+    report("constant-tempo", constant)
+    report("variable-tempo", withDrift.filter { !$0.row.constantTempo })
+    report("octave-correct", withDrift.filter { octaveClass($0) == "octave-correct" })
+    report("octave-wrong", withDrift.filter { octaveClass($0) == "octave-wrong" })
+    report("low-confidence (<0.5)", withDrift.filter { $0.confidence < 0.5 })
+    report("short (<5 min)", withDrift.filter { ($0.row.durationSeconds ?? 0) < 300 })
+    report("long (>=5 min)", withDrift.filter { ($0.row.durationSeconds ?? 0) >= 300 })
+
+    // Aspirational musical target (REPORTED, not gated): the share of gated
+    // constant-tempo tracks whose drift is within the 50 ms "DJ-syncable" target
+    // (Story 8-9 AC #11 — onset-asynchrony psychoacoustics). The committed gate
+    // stays the coarse regression net below; this is the north star to ratchet
+    // toward, never a merge blocker.
+    let gatedRows = constant.filter { ($0.row.durationSeconds ?? 0) >= 300 }
+    let drifts = gatedRows.compactMap(\.drift).sorted()
+    if drifts.isEmpty {
+      print("  FR-29 gate: no constant-tempo tracks >= 5 min in this slice; skipped")
+    } else {
       let p95Index = max(0, Int((Double(drifts.count) * 0.95).rounded(.up)) - 1)
       let p95 = drifts[min(drifts.count - 1, p95Index)]
       let median = drifts[drifts.count / 2]
-      print("  FR-29 last-beat drift (\(drifts.count) constant tracks >= 5 min):")
+      let within50 =
+        Double(drifts.filter { $0 <= Self.driftP95AspirationalSeconds }.count)
+        / Double(drifts.count)
+      print("  FR-29 GATE (\(drifts.count) constant tracks >= 5 min):")
       print(
-        "    median \(fmt(median * 1000)) ms, P95 \(fmt(p95 * 1000)) ms (gate <= \(fmt(Self.driftP95GateSeconds * 1000)) ms)"
+        "    median \(fmt(median * 1000)) ms, P95 \(fmt(p95 * 1000)) ms "
+          + "(regression gate <= \(fmt(Self.driftP95GateSeconds * 1000)) ms)")
+      print(
+        "    aspirational: \(pct(within50)) of tracks within the "
+          + "\(fmt(Self.driftP95AspirationalSeconds * 1000)) ms musical target (reported, not gated)"
       )
       #expect(
         p95 <= Self.driftP95GateSeconds,
@@ -400,8 +477,16 @@ struct BeatGridBenchmarkTests {
   /// 30 ms, which the real-world Rekordbox corpus does not meet (measured P95 1.65 s — the
   /// audio's own tempo drift, not a code regression; pressure-release valve fired). This
   /// 2.0 s ceiling is a coarse regression net, NOT the 30 ms aspiration — see
-  /// `8-7-pressure-release.md`.
+  /// `8-7-pressure-release.md`. Story 8-9 retightens this committed floor to the
+  /// post-refit measured−margin value once the operator's release run lands (AC #11 Task 6).
   static let driftP95GateSeconds = 2.0
+
+  /// Aspirational "DJ-syncable" per-track phase-drift target, in seconds (50 ms). REPORTED
+  /// only — never a merge gate. Justified by onset-asynchrony psychoacoustics (perceptually
+  /// "tight" beat alignment is under ~20–30 ms) and the Rekordbox oracle's 1 ms beat-position
+  /// quantization, which leaves a sub-50 ms target unbounded by oracle precision (Story 8-9
+  /// AC #11). The committed regression net is ``driftP95GateSeconds``; this is the north star.
+  static let driftP95AspirationalSeconds = 0.050
 
   // MARK: Formatting helpers
 
