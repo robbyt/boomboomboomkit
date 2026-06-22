@@ -141,7 +141,7 @@ def main() -> int:
         rows.append(
             {
                 "track_id": track_id,
-                "basename": acc_row.get("basename", track_id),
+                "basename": acc_row.get("basename") or track_id,
                 "constant_tempo": ora["constant_tempo"],
                 "duration": ora["duration"] or 0.0,
                 "n_ref_beats": acc_row.get("n_ref_beats", 0),
@@ -151,6 +151,10 @@ def main() -> int:
                 "oracle_p95": p95,
             }
         )
+
+    if not rows:
+        print("error: no tracks joined between --accuracy and --reference; check the paths.")
+        return 1
 
     constant = [r for r in rows if r["constant_tempo"]]
     # Oracle-validated constant: flagged constant AND its own line-fit P95 clears the
@@ -182,11 +186,14 @@ def main() -> int:
     )
     if constant:
         p95s = [r["oracle_p95"] * 1000 for r in constant if np.isfinite(r["oracle_p95"])]
-        lines.append(
-            f"- Oracle residual P95 over constant-flagged (ms): "
-            f"median {np.median(p95s):.1f}, P90 {np.percentile(p95s, 90):.1f}, "
-            f"P95 {np.percentile(p95s, 95):.1f}, max {np.max(p95s):.1f}.\n"
-        )
+        if p95s:
+            lines.append(
+                f"- Oracle residual P95 over constant-flagged (ms): "
+                f"median {np.median(p95s):.1f}, P90 {np.percentile(p95s, 90):.1f}, "
+                f"P95 {np.percentile(p95s, 95):.1f}, max {np.max(p95s):.1f}.\n"
+            )
+        else:
+            lines.append("- Oracle residual P95 over constant-flagged: (no finite residuals).\n")
         lines.append("\n  Oracle residual-P95 histogram (ms):\n")
         for label, n in histogram(p95s, [0, 10, 25, 50, 70, 100, 250, 1000, 1e9]):
             lines.append(f"  - {label}: {n}")
