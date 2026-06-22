@@ -350,8 +350,9 @@ final class AnalysisViewModel {
     // the snapshot line to preserve snapshot-at-launch semantics and
     // remain idempotent against external mutation.
     opts.enableTrace = true
-    // Beat-grid visualization: track the grid across the whole (120 s-capped)
-    // track — the default `.analysisWindow` only covers ~30 s and leaves the
+    // Beat-grid visualization: track the grid across the whole track (capped by
+    // `Options.maxSeconds` — default 120 s, raised up to 600 s via the demo's
+    // control) — the default `.analysisWindow` only covers ~30 s and leaves the
     // overlay sparse — and opt into downbeat detection (default off) so the
     // downbeat layer populates.
     opts.beatGridCoverage = .fullTrack
