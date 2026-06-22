@@ -1,0 +1,167 @@
+# Story 8-9: Beat-Grid Tempo-Precision Refinement
+
+Status: ready-for-dev
+
+## Story
+
+As a developer integrating BoomBoomBoomKit beat grids into a tempo-sync consumer (e.g. a DJ
+auto-sync feature),
+I want the extrapolated beat grid to stay aligned with the audio across a full track,
+so that the grid I lock onto does not slowly slide off the beat even when the detected tempo is
+"correct" to within a fraction of a BPM.
+
+## Context
+
+Story 8-7 measured beat-grid accuracy against the Rekordbox-derived JAMS oracle (1264 tracks, 910
+constant-tempo, ±70 ms, octave-normalized): beat-position F-measure **0.372**, downbeat correctness
+**0.144** at a 4.3% fire rate, FR-29 last-beat drift **P95 1652 ms** (median ~176 ms). The epic's
+published targets (0.75 / 0.65 / 30 ms) were never measured — placeholders. Floors were locked at
+measured−margin (0.33 / 0.10 / 2.0 s) as regression nets, and `8-7-pressure-release.md` recommended
+refining the tracker. The operator chose to do that refinement here, as a NEW story — NOT a reopen
+of the `done` Story 8-4 (the tracker works; the *precision ambition* was unmeasured).
+
+**The defect in one line, from a real master ("Arbitrary Arbitrage", 160 BPM):** the BPM stage
+reports 160.00 and the grid reports 160.15 — they "agree" as tempo scalars, but the grid extrapolates
+at `0.094%` too fast, accumulating ~112 ms of phase drift over a 120 s span (~1/3 of a beat). The
+grid starts on the beat at the anchor and walks off it by the end. "Tempo correct" and "grid placed
+without drift" are different bars; this story closes the second one.
+
+## Acceptance Criteria
+
+1. **Robust ordinal-aware tempo+phase refit (primary).** A new post-DP step in
+   `BeatGridAnalyzer.estimateBeatGrid` fits the detected beat times to a constant-tempo line
+   `t_i ≈ phase + m_i · period`, where ordinals are assigned from the period
+   (`m_i = round((t_i − anchor) / period)`), NOT the array index — so a single dropped/doubled DP
+   beat does not corrupt the slope. The refined `estimatedTempo = 60 / slope` and `gridOrigin`
+   (`= phase`) replace the current `let estimatedTempo = tempoBPM` at `BeatGridAnalyzer.swift:344`.
+2. **Confidence-weighted, MAD-trimmed fit.** The fit is weighted by `BeatTimestamp.confidence` and
+   `.strength`, then refined once: drop residuals beyond ~2.5·MAD (or a fixed fraction of the
+   period) and refit. Plain unweighted LS and Theil-Sen are both rejected (LS is outlier-fragile;
+   Theil-Sen only if implementation cost is trivial).
+3. **Fail-closed guard.** The refit is accepted only if its residual RMS decreases AND its predicted
+   long-span drift improves vs. the pre-refit grid; otherwise the original DP-derived
+   `estimatedTempo` / `gridOrigin` are kept unchanged. The refit can never ship a worse grid.
+4. **Tempo sanity band.** The refined tempo is constrained to a tight relative band around the
+   upstream BPM-stage tempo unless an explicit octave/half-time path handles a doubling — the refit
+   corrects fractions of a BPM, it must not silently jump octaves.
+4a. **Composition with the shipped `BeatGridTempoLock`.** The user-opt-in tempo lock
+   (`Options.beatGridTempoLock`, shipped 2026-06-20 — `.off` / `.bpmStage` / `.bpm(Double)`) and
+   this automatic refit are complementary and must compose, not collide. Per the Codex design
+   review (thread 019ee7ed): **the lock applies AFTER the refit.** The refit improves both tempo
+   AND phase from onset evidence; the lock then replaces only the final tempo *scalar* with the
+   authoritative (octave-normalized) BPM when the user has opted in. The refit's phase/anchor gains
+   still matter under lock, so the lock does NOT make this story redundant. Concretely:
+   `applyTempoLock` (`AudioAnalysisService.swift`) runs on the already-refined grid; the refit must
+   not assume an unlocked tempo. The drift-P95 acceptance gate (AC #6) is measured with the lock
+   `.off` (the refit's own merit), with a locked pass reported separately.
+5. **Secondary lever (reported, not gated): parabolic tempogram-peak interpolation.** Sub-bin
+   interpolation of the tempogram peak upstream of the DP tracker, measured independently so its
+   contribution is separable from AC #1. Ships only if it is net-positive on the corpus.
+6. **Acceptance metric = absolute per-track phase-drift P95 (ms)** on oracle-validated
+   constant-tempo tracks. F-measure is demoted to a reported diagnostic. The median:P95 spread ratio
+   is diagnostic-only (NOT a gate — a ratio can improve because the median worsens). A new per-track
+   phase-drift P95 assertion is added to the `BeatGridBenchmarkTests.swift` acceptance suite;
+   reported stats include median / P90 / P95 / P99 + the ratio, stratified by octave-correct /
+   octave-wrong / variable-tempo / low-confidence / short-vs-long.
+7. **Oracle audit (precondition for the gate).** Fit the Rekordbox oracle beats THEMSELVES to
+   `phase + k · period` and report the oracle's own residual RMS/P95; exclude or separate tracks
+   whose oracle is piecewise / hand-warped / coarsely quantized. Comparing our constant-tempo line
+   to a piecewise oracle is mis-specified — the drift gate applies only to oracle-validated
+   constant-tempo tracks.
+8. **Failure-mode decomposition (precondition, parallel).** Over the existing per-track 8-7 output,
+   produce: a per-track F histogram; F before/after octave-normalization; drift-vs-track-length
+   correlation; the per-track offset distribution; and an isolation of the ~50 worst tracks with
+   shared-trait tabulation. This names which bucket (tempo-drift / anchor-phase / octave-half-time)
+   the refit actually reaches BEFORE any "we fixed drift" claim is made.
+9. **Byte-identity / no-regression.** The `analyzeBPM(url:)` path and default `Options` are
+   untouched — the refit runs only inside the `Options.computeBeatGrid == true` gate
+   (`BPMAnalyzer.swift:221`), which the default path never reaches. OA300 BPM floors hold
+   (`make benchmark`): Acc1 ≥ 57/82, Acc2 ≥ 73/82 (current 58/82, 74/82). Existing beat-grid floors
+   hold or rise: drift P95 ≤ 2.0 s, F ≥ 0.33, downbeat ≥ 0.10.
+10. **Out-of-scope carve-outs.** Octave/half-time correctness is tracked as its OWN metric (not
+    folded into drift). Downbeat detection (0.144 @ 4.3% fire) is EXPLICITLY OUT OF SCOPE — it is a
+    separate, much weaker subsystem and must not be conflated with beat-position drift.
+11. **Operator decisions recorded (blocking the final gate number).** Two decisions are surfaced and
+    must be answered before the drift-P95 acceptance floor is finalized: (a) the exact drift-P95
+    threshold (ms) that defines "DJ-syncable"; (b) confirmation that the metadata-viewer consumer is
+    instrumentation-only so downbeat stays carved out.
+
+## Tasks / Subtasks
+
+1. **Decomposition + oracle audit spike** (AC #7, #8) — re-aggregate the existing per-track 8-7
+   output; fit the oracle to a line; emit the bucket breakdown + oracle residual report. Names the
+   target. Gates the *claim*, not the code; can run parallel to Task 2.
+2. **Robust ordinal-aware refit** (AC #1–#4) — implement the period-ordinal, confidence-weighted,
+   MAD-trimmed line fit + fail-closed guard + tempo band in `BeatGridAnalyzer.estimateBeatGrid`
+   (replacing line 344). Pure `vDSP`/Accelerate, zero new deps.
+3. **Per-track drift-P95 acceptance assertion** (AC #6) — add the absolute per-track phase-drift P95
+   assertion + stratified reporting to the acceptance suite in `BeatGridBenchmarkTests.swift`.
+4. **Secondary lever, measured separately** (AC #5) — parabolic tempogram-peak interpolation;
+   measure independently; ship only if net-positive.
+5. **Regression gauntlet** (AC #9) — `make test` green; `make benchmark` OA300 unchanged; `make
+   benchmark-beatgrid` shows drift P95 strictly down AND F not down beyond noise; floors held/raised.
+6. **Finalize gate + record decisions** (AC #11) — once the operator answers the two open questions,
+   set the committed drift-P95 floor and flip 8-7 to re-measure → `done`, closing Epic 8.
+
+## Dev Notes
+
+- **Insertion point.** `Sources/BoomBoomBoomKit/BeatGridAnalyzer.swift` — `estimateBeatGrid(...)`
+  begins at line 115; the beats array is built at ~236–326; `let estimatedTempo = tempoBPM` is at
+  **line 344**; `selectGridOrigin(beats:estimatedTempo:)` (which the refit must feed) is at line 355
+  / defined at 422. The refit slots between the beats construction and `selectGridOrigin`. Tuning
+  constants live at ~59–69.
+- **Byte-identity mechanism.** `estimateBeatGrid` runs only under `Options.computeBeatGrid`
+  (`BPMAnalyzer.swift:221`, default `false`); the production `analyzeBPM` path never reaches it, so
+  the BPM result is byte-identical by construction. Lock with the OA300 floors.
+- **The value types are not the tracker.** `BeatGrid.swift` / `BeatGridAnchor.swift` /
+  `BeatTimestamp.swift` are value types — the DP tracker + grid construction live in
+  `BeatGridAnalyzer.swift`. `BeatGrid.init` rebuilds `gridOrigin` from `beats[beatIndex]` and drops
+  out-of-range anchors (`BeatGrid.swift:104-110, 213-222`), so the refit must produce an anchor that
+  indexes a real beat. `BeatTimestamp.confidence`/`.strength` are `Float` in `[0,1]`, clamped finite.
+- **Why the refit works on this corpus.** 8-7's per-track median offset ~0 means the DP beats are
+  unbiased on average — a global line fit cuts variance (drift), exactly the failure mode. It is
+  octave-inert: on a half-time-tracked track it fits a clean line through the wrong pulse (a no-op,
+  never a regression), which is why octave correctness is a separate axis (AC #10).
+- **Acceptance harness.** `BeatGridBenchmarkTests.swift` holds `@Suite("Beat-Grid Acceptance
+  Benchmark")` (line 107) and `@Suite("Beat-Grid F-measure Floor")` (line 418); floor constants:
+  `downbeatCorrectnessFloor = 0.10` (:397), `driftP95GateSeconds = 2.0` (:404), `fMeasureFloor =
+  0.33` (:426); the FR-29 drift sub-test is at ~366–386. Run via `make benchmark-beatgrid` (release;
+  Swift emits estimated beats JAMS → `_bmad-output/ml-training/eval-beatgrid.py` mir_eval → Swift
+  asserts the floor). Oracle from `make oracle-generate-beats` (`scripts/rekordbox-beats.py`,
+  develop-only).
+- **The demo visualization is the manual debugging surface.** The `rterhaar/demo-beat-grid` branch
+  overlays the extrapolated grid + raw beats + downbeats + anchor over the waveform; scrolling to a
+  track's end shows the drift directly (the "Arbitrary Arbitrage" 160.15-vs-160.00 case is a ready
+  regression fixture). It also now exposes the analysis time cap (`Options.maxSeconds`) and a
+  "Lock grid to detected BPM" toggle (`.bpmStage`) so the lock-vs-refit behavior can be eyeballed
+  on the same track.
+- **The shipped tempo lock (prior art for this story).** `BeatGridTempoLock.swift` +
+  `Options.beatGridTempoLock` + `applyTempoLock`/`octaveNormalizedLockTempo` in
+  `AudioAnalysisService.swift` (lock honored only on the combined `analyze()` path; pre-lock
+  `tempoAgreement` preserved as the diagnostic; target octave-normalized via the existing
+  `classifyTempoAgreement` 2% band; default `.off` keeps `analyzeBPM`/OA300 byte-identical at
+  58/82, 74/82). The refit lands at the same site and must run *before* `applyTempoLock` (AC #4a).
+  `BeatGrid.with(estimatedTempo:)` is the value-forwarder both paths use to swap the tempo scalar
+  without a field-enumerating re-init.
+
+## References
+
+- `_bmad-output/implementation-artifacts/8-7-beat-grid-acceptance-corpus-and-mir-eval-f-measure-floor.md`
+  (format exemplar + baseline)
+- `_bmad-output/implementation-artifacts/8-7-pressure-release.md` (the reopen recommendation)
+- `Sources/BoomBoomBoomKit/BeatGridAnalyzer.swift`, `Sources/BoomBoomBoomKit/BPMAnalyzer.swift`
+- `Sources/BoomBoomBoomKit/BeatGridTempoLock.swift`,
+  `Sources/BoomBoomBoomKit/AudioAnalysisService.swift` (`applyTempoLock` / `octaveNormalizedLockTempo`),
+  `Sources/BoomBoomBoomKit/BeatGrid.swift` (`with(estimatedTempo:)`) — the shipped tempo lock
+- `Tests/BoomBoomBoomKitBenchmarkTests/BeatGridBenchmarkTests.swift`
+- `scripts/rekordbox-beats.py`, `_bmad-output/ml-training/eval-beatgrid.py`, `make benchmark-beatgrid`
+
+## Change Log
+
+- 2026-06-20 — Spec created. Consensus from a design roundtable (PM/Architect/Dev/Analyst) plus a
+  Codex tie-break: robust ordinal-aware refit over plain LS; drift-P95 as the gate (F demoted, ratio
+  diagnostic-only); oracle line-fit audit as a precondition; octave separate; downbeat out of scope.
+- 2026-06-20 — Updated with the shipped `BeatGridTempoLock` (user-opt-in constant-BPM lock). Codex
+  design review (thread 019ee7ed): the lock composes with this refit and applies AFTER it (AC #4a);
+  octave-normalize the locked target, preserve the pre-lock agreement diagnostic, combined-path
+  only. The refit's drift-P95 gate is measured lock-off; a locked pass is reported separately.
