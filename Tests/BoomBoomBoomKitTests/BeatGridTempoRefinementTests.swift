@@ -71,6 +71,14 @@ struct BeatGridTempoRefinementTests {
       sampleRate: 44100)
   }
 
+  /// A minimal constant-tempo `BeatGrid` (no beats needed — `applyTempoLock` reads
+  /// and rewrites only `estimatedTempo`) for directly exercising the lock policy.
+  private static func constantGrid(estimatedTempo: Double) -> BeatGrid {
+    BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: estimatedTempo, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+  }
+
   // MARK: - AC8: fractional refine from a coarse seed
 
   /// A constant-tempo click at a fractional BPM (127.3), fitted from a coarse seed
@@ -263,14 +271,19 @@ struct BeatGridTempoRefinementTests {
     #expect(refinedTempo > 0)
 
     // .bpmStage OVERRIDES the refined tempo with the (coarse) stage BPM,
-    // octave-normalized — the sub-0.1 precision is discarded.
+    // octave-normalized — the sub-0.1 precision is discarded. Asserted EXACTLY (not
+    // "within 2%"): a within-2% assertion passes even when the lock fails to override
+    // and the refined tempo merely sits near the stage tempo — the weak-test gap that
+    // hid the `.bpmStage` no-op bug (8-10-D5). Exact equality distinguishes a real
+    // override.
     let bpmStage = try Self.analyzeRefined(lock: .bpmStage)
     let bpmStageGrid = try #require(bpmStage.beatGrid)
+    let stageBPM = bpmStage.bpm.bpm
     #expect(
-      abs(bpmStageGrid.estimatedTempo - bpmStage.bpm.bpm) / bpmStage.bpm.bpm <= 0.02
-        || abs(bpmStageGrid.estimatedTempo - 2 * bpmStage.bpm.bpm) / (2 * bpmStage.bpm.bpm) <= 0.02
-        || abs(bpmStageGrid.estimatedTempo - 0.5 * bpmStage.bpm.bpm) / (0.5 * bpmStage.bpm.bpm)
-          <= 0.02
+      bpmStageGrid.estimatedTempo == stageBPM
+        || bpmStageGrid.estimatedTempo == 2 * stageBPM
+        || bpmStageGrid.estimatedTempo == 0.5 * stageBPM,
+      "bpmStage grid tempo \(bpmStageGrid.estimatedTempo) is not exactly the stage tempo \(stageBPM) (or an octave of it)"
     )
 
     // .bpm(NaN) is a documented no-op → the refined tempo STANDS (bit-identical to
@@ -330,5 +343,60 @@ struct BeatGridTempoRefinementTests {
     offOpts.refineBeatGridTempo = false
     let offResult = try #require(BPMAnalyzer.estimateBPM(decoded: decoded, options: offOpts))
     #expect(offResult.trace?.beatGridTempoRefinement == nil)
+  }
+
+  // MARK: - .bpmStage lock authority (post-merge Codex bot P2)
+
+  /// `.bpmStage` is the pipeline's authoritative tempo, so it must override even a
+  /// within-octave (>2%) disagreement — the exact case an accepted refit (up to the
+  /// 4% window) or a single- vs multi-window split introduces. Previously the lock
+  /// routed through the gated `octaveNormalizedLockTempo`, classified the divergence
+  /// as `.disagree`, and silently no-oped, leaving the refined grid standing.
+  @Test func stageLockTempoIsAuthoritativeWithinOctave() {
+    typealias Svc = AudioAnalysisService
+    // .agree → target.
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 122) == 120)
+    // Within-octave .disagree (>2%) → target (the fix; was a silent no-op).
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 124) == 120)
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 235) == 120)  // ratio 1.96, within octave
+    // Octave-equivalent → octave-shifted target (factor maps to ×2 / ×0.5, never ×−2).
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 240) == 240)
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 60) == 60)
+    // True >octave divergence → nil (grid stays unlocked) — the >octave guard holds.
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 480) == nil)
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 245) == nil)  // ratio 2.04, >octave
+    // Non-finite / non-positive target → nil.
+    #expect(Svc.stageLockTempo(target: .nan, gridTempo: 120) == nil)
+    #expect(Svc.stageLockTempo(target: 0, gridTempo: 120) == nil)
+    #expect(Svc.stageLockTempo(target: -120, gridTempo: 120) == nil)
+    // Non-finite / non-positive grid (the "no estimate" sentinel) → the stage tempo
+    // wins (no octave to compare against).
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 0) == 120)
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: .nan) == 120)
+  }
+
+  /// Integration through `applyTempoLock`: a grid whose tempo diverged >2% from the
+  /// stage tempo (124 vs 120) is restored to the stage tempo by `.bpmStage`, while
+  /// the same divergence leaves arbitrary `.bpm(120)` caller input gated (no-op).
+  /// This is the regression the weak `lockMatrixPrecedence` `.bpmStage` cell missed.
+  @Test func applyTempoLockBpmStageOverridesDivergentGrid() throws {
+    let grid = Self.constantGrid(estimatedTempo: 124)
+
+    // .bpmStage authoritatively restores the stage tempo (was the no-op bug).
+    let staged = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpmStage, bpmStageTempo: 120))
+    #expect(staged.estimatedTempo == 120)
+
+    // Contrast: .bpm(120) — arbitrary caller input — stays gated and no-ops on the
+    // same within-octave >2% disagreement (codifies current `.bpm` behavior, NOT an
+    // endorsement of it; see deferred 8-10-D6).
+    let bpmLock = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpm(120), bpmStageTempo: 120))
+    #expect(bpmLock.estimatedTempo == 124)
+
+    // .off leaves the grid untouched.
+    let off = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .off, bpmStageTempo: 120))
+    #expect(off.estimatedTempo == 124)
   }
 }
