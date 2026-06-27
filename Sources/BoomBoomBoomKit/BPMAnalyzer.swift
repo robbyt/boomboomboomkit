@@ -229,6 +229,14 @@ struct BPMAnalyzer {
     /// sub-band voting iff `.subBandVoting` is independently on), never the
     /// full-band envelope or the BPM winner — the BPM result stays byte-identical.
     var detectDownbeats: Bool = false
+
+    /// Story 8.10 — when `true` AND `computeBeatGrid` is `true`, the step-11
+    /// fan-out refines the grid's ``BeatGrid/estimatedTempo`` to sub-0.1-BPM
+    /// precision via a continuous interpolated onset-comb fit (guarded never worse
+    /// than the coarse tempo). Default `false` reports the coarse `tempoBPM`
+    /// verbatim, keeping ``BPMResult/beatGrid`` byte-identical. Refinement touches
+    /// ONLY the grid tempo — never the BPM winner — so the BPM result is unchanged.
+    var refineBeatGridTempo: Bool = false
   }
 
   // MARK: - Public API
@@ -555,7 +563,9 @@ struct BPMAnalyzer {
         tempoBPM: bpm,
         windowStartSample: dropOffset,
         subBands: onsetResult.subBands,
-        detectDownbeats: options.detectDownbeats)
+        detectDownbeats: options.detectDownbeats,
+        refineBeatGridTempo: options.refineBeatGridTempo,
+        refinementSink: { trace?.beatGridTempoRefinement = $0 })
     }
 
     // Step 12: Confidence
@@ -693,7 +703,8 @@ struct BPMAnalyzer {
       windowStartSample: dropOffset,
       coverage: cov,
       subBands: onsetResult.subBands,
-      detectDownbeats: options.detectDownbeats)
+      detectDownbeats: options.detectDownbeats,
+      refineBeatGridTempo: options.refineBeatGridTempo)
   }
 
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)

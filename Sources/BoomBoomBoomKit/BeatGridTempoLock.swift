@@ -17,11 +17,19 @@
 /// electronic / DJ music), locking the grid to a clean tempo removes that drift.
 ///
 /// **Octave normalization.** In every locking case the target tempo is
-/// octave-normalized to the grid's own tempo (within the library's 2% agreement
-/// band) before it is applied: locking a 160 BPM grid to an 80 BPM source snaps
-/// to 160, NOT a halved beat density. If the target and the grid disagree by more
-/// than an octave, the grid is left **unlocked** (the tracker's tempo stands)
-/// rather than forced to an implausible tempo.
+/// octave-normalized to the grid's own tempo before it is applied: locking a
+/// 160 BPM grid to an 80 BPM source snaps to 160, NOT a halved beat density. If
+/// the target and the grid disagree by more than an octave, the grid is left
+/// **unlocked** (the tracker's tempo stands) rather than forced to an implausible
+/// tempo.
+///
+/// **Within-octave authority differs by case.** ``bpmStage`` is the pipeline's own
+/// authoritative tempo, so it overrides even a within-octave disagreement (a tempo
+/// refit up to the few-percent search window, or a single- vs multi-window split,
+/// can push the grid more than the 2% agreement band from the stage tempo, and
+/// `.bpmStage` still wins). ``bpm(_:)`` is arbitrary caller input and stays gated:
+/// a within-octave but >2% disagreement leaves the grid unlocked (the caller's
+/// value is treated as possibly implausible).
 ///
 /// **Scope.** Honored only on the combined
 /// ``AudioAnalysisService/analyze(url:options:)`` /
@@ -43,6 +51,9 @@ public enum BeatGridTempoLock: Sendable, Equatable {
   case off
 
   /// Lock to the BPM stage's detected tempo, octave-normalized to the grid.
+  /// Authoritative: overrides the grid even on a within-octave disagreement
+  /// (only a >octave gap or a non-finite/non-positive stage tempo leaves it
+  /// unlocked), so it reliably discards a tempo refit's sub-0.1 precision.
   case bpmStage
 
   /// Lock to a caller-supplied exact BPM, octave-normalized to the grid. A

@@ -265,6 +265,15 @@ beat-grid-impact-report:
 	) \
 	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridImpactGateTests
 
+## tempo-refine-impact-report: Story 8-10 AC9 — per-track beat-grid tempo-error + predicted last-beat drift, refinement ON vs OFF, scored against the DAW-verified oracle over .fullTrack coverage. JSON to _bmad-output/implementation-artifacts/8-10-tempo-refine-impact.json. Accuracy metric (config-agnostic); asserts the monotonic reject-guard (improved >= worsened, mean drift not increased).
+.PHONY: tempo-refine-impact-report
+tempo-refine-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	TEMPO_REFINE_IMPACT=1 \
+	TEMPO_REFINE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.DAWOracleBenchmarkTests/tempoRefinementImpact
+
 ## combined-analyze-impact-report: Story 8-5 AC10 — per-format shared-decode gate (analyze() one decode <= analyzeBPM + analyzeBeatGrid two decodes, x1.10 margin) + full-track-coverage overhead REPORT + JSON to _bmad-output/implementation-artifacts/8-5-combined-analyze-impact.json. Release config.
 .PHONY: combined-analyze-impact-report
 combined-analyze-impact-report:
