@@ -109,6 +109,16 @@ enum BeatGridAnalyzer {
   ///     When `false` (default), ``BeatGrid/downbeats`` is
   ///     ``DownbeatResult/notAttempted`` and the 8.5 phase-consistency anchor is
   ///     preserved.
+  ///   - refineBeatGridTempo: When `true` (Story 8.10), the grid's reported
+  ///     ``BeatGrid/estimatedTempo`` is refined to sub-0.1-BPM precision by
+  ///     fitting a continuous interpolated onset-comb against the in-scope
+  ///     `onsetEnvelope` (seeded by `tempoBPM`), guarded so it is never worse
+  ///     than the seed. Default `false` reports `tempoBPM` verbatim
+  ///     (byte-identical to Story 8.4/8.5). See ``refineTempo(seedBPM:onsetEnvelope:frames:onsetRate:acf:)``.
+  ///   - refinementSink: Invoked once with the refinement diagnostic when
+  ///     `refineBeatGridTempo` is `true` (regardless of acceptance). Default is a
+  ///     no-op; the step-11 fan-out passes a closure that records it onto
+  ///     ``BPMDiagnosticTrace/beatGridTempoRefinement`` when tracing is on.
   /// - Returns: A populated ``BeatGrid``, or `nil` for degenerate input (empty
   ///   envelope, non-positive/non-finite tempo, all-zero envelope, or a window
   ///   shorter than one beat period).
@@ -122,7 +132,9 @@ enum BeatGridAnalyzer {
     windowStartSample: Int,
     coverage: BeatGridCoverage = .analysisWindow,
     subBands: [[Float]] = [],
-    detectDownbeats: Bool = false
+    detectDownbeats: Bool = false,
+    refineBeatGridTempo: Bool = false,
+    refinementSink: (BeatGridTempoRefinementEvidence) -> Void = { _ in }
   ) -> BeatGrid? {
     let n = onsetEnvelope.count
     guard n > 0, hopSize > 0, sampleRate > 0, onsetRate > 0 else { return nil }
@@ -325,23 +337,38 @@ enum BeatGridAnalyzer {
     }
     guard !beats.isEmpty else { return nil }
 
-    // The grid's tempo is the BPM-stage tempo the beats were tracked against.
+    // The grid's tempo is the BPM-stage tempo the beats were tracked against —
+    // optionally refined to sub-0.1-BPM precision (Story 8.10).
     //
     // The DP's strong period-transition penalty (`tightness`) anchors every
     // recovered inter-beat interval near `period = onsetRate·60/tempoBPM`, so the
-    // beats DO follow `tempoBPM` — reporting it directly is both the accurate
-    // value and a faithful description of the grid's phase. Story 8.4 instead
-    // RE-MEASURED the tempo from the integer-frame inter-beat intervals (median,
-    // octave-snapped); that only re-quantized an already-accurate input — a single
-    // onset frame is ~2% of the period at typical tempos (1 in 47 at 127 BPM) — so
-    // the reported tempo carried ~0.2 BPM of quantization noise. That noise made a
-    // consumer's anchor + tempo extrapolation drift ~500 ms over five minutes
-    // (AC2) and pushed the grid tempo across the ~2% BPM/grid agreement band on
-    // borderline tracks (AC8). The supplied `tempoBPM` is the tempogram +
-    // fine-grid-refined estimate (sub-BPM), so it is the right value to report.
-    // Octave handling stays the BPM stage's job (the grid owns phase), and the DP
-    // tracks AT `tempoBPM`, not an octave of it, so no octave re-snap is needed.
-    let estimatedTempo = tempoBPM
+    // beats DO follow `tempoBPM`. But `tempoBPM` is only tuned to NAME the track
+    // (~2–4% — plenty to label it, far too coarse to extrapolate a grid over
+    // hundreds of beats: a few-tenths-of-a-BPM rate error is a lever arm that
+    // accumulates into tens of ms of within-track drift). Story 8.4 tried to
+    // tighten it by RE-MEASURING from the integer-frame inter-beat-interval
+    // median — but a single onset frame is ~2% of the period (1 in 47 at 127 BPM),
+    // so that only re-quantized the input and ADDED ~0.2 BPM of noise; it was
+    // reverted (as was the Story 8.9 DP-beat tempo+phase refit, which regressed
+    // with no reject-guard). The distinguishing mechanism this time (DD #2) is a
+    // CONTINUOUS interpolated onset-comb fit at sub-frame resolution — never
+    // integer beat intervals — jointly over period AND phase, guarded so the
+    // result is never worse than the seed (DD #4). When `refineBeatGridTempo` is
+    // off, `tempoBPM` is reported verbatim (byte-identical to 8.4/8.5). Octave
+    // handling stays the BPM stage's job (the DP tracks AT `tempoBPM`, and the
+    // refit window is bounded well under an octave), so no octave re-snap is done.
+    var estimatedTempo = tempoBPM
+    if refineBeatGridTempo {
+      let refit = refineTempo(
+        seedBPM: tempoBPM, onsetEnvelope: onsetEnvelope, frames: beatFrames,
+        onsetRate: onsetRate, acf: acf)
+      estimatedTempo = refit.tempo
+      refinementSink(
+        BeatGridTempoRefinementEvidence(
+          coarseTempo: tempoBPM, refinedTempo: refit.tempo,
+          supportSeed: refit.supportSeed, supportRefined: refit.supportRefined,
+          accepted: refit.accepted))
+    }
 
     // Overall confidence: half from mean beat onset salience, half from how strong
     // the autocorrelation is at the tracked period (signal periodicity at tempo).
@@ -501,6 +528,226 @@ enum BeatGridAnalyzer {
     let v = acf[lag] / acfMax
     // ACF can be negative at a lag; clamp to [0, 1] for a confidence term.
     return min(max(v, 0), 1)
+  }
+
+  // MARK: - Continuous tempo refinement (Story 8.10)
+
+  /// Minimum number of beats the usable span must hold for the refit to attempt a
+  /// fix. A sub-0.1-BPM fit needs a long lever arm; a 2–3-beat span is unstable,
+  /// so below this the refit abstains and returns the seed unconditionally.
+  private static let refineMinBeats = 8
+
+  /// Relative half-width of the period search window at WEAK periodicity. Bounded
+  /// well under an octave (`0.04 ≪ 0.5`), so the window can never reach a
+  /// half/double-tempo octave — the window bound IS the octave safety (DD #3), no
+  /// separate octave-band check is needed (or shippable: it could never fire).
+  private static let refineMaxHalfWidth = 0.04
+
+  /// Relative half-width at STRONG periodicity (narrow — the seed is trustworthy).
+  private static let refineMinHalfWidth = 0.015
+
+  /// Minimum onset-comb CONTRAST (best-phase mean ÷ overall mean onset energy) for
+  /// the seed period before the refit will attempt a fix. A signal with no comb
+  /// concentration at the seed period — aperiodic noise, a flat-constant envelope
+  /// — has contrast ≈ 1; there is no beat phase to sharpen, so the refit abstains
+  /// (returns the seed, byte-identical to the unrefined grid). This is an abstain
+  /// gate on whether to refine at all (the min-span abstain's sibling), NOT an
+  /// epsilon on the accept comparison (which stays a strict `>`).
+  private static let refineMinContrast = 1.5
+
+  /// Number of candidate periods scanned across the window. Parabolic vertex
+  /// interpolation around the coarse peak then resolves sub-step precision.
+  private static let refinePeriodSteps = 120
+
+  /// Sub-frame phase bins per integer period frame in the onset-comb fold (DD #2
+  /// — the continuous/interpolated phase resolution that the integer-frame 8.4
+  /// approach lacked).
+  private static let refinePhaseOversample = 2
+
+  /// Outcome of the continuous tempo refit: the tempo to report (seed on
+  /// reject/abstain, else the refined value), the two support scores, and whether
+  /// the refined value was accepted.
+  private struct TempoRefitResult {
+    let tempo: Double
+    let supportSeed: Double
+    let supportRefined: Double
+    let accepted: Bool
+  }
+
+  /// Refines the grid tempo to sub-0.1-BPM precision by fitting a continuous
+  /// interpolated onset-comb against the onset envelope (Story 8.10, DD #2/#4).
+  ///
+  /// **Not integer beat intervals.** The fitted observation is the
+  /// interpolated-onset-comb SUPPORT `max_φ Σ_k onset(φ + k·period)` over a
+  /// continuous period window — NEVER the integer-frame inter-beat-interval median
+  /// (the reverted Story 8.4 approach, which re-quantized an already-accurate
+  /// input). `frames` (the DP beat indices) are initialization ONLY: they bound
+  /// the usable span; the fit derives nothing from their integer differences, and
+  /// phase is a free search dimension (it is not pinned to a DP anchor, which
+  /// would re-inherit the seed-phase bias that regressed Story 8.9).
+  ///
+  /// **Monotonic by construction.** Both the seed period and the best in-window
+  /// period are scored by the SAME support objective, each at its own argmax
+  /// phase; the refined tempo is accepted iff `supportRefined > supportSeed`
+  /// (strict). On reject — or any abstain (too-short span, degenerate input,
+  /// non-finite/≤0 refined value) — the seed's ORIGINAL `seedBPM` binding is
+  /// returned (not a recomputed `60·onsetRate/period`, which would round-trip
+  /// through quantization), so the rejected path is bit-pattern-identical to the
+  /// unrefined grid.
+  ///
+  /// - Parameters:
+  ///   - seedBPM: The coarse BPM-stage tempo to seed and fall back to.
+  ///   - onsetEnvelope: The window-relative onset detection function (frames).
+  ///   - frames: The tracked beat frames (initialization only — span bound).
+  ///   - onsetRate: Onset-envelope sample rate in Hz (`sampleRate / hopSize`).
+  ///   - acf: Onset-envelope autocorrelation; gauges periodicity at the seed
+  ///     period to set the (adaptive) window half-width.
+  /// - Returns: A ``TempoRefitResult`` — `tempo` is `seedBPM` on reject/abstain.
+  private static func refineTempo(
+    seedBPM: Double, onsetEnvelope: [Float], frames: [Int], onsetRate: Double, acf: [Float]
+  ) -> TempoRefitResult {
+    func abstain(_ supportSeed: Double = 0) -> TempoRefitResult {
+      TempoRefitResult(
+        tempo: seedBPM, supportSeed: supportSeed, supportRefined: supportSeed, accepted: false)
+    }
+
+    let n = onsetEnvelope.count
+    guard seedBPM.isFinite, seedBPM > 0, onsetRate > 0, n > 0 else { return abstain() }
+    // Usable span = first..last tracked beat frame (silent head/tail already
+    // trimmed upstream). `frames` is initialization only — its integer spacing is
+    // never the fitted observation.
+    guard let lo = frames.first, let hi = frames.last, hi > lo, hi < n else { return abstain() }
+
+    let seedPeriod = onsetRate * 60.0 / seedBPM
+    guard seedPeriod.isFinite, seedPeriod >= 1 else { return abstain() }
+
+    // Minimum-span abstain: the lever-arm baseline a sub-0.1-BPM fit needs.
+    let spanFrames = Double(hi - lo)
+    guard spanFrames / seedPeriod >= Double(refineMinBeats) else { return abstain() }
+
+    // Score the seed period first — the reject-guard floor.
+    let supportSeed = combSupport(period: seedPeriod, onset: onsetEnvelope, lo: lo, hi: hi)
+    guard supportSeed.isFinite, supportSeed > 0 else { return abstain() }
+
+    // Periodicity abstain: refuse to refine a signal with no onset-comb
+    // concentration at the seed period (aperiodic noise / flat-constant → the
+    // best-phase mean barely exceeds the overall mean). Returns the seed.
+    var meanAll: Float = 0
+    onsetEnvelope.withUnsafeBufferPointer { buf in
+      vDSP_meanv(buf.baseAddress! + lo, 1, &meanAll, vDSP_Length(hi - lo + 1))
+    }
+    let overallMean = Double(meanAll)
+    guard overallMean > 0, supportSeed >= overallMean * refineMinContrast else {
+      return abstain(supportSeed)
+    }
+
+    // Adaptive window half-width: narrow when the onset signal is strongly
+    // periodic at the seed period, wide when weak. The cap (`refineMaxHalfWidth`)
+    // is the octave safety — the window cannot reach `2·seed` / `seed/2`.
+    let periodicity = Double(acfStrengthAtPeriod(acf: acf, period: seedPeriod))
+    let clampedPeriodicity = min(max(periodicity, 0), 1)
+    let halfWidth =
+      refineMaxHalfWidth - (refineMaxHalfWidth - refineMinHalfWidth) * clampedPeriodicity
+
+    // Period window in frames, clamped so the longest period still spans
+    // >= refineMinBeats over the usable span (DD #3 envelope-length bound).
+    let maxPeriodBySpan = spanFrames / Double(refineMinBeats)
+    let pLo = max(1.0, seedPeriod * (1.0 - halfWidth))
+    let pHi = min(seedPeriod * (1.0 + halfWidth), maxPeriodBySpan)
+    guard pHi > pLo else { return abstain(supportSeed) }
+
+    // Coarse scan across the window; keep the full support curve for a parabolic
+    // vertex refine around the peak.
+    let steps = refinePeriodSteps
+    var supports = [Double](repeating: 0, count: steps + 1)
+    let stepSize = (pHi - pLo) / Double(steps)
+    var bestIdx = 0
+    var bestSupport = -Double.greatestFiniteMagnitude
+    for s in 0...steps {
+      let p = pLo + Double(s) * stepSize
+      let support = combSupport(period: p, onset: onsetEnvelope, lo: lo, hi: hi)
+      supports[s] = support
+      if support > bestSupport {
+        bestSupport = support
+        bestIdx = s
+      }
+    }
+
+    var refinedPeriod = pLo + Double(bestIdx) * stepSize
+    // Parabolic vertex interpolation among (best−1, best, best+1) for sub-step
+    // precision. Guard the denominator against a flat objective (vertex undefined).
+    if bestIdx > 0, bestIdx < steps {
+      let y0 = supports[bestIdx - 1]
+      let y1 = supports[bestIdx]
+      let y2 = supports[bestIdx + 1]
+      let denom = y0 - 2.0 * y1 + y2
+      if denom != 0 {
+        let delta = 0.5 * (y0 - y2) / denom
+        // A well-formed peak yields |delta| <= 0.5; clamp against a degenerate
+        // (non-concave) triple that would extrapolate outside the bracket.
+        if delta.isFinite, abs(delta) <= 1.0 {
+          refinedPeriod = (pLo + Double(bestIdx) * stepSize) + delta * stepSize
+        }
+      }
+    }
+    refinedPeriod = min(max(refinedPeriod, pLo), pHi)
+
+    let refinedSupport = combSupport(period: refinedPeriod, onset: onsetEnvelope, lo: lo, hi: hi)
+    let refinedBPM = onsetRate * 60.0 / refinedPeriod
+
+    // Finite-positive precheck BEFORE compare/assign: a non-finite/≤0 value would
+    // otherwise launder to the `0.0` "no estimate" sentinel at `BeatGrid.init`.
+    guard refinedBPM.isFinite, refinedBPM > 0, refinedSupport.isFinite else {
+      return abstain(supportSeed)
+    }
+    // Accept iff strictly better than the seed (no epsilon that admits noise).
+    guard refinedSupport > supportSeed else {
+      return TempoRefitResult(
+        tempo: seedBPM, supportSeed: supportSeed, supportRefined: refinedSupport, accepted: false)
+    }
+    return TempoRefitResult(
+      tempo: refinedBPM, supportSeed: supportSeed, supportRefined: refinedSupport, accepted: true)
+  }
+
+  /// Interpolated onset-comb support for a candidate beat period: the maximum,
+  /// over phase, of the mean onset energy on the comb taps `φ + k·period`
+  /// (Story 8.10).
+  ///
+  /// Implemented by folding every frame in `[lo, hi]` onto a sub-frame phase axis
+  /// (linear split between the two nearest bins — the sub-frame interpolation),
+  /// then taking the best phase bin's mean. Folding is the transpose of evaluating
+  /// the comb tap-by-tap and yields ALL phases in one O(span) pass. Total onset
+  /// energy is conserved across periods, so the peak measures how sharply the
+  /// period concentrates onset energy onto a single phase — higher = better
+  /// aligned. The scatter-add over phase bins has no vDSP primitive (like the DP
+  /// recurrence above), so it is an explicit control-flow loop.
+  private static func combSupport(period: Double, onset: [Float], lo: Int, hi: Int) -> Double {
+    guard period >= 1, hi > lo, lo >= 0, hi < onset.count else { return 0 }
+    let bins = max(8, Int((period * Double(refinePhaseOversample)).rounded()))
+    var energy = [Double](repeating: 0, count: bins)
+    var weight = [Double](repeating: 0, count: bins)
+    let binsD = Double(bins)
+    var i = lo
+    while i <= hi {
+      // Phase of frame i within the period, in [0, period); folded onto [0, bins).
+      let phase = Double(i - lo).truncatingRemainder(dividingBy: period)
+      let pos = phase / period * binsD
+      let b0 = min(Int(pos), bins - 1)
+      let frac = pos - Double(b0)
+      let b1 = (b0 + 1) % bins
+      let v = Double(onset[i])
+      energy[b0] += v * (1.0 - frac)
+      weight[b0] += (1.0 - frac)
+      energy[b1] += v * frac
+      weight[b1] += frac
+      i += 1
+    }
+    var best = 0.0
+    for b in 0..<bins where weight[b] > 0 {
+      let mean = energy[b] / weight[b]
+      if mean > best { best = mean }
+    }
+    return best
   }
 
   // MARK: - Shared onset-feature seam (Story 8-2 KDD-C4)

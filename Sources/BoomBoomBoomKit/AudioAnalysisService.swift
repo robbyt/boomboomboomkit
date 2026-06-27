@@ -349,6 +349,33 @@ public struct AudioAnalysisService {
     /// more-than-an-octave disagreement leaves the grid unlocked.
     public var beatGridTempoLock: BeatGridTempoLock = .off
 
+    /// Opt-in continuous beat-grid tempo refinement (Story 8.10). Default `false`
+    /// reproduces prior behavior byte-for-byte (the grid reports the coarse
+    /// BPM-stage tempo). When `true`, the grid's ``BeatGrid/estimatedTempo`` is
+    /// refined to sub-0.1-BPM precision by fitting a continuous interpolated
+    /// onset-comb against the audio's own onset evidence (seeded by the BPM-stage
+    /// tempo), guarded so the result is never worse than the seed — this removes
+    /// the dominant beat-grid accuracy loss (a few-tenths-of-a-BPM rate error that
+    /// accumulates into within-track drift over a multi-minute track).
+    ///
+    /// **Scope.** Honored by ``analyzeBeatGrid(url:options:)``,
+    /// ``analyzeBPM(url:options:)`` (when `computeBeatGrid` is set internally),
+    /// and the grid produced by ``analyze(url:options:)``. Because sub-0.1-BPM
+    /// precision needs a long lever arm, the refit frequently abstains on the
+    /// short default ``BeatGridCoverage/analysisWindow`` (~30 s) span and delivers
+    /// its precision on ``BeatGridCoverage/window(seconds:)`` /
+    /// ``BeatGridCoverage/fullTrack`` coverage.
+    ///
+    /// **Interaction with ``beatGridTempoLock`` (combined ``analyze`` path).** The
+    /// lock is the explicit override and wins: a non-``BeatGridTempoLock/off`` lock
+    /// REPLACES the auto-refined tempo. In particular ``BeatGridTempoLock/bpmStage``
+    /// substitutes the COARSE stage BPM and DISCARDS the sub-0.1 precision (the
+    /// refit becomes a no-op on output), while a ``BeatGridTempoLock/bpm(_:)`` with
+    /// a non-finite/≤0/more-than-an-octave value is itself a no-op, leaving the
+    /// refined tempo standing. ``BPMResult/bpm`` (`bpm.bpm`) is never affected — a
+    /// consumer may legitimately observe `bpm.bpm != beatGrid.estimatedTempo`.
+    public var refineBeatGridTempo: Bool = false
+
     /// Closure checked before each analysis window. When it returns `true`,
     /// the analysis throws `CancellationError`. Defaults to `Task.isCancelled`,
     /// giving automatic structured-concurrency support.
@@ -1480,7 +1507,8 @@ public struct AudioAnalysisService {
         intensity: options.intensity,
         techniqueSet: options.techniqueSet,
         computeBeatGrid: true,
-        detectDownbeats: options.detectDownbeats)
+        detectDownbeats: options.detectDownbeats,
+        refineBeatGridTempo: options.refineBeatGridTempo)
       return BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.beatGrid
     }
 
@@ -1491,7 +1519,8 @@ public struct AudioAnalysisService {
     let bpmOptions = BPMAnalyzer.Options(
       intensity: options.intensity,
       techniqueSet: options.techniqueSet,
-      detectDownbeats: options.detectDownbeats)
+      detectDownbeats: options.detectDownbeats,
+      refineBeatGridTempo: options.refineBeatGridTempo)
     guard let tempo = BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.bpm
     else { return nil }
     // Checkpoint before the long O(track) onset pass (DD #4).

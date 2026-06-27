@@ -26,6 +26,15 @@
 /// milliseconds over several minutes — extrapolate, don't trust them absolutely). See
 /// ``BeatGridAnchor``.
 ///
+/// This is doubly true once the grid's tempo is **lock-overridden**
+/// (``with(estimatedTempo:)`` / `AudioAnalysisService.Options.beatGridTempoLock`)
+/// or **auto-refined** (`AudioAnalysisService.Options.refineBeatGridTempo`): both
+/// replace ``estimatedTempo`` with an independently-derived value while leaving the
+/// raw ``beats`` at their originally-tracked spacing, so ``beats`` and
+/// ``estimatedTempo`` deliberately describe *different* tempos. ``gridOrigin`` is
+/// re-anchored to the new tempo; ``beats`` are not. The canonical playable grid is
+/// always ``gridOrigin`` + ``estimatedTempo`` — never the spacing of ``beats``.
+///
 /// ## Applying a presentation offset
 /// Timestamps are decoded-PCM-relative; AVFoundation already removes declared AAC/MP3
 /// encoder priming, so the grid is already playback-aligned. To compensate for
@@ -72,6 +81,16 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
 
   /// The detected beats, in playback order, spanning ``coverage``. Empty for
   /// the "no run" sentinel.
+  ///
+  /// **Raw observations, not the playable grid.** These are the tracker's detected
+  /// beat positions; they are NOT guaranteed to be evenly spaced according to
+  /// ``estimatedTempo``. They never were exactly (per-beat onset quantization, the
+  /// occasional dropped/doubled beat), and they are intentionally *more* divergent
+  /// after a tempo lock (``with(estimatedTempo:)``) or auto-refinement
+  /// (`AudioAnalysisService.Options.refineBeatGridTempo`), which override
+  /// ``estimatedTempo`` without re-spacing this array. A consumer that needs the
+  /// playable beat grid must extrapolate from ``gridOrigin`` + ``estimatedTempo``,
+  /// not iterate ``beats``.
   public let beats: [BeatTimestamp]
 
   /// The tri-state downbeat outcome (see ``DownbeatResult``).
@@ -81,6 +100,13 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// estimate" sentinel (non-finite and non-positive inputs normalize here).
   /// A positive finite estimate is NOT range-clamped — gate validity with
   /// `estimatedTempo > 0`.
+  ///
+  /// **This is THE authoritative extrapolation tempo** — the one number a consumer
+  /// pairs with ``gridOrigin`` to lay down the playable grid. It may be
+  /// independently fit (`AudioAnalysisService.Options.refineBeatGridTempo`) or
+  /// overridden (``with(estimatedTempo:)`` /
+  /// `AudioAnalysisService.Options.beatGridTempoLock`) regardless of the raw
+  /// ``beats`` spacing; when it is, ``beats`` no longer tracks it (see ``beats``).
   public let estimatedTempo: Double
 
   /// Overall confidence in the grid, in `[0.0, 1.0]` (NaN/out-of-range inputs

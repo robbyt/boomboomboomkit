@@ -232,6 +232,158 @@ struct DAWOracleBenchmarkTests {
     )
   }
 
+  // MARK: - Story 8.10: continuous tempo-refinement drift-rate acceptance (AC #9)
+
+  /// Octave-normalizes `truth` (×1 / ×2 / ×½) to whichever octave lands within 6%
+  /// of `ref`; returns `nil` for a more-than-octave disagreement. Isolates the
+  /// refit's sub-BPM precision from the BPM stage's octave choice.
+  private func octaveNormalized(_ truth: Double, to ref: Double) -> Double? {
+    guard ref > 0, truth > 0 else { return nil }
+    for factor in [1.0, 2.0, 0.5] where abs(truth * factor - ref) / ref <= 0.06 {
+      return truth * factor
+    }
+    return nil
+  }
+
+  /// Scores beat-grid tempo error and predicted last-beat drift against the
+  /// DAW-verified oracle with continuous tempo refinement ON vs OFF, over
+  /// `.fullTrack` coverage (the long lever arm a sub-0.1-BPM fit needs). Drift is
+  /// purely a function of tempo error, so a verified BPM is sufficient truth — no
+  /// hand-marked beat positions. Reuses this suite's `oracleByFilename` loader
+  /// (AC #9 / DD #7), gated on `TEMPO_REFINE_IMPACT=1` so only the make target runs
+  /// it; emits a per-track impact JSON to `TEMPO_REFINE_IMPACT_OUT_DIR`.
+  @Test(
+    "tempo-refinement impact (ON vs OFF) vs DAW oracle",
+    .enabled(if: ProcessInfo.processInfo.environment["TEMPO_REFINE_IMPACT"] != nil))
+  func tempoRefinementImpact() async throws {
+    let available = dawOracle.filter { track in
+      FileManager.default.fileExists(atPath: trackURL(track.filename, subdir: track.subdir).path)
+    }
+    try #require(available.count >= 20, "Expected at least 20 DAW oracle tracks on disk")
+
+    struct Row: Sendable {
+      let filename: String
+      let dawBpm: Double
+      let coarseTempo: Double
+      let refinedTempo: Double
+      let normalizedDaw: Double?
+      let coverageSeconds: Double
+    }
+
+    let rows = await withTaskGroup(of: Row?.self) { group in
+      for track in available {
+        let url = self.trackURL(track.filename, subdir: track.subdir)
+        let dawBpm = track.dawBpm
+        let filename = track.filename
+        group.addTask {
+          guard let decoded = try? PCMBufferReader.readDecodedAudio(from: url, maxSeconds: 300)
+          else { return nil }
+          var off = AudioAnalysisService.Options()
+          off.beatGridCoverage = .fullTrack
+          off.maxSeconds = 300
+          var on = off
+          on.refineBeatGridTempo = true
+          guard
+            let offGrid = try? AudioAnalysisService.analyzeBeatGrid(decoded: decoded, options: off),
+            let onGrid = try? AudioAnalysisService.analyzeBeatGrid(decoded: decoded, options: on),
+            offGrid.estimatedTempo > 0, onGrid.estimatedTempo > 0
+          else { return nil }
+          let coverage = Double(decoded.samples.count) / decoded.sampleRate
+          return Row(
+            filename: filename, dawBpm: dawBpm,
+            coarseTempo: offGrid.estimatedTempo, refinedTempo: onGrid.estimatedTempo,
+            normalizedDaw: self.octaveNormalized(dawBpm, to: offGrid.estimatedTempo),
+            coverageSeconds: coverage)
+        }
+      }
+      var out: [Row] = []
+      for await r in group where r != nil { out.append(r!) }
+      return out
+    }
+
+    func drift(grid: Double, truth: Double, seconds: Double) -> Double {
+      abs(seconds * (truth / grid - 1.0))  // last-beat drift in seconds over the coverage
+    }
+
+    var details: [TempoRefineImpactDetail] = []
+    var changedTempo = 0
+    var improved = 0
+    var worsened = 0
+    var octaveMismatch = 0
+    var driftOffSum = 0.0
+    var driftOnSum = 0.0
+    var scored = 0
+
+    for row in rows {
+      let changed = row.refinedTempo.bitPattern != row.coarseTempo.bitPattern
+      if changed { changedTempo += 1 }
+      guard let daw = row.normalizedDaw else {
+        octaveMismatch += 1
+        details.append(
+          TempoRefineImpactDetail(
+            filename: row.filename, dawBpm: row.dawBpm, coarseTempo: row.coarseTempo,
+            refinedTempo: row.refinedTempo, tempoErrorOff: nil, tempoErrorOn: nil,
+            driftOffSeconds: nil, driftOnSeconds: nil, changedTempo: changed,
+            octaveMismatch: true))
+        continue
+      }
+      let errOff = abs(row.coarseTempo - daw)
+      let errOn = abs(row.refinedTempo - daw)
+      let dOff = drift(grid: row.coarseTempo, truth: daw, seconds: row.coverageSeconds)
+      let dOn = drift(grid: row.refinedTempo, truth: daw, seconds: row.coverageSeconds)
+      if errOn < errOff - 1e-9 { improved += 1 }
+      if errOn > errOff + 1e-9 { worsened += 1 }
+      driftOffSum += dOff
+      driftOnSum += dOn
+      scored += 1
+      details.append(
+        TempoRefineImpactDetail(
+          filename: row.filename, dawBpm: row.dawBpm, coarseTempo: row.coarseTempo,
+          refinedTempo: row.refinedTempo, tempoErrorOff: errOff, tempoErrorOn: errOn,
+          driftOffSeconds: dOff, driftOnSeconds: dOn, changedTempo: changed, octaveMismatch: false))
+    }
+
+    let meanDriftOff = scored > 0 ? driftOffSum / Double(scored) : 0
+    let meanDriftOn = scored > 0 ? driftOnSum / Double(scored) : 0
+    let report = TempoRefineImpactReport(
+      total: rows.count, scored: scored, changedTempo: changedTempo,
+      improvedTempoError: improved, worsenedTempoError: worsened, octaveMismatch: octaveMismatch,
+      meanDriftOffSeconds: meanDriftOff, meanDriftOnSeconds: meanDriftOn, details: details)
+
+    print("\n=== Story 8.10 tempo-refinement impact (ON vs OFF) vs DAW oracle ===")
+    print("  total=\(rows.count) scored=\(scored) octaveMismatch=\(octaveMismatch)")
+    print("  changedTempo=\(changedTempo)")
+    print("  improvedTempoError=\(improved)  worsenedTempoError=\(worsened)")
+    print(
+      "  mean predicted last-beat drift: OFF=\(String(format: "%.3f", meanDriftOff))s  "
+        + "ON=\(String(format: "%.3f", meanDriftOn))s")
+
+    if let outDir = ProcessInfo.processInfo.environment["TEMPO_REFINE_IMPACT_OUT_DIR"] {
+      let url = URL(fileURLWithPath: outDir).appendingPathComponent("8-10-tempo-refine-impact.json")
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+      try encoder.encode(report).write(to: url)
+      print("  wrote \(url.path)")
+    }
+
+    // Fail loudly rather than green-light on no data: a present-but-empty corpus,
+    // universal decode failure, or all-octave-mismatch rows would otherwise leave
+    // improved == worsened == 0 and meanDrift == 0, passing the monotonic gate
+    // vacuously. Require real scored rows — NOT a `changedTempo` floor: the refit is
+    // deliberately conservative and may legitimately abstain corpus-wide, so the
+    // committed floor is the monotonic property, not a fire-rate count (Completion
+    // Notes). The impact JSON is written above first, so a zero-data run still leaves
+    // a diagnostic artifact before this halts.
+    try #require(scored > 0, "No DAW-oracle tracks scored — the impact gate cannot run")
+
+    // Monotonic guarantee (the reject-guard): refinement never makes the corpus
+    // worse on net — improvements outnumber regressions, and mean drift does not
+    // increase. The exact lift floor is recorded in Completion Notes after this
+    // first measured run.
+    #expect(improved >= worsened)
+    #expect(meanDriftOn <= meanDriftOff + 1e-9)
+  }
+
   // MARK: - Full Corpus with DAW Annotations
 
   @Test("full corpus with DAW oracle annotations")
@@ -329,4 +481,31 @@ private enum DAWOracleError: Error {
   case corpusPathNotSet
   case groundTruthNotFound
   case oracleNotFound
+}
+
+// MARK: - Story 8.10 impact-report schema
+
+private struct TempoRefineImpactDetail: Codable {
+  let filename: String
+  let dawBpm: Double
+  let coarseTempo: Double
+  let refinedTempo: Double
+  let tempoErrorOff: Double?
+  let tempoErrorOn: Double?
+  let driftOffSeconds: Double?
+  let driftOnSeconds: Double?
+  let changedTempo: Bool
+  let octaveMismatch: Bool
+}
+
+private struct TempoRefineImpactReport: Codable {
+  let total: Int
+  let scored: Int
+  let changedTempo: Int
+  let improvedTempoError: Int
+  let worsenedTempoError: Int
+  let octaveMismatch: Int
+  let meanDriftOffSeconds: Double
+  let meanDriftOnSeconds: Double
+  let details: [TempoRefineImpactDetail]
 }

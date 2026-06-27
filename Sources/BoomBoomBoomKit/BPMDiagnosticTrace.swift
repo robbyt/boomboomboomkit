@@ -107,6 +107,16 @@ public struct BPMDiagnosticTrace: Sendable {
   /// Refined BPM after fine-grid DFT. Nil when fine-grid was skipped.
   public var refinedBPM: Double?
 
+  // MARK: - Step 11: Beat-Grid Tempo Refinement (Story 8.10)
+
+  /// Continuous beat-grid tempo-refinement outcome (coarse seed, refined value,
+  /// both support scores, accepted flag). Populated only when `enableTrace: true`
+  /// AND the step-11 fan-out ran with `refineBeatGridTempo: true`. Nil when the
+  /// refinement was off or the grid fan-out did not run. Distinguishes "refit
+  /// off" from "refit ran but the reject-guard kept the seed" (`accepted: false`
+  /// with `refinedTempo == coarseTempo`).
+  public var beatGridTempoRefinement: BeatGridTempoRefinementEvidence?
+
   // MARK: - Final
 
   /// Final confidence score.
@@ -335,6 +345,60 @@ public struct SubBandVoteEvidence: Sendable, CustomStringConvertible {
   /// Compact textual representation: `SubBandVoteEvidence(pre: …, post: …, changed: …)`.
   public var description: String {
     "SubBandVoteEvidence(pre: \(preVoteBPM), post: \(postVoteBPM), changed: \(changed))"
+  }
+}
+
+/// Continuous beat-grid tempo-refinement outcome recorded at Step 11 (Story 8.10).
+///
+/// The step-11 beat-grid fan-out can refine the grid's tempo to sub-0.1-BPM
+/// precision by fitting a continuous interpolated onset-comb against the audio's
+/// own onset evidence (seeded by the coarse BPM-stage tempo). This records what
+/// the refit did, so "did the reject-guard fire, and by how much" is answerable
+/// from a single corpus run. Follows the ``SubBandVoteEvidence``
+/// before/after/changed convention (NOT a `[String: …]` dict).
+///
+/// `support*` are the onset-comb support scores (mean onset energy at the best
+/// beat phase, higher = better-aligned) for the seed period and the refined
+/// period, both computed by the SAME objective at each period's own argmax
+/// phase. The refit is accepted iff `supportRefined > supportSeed` (strict); on
+/// reject/abstain ``refinedTempo`` equals ``coarseTempo`` and ``accepted`` is
+/// `false`.
+public struct BeatGridTempoRefinementEvidence: Sendable, CustomStringConvertible {
+
+  /// The coarse BPM-stage tempo the refit was seeded from (`tempoBPM`).
+  public let coarseTempo: Double
+
+  /// The tempo reported on ``BeatGrid/estimatedTempo``: the refined value when
+  /// accepted, else `coarseTempo` (the seed's original binding).
+  public let refinedTempo: Double
+
+  /// Onset-comb support of the seed period at its argmax phase.
+  public let supportSeed: Double
+
+  /// Onset-comb support of the refined period at its argmax phase. `<= supportSeed`
+  /// exactly when the refit was rejected (the seed stood).
+  public let supportRefined: Double
+
+  /// `true` when the refit was accepted (`supportRefined > supportSeed` and the
+  /// refined tempo was finite-positive over a sufficient span).
+  public let accepted: Bool
+
+  public init(
+    coarseTempo: Double, refinedTempo: Double,
+    supportSeed: Double, supportRefined: Double, accepted: Bool
+  ) {
+    self.coarseTempo = coarseTempo
+    self.refinedTempo = refinedTempo
+    self.supportSeed = supportSeed
+    self.supportRefined = supportRefined
+    self.accepted = accepted
+  }
+
+  /// Compact textual representation:
+  /// `BeatGridTempoRefinementEvidence(coarse: …, refined: …, supportSeed: …, supportRefined: …, accepted: …)`.
+  public var description: String {
+    "BeatGridTempoRefinementEvidence(coarse: \(coarseTempo), refined: \(refinedTempo), "
+      + "supportSeed: \(supportSeed), supportRefined: \(supportRefined), accepted: \(accepted))"
   }
 }
 
