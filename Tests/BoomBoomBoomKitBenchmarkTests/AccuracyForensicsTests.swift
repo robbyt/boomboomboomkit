@@ -100,10 +100,21 @@ struct AccuracyForensicsTests {
         url: URL, id: String, genre: String, expected: Double, alternate: Double?
       )
   ) async -> [ForensicInput] {
-    await withTaskGroup(of: ForensicInput.self) { group in
-      for track in tracks {
+    // Skip tracks whose audio is missing on disk (mirrors the canonical OA300/GiantSteps
+    // runners) so a partial corpus is SKIPPED, not counted as nil-result failures —
+    // keeping totals comparable to the benchmark floors. Make the skip visible.
+    let located = tracks.map { locate($0) }
+    let present = located.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+    let missing = located.count - present.count
+    if missing > 0 {
+      let ids = located.filter { !FileManager.default.fileExists(atPath: $0.url.path) }
+        .prefix(5).map(\.id)
+      print("  skipped \(missing) track(s) with missing audio (first: \(ids))")
+    }
+
+    return await withTaskGroup(of: ForensicInput.self) { group in
+      for loc in present {
         group.addTask {
-          let loc = locate(track)
           let result = try? AudioAnalysisService.analyzeBPM(url: loc.url, options: .init())
           return ForensicInput(
             id: loc.id, genre: loc.genre, expectedBPM: loc.expected, alternateBPM: loc.alternate,

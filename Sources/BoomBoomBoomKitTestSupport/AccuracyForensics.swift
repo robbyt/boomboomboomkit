@@ -57,8 +57,15 @@ public struct CandidateRecall: Sendable, Codable {
   public let bestRank: Int?
   /// The factor that matched (`"1x"`, `"2x"`, `"0.5x"`, `"3x"`, `"1/3x"`, `"3:2"`, `"2:3"`).
   public let matchedFactor: String?
-  /// `winnerScore - oracleCandidateScore` (0 when the oracle candidate IS the winner;
-  /// `nil` when absent). A small margin = "lost by a hair"; large = "buried".
+  /// `winnerScore - oracleCandidateScore`, where `winnerScore` is the score of the
+  /// pre-disambiguation candidate NEAREST the final detected BPM within tolerance — an
+  /// APPROXIMATION, because `AudioAnalysisResult` does not expose which candidate the
+  /// pipeline selected (`candidates` is the pre-disambiguation list, so `candidates[0]`
+  /// is NOT necessarily the winner). SIGNED: a small positive margin = "lost by a hair";
+  /// large positive = "buried"; **negative = the selected output scored LOWER than the
+  /// true candidate, i.e. post-candidate disambiguation overrode a higher-scored correct
+  /// candidate**. `nil` when no candidate corresponds to the detected BPM (or it was
+  /// absent / `detectedBPM` was nil).
   public let scoreMargin: Float?
   public let inTop1: Bool
   public let inTop3: Bool
@@ -155,27 +162,49 @@ public enum AccuracyForensics {
 
   /// Best-rank presence of ANY ground truth (primary + optional alternate, e.g.
   /// GiantSteps `tempo2`) — or a harmonic relative of one — in the candidate set.
+  ///
+  /// `detectedBPM` is the pipeline's SELECTED tempo; its score (used for ``scoreMargin``)
+  /// is recovered from the candidate nearest it within tolerance, NOT `candidates[0]`
+  /// (which is the top *pre-disambiguation* score and may not be the winner). See
+  /// ``CandidateRecall/scoreMargin``.
   public static func candidateRecall(
-    candidates: [(bpm: Double, score: Float)], truths: [Double]
+    candidates: [(bpm: Double, score: Float)], truths: [Double], detectedBPM: Double?
   ) -> CandidateRecall {
     let absent = CandidateRecall(
       bestRank: nil, matchedFactor: nil, scoreMargin: nil,
       inTop1: false, inTop3: false, inTop5: false, inTop10: false)
     let validTruths = truths.filter { $0 > 0 }
     guard !validTruths.isEmpty, !candidates.isEmpty else { return absent }
-    let winnerScore = candidates[0].score
+    let winnerScore = selectedCandidateScore(candidates: candidates, detectedBPM: detectedBPM)
     for (idx, cand) in candidates.enumerated() {
       for truth in validTruths {
         for probe in recallFactors
         where isAcc1Match(cand.bpm, truth * probe.factor, tolerance: tolerance) {
           let rank = idx + 1
           return CandidateRecall(
-            bestRank: rank, matchedFactor: probe.label, scoreMargin: winnerScore - cand.score,
+            bestRank: rank, matchedFactor: probe.label,
+            scoreMargin: winnerScore.map { $0 - cand.score },
             inTop1: rank <= 1, inTop3: rank <= 3, inTop5: rank <= 5, inTop10: rank <= 10)
         }
       }
     }
     return absent
+  }
+
+  /// Score of the pre-disambiguation candidate corresponding to the SELECTED `detectedBPM`:
+  /// the candidate within the 2% band of `detectedBPM`, tie-broken by closest `|Δbpm|` then
+  /// highest score. `nil` when none matches (the winner was octave-shifted/refined off the
+  /// list, or `detectedBPM` is nil) — callers must NOT substitute `candidates[0]`.
+  private static func selectedCandidateScore(
+    candidates: [(bpm: Double, score: Float)], detectedBPM: Double?
+  ) -> Float? {
+    guard let detectedBPM, detectedBPM > 0 else { return nil }
+    let inBand = candidates.filter { isAcc1Match($0.bpm, detectedBPM, tolerance: tolerance) }
+    return inBand.min { a, b in
+      let da = abs(a.bpm - detectedBPM)
+      let db = abs(b.bpm - detectedBPM)
+      return da != db ? da < db : a.score > b.score
+    }?.score
   }
 
   /// Folds `detected` by octaves (×/÷2) into the √2-neighborhood of `expected`, so the
@@ -215,7 +244,7 @@ public enum AccuracyForensics {
           ForensicTrackDetail(
             id: t.id, genre: t.genre, expectedBPM: t.expectedBPM, detectedBPM: nil,
             confidence: nil, acc1: false, acc2: false, errorCategory: "nil-result",
-            recall: candidateRecall(candidates: t.candidates, truths: truths),
+            recall: candidateRecall(candidates: t.candidates, truths: truths, detectedBPM: nil),
             absErrorBPM: nil, absErrorOctaveNormBPM: nil, labelPolicy: "nil-result"))
         continue
       }
@@ -228,7 +257,7 @@ public enum AccuracyForensics {
         isA1
         ? .exact
         : categorizeAgainstTruths(detected, primary: t.expectedBPM, alternate: t.alternateBPM)
-      let recall = candidateRecall(candidates: t.candidates, truths: truths)
+      let recall = candidateRecall(candidates: t.candidates, truths: truths, detectedBPM: detected)
       let rawErr = truths.map { abs(detected - $0) }.min() ?? abs(detected)
       let octErr =
         truths.map { octaveNormalizedError(detected: detected, expected: $0) }.min() ?? 0
@@ -263,6 +292,14 @@ public enum AccuracyForensics {
           id: t.id, genre: t.genre, expectedBPM: t.expectedBPM, detectedBPM: detected,
           confidence: t.confidence, acc1: isA1, acc2: isA2, errorCategory: category.rawValue,
           recall: recall, absErrorBPM: rawErr, absErrorOctaveNormBPM: octErr, labelPolicy: label))
+    }
+
+    // Deterministic detail order (the aggregates above are order-independent): the harness
+    // builds `tracks` in TaskGroup completion order, so sort by id (then expectedBPM, then
+    // detectedBPM) to keep the committed JSON diff-stable across identical runs.
+    details.sort {
+      ($0.id, $0.expectedBPM, $0.detectedBPM ?? -1)
+        < ($1.id, $1.expectedBPM, $1.detectedBPM ?? -1)
     }
 
     let bins = (0..<binCounts.count).map { i in
