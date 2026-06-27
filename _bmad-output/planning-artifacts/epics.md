@@ -1203,6 +1203,34 @@ A quick follow-up to Story 8.5 (depends on it: consumes `BeatGrid.gridOrigin`/`B
 **KDDs implemented:** None directly (consumer-of-Story-8.7's JAMS decoder).
 **Pressure-release valve:** If the migration script discovers schema-incompatibility issues with any source artifact (e.g., `4-dnb-triplet-targets.json` carrying additional fields that don't fit JAMS), the migration writes the additional fields to `annotation.sandbox` (JAMS's documented extension point for non-schema data) rather than dropping them. Document the deviation in `_bmad-output/implementation-artifacts/8-8-pressure-release.md`.
 
+---
+
+> **Beat-grid accuracy follow-up (operator decision 2026-06-23).** Story 8.7 measured beat-grid accuracy far below the aspirational targets (F 0.37 vs 0.75; drift P95 1652 ms vs 30 ms) and its pressure-release doc recommended reopening the tracker. 8.7 is now `done` (its job — the measurement harness + regression floors — shipped). The accuracy-improvement work is scoped, via party-mode + two Codex consults (thread `019ef269`), into three focused stories below. Shared framing: keep the Rekordbox-style one-anchor + one-tempo contract; the dominant failure is **tempo precision** (a sub-BPM rate error accumulating as a lever arm across the track), not phase placement. The manual *BPM*-lock primitive already ships (`BeatGridTempoLock.bpm(Double)`, Story 8.9).
+
+### Story 8.10: Continuous beat-grid tempo refinement (sub-0.1-BPM) + drift-rate acceptance harness
+
+**As a** Rekordbox-style beat-grid consumer,
+**I want** the grid's tempo refined to sub-0.1-BPM precision from the audio's own onset evidence (seeded by the BPM detection result),
+**So that** the extrapolated grid does not drift off the beat by the end of a multi-minute track.
+
+Replace `BeatGridAnalyzer`'s `estimatedTempo = tempoBPM` (verbatim, coarse) with a continuous onset-comb period search at sub-frame resolution — NOT integer DP inter-beat intervals (the reverted Story 8.4/8.9 trap). Refined value reported AS the one BPM; residual reject-guard makes it monotonic (byte-identical when off / when the seed wins); opt-in `Options` flag with a byte-identity opt-out test. Primary acceptance = drift-rate / tempo error against the OA300 DAW-verified oracle (verified BPM suffices); Rekordbox JAMS F-measure is a secondary regression check (≥ 0.33). Full spec: `_bmad-output/implementation-artifacts/8-10-beat-grid-continuous-tempo-refinement.md`. **Out of scope:** drop-anchor (8.11), manual anchor reposition (8.12), variable-tempo/multi-segment, ML tempo.
+
+### Story 8.11: Drop-anchored downbeat / measure-top inference
+
+**As a** beat-grid consumer needing bar-aligned (1/1, 1/2) quantization,
+**I want** the grid's downbeat / top-of-measure anchored to the track's main structural drop (typically 8/16/24/32 bars in),
+**So that** bar-snap lands on the musically-correct downbeat instead of an arbitrary beat-phase guess.
+
+Detect the main energy impact/drop and use its bar-quantized position to place the downbeat / `gridOrigin` (`BeatGridAnchorSource.downbeat`). Builds on and reconsiders the conservative Story 8.5a `DownbeatAnalyzer` (4.4% fire rate, 0.14 correctness). Scored against the Rekordbox `Battito` downbeat oracle. Status: backlog (planned; not yet specced).
+
+### Story 8.12: Manual anchor reposition
+
+**As a** DJ-app user hand-correcting a grid,
+**I want** to set a new grid start position (anchor) by hand, complementing the existing manual BPM lock,
+**So that** I can lock the grid in Rekordbox-style (click a new downbeat, adjust BPM) when auto-detection is off.
+
+Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-supplied time (deterministic, no re-decode, `source == .manual`), pairing with the already-shipping `BeatGridTempoLock.bpm(Double)`. Status: backlog (planned; not yet specced).
+
 ## Epic 9: Demo shell + ensemble picker (stories)
 
 3 stories ship the demo's primary consumer-evaluation surface as soon as Story 6.5 closes. Story 9.1 introduces the named-preset picker in the primary view; Story 9.2 ships the final-state signal-pool diagnostic table in the existing advanced sidebar; Story 9.3 codifies the primary-flow + confidence-label discipline as a cross-cutting rule Epic 10 inherits.

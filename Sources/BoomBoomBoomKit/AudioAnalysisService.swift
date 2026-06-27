@@ -349,6 +349,34 @@ public struct AudioAnalysisService {
     /// more-than-an-octave disagreement leaves the grid unlocked.
     public var beatGridTempoLock: BeatGridTempoLock = .off
 
+    /// Opt-in continuous beat-grid tempo refinement (Story 8.10). Default `false`
+    /// reproduces prior behavior byte-for-byte (the grid reports the coarse
+    /// BPM-stage tempo). When `true`, the grid's ``BeatGrid/estimatedTempo`` is
+    /// refined to sub-0.1-BPM precision by fitting a continuous interpolated
+    /// onset-comb against the audio's own onset evidence (seeded by the BPM-stage
+    /// tempo), guarded so the result is never worse than the seed — this removes
+    /// the dominant beat-grid accuracy loss (a few-tenths-of-a-BPM rate error that
+    /// accumulates into within-track drift over a multi-minute track).
+    ///
+    /// **Scope.** Honored by ``analyzeBeatGrid(url:options:)``,
+    /// ``analyzeBPM(url:options:)`` (when `computeBeatGrid` is set internally),
+    /// and the grid produced by ``analyze(url:options:)``. Because sub-0.1-BPM
+    /// precision needs a long lever arm, the refit frequently abstains on the
+    /// short default ``BeatGridCoverage/analysisWindow`` (~30 s) span and delivers
+    /// its precision on ``BeatGridCoverage/window(seconds:)`` /
+    /// ``BeatGridCoverage/fullTrack`` coverage.
+    ///
+    /// **Interaction with ``beatGridTempoLock`` (combined ``analyze`` path).** The
+    /// lock is the explicit override and wins: a non-``BeatGridTempoLock/off`` lock
+    /// REPLACES the auto-refined tempo. In particular ``BeatGridTempoLock/bpmStage``
+    /// substitutes the COARSE stage BPM and DISCARDS the sub-0.1 precision (the
+    /// refit becomes a no-op on output) — authoritatively, even when the refit moved
+    /// the grid more than the 2% agreement band away from the stage tempo — while a
+    /// ``BeatGridTempoLock/bpm(_:)`` with a non-finite/≤0/more-than-an-octave value
+    /// is itself a no-op, leaving the refined tempo standing. ``BPMResult/bpm`` (`bpm.bpm`) is never affected — a
+    /// consumer may legitimately observe `bpm.bpm != beatGrid.estimatedTempo`.
+    public var refineBeatGridTempo: Bool = false
+
     /// Closure checked before each analysis window. When it returns `true`,
     /// the analysis throws `CancellationError`. Defaults to `Task.isCancelled`,
     /// giving automatic structured-concurrency support.
@@ -1480,7 +1508,8 @@ public struct AudioAnalysisService {
         intensity: options.intensity,
         techniqueSet: options.techniqueSet,
         computeBeatGrid: true,
-        detectDownbeats: options.detectDownbeats)
+        detectDownbeats: options.detectDownbeats,
+        refineBeatGridTempo: options.refineBeatGridTempo)
       return BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.beatGrid
     }
 
@@ -1491,7 +1520,8 @@ public struct AudioAnalysisService {
     let bpmOptions = BPMAnalyzer.Options(
       intensity: options.intensity,
       techniqueSet: options.techniqueSet,
-      detectDownbeats: options.detectDownbeats)
+      detectDownbeats: options.detectDownbeats,
+      refineBeatGridTempo: options.refineBeatGridTempo)
     guard let tempo = BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.bpm
     else { return nil }
     // Checkpoint before the long O(track) onset pass (DD #4).
@@ -1615,22 +1645,57 @@ public struct AudioAnalysisService {
   /// AFTER ``resolveTempoAgreement`` so the grid keeps its pre-lock
   /// ``BeatGrid/tempoAgreement`` diagnostic (overriding the tempo first would
   /// make it artificially ``TempoAgreement/agree`` and hide the exact drift this
-  /// feature exists to fix). The target tempo (the BPM stage's, or a
-  /// caller-supplied BPM) is octave-normalized to the grid's tempo; a target that
-  /// disagrees by more than an octave leaves the grid unlocked.
-  private static func applyTempoLock(
+  /// feature exists to fix).
+  ///
+  /// The two locking cases differ in authority:
+  /// - ``BeatGridTempoLock/bpmStage`` is the pipeline's OWN authoritative tempo, so
+  ///   it overrides even a within-octave disagreement — an accepted refit (up to the
+  ///   4% search window) or a single- vs multi-window split can push the grid >2%
+  ///   from it, and the documented precedence is that `.bpmStage` still wins. Only a
+  ///   true >octave divergence (or a non-finite/non-positive stage tempo) leaves the
+  ///   grid unlocked. Octave-normalized to the grid's octave (see ``stageLockTempo``).
+  /// - ``BeatGridTempoLock/bpm(_:)`` is arbitrary caller input, so it stays GATED:
+  ///   octave-normalized to the grid, and a target that disagrees by more than an
+  ///   octave — or is non-finite/non-positive — leaves the grid unlocked
+  ///   (``octaveNormalizedLockTempo``).
+  static func applyTempoLock(
     _ grid: BeatGrid?, lock: BeatGridTempoLock, bpmStageTempo: Double
   ) -> BeatGrid? {
     guard let grid else { return nil }
-    let target: Double
+    let locked: Double?
     switch lock {
     case .off: return grid
-    case .bpmStage: target = bpmStageTempo
-    case .bpm(let value): target = value
+    case .bpmStage: locked = stageLockTempo(target: bpmStageTempo, gridTempo: grid.estimatedTempo)
+    case .bpm(let value):
+      locked = octaveNormalizedLockTempo(target: value, gridTempo: grid.estimatedTempo)
     }
-    guard let locked = octaveNormalizedLockTempo(target: target, gridTempo: grid.estimatedTempo)
-    else { return grid }
+    guard let locked else { return grid }
     return grid.with(estimatedTempo: locked)
+  }
+
+  /// The authoritative ``BeatGridTempoLock/bpmStage`` resolver: the target IS the
+  /// BPM stage's own tempo, so a within-octave disagreement with the (possibly
+  /// refined) grid must NOT silently no-op (the bug that let a 2–4% refit leave the
+  /// refined grid standing instead of restoring the stage tempo). Returns `target`
+  /// octave-shifted to the grid's octave, or `target` itself on a within-octave
+  /// disagreement; `nil` only when `target` is non-finite/≤0 or the two genuinely
+  /// disagree by more than an octave (which the bounded refit cannot produce, but a
+  /// single- vs multi-window split could). Unlike ``octaveNormalizedLockTempo`` it
+  /// does NOT reject a within-octave `.disagree`.
+  static func stageLockTempo(target: Double, gridTempo: Double) -> Double? {
+    guard target.isFinite, target > 0 else { return nil }
+    switch classifyTempoAgreement(gridTempo: gridTempo, bpmTempo: target) {
+    case .agree: return target
+    case .octaveEquivalent(let factor): return factor == 2 ? target * 2.0 : target * 0.5
+    case .disagree, .notCompared:
+      // `.disagree` conflates within-octave (>2%) with true >octave. The stage tempo
+      // is authoritative within an octave; only a real >octave gap (ratio outside
+      // (0.5, 2.0)) leaves the grid unlocked. A non-finite/≤0 grid tempo (the "no
+      // estimate" sentinel) has no octave to compare, so the stage tempo wins.
+      guard gridTempo.isFinite, gridTempo > 0 else { return target }
+      let ratio = gridTempo / target
+      return ratio > 0.5 && ratio < 2.0 ? target : nil
+    }
   }
 
   /// Returns `target` octave-shifted (×1, ×2, or ×½) to whichever octave lands
