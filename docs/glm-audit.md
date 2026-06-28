@@ -16,6 +16,9 @@ After analyzing this codebase, I have significant concerns. The library exhibits
 ---
 
 ### 2. Octave Error Correction Appears Stubbed/Nonexistent
+
+> **[REFUTED 2026-06-28]** Two errors. (a) The premise is false — `BPMAnalyzer.resolveOctaveAmbiguity` exists and runs in the default pipeline (sub-band vote + fused-energy fallback). (b) The prescription below — octave correction that prefers the half/double tempo by sub-band / inter-onset evidence — was implemented and benchmarked in FOUR variants (authoritative vote, strict-tie, score-guarded demote @0.8 and @0.95); ALL regressed OA300 (58 → 40/39/54/56) and GiantSteps (537 → 503/507/534/536). The faster-only ratchet is load-bearing compensation for autocorrelation subharmonic bias (the slow octave autocorrelates ≥ the fundamental), so demoting periodicity candidates does not lift accuracy in any form; the "+15-25%" estimate is negative in practice. Octave *is* the dominant OA300 failure (that part holds), but the lever is a non-periodicity arbiter (perceptual prior / learned classifier / beat-grid coherence). Evidence: `_bmad-output/implementation-artifacts/investigations/accuracy-ceiling-sweep-investigation.md` (Follow-up 2026-06-28).
+
 The file list shows `OctaveEquivalencePolicy.swift` exists, but I see zero evidence of actual octave error handling in the visible code. The metadata corroborator checks for "octave 1.92-2.08" ratios, but that's matching against *file tags*, not correcting *detected* BPM.
 
 **Why this matters:** Octave errors (detecting 140 BPM instead of 70 BPM, or vice versa) are the #1 failure mode in BPM detection. Without robust octave correction, your accuracy ceiling is ~70% on real-world music.
@@ -182,7 +185,7 @@ The 15-line comment explaining unstructured `Task {}` propagation failure is a r
 | Priority | Action | Expected Accuracy Gain |
 |----------|--------|----------------------|
 | 1 | Show/implement core BPM detection algorithm | Unknown (can't evaluate) |
-| 2 | Implement octave error correction | +15-25% |
+| 2 | ~~Implement octave error correction~~ **REFUTED (see #2): a periodicity/sub-band-vote octave correction regresses both corpora; gain is negative, not +15-25%** | ~~+15-25%~~ |
 | 3 | Implement sub-band emphasis | +5-10% |
 | 4 | Add multi-resolution onset detection | +5-8% |
 | 5 | Remove/fix metadata corroboration | +0% (removes false confidence) |
