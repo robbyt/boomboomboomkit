@@ -19,11 +19,11 @@ struct AccuracyForensicsUnitTests {
 
   private static func input(
     id: String, expected: Double, alternate: Double? = nil, detected: Double?,
-    candidates: [(bpm: Double, score: Float)] = []
+    candidates: [(bpm: Double, score: Float)] = [], isMetronomic: Bool = false
   ) -> ForensicInput {
     ForensicInput(
       id: id, genre: "g", expectedBPM: expected, alternateBPM: alternate, detectedBPM: detected,
-      confidence: 0.8, candidates: candidates, isMetronomicTruth: false)
+      confidence: 0.8, candidates: candidates, isMetronomicTruth: isMetronomic)
   }
 
   // MARK: - Fix 1: scoreMargin vs the SELECTED winner
@@ -95,11 +95,43 @@ struct AccuracyForensicsUnitTests {
       candidates: [(90.0, 0.8)], truths: [128.0, 90.0], detectedBPM: 90.0)
     #expect(recall.bestRank == 1)
     #expect(recall.matchedFactor == "1x")
+    #expect(recall.matchedTruth == "alternate")
 
     let report = AccuracyForensics.buildReport(
       corpus: "t",
       tracks: [Self.input(id: "x", expected: 128, alternate: 90, detected: 90)])
     #expect(report.acc1 == 1)
     #expect(report.details.first?.errorCategory == "exact")
+  }
+
+  /// When the alternate is an OCTAVE of the primary (tempo2 = 2× primary), a candidate equal
+  /// to the alternate must report `matchedFactor == "1x"` / `matchedTruth == "alternate"`,
+  /// NOT the primary's `"2x"` — exact matches across all truths beat a harmonic of another.
+  @Test func exactAlternateBeatsPrimaryHarmonic() {
+    let recall = AccuracyForensics.candidateRecall(
+      candidates: [(200.0, 0.7)], truths: [100.0, 200.0], detectedBPM: 200.0)
+    #expect(recall.bestRank == 1)
+    #expect(recall.matchedFactor == "1x")
+    #expect(recall.matchedTruth == "alternate")
+  }
+
+  // MARK: - Label policy: hits do not swamp the failure histogram
+
+  /// Acc1 hits (including a metronomic-truth hit) are `acc1-hit`, kept OUT of the per-failure
+  /// labels; only misses populate `metronomic-label` / `perceptual-label-suspect` / `ambiguous`.
+  @Test func labelHistogramSeparatesHitsFromFailures() {
+    let report = AccuracyForensics.buildReport(
+      corpus: "t",
+      tracks: [
+        Self.input(id: "hit1", expected: 120, detected: 120),  // plain Acc1 hit
+        Self.input(id: "hit2", expected: 90, detected: 90, isMetronomic: true),  // metronomic hit
+        Self.input(id: "miss-oct", expected: 120, detected: 240),  // double → perceptual-suspect
+        Self.input(id: "miss-other", expected: 120, detected: 100),  // other → ambiguous
+      ])
+    #expect(report.acc1 == 2)
+    #expect(report.labelPolicyHistogram["acc1-hit"] == 2)  // both hits, incl. the metronomic one
+    #expect(report.labelPolicyHistogram["metronomic-label"] == nil)  // no metronomic MISS here
+    #expect(report.labelPolicyHistogram["perceptual-label-suspect"] == 1)
+    #expect(report.labelPolicyHistogram["ambiguous"] == 1)
   }
 }

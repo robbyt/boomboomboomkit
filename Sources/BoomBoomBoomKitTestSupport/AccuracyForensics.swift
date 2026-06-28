@@ -56,7 +56,12 @@ public struct CandidateRecall: Sendable, Codable {
   /// 1-based rank of the first candidate matching truth at any factor; `nil` = absent.
   public let bestRank: Int?
   /// The factor that matched (`"1x"`, `"2x"`, `"0.5x"`, `"3x"`, `"1/3x"`, `"3:2"`, `"2:3"`).
+  /// Exact (`"1x"`) matches across ALL truths are preferred over a harmonic of another truth,
+  /// so a candidate equal to an octave `tempo2` reads `"1x"` (vs the primary's `"2x"`).
   public let matchedFactor: String?
+  /// Which ground truth the match was against — `"primary"` or `"alternate"` (GiantSteps
+  /// `tempo2`); `nil` when absent. Disambiguates `matchedFactor == "1x"` for dual-truth rows.
+  public let matchedTruth: String?
   /// `winnerScore - oracleCandidateScore`, where `winnerScore` is the score of the
   /// pre-disambiguation candidate NEAREST the final detected BPM within tolerance — an
   /// APPROXIMATION, because `AudioAnalysisResult` does not expose which candidate the
@@ -171,18 +176,26 @@ public enum AccuracyForensics {
     candidates: [(bpm: Double, score: Float)], truths: [Double], detectedBPM: Double?
   ) -> CandidateRecall {
     let absent = CandidateRecall(
-      bestRank: nil, matchedFactor: nil, scoreMargin: nil,
+      bestRank: nil, matchedFactor: nil, matchedTruth: nil, scoreMargin: nil,
       inTop1: false, inTop3: false, inTop5: false, inTop10: false)
-    let validTruths = truths.filter { $0 > 0 }
-    guard !validTruths.isEmpty, !candidates.isEmpty else { return absent }
+    // Label each truth: the first is primary, any others are the alternate annotation
+    // (GiantSteps `tempo2`). Filter out non-positive truths.
+    let labeled: [(value: Double, label: String)] = truths.enumerated().compactMap { idx, t in
+      t > 0 ? (t, idx == 0 ? "primary" : "alternate") : nil
+    }
+    guard !labeled.isEmpty, !candidates.isEmpty else { return absent }
     let winnerScore = selectedCandidateScore(candidates: candidates, detectedBPM: detectedBPM)
     for (idx, cand) in candidates.enumerated() {
-      for truth in validTruths {
-        for probe in recallFactors
-        where isAcc1Match(cand.bpm, truth * probe.factor, tolerance: tolerance) {
+      // Factor-outer, truth-inner: prefer an exact (`1x`) match against ANY truth before a
+      // harmonic of another truth, so a candidate equal to an octave `tempo2` reads `1x`
+      // (alternate) rather than `2x` (primary). The candidate (rank) loop stays outermost,
+      // so `bestRank` / `inTopN` / `scoreMargin` are unaffected by this reorder.
+      for probe in recallFactors {
+        for truth in labeled
+        where isAcc1Match(cand.bpm, truth.value * probe.factor, tolerance: tolerance) {
           let rank = idx + 1
           return CandidateRecall(
-            bestRank: rank, matchedFactor: probe.label,
+            bestRank: rank, matchedFactor: probe.label, matchedTruth: truth.label,
             scoreMargin: winnerScore.map { $0 - cand.score },
             inTop1: rank <= 1, inTop3: rank <= 3, inTop5: rank <= 5, inTop10: rank <= 10)
         }
@@ -343,14 +356,17 @@ public enum AccuracyForensics {
     return .other
   }
 
-  /// v1 heuristic: metronomic ground truth → `metronomic-label`; an Acc1 miss that is a
-  /// clean octave (double/half) on a crowdsourced label is a likely perceptual-vs-metronomic
-  /// disagreement → `perceptual-label-suspect`; everything else → `ambiguous`.
+  /// The label-policy tag is per-FAILURE metadata. An Acc1 hit is `acc1-hit` (so successes do
+  /// not swamp the failure signal in the histogram); among MISSES: metronomic ground truth →
+  /// `metronomic-label` (a failure against a trusted label); a clean octave (double/half) on a
+  /// crowdsourced label → `perceptual-label-suspect` (likely perceptual-vs-metronomic
+  /// disagreement); everything else → `ambiguous`.
   private static func labelPolicy(isMetronomic: Bool, acc1: Bool, category: TempoErrorCategory)
     -> String
   {
+    if acc1 { return "acc1-hit" }
     if isMetronomic { return "metronomic-label" }
-    if !acc1, category == .double || category == .half { return "perceptual-label-suspect" }
+    if category == .double || category == .half { return "perceptual-label-suspect" }
     return "ambiguous"
   }
 
