@@ -212,6 +212,59 @@ struct StructuralDropAnalyzerTests {
     }
   }
 
+  // MARK: - Build-up → drop: a rejected riser must not mask the later real drop
+
+  @Test func riserRankedAboveRealDropFallsThroughToTheDrop() {
+    // peaks[0] is a high-band-dominated riser whose LOW-band novelty (0.4) is the LARGEST,
+    // so it ranks first; it clears the contrast + low-post floors and fails ONLY the
+    // high-dominance discriminator. A later genuine bass drop (low novelty 0.3, no high
+    // dominance) at beat 20 (t = 10.0 s → phase 0) must be anchored, not abstained —
+    // exercising the rank-ordered fall-through. Returns `.none` on the pre-fix
+    // single-`peaks[0]` logic; the real drop never got a look.
+    let c = Self.contour(
+      frames: 320,
+      low: { f in
+        if f < 80 { return 0.2 }
+        if f < 120 { return 0.6 }  // riser low rise — largest novelty (rank 0)
+        if f < 200 { return 0.2 }  // breakdown
+        return 0.5  // real bass drop — smaller novelty
+      },
+      high: { (80..<120).contains($0) ? 2.0 : 0.2 })
+    let r = StructuralDropAnalyzer.resolve(
+      contour: c, beats: Self.beats(tempo: 120, bars: 8), estimatedTempo: 120)
+    guard case .confident(let phase, let dropTime, _) = r else {
+      Issue.record("expected the real drop to anchor after the riser is skipped, got \(r)")
+      return
+    }
+    #expect(phase == 0)
+    #expect(abs(dropTime - 10.0) < 0.2, "the riser at t≈4 s must not win")
+  }
+
+  @Test func comparableRiserRunnerUpAtAnotherPhaseDoesNotForceAbstain() {
+    // A VALID dominant drop (frame 80 → t=4.0 s → phase 0) plus a comparable RISER (low
+    // novelty 0.35 ≥ 0.8·0.4) at an unrelated phase (frame 130 → t=6.5 s → phase 1). A
+    // rejected riser is NOT a competing drop, so the runner-up scan must ignore it and the
+    // dominant fires. Returns `.none` on the pre-fix phase-only runner-up check (the riser's
+    // phase 1 was read as an unresolvable tie).
+    let c = Self.contour(
+      frames: 320,
+      low: { f in
+        if f < 80 { return 0.2 }
+        if f < 120 { return 0.6 }  // real drop (rank 0), phase 0
+        if f < 130 { return 0.2 }  // breakdown
+        if f < 170 { return 0.55 }  // riser low — comparable novelty, phase 1
+        return 0.2
+      },
+      high: { (130..<170).contains($0) ? 2.0 : 0.2 })
+    let r = StructuralDropAnalyzer.resolve(
+      contour: c, beats: Self.beats(tempo: 120, bars: 8), estimatedTempo: 120)
+    guard case .confident(let phase, _, _) = r else {
+      Issue.record("a rejected riser runner-up must not force an abstain, got \(r)")
+      return
+    }
+    #expect(phase == 0)
+  }
+
   // MARK: - AC8(i): half-bar (beat-1-vs-beat-3) → abstain; .combined resolves it
 
   @Test func halfBarAmbiguityAbstainsStandaloneAndResolvesCombined() {

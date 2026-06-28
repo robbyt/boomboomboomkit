@@ -360,81 +360,83 @@ enum StructuralDropAnalyzer {
     guard !peaks.isEmpty else { return .none }
     peaks.sort { $0.value > $1.value }
 
-    let dominant = peaks[0]
-    let nMax = dominant.value
-    // A real rising edge must clear the contrast floor.
-    guard nMax >= contrastFloorFraction * lowMax else { return .none }
-
-    // Riser rejection: the post-drop low-band level (over the 2-beat sustain
-    // window, clamped to the available tail) must reach the floor (bass present).
-    // A build-up/riser (bass absent) fails this even if it nudged the novelty curve.
-    let postLen = min(sustain, m - dominant.frame)
-    guard postLen >= 1 else { return .none }
-    var lowPost: Float = 0
-    low.withUnsafeBufferPointer { lp in
-      vDSP_meanv(lp.baseAddress! + dominant.frame, 1, &lowPost, vDSP_Length(postLen))
+    // --- Candidate validation: a peak is a usable drop only if it clears the riser /
+    // floor / on-grid guards. Factored out so the search FALLS THROUGH a rejected riser
+    // to the next-ranked real drop (the build-up→drop pattern) instead of abstaining on
+    // `peaks[0]` alone, and so the runner-up scan treats only VALIDATED drops as competing
+    // (a rejected riser at another phase is not a conflict — DD #2 step 2).
+    struct ValidatedCandidate {
+      let frame: Int
+      let value: Float
+      let phase: Int
+      let dropTime: Double
     }
-    guard lowPost >= riserLowFloorFraction * lowMax else { return .none }
-
-    // Secondary descriptors (DD #2 step 2 — the multi-descriptor riser rejection,
-    // "DnB requires it"). At a real bass drop the full mix enters (broadband does
-    // not fall) AND the low-band step is a real part of the energy increase. At a
-    // build-up / riser the energy rises in the HIGH band while the bass stays
-    // comparatively flat — so a candidate whose high-band step dominates its
-    // low-band step (in commensurate RMS-level units) is a riser, not a drop. This
-    // is the case the lone low-band floor (above) cannot catch: a riser that nudges
-    // the low band enough to clear the floor still has a high-band-dominated step.
-    let preStart = max(0, dominant.frame - window)
-    let preLen = dominant.frame - preStart
-    let broadStep =
-      meanRange(contour.broadband, from: dominant.frame, count: postLen)
-      - meanRange(contour.broadband, from: preStart, count: preLen)
-    guard broadStep >= 0 else { return .none }
-    // Commensurate RMS-level steps over the SAME pre/post windows (was: the high step vs
-    // `nMax`, the 1-beat low-band novelty — a window mismatch against the 2-beat-sustain
-    // high step). A high-band step that dominates the low-band step is a build-up / sweep /
-    // riser (bass comparatively flat), not a bass drop → reject. Guarded on `lowStep > 0`
-    // so a non-rising low band (already handled by the contrast + post-floor gates) does
-    // not feed a degenerate ratio.
-    let lowStep =
-      meanRange(contour.lowBand, from: dominant.frame, count: postLen)
-      - meanRange(contour.lowBand, from: preStart, count: preLen)
-    let highStep =
-      meanRange(contour.highBand, from: dominant.frame, count: postLen)
-      - meanRange(contour.highBand, from: preStart, count: preLen)
-    if lowStep > 0, highStep > riserHighDominanceFactor * lowStep { return .none }
-
-    // Parabolic vertex refine for sub-hop drop time (guarded against a flat triple).
-    let refinedFrame = parabolicRefine(novelty, around: dominant.frame)
-    let dropTime = refinedFrame / contour.rate
-
-    // --- Map the drop's absolute file time → nearest tracked beat -------------
-    guard
-      let dominantPhase = phaseAt(
-        dropTime, beats: beats, beatPeriod: beatPeriod, beatsPerBar: beatsPerBar)
-    else { return .none }  // off-grid or half-beat ambiguous
-
-    // --- Runner-up scan: every comparable peak at a DIFFERENT bar phase -------
-    // Conservative ("a wrong downbeat is worse than none"): scan ALL comparable runner-ups
-    // before deciding. ANY comparable peak at an unrelated phase makes the bar phase
-    // unresolvable → `.none`; a half-bar partner alone (no unrelated conflict) →
-    // `.halfBarAmbiguous` (which `.combined` resolves via metrical accent). A same-phase
-    // peak (a bar away, or the dominant edge's own plateau) is corroboration. Phase is
-    // evaluated for EVERY comparable peak — including near ones — so a sub-beat peak that
-    // snaps to a DIFFERENT beat is a real conflict, not silently merged as "the same drop".
-    let halfBarPartner = beatsPerBar >= 4 ? (dominantPhase + beatsPerBar / 2) % beatsPerBar : -1
-    var conflictRunnerUp: Float = 0  // strongest DIFFERENT-phase peak (0 ⇒ a clean win)
-    var sawHalfBarConflict = false
-    for peak in peaks.dropFirst() {
-      guard peak.value >= comparableRunnerUpFraction * nMax else { break }  // sorted: rest smaller
-      let peakTime = parabolicRefine(novelty, around: peak.frame) / contour.rate
+    func validate(_ peak: (frame: Int, value: Float)) -> ValidatedCandidate? {
+      // Riser rejection: post-drop low-band level over the 2-beat sustain window (clamped
+      // to the available tail) must reach the floor (bass present). A build-up/riser (bass
+      // absent) fails this even if it nudged the novelty curve.
+      let postLen = min(sustain, m - peak.frame)
+      guard postLen >= 1 else { return nil }
+      var lowPost: Float = 0
+      low.withUnsafeBufferPointer {
+        vDSP_meanv($0.baseAddress! + peak.frame, 1, &lowPost, vDSP_Length(postLen))
+      }
+      guard lowPost >= riserLowFloorFraction * lowMax else { return nil }
+      // Multi-descriptor rejection: the full mix must not fall, and a high-band step that
+      // dominates the low-band step (commensurate windows) is a build-up / sweep / riser,
+      // not a bass drop. Guarded on `lowStep > 0` so a non-rising low band does not feed a
+      // degenerate ratio (the contrast + post-floor gates already cover that).
+      let preStart = max(0, peak.frame - window)
+      let preLen = peak.frame - preStart
+      let broadStep =
+        meanRange(contour.broadband, from: peak.frame, count: postLen)
+        - meanRange(contour.broadband, from: preStart, count: preLen)
+      guard broadStep >= 0 else { return nil }
+      let lowStep =
+        meanRange(contour.lowBand, from: peak.frame, count: postLen)
+        - meanRange(contour.lowBand, from: preStart, count: preLen)
+      let highStep =
+        meanRange(contour.highBand, from: peak.frame, count: postLen)
+        - meanRange(contour.highBand, from: preStart, count: preLen)
+      if lowStep > 0, highStep > riserHighDominanceFactor * lowStep { return nil }
+      // Sub-hop-refined drop time → nearest tracked beat's bar phase (nil = off-grid /
+      // half-beat ambiguous).
+      let dropTime = parabolicRefine(novelty, around: peak.frame) / contour.rate
       guard
-        let peakPhase = phaseAt(
-          peakTime, beats: beats, beatPeriod: beatPeriod, beatsPerBar: beatsPerBar)
-      else { continue }  // off-grid / half-beat-ambiguous runner-up: not a phase conflict
-      if peakPhase == dominantPhase { continue }  // same phase: corroboration / same edge
-      conflictRunnerUp = max(conflictRunnerUp, peak.value)
-      if peakPhase == halfBarPartner {
+        let phase = phaseAt(
+          dropTime, beats: beats, beatPeriod: beatPeriod, beatsPerBar: beatsPerBar)
+      else { return nil }
+      return ValidatedCandidate(
+        frame: peak.frame, value: peak.value, phase: phase, dropTime: dropTime)
+    }
+
+    // Candidates above the absolute contrast floor (sorted desc ⇒ a contiguous top run; a
+    // peak below the floor can never be a drop). Validate each exactly once.
+    let candidates = Array(peaks.prefix { $0.value >= contrastFloorFraction * lowMax })
+    guard !candidates.isEmpty else { return .none }
+    let validated = candidates.map(validate)
+
+    // First VALID candidate (falling through rejected risers) is the dominant drop.
+    guard let domIndex = validated.firstIndex(where: { $0 != nil }),
+      let dominant = validated[domIndex]
+    else { return .none }
+    let nMax = dominant.value
+
+    // --- Runner-up scan: every comparable VALIDATED drop at a DIFFERENT bar phase ----
+    // Conservative ("a wrong downbeat is worse than none"): ANY comparable valid drop at an
+    // unrelated phase makes the bar phase unresolvable → `.none`; a half-bar partner alone →
+    // `.halfBarAmbiguous` (which `.combined` resolves via metrical accent). A same-phase
+    // valid drop is corroboration. Rejected risers (nil) and off-grid peaks are NOT
+    // competing drops, so a riser ranked above the dominant does not force an abstain.
+    let halfBarPartner = beatsPerBar >= 4 ? (dominant.phase + beatsPerBar / 2) % beatsPerBar : -1
+    var conflictRunnerUp: Float = 0  // strongest DIFFERENT-phase valid drop (0 ⇒ a clean win)
+    var sawHalfBarConflict = false
+    for (i, candidate) in validated.enumerated() {
+      guard i != domIndex, let cand = candidate else { continue }  // skip dominant + risers
+      guard cand.value >= comparableRunnerUpFraction * nMax else { continue }  // not comparable
+      if cand.phase == dominant.phase { continue }  // same phase: corroboration
+      conflictRunnerUp = max(conflictRunnerUp, cand.value)
+      if cand.phase == halfBarPartner {
         sawHalfBarConflict = true  // keep scanning — an unrelated conflict still wins
       } else {
         return .none  // a comparable drop at an unrelated phase: unresolvable tie
@@ -444,10 +446,11 @@ enum StructuralDropAnalyzer {
     let confidence = dropConfidence(nMax: nMax, runnerUp: conflictRunnerUp, lowMax: lowMax)
     if sawHalfBarConflict {
       return .halfBarAmbiguous(
-        phaseA: dominantPhase, phaseB: halfBarPartner, dropTimeSeconds: dropTime,
+        phaseA: dominant.phase, phaseB: halfBarPartner, dropTimeSeconds: dominant.dropTime,
         confidence: confidence)
     }
-    return .confident(phaseIndex: dominantPhase, dropTimeSeconds: dropTime, confidence: confidence)
+    return .confident(
+      phaseIndex: dominant.phase, dropTimeSeconds: dominant.dropTime, confidence: confidence)
   }
 
   // MARK: - Helpers
