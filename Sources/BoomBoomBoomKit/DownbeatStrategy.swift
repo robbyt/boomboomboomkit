@@ -22,13 +22,17 @@
 /// ``EnsemblePolicy`` case — it governs only downbeat *phase* placement, never the
 /// tempo, the tempo octave, or BPM winner selection.
 ///
-/// ## NaN-free → `Hashable`
-/// A payload-free enum, so the compiler-synthesized `Hashable`/`Equatable` and the
-/// bare-string `Codable` are sound by construction. ``CaseIterable`` is justified
-/// here (the acceptance benchmark and a future ablation enumerate the strategies);
-/// the sibling provenance enums (``BeatGridAnchorSource`` / ``MeterSource``) are
-/// deliberately not `CaseIterable` because no consumer enumerates them.
-public enum DownbeatStrategy: Sendable, Hashable, Codable, CaseIterable {
+/// ## `String`-backed → stable bare-string `Codable`
+/// A payload-free enum with a `String` raw type, so `Codable` persists each case as the
+/// documented bare string (`"structuralDrop"`) — the natural config/JSON shape — rather
+/// than the keyed-object form (`{"structuralDrop":{}}`) a non-raw payload-free enum
+/// synthesizes. This matches the sibling closed provenance enums (``BeatGridAnchorSource``
+/// / ``MeterSource`` / ``SignalSource``, all `String`-backed). The compiler-synthesized
+/// `Hashable`/`Equatable` are sound by construction (no `Double` payload). ``CaseIterable``
+/// is justified here (the acceptance benchmark and a future ablation enumerate the
+/// strategies); ``BeatGridAnchorSource`` / ``MeterSource`` are deliberately not
+/// `CaseIterable` because no consumer enumerates them.
+public enum DownbeatStrategy: String, Sendable, Hashable, Codable, CaseIterable {
 
   /// The Story-8.5a metrical-accent estimator: a low-band / kick accent marks the
   /// bar start, with a conservative four-part abstain gate. The default; ships

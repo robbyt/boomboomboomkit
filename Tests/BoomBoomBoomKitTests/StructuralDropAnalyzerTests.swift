@@ -73,6 +73,26 @@ struct StructuralDropAnalyzerTests {
     }
   }
 
+  // MARK: - AC1: DownbeatStrategy persists as a documented bare string
+
+  @Test func downbeatStrategyEncodesAsBareString() throws {
+    // A consumer persisting the strategy in a config object must get the documented
+    // bare-string form (`"structuralDrop"`), NOT the keyed-object shape a non-`String`
+    // payload-free Codable enum synthesizes (`{"structuralDrop":{}}`).
+    struct Wrapper: Codable, Equatable { let strategy: DownbeatStrategy }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    for (strategy, name) in [
+      (DownbeatStrategy.metricalAccent, "metricalAccent"),
+      (.structuralDrop, "structuralDrop"),
+      (.combined, "combined"),
+    ] {
+      let expected = Data("{\"strategy\":\"\(name)\"}".utf8)
+      #expect(try encoder.encode(Wrapper(strategy: strategy)) == expected)
+      #expect(try JSONDecoder().decode(Wrapper.self, from: expected).strategy == strategy)
+    }
+  }
+
   // MARK: - AC8(a): interior drop on a known phase → confident at that phase
 
   @Test func detectsInteriorDropPhase() {
