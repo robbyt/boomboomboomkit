@@ -117,6 +117,13 @@ public struct BPMDiagnosticTrace: Sendable {
   /// with `refinedTempo == coarseTempo`).
   public var beatGridTempoRefinement: BeatGridTempoRefinementEvidence?
 
+  /// Drop-anchored downbeat-strategy outcome (Story 8.11): which strategy ran, the
+  /// structural drop's time + derived phase, the metrical-accent phase, whether the
+  /// two agreed (`.combined` only), and the chosen phase. Populated only when
+  /// `enableTrace: true` AND the step-11 fan-out ran with `detectDownbeats: true`.
+  /// Nil when downbeats were off or the grid fan-out did not run.
+  public var downbeatStrategy: DownbeatStrategyEvidence?
+
   // MARK: - Final
 
   /// Final confidence score.
@@ -399,6 +406,81 @@ public struct BeatGridTempoRefinementEvidence: Sendable, CustomStringConvertible
   public var description: String {
     "BeatGridTempoRefinementEvidence(coarse: \(coarseTempo), refined: \(refinedTempo), "
       + "supportSeed: \(supportSeed), supportRefined: \(supportRefined), accepted: \(accepted))"
+  }
+}
+
+// MARK: - Step 11: Drop-anchored downbeat strategy (Story 8.11)
+
+/// Typed evidence for the drop-anchored downbeat strategy (Story 8.11): which
+/// ``DownbeatStrategy`` ran, the structural drop's absolute file time and the bar
+/// phase it implied, the metrical-accent phase, whether the two agreed (under
+/// ``DownbeatStrategy/combined``), the chosen phase, and the chosen confidence.
+///
+/// A typed value carrier (never a `[String: …]` map), so the `bpm-diagnostic-trace`
+/// audit recipes stay clean. Optionals distinguish "not applicable to this
+/// strategy" / "abstained" from a real value: `dropTimeSeconds` / `dropPhase` are
+/// nil for ``DownbeatStrategy/metricalAccent`` or when no drop was found;
+/// `metricalAccentPhase` is nil for ``DownbeatStrategy/structuralDrop`` or when
+/// metrical accent abstained; `agreement` is nil unless both sources fired under
+/// ``DownbeatStrategy/combined``; `chosenPhase` is nil on an abstain.
+///
+/// Not `Hashable` (the unsanitized `confidence` `Double` follows the
+/// ``EnsembleDecision`` precedent — a value carrier, never a `Set`/`Dictionary`
+/// key).
+public struct DownbeatStrategyEvidence: Sendable, CustomStringConvertible {
+
+  /// Which strategy ran.
+  public let strategy: DownbeatStrategy
+
+  /// Absolute file time (seconds) of the detected structural drop, or nil
+  /// (metrical-accent strategy, or no drop found).
+  public let dropTimeSeconds: Double?
+
+  /// Bar phase the structural drop implied (`0 ..< beatsPerBar`), or nil.
+  public let dropPhase: Int?
+
+  /// Bar phase the metrical-accent estimator produced, or nil (structural-drop
+  /// strategy, or metrical accent abstained).
+  public let metricalAccentPhase: Int?
+
+  /// Under ``DownbeatStrategy/combined`` with both sources firing: whether their
+  /// phases agreed. Nil otherwise.
+  public let agreement: Bool?
+
+  /// The emitted downbeat phase, or nil on an abstain.
+  public let chosenPhase: Int?
+
+  /// The emitted downbeat confidence (`0` on an abstain).
+  public let confidence: Double
+
+  public init(
+    strategy: DownbeatStrategy,
+    dropTimeSeconds: Double?,
+    dropPhase: Int?,
+    metricalAccentPhase: Int?,
+    agreement: Bool?,
+    chosenPhase: Int?,
+    confidence: Double
+  ) {
+    self.strategy = strategy
+    self.dropTimeSeconds = dropTimeSeconds
+    self.dropPhase = dropPhase
+    self.metricalAccentPhase = metricalAccentPhase
+    self.agreement = agreement
+    self.chosenPhase = chosenPhase
+    self.confidence = confidence
+  }
+
+  /// Compact textual representation.
+  public var description: String {
+    let dropStr = dropTimeSeconds.map { "\($0)s" } ?? "nil"
+    let dropPhaseStr = dropPhase.map { "\($0)" } ?? "nil"
+    let metricalStr = metricalAccentPhase.map { "\($0)" } ?? "nil"
+    let agreementStr = agreement.map { "\($0)" } ?? "nil"
+    let chosenStr = chosenPhase.map { "\($0)" } ?? "nil"
+    return "DownbeatStrategyEvidence(strategy: \(strategy), drop: \(dropStr) @\(dropPhaseStr), "
+      + "metrical: \(metricalStr), agreement: \(agreementStr), chosen: \(chosenStr), "
+      + "confidence: \(confidence))"
   }
 }
 

@@ -465,6 +465,245 @@ struct BeatGridBenchmarkTests {
     }
   }
 
+  // MARK: Story 8.11 — per-strategy + per-coverage downbeat report
+
+  /// Per-(strategy, coverage) per-track downbeat score.
+  private struct RowScore: Sendable {
+    let trackId: String  // stable per-track id (oracle filename) for failure diagnostics
+    let fired: Bool
+    let octaveF: Double?  // octave-tolerant F when fired + oracle present, else nil
+    let strictF: Double?  // non-octave-tolerant F, same gating
+    let constant: Bool
+    let band: String  // oracle-tempo octave band
+    let failed: Bool  // analysis produced no grid (a defect, not an abstain)
+  }
+
+  /// Per-(strategy, coverage) aggregate.
+  private struct StrategyEval: Sendable {
+    let strategy: String
+    let coverage: String
+    let nTotal: Int  // every scored row (analyzable + failed) — must equal rows.count
+    let nFailed: Int  // analysis produced no grid (a defect, NOT an abstain)
+    let failedTrackIds: Set<String>  // which tracks failed (cross-strategy consistency guard)
+    let nEvaluated: Int
+    let nFired: Int
+    let fireRate: Double
+    let allTrackFOctaveConstant: Double  // abstains scored 0, constant-tempo (usefulness)
+    let allTrackFStrictConstant: Double  // strict (non-octave-tolerant) all-track F
+    let correctnessWhenFiredOctaveConstant: Double  // safety
+    let perBandAllTrackFOctave: [String: Double]
+  }
+
+  /// Story 8.11 AC #7: per-strategy (`.metricalAccent` / `.structuralDrop` /
+  /// `.combined`) and per-coverage (`.fullTrack` gated path / `.analysisWindow`
+  /// default consumer path) downbeat reporting over the same Battito oracle:
+  /// fire-rate, all-track octave-tolerant F (abstains scored 0 — the usefulness
+  /// metric that resists gaming from both directions), correctness-when-fired (the
+  /// safety metric), a strict (non-octave-tolerant) F, and per-octave-band
+  /// stratification (DD #4 — quantifies how much "usefulness" is octave-masking).
+  ///
+  /// Floors are POST-MEASUREMENT outputs (8.10 DD #7 precedent): this run REPORTS
+  /// every number and asserts only structural invariants; the operator records the
+  /// measured values in the story's Completion Notes, then commits the safety +
+  /// usefulness floors at (measured − margin) via Codex thread `019f0ec0`.
+  /// `.combined` beating `.metricalAccent` is advisory until first-measured.
+  @Test("downbeat strategies: per-strategy + per-coverage fire/F report (Story 8.11)")
+  func downbeatStrategyReport() async throws {
+    let rows = resolveRows()
+    try #require(!rows.isEmpty, "no resolvable corpus rows — check BEAT_GRID_ORACLE + audio paths")
+
+    func oracleTempo(_ beats: [Double]) -> Double? {
+      let sorted = beats.sorted()
+      guard sorted.count >= 2 else { return nil }
+      var ibis: [Double] = []
+      ibis.reserveCapacity(sorted.count - 1)
+      for i in 1..<sorted.count { ibis.append(sorted[i] - sorted[i - 1]) }
+      let med = ibis.sorted()[ibis.count / 2]
+      return med > 0 ? 60.0 / med : nil
+    }
+    func band(_ tempo: Double?) -> String {
+      guard let t = tempo, t > 0 else { return "unknown" }
+      if t < 100 { return "half-time(<100)" }
+      if t < 140 { return "full(100-139)" }
+      return "fast(>=140)"
+    }
+
+    let strategies: [(name: String, value: DownbeatStrategy)] = [
+      ("metricalAccent", .metricalAccent),
+      ("structuralDrop", .structuralDrop),
+      ("combined", .combined),
+    ]
+    let coverages: [(name: String, value: BeatGridCoverage)] = [
+      ("fullTrack", .fullTrack),  // what the harness gates
+      ("analysisWindow", .analysisWindow),  // the default consumer path (DD #6)
+    ]
+
+    var evals: [StrategyEval] = []
+    for cov in coverages {
+      for strat in strategies {
+        let scored = await withTaskGroup(of: RowScore.self) { group in
+          for row in rows {
+            group.addTask {
+              var opts = AudioAnalysisService.Options()
+              opts.beatGridCoverage = cov.value
+              opts.maxSeconds = 1e9
+              opts.detectDownbeats = true
+              opts.downbeatStrategy = strat.value
+              let bandName = band(oracleTempo(row.oracleBeats))
+              let trackId = row.url.lastPathComponent
+              guard
+                let grid = try? AudioAnalysisService.analyzeBeatGrid(url: row.url, options: opts),
+                !grid.beats.isEmpty
+              else {
+                return RowScore(
+                  trackId: trackId, fired: false, octaveF: nil, strictF: nil,
+                  constant: row.constantTempo, band: bandName, failed: true)
+              }
+              guard case .detected(let estimate) = grid.downbeats,
+                let first = estimate.beats.first, grid.estimatedTempo > 0
+              else {
+                return RowScore(
+                  trackId: trackId, fired: false, octaveF: nil, strictF: nil,
+                  constant: row.constantTempo, band: bandName, failed: false)
+              }
+              let upper = max(row.durationSeconds ?? 0, grid.beats.last?.presentationTime ?? 0)
+              let barPeriod = 60.0 / grid.estimatedTempo * Double(estimate.meter.beatsPerBar)
+              let downbeats = BeatMatch.extrapolate(
+                anchorTime: first.presentationTime, period: barPeriod, upper: upper)
+              guard !row.oracleDownbeats.isEmpty else {
+                return RowScore(
+                  trackId: trackId, fired: true, octaveF: nil, strictF: nil,
+                  constant: row.constantTempo, band: bandName, failed: false)
+              }
+              let octaveF = BeatMatch.octaveTolerantF(
+                reference: row.oracleDownbeats, estimated: downbeats)
+              let strictF = BeatMatch.score(
+                reference: row.oracleDownbeats, estimated: downbeats
+              ).f
+              return RowScore(
+                trackId: trackId, fired: true, octaveF: octaveF, strictF: strictF,
+                constant: row.constantTempo, band: bandName, failed: false)
+            }
+          }
+          var out: [RowScore] = []
+          for await r in group { out.append(r) }
+          return out
+        }
+
+        let analyzable = scored.filter { !$0.failed }
+        let constantRows = analyzable.filter(\.constant)
+        let nEvaluated = analyzable.count
+        let nFired = analyzable.filter(\.fired).count
+        let fireRate = nEvaluated > 0 ? Double(nFired) / Double(nEvaluated) : 0
+        let failedTrackIds = Set(scored.filter(\.failed).map(\.trackId))
+
+        // All-track F: abstains scored 0 (usefulness — resists both over-abstaining
+        // and wrong firing).
+        func allTrackF(_ rs: [RowScore], octave: Bool) -> Double {
+          guard !rs.isEmpty else { return 0 }
+          let sum = rs.reduce(0.0) { $0 + ((octave ? $1.octaveF : $1.strictF) ?? 0) }
+          return sum / Double(rs.count)
+        }
+        let firedConst = constantRows.filter { $0.fired && $0.octaveF != nil }
+        let correctness =
+          firedConst.isEmpty
+          ? 0 : firedConst.reduce(0.0) { $0 + ($1.octaveF ?? 0) } / Double(firedConst.count)
+        var perBand: [String: Double] = [:]
+        for bandName in Set(constantRows.map(\.band)) {
+          perBand[bandName] = allTrackF(constantRows.filter { $0.band == bandName }, octave: true)
+        }
+
+        evals.append(
+          StrategyEval(
+            strategy: strat.name, coverage: cov.name,
+            nTotal: scored.count, nFailed: failedTrackIds.count, failedTrackIds: failedTrackIds,
+            nEvaluated: nEvaluated, nFired: nFired, fireRate: fireRate,
+            allTrackFOctaveConstant: allTrackF(constantRows, octave: true),
+            allTrackFStrictConstant: allTrackF(constantRows, octave: false),
+            correctnessWhenFiredOctaveConstant: correctness,
+            perBandAllTrackFOctave: perBand))
+      }
+    }
+
+    // --- Analysis-failure guard (Codex review): the downbeat STRATEGY runs after the grid
+    // exists, so a `failed` row should be track×coverage-dependent, NOT strategy-dependent.
+    // Assert per coverage that every strategy scored every row and that the FAILED-track-id
+    // SETS are identical across strategies (count alone can hide different failed tracks). A
+    // strategy that breaks analysis — or a flaky concurrent decode that diverges — fails
+    // loudly with the offending ids. Genuinely-unanalyzable tracks fail identically across
+    // strategies and are tolerated (not asserted to zero), matching Pass B's posture. ---
+    for cov in coverages {
+      let covEvals = evals.filter { $0.coverage == cov.name }
+      for e in covEvals {
+        #expect(
+          e.nTotal == rows.count,
+          "[\(cov.name)/\(e.strategy)] scored \(e.nTotal) of \(rows.count) rows")
+      }
+      if let reference = covEvals.first {
+        let refIds = reference.failedTrackIds.sorted()
+        for e in covEvals.dropFirst() {
+          let eIds = e.failedTrackIds.sorted()
+          #expect(
+            e.failedTrackIds == reference.failedTrackIds,
+            "analysis failures diverge across strategies at \(cov.name): \(e.strategy) failed \(eIds) vs \(reference.strategy) \(refIds)"
+          )
+        }
+      }
+    }
+
+    // --- Report + JSON (floors are post-measurement — REPORT, do not gate here). ---
+    print("\n=== Story 8.11 — per-strategy downbeat report (FLOORS PENDING FIRST MEASUREMENT) ===")
+    var jsonStrategies: [[String: Any]] = []
+    for e in evals {
+      print(
+        "  [\(e.coverage)/\(e.strategy)] fire \(pct(e.fireRate)) (\(e.nFired)/\(e.nEvaluated)), "
+          + "failed \(e.nFailed)/\(e.nTotal), "
+          + "all-track-F(oct,const) \(fmt(e.allTrackFOctaveConstant)), "
+          + "strict \(fmt(e.allTrackFStrictConstant)), "
+          + "correctness-when-fired \(fmt(e.correctnessWhenFiredOctaveConstant))")
+      for (bandName, value) in e.perBandAllTrackFOctave.sorted(by: { $0.key < $1.key }) {
+        print("      band \(bandName): all-track-F(oct) \(fmt(value))")
+      }
+      jsonStrategies.append([
+        "strategy": e.strategy,
+        "coverage": e.coverage,
+        "n_total": e.nTotal,
+        "n_failed": e.nFailed,
+        "failure_rate": e.nTotal > 0 ? Double(e.nFailed) / Double(e.nTotal) : 0,
+        "failed_track_ids": e.failedTrackIds.sorted(),
+        "n_evaluated": e.nEvaluated,
+        "n_fired": e.nFired,
+        "fire_rate": e.fireRate,
+        "all_track_f_octave_constant": e.allTrackFOctaveConstant,
+        "all_track_f_strict_constant": e.allTrackFStrictConstant,
+        "correctness_when_fired_octave_constant": e.correctnessWhenFiredOctaveConstant,
+        "per_band_all_track_f_octave": e.perBandAllTrackFOctave,
+      ])
+
+      // Structural invariants (always hold; the real floors are committed post-run).
+      #expect(e.fireRate >= 0 && e.fireRate <= 1, "fire rate out of range for \(e.strategy)")
+      #expect(e.allTrackFOctaveConstant >= 0, "all-track F negative for \(e.strategy)")
+      #expect(
+        e.allTrackFStrictConstant <= e.allTrackFOctaveConstant + 1e-9,
+        "strict F must not exceed octave-tolerant F for \(e.strategy)/\(e.coverage)")
+    }
+
+    let json: [String: Any] = [
+      "metric": "octave-tolerant + strict downbeat F vs oracle Battito==1, per strategy/coverage",
+      "gated_path": "fullTrack",
+      "default_consumer_path": "analysisWindow",
+      "floors_status":
+        "post-measurement (record in Completion Notes, then commit at measured-margin)",
+      "tolerance_ms": Int(BeatMatch.toleranceSeconds * 1000),
+      "strategies": jsonStrategies,
+    ]
+    let url = outDir.appendingPathComponent("8-11-downbeat-strategy-accuracy.json")
+    try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+    try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+      .write(to: url)
+    print("  per-strategy downbeat accuracy -> \(url.path)")
+  }
+
   // MARK: Committed floors (locked from the Task-5 calibration run)
 
   /// Octave-tolerant downbeat correctness-when-fired floor (constant-tempo). Locked
