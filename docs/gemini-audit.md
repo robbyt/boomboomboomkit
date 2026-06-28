@@ -10,6 +10,8 @@ Here is an adversarial review of the codebase, broken down by priority, followed
 **2. Hardcoded, Genre-Biased Sub-Band Voting**
 In `BPMAnalyzer.swift`, `subBandVote` uses fixed weights: `kick=0.5, snare body=1.0, snare crack=1.5, hi-hat=2.0`. Giving the hi-hat four times the voting power of the kick drum is absurdly brittle. This hardcodes a mid-2000s Pop/Rock bias. It will fail catastrophically on dubstep, trap, or anything where the hi-hat plays syncopated 16ths or the kick is the primary timekeeper. You are begging for double-time octave errors.
 
+> **[REFUTED 2026-06-28]** The causal claim is backwards. The fixed weights + the faster-only ratchet in `resolveOctaveAmbiguity` are *protective*: making the sub-band vote authoritative (trusting it to pick the octave) regressed OA300 58 → 40 and GiantSteps 537 → 503. The realized failure mode is HALF-time over-demotion, not double-time — the slow octave autocorrelates ≥ the fundamental, so a more-trusted sub-band vote demotes correct fast tempos. The "hardcoded/genre-biased" observation is fair, but the weights are not the accuracy lever. Evidence: `_bmad-output/implementation-artifacts/investigations/accuracy-ceiling-sweep-investigation.md` (Follow-up 2026-06-28).
+
 **3. NIH Syndrome in Metadata Parsing**
 The manual MP4 atom and ID3 frame binary parsing in `FileMetadataReader` is a security and stability hazard. Apple’s `AVAsset` and `AudioToolbox` handle this natively and safely. Hand-rolling a binary parser to extract `TBPM` strings and walking Vorbis comment blocks bypasses battle-tested OS-level sanitization and will inevitably break on exotic or slightly malformed container layouts in the wild.
 
@@ -46,6 +48,8 @@ Your spectral flux (log-mel magnitude differences) ignores phase information ent
 
 **3. Dynamic Sub-Band Entropy**
 Delete the hardcoded drum weights. Instead, measure the Shannon entropy or sparsity of each sub-band dynamically. Automatically apply higher voting weight to the frequency bands that exhibit the sharpest, most periodic transients for *that specific file*. Let the math find the timekeeper.
+
+> **[REFUTED 2026-06-28, direction]** "Let the [sub-band] math find the timekeeper" is the disproven direction: sub-band periodicity is an unreliable octave arbiter — it is slow/subharmonic-biased. Entropy-derived weights were not tested specifically, but trusting the sub-band vote as the tempo authority regressed both corpora across four variants (OA300 58 → 40/39/54/56). The octave arbiter must NOT rely on raw periodicity (use a perceptual prior, beat-grid coherence, or a learned classifier). Evidence: investigation Follow-up 2026-06-28.
 
 **4. End-to-End ML Feature Generation**
 You built a massive protocol scaffolding (`MLTechnique`) to feed a BYOW CoreML/BNNS model *after* the DSP pipeline finishes, just to rescore candidates. Flip the architecture: train a lightweight Temporal Convolutional Network (TCN) to *generate* the onset activation probabilities directly from the mel-spectrogram. Feed those ML-generated probabilities directly into the DP beat tracker. Hand-tuned DSP thresholding will never generalize across genres as well as a properly trained onset model.
