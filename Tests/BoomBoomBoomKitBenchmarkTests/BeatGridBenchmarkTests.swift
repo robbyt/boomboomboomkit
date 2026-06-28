@@ -469,6 +469,7 @@ struct BeatGridBenchmarkTests {
 
   /// Per-(strategy, coverage) per-track downbeat score.
   private struct RowScore: Sendable {
+    let trackId: String  // stable per-track id (oracle filename) for failure diagnostics
     let fired: Bool
     let octaveF: Double?  // octave-tolerant F when fired + oracle present, else nil
     let strictF: Double?  // non-octave-tolerant F, same gating
@@ -481,6 +482,9 @@ struct BeatGridBenchmarkTests {
   private struct StrategyEval: Sendable {
     let strategy: String
     let coverage: String
+    let nTotal: Int  // every scored row (analyzable + failed) — must equal rows.count
+    let nFailed: Int  // analysis produced no grid (a defect, NOT an abstain)
+    let failedTrackIds: Set<String>  // which tracks failed (cross-strategy consistency guard)
     let nEvaluated: Int
     let nFired: Int
     let fireRate: Double
@@ -546,20 +550,21 @@ struct BeatGridBenchmarkTests {
               opts.detectDownbeats = true
               opts.downbeatStrategy = strat.value
               let bandName = band(oracleTempo(row.oracleBeats))
+              let trackId = row.url.lastPathComponent
               guard
                 let grid = try? AudioAnalysisService.analyzeBeatGrid(url: row.url, options: opts),
                 !grid.beats.isEmpty
               else {
                 return RowScore(
-                  fired: false, octaveF: nil, strictF: nil, constant: row.constantTempo,
-                  band: bandName, failed: true)
+                  trackId: trackId, fired: false, octaveF: nil, strictF: nil,
+                  constant: row.constantTempo, band: bandName, failed: true)
               }
               guard case .detected(let estimate) = grid.downbeats,
                 let first = estimate.beats.first, grid.estimatedTempo > 0
               else {
                 return RowScore(
-                  fired: false, octaveF: nil, strictF: nil, constant: row.constantTempo,
-                  band: bandName, failed: false)
+                  trackId: trackId, fired: false, octaveF: nil, strictF: nil,
+                  constant: row.constantTempo, band: bandName, failed: false)
               }
               let upper = max(row.durationSeconds ?? 0, grid.beats.last?.presentationTime ?? 0)
               let barPeriod = 60.0 / grid.estimatedTempo * Double(estimate.meter.beatsPerBar)
@@ -567,8 +572,8 @@ struct BeatGridBenchmarkTests {
                 anchorTime: first.presentationTime, period: barPeriod, upper: upper)
               guard !row.oracleDownbeats.isEmpty else {
                 return RowScore(
-                  fired: true, octaveF: nil, strictF: nil, constant: row.constantTempo,
-                  band: bandName, failed: false)
+                  trackId: trackId, fired: true, octaveF: nil, strictF: nil,
+                  constant: row.constantTempo, band: bandName, failed: false)
               }
               let octaveF = BeatMatch.octaveTolerantF(
                 reference: row.oracleDownbeats, estimated: downbeats)
@@ -576,8 +581,8 @@ struct BeatGridBenchmarkTests {
                 reference: row.oracleDownbeats, estimated: downbeats
               ).f
               return RowScore(
-                fired: true, octaveF: octaveF, strictF: strictF, constant: row.constantTempo,
-                band: bandName, failed: false)
+                trackId: trackId, fired: true, octaveF: octaveF, strictF: strictF,
+                constant: row.constantTempo, band: bandName, failed: false)
             }
           }
           var out: [RowScore] = []
@@ -590,6 +595,7 @@ struct BeatGridBenchmarkTests {
         let nEvaluated = analyzable.count
         let nFired = analyzable.filter(\.fired).count
         let fireRate = nEvaluated > 0 ? Double(nFired) / Double(nEvaluated) : 0
+        let failedTrackIds = Set(scored.filter(\.failed).map(\.trackId))
 
         // All-track F: abstains scored 0 (usefulness — resists both over-abstaining
         // and wrong firing).
@@ -609,12 +615,39 @@ struct BeatGridBenchmarkTests {
 
         evals.append(
           StrategyEval(
-            strategy: strat.name, coverage: cov.name, nEvaluated: nEvaluated, nFired: nFired,
-            fireRate: fireRate,
+            strategy: strat.name, coverage: cov.name,
+            nTotal: scored.count, nFailed: failedTrackIds.count, failedTrackIds: failedTrackIds,
+            nEvaluated: nEvaluated, nFired: nFired, fireRate: fireRate,
             allTrackFOctaveConstant: allTrackF(constantRows, octave: true),
             allTrackFStrictConstant: allTrackF(constantRows, octave: false),
             correctnessWhenFiredOctaveConstant: correctness,
             perBandAllTrackFOctave: perBand))
+      }
+    }
+
+    // --- Analysis-failure guard (Codex review): the downbeat STRATEGY runs after the grid
+    // exists, so a `failed` row should be track×coverage-dependent, NOT strategy-dependent.
+    // Assert per coverage that every strategy scored every row and that the FAILED-track-id
+    // SETS are identical across strategies (count alone can hide different failed tracks). A
+    // strategy that breaks analysis — or a flaky concurrent decode that diverges — fails
+    // loudly with the offending ids. Genuinely-unanalyzable tracks fail identically across
+    // strategies and are tolerated (not asserted to zero), matching Pass B's posture. ---
+    for cov in coverages {
+      let covEvals = evals.filter { $0.coverage == cov.name }
+      for e in covEvals {
+        #expect(
+          e.nTotal == rows.count,
+          "[\(cov.name)/\(e.strategy)] scored \(e.nTotal) of \(rows.count) rows")
+      }
+      if let reference = covEvals.first {
+        let refIds = reference.failedTrackIds.sorted()
+        for e in covEvals.dropFirst() {
+          let eIds = e.failedTrackIds.sorted()
+          #expect(
+            e.failedTrackIds == reference.failedTrackIds,
+            "analysis failures diverge across strategies at \(cov.name): \(e.strategy) failed \(eIds) vs \(reference.strategy) \(refIds)"
+          )
+        }
       }
     }
 
@@ -624,6 +657,7 @@ struct BeatGridBenchmarkTests {
     for e in evals {
       print(
         "  [\(e.coverage)/\(e.strategy)] fire \(pct(e.fireRate)) (\(e.nFired)/\(e.nEvaluated)), "
+          + "failed \(e.nFailed)/\(e.nTotal), "
           + "all-track-F(oct,const) \(fmt(e.allTrackFOctaveConstant)), "
           + "strict \(fmt(e.allTrackFStrictConstant)), "
           + "correctness-when-fired \(fmt(e.correctnessWhenFiredOctaveConstant))")
@@ -633,6 +667,10 @@ struct BeatGridBenchmarkTests {
       jsonStrategies.append([
         "strategy": e.strategy,
         "coverage": e.coverage,
+        "n_total": e.nTotal,
+        "n_failed": e.nFailed,
+        "failure_rate": e.nTotal > 0 ? Double(e.nFailed) / Double(e.nTotal) : 0,
+        "failed_track_ids": e.failedTrackIds.sorted(),
         "n_evaluated": e.nEvaluated,
         "n_fired": e.nFired,
         "fire_rate": e.fireRate,
