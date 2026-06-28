@@ -230,6 +230,15 @@ struct BPMAnalyzer {
     /// full-band envelope or the BPM winner — the BPM result stays byte-identical.
     var detectDownbeats: Bool = false
 
+    /// Story 8.11 — which ``DownbeatStrategy`` places the bar phase when
+    /// `detectDownbeats` is on. Default ``DownbeatStrategy/metricalAccent``
+    /// reproduces the Story-8.5a path bit-for-bit (no energy contour is computed),
+    /// so the `detectDownbeats == true` path stays byte-identical at the default.
+    /// ``DownbeatStrategy/structuralDrop`` / ``DownbeatStrategy/combined`` compute a
+    /// low-band energy contour over the full pre-trim samples and anchor the
+    /// downbeat to the track's main structural drop.
+    var downbeatStrategy: DownbeatStrategy = .metricalAccent
+
     /// Story 8.10 — when `true` AND `computeBeatGrid` is `true`, the step-11
     /// fan-out refines the grid's ``BeatGrid/estimatedTempo`` to sub-0.1-BPM
     /// precision via a continuous interpolated onset-comb fit (guarded never worse
@@ -554,6 +563,13 @@ struct BPMAnalyzer {
     // future beat-grid pool producer).
     var beatGrid: BeatGrid?
     if options.computeBeatGrid {
+      // Story 8.11: the structural-drop strategies source their energy contour from
+      // the FULL pre-trim `samples` (file t=0) — the analysis window already starts
+      // at the drop (`dropOffset`), so a contour over it would put the drop at frame
+      // 0, undetectable. Computed only for the drop strategies, so `.metricalAccent`
+      // (default) adds zero operations and stays byte-identical.
+      let dropContour = structuralDropContour(
+        samples: samples, sampleRate: sampleRate, options: options)
       beatGrid = BeatGridAnalyzer.estimateBeatGrid(
         onsetEnvelope: onsetEnvelope,
         onsetRate: onsetRate,
@@ -564,8 +580,11 @@ struct BPMAnalyzer {
         windowStartSample: dropOffset,
         subBands: onsetResult.subBands,
         detectDownbeats: options.detectDownbeats,
+        downbeatStrategy: options.downbeatStrategy,
+        dropContour: dropContour,
         refineBeatGridTempo: options.refineBeatGridTempo,
-        refinementSink: { trace?.beatGridTempoRefinement = $0 })
+        refinementSink: { trace?.beatGridTempoRefinement = $0 },
+        downbeatSink: { trace?.downbeatStrategy = $0 })
     }
 
     // Step 12: Confidence
@@ -693,6 +712,11 @@ struct BPMAnalyzer {
       vDSP_vsq(acf, 1, &acf, 1, vDSP_Length(acf.count))
     }
 
+    // Story 8.11: the structural-drop contour is sourced from the FULL pre-trim
+    // `samples` (file t=0), independent of `beatGridCoverage` — the coverage window
+    // already begins at the drop. Computed only for the drop strategies.
+    let dropContour = structuralDropContour(
+      samples: samples, sampleRate: sampleRate, options: options)
     return BeatGridAnalyzer.estimateBeatGrid(
       onsetEnvelope: onsetEnvelope,
       onsetRate: onsetRate,
@@ -704,6 +728,8 @@ struct BPMAnalyzer {
       coverage: cov,
       subBands: onsetResult.subBands,
       detectDownbeats: options.detectDownbeats,
+      downbeatStrategy: options.downbeatStrategy,
+      dropContour: dropContour,
       refineBeatGridTempo: options.refineBeatGridTempo)
   }
 
@@ -1379,6 +1405,18 @@ struct BPMAnalyzer {
   ///   - samples: Full audio samples.
   ///   - sampleRate: Audio sample rate in Hz.
   /// - Returns: Sample offset of the drop, or 0 if no transition found.
+  /// Story 8.11: builds the structural-drop energy contour over the FULL pre-trim
+  /// `samples`, but ONLY when the selected ``DownbeatStrategy`` needs it (a
+  /// non-`.metricalAccent` strategy with `detectDownbeats` on). Returns `nil`
+  /// otherwise, so the default `.metricalAccent` path computes no contour and stays
+  /// byte-identical to Story 8.5a.
+  private static func structuralDropContour(
+    samples: [Float], sampleRate: Double, options: Options
+  ) -> StructuralDropAnalyzer.Contour? {
+    guard options.detectDownbeats, options.downbeatStrategy != .metricalAccent else { return nil }
+    return StructuralDropAnalyzer.computeContour(samples: samples, sampleRate: sampleRate)
+  }
+
   private static func findEnergyTransition(
     samples: [Float],
     sampleRate: Double

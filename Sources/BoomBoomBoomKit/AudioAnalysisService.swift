@@ -339,6 +339,15 @@ public struct AudioAnalysisService {
     /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
     public var detectDownbeats: Bool = false
 
+    /// Which ``DownbeatStrategy`` places the bar phase when ``detectDownbeats`` is
+    /// `true` (Story 8.11). Default ``DownbeatStrategy/metricalAccent`` reproduces
+    /// the Story-8.5a estimator bit-for-bit; ``DownbeatStrategy/structuralDrop``
+    /// anchors the downbeat to the track's main energy drop, and
+    /// ``DownbeatStrategy/combined`` cross-validates the two. Ignored when
+    /// ``detectDownbeats`` is `false` and by
+    /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
+    public var downbeatStrategy: DownbeatStrategy = .metricalAccent
+
     /// Locks the beat-grid tempo to an authoritative constant BPM instead of the
     /// tracker's measured tempo — see ``BeatGridTempoLock``. Default
     /// ``BeatGridTempoLock/off`` reproduces prior behavior byte-for-byte. Honored
@@ -1509,6 +1518,7 @@ public struct AudioAnalysisService {
         techniqueSet: options.techniqueSet,
         computeBeatGrid: true,
         detectDownbeats: options.detectDownbeats,
+        downbeatStrategy: options.downbeatStrategy,
         refineBeatGridTempo: options.refineBeatGridTempo)
       return BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.beatGrid
     }
@@ -1521,6 +1531,7 @@ public struct AudioAnalysisService {
       intensity: options.intensity,
       techniqueSet: options.techniqueSet,
       detectDownbeats: options.detectDownbeats,
+      downbeatStrategy: options.downbeatStrategy,
       refineBeatGridTempo: options.refineBeatGridTempo)
     guard let tempo = BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.bpm
     else { return nil }

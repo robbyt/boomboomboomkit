@@ -133,8 +133,11 @@ enum BeatGridAnalyzer {
     coverage: BeatGridCoverage = .analysisWindow,
     subBands: [[Float]] = [],
     detectDownbeats: Bool = false,
+    downbeatStrategy: DownbeatStrategy = .metricalAccent,
+    dropContour: StructuralDropAnalyzer.Contour? = nil,
     refineBeatGridTempo: Bool = false,
-    refinementSink: (BeatGridTempoRefinementEvidence) -> Void = { _ in }
+    refinementSink: (BeatGridTempoRefinementEvidence) -> Void = { _ in },
+    downbeatSink: (DownbeatStrategyEvidence) -> Void = { _ in }
   ) -> BeatGrid? {
     let n = onsetEnvelope.count
     guard n > 0, hopSize > 0, sampleRate > 0, onsetRate > 0 else { return nil }
@@ -389,13 +392,21 @@ enum BeatGridAnalyzer {
     // requested the grid carries `.notAttempted` exactly as Story 8.4/8.5.
     let downbeats: DownbeatResult
     if detectDownbeats {
-      switch DownbeatAnalyzer.estimate(
-        beatFrames: beatFrames,
-        beats: beats,
-        fullBand: onsetEnvelope,
-        subBands: subBands,
-        periodFrames: period,
-        estimatedTempo: estimatedTempo)
+      // Story 8.11: dispatch on the selected strategy. `.metricalAccent` is the
+      // verbatim 8.5a path (default); `.structuralDrop` / `.combined` consume the
+      // pre-trim energy contour the caller threaded in. The strategy is consulted
+      // ONLY inside this branch, so the default-off path stays byte-identical.
+      switch resolveDownbeat(
+        strategy: downbeatStrategy,
+        inputs: DownbeatInputs(
+          beatFrames: beatFrames,
+          beats: beats,
+          onsetEnvelope: onsetEnvelope,
+          subBands: subBands,
+          periodFrames: period,
+          estimatedTempo: estimatedTempo,
+          dropContour: dropContour),
+        sink: downbeatSink)
       {
       case .detected(let estimate, let firstIdx):
         downbeats = .detected(estimate: estimate)
@@ -420,6 +431,120 @@ enum BeatGridAnalyzer {
       tempoAgreement: .notCompared,
       gridOrigin: gridOrigin,
       coverage: coverage)
+  }
+
+  // MARK: - Downbeat-strategy dispatch (Story 8.11)
+
+  /// The per-grid inputs the downbeat-strategy dispatch consumes (Story 8.11).
+  /// Bundled into one named context so ``resolveDownbeat(strategy:inputs:sink:)``
+  /// stays within the parameter-count budget and both estimators share the same
+  /// inputs.
+  private struct DownbeatInputs {
+    let beatFrames: [Int]
+    let beats: [BeatTimestamp]
+    let onsetEnvelope: [Float]
+    let subBands: [[Float]]
+    let periodFrames: Double
+    let estimatedTempo: Double
+    let dropContour: StructuralDropAnalyzer.Contour?
+  }
+
+  /// Dispatches the requested ``DownbeatStrategy`` and emits the typed diagnostic
+  /// evidence. `.metricalAccent` is the verbatim Story-8.5a estimator; the other
+  /// two consume the pre-trim energy `dropContour` (nil → structural-drop abstains,
+  /// `.combined` degrades to metrical-only). A single
+  /// ``StructuralDropAnalyzer/resolve(contour:beats:estimatedTempo:beatsPerBar:)``
+  /// pass feeds both the outcome and the evidence.
+  private static func resolveDownbeat(
+    strategy: DownbeatStrategy,
+    inputs: DownbeatInputs,
+    sink: (DownbeatStrategyEvidence) -> Void
+  ) -> DownbeatAnalyzer.Outcome {
+    func metricalOutcome() -> DownbeatAnalyzer.Outcome {
+      DownbeatAnalyzer.estimate(
+        beatFrames: inputs.beatFrames, beats: inputs.beats, fullBand: inputs.onsetEnvelope,
+        subBands: inputs.subBands, periodFrames: inputs.periodFrames,
+        estimatedTempo: inputs.estimatedTempo)
+    }
+    func phaseIndex(_ outcome: DownbeatAnalyzer.Outcome) -> Int? {
+      if case .detected(let estimate, _) = outcome { return estimate.phaseIndex }
+      return nil
+    }
+    func confidence(_ outcome: DownbeatAnalyzer.Outcome) -> Double {
+      if case .detected(let estimate, _) = outcome { return Double(estimate.confidence) }
+      return 0
+    }
+    func dropInfo(_ resolution: StructuralDropAnalyzer.Resolution) -> (time: Double?, phase: Int?) {
+      switch resolution {
+      case .confident(let phase, let dropTime, _): return (dropTime, phase)
+      case .halfBarAmbiguous(let phaseA, _, let dropTime, _): return (dropTime, phaseA)
+      case .none: return (nil, nil)
+      }
+    }
+
+    switch strategy {
+    case .metricalAccent:
+      let outcome = metricalOutcome()
+      sink(
+        DownbeatStrategyEvidence(
+          strategy: .metricalAccent, dropTimeSeconds: nil, dropPhase: nil,
+          metricalAccentPhase: phaseIndex(outcome), agreement: nil,
+          chosenPhase: phaseIndex(outcome), confidence: confidence(outcome)))
+      return outcome
+
+    case .structuralDrop:
+      guard let contour = inputs.dropContour else {
+        sink(
+          DownbeatStrategyEvidence(
+            strategy: .structuralDrop, dropTimeSeconds: nil, dropPhase: nil,
+            metricalAccentPhase: nil, agreement: nil, chosenPhase: nil, confidence: 0))
+        return .noneDetected
+      }
+      let resolution = StructuralDropAnalyzer.resolve(
+        contour: contour, beats: inputs.beats, estimatedTempo: inputs.estimatedTempo)
+      let outcome = StructuralDropAnalyzer.outcome(
+        from: resolution, beats: inputs.beats, estimatedTempo: inputs.estimatedTempo)
+      let drop = dropInfo(resolution)
+      sink(
+        DownbeatStrategyEvidence(
+          strategy: .structuralDrop, dropTimeSeconds: drop.time, dropPhase: drop.phase,
+          metricalAccentPhase: nil, agreement: nil,
+          chosenPhase: phaseIndex(outcome), confidence: confidence(outcome)))
+      return outcome
+
+    case .combined:
+      let metrical = metricalOutcome()
+      let resolution =
+        inputs.dropContour.map {
+          StructuralDropAnalyzer.resolve(
+            contour: $0, beats: inputs.beats, estimatedTempo: inputs.estimatedTempo)
+        } ?? .none
+      let outcome = StructuralDropAnalyzer.combine(
+        metrical: metrical, drop: resolution, beats: inputs.beats,
+        estimatedTempo: inputs.estimatedTempo)
+      let drop = dropInfo(resolution)
+      let mPhase = phaseIndex(metrical)
+      // Agreement reflects whether metrical concurs with the drop's resolution. For a
+      // half-bar-ambiguous drop the metrical phase agrees if it matches EITHER candidate
+      // (phaseA/phaseB) — that is exactly the case `combine` resolves into a detected
+      // downbeat, so reporting `false` there (the old `mPhase == phaseA`-only test) was a
+      // diagnostic lie. Nil unless both sources fired.
+      let agreement: Bool?
+      switch resolution {
+      case .confident(let dropPhase, _, _):
+        agreement = mPhase.map { $0 == dropPhase }
+      case .halfBarAmbiguous(let phaseA, let phaseB, _, _):
+        agreement = mPhase.map { $0 == phaseA || $0 == phaseB }
+      case .none:
+        agreement = nil
+      }
+      sink(
+        DownbeatStrategyEvidence(
+          strategy: .combined, dropTimeSeconds: drop.time, dropPhase: drop.phase,
+          metricalAccentPhase: mPhase, agreement: agreement,
+          chosenPhase: phaseIndex(outcome), confidence: confidence(outcome)))
+      return outcome
+    }
   }
 
   // MARK: - Grid-origin anchor selection (Story 8.5, DD #11)
