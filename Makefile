@@ -274,6 +274,16 @@ tempo-refine-impact-report:
 	TEMPO_REFINE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.DAWOracleBenchmarkTests/tempoRefinementImpact
 
+## accuracy-forensics: Phase 0 — forensic accuracy attribution over OA300 + GiantSteps (default pipeline). Per-corpus JSON to _bmad-output/implementation-artifacts/accuracy-forensics-<corpus>.json: candidate-recall oracle (true BPM in top-1/3/5/10 + factor + score margin), error-type histogram (octave vs triplet kept separate), recall split (selection-bound vs generation-bound), confidence reliability curve, BPM-error distribution, per-genre error-type composition, label-policy tags. Reporting-only — touches no DSP; corpus floors unaffected.
+.PHONY: accuracy-forensics
+accuracy-forensics:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	ACCURACY_FORENSICS=1 \
+	ACCURACY_FORENSICS_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AccuracyForensicsTests/forensicReport
+
 ## combined-analyze-impact-report: Story 8-5 AC10 — per-format shared-decode gate (analyze() one decode <= analyzeBPM + analyzeBeatGrid two decodes, x1.10 margin) + full-track-coverage overhead REPORT + JSON to _bmad-output/implementation-artifacts/8-5-combined-analyze-impact.json. Release config.
 .PHONY: combined-analyze-impact-report
 combined-analyze-impact-report:
