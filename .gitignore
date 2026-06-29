@@ -40,6 +40,7 @@ Icon?
 # Claude Code
 .claude/projects/
 .claude/scheduled_tasks.lock
+.claude/worktrees/
 
 # Instruments / xctrace bundles (Story 4-3b: keep markdown summary, drop binary trace)
 *.trace
