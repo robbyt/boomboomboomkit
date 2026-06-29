@@ -588,9 +588,12 @@ struct BeatGridAnalyzerTests {
     let grid = try #require(try AudioAnalysisService.analyzeBeatGrid(decoded: decoded))
 
     let anchor = try #require(grid.gridOrigin)
-    // Anchor indexes a real beat and reports that beat's exact time.
-    try #require(anchor.beatIndex >= 0 && anchor.beatIndex < grid.beats.count)
-    #expect(anchor.presentationTime == grid.beats[anchor.beatIndex].presentationTime)
+    // Anchor indexes a real beat and reports that beat's exact time. An auto-produced
+    // anchor is always COUPLED (non-nil beatIndex); only a manual `.exactTime` reposition
+    // decouples it (Story 8.12).
+    let beatIndex = try #require(anchor.beatIndex)
+    try #require(beatIndex >= 0 && beatIndex < grid.beats.count)
+    #expect(anchor.presentationTime == grid.beats[beatIndex].presentationTime)
     #expect(anchor.confidence >= 0 && anchor.confidence <= 1)
     #expect(anchor.strength >= 0 && anchor.strength <= 1)
     // A clean periodic click → phase consistency fires (not a fallback).
@@ -765,8 +768,9 @@ struct BeatGridAnalyzerTests {
       "estimatedTempo \(grid.estimatedTempo) is not the true tempo \(trueTempo)")
 
     // (2) Anchor accuracy: the anchor is a real beat sitting within the bounded
-    // onset latency (~10 hops) of a true impulse.
-    #expect(anchor.presentationTime == grid.beats[anchor.beatIndex].presentationTime)
+    // onset latency (~10 hops) of a true impulse. An auto anchor is always coupled.
+    let anchorIndex = try #require(anchor.beatIndex)
+    #expect(anchor.presentationTime == grid.beats[anchorIndex].presentationTime)
     let anchorPos = anchor.presentationTime * sampleRate
     let anchorImpulseDist = Self.distanceToNearestImpulse(
       samplePos: anchorPos, period: samplesPerBeat)

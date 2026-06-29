@@ -201,6 +201,9 @@ struct BeatGridBenchmarkTests {
             let gridA = try? AudioAnalysisService.analyzeBeatGrid(url: row.url, options: beatOpts),
             !gridA.beats.isEmpty,
             let anchorA = gridA.gridOrigin,
+            // An auto anchor is always coupled (non-nil beatIndex); only a manual
+            // `.exactTime` reposition decouples it (Story 8.12), which this path never does.
+            let anchorIndex = anchorA.beatIndex,
             gridA.estimatedTempo > 0
           else { return (i, nil) }
           let rawBeats = gridA.beats.map(\.presentationTime)
@@ -215,7 +218,7 @@ struct BeatGridBenchmarkTests {
           var drift: Double?
           if gridA.beats.count >= 2 {
             let lastIndex = gridA.beats.count - 1
-            let expected = anchorA.presentationTime + period * Double(lastIndex - anchorA.beatIndex)
+            let expected = anchorA.presentationTime + period * Double(lastIndex - anchorIndex)
             drift = abs(rawBeats[lastIndex] - expected)
           }
 
