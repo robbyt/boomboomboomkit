@@ -345,6 +345,89 @@ struct BeatGridTempoRefinementTests {
     #expect(offResult.trace?.beatGridTempoRefinement == nil)
   }
 
+  // MARK: - Ticket #71: trace evidence on .window / .fullTrack coverage
+
+  /// Drives the combined `analyze(decoded:)` path over a long deterministic click
+  /// at the given coverage with refinement on, and returns the result.
+  private static func analyzeCovered(
+    coverage: BeatGridCoverage, refine: Bool = true, detectDownbeats: Bool = false,
+    downbeatStrategy: DownbeatStrategy = .metricalAccent, enableTrace: Bool = true,
+    durationSeconds: Double = 90
+  ) throws -> CombinedAnalysisResult {
+    let samples = generateClickTrack(bpm: 127.3, sampleRate: 44100, durationSeconds: durationSeconds)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 44100)
+    var opts = AudioAnalysisService.Options()
+    opts.enableTrace = enableTrace
+    opts.refineBeatGridTempo = refine
+    opts.detectDownbeats = detectDownbeats
+    opts.downbeatStrategy = downbeatStrategy
+    opts.beatGridCoverage = coverage
+    return try #require(try AudioAnalysisService.analyze(decoded: decoded, options: opts))
+  }
+
+  /// On `.fullTrack` coverage, the refinement evidence reaches
+  /// `CombinedAnalysisResult.bpm.trace` — the gap ticket #71 fixes (it was `nil`
+  /// before, even though the refit ran on the coverage-span grid).
+  @Test func fullTrackCoverageCarriesRefinementEvidence() throws {
+    let result = try Self.analyzeCovered(coverage: .fullTrack)
+    #expect(result.beatGrid != nil)
+    let evidence = try #require(result.bpm.trace?.beatGridTempoRefinement)
+    #expect(evidence.coarseTempo > 0)
+    #expect(evidence.refinedTempo > 0)
+    // Mirror `traceCarriesRefinementEvidence`'s accepted-branch invariant.
+    if evidence.accepted {
+      #expect(evidence.supportRefined > evidence.supportSeed)
+    } else {
+      #expect(evidence.refinedTempo.bitPattern == evidence.coarseTempo.bitPattern)
+    }
+  }
+
+  /// The seam covers `.window(seconds:)` too, not only `.fullTrack`.
+  @Test func windowCoverageCarriesRefinementEvidence() throws {
+    let result = try Self.analyzeCovered(coverage: .window(seconds: 60))
+    #expect(result.beatGrid != nil)
+    let evidence = try #require(result.bpm.trace?.beatGridTempoRefinement)
+    #expect(evidence.coarseTempo > 0)
+    #expect(evidence.refinedTempo > 0)
+  }
+
+  /// The downbeat sibling: with `detectDownbeats` on (default `.metricalAccent`
+  /// strategy), `.fullTrack` coverage surfaces the downbeat-strategy evidence.
+  @Test func fullTrackCoverageCarriesDownbeatEvidence() throws {
+    let result = try Self.analyzeCovered(coverage: .fullTrack, detectDownbeats: true)
+    #expect(result.beatGrid != nil)
+    let evidence = try #require(result.bpm.trace?.downbeatStrategy)
+    #expect(evidence.strategy == .metricalAccent)
+    #expect(evidence.confidence >= 0)
+  }
+
+  /// `.structuralDrop` strategy also populates the evidence on `.fullTrack` (the
+  /// estimator runs; `strategy` is recorded regardless of detect/abstain outcome).
+  @Test func fullTrackCoverageCarriesStructuralDropDownbeatEvidence() throws {
+    let result = try Self.analyzeCovered(
+      coverage: .fullTrack, detectDownbeats: true, downbeatStrategy: .structuralDrop)
+    #expect(result.beatGrid != nil)
+    let evidence = try #require(result.bpm.trace?.downbeatStrategy)
+    #expect(evidence.strategy == .structuralDrop)
+  }
+
+  /// Refit OFF on `.fullTrack`: the field is gated on the flag, not coverage — it
+  /// stays `nil`. Downbeats are also off, so `downbeatStrategy` stays `nil` too.
+  @Test func refinementOffOnFullTrackLeavesEvidenceNil() throws {
+    let result = try Self.analyzeCovered(coverage: .fullTrack, refine: false)
+    #expect(result.beatGrid != nil)
+    #expect(result.bpm.trace?.beatGridTempoRefinement == nil)
+    #expect(result.bpm.trace?.downbeatStrategy == nil)
+  }
+
+  /// `enableTrace == false` on `.fullTrack` with refinement on: no trace is returned
+  /// at all (and the stitching path builds none).
+  @Test func tracingOffOnFullTrackReturnsNoTrace() throws {
+    let result = try Self.analyzeCovered(coverage: .fullTrack, enableTrace: false)
+    #expect(result.beatGrid != nil)
+    #expect(result.bpm.trace == nil)
+  }
+
   // MARK: - .bpmStage lock authority (post-merge Codex bot P2)
 
   /// `.bpmStage` is the pipeline's authoritative tempo, so it must override even a
