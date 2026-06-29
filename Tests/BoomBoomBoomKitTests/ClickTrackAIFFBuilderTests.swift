@@ -116,55 +116,61 @@ struct ClickTrackAIFFBuilderStructureTests {
   }
 }
 
-@Suite("ClickTrackAIFFBuilder — precondition guards")
-struct ClickTrackAIFFBuilderGuardTests {
+// swift-testing exit tests (`#expect(processExitsWith:)`) require Swift 6.2+.
+// Gate the suite so older CI toolchains (e.g. GitHub macos-15, whose
+// swift-testing predates exit tests) compile-skip it instead of failing to
+// build. It runs locally and on Swift 6.2+ runners.
+#if compiler(>=6.2)
+  @Suite("ClickTrackAIFFBuilder — precondition guards")
+  struct ClickTrackAIFFBuilderGuardTests {
 
-  @Test("non-finite sampleRate traps in the guard")
-  func nonFiniteSampleRate() async {
-    await #expect(processExitsWith: .failure) {
-      _ = try ClickTrackAIFFBuilder.write(
-        clickBPM: 120, durationSeconds: 1, tbpm: "120", sampleRate: .infinity)
+    @Test("non-finite sampleRate traps in the guard")
+    func nonFiniteSampleRate() async {
+      await #expect(processExitsWith: .failure) {
+        _ = try ClickTrackAIFFBuilder.write(
+          clickBPM: 120, durationSeconds: 1, tbpm: "120", sampleRate: .infinity)
+      }
+    }
+
+    @Test("non-integer sampleRate traps in the guard")
+    func nonIntegerSampleRate() async {
+      await #expect(processExitsWith: .failure) {
+        _ = try ClickTrackAIFFBuilder.write(
+          clickBPM: 120, durationSeconds: 1, tbpm: "120", sampleRate: 44_100.5)
+      }
+    }
+
+    @Test("sampleRate below 1 Hz traps in the guard")
+    func subHertzSampleRate() async {
+      await #expect(processExitsWith: .failure) {
+        _ = try ClickTrackAIFFBuilder.write(
+          clickBPM: 120, durationSeconds: 1, tbpm: "120", sampleRate: 0)
+      }
+    }
+
+    @Test("non-finite clickBPM traps in the guard")
+    func nonFiniteClickBPM() async {
+      await #expect(processExitsWith: .failure) {
+        _ = try ClickTrackAIFFBuilder.write(
+          clickBPM: .nan, durationSeconds: 1, tbpm: "120", sampleRate: 44_100)
+      }
+    }
+
+    @Test("negative durationSeconds traps in the guard")
+    func negativeDuration() async {
+      await #expect(processExitsWith: .failure) {
+        _ = try ClickTrackAIFFBuilder.write(
+          clickBPM: 120, durationSeconds: -1, tbpm: "120", sampleRate: 44_100)
+      }
+    }
+
+    @Test("clickBPM too high for the sample rate (zero samples/beat) traps")
+    func zeroSamplesPerBeat() async {
+      await #expect(processExitsWith: .failure) {
+        // 44100 * 60 / 1e9 << 1 sample/beat -> truncates to 0.
+        _ = try ClickTrackAIFFBuilder.write(
+          clickBPM: 1_000_000_000, durationSeconds: 1, tbpm: "120", sampleRate: 44_100)
+      }
     }
   }
-
-  @Test("non-integer sampleRate traps in the guard")
-  func nonIntegerSampleRate() async {
-    await #expect(processExitsWith: .failure) {
-      _ = try ClickTrackAIFFBuilder.write(
-        clickBPM: 120, durationSeconds: 1, tbpm: "120", sampleRate: 44_100.5)
-    }
-  }
-
-  @Test("sampleRate below 1 Hz traps in the guard")
-  func subHertzSampleRate() async {
-    await #expect(processExitsWith: .failure) {
-      _ = try ClickTrackAIFFBuilder.write(
-        clickBPM: 120, durationSeconds: 1, tbpm: "120", sampleRate: 0)
-    }
-  }
-
-  @Test("non-finite clickBPM traps in the guard")
-  func nonFiniteClickBPM() async {
-    await #expect(processExitsWith: .failure) {
-      _ = try ClickTrackAIFFBuilder.write(
-        clickBPM: .nan, durationSeconds: 1, tbpm: "120", sampleRate: 44_100)
-    }
-  }
-
-  @Test("negative durationSeconds traps in the guard")
-  func negativeDuration() async {
-    await #expect(processExitsWith: .failure) {
-      _ = try ClickTrackAIFFBuilder.write(
-        clickBPM: 120, durationSeconds: -1, tbpm: "120", sampleRate: 44_100)
-    }
-  }
-
-  @Test("clickBPM too high for the sample rate (zero samples/beat) traps")
-  func zeroSamplesPerBeat() async {
-    await #expect(processExitsWith: .failure) {
-      // 44100 * 60 / 1e9 << 1 sample/beat -> truncates to 0.
-      _ = try ClickTrackAIFFBuilder.write(
-        clickBPM: 1_000_000_000, durationSeconds: 1, tbpm: "120", sampleRate: 44_100)
-    }
-  }
-}
+#endif  // compiler(>=6.2)
