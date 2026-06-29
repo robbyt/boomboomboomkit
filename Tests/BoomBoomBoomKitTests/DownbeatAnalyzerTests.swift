@@ -327,7 +327,9 @@ struct DownbeatAnalyzerTests {
     // gridOrigin is repointed to the first downbeat (AC5).
     let anchor = try #require(grid.gridOrigin)
     #expect(anchor.source == .downbeat)
-    #expect(anchor.presentationTime == grid.beats[anchor.beatIndex].presentationTime)
+    // An auto downbeat anchor is always coupled (non-nil beatIndex).
+    let anchorIndex = try #require(anchor.beatIndex)
+    #expect(anchor.presentationTime == grid.beats[anchorIndex].presentationTime)
     // Independent ground truth: the first downbeat sits on a planted phase-0 frame
     // (frame ≡ 0 mod 200 → presentationTime a multiple of 2.0 s within one hop).
     let firstDownbeatTime = try #require(estimate.beats.first).presentationTime
