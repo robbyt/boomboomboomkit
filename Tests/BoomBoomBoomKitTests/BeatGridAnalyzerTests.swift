@@ -321,6 +321,57 @@ struct BeatGridAnalyzerTests {
     #expect(grid.beats.allSatisfy { $0.presentationTime >= 1.0 })
   }
 
+  // MARK: - Per-beat confidence reads the last EMITTED beat frame (#56)
+
+  /// On a perfectly periodic envelope every inter-beat interval equals `period`,
+  /// so `log(interval / period) == 0` and confidence `exp(0) == 1`. Pins the
+  /// post-fix behavior: interior-beat confidence is ~1.0. (RED proof: pointing the
+  /// interval source at a constant wrong frame makes these intervals != period,
+  /// dropping the confidences below 1.0 — verified out-of-band, then reverted.)
+  @Test func evenlySpacedBeatsHaveUnitConfidence() throws {
+    let env = Self.impulseEnvelope(frames: 1000, periodFrames: 50)
+    let grid = try #require(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: 100, hopSize: 441, sampleRate: 44100,
+        acf: env, tempoBPM: 120, windowStartSample: 0))
+
+    // Skip index 0 (its confidence is raw strength, no prior interval).
+    for b in grid.beats.dropFirst() {
+      #expect(abs(b.confidence - 1.0) < 1e-3)
+    }
+    // No NaN/Inf confidence anywhere.
+    #expect(grid.beats.allSatisfy { $0.confidence.isFinite })
+  }
+
+  /// Locks per-beat confidence to the interval against the actual previous
+  /// EMITTED beat frame (the invariant the #56 fix establishes by reading
+  /// `beatFrames.last`). Reconstructs each adjacent emitted-frame interval from
+  /// the track-relative presentation times and recomputes the closed-form
+  /// confidence; the buggy `frames[k-1]` form would violate this the moment a
+  /// frame is skipped.
+  @Test func perBeatConfidenceMatchesEmittedFrameInterval() throws {
+    let hop = 441
+    let sr = 44100.0
+    let period = 50.0
+    let env = Self.impulseEnvelope(frames: 1000, periodFrames: Int(period))
+
+    let grid = try #require(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: 100, hopSize: hop, sampleRate: sr,
+        acf: env, tempoBPM: 120, windowStartSample: 0))
+    try #require(grid.beats.count >= 2)
+
+    func frame(_ t: Double) -> Int { Int((t * sr / Double(hop)).rounded()) }
+    for i in 1..<grid.beats.count {
+      let prev = frame(grid.beats[i - 1].presentationTime)
+      let cur = frame(grid.beats[i].presentationTime)
+      let interval = Double(cur - prev)
+      let r = interval > 0 ? log(interval / period) : 0
+      let expected = Float(exp(-r * r))
+      #expect(abs(grid.beats[i].confidence - expected) < 1e-2)
+    }
+  }
+
   // MARK: - Degenerate inputs return nil (AC9)
 
   @Test func emptyEnvelopeReturnsNil() {
@@ -359,6 +410,39 @@ struct BeatGridAnalyzerTests {
       BeatGridAnalyzer.estimateBeatGrid(
         onsetEnvelope: env, onsetRate: 100, hopSize: 441, sampleRate: 44100,
         acf: env, tempoBPM: 120, windowStartSample: 0) == nil)
+  }
+
+  /// A window of EXACTLY one beat period is degenerate: it cannot hold the two
+  /// beats `selectGridOrigin`'s phase path needs, so `estimateBeatGrid` must
+  /// reject it (the doc promises nil for "a window shorter than two beat
+  /// periods"). At 120 BPM / onsetRate 100, `period == 50`, so `n == period`. (#57)
+  @Test func oneBeatPeriodWindowReturnsNil() {
+    let env = Self.impulseEnvelope(frames: 50, periodFrames: 50)  // period == n == 50
+    #expect(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: 100, hopSize: 441, sampleRate: 44100,
+        acf: env, tempoBPM: 120, windowStartSample: 0) == nil)
+  }
+
+  /// Just below two periods (`n == 2*period - 1`) is still rejected — pins the
+  /// lower side of the new cutoff. (#57)
+  @Test func justUnderTwoBeatPeriodsReturnsNil() {
+    let env = Self.impulseEnvelope(frames: 99, periodFrames: 50)  // n = 2*period - 1
+    #expect(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: 100, hopSize: 441, sampleRate: 44100,
+        acf: env, tempoBPM: 120, windowStartSample: 0) == nil)
+  }
+
+  /// At exactly two periods (`n == 2*period`) a grid IS produced, with >= 2 beats
+  /// — pins the upper side of the new cutoff. (#57)
+  @Test func exactlyTwoBeatPeriodsProducesMultiBeatGrid() throws {
+    let env = Self.impulseEnvelope(frames: 100, periodFrames: 50)  // n = 2*period
+    let grid = try #require(
+      BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: env, onsetRate: 100, hopSize: 441, sampleRate: 44100,
+        acf: env, tempoBPM: 120, windowStartSample: 0))
+    #expect(grid.beats.count >= 2)
   }
 
   @Test func tooShortFileReturnsNil() throws {

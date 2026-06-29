@@ -121,7 +121,7 @@ enum BeatGridAnalyzer {
   ///     ``BPMDiagnosticTrace/beatGridTempoRefinement`` when tracing is on.
   /// - Returns: A populated ``BeatGrid``, or `nil` for degenerate input (empty
   ///   envelope, non-positive/non-finite tempo, all-zero envelope, or a window
-  ///   shorter than one beat period).
+  ///   too short to hold at least two beats — shorter than two beat periods).
   static func estimateBeatGrid(  // swiftlint:disable:this function_parameter_count
     onsetEnvelope: [Float],
     onsetRate: Double,
@@ -143,13 +143,17 @@ enum BeatGridAnalyzer {
     guard n > 0, hopSize > 0, sampleRate > 0, onsetRate > 0 else { return nil }
     guard tempoBPM.isFinite, tempoBPM > 0 else { return nil }
 
-    // Beat period in onset frames. The upper bound (`period <= n`) rejects a
-    // window shorter than one beat period as degenerate AND keeps the
-    // `Int(...)` conversions below in range: an enormous-but-finite period
-    // (from a tiny-but-finite `tempoBPM`) would otherwise trap on
-    // `Int((period * 2).rounded())` or drive a multi-gigabyte `txCost` span.
+    // Beat period in onset frames. The upper bound (`period * 2 <= n`) requires
+    // room for at least one full inter-beat interval, so a returned grid always
+    // holds >= 2 beats (and `selectGridOrigin`'s phase-consistency path, which
+    // needs `beats.count >= 2`, can run). A window of exactly one period yields
+    // a degenerate single-beat grid, so it is rejected as too short. This bound
+    // ALSO keeps the `Int(...)` conversions below in range: an enormous-but-finite
+    // period (from a tiny-but-finite `tempoBPM`) makes `period * 2` enormous too,
+    // so the guard rejects before `Int((period * 2).rounded())` can trap or drive
+    // a multi-gigabyte `txCost` span.
     let period = onsetRate * 60.0 / tempoBPM
-    guard period >= 1, period.isFinite, period <= Double(n) else { return nil }
+    guard period >= 1, period.isFinite, period * 2.0 <= Double(n) else { return nil }
 
     // Predecessor search window: an inter-beat interval lies in [period/2, 2*period]
     // frames.
@@ -311,12 +315,14 @@ enum BeatGridAnalyzer {
     beats.reserveCapacity(frames.count)
     // The window-relative beat frames, kept parallel to `beats` so the downbeat
     // estimator samples the sub-band envelopes at exactly the beats' frames (DD
-    // #5). Built alongside `beats` so the two stay aligned even if the defensive
-    // guard below ever skips a frame.
+    // #5). It is ALSO the source of truth for the per-beat interval: confidence
+    // reads `beatFrames.last` (the previous EMITTED beat frame), so alignment is
+    // enforced by construction rather than by the enumeration index staying in
+    // lockstep — correct even if the defensive guard below ever skips a frame.
     var beatFrames: [Int] = []
     beatFrames.reserveCapacity(frames.count)
     var strengthSum: Float = 0
-    for (k, f) in frames.enumerated() {
+    for f in frames {
       // f is a DP index, always in 0..<n; guard defensively per AC5.
       guard f >= 0, f < n else { continue }
       let strength = onsetEnvelope[f] / envMax
@@ -324,12 +330,13 @@ enum BeatGridAnalyzer {
       let presentationTime =
         (Double(windowStartSample) + Double(f) * Double(hopSize)) / sampleRate
       let beatConfidence: Float
-      if k == 0 {
-        beatConfidence = strength
-      } else {
-        let interval = Double(f - frames[k - 1])
+      if let prevFrame = beatFrames.last {
+        let interval = Double(f - prevFrame)
         let r = interval > 0 ? log(interval / period) : 0
         beatConfidence = Float(exp(-r * r))
+      } else {
+        // First EMITTED beat: no prior interval, confidence is raw salience.
+        beatConfidence = strength
       }
       beats.append(
         BeatTimestamp(
