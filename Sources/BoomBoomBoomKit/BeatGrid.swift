@@ -75,7 +75,12 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
 
   /// The current ``schemaVersion`` a freshly-produced ``BeatGrid`` carries. Bump
   /// this when the persisted *semantic* contract changes (see ``schemaVersion``).
-  public static let currentSchemaVersion = 1
+  ///
+  /// `2` since Story 8.12: ``BeatGridAnchor/beatIndex`` became optional (`Int?`),
+  /// where a `nil` index now carries the "free-standing ``BeatGridAnchorSource/manual``
+  /// origin" meaning and a free-standing grid omits the `beatIndex` key — a payload
+  /// shape a v1 decoder's `decode(Int.self)` would have thrown on.
+  public static let currentSchemaVersion = 2
 
   // MARK: Stored
 
@@ -125,14 +130,21 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   public let tempoAgreement: TempoAgreement
 
   /// The single most-trustworthy reference beat for Rekordbox-style
-  /// extrapolation, or `nil` when no beats were detected. See ``BeatGridAnchor``.
+  /// extrapolation, or `nil` when no beats were detected — UNLESS a free-standing
+  /// ``BeatGridAnchorSource/manual`` origin was placed (Story 8.12), which survives
+  /// on an empty-`beats` grid. See ``BeatGridAnchor``.
   ///
-  /// **Invariant:** when non-`nil`, ``BeatGridAnchor/beatIndex`` always indexes a
-  /// real entry of ``beats`` (`0 ..< beats.count`), so `beats[gridOrigin!.beatIndex]`
-  /// is safe. An anchor supplied (by a hostile `Codable` payload or a manual
-  /// misconstruction) with an out-of-range index is dropped to `nil` at
-  /// construction — ``BeatGridAnchor`` alone clamps `beatIndex ≥ 0` but cannot
-  /// know `beats.count`, so the cross-field check lives here.
+  /// **Invariant (coupled anchors):** when non-`nil` AND
+  /// ``BeatGridAnchor/beatIndex`` is non-`nil`, the index always addresses a real
+  /// entry of ``beats`` (`0 ..< beats.count`) and the anchor's ``BeatGridAnchor/presentationTime``
+  /// equals `beats[beatIndex].presentationTime`, so `beats[gridOrigin!.beatIndex!]`
+  /// is safe and agrees. A *present* index out of range (a hostile `Codable`
+  /// payload or a manual misconstruction) drops the whole anchor to `nil` at
+  /// construction. A `nil` index marks a **free-standing** anchor whose
+  /// ``BeatGridAnchor/presentationTime`` stands on its own (no coupled beat); it is
+  /// kept only for ``BeatGridAnchorSource/manual`` (DD #2/#3). The cross-field check
+  /// lives here — ``BeatGridAnchor`` alone clamps a present `beatIndex ≥ 0` but
+  /// cannot know `beats.count`.
   public let gridOrigin: BeatGridAnchor?
 
   /// What span the detected ``beats`` cover (always the ``BeatGridCoverage/sanitized``
@@ -198,13 +210,24 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///   - confidence: Overall grid confidence (clamped to `[0, 1]`).
   ///   - tempoAgreement: How the grid tempo relates to the BPM stage
   ///     (``TempoAgreement/notCompared`` when none ran alongside).
-  ///   - gridOrigin: The extrapolation anchor, or `nil` when no beats. An anchor
-  ///     whose `beatIndex` is out of range for `beats` is dropped to `nil`; an
-  ///     in-range anchor is rebuilt from `beats[beatIndex]` (time/confidence/strength)
-  ///     so it always agrees with the indexed beat. `source` is preserved as
-  ///     provenance — on a decoded payload it is untrusted, so a bar-snap consumer
-  ///     must gate on `source == .downbeat` AND `downbeats` being `.detected`, never
-  ///     `source` alone.
+  ///   - gridOrigin: The extrapolation anchor, or `nil` when no beats. Sanitized by
+  ///     three rules on `beatIndex` (DD #3): (a) **present and in range** → rebuilt
+  ///     from `beats[beatIndex]` (time/confidence/strength), preserving `beatIndex` +
+  ///     `source`, so it always agrees with the indexed beat; (b) **present and out
+  ///     of range** → the whole anchor is dropped to `nil` (a claimed-but-invalid
+  ///     beat relationship is hostile/stale — this holds even for `source ==
+  ///     .manual`); (c) **`nil`** (free-standing) → kept iff `source == .manual`,
+  ///     with the supplied `presentationTime`/`confidence`/`strength` clamped as-is
+  ///     (a `nil`-index non-`.manual` anchor is incoherent and dropped).
+  ///     `source` is preserved as provenance. On a decoded payload it is untrusted,
+  ///     so a bar-snap consumer must gate on `source == .downbeat` AND `downbeats`
+  ///     being `.detected`, never `source` alone. The one exception is `source ==
+  ///     .manual`: it has **no second field to corroborate** (it coexists with
+  ///     `.notAttempted`), so honoring it IS trusting `source` alone — acceptable
+  ///     only because a `.manual` origin is inherited from whoever wrote the payload
+  ///     (typically the consumer's own cache), unlike `.downbeat` which is
+  ///     cross-checked against detection. That asymmetry is why rule (c) admits a
+  ///     decoded free-standing `.manual` origin.
   ///   - coverage: What span `beats` cover (sanitized on the way in).
   ///   - schemaVersion: The persisted semantic-contract version. Defaulted to
   ///     ``currentSchemaVersion`` so every producer auto-stamps the current
@@ -225,22 +248,39 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     self.estimatedTempo = BeatGridClamp.clampNonNegative(estimatedTempo)
     self.confidence = BeatGridClamp.clampUnit(confidence)
     self.tempoAgreement = tempoAgreement
-    // Enforce the gridOrigin contract: a non-nil anchor not only indexes a real beat
-    // but AGREES with it. ``BeatGridAnchor`` clamps `beatIndex ≥ 0` but cannot bound it
-    // above (it does not know `beats.count`), so an out-of-range anchor drops to `nil`.
-    // An IN-range anchor is rebuilt from `beats[beatIndex]` (time/confidence/strength),
-    // preserving `beatIndex` + `source`. The analyzer always constructs anchors this way
-    // (so this is a no-op on honest grids), but a hostile/stale decoded anchor with an
-    // in-range index and a mismatched `presentationTime` would otherwise break the
-    // extrapolation contract `gridOrigin.presentationTime + period·n`. `source` is left
-    // as untrusted provenance on a decoded payload — a bar-snap consumer must gate on
-    // `source == .downbeat` AND `downbeats` being `.detected`, never `source` alone (so
-    // we do NOT invent a different source here, only repair the mechanical invariant).
+    // Enforce the gridOrigin contract via three rules on `beatIndex` (DD #3). The
+    // index is the mechanical-coupling discriminator: a present index couples the
+    // anchor to a detected beat (rebuild applies); `nil` marks a free-standing
+    // origin whose `presentationTime` is authoritative. ``BeatGridAnchor`` clamps a
+    // present `beatIndex ≥ 0` but cannot bound it above (it does not know
+    // `beats.count`) nor judge coherence (it cannot see `beats`/`downbeats`), so the
+    // cross-field gate lives here.
     self.gridOrigin = gridOrigin.flatMap { origin -> BeatGridAnchor? in
-      guard origin.beatIndex < beats.count else { return nil }
-      let beat = beats[origin.beatIndex]
+      guard let index = origin.beatIndex else {
+        // (c) Free-standing (`nil` index): keep iff a human asserted it
+        // (`.manual`); an auto source with no beat to name is incoherent → drop
+        // (the safe hostile-decode posture — a payload cannot smuggle a free-standing
+        // non-manual origin). The float fields are already clamped by
+        // ``BeatGridAnchor/init``, so the supplied free time is authoritative as-is.
+        return origin.source == .manual ? origin : nil
+      }
+      // (b) Present but out of range → drop the WHOLE anchor (a claimed-but-invalid
+      // beat relationship is hostile/stale — do NOT promote it to a free-standing
+      // anchor at its stale time; a genuinely free origin always carries `beatIndex
+      // == nil` and survives via rule (c)). Holds even for `source == .manual`.
+      guard index < beats.count else { return nil }
+      // (a) Present and in range → rebuild from `beats[index]` (time/confidence/
+      // strength), preserving `beatIndex` + `source`. The analyzer always constructs
+      // anchors this way (a no-op on honest grids), but a hostile/stale decoded anchor
+      // with an in-range index and a mismatched `presentationTime` would otherwise
+      // break the extrapolation contract `gridOrigin.presentationTime + period·n`.
+      // `source` is left as untrusted provenance on a decoded payload — a bar-snap
+      // consumer must gate on `source == .downbeat` AND `downbeats` being `.detected`,
+      // never `source` alone (so we do NOT invent a different source here, only repair
+      // the mechanical invariant).
+      let beat = beats[index]
       return BeatGridAnchor(
-        beatIndex: origin.beatIndex,
+        beatIndex: index,
         presentationTime: beat.presentationTime,
         confidence: beat.confidence,
         strength: beat.strength,
@@ -352,7 +392,9 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
 
   /// One-line summary.
   public var description: String {
-    let origin = gridOrigin.map { "beat \($0.beatIndex)@\($0.presentationTime)s" } ?? "none"
+    let origin =
+      gridOrigin.map { "beat \($0.beatIndex.map { String($0) } ?? "nil")@\($0.presentationTime)s" }
+      ?? "none"
     return "BeatGrid(beats: \(beats.count), downbeats: \(downbeats), "
       + "tempo: \(estimatedTempo), conf: \(confidence), "
       + "agreement: \(tempoAgreement), origin: \(origin), coverage: \(coverage))"
@@ -370,8 +412,12 @@ extension BeatGrid {
   /// beat spacing is preserved: a negative `seconds` that would push the earliest
   /// timestamp below `0` is reduced (clamped as a single delta) so the earliest timestamp
   /// lands exactly at `0`, rather than clamping each timestamp independently (which would
-  /// collapse early beats and distort the grid). A non-finite `seconds`, a `0` shift, an
-  /// empty grid, or a shift that nets to zero after clamping is a no-op.
+  /// collapse early beats and distort the grid). The earliest/latest timestamp is taken
+  /// over the **union** of everything that moves — ``beats``, the detected-downbeat beats,
+  /// AND a free-standing (`nil`-index) ``gridOrigin`` (a coupled anchor mirrors
+  /// `beats[beatIndex]`, so it is already covered). A non-finite `seconds`, a `0` shift, a
+  /// grid with no movable timestamps (no beats, no detected downbeats, no free-standing
+  /// anchor), or a shift that nets to zero after clamping is a no-op.
   ///
   /// ``estimatedTempo``, ``confidence``, ``tempoAgreement``, ``coverage`` (which describes
   /// the analyzed *span length*, not an absolute start time), and ``schemaVersion`` are
@@ -385,18 +431,41 @@ extension BeatGrid {
   /// - Parameter seconds: The shift to apply, in seconds (`+` later, `−` earlier).
   /// - Returns: A new grid with shifted presentation times.
   public func offset(by seconds: Double) -> BeatGrid {
-    guard seconds.isFinite, seconds != 0, !beats.isEmpty else { return self }
+    guard seconds.isFinite, seconds != 0 else { return self }
 
-    // Minimum presentation time across EVERY timestamp that will move (beats + detected
-    // downbeats; `gridOrigin` mirrors `beats[beatIndex]`, so it is already covered).
-    var minTime = beats.lazy.map(\.presentationTime).min() ?? 0
-    var maxTime = beats.lazy.map(\.presentationTime).max() ?? 0
+    // A free-standing (`nil`-index) `gridOrigin` is the one anchor NOT mirrored by a
+    // beat — its time moves on its own and must be folded into the min/max and shifted
+    // explicitly. A coupled anchor (`beatIndex != nil`) follows `beats[beatIndex]`.
+    let freeStandingOrigin: BeatGridAnchor? = {
+      guard let origin = gridOrigin, origin.beatIndex == nil else { return nil }
+      return origin
+    }()
+
+    // Minimum/maximum presentation time across EVERY timestamp that will move — the
+    // UNION of `beats`, the detected-downbeat beats, and a free-standing anchor — seeded
+    // from ±∞ (not a `?? 0` fold) so a `beats: []` grid carrying only a lone free anchor
+    // still seeds `minTime` from the anchor's own time and can move earlier (DD #4).
+    var minTime = Double.infinity
+    var maxTime = -Double.infinity
+    for t in beats.lazy.map(\.presentationTime) {
+      minTime = min(minTime, t)
+      maxTime = max(maxTime, t)
+    }
     if case .detected(let estimate) = downbeats {
       for t in estimate.beats.lazy.map(\.presentationTime) {
         minTime = min(minTime, t)
         maxTime = max(maxTime, t)
       }
     }
+    if let origin = freeStandingOrigin {
+      minTime = min(minTime, origin.presentationTime)
+      maxTime = max(maxTime, origin.presentationTime)
+    }
+
+    // No-op when there are NO movable timestamps (no beats, no detected downbeats, no
+    // free anchor) — the min/max stayed at their ±∞ seeds. Replaces the old
+    // `!beats.isEmpty` guard so a `beats: []` + free-standing-manual grid still offsets.
+    guard minTime.isFinite, maxTime.isFinite else { return self }
 
     // Clamp the DELTA once: a too-negative shift is reduced so the earliest timestamp
     // lands at 0; positive shifts pass through. Spacing is preserved either way. An
@@ -423,16 +492,161 @@ extension BeatGrid {
           confidence: estimate.confidence, phaseIndex: estimate.phaseIndex))
     }
 
-    // Pass the original `gridOrigin`: `init` rebuilds the anchor from the SHIFTED
-    // `beats[beatIndex]`, so the anchor's time follows the shift consistently (A4).
+    // Anchor handling branches on coupling (DD #4):
+    //  - FREE-STANDING (`beatIndex == nil`): `init` rule (c) does NOT rebuild it, so
+    //    shift the anchor's own time HERE and pass the shifted free anchor.
+    //  - COUPLED (`beatIndex != nil`) or a `nil` `gridOrigin`: pass the ORIGINAL anchor
+    //    unchanged — `init` rebuilds it from the SHIFTED `beats[beatIndex]`, so its time
+    //    follows the shift consistently (A4). Do NOT replace a coupled anchor with a
+    //    `nil`-index one (that would strip its coupling).
+    let shiftedOrigin: BeatGridAnchor?
+    if let origin = freeStandingOrigin {
+      shiftedOrigin = BeatGridAnchor(
+        beatIndex: nil,
+        presentationTime: origin.presentationTime + effective,
+        confidence: origin.confidence,
+        strength: origin.strength,
+        source: origin.source)
+    } else {
+      shiftedOrigin = gridOrigin
+    }
+
     return BeatGrid(
       beats: beats.map(shifted),
       downbeats: shiftedDownbeats,
       estimatedTempo: estimatedTempo,
       confidence: confidence,
       tempoAgreement: tempoAgreement,
-      gridOrigin: gridOrigin,
+      gridOrigin: shiftedOrigin,
       coverage: coverage,
       schemaVersion: schemaVersion)
+  }
+}
+
+// MARK: - Manual anchor reposition (Story 8.12)
+
+/// How ``BeatGrid/repositioningAnchor(to:mode:)`` maps a caller-supplied time to the
+/// grid's bar-origin anchor — snapping to the nearest detected beat (the default), or
+/// placing a free-standing anchor at the exact time (Story 8.12).
+///
+/// A transient call-time parameter, never persisted in a ``BeatGrid`` — so it is
+/// `Sendable, Equatable` only, **not** `Codable`/`Hashable` (the persisted provenance
+/// lives on ``BeatGridAnchorSource``; this mirrors the sibling parameter-enum
+/// ``BeatGridTempoLock``, the manual *tempo* half). `CaseIterable` is kept only for the
+/// `allCases.count == 2` exhaustiveness lock and documented room for future
+/// `.nearestDownbeat` / `.nearestBar` modes.
+public enum BeatGridAnchorRepositionMode: Sendable, Equatable, CaseIterable {
+
+  /// Map the caller's time to the **nearest detected beat** and couple the anchor to it
+  /// (the default, least-surprising behavior). The returned ``BeatGrid/gridOrigin`` has
+  /// ``BeatGridAnchor/beatIndex`` set to that beat and takes its time/confidence/strength
+  /// from the beat. A no-op on an empty-``BeatGrid/beats`` grid (nothing to snap to).
+  case snapToNearestBeat
+
+  /// Place a **free-standing** anchor at the caller's (clamped, `≥ 0`) time, decoupled
+  /// from the detected beats (``BeatGridAnchor/beatIndex`` `nil`). The truer Rekordbox
+  /// edit — the bar line sits where the caller put it, not constrained to a detected
+  /// beat. Works even on an empty-``BeatGrid/beats`` grid.
+  case exactTime
+}
+
+extension BeatGrid {
+
+  /// Returns a copy of this grid whose ``gridOrigin`` bar-origin anchor is repositioned to
+  /// `time`, with ``BeatGridAnchorSource/manual`` provenance and every other field
+  /// forwarded bit-identically from `self` (Story 8.12).
+  ///
+  /// The manual *anchor* (bar-origin) half of a Rekordbox-style hand-correction, the
+  /// complement to the manual *tempo* half (``BeatGridTempoLock/bpm(_:)``). Use it when
+  /// auto downbeat / phase-consistency anchoring placed the bar phase wrong, or abstained
+  /// entirely, and a human asserts the origin. Sits beside ``offset(by:)`` (a uniform
+  /// time nudge) — this one repositions the single anchor, not the whole grid.
+  ///
+  /// `mode` controls snapping (the operator-required toggle):
+  /// - ``BeatGridAnchorRepositionMode/snapToNearestBeat`` (default): the anchor is
+  ///   **coupled** to the nearest detected beat (`argmin |beat.presentationTime − time|`,
+  ///   ties → the lower ``BeatGridAnchor/beatIndex``); time/confidence/strength come from
+  ///   that beat.
+  /// - ``BeatGridAnchorRepositionMode/exactTime``: the anchor is **free-standing** at the
+  ///   clamped `time` (``BeatGridAnchor/beatIndex`` `nil`, the time authoritative).
+  ///
+  /// Pure, deterministic, total — never throws or traps. No-ops returning `self`
+  /// unchanged: a non-finite `time`; `.snapToNearestBeat` on an empty-``beats`` grid
+  /// (nothing to snap to). `.exactTime` works on an empty-``beats`` grid (a free-standing
+  /// origin needs no beat). It repositions the anchor ONLY — ``downbeats`` is **not**
+  /// forced to ``DownbeatResult/detected`` (a `.manual` origin asserts the bar without
+  /// claiming detection ran), and ``beats`` is never re-spaced.
+  ///
+  /// - Parameters:
+  ///   - time: The decoded-PCM-relative target time, in seconds. Clamped `≥ 0` by
+  ///     ``BeatGridAnchor`` (so a negative finite time places the free anchor at `0`, or
+  ///     snaps to the earliest beat).
+  ///   - mode: Snap to the nearest detected beat (default) or place a free-standing anchor
+  ///     at the exact time.
+  /// - Returns: A new grid with the repositioned ``gridOrigin``, or `self` on a no-op.
+  public func repositioningAnchor(
+    to time: Double,
+    mode: BeatGridAnchorRepositionMode = .snapToNearestBeat
+  ) -> BeatGrid {
+    // Total-function no-op: a non-finite target has no honest placement.
+    guard time.isFinite else { return self }
+
+    let newOrigin: BeatGridAnchor
+    switch mode {
+    case .snapToNearestBeat:
+      // Couple to the nearest detected beat: `beatIndex` set, time/conf/strength taken
+      // from that beat (the memberwise-init rebuild reproduces them). Nothing to snap to
+      // on an empty-`beats` grid → no-op.
+      guard let index = nearestBeatIndex(to: time) else { return self }
+      let beat = beats[index]
+      newOrigin = BeatGridAnchor(
+        beatIndex: index,
+        presentationTime: beat.presentationTime,
+        confidence: beat.confidence,
+        strength: beat.strength,
+        source: .manual)
+    case .exactTime:
+      // Free-standing placement: `beatIndex == nil`, the caller's clamped time
+      // authoritative. A human-asserted origin carries full confidence/strength (there is
+      // no underlying beat to read salience from). Survives init rule (c) because
+      // `source == .manual`.
+      newOrigin = BeatGridAnchor(
+        beatIndex: nil,
+        presentationTime: time,
+        confidence: 1.0,
+        strength: 1.0,
+        source: .manual)
+    }
+
+    // Forward every non-`gridOrigin` field from `self` (W52 forward-every-field) so only
+    // the anchor changes (AC #9 self-vs-result bit-identity; `schemaVersion` forwarded,
+    // not re-stamped).
+    return BeatGrid(
+      beats: beats,
+      downbeats: downbeats,
+      estimatedTempo: estimatedTempo,
+      confidence: confidence,
+      tempoAgreement: tempoAgreement,
+      gridOrigin: newOrigin,
+      coverage: coverage,
+      schemaVersion: schemaVersion)
+  }
+
+  /// Index of the detected beat nearest `time` (`argmin |beat.presentationTime − time|`),
+  /// ties broken to the LOWER index (the earlier beat). `nil` for an empty ``beats``.
+  /// An ordinary control-flow scan over the in-memory array (not a bulk vDSP op).
+  private func nearestBeatIndex(to time: Double) -> Int? {
+    guard !beats.isEmpty else { return nil }
+    var bestIdx = 0
+    var bestDist = abs(beats[0].presentationTime - time)
+    for i in 1..<beats.count {
+      let d = abs(beats[i].presentationTime - time)
+      // Strict `<` keeps the lower index on an exact-distance tie (earlier beat wins).
+      if d < bestDist {
+        bestDist = d
+        bestIdx = i
+      }
+    }
+    return bestIdx
   }
 }

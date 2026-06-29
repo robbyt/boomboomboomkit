@@ -824,8 +824,8 @@ struct BeatGridTypesTests {
     #expect(decoded.gridOrigin == nil)
     #expect(decoded.beats.count == 1)
     // A consumer's documented `beats[beatIndex]` access is now safe by construction.
-    if let origin = decoded.gridOrigin {
-      #expect(origin.beatIndex < decoded.beats.count)
+    if let origin = decoded.gridOrigin, let idx = origin.beatIndex {
+      #expect(idx < decoded.beats.count)
     }
   }
 
@@ -998,16 +998,17 @@ struct BeatGridTypesTests {
 
   // MARK: - Story 8.5a: BeatGrid.schemaVersion semantic-contract stamp (AC9 / DD #9)
 
-  /// The current version is pinned to `1` so a future bump is a visible diff
-  /// against this test (the closest an inert field gets to enforcement), and a
-  /// default-constructed grid auto-stamps it.
-  @Test func schemaVersionCurrentIsOneAndDefaultStamped() {
-    #expect(BeatGrid.currentSchemaVersion == 1)
-    #expect(Self.noRunSentinel.schemaVersion == 1)
+  /// The current version is pinned to `2` (bumped from `1` by Story 8.12's
+  /// `BeatGridAnchor.beatIndex: Int?` persisted-contract change) so a future bump is
+  /// a visible diff against this test (the closest an inert field gets to
+  /// enforcement), and a default-constructed grid auto-stamps it.
+  @Test func schemaVersionCurrentIsTwoAndDefaultStamped() {
+    #expect(BeatGrid.currentSchemaVersion == 2)
+    #expect(Self.noRunSentinel.schemaVersion == 2)
     let grid = BeatGrid(
       beats: [], downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
       tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
-    #expect(grid.schemaVersion == 1)
+    #expect(grid.schemaVersion == 2)
   }
 
   /// A legacy payload WITHOUT the key decodes to `schemaVersion == 1` (absent → 1),
@@ -1025,7 +1026,7 @@ struct BeatGridTypesTests {
       tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
     let obj = try #require(
       try JSONSerialization.jsonObject(with: JSONEncoder().encode(grid)) as? [String: Any])
-    #expect(obj["schemaVersion"] as? Int == 1)
+    #expect(obj["schemaVersion"] as? Int == 2)
   }
 
   /// An unknown FUTURE version decodes faithfully (stored as-is, no throw) — the
@@ -1052,5 +1053,359 @@ struct BeatGridTypesTests {
       schemaVersion: 2)
     #expect(v1 != v2)
     #expect(v1.hashValue != v2.hashValue)
+  }
+
+  // MARK: - Story 8.12: BeatGridAnchor.beatIndex: Int? (optional provenance)
+
+  @Test func optionalBeatIndexClampsPresentNegativeAndPassesNil() {
+    // A present index clamps `≥ 0`; a `nil` index (free-standing manual origin) passes through.
+    let present = BeatGridAnchor(
+      beatIndex: -4, presentationTime: 1.0, confidence: 0.5, strength: 0.5, source: .manual)
+    #expect(present.beatIndex == 0)
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 1.0, confidence: 0.5, strength: 0.5, source: .manual)
+    #expect(free.beatIndex == nil)
+  }
+
+  @Test func anchorDescriptionRendersOptionalBeatIndex() {
+    let coupled = BeatGridAnchor(
+      beatIndex: 3, presentationTime: 1.0, confidence: 0.5, strength: 0.5, source: .manual)
+    #expect(coupled.description.contains("beat: 3"))
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 1.0, confidence: 0.5, strength: 0.5, source: .manual)
+    #expect(free.description.contains("beat: nil"))
+    #expect(!free.description.contains("Optional"))  // not `beat: Optional(…)`
+  }
+
+  @Test func optionalBeatIndexCodableOmitsNilKeyReclampsPresentNegative() throws {
+    // The synthesized encoder omits the key when `nil`; the decode treats missing/`null` as
+    // `nil` and re-clamps a *present* negative to `0` (routes through the clamping init).
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 2.5, confidence: 0.7, strength: 0.4, source: .manual)
+    let data = try JSONEncoder().encode(free)
+    let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(obj["beatIndex"] == nil)
+    #expect(try JSONDecoder().decode(BeatGridAnchor.self, from: data) == free)
+
+    let coupled = BeatGridAnchor(
+      beatIndex: 5, presentationTime: 1.0, confidence: 0.5, strength: 0.5, source: .manual)
+    let obj2 = try #require(
+      try JSONSerialization.jsonObject(with: JSONEncoder().encode(coupled)) as? [String: Any])
+    #expect(obj2["beatIndex"] as? Int == 5)
+
+    // Explicit `null`, omitted key, and a present negative on decode.
+    let nullJSON =
+      #"{"beatIndex": null, "presentationTime": 1.0, "confidence": 0.5, "strength": 0.5, "source": "manual"}"#
+    #expect(
+      try JSONDecoder().decode(BeatGridAnchor.self, from: Data(nullJSON.utf8)).beatIndex == nil)
+    let omittedJSON =
+      #"{"presentationTime": 1.0, "confidence": 0.5, "strength": 0.5, "source": "firstBeat"}"#
+    #expect(
+      try JSONDecoder().decode(BeatGridAnchor.self, from: Data(omittedJSON.utf8)).beatIndex == nil)
+    let negJSON =
+      #"{"beatIndex": -3, "presentationTime": 1.0, "confidence": 0.5, "strength": 0.5, "source": "manual"}"#
+    #expect(
+      try JSONDecoder().decode(BeatGridAnchor.self, from: Data(negJSON.utf8)).beatIndex == 0)
+  }
+
+  // MARK: - Story 8.12: BeatGridAnchorSource.manual
+
+  @Test func manualSourceRawValueWireShapeAndExhaustiveSwitch() throws {
+    #expect(BeatGridAnchorSource.manual.rawValue == "manual")
+    // `String`-backed → bare-string wire shape.
+    #expect(try JSONEncoder().encode(BeatGridAnchorSource.manual) == Data(#""manual""#.utf8))
+    // Exhaustive 5-case switch (a future case is a compile error here).
+    let all: [BeatGridAnchorSource] = [
+      .medianConsistentBeat, .strongestBeat, .firstBeat, .downbeat, .manual,
+    ]
+    for source in all {
+      switch source {
+      case .medianConsistentBeat, .strongestBeat, .firstBeat, .downbeat, .manual:
+        #expect(Bool(true))
+      }
+    }
+  }
+
+  @Test func manualAnchorRoundTripsSnappedAndFreeStanding() throws {
+    let snapped = BeatGridAnchor(
+      beatIndex: 2, presentationTime: 1.0, confidence: 0.5, strength: 0.5, source: .manual)
+    #expect(
+      try JSONDecoder().decode(BeatGridAnchor.self, from: JSONEncoder().encode(snapped)) == snapped)
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 3.7, confidence: 0.9, strength: 0.8, source: .manual)
+    #expect(
+      try JSONDecoder().decode(BeatGridAnchor.self, from: JSONEncoder().encode(free)) == free)
+  }
+
+  // MARK: - Story 8.12: BeatGrid.init three-rule gridOrigin invariant (DD #3)
+
+  @Test func freeStandingManualAnchorIsKeptOffTheBeatGrid() throws {
+    // (c) `nil` index + `.manual` → kept; the arbitrary off-beat time is authoritative.
+    let beats = Self.makeBeats(4)  // beats at 0.0/0.5/1.0/1.5
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 0.77, confidence: 1.0, strength: 1.0, source: .manual)
+    let grid = BeatGrid(
+      beats: beats, downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: free, coverage: .analysisWindow)
+    let anchor = try #require(grid.gridOrigin)
+    #expect(anchor.beatIndex == nil)
+    #expect(anchor.presentationTime == 0.77)  // NOT snapped to a beat
+    #expect(anchor.source == .manual)
+  }
+
+  @Test func freeStandingManualAnchorValidOnEmptyBeatsWithNotAttempted() throws {
+    // A `.manual` origin asserts the bar WITHOUT claiming detection ran: it coexists with
+    // empty beats AND `downbeats == .notAttempted` (DD #6 coupling-orthogonal trust).
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 12.5, confidence: 1.0, strength: 1.0, source: .manual)
+    let grid = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 128, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: free, coverage: .analysisWindow)
+    let anchor = try #require(grid.gridOrigin)
+    #expect(anchor.beatIndex == nil)
+    #expect(anchor.presentationTime == 12.5)
+    #expect(grid.downbeats == .notAttempted)
+  }
+
+  @Test func nilIndexNonManualAnchorIsDropped() {
+    // (c) `nil` index + a non-`.manual` source (an auto source with no beat to name) is
+    // incoherent → dropped (sanitization).
+    let incoherent = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 1.0, confidence: 0.5, strength: 0.5, source: .firstBeat)
+    let grid = BeatGrid(
+      beats: Self.makeBeats(4), downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: incoherent, coverage: .analysisWindow)
+    #expect(grid.gridOrigin == nil)
+  }
+
+  @Test func outOfRangeManualAnchorIsDropped() {
+    // (b) present + out of range → drop the WHOLE anchor, even for `.manual` (a claimed beat
+    // relationship that is invalid is stale, NOT promoted to a free placement).
+    let stale = BeatGridAnchor(
+      beatIndex: 99, presentationTime: 5.0, confidence: 1.0, strength: 1.0, source: .manual)
+    let grid = BeatGrid(
+      beats: Self.makeBeats(4), downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: stale, coverage: .analysisWindow)
+    #expect(grid.gridOrigin == nil)
+  }
+
+  @Test func decodedOutOfRangeManualAnchorIsDropped() throws {
+    // Codable path mirrors the memberwise (b): a decoded present-out-of-range `.manual` drops.
+    let json = #"""
+      {"beats": [{"presentationTime": 0.5, "confidence": 0.9, "strength": 0.7}],
+       "downbeats": {"notAttempted": {}}, "estimatedTempo": 120, "confidence": 0.5,
+       "gridOrigin": {"beatIndex": 50, "presentationTime": 5.0, "confidence": 1.0,
+                      "strength": 1.0, "source": "manual"}}
+      """#
+    let grid = try JSONDecoder().decode(BeatGrid.self, from: Data(json.utf8))
+    #expect(grid.gridOrigin == nil)
+    #expect(grid.beats.count == 1)
+  }
+
+  @Test func decodedNilIndexNonManualAnchorIsDropped() throws {
+    // Codable path mirrors the memberwise (c): a decoded `nil`-index (omitted key)
+    // `.firstBeat` anchor is incoherent → dropped. The safe hostile-decode posture: a
+    // payload cannot smuggle a free-standing NON-manual origin.
+    let json = #"""
+      {"beats": [{"presentationTime": 0.5, "confidence": 0.9, "strength": 0.7}],
+       "downbeats": {"notAttempted": {}}, "estimatedTempo": 120, "confidence": 0.5,
+       "gridOrigin": {"presentationTime": 0.5, "confidence": 0.9, "strength": 0.7,
+                      "source": "firstBeat"}}
+      """#
+    let grid = try JSONDecoder().decode(BeatGrid.self, from: Data(json.utf8))
+    #expect(grid.gridOrigin == nil)
+  }
+
+  @Test func decodedInRangeGridOriginRebuiltFromBeat() throws {
+    // Codable path mirrors the memberwise rule (a): a decoded present + in-range anchor with a
+    // MISMATCHED time/confidence/strength is rebuilt from `beats[beatIndex]` (beatIndex + source
+    // preserved). Completes the AC #3 "both paths" matrix for rule (a) — the decoded sibling of
+    // `inRangeGridOriginRebuiltFromBeatPreservingSource`.
+    let json = #"""
+      {"beats": [{"presentationTime": 0.5, "confidence": 0.9, "strength": 0.7},
+                 {"presentationTime": 1.0, "confidence": 0.8, "strength": 0.6}],
+       "downbeats": {"notAttempted": {}}, "estimatedTempo": 120, "confidence": 0.5,
+       "gridOrigin": {"beatIndex": 1, "presentationTime": 999.0, "confidence": 0.1,
+                      "strength": 0.05, "source": "medianConsistentBeat"}}
+      """#
+    let grid = try JSONDecoder().decode(BeatGrid.self, from: Data(json.utf8))
+    let anchor = try #require(grid.gridOrigin)
+    #expect(anchor.beatIndex == 1)  // preserved
+    #expect(anchor.source == .medianConsistentBeat)  // preserved
+    // Rebuilt from beats[1], NOT the hostile decoded values.
+    #expect(anchor.presentationTime == grid.beats[1].presentationTime)
+    #expect(anchor.confidence == grid.beats[1].confidence)
+    #expect(anchor.strength == grid.beats[1].strength)
+  }
+
+  @Test func freeStandingManualGridCodableRoundTripPreservesArbitraryTime() throws {
+    // AC #4: a free-standing manual grid round-trips with its arbitrary off-beat time intact
+    // (the `nil`-index anchor is NOT rebuilt from any beat).
+    let beats = Self.makeBeats(4)
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 1.234567, confidence: 0.6, strength: 0.3, source: .manual)
+    let grid = BeatGrid(
+      beats: beats, downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: free, coverage: .analysisWindow)
+    let decoded = try JSONDecoder().decode(BeatGrid.self, from: JSONEncoder().encode(grid))
+    let anchor = try #require(decoded.gridOrigin)
+    #expect(anchor.beatIndex == nil)
+    #expect(anchor.presentationTime == 1.234567)
+    #expect(anchor.source == .manual)
+    #expect(decoded == grid)  // whole-grid round-trip identity
+  }
+
+  // MARK: - Story 8.12: repositioningAnchor(to:mode:)
+
+  /// A grid with beats at 0.0/0.5/1.0/1.5/2.0 (uniform conf 0.8 / str 0.6) and a coupled
+  /// auto-style anchor at beat 0 — independent planted ground truth for the nearest-beat math.
+  private static func repositionGrid() -> BeatGrid {
+    let beats = [0.0, 0.5, 1.0, 1.5, 2.0].map {
+      BeatTimestamp(presentationTime: $0, confidence: 0.8, strength: 0.6)
+    }
+    return BeatGrid(
+      beats: beats, downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.9,
+      tempoAgreement: .agree,
+      gridOrigin: BeatGridAnchor(
+        beatIndex: 0, presentationTime: 0.0, confidence: 0.8, strength: 0.6,
+        source: .medianConsistentBeat),
+      coverage: .fullTrack)
+  }
+
+  @Test func repositionModeHasTwoCasesAndExhaustiveSwitch() {
+    #expect(BeatGridAnchorRepositionMode.allCases.count == 2)
+    for mode in BeatGridAnchorRepositionMode.allCases {
+      switch mode {
+      case .snapToNearestBeat, .exactTime: #expect(Bool(true))
+      }
+    }
+  }
+
+  @Test func snapToNearestBeatCouplesToNearestBeatAsManual() throws {
+    let grid = Self.repositionGrid()
+    // 1.1 is nearest to beat 2 (1.0): distance 0.1 vs 0.4 to beat 3 (1.5).
+    let result = grid.repositioningAnchor(to: 1.1)  // default .snapToNearestBeat
+    let anchor = try #require(result.gridOrigin)
+    #expect(anchor.beatIndex == 2)
+    #expect(anchor.presentationTime == 1.0)  // taken from beats[2]
+    #expect(anchor.confidence == grid.beats[2].confidence)
+    #expect(anchor.strength == grid.beats[2].strength)
+    #expect(anchor.source == .manual)
+  }
+
+  @Test func exactTimePlacesFreeStandingManualAnchor() throws {
+    let grid = Self.repositionGrid()
+    let result = grid.repositioningAnchor(to: 1.1, mode: .exactTime)
+    let anchor = try #require(result.gridOrigin)
+    #expect(anchor.beatIndex == nil)
+    #expect(anchor.presentationTime == 1.1)  // NOT snapped
+    #expect(anchor.source == .manual)
+  }
+
+  @Test func snapTieBreaksToLowerBeatIndex() throws {
+    let grid = Self.repositionGrid()
+    // 1.25 is exactly equidistant from beat 2 (1.0) and beat 3 (1.5) → lower index wins.
+    let result = grid.repositioningAnchor(to: 1.25)
+    #expect(result.gridOrigin?.beatIndex == 2)
+    #expect(result.gridOrigin?.presentationTime == 1.0)
+  }
+
+  @Test func snapNegativeTimeSnapsToEarliestBeat() throws {
+    let grid = Self.repositionGrid()
+    let result = grid.repositioningAnchor(to: -10.0)
+    #expect(result.gridOrigin?.beatIndex == 0)  // earliest beat
+    #expect(result.gridOrigin?.presentationTime == 0.0)
+  }
+
+  @Test func repositionNonFiniteTimeIsNoOp() {
+    let grid = Self.repositionGrid()
+    #expect(grid.repositioningAnchor(to: .nan) == grid)
+    #expect(grid.repositioningAnchor(to: .infinity) == grid)
+    #expect(grid.repositioningAnchor(to: -.infinity, mode: .exactTime) == grid)
+  }
+
+  @Test func snapOnEmptyBeatsIsNoOp() {
+    let empty = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 0, confidence: 0,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+    // Default `.snapToNearestBeat` has nothing to snap to → returns self unchanged.
+    #expect(empty.repositioningAnchor(to: 5.0) == empty)
+  }
+
+  @Test func exactTimeOnEmptyBeatsPlacesFreeAnchor() throws {
+    let empty = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 0, confidence: 0,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+    let result = empty.repositioningAnchor(to: 5.0, mode: .exactTime)
+    let anchor = try #require(result.gridOrigin)
+    #expect(anchor.beatIndex == nil)
+    #expect(anchor.presentationTime == 5.0)
+    #expect(anchor.source == .manual)
+    #expect(result.beats.isEmpty)
+  }
+
+  @Test func exactTimeNegativeClampsToZero() throws {
+    let grid = Self.repositionGrid()
+    // A negative finite time under `.exactTime` clamps to 0 (BeatGridAnchor floor).
+    let anchor = try #require(grid.repositioningAnchor(to: -3.0, mode: .exactTime).gridOrigin)
+    #expect(anchor.beatIndex == nil)
+    #expect(anchor.presentationTime == 0.0)
+  }
+
+  @Test func repositionMutatesAnchorOnlyAndDoesNotForceDetected() {
+    let grid = Self.repositionGrid()
+    let result = grid.repositioningAnchor(to: 1.1, mode: .exactTime)
+    // Every non-gridOrigin field is bit-identical (AC #9).
+    #expect(result.beats == grid.beats)
+    #expect(result.downbeats == grid.downbeats)
+    #expect(result.estimatedTempo.bitPattern == grid.estimatedTempo.bitPattern)
+    #expect(result.confidence.bitPattern == grid.confidence.bitPattern)
+    #expect(result.tempoAgreement == grid.tempoAgreement)
+    #expect(result.coverage == grid.coverage)
+    #expect(result.schemaVersion == grid.schemaVersion)
+    // `downbeats` is NOT forced to `.detected` (a `.manual` origin does not claim detection).
+    #expect(result.downbeats == .notAttempted)
+  }
+
+  // MARK: - Story 8.12: offset(by:) with a free-standing anchor (DD #4)
+
+  @Test func offsetShiftsFreeStandingAnchorDirectly() throws {
+    let beats = [1.0, 1.5, 2.0].map {
+      BeatTimestamp(presentationTime: $0, confidence: 0.8, strength: 0.6)
+    }
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 1.2, confidence: 0.9, strength: 0.7, source: .manual)
+    let grid = BeatGrid(
+      beats: beats, downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.9,
+      tempoAgreement: .agree, gridOrigin: free, coverage: .fullTrack)
+    // +0.25: beats shift, and the free anchor shifts DIRECTLY (init does not rebuild a
+    // `nil`-index anchor, so `offset` must move it itself).
+    let plus = grid.offset(by: 0.25)
+    #expect(plus.beats.map(\.presentationTime) == [1.25, 1.75, 2.25])
+    #expect(plus.gridOrigin?.beatIndex == nil)
+    // Compare against the computed shift (`1.2 + 0.25`), not the non-representable literal
+    // `1.45`, so the assertion can't break by 1 ULP on an operand-order/clamp change.
+    #expect(plus.gridOrigin?.presentationTime == 1.2 + 0.25)
+    #expect(plus.gridOrigin?.source == .manual)
+  }
+
+  @Test func offsetFreeStandingAnchorOnEmptyBeatsSeedsFromAnchorTime() throws {
+    // A lone free anchor at 100 on an empty-`beats` grid: min/max are seeded from the
+    // anchor's OWN time (the union, not a `?? 0` fold), so a negative offset actually moves
+    // it instead of clamping to a no-op (DD #4).
+    let free = BeatGridAnchor(
+      beatIndex: nil, presentationTime: 100.0, confidence: 1.0, strength: 1.0, source: .manual)
+    let grid = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 0, confidence: 0,
+      tempoAgreement: .notCompared, gridOrigin: free, coverage: .analysisWindow)
+    // −50 → 50 (proves minTime came from the anchor, not 0 which would clamp to a no-op).
+    #expect(grid.offset(by: -50).gridOrigin?.presentationTime == 50.0)
+    // −150 → the (only) timestamp clamps to land exactly at 0.
+    #expect(grid.offset(by: -150).gridOrigin?.presentationTime == 0.0)
+    // +30 → 130.
+    #expect(grid.offset(by: 30).gridOrigin?.presentationTime == 130.0)
+    // The shifted anchor stays free-standing manual.
+    #expect(grid.offset(by: -50).gridOrigin?.beatIndex == nil)
+    #expect(grid.offset(by: -50).gridOrigin?.source == .manual)
   }
 }

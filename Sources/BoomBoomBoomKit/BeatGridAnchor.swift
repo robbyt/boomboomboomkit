@@ -34,15 +34,26 @@
 ///
 /// ## NaN-free by construction → `Hashable`
 /// Like ``BeatTimestamp`` / ``BeatGrid``, every float field is clamped finite at
-/// every init path (memberwise + `Codable` decode), and `beatIndex` is clamped
-/// `≥ 0`, which is what makes the compiler-synthesized `Hashable`/`Equatable`
-/// sound.
+/// every init path (memberwise + `Codable` decode), and `beatIndex` is either
+/// `nil` or a clamped `≥ 0` `Int` (no `Double`, no `NaN`), which is what makes the
+/// compiler-synthesized `Hashable`/`Equatable` sound.
 public struct BeatGridAnchor: Sendable, Hashable, Codable, CustomStringConvertible {
 
   // MARK: Stored
 
-  /// Index into ``BeatGrid/beats`` of the chosen anchor beat. Clamped `≥ 0`.
-  public let beatIndex: Int
+  /// The detected beat this anchor is **coupled** to — an index into
+  /// ``BeatGrid/beats`` — or `nil` for a **free-standing** manual origin whose
+  /// ``presentationTime`` stands on its own (Story 8.12).
+  ///
+  /// `!= nil` ⇒ coupled: ``BeatGrid`` rebuilds ``presentationTime`` /
+  /// ``confidence`` / ``strength`` from `beats[beatIndex]` at construction, so the
+  /// anchor always agrees with its beat (the verbatim auto-anchor contract). `==
+  /// nil` ⇒ free-standing: a ``BeatGridAnchorSource/manual`` origin placed off the
+  /// detected grid, with no beat backing it and ``presentationTime`` authoritative.
+  /// A *present* index is clamped `≥ 0`; a `nil` index passes through. The index is
+  /// the mechanical coupling discriminator; ``source`` is pure provenance (a
+  /// `.manual` anchor may be coupled OR free-standing — DD #2).
+  public let beatIndex: Int?
 
   /// Decoded-PCM-relative playback time of the anchor beat, in seconds from the
   /// start of the file (same contract as ``BeatTimestamp/presentationTime``).
@@ -62,22 +73,24 @@ public struct BeatGridAnchor: Sendable, Hashable, Codable, CustomStringConvertib
 
   // MARK: Init
 
-  /// Creates an anchor, clamping `beatIndex` `≥ 0` and every float field finite.
+  /// Creates an anchor, clamping a *present* `beatIndex` `≥ 0` (a `nil` index — a
+  /// free-standing manual origin — passes through) and every float field finite.
   ///
   /// - Parameters:
-  ///   - beatIndex: Index into `beats` (clamped `≥ 0`).
+  ///   - beatIndex: Index into `beats` of the coupled beat (clamped `≥ 0`), or
+  ///     `nil` for a free-standing manual origin.
   ///   - presentationTime: Decoded-PCM-relative beat time (clamped `≥ 0`).
   ///   - confidence: Anchor confidence (clamped to `[0, 1]`).
   ///   - strength: Anchor onset strength (clamped to `[0, 1]`).
   ///   - source: Which selection rule fired.
   public init(
-    beatIndex: Int,
+    beatIndex: Int?,
     presentationTime: Double,
     confidence: Float,
     strength: Float,
     source: BeatGridAnchorSource
   ) {
-    self.beatIndex = max(0, beatIndex)
+    self.beatIndex = beatIndex.map { max(0, $0) }
     self.presentationTime = BeatGridClamp.clampNonNegative(presentationTime)
     self.confidence = BeatGridClamp.clampUnit(confidence)
     self.strength = BeatGridClamp.clampUnit(strength)
@@ -89,10 +102,13 @@ public struct BeatGridAnchor: Sendable, Hashable, Codable, CustomStringConvertib
   /// Decodes raw scalars into locals and constructs `self` through the clamping
   /// memberwise init so a hostile or out-of-range JSON payload is re-clamped on
   /// the way in (it deliberately does NOT assign decoded values directly).
-  /// `encode(to:)` and `CodingKeys` are compiler-synthesized.
+  /// `beatIndex` is decoded with `decodeIfPresent` (a missing/`null` key → `nil`,
+  /// the free-standing manual origin; a *present* negative re-clamps to `0`); the
+  /// synthesized `encode(to:)` symmetrically omits the key when `nil`. `encode(to:)`
+  /// and `CodingKeys` are compiler-synthesized.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    let beatIndex = try container.decode(Int.self, forKey: .beatIndex)
+    let beatIndex = try container.decodeIfPresent(Int.self, forKey: .beatIndex)
     let presentationTime = try container.decode(Double.self, forKey: .presentationTime)
     let confidence = try container.decode(Float.self, forKey: .confidence)
     let strength = try container.decode(Float.self, forKey: .strength)
@@ -107,9 +123,10 @@ public struct BeatGridAnchor: Sendable, Hashable, Codable, CustomStringConvertib
 
   // MARK: CustomStringConvertible
 
-  /// One-line summary for logs and trace dumps.
+  /// One-line summary for logs and trace dumps. A free-standing anchor renders its
+  /// `beatIndex` as `nil` (not `Optional(…)`).
   public var description: String {
-    "BeatGridAnchor(beat: \(beatIndex), t: \(presentationTime)s, "
+    "BeatGridAnchor(beat: \(beatIndex.map { String($0) } ?? "nil"), t: \(presentationTime)s, "
       + "conf: \(confidence), str: \(strength), source: \(source.rawValue))"
   }
 }
@@ -138,4 +155,14 @@ public enum BeatGridAnchorSource: String, Sendable, Hashable, Codable {
   /// Reserved for the downbeat story (Story 8.5a): the anchor coincides with a
   /// detected bar start. **Not produced by Story 8.5.**
   case downbeat
+
+  /// A human placed this origin by hand (Story 8.12): a deliberate user override
+  /// of the bar origin, honored as bar-trustworthy. **Coupling-orthogonal** — a
+  /// `.manual` anchor may be *snapped* to a detected beat
+  /// (``BeatGridAnchor/beatIndex`` non-`nil`) or *free-standing*
+  /// (``BeatGridAnchor/beatIndex`` `nil`, an off-beat time). Unlike ``downbeat`` it
+  /// has no second field to corroborate (it coexists with
+  /// ``DownbeatResult/notAttempted``), so honoring `source == .manual` alone on a
+  /// decoded payload is acceptable — see ``BeatGrid`` for the trust asymmetry.
+  case manual
 }

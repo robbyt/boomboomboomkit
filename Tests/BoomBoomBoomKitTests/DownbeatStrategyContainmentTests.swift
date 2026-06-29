@@ -167,12 +167,17 @@ struct DownbeatStrategyContainmentTests {
   /// AC #2(a) — an ALWAYS-RUN committed bit-pattern snapshot of the default-path
   /// (`detectDownbeats == false`, `.metricalAccent`) `BeatGrid` graph + bpm fields, so a
   /// future uniform drift from the pre-story output is caught in `make test` — not only by
-  /// the operator-run, env-gated OA300/GiantSteps byte-identity benchmarks. The expected
-  /// digest was captured from the Story-8.11 default path, which is byte-identical to the
-  /// pre-story baseline (commit 0a8c18a) BY CONSTRUCTION: with `detectDownbeats == false`
-  /// the downbeat branch is never entered (`downbeats == .notAttempted`) and
-  /// `structuralDropContour` returns `nil`, so the new enum + helper add zero operations.
-  /// Corroborated by the OA300 58/82·74/82 + GiantSteps 537/661·546/661 baseline match.
+  /// the operator-run, env-gated OA300/GiantSteps byte-identity benchmarks.
+  ///
+  /// Re-captured for Story 8.12: the digest moved because ``BeatGrid/schemaVersion`` bumped
+  /// 1 → 2 (the `BeatGridAnchor.beatIndex: Int?` persisted-contract change, DD #5). The
+  /// default-path grid is OTHERWISE byte-identical to the pre-story baseline (commit
+  /// 0a8c18a): with `detectDownbeats == false` the downbeat branch is never entered
+  /// (`downbeats == .notAttempted`); the auto anchor keeps a non-nil `beatIndex` that
+  /// encodes identically to the pre-`Int?` form — so the ONLY serialized delta is the
+  /// version stamp. The second assertion proves exactly that (re-stamping to v1 reproduces
+  /// the pre-story digest). Corroborated by the OA300 58/82·74/82 + GiantSteps
+  /// 537/661·546/661 baseline match.
   @Test func defaultPathBeatGridMatchesPreStorySnapshot() throws {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
     let decoded = try PCMBufferReader.readDecodedAudio(from: url)
@@ -183,22 +188,40 @@ struct DownbeatStrategyContainmentTests {
 
     // Canonical full-graph encoding: the BeatGrid as sorted-key JSON (Double → shortest
     // round-trip decimal, deterministic + platform-independent) plus the bpm/confidence/
-    // candidate bit patterns. One SHA-256 over the lot = the committed pre-story digest.
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.sortedKeys]
-    let gridHex = SHA256.hash(data: try encoder.encode(grid))
-      .map { String(format: "%02x", $0) }.joined()
-    var canonical = "bpm=\(result.bpm.bitPattern);conf=\(result.confidence.bitPattern)"
-    for c in result.candidates { canonical += ";cand=\(c.bpm.bitPattern),\(c.score.bitPattern)" }
-    canonical += ";grid=\(gridHex)"
-    let digest = SHA256.hash(data: Data(canonical.utf8))
-      .map { String(format: "%02x", $0) }.joined()
+    // candidate bit patterns. One SHA-256 over the lot.
+    func digest(of grid: BeatGrid) throws -> String {
+      let encoder = JSONEncoder()
+      encoder.outputFormatting = [.sortedKeys]
+      let gridHex = SHA256.hash(data: try encoder.encode(grid))
+        .map { String(format: "%02x", $0) }.joined()
+      var canonical = "bpm=\(result.bpm.bitPattern);conf=\(result.confidence.bitPattern)"
+      for c in result.candidates { canonical += ";cand=\(c.bpm.bitPattern),\(c.score.bitPattern)" }
+      canonical += ";grid=\(gridHex)"
+      return SHA256.hash(data: Data(canonical.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
 
-    let expected = "5019b4fa0dccb5dfd8a52ce98eef2b16bac62b80bde02109f61bb0a09a239c9b"
-    if digest != expected { print("[snapshot] defaultPathBeatGrid digest = \(digest)") }
+    // The default path stamps schemaVersion 2 since Story 8.12.
+    #expect(grid.schemaVersion == 2)
+    let actual = try digest(of: grid)
+    let expected = "81139047ae6c96dfcdd4bd9019b8c4f59f78ec0cca8a3522acd976709020226f"
+    if actual != expected { print("[snapshot] defaultPathBeatGrid digest = \(actual)") }
     #expect(
-      digest == expected,
-      "default-path BeatGrid drifted from the pre-story snapshot (baseline 0a8c18a); update `expected` only if the change is intentional (AC #2(a))."
+      actual == expected,
+      "default-path BeatGrid drifted from the post-8-12 snapshot (baseline 0a8c18a + the deliberate 8-12 schemaVersion 1→2 bump); update `expected` only if the change is intentional (AC #2(a))."
+    )
+
+    // Prove the ONLY delta from the pre-8-12 snapshot is the version stamp: re-stamping the
+    // grid back to schemaVersion 1 (every other field forwarded through the memberwise init,
+    // which rebuilds the coupled auto anchor identically) reproduces the pre-story committed
+    // digest exactly. A mismatch would mean a non-version field moved — a real regression.
+    let downgraded = BeatGrid(
+      beats: grid.beats, downbeats: grid.downbeats, estimatedTempo: grid.estimatedTempo,
+      confidence: grid.confidence, tempoAgreement: grid.tempoAgreement,
+      gridOrigin: grid.gridOrigin, coverage: grid.coverage, schemaVersion: 1)
+    let preStoryDigest = "5019b4fa0dccb5dfd8a52ce98eef2b16bac62b80bde02109f61bb0a09a239c9b"
+    #expect(
+      try digest(of: downgraded) == preStoryDigest,
+      "non-version fields drifted from the pre-8-12 baseline (0a8c18a); the 8-12 delta must be ONLY the schemaVersion 1→2 stamp."
     )
   }
 }
