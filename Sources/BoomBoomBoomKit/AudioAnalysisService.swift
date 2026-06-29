@@ -1695,31 +1695,40 @@ public struct AudioAnalysisService {
   /// does NOT reject a within-octave `.disagree`.
   static func stageLockTempo(target: Double, gridTempo: Double) -> Double? {
     guard target.isFinite, target > 0 else { return nil }
-    switch classifyTempoAgreement(gridTempo: gridTempo, bpmTempo: target) {
-    case .agree: return target
-    case .octaveEquivalent(let factor): return factor == 2 ? target * 2.0 : target * 0.5
-    case .disagree, .notCompared:
-      // `.disagree` conflates within-octave (>2%) with true >octave. The stage tempo
-      // is authoritative within an octave; only a real >octave gap (ratio outside
-      // (0.5, 2.0)) leaves the grid unlocked. A non-finite/≤0 grid tempo (the "no
-      // estimate" sentinel) has no octave to compare, so the stage tempo wins.
-      guard gridTempo.isFinite, gridTempo > 0 else { return target }
-      let ratio = gridTempo / target
-      return ratio > 0.5 && ratio < 2.0 ? target : nil
+    if let shifted = octaveShiftedLock(target: target, gridTempo: gridTempo) {
+      return shifted
     }
+    // `.disagree`/`.notCompared`: `.disagree` conflates within-octave (>2%) with true
+    // >octave. The stage tempo is authoritative within an octave; only a real >octave
+    // gap (ratio outside (0.5, 2.0)) leaves the grid unlocked. A non-finite/≤0 grid
+    // tempo (the "no estimate" sentinel) has no octave to compare, so the stage tempo
+    // wins.
+    guard gridTempo.isFinite, gridTempo > 0 else { return target }
+    let ratio = gridTempo / target
+    return ratio > 0.5 && ratio < 2.0 ? target : nil
   }
 
-  /// Returns `target` octave-shifted (×1, ×2, or ×½) to whichever octave lands
-  /// within the 2% agreement band of `gridTempo`, or `nil` when none does (a
-  /// more-than-an-octave disagreement, or a non-finite/non-positive input). Reuses
-  /// ``classifyTempoAgreement`` so the lock's octave logic and the cross-stage
-  /// agreement classifier can never drift apart.
-  private static func octaveNormalizedLockTempo(target: Double, gridTempo: Double) -> Double? {
+  /// The octave-shift shared by both lock resolvers: `target` itself on `.agree`, the
+  /// octave-shifted target on `.octaveEquivalent`, and `nil` on `.disagree`/`.notCompared`
+  /// (more than an octave apart — each caller decides what to do with that). Single
+  /// source of truth for the octave arithmetic so ``stageLockTempo`` and
+  /// ``octaveNormalizedLockTempo`` can never drift. Reuses ``classifyTempoAgreement`` so
+  /// the lock's octave logic and the cross-stage agreement classifier never drift apart.
+  private static func octaveShiftedLock(target: Double, gridTempo: Double) -> Double? {
     switch classifyTempoAgreement(gridTempo: gridTempo, bpmTempo: target) {
     case .agree: return target
     case .octaveEquivalent(let factor): return factor == 2 ? target * 2.0 : target * 0.5
     case .disagree, .notCompared: return nil
     }
+  }
+
+  /// Returns `target` octave-shifted (×1, ×2, or ×½) to whichever octave lands
+  /// within the 2% agreement band of `gridTempo`, or `nil` when none does (a
+  /// more-than-an-octave disagreement, or a non-finite/non-positive input). Thin
+  /// wrapper over ``octaveShiftedLock`` so the gated ``BeatGridTempoLock/bpm(_:)`` path
+  /// keeps its named documentation seam.
+  private static func octaveNormalizedLockTempo(target: Double, gridTempo: Double) -> Double? {
+    octaveShiftedLock(target: target, gridTempo: gridTempo)
   }
 
   /// Classifies how a beat-grid tempo relates to a BPM-stage tempo (AC7 / FR-31).

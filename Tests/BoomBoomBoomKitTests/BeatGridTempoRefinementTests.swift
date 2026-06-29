@@ -399,4 +399,48 @@ struct BeatGridTempoRefinementTests {
       AudioAnalysisService.applyTempoLock(grid, lock: .off, bpmStageTempo: 120))
     #expect(off.estimatedTempo == 124)
   }
+
+  /// Characterization test (issue #66): the authoritative `stageLockTempo` and the
+  /// gated `octaveNormalizedLockTempo` (reached through `applyTempoLock(_:lock: .bpm,
+  /// ...)`) share the `.agree` / `.octaveEquivalent` octave arithmetic verbatim — now
+  /// a single `octaveShiftedLock` helper. This pins that shared-arm equivalence so a
+  /// future drift between the two octave-shift code paths fails loudly. The two
+  /// resolvers must still DIFFER only on within-octave `.disagree`: the authoritative
+  /// path restores the stage tempo, the gated path no-ops.
+  ///
+  /// Mutation-verification (recorded per the issue #66 test plan): before the
+  /// shared-helper refactor, temporarily breaking ONE resolver's `.octaveEquivalent`
+  /// arm (e.g. flipping `octaveNormalizedLockTempo`'s `factor == 2` branch) makes the
+  /// `.octaveEquivalent` rows below diverge between the two paths and this test goes
+  /// red; the shared-helper refactor makes it green again.
+  @Test func stageAndGatedResolversShareOctaveArms() throws {
+    typealias Svc = AudioAnalysisService
+
+    /// Drive the gated `octaveNormalizedLockTempo` through its only public seam.
+    func gated(target: Double, gridTempo: Double) throws -> Double {
+      try #require(
+        AudioAnalysisService.applyTempoLock(
+          Self.constantGrid(estimatedTempo: gridTempo), lock: .bpm(target), bpmStageTempo: 0)
+      ).estimatedTempo
+    }
+
+    // .agree → both paths return the target.
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 122) == 120)
+    #expect(try gated(target: 120, gridTempo: 122) == 120)
+
+    // .octaveEquivalent ×2 → both paths octave-shift up.
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 240) == 240)
+    #expect(try gated(target: 120, gridTempo: 240) == 240)
+
+    // .octaveEquivalent ×½ → both paths octave-shift down.
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 60) == 60)
+    #expect(try gated(target: 120, gridTempo: 60) == 60)
+
+    // Differ ONLY on within-octave .disagree (124 vs 120, >2%): the authoritative
+    // resolver restores the stage tempo; the gated resolver no-ops. This asymmetry
+    // must survive the de-duplication (issue #66 OUT-OF-SCOPE: the policy difference
+    // itself, deferred 8-10-D6).
+    #expect(Svc.stageLockTempo(target: 120, gridTempo: 124) == 120)
+    #expect(try gated(target: 120, gridTempo: 124) == 124)
+  }
 }
