@@ -263,8 +263,12 @@ enum StructuralDropAnalyzer {
           beats: beats, estimatedTempo: estimatedTempo, beatsPerBar: beatsPerBar,
           phaseIndex: dropPhase, confidence: dropConfidence)
       }
-      // Both fire: agree → boost; disagree → abstain (safety red flag).
-      guard mPhase == dropPhase else { return .noneDetected }
+      // Both fire: agree → boost. Disagree → KEEP the conservative-proven
+      // metrical estimate (do NOT let a possibly-wrong drop veto a standalone-valid
+      // 8.5a fire). The drop is the corroborator, not an authority that can abstain
+      // the metrical source. This keeps `.combined` ≥ `.metricalAccent` by
+      // construction on a disagreement (issue #61).
+      guard mPhase == dropPhase else { return metrical }
       return detectedOutcome(
         beats: beats, estimatedTempo: estimatedTempo, beatsPerBar: beatsPerBar,
         phaseIndex: dropPhase, confidence: boosted(metricalConfidence, dropConfidence))
@@ -294,7 +298,13 @@ enum StructuralDropAnalyzer {
     beatsPerBar: Int = 4
   ) -> Resolution {
     // --- Structural / input guards (mirror the 8.5a estimator's posture) ------
-    guard beatsPerBar >= 1 else { return .none }
+    // Story 8.11 is a 4/4-only estimator: the half-bar (beat-1-vs-beat-3)
+    // resolution and `halfBarPartner` are defined only for 4/4. Any other meter
+    // would half-handle incoherently (beatsPerBar/2 truncates for odd meters), so
+    // abstain rather than emit a misleading phase (issue #63). A future
+    // meter-detection story that lifts this must generalize the half-bar logic,
+    // not just relax the guard.
+    guard beatsPerBar == 4 else { return .none }
     guard beats.count / beatsPerBar >= 3 else { return .none }  // ≥ 3 complete bars
     guard estimatedTempo.isFinite, estimatedTempo > 0 else { return .none }
     guard beats.allSatisfy({ $0.presentationTime.isFinite }) else { return .none }

@@ -385,12 +385,17 @@ struct StructuralDropAnalyzerTests {
     }
     #expect(agreeEst.phaseIndex == 0)
 
-    // conflict → abstain (two strong sources disagreeing never emit a downbeat).
+    // conflict → keep the conservative-proven metrical estimate (issue #61): a
+    // possibly-wrong drop must NOT veto a standalone-valid 8.5a fire.
     let conflict = StructuralDropAnalyzer.combine(
       metrical: Self.metricalDetected(phase: 0, beats: beats),
       drop: .confident(phaseIndex: 1, dropTimeSeconds: 4.5, confidence: 0.6),
       beats: beats, estimatedTempo: 120)
-    if case .detected = conflict { Issue.record("conflict must abstain") }
+    guard case .detected(let conflictEst, _) = conflict else {
+      Issue.record("conflict must keep the metrical estimate, got \(conflict)")
+      return
+    }
+    #expect(conflictEst.phaseIndex == 0)  // metrical phase preserved, drop did NOT veto it
 
     // lone metrical → admitted (the conservative-proven path).
     let loneMetrical = StructuralDropAnalyzer.combine(
@@ -425,6 +430,103 @@ struct StructuralDropAnalyzerTests {
     let neither = StructuralDropAnalyzer.combine(
       metrical: .noneDetected, drop: .none, beats: beats, estimatedTempo: 120)
     if case .detected = neither { Issue.record("neither firing must abstain") }
+  }
+
+  // MARK: - #61: .combined keeps the metrical estimate on a drop disagreement
+
+  @Test func combinedKeepsMetricalEstimateOnDropDisagreement() {
+    let beats = Self.beats(tempo: 120, bars: 8)
+    let result = StructuralDropAnalyzer.combine(
+      metrical: Self.metricalDetected(phase: 0, beats: beats),
+      drop: .confident(phaseIndex: 1, dropTimeSeconds: 4.5, confidence: 0.9),
+      beats: beats, estimatedTempo: 120)
+    guard case .detected(let est, _) = result else {
+      Issue.record("combined must keep the metrical estimate on a drop disagreement, got \(result)")
+      return
+    }
+    #expect(est.phaseIndex == 0)  // metrical phase preserved, drop did NOT veto it
+  }
+
+  @Test func combinedKeepsLowConfidenceMetricalOverHighConfidenceDisagreeingDrop() {
+    // The drop is a corroborator, not an authority: even a high-confidence drop
+    // (0.99) disagreeing with a low-confidence metrical (0.1) must NOT veto it.
+    let beats = Self.beats(tempo: 120, bars: 8)
+    let result = StructuralDropAnalyzer.combine(
+      metrical: Self.metricalDetected(phase: 0, beats: beats, confidence: 0.1),
+      drop: .confident(phaseIndex: 1, dropTimeSeconds: 4.5, confidence: 0.99),
+      beats: beats, estimatedTempo: 120)
+    guard case .detected(let est, let confidence) = result else {
+      Issue.record("a high-confidence disagreeing drop must NOT veto a low-confidence metrical")
+      return
+    }
+    #expect(est.phaseIndex == 0)
+    // Fall-back returns the metrical verbatim (no boost — the sources disagreed).
+    #expect(confidence == 0.1)
+  }
+
+  @Test func combinedDisagreementInThreeFourKeepsMetrical() {
+    // beatsPerBar != 4: the fall-back path must still return the metrical phase
+    // (no `% 4` assumptions leak into the disagree branch). NOTE: combine(...) is
+    // tested directly here with constructed inputs; the resolve()-side 4/4 guard
+    // (issue #63) is exercised separately by nonFourFourMeterAbstains.
+    let beats = Self.beats(tempo: 120, bars: 8, beatsPerBar: 3)
+    let result = StructuralDropAnalyzer.combine(
+      metrical: Self.metricalDetected(phase: 2, beats: beats),
+      drop: .confident(phaseIndex: 0, dropTimeSeconds: 4.5, confidence: 0.9),
+      beats: beats, estimatedTempo: 120, beatsPerBar: 3)
+    guard case .detected(let est, _) = result else {
+      Issue.record("3/4 disagreement must keep the metrical estimate, got \(result)")
+      return
+    }
+    #expect(est.phaseIndex == 2)
+  }
+
+  // MARK: - #63: non-4/4 meters abstain at the resolve() entry
+
+  @Test func nonFourFourMeterAbstains() {
+    let contour = Self.stepContour(frames: 320, dropFrame: 90)
+    // 3/4: enough beats for ≥ 3 bars (24 beats / 3 = 8 bars), odd meter (the
+    // beatsPerBar/2 truncation case).
+    let r3 = StructuralDropAnalyzer.resolve(
+      contour: contour,
+      beats: Self.beats(tempo: 120, bars: 8, beatsPerBar: 3),
+      estimatedTempo: 120, beatsPerBar: 3)
+    #expect(r3 == .none)
+    // 2/4: even but < 4 (the halfBarPartner == -1 disabled case).
+    let r2 = StructuralDropAnalyzer.resolve(
+      contour: contour,
+      beats: Self.beats(tempo: 120, bars: 8, beatsPerBar: 2),
+      estimatedTempo: 120, beatsPerBar: 2)
+    #expect(r2 == .none)
+    // 5/4: a larger non-4 meter — proves the guard is `== 4`, not merely `< 4`.
+    let r5 = StructuralDropAnalyzer.resolve(
+      contour: contour,
+      beats: Self.beats(tempo: 120, bars: 8, beatsPerBar: 5),
+      estimatedTempo: 120, beatsPerBar: 5)
+    #expect(r5 == .none)
+    // beatsPerBar == 0 still abstains (guard-ordering change is locked).
+    let r0 = StructuralDropAnalyzer.resolve(
+      contour: contour,
+      beats: Self.beats(tempo: 120, bars: 8),
+      estimatedTempo: 120, beatsPerBar: 0)
+    #expect(r0 == .none)
+    // The standalone estimate(...) seam must also abstain (no .detected).
+    if case .detected = StructuralDropAnalyzer.estimate(
+      contour: contour,
+      beats: Self.beats(tempo: 120, bars: 8, beatsPerBar: 3),
+      estimatedTempo: 120, beatsPerBar: 3)
+    {
+      Issue.record("non-4/4 meter must abstain through estimate(...)")
+    }
+    // 4/4 still fires (the happy path is unchanged by the guard).
+    let r4 = StructuralDropAnalyzer.resolve(
+      contour: contour,
+      beats: Self.beats(tempo: 120, bars: 8),
+      estimatedTempo: 120, beatsPerBar: 4)
+    guard case .confident = r4 else {
+      Issue.record("4/4 must still fire .confident on a clean interior drop, got \(r4)")
+      return
+    }
   }
 
   // MARK: - AC8(a) integration: estimateBeatGrid repoints the anchor to the drop

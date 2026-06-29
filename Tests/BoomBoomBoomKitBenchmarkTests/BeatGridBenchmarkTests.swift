@@ -691,6 +691,35 @@ struct BeatGridBenchmarkTests {
         "strict F must not exceed octave-tolerant F for \(e.strategy)/\(e.coverage)")
     }
 
+    // --- #61 monotonic floor: `.combined` net downbeat accuracy >= `.metricalAccent`.
+    // The veto-abstain in combine(...) was changed to fall back to the metrical estimate
+    // on a drop disagreement, so `.combined` can never emit a different-and-worse phase
+    // than `.metricalAccent` on a conflict. This corpus guard locks that invariant the
+    // unit test cannot give (all-track octave-tolerant F over constant-tempo tracks, the
+    // usefulness metric — abstains scored 0). REPORTED but not gated under smoke (a
+    // BEAT_GRID_LIMIT subset scores only a slice, mirroring the F-measure floor's posture).
+    let isSmoke =
+      (ProcessInfo.processInfo.environment["BEAT_GRID_LIMIT"].flatMap(Int.init) ?? 0) > 0
+    for cov in coverages {
+      guard
+        let combined = evals.first(where: { $0.coverage == cov.name && $0.strategy == "combined" }),
+        let metrical = evals.first(where: {
+          $0.coverage == cov.name && $0.strategy == "metricalAccent"
+        })
+      else { continue }
+      let c = combined.allTrackFOctaveConstant
+      let m = metrical.allTrackFOctaveConstant
+      print(
+        "  [#61 monotonic floor / \(cov.name)] combined all-track-F(oct,const) \(fmt(c)) "
+          + "vs metricalAccent \(fmt(m))\(isSmoke ? " (SMOKE — reported, not gated)" : "")")
+      if !isSmoke {
+        #expect(
+          c >= m - 1e-9,
+          "#61: .combined net downbeat accuracy \(fmt(c)) regressed below .metricalAccent \(fmt(m)) at \(cov.name)"
+        )
+      }
+    }
+
     let json: [String: Any] = [
       "metric": "octave-tolerant + strict downbeat F vs oracle Battito==1, per strategy/coverage",
       "gated_path": "fullTrack",
