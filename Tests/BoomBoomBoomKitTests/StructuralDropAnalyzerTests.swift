@@ -455,13 +455,15 @@ struct StructuralDropAnalyzerTests {
       metrical: Self.metricalDetected(phase: 0, beats: beats, confidence: 0.1),
       drop: .confident(phaseIndex: 1, dropTimeSeconds: 4.5, confidence: 0.99),
       beats: beats, estimatedTempo: 120)
-    guard case .detected(let est, let confidence) = result else {
+    guard case .detected(let est, _) = result else {
       Issue.record("a high-confidence disagreeing drop must NOT veto a low-confidence metrical")
       return
     }
     #expect(est.phaseIndex == 0)
     // Fall-back returns the metrical verbatim (no boost — the sources disagreed).
-    #expect(confidence == 0.1)
+    // The verbatim confidence lives on the estimate; the Outcome's second value
+    // is `firstDownbeatBeatIndex` (an Int), not the confidence.
+    #expect(est.confidence == 0.1)
   }
 
   @Test func combinedDisagreementInThreeFourKeepsMetrical() {
