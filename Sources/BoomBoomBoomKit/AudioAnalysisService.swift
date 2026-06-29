@@ -1674,14 +1674,35 @@ public struct AudioAnalysisService {
   ) -> BeatGrid? {
     guard let grid else { return nil }
     let locked: Double?
+    // The lock target before octave normalization — the caller's `.bpm(value)`
+    // or the BPM-stage tempo for `.bpmStage`. Used ONLY to surface the applied
+    // octave factor (issue #62); `.off` returns early before the factor compute.
+    let target: Double
     switch lock {
     case .off: return grid
-    case .bpmStage: locked = stageLockTempo(target: bpmStageTempo, gridTempo: grid.estimatedTempo)
+    case .bpmStage:
+      target = bpmStageTempo
+      locked = stageLockTempo(target: bpmStageTempo, gridTempo: grid.estimatedTempo)
     case .bpm(let value):
+      target = value
       locked = octaveNormalizedLockTempo(target: value, gridTempo: grid.estimatedTempo)
     }
     guard let locked else { return grid }
-    return grid.with(estimatedTempo: locked)
+    // Surface the octave factor the snap applied (issue #62) from the SAME
+    // `classifyTempoAgreement` source of truth both resolvers used — do NOT
+    // re-derive a `locked / target` ratio (it could disagree at the 2% boundary).
+    // `.octaveEquivalent(factor:)` is the only shifting case; `.agree` (target
+    // already shared the grid's octave) and the within-octave `.disagree`
+    // `.bpmStage` pass-through leave the factor at the neutral `1`.
+    let octaveFactor: Int
+    if case .octaveEquivalent(let factor) =
+      classifyTempoAgreement(gridTempo: grid.estimatedTempo, bpmTempo: target)
+    {
+      octaveFactor = factor
+    } else {
+      octaveFactor = 1
+    }
+    return grid.with(estimatedTempo: locked, tempoLockOctaveFactor: octaveFactor)
   }
 
   /// The authoritative ``BeatGridTempoLock/bpmStage`` resolver: the target IS the

@@ -189,6 +189,33 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// envelope needs) and stays `Hashable`-clean.
   public let schemaVersion: Int
 
+  /// The octave factor a ``BeatGridTempoLock`` applied to the lock target when it
+  /// snapped that target onto this grid's octave density (issue #62).
+  ///
+  /// `1` (the default) means **no shift** — no lock fired (`lock == .off`), the
+  /// lock left the grid unlocked (a more-than-an-octave disagreement or a
+  /// non-finite/non-positive target), or the target already shared the grid's
+  /// octave (``TempoAgreement/agree``). `2` means the applied tempo was the
+  /// target **doubled** (the grid runs at the faster octave — the
+  /// ``TempoAgreement/octaveEquivalent(factor:)`` `+2` direction); `-2` means it
+  /// was **halved** (the slower octave).
+  ///
+  /// Because ``BeatGridTempoLock/bpm(_:)`` treats the caller's value as
+  /// authoritative, a `2` / `-2` here is the one diagnostic that tells a consumer
+  /// their `.bpm(value)` was octave-shifted to `value × 2` / `value × 0.5` on
+  /// ``estimatedTempo`` — the consumer's original target is recoverable as
+  /// `estimatedTempo` divided by the factor (treating `-2` as `0.5`). The shift
+  /// itself is by design (lock to the grid's octave density); this field only
+  /// surfaces it.
+  ///
+  /// ## Why `Int`, not a `Double` pair
+  /// Mirroring ``TempoAgreement``'s octave factor, this is an `Int` (`∈
+  /// {-2, 1, 2}`), not the raw requested/applied `Double`s. An `Int` cannot be
+  /// `NaN`, so it adds no sanitization site to ``BeatGrid``'s NaN-free→`Hashable`
+  /// doctrine, and `1` keeps default-options output byte-identical. The raw pair
+  /// is derivable from `CombinedAnalysisResult.bpm.bpm` and ``estimatedTempo``.
+  public let tempoLockOctaveFactor: Int
+
   // MARK: Init
 
   /// Creates a beat grid, clamping its float fields finite and recording the
@@ -232,6 +259,10 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///   - schemaVersion: The persisted semantic-contract version. Defaulted to
   ///     ``currentSchemaVersion`` so every producer auto-stamps the current
   ///     version with no call-site change; stored faithfully (not range-validated).
+  ///   - tempoLockOctaveFactor: The octave factor a ``BeatGridTempoLock`` applied
+  ///     to the lock target (`1` no shift / `2` doubled / `-2` halved). Defaulted
+  ///     to `1` so every non-lock producer is byte-identical; stored faithfully
+  ///     (not range-validated — like ``schemaVersion``).
   public init(
     beats: [BeatTimestamp],
     downbeats: DownbeatResult,
@@ -240,9 +271,11 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     tempoAgreement: TempoAgreement,
     gridOrigin: BeatGridAnchor?,
     coverage: BeatGridCoverage,
-    schemaVersion: Int = BeatGrid.currentSchemaVersion
+    schemaVersion: Int = BeatGrid.currentSchemaVersion,
+    tempoLockOctaveFactor: Int = 1
   ) {
     self.schemaVersion = schemaVersion
+    self.tempoLockOctaveFactor = tempoLockOctaveFactor
     self.beats = beats
     self.downbeats = downbeats
     self.estimatedTempo = BeatGridClamp.clampNonNegative(estimatedTempo)
@@ -311,7 +344,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       // Forward the instance's version (W52 forward-every-field): a
       // decoded-then-restamped grid keeps its original version, not the current
       // one.
-      schemaVersion: schemaVersion)
+      schemaVersion: schemaVersion,
+      tempoLockOctaveFactor: tempoLockOctaveFactor)
   }
 
   /// Returns a copy of this grid with ``estimatedTempo`` overridden and every
@@ -332,7 +366,32 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       tempoAgreement: tempoAgreement,
       gridOrigin: gridOrigin,
       coverage: coverage,
-      schemaVersion: schemaVersion)
+      schemaVersion: schemaVersion,
+      tempoLockOctaveFactor: tempoLockOctaveFactor)
+  }
+
+  /// Returns a copy of this grid with both ``estimatedTempo`` and
+  /// ``tempoLockOctaveFactor`` overridden and every other field forwarded from
+  /// `self` (issue #62).
+  ///
+  /// Used by the ``BeatGridTempoLock`` path
+  /// (`AudioAnalysisService.applyTempoLock`) to record, in one forwarding step,
+  /// both the octave-normalized authoritative tempo and the factor that
+  /// normalization applied — so a consumer can detect a `.bpm(value)` that was
+  /// snapped to `value × 2` / `value × 0.5`. The new tempo routes through the
+  /// clamping memberwise init exactly as ``with(estimatedTempo:)`` does (W52
+  /// forward-every-field).
+  func with(estimatedTempo newTempo: Double, tempoLockOctaveFactor newFactor: Int) -> BeatGrid {
+    BeatGrid(
+      beats: beats,
+      downbeats: downbeats,
+      estimatedTempo: newTempo,
+      confidence: confidence,
+      tempoAgreement: tempoAgreement,
+      gridOrigin: gridOrigin,
+      coverage: coverage,
+      schemaVersion: schemaVersion,
+      tempoLockOctaveFactor: newFactor)
   }
 
   // MARK: Codable
@@ -346,11 +405,12 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///
   /// `beats`, `downbeats`, `estimatedTempo`, and `confidence` are required
   /// (a missing key throws — a regression lock against a `?? 0` that would
-  /// bypass the clamp). `tempoAgreement`, `gridOrigin`, `coverage`, and
-  /// `schemaVersion` are decoded with `decodeIfPresent` and default to their
-  /// "no information" values (``TempoAgreement/notCompared`` / `nil` /
-  /// ``BeatGridCoverage/analysisWindow`` / `1`), mirroring how the Story-8.3
-  /// optional agreement flag defaulted to `nil` when absent. A legacy grid
+  /// bypass the clamp). `tempoAgreement`, `gridOrigin`, `coverage`,
+  /// `schemaVersion`, and `tempoLockOctaveFactor` are decoded with
+  /// `decodeIfPresent` and default to their "no information" values
+  /// (``TempoAgreement/notCompared`` / `nil` / ``BeatGridCoverage/analysisWindow``
+  /// / `1` / `1`), mirroring how the Story-8.3 optional agreement flag defaulted
+  /// to `nil` when absent. A legacy grid
   /// serialized before ``schemaVersion`` existed therefore decodes as version `1`
   /// (absent → 1; it cannot retroactively distinguish a true v1 — the field only
   /// versions forward). The synthesized encoder always writes the non-optional
@@ -377,6 +437,14 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     // -init doctrine.
     let schemaVersion =
       try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+    // Issue #62: a legacy grid serialized before `tempoLockOctaveFactor` existed
+    // decodes as `1` (absent → 1, the "no shift" default), mirroring the
+    // `schemaVersion` and `tempoAgreement` absent-defaulting above. An additive
+    // optional-with-default field does NOT bump `schemaVersion` (no key
+    // removed/redefined). Stored faithfully — an out-of-{-2,1,2} value is not
+    // folded here (it is inert diagnostic provenance, not auto-sync input).
+    let tempoLockOctaveFactor =
+      try container.decodeIfPresent(Int.self, forKey: .tempoLockOctaveFactor) ?? 1
     self.init(
       beats: beats,
       downbeats: downbeats,
@@ -385,7 +453,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       tempoAgreement: tempoAgreement,
       gridOrigin: gridOrigin,
       coverage: coverage,
-      schemaVersion: schemaVersion)
+      schemaVersion: schemaVersion,
+      tempoLockOctaveFactor: tempoLockOctaveFactor)
   }
 
   // MARK: CustomStringConvertible
@@ -420,8 +489,8 @@ extension BeatGrid {
   /// anchor), or a shift that nets to zero after clamping is a no-op.
   ///
   /// ``estimatedTempo``, ``confidence``, ``tempoAgreement``, ``coverage`` (which describes
-  /// the analyzed *span length*, not an absolute start time), and ``schemaVersion`` are
-  /// unchanged — `offset` shifts presentation coordinates only.
+  /// the analyzed *span length*, not an absolute start time), ``schemaVersion``, and
+  /// ``tempoLockOctaveFactor`` are unchanged — `offset` shifts presentation coordinates only.
   ///
   /// Use for output-device latency compensation (e.g. `AVAudioEngine.outputLatency`) or a
   /// manual nudge. Do **not** use it for codec encoder priming: AVFoundation already
@@ -519,7 +588,8 @@ extension BeatGrid {
       tempoAgreement: tempoAgreement,
       gridOrigin: shiftedOrigin,
       coverage: coverage,
-      schemaVersion: schemaVersion)
+      schemaVersion: schemaVersion,
+      tempoLockOctaveFactor: tempoLockOctaveFactor)
   }
 }
 
@@ -629,7 +699,8 @@ extension BeatGrid {
       tempoAgreement: tempoAgreement,
       gridOrigin: newOrigin,
       coverage: coverage,
-      schemaVersion: schemaVersion)
+      schemaVersion: schemaVersion,
+      tempoLockOctaveFactor: tempoLockOctaveFactor)
   }
 
   /// Index of the detected beat nearest `time` (`argmin |beat.presentationTime − time|`),
