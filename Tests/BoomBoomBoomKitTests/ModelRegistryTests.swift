@@ -4,8 +4,9 @@
 //
 //  Story 8-6: ModelRegistry + ModelDigest + ModelRegistryEntry +
 //  ModelRegistryError. Covers ModelDigest invariants, happy-path / TOFU /
-//  mismatch registration, cache-on-first-load, missing/unsupported resources,
-//  and Mutex correctness under concurrent registration.
+//  mismatch registration, always-recompute (no digest cache, so TOFU detects an
+//  on-disk swap), missing/unsupported resources, and Mutex correctness under
+//  concurrent registration.
 //
 
 import Foundation
@@ -167,13 +168,14 @@ struct ModelRegistryTests {
     #expect(registry.entries.isEmpty)
   }
 
-  @Test("cache: a second register on the same URL does not recompute the digest")
-  func cacheShortCircuitsSecondRegister() throws {
+  @Test("TOFU: every register on the same URL recomputes the digest (no cache)")
+  func tofuRecomputesOnEveryRegister() throws {
     let url = try customBundledURL()
     let registry = ModelRegistry()
     _ = try registry.register(url: url, metadata: ModelMetadata(identifier: "first"))
     _ = try registry.register(url: url, metadata: ModelMetadata(identifier: "second"))
-    #expect(registry.digestComputationCount == 1)
+    // No digest cache: both TOFU registers re-hash from disk.
+    #expect(registry.digestComputationCount == 2)
     #expect(registry.entries.count == 2)
   }
 
@@ -248,9 +250,9 @@ struct ModelRegistryTests {
     // No lost updates: every task's entry landed.
     #expect(registry.entries.count == count)
     #expect(Set(registry.entries.map(\.identifier)).count == count)
-    // Same URL across all tasks → the digest is computed exactly once
-    // (cache + Mutex serialize the compute).
-    #expect(registry.digestComputationCount == 1)
+    // No digest cache: each register recomputes, so the count equals the number
+    // of registrations (the Mutex still serializes the compute/append).
+    #expect(registry.digestComputationCount == count)
   }
 
   // MARK: - Digest binds bundle structure (path + length, not just contents)
@@ -305,15 +307,130 @@ struct ModelRegistryTests {
     #expect(registry.entries.count == 2)
   }
 
-  @Test("TOFU caches, but a later pinned register on the same URL still recomputes")
-  func tofuCachesButPinnedRecomputes() throws {
+  @Test("TOFU then pinned register on the same URL both recompute from disk")
+  func tofuAndPinnedBothRecompute() throws {
     let url = try customBundledURL()
     let registry = ModelRegistry()
     _ = try registry.register(url: url, metadata: ModelMetadata(identifier: "tofu"))
+    // TOFU recomputes (no cache).
     #expect(registry.digestComputationCount == 1)
     let digest = try ModelRegistry.computeDigest(forModelAt: url)
     _ = try registry.register(
       url: url, expectedDigest: digest, metadata: ModelMetadata(identifier: "pinned"))
+    // Pinned recomputes too — both modes always re-hash.
     #expect(registry.digestComputationCount == 2)
+  }
+
+  // MARK: - TOFU detects an on-disk swap (no cache)
+
+  @Test("TOFU: re-registering after an on-disk swap recomputes and records the new digest")
+  func tofuDetectsOnDiskSwap() throws {
+    let bundle = try makeTempBundle([(path: "model.bin", bytes: [1, 2, 3])])
+    defer { try? FileManager.default.removeItem(at: bundle) }
+    let registry = ModelRegistry()
+
+    let first = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "tofu-1"))
+
+    // Swap the bytes on disk at the same URL.
+    try Data([9, 8, 7, 6]).write(to: bundle.appendingPathComponent("model.bin"))
+    let onDisk = try ModelRegistry.computeDigest(forModelAt: bundle)
+
+    let second = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "tofu-2"))
+
+    #expect(second.digest != first.digest)
+    #expect(second.digest == onDisk)
+    #expect(registry.digestComputationCount == 2)
+  }
+
+  @Test("TOFU: a shrinking on-disk swap (fewer bytes) is detected")
+  func tofuDetectsShrinkingSwap() throws {
+    let bundle = try makeTempBundle([(path: "model.bin", bytes: [1, 2, 3, 4, 5])])
+    defer { try? FileManager.default.removeItem(at: bundle) }
+    let registry = ModelRegistry()
+
+    let first = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "shrink-1"))
+
+    // Overwrite with fewer bytes — computeDigest binds content length.
+    try Data([1, 2]).write(to: bundle.appendingPathComponent("model.bin"))
+    let onDisk = try ModelRegistry.computeDigest(forModelAt: bundle)
+
+    let second = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "shrink-2"))
+
+    #expect(second.digest != first.digest)
+    #expect(second.digest == onDisk)
+    #expect(registry.digestComputationCount == 2)
+  }
+
+  @Test("TOFU: a bundle-structure change (added file) between registers is detected")
+  func tofuDetectsStructureChange() throws {
+    let bundle = try makeTempBundle([(path: "model.bin", bytes: [1, 2, 3])])
+    defer { try? FileManager.default.removeItem(at: bundle) }
+    let registry = ModelRegistry()
+
+    let first = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "struct-1"))
+
+    // Add a second file — same first file, different bundle layout.
+    try Data([4, 5]).write(to: bundle.appendingPathComponent("extra.bin"))
+    let onDisk = try ModelRegistry.computeDigest(forModelAt: bundle)
+
+    let second = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "struct-2"))
+
+    #expect(second.digest != first.digest)
+    #expect(second.digest == onDisk)
+    #expect(registry.digestComputationCount == 2)
+  }
+
+  @Test("TOFU: a same-bytes rewrite recomputes (count increments) but yields an equal digest")
+  func tofuSameBytesRewriteStillRecomputes() throws {
+    let bundle = try makeTempBundle([(path: "model.bin", bytes: [1, 2, 3])])
+    defer { try? FileManager.default.removeItem(at: bundle) }
+    let registry = ModelRegistry()
+
+    let first = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "same-1"))
+
+    // Rewrite with identical content — digest must match, but we re-hash
+    // (proving we recompute rather than trust a cache).
+    try Data([1, 2, 3]).write(to: bundle.appendingPathComponent("model.bin"))
+
+    let second = try registry.register(
+      url: bundle, metadata: ModelMetadata(identifier: "same-2"))
+
+    #expect(second.digest == first.digest)
+    #expect(registry.digestComputationCount == 2)
+  }
+
+  @Test("pinned: a swap-then-pin against a now-stale persisted digest throws .integrityCheckFailed")
+  func pinnedAgainstStaleDigestAfterSwapThrows() throws {
+    let bundle = try makeTempBundle([(path: "model.bin", bytes: [1, 2, 3])])
+    defer { try? FileManager.default.removeItem(at: bundle) }
+    let registry = ModelRegistry()
+
+    // Persist the digest of the original bytes (the "future pin").
+    let stalePin = try ModelRegistry.computeDigest(forModelAt: bundle)
+
+    // Swap the bytes on disk.
+    try Data([9, 8, 7, 6]).write(to: bundle.appendingPathComponent("model.bin"))
+    let onDisk = try ModelRegistry.computeDigest(forModelAt: bundle)
+
+    do {
+      _ = try registry.register(
+        url: bundle, expectedDigest: stalePin,
+        metadata: ModelMetadata(identifier: "stale-pin"))
+      Issue.record("expected .integrityCheckFailed, got success")
+    } catch let ModelRegistryError.integrityCheckFailed(expected, actual) {
+      #expect(expected == stalePin)
+      #expect(actual == onDisk)
+      #expect(actual != stalePin)
+    } catch {
+      Issue.record("expected .integrityCheckFailed, got \(error)")
+    }
+    #expect(registry.entries.isEmpty)
   }
 }
