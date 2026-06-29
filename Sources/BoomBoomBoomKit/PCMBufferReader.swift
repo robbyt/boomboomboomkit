@@ -178,12 +178,24 @@ public struct PCMBufferReader {
 
   /// Maps an encoded-format `mFormatID` to the closed ``FeatureSubstrate/AudioCodec``
   /// set (DD #7). Unmapped IDs surface as `.unknown`, never a guess.
-  private static func codec(
+  ///
+  /// The MPEG-4 AAC family (baseline LC plus the HE/LD/ELD/HE_V2 profiles) all
+  /// map to `.aac` — they are AAC payloads for provenance purposes, and the
+  /// closed `AudioCodec` set has no profile-distinguishing case (issue #70).
+  ///
+  /// Package-`internal` (not `private`) so the pure mapping can be unit-tested
+  /// directly without sourcing a per-profile audio fixture for each ID.
+  static func codec(
     forFormatID formatID: AudioFormatID
   ) -> FeatureSubstrate.AudioCodec {
     switch formatID {
     case kAudioFormatLinearPCM: return .linearPCM
-    case kAudioFormatMPEG4AAC: return .aac
+    case kAudioFormatMPEG4AAC,
+      kAudioFormatMPEG4AAC_HE,
+      kAudioFormatMPEG4AAC_LD,
+      kAudioFormatMPEG4AAC_ELD,
+      kAudioFormatMPEG4AAC_HE_V2:
+      return .aac
     case kAudioFormatAppleLossless: return .alac
     case kAudioFormatMPEGLayer3: return .mp3
     case kAudioFormatFLAC: return .flac

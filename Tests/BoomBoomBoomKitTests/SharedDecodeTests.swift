@@ -7,6 +7,7 @@
 //  cancellation, and codec-tagging suites (commit 2+).
 //
 
+import AVFoundation
 import BoomBoomBoomKitTestSupport
 import Foundation
 import Synchronization
@@ -196,6 +197,22 @@ struct ReadDecodedAudioProducerTests {
     #expect(
       try tag("test-ulaw", "caf")
         == .init(codec: .unknown, trimState: .unknown))
+  }
+
+  /// Issue #70: every MPEG-4 AAC profile (baseline LC plus the HE/LD/ELD/HE_V2
+  /// profiles) maps to `.aac`, not `.unknown`. Asserted on the pure mapping
+  /// rather than fixtures — no HE/LD/ELD/HE_V2 fixture ships, and sourcing one
+  /// per profile is infeasible without the encoder toolchain. An unmapped ID
+  /// must still fall through to `.unknown` so the `default` arm does not
+  /// over-broaden.
+  @Test func aacFamilyProfilesMapToAAC() {
+    #expect(PCMBufferReader.codec(forFormatID: kAudioFormatMPEG4AAC) == .aac)
+    #expect(PCMBufferReader.codec(forFormatID: kAudioFormatMPEG4AAC_HE) == .aac)
+    #expect(PCMBufferReader.codec(forFormatID: kAudioFormatMPEG4AAC_LD) == .aac)
+    #expect(PCMBufferReader.codec(forFormatID: kAudioFormatMPEG4AAC_ELD) == .aac)
+    #expect(PCMBufferReader.codec(forFormatID: kAudioFormatMPEG4AAC_HE_V2) == .aac)
+    // An unrelated, unmapped format ID still surfaces as `.unknown`.
+    #expect(PCMBufferReader.codec(forFormatID: kAudioFormatULaw) == .unknown)
   }
 
   /// The producer's samples are the same bytes `readMonoSamples` produces —
