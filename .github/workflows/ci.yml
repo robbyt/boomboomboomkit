@@ -11,10 +11,18 @@ name: CI
 # Swift half (`swiftlint lint .`) is invoked directly instead.
 
 on:
+  # `pull_request` is the gate: it runs on the simulated head-into-base merge for
+  # every PR targeting these bases, so it already validates post-merge state.
+  # `push` is restricted to `main` ONLY — the one branch that is never the head of
+  # a PR — so no branch is ever matched by BOTH triggers for the same commit. An
+  # integration branch like `rterhaar/epic-8` that has an open PR previously
+  # double-ran (one `push` + one `pull_request` per commit, since `push` listed it
+  # and its PR's base matched `pull_request`); listing it under `push` was
+  # redundant with `pull_request` and is removed.
   pull_request:
     branches: [develop, main, rterhaar/epic-8]
   push:
-    branches: [develop, main, rterhaar/epic-8]
+    branches: [main]
 
 # Supersede an in-flight run when a newer commit lands on the same ref so PRs
 # don't pile up duplicate macOS runs.
@@ -29,6 +37,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Cache SwiftPM build
+        # Warm the SwiftPM build directory so `swift build` / `make test` recompile
+        # only changed modules. The key hashes the manifest + every source/test file
+        # so a fresh cache is saved per source-set; `restore-keys` fall back to the
+        # nearest prior cache for incremental reuse (a Package.resolved-only key would
+        # never refresh — this package has zero external dependencies, so `.build` is
+        # the only win; `~/.swiftpm` is SwiftPM's own cache dir). Worst case is a miss
+        # → full rebuild, identical to no cache, so it can never change CI results.
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ hashFiles('Sources/**', 'Tests/**') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            ${{ runner.os }}-spm-
 
       - name: Build (Debug)
         run: swift build
