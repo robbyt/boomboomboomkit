@@ -38,6 +38,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache SwiftPM build
+        # Warm the SwiftPM build directory so `swift build` / `make test` recompile
+        # only changed modules. The key hashes the manifest + every source/test file
+        # so a fresh cache is saved per source-set; `restore-keys` fall back to the
+        # nearest prior cache for incremental reuse (a Package.resolved-only key would
+        # never refresh — this package has zero external dependencies, so `.build` is
+        # the only win; `~/.swiftpm` is SwiftPM's own cache dir). Worst case is a miss
+        # → full rebuild, identical to no cache, so it can never change CI results.
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ hashFiles('Sources/**', 'Tests/**') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            ${{ runner.os }}-spm-
+
       - name: Build (Debug)
         run: swift build
 
