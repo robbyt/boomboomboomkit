@@ -432,7 +432,7 @@ struct StructuralDropAnalyzerTests {
     if case .detected = neither { Issue.record("neither firing must abstain") }
   }
 
-  // MARK: - #61: .combined keeps the metrical estimate on a drop disagreement
+  // MARK: - #61: .combined keeps metrical on a confident-drop disagreement
 
   @Test func combinedKeepsMetricalEstimateOnDropDisagreement() {
     let beats = Self.beats(tempo: 120, bars: 8)

@@ -232,11 +232,12 @@ enum StructuralDropAnalyzer {
   // MARK: - Combined strategy (`.combined`)
 
   /// Cross-validates the metrical-accent outcome against the structural-drop
-  /// resolution (DD #3). Invariants: two strong sources that DISAGREE never emit a
-  /// downbeat (conflict → abstain); agreement is confidence-boosted. Single-source
-  /// admission defaults to agreement-priority — a lone metrical fire is admitted
-  /// (the conservative-proven path), a lone structural-drop fire abstains unless it
-  /// clears the strict in-estimator bar.
+  /// resolution (DD #3). Agreement is confidence-boosted. A confident-drop
+  /// disagreement preserves the conservative-proven metrical estimate; a half-bar
+  /// ambiguity is admitted only when metrical chooses one of the two bar-grid
+  /// candidates. Single-source admission defaults to agreement-priority — a lone
+  /// metrical fire is admitted, while a lone structural-drop fire abstains unless
+  /// it clears the strict in-estimator bar.
   static func combine(
     metrical: DownbeatAnalyzer.Outcome,
     drop: Resolution,
@@ -263,11 +264,10 @@ enum StructuralDropAnalyzer {
           beats: beats, estimatedTempo: estimatedTempo, beatsPerBar: beatsPerBar,
           phaseIndex: dropPhase, confidence: dropConfidence)
       }
-      // Both fire: agree → boost. Disagree → KEEP the conservative-proven
-      // metrical estimate (do NOT let a possibly-wrong drop veto a standalone-valid
-      // 8.5a fire). The drop is the corroborator, not an authority that can abstain
-      // the metrical source. This keeps `.combined` ≥ `.metricalAccent` by
-      // construction on a disagreement (issue #61).
+      // Both fire: agree → boost. Confident-drop disagreement → KEEP the
+      // conservative-proven metrical estimate (do NOT let a possibly-wrong drop
+      // veto a standalone-valid 8.5a fire). The drop is the corroborator, not an
+      // authority that can abstain the metrical source on this arm (issue #61).
       guard mPhase == dropPhase else { return metrical }
       return detectedOutcome(
         beats: beats, estimatedTempo: estimatedTempo, beatsPerBar: beatsPerBar,
@@ -275,6 +275,7 @@ enum StructuralDropAnalyzer {
 
     case .halfBarAmbiguous(let phaseA, let phaseB, _, let dropConfidence):
       // The drop nails the bar grid; metrical accent resolves the 1-vs-3 phase.
+      // If metrical lands off that grid, abstain instead of trusting either source.
       guard let mPhase = metricalPhase, mPhase == phaseA || mPhase == phaseB else {
         return .noneDetected
       }
@@ -438,7 +439,7 @@ enum StructuralDropAnalyzer {
     // `.halfBarAmbiguous` (which `.combined` resolves via metrical accent). A same-phase
     // valid drop is corroboration. Rejected risers (nil) and off-grid peaks are NOT
     // competing drops, so a riser ranked above the dominant does not force an abstain.
-    let halfBarPartner = beatsPerBar >= 4 ? (dominant.phase + beatsPerBar / 2) % beatsPerBar : -1
+    let halfBarPartner = (dominant.phase + 2) % 4
     var conflictRunnerUp: Float = 0  // strongest DIFFERENT-phase valid drop (0 ⇒ a clean win)
     var sawHalfBarConflict = false
     for (i, candidate) in validated.enumerated() {

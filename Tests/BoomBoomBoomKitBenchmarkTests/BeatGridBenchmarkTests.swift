@@ -692,12 +692,13 @@ struct BeatGridBenchmarkTests {
     }
 
     // --- #61 monotonic floor: `.combined` net downbeat accuracy >= `.metricalAccent`.
-    // The veto-abstain in combine(...) was changed to fall back to the metrical estimate
-    // on a drop disagreement, so `.combined` can never emit a different-and-worse phase
-    // than `.metricalAccent` on a conflict. This corpus guard locks that invariant the
-    // unit test cannot give (all-track octave-tolerant F over constant-tempo tracks, the
-    // usefulness metric — abstains scored 0). REPORTED but not gated under smoke (a
-    // BEAT_GRID_LIMIT subset scores only a slice, mirroring the F-measure floor's posture).
+    // The confident-drop disagreement arm falls back to the metrical estimate instead of
+    // vetoing it. The half-bar arm still abstains when metrical lands off the drop's bar
+    // grid, so the net relation is empirical rather than per-case by construction. This
+    // corpus guard locks the intended all-track floor (octave-tolerant F over constant-
+    // tempo tracks, the usefulness metric — abstains scored 0). REPORTED but not gated
+    // under smoke (a BEAT_GRID_LIMIT subset scores only a slice, mirroring the F-measure
+    // floor's posture).
     let isSmoke =
       (ProcessInfo.processInfo.environment["BEAT_GRID_LIMIT"].flatMap(Int.init) ?? 0) > 0
     for cov in coverages {
