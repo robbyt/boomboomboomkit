@@ -1,7 +1,7 @@
 name: CI
 
 # Build + corpus-free unit-test gate for pull requests. Pure infrastructure —
-# touches no Sources/ code. Runs on a macOS 15 runner (Package.swift targets
+# touches no Sources/ code. Runs on a macOS 26 runner (Package.swift targets
 # macOS 15 / Swift 6.0). Env-gated corpus/benchmark targets (benchmark,
 # benchmark-giantsteps, ablation, oracle, perf-benchmark, benchmark-beatgrid,
 # combined-analyze-impact-report, etc.) are intentionally EXCLUDED: the OA300 /
@@ -25,7 +25,7 @@ concurrency:
 jobs:
   build-test:
     name: Build + unit tests (macOS)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
