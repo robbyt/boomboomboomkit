@@ -354,7 +354,8 @@ struct BeatGridTempoRefinementTests {
     downbeatStrategy: DownbeatStrategy = .metricalAccent, enableTrace: Bool = true,
     durationSeconds: Double = 90
   ) throws -> CombinedAnalysisResult {
-    let samples = generateClickTrack(bpm: 127.3, sampleRate: 44100, durationSeconds: durationSeconds)
+    let samples = generateClickTrack(
+      bpm: 127.3, sampleRate: 44100, durationSeconds: durationSeconds)
     let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: 44100)
     var opts = AudioAnalysisService.Options()
     opts.enableTrace = enableTrace
