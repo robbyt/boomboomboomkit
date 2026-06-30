@@ -11,10 +11,18 @@ name: CI
 # Swift half (`swiftlint lint .`) is invoked directly instead.
 
 on:
+  # `pull_request` is the gate: it runs on the simulated head-into-base merge for
+  # every PR targeting these bases, so it already validates post-merge state.
+  # `push` is restricted to `main` ONLY — the one branch that is never the head of
+  # a PR — so no branch is ever matched by BOTH triggers for the same commit. An
+  # integration branch like `rterhaar/epic-8` that has an open PR previously
+  # double-ran (one `push` + one `pull_request` per commit, since `push` listed it
+  # and its PR's base matched `pull_request`); listing it under `push` was
+  # redundant with `pull_request` and is removed.
   pull_request:
     branches: [develop, main, rterhaar/epic-8]
   push:
-    branches: [develop, main, rterhaar/epic-8]
+    branches: [main]
 
 # Supersede an in-flight run when a newer commit lands on the same ref so PRs
 # don't pile up duplicate macOS runs.
