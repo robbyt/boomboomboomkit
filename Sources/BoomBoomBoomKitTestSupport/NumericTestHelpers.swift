@@ -22,4 +22,25 @@ public enum NumericTestHelpers {
   public static func bitEqual(_ lhs: Float, _ rhs: Float) -> Bool {
     lhs.bitPattern == rhs.bitPattern
   }
+
+  /// Absolute-tolerance comparison for cross-toolchain Float-derived values.
+  ///
+  /// The BPM pipeline's low mantissa bits are not portable across CPU/Accelerate
+  /// versions (vectorized reduction order + FMA contraction differ), so a value
+  /// computed on one machine and frozen as a baseline drifts by ~1e-5 BPM /
+  /// ~1e-9 confidence on another — numerically identical, bit-different. A tight
+  /// tolerance catches genuine DSP drift while surviving that noise floor. Use in
+  /// place of `bitEqual` ONLY for live-vs-frozen-baseline comparisons; live-vs-live
+  /// comparisons on a single host stay bit-exact via `bitEqual`.
+  public static func approxEqual(_ a: Double, _ b: Double, tol: Double) -> Bool {
+    a == b || abs(a - b) <= tol
+  }
+
+  /// `Float` overload — beat-grid `Float` fields (candidate `score`, beat
+  /// confidence/strength) carry a coarser noise floor than `Double` confidence,
+  /// so they take a separately calibrated `Float` tolerance rather than being
+  /// silently widened to `Double` at the call site.
+  public static func approxEqual(_ a: Float, _ b: Float, tol: Float) -> Bool {
+    a == b || abs(a - b) <= tol
+  }
 }

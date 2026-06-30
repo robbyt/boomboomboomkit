@@ -8,7 +8,6 @@
 //
 
 import BoomBoomBoomKitTestSupport
-import CryptoKit
 import Foundation
 import Testing
 
@@ -186,42 +185,91 @@ struct DownbeatStrategyContainmentTests {
         decoded: decoded, options: gridOptions(detectDownbeats: false, strategy: .metricalAccent)))
     let grid = try #require(result.beatGrid)
 
-    // Canonical full-graph encoding: the BeatGrid as sorted-key JSON (Double → shortest
-    // round-trip decimal, deterministic + platform-independent) plus the bpm/confidence/
-    // candidate bit patterns. One SHA-256 over the lot.
-    func digest(of grid: BeatGrid) throws -> String {
-      let encoder = JSONEncoder()
-      encoder.outputFormatting = [.sortedKeys]
-      let gridHex = SHA256.hash(data: try encoder.encode(grid))
-        .map { String(format: "%02x", $0) }.joined()
-      var canonical = "bpm=\(result.bpm.bitPattern);conf=\(result.confidence.bitPattern)"
-      for c in result.candidates { canonical += ";cand=\(c.bpm.bitPattern),\(c.score.bitPattern)" }
-      canonical += ";grid=\(gridHex)"
-      return SHA256.hash(data: Data(canonical.utf8)).map { String(format: "%02x", $0) }.joined()
+    // Committed pre-story snapshot (captured at 0a8c18a, + the deliberate 8-12 schemaVersion 1→2
+    // bump). Replaces the former single SHA-256-over-float-bits digest, which was not portable: the
+    // `Float` Accelerate/vDSP BPM path is not bit-reproducible across CPU/toolchain (~1e-5 BPM /
+    // ~1e-9 confidence), so the digest passed on the author's Mac but failed on CI. Here the
+    // host-independent STRUCTURE (counts, enums, ordering, schema, anchor index/source) is pinned
+    // EXACTLY, and the Float-derived NUMERICS are compared within a tight tolerance that catches real
+    // drift while surviving cross-toolchain noise. Per-beat confidence/strength are deliberately NOT
+    // pinned (the most host-sensitive, least meaningful fields); every beat's presentationTime IS,
+    // since that is the actual playable grid.
+    let bpmTol = 1e-4
+    let confTolD = 1e-6
+    let confTolF: Float = 1e-4
+    let timeTol = 1e-6
+
+    // BPMResult scalars + candidates.
+    #expect(NumericTestHelpers.approxEqual(result.bpm, 120.00007596407346, tol: bpmTol))
+    #expect(NumericTestHelpers.approxEqual(result.confidence, 0.9238235544912974, tol: confTolD))
+    let expectedCandidates: [(bpm: Double, score: Float)] = [
+      (120.0, 1.0000058), (114.0, 0.003_117_62), (127.0, 0.001_594_748_1),
+    ]
+    try #require(result.candidates.count == expectedCandidates.count, "candidate count drifted")
+    for (i, exp) in expectedCandidates.enumerated() {
+      #expect(
+        NumericTestHelpers.approxEqual(result.candidates[i].bpm, exp.bpm, tol: bpmTol),
+        "candidate \(i) bpm drift: \(result.candidates[i].bpm) vs \(exp.bpm)")
+      // Loose Float tolerance on score: catches a ranking-evidence reshuffle that leaves bpm stable.
+      #expect(
+        NumericTestHelpers.approxEqual(result.candidates[i].score, exp.score, tol: confTolF),
+        "candidate \(i) score drift: \(result.candidates[i].score) vs \(exp.score)")
     }
 
-    // The default path stamps schemaVersion 2 since Story 8.12.
+    // Grid structure — host-independent, pinned exactly.
     #expect(grid.schemaVersion == 2)
-    let actual = try digest(of: grid)
-    let expected = "81139047ae6c96dfcdd4bd9019b8c4f59f78ec0cca8a3522acd976709020226f"
-    if actual != expected { print("[snapshot] defaultPathBeatGrid digest = \(actual)") }
-    #expect(
-      actual == expected,
-      "default-path BeatGrid drifted from the post-8-12 snapshot (baseline 0a8c18a + the deliberate 8-12 schemaVersion 1→2 bump); update `expected` only if the change is intentional (AC #2(a))."
-    )
+    #expect(grid.downbeats == .notAttempted)
+    #expect(grid.tempoAgreement == .notCompared)
+    #expect(grid.coverage == .analysisWindow)
+    #expect(grid.beats.count == 20)
+    for i in 1..<grid.beats.count {
+      #expect(
+        grid.beats[i].presentationTime > grid.beats[i - 1].presentationTime,
+        "beats not strictly increasing at \(i)")
+    }
 
-    // Prove the ONLY delta from the pre-8-12 snapshot is the version stamp: re-stamping the
-    // grid back to schemaVersion 1 (every other field forwarded through the memberwise init,
-    // which rebuilds the coupled auto anchor identically) reproduces the pre-story committed
-    // digest exactly. A mismatch would mean a non-version field moved — a real regression.
+    // Grid numerics — tolerance.
+    #expect(NumericTestHelpers.approxEqual(grid.estimatedTempo, 120.00007596407346, tol: bpmTol))
+    #expect(NumericTestHelpers.approxEqual(grid.confidence, 0.8909683, tol: confTolF))
+
+    // gridOrigin: exact structure (coupled auto anchor) + tolerance numerics.
+    let origin = try #require(grid.gridOrigin)
+    #expect(origin.beatIndex == 12)
+    #expect(origin.source == .medianConsistentBeat)
+    #expect(NumericTestHelpers.approxEqual(origin.presentationTime, 5.95, tol: timeTol))
+    #expect(NumericTestHelpers.approxEqual(origin.confidence, 1.0, tol: confTolF))
+    #expect(NumericTestHelpers.approxEqual(origin.strength, 1.0, tol: confTolF))
+
+    // Every beat's presentationTime vs the committed array — this is the actual grid (strong drift
+    // detection). Contingency: if a runner ever shows beat SELECTION differs (a time off by ≥ one
+    // hop ≈ 11ms, or a count change), that is host-sensitive beat tracking, not float noise — widen
+    // to count + monotonicity + endpoints and record it; expected stable for clean click fixtures.
+    let expectedBeatTimes: [Double] = [
+      0.0, 0.48, 0.96, 1.45, 1.95, 2.45, 2.95, 3.45, 3.95, 4.45,
+      4.95, 5.45, 5.95, 6.45, 6.95, 7.45, 7.95, 8.45, 8.95, 9.45,
+    ]
+    try #require(grid.beats.count == expectedBeatTimes.count)
+    for (i, expT) in expectedBeatTimes.enumerated() {
+      #expect(
+        NumericTestHelpers.approxEqual(grid.beats[i].presentationTime, expT, tol: timeTol),
+        "beat \(i) presentationTime drift: \(grid.beats[i].presentationTime) vs \(expT)")
+    }
+
+    // Idempotence guard (NOT a history check — that role is the snapshot assertions above). Re-stamp
+    // the v2 grid down to v1 and back to v2 through the memberwise init; `BeatGrid` is `Equatable`,
+    // so `restamped == grid` proves the schemaVersion stamp is the ONLY field the 3-rule `gridOrigin`
+    // memberwise init differs on (the version flip perturbs no other field — the init is idempotent
+    // on an already-valid grid).
     let downgraded = BeatGrid(
       beats: grid.beats, downbeats: grid.downbeats, estimatedTempo: grid.estimatedTempo,
       confidence: grid.confidence, tempoAgreement: grid.tempoAgreement,
       gridOrigin: grid.gridOrigin, coverage: grid.coverage, schemaVersion: 1)
-    let preStoryDigest = "5019b4fa0dccb5dfd8a52ce98eef2b16bac62b80bde02109f61bb0a09a239c9b"
-    #expect(
-      try digest(of: downgraded) == preStoryDigest,
-      "non-version fields drifted from the pre-8-12 baseline (0a8c18a); the 8-12 delta must be ONLY the schemaVersion 1→2 stamp."
-    )
+    #expect(downgraded.schemaVersion == 1)
+    let restamped = BeatGrid(
+      beats: downgraded.beats, downbeats: downgraded.downbeats,
+      estimatedTempo: downgraded.estimatedTempo, confidence: downgraded.confidence,
+      tempoAgreement: downgraded.tempoAgreement, gridOrigin: downgraded.gridOrigin,
+      coverage: downgraded.coverage, schemaVersion: 2)
+    #expect(restamped == grid, "memberwise init perturbed a non-version field")
   }
 }

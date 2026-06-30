@@ -39,9 +39,15 @@ jobs:
         run: make test
 
       - name: Format check
-        # `--lint`, NOT the Makefile's in-place `fmt`: fails on a malformed diff
-        # without mutating the working tree.
-        run: swift format --recursive --lint Sources/ Tests/
+        # swift-format has no `--lint` flag (the prior `swift format --recursive
+        # --lint` never parsed; the run died at `make test` first, so it was never
+        # exercised). Gate formatting the version-stable way: reformat the ephemeral
+        # CI checkout in place, then fail if anything changed. A dev machine's working
+        # tree is untouched (`make fmt` keeps it clean). Only formatting is applied —
+        # swift-format's naming rules are not — so pre-existing lint warnings don't gate.
+        run: |
+          swift format --recursive --in-place Sources/ Tests/
+          git diff --exit-code -- Sources/ Tests/
 
       - name: SwiftLint (Swift-only; avoids develop-only py-lint)
         run: |
