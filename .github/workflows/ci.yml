@@ -1,0 +1,55 @@
+name: CI
+
+# Build + corpus-free unit-test gate for pull requests. Pure infrastructure —
+# touches no Sources/ code. Runs on a macOS 26 runner (Package.swift targets
+# macOS 15 / Swift 6.0). Env-gated corpus/benchmark targets (benchmark,
+# benchmark-giantsteps, ablation, oracle, perf-benchmark, benchmark-beatgrid,
+# combined-analyze-impact-report, etc.) are intentionally EXCLUDED: the OA300 /
+# GiantSteps / Tony corpora are private and absent in CI. `make lint` is NOT
+# called either — it pulls in the develop-only `py-lint` (uv/ruff/ty over
+# _bmad-output/ml-training/), which will not resolve on a clean runner; the
+# Swift half (`swiftlint lint .`) is invoked directly instead.
+
+on:
+  pull_request:
+    branches: [develop, main, rterhaar/epic-8]
+  push:
+    branches: [develop, main, rterhaar/epic-8]
+
+# Supersede an in-flight run when a newer commit lands on the same ref so PRs
+# don't pile up duplicate macOS runs.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build + unit tests (macOS)
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build (Debug)
+        run: swift build
+
+      - name: Unit tests (corpus-free)
+        # Calls `make test` → `swift test --parallel --filter
+        # BoomBoomBoomKitTests`. Needs no corpus env vars.
+        run: make test
+
+      - name: Format check
+        # swift-format has no `--lint` flag (the prior `swift format --recursive
+        # --lint` never parsed; the run died at `make test` first, so it was never
+        # exercised). Gate formatting the version-stable way: reformat the ephemeral
+        # CI checkout in place, then fail if anything changed. A dev machine's working
+        # tree is untouched (`make fmt` keeps it clean). Only formatting is applied —
+        # swift-format's naming rules are not — so pre-existing lint warnings don't gate.
+        run: |
+          swift format --recursive --in-place Sources/ Tests/
+          git diff --exit-code -- Sources/ Tests/
+
+      - name: SwiftLint (Swift-only; avoids develop-only py-lint)
+        run: |
+          brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
+          swiftlint lint .

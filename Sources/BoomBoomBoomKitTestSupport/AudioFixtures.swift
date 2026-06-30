@@ -12,14 +12,31 @@ public enum AudioFixtures {
   /// - Returns: URL to the fixture file.
   /// - Throws: `AudioFixtureError.notFound` if the fixture is missing.
   public static func url(for name: String, extension ext: String) throws -> URL {
-    guard
-      let url = Bundle.module.url(
-        forResource: name, withExtension: ext, subdirectory: "AudioFixtures"
-      )
-    else {
-      throw AudioFixtureError.notFound("\(name).\(ext)")
+    if let url = Bundle.module.url(
+      forResource: name, withExtension: ext, subdirectory: "AudioFixtures"
+    ) {
+      return url
     }
-    return url
+
+    // Fallback: `Bundle.url(forResource:)` is Unicode-normalization SENSITIVE, so a
+    // fixture whose name carries combining accents (e.g. Greek) misses when the
+    // on-disk / bundled form (NFC vs NFD) differs from the source literal across a
+    // git checkout or CI runner. Enumerate the bundle directory and match basename
+    // and extension SEPARATELY in canonical (NFC) form — comparing the parts rather
+    // than a joined "name.ext" string keeps names containing dots unambiguous.
+    let wantName = name.precomposedStringWithCanonicalMapping
+    if let candidates = Bundle.module.urls(
+      forResourcesWithExtension: ext, subdirectory: "AudioFixtures"
+    ) {
+      for candidate in candidates
+      where candidate.deletingPathExtension().lastPathComponent
+        .precomposedStringWithCanonicalMapping == wantName && candidate.pathExtension == ext
+      {
+        return candidate
+      }
+    }
+
+    throw AudioFixtureError.notFound("\(name).\(ext)")
   }
 }
 
