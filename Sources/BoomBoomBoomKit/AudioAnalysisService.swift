@@ -1685,13 +1685,7 @@ public struct AudioAnalysisService {
     }
     // Checkpoint before the (separate) beat-grid pass (AC6).
     if options.isCancelled() { throw CancellationError() }
-    let (grid, tracedBPM) = try beatGridStitchingTrace(
-      decoded: decoded, options: options, bpm: bpm)
-    let resolved = grid.map { resolveTempoAgreement($0, against: tracedBPM) }
-    return CombinedAnalysisResult(
-      bpm: tracedBPM,
-      beatGrid: applyTempoLock(
-        resolved, lock: options.beatGridTempoLock, bpmStageTempo: tracedBPM.bpm))
+    return try combineGridWithBPM(decoded: decoded, options: options, bpm: bpm)
   }
 
   /// Combined analysis over an already-decoded carrier — the shared-decode seam
@@ -1714,8 +1708,19 @@ public struct AudioAnalysisService {
     let capped = applyCap(decoded, maxSeconds: options.maxSeconds)
     guard let bpm = try analyzeBPM(decoded: capped, options: options) else { return nil }
     if options.isCancelled() { throw CancellationError() }
+    return try combineGridWithBPM(decoded: capped, options: options, bpm: bpm)
+  }
+
+  /// The grid-pass tail shared by both combined ``analyze`` entry points: run the
+  /// beat-grid pass over `decoded` (stitching its trace onto `bpm` when tracing is
+  /// on), resolve the grid's ``TempoAgreement`` against that BPM result, and apply
+  /// the configured ``BeatGridTempoLock``. The url and decoded paths differ only in
+  /// which carrier they pass here.
+  private static func combineGridWithBPM(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options, bpm: AudioAnalysisResult
+  ) throws -> CombinedAnalysisResult {
     let (grid, tracedBPM) = try beatGridStitchingTrace(
-      decoded: capped, options: options, bpm: bpm)
+      decoded: decoded, options: options, bpm: bpm)
     let resolved = grid.map { resolveTempoAgreement($0, against: tracedBPM) }
     return CombinedAnalysisResult(
       bpm: tracedBPM,
