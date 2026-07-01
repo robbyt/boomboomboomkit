@@ -291,10 +291,10 @@ struct ModelRegistryTests {
         != ModelRegistry.computeDigest(forModelAt: merged))
   }
 
-  // MARK: - Pinned re-verify bypasses the cache
+  // MARK: - Pinned re-verify recomputes on every register
 
-  @Test("pinned re-verify recomputes the digest on every call (does not use the cache)")
-  func pinnedCheckBypassesCache() throws {
+  @Test("pinned re-verify recomputes the digest on every call")
+  func pinnedReVerifiesOnEveryRegister() throws {
     let url = try customBundledURL()
     let registry = ModelRegistry()
     let digest = try ModelRegistry.computeDigest(forModelAt: url)
