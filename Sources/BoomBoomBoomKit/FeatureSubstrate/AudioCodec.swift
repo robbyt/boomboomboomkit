@@ -24,7 +24,8 @@ extension FeatureSubstrate {
   public enum AudioCodec: String, Sendable, Hashable, CaseIterable, Codable {
     /// Uncompressed linear PCM payload (WAV, AIFF, CAF-with-LPCM, BWF).
     case linearPCM
-    /// MPEG-4 AAC (`kAudioFormatMPEG4AAC`).
+    /// MPEG-4 AAC family — baseline LC plus the HE/LD/ELD/HE_V2 profiles
+    /// (`kAudioFormatMPEG4AAC`, `_HE`, `_LD`, `_ELD`, `_HE_V2`).
     case aac
     /// Apple Lossless (`kAudioFormatAppleLossless`).
     case alac
