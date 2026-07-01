@@ -49,15 +49,6 @@ enum DownbeatAnalyzer {
   /// rather than `0`.
   private static let epsilon: Float = 1e-6
 
-  /// Grid-integrity: an inter-beat interval deviating from the beat period by
-  /// more than this fraction is "off-grid" (25%).
-  private static let gridDeviationTolerance = 0.25
-
-  /// Grid-integrity: if more than this fraction of inter-beat intervals are
-  /// off-grid, the DP shredded the grid → abstain rather than fold phase from it
-  /// (20%).
-  private static let gridOffGridFractionLimit = 0.20
-
   /// Score weights (DD #7): strong low-band emphasis marks bar starts; a light
   /// full-band term breaks ties; subtract the snare-crack band to suppress
   /// backbeat phases.
@@ -144,16 +135,8 @@ enum DownbeatAnalyzer {
     // doubled beat is ≈ one off-grid interval — well under the fraction limit on
     // a multi-bar window — so it does NOT trip this; position-quantized folding
     // (below) handles that. The guard fires only on a shredded grid.
-    let intervalCount = beats.count - 1
-    if intervalCount > 0 {
-      var offGrid = 0
-      for i in 1..<beats.count {
-        let dt = beats[i].presentationTime - beats[i - 1].presentationTime
-        if abs(dt - beatPeriod) / beatPeriod > gridDeviationTolerance { offGrid += 1 }
-      }
-      if Double(offGrid) > gridOffGridFractionLimit * Double(intervalCount) {
-        return .noneDetected
-      }
+    if BeatGridGridIntegrity.isShredded(beats: beats, beatPeriod: beatPeriod) {
+      return .noneDetected
     }
 
     // --- AC3.1 peak-divide-normalise each band across the window -------------
@@ -195,8 +178,9 @@ enum DownbeatAnalyzer {
     let firstBeatTime = beats[0].presentationTime
     var phases = [Int](repeating: 0, count: beats.count)
     for i in 0..<beats.count {
-      let raw = Int(((beats[i].presentationTime - firstBeatTime) / beatPeriod).rounded())
-      phases[i] = ((raw % beatsPerBar) + beatsPerBar) % beatsPerBar
+      phases[i] = BarPhase.index(
+        ofTime: beats[i].presentationTime, firstTime: firstBeatTime,
+        beatPeriod: beatPeriod, beatsPerBar: beatsPerBar)
     }
 
     // --- AC3.4 aggregate each phase bin with a median (not a raw sum) --------

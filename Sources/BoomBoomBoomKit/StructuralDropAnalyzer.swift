@@ -86,14 +86,6 @@ enum StructuralDropAnalyzer {
   /// a usable value.
   private static let minReportableConfidence: Float = 0.1
 
-  /// Grid-integrity (parity with ``DownbeatAnalyzer``): an inter-beat interval
-  /// deviating from the beat period by more than this fraction is "off-grid".
-  private static let gridDeviationTolerance = 0.25
-
-  /// Grid-integrity: if more than this fraction of inter-beat intervals are
-  /// off-grid the DP shredded the grid → abstain rather than fold a phase from it.
-  private static let gridOffGridFractionLimit = 0.20
-
   // MARK: - Energy contour
 
   /// Multi-descriptor energy contour over the FULL pre-trim signal (file `t = 0`).
@@ -320,15 +312,7 @@ enum StructuralDropAnalyzer {
     // from a shredded beat array (too many off-period intervals). A single dropped/doubled
     // beat is one off-grid interval — well under the limit on a multi-bar window — so
     // position-quantized folding still handles that; this fires only on a shredded grid.
-    let intervalCount = beats.count - 1
-    if intervalCount > 0 {
-      var offGrid = 0
-      for i in 1..<beats.count {
-        let dt = beats[i].presentationTime - beats[i - 1].presentationTime
-        if abs(dt - beatPeriod) / beatPeriod > gridDeviationTolerance { offGrid += 1 }
-      }
-      if Double(offGrid) > gridOffGridFractionLimit * Double(intervalCount) { return .none }
-    }
+    if BeatGridGridIntegrity.isShredded(beats: beats, beatPeriod: beatPeriod) { return .none }
 
     let beatFrames = beatPeriod * contour.rate
     // Bound before the `Int(...)` casts below so an absurd (sub-denormal-tempo) beatFrames
@@ -491,13 +475,14 @@ enum StructuralDropAnalyzer {
     guard nearestDist <= halfBeatSnapFraction * beatPeriod else { return nil }
 
     let firstTime = beats[0].presentationTime
-    let raw = Int(((beats[nearest].presentationTime - firstTime) / beatPeriod).rounded())
-    return ((raw % beatsPerBar) + beatsPerBar) % beatsPerBar
+    return BarPhase.index(
+      ofTime: beats[nearest].presentationTime, firstTime: firstTime,
+      beatPeriod: beatPeriod, beatsPerBar: beatsPerBar)
   }
 
   /// Builds a `.detected` outcome at `phaseIndex` by folding every beat onto its
-  /// position-quantized bar phase (8.5a `DownbeatAnalyzer.swift:194-200`) and
-  /// collecting the phase's beats. Abstains if the phase carries no beat.
+  /// position-quantized bar phase (the shared 8.5a fold, ``BarPhase/index(ofTime:firstTime:beatPeriod:beatsPerBar:)``)
+  /// and collecting the phase's beats. Abstains if the phase carries no beat.
   private static func detectedOutcome(
     beats: [BeatTimestamp], estimatedTempo: Double, beatsPerBar: Int,
     phaseIndex: Int, confidence: Float
@@ -508,8 +493,9 @@ enum StructuralDropAnalyzer {
     var downbeatBeats: [BeatTimestamp] = []
     var firstIdx = -1
     for (i, beat) in beats.enumerated() {
-      let raw = Int(((beat.presentationTime - firstTime) / beatPeriod).rounded())
-      let phase = ((raw % beatsPerBar) + beatsPerBar) % beatsPerBar
+      let phase = BarPhase.index(
+        ofTime: beat.presentationTime, firstTime: firstTime,
+        beatPeriod: beatPeriod, beatsPerBar: beatsPerBar)
       if phase == phaseIndex {
         if firstIdx < 0 { firstIdx = i }
         downbeatBeats.append(beat)
