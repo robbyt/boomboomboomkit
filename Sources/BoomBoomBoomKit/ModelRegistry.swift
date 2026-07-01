@@ -38,12 +38,13 @@ import Synchronization
 /// responsibility (e.g. a security-scoped bookmark plus the ``identifier`` and
 /// the ``ModelDigest`` hex in `UserDefaults`, re-registering on launch).
 ///
-/// - Important: A pinned-digest check (non-`nil` `expectedDigest`) always
-///   recomputes the digest from disk, so it re-verifies on every call and
-///   detects an on-disk swap even for a URL registered earlier in the same
-///   process. Trust-on-first-use (`expectedDigest: nil`) is
-///   cache-on-first-load: the digest is computed once per file URL and reused
-///   for subsequent TOFU registrations of the same URL.
+/// - Important: Both registration modes recompute the digest from disk on
+///   every call, so both re-verify and detect an on-disk swap even for a URL
+///   registered earlier in the same process. A pinned-digest check (non-`nil`
+///   `expectedDigest`) compares the recomputed digest against the pin;
+///   trust-on-first-use (`expectedDigest: nil`) records whatever the recompute
+///   yields. There is no digest cache — registration is not a hot path, so
+///   honoring the swap-detection contract is worth the re-hash.
 ///
 /// ## Thread safety
 ///
@@ -54,7 +55,6 @@ public final class ModelRegistry: Sendable {
   /// All mutable state, guarded by a single ``Mutex``.
   private struct State {
     var entries: [ModelRegistryEntry] = []
-    var digestCache: [URL: ModelDigest] = [:]
     var digestComputationCount: Int = 0
   }
 
@@ -90,12 +90,11 @@ public final class ModelRegistry: Sendable {
 
   /// Registers a model directory bundle after validating its integrity.
   ///
-  /// Computes the SHA-256 digest over the bundle's contents. A pinned
-  /// `expectedDigest` recomputes from disk on every call (re-verification);
-  /// trust-on-first-use (`expectedDigest: nil`) caches the digest per file URL.
-  /// If `expectedDigest` is non-`nil` and does not match the computed digest,
-  /// throws and leaves ``entries`` unchanged. Otherwise appends and returns the
-  /// new entry.
+  /// Computes the SHA-256 digest over the bundle's contents from disk on every
+  /// call, for both pinned and trust-on-first-use registration (there is no
+  /// digest cache, so an on-disk swap is always detected). If `expectedDigest`
+  /// is non-`nil` and does not match the computed digest, throws and leaves
+  /// ``entries`` unchanged. Otherwise appends and returns the new entry.
   ///
   /// - Parameters:
   ///   - url: The model directory bundle (e.g. a `.mlmodelc`).
@@ -115,22 +114,14 @@ public final class ModelRegistry: Sendable {
   ) throws -> ModelRegistryEntry {
     let key = url.standardizedFileURL
     // DD-6: the digest does file I/O; we hold the lock across it so the
-    // cache-check / compute / cache-insert / append sequence is atomic.
-    // Registration is not a hot path, so the simplicity is worth more than
-    // releasing the lock during the read.
+    // compute / append sequence is atomic. Registration is not a hot path, so
+    // the simplicity is worth more than releasing the lock during the read.
     return try state.withLock { state in
-      let computedDigest: ModelDigest
-      // A pinned check (non-nil expectedDigest) ALWAYS recomputes from disk so a
-      // post-registration swap is detected even for a URL cached earlier in this
-      // process — re-verification is the pinned path's whole purpose. TOFU
-      // (nil) uses cache-on-first-load.
-      if expectedDigest == nil, let cached = state.digestCache[key] {
-        computedDigest = cached
-      } else {
-        computedDigest = try Self.computeDigest(forModelAt: key)
-        state.digestComputationCount += 1
-        state.digestCache[key] = computedDigest
-      }
+      // Both modes recompute from disk on every call (no cache), so an on-disk
+      // swap is always detected — for pinned (re-verification against the pin)
+      // and for trust-on-first-use (records the current bytes) alike.
+      let computedDigest = try Self.computeDigest(forModelAt: key)
+      state.digestComputationCount += 1
 
       if let expectedDigest, expectedDigest != computedDigest {
         throw ModelRegistryError.integrityCheckFailed(
@@ -149,8 +140,8 @@ public final class ModelRegistry: Sendable {
     }
   }
 
-  /// Number of times the SHA-256 digest was actually computed (cache misses).
-  /// Internal, `@testable`-visible — proves cache-on-first-load.
+  /// Number of times the SHA-256 digest was actually computed.
+  /// Internal, `@testable`-visible — proves every register recomputes from disk.
   var digestComputationCount: Int {
     state.withLock { $0.digestComputationCount }
   }
