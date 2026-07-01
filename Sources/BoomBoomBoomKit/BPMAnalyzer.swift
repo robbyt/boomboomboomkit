@@ -635,13 +635,23 @@ struct BPMAnalyzer {
   ///   - options: Supplies `intensity` / `techniqueSet` (onset variant + gating)
   ///     and `analysisWindowSeconds` (the fallback span if a degenerate coverage
   ///     sanitizes to `.analysisWindow`).
+  ///   - refinementSink: Receives the ``BeatGridTempoRefinementEvidence`` when the
+  ///     coverage-span refit runs (ticket #71 — threads the step-11 fan-out's
+  ///     trace seam through the `.window` / `.fullTrack` grid pass so consumers
+  ///     observe the refit on every coverage). Defaults to a no-op, so existing
+  ///     callers are unaffected and the `enableTrace == false` path stays
+  ///     allocation-free (the service passes a live sink only when tracing is on).
+  ///   - downbeatSink: Receives the ``DownbeatStrategyEvidence`` when downbeat
+  ///     detection runs; defaults to a no-op (see `refinementSink`).
   /// - Returns: A ``BeatGrid`` over the coverage span, or `nil` for silence,
   ///   too-short coverage, or non-musical input.
   static func estimateBeatGrid(
     decoded: FeatureSubstrate.DecodedAudio,
     tempoBPM: Double,
     coverage: BeatGridCoverage,
-    options: Options = .init()
+    options: Options = .init(),
+    refinementSink: (BeatGridTempoRefinementEvidence) -> Void = { _ in },
+    downbeatSink: (DownbeatStrategyEvidence) -> Void = { _ in }
   ) -> BeatGrid? {
     let samples = decoded.samples
     let sampleRate = decoded.sampleRate
@@ -730,7 +740,9 @@ struct BPMAnalyzer {
       detectDownbeats: options.detectDownbeats,
       downbeatStrategy: options.downbeatStrategy,
       dropContour: dropContour,
-      refineBeatGridTempo: options.refineBeatGridTempo)
+      refineBeatGridTempo: options.refineBeatGridTempo,
+      refinementSink: refinementSink,
+      downbeatSink: downbeatSink)
   }
 
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)

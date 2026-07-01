@@ -110,18 +110,25 @@ public struct BPMDiagnosticTrace: Sendable {
   // MARK: - Step 11: Beat-Grid Tempo Refinement (Story 8.10)
 
   /// Continuous beat-grid tempo-refinement outcome (coarse seed, refined value,
-  /// both support scores, accepted flag). Populated only when `enableTrace: true`
-  /// AND the step-11 fan-out ran with `refineBeatGridTempo: true`. Nil when the
-  /// refinement was off or the grid fan-out did not run. Distinguishes "refit
+  /// both support scores, accepted flag). Populated when `enableTrace: true` AND
+  /// the grid pass ran with `refineBeatGridTempo: true` — on every
+  /// `AudioAnalysisService.Options.beatGridCoverage` (the default `.analysisWindow`
+  /// step-11 fan-out AND the `.window(seconds:)` / `.fullTrack` coverage pass, which
+  /// is threaded the same sink as of ticket #71). Surfaced on the combined
+  /// `AudioAnalysisService.analyze` path via `CombinedAnalysisResult.bpm.trace`. Nil
+  /// when the refinement was off or the grid pass did not run. Distinguishes "refit
   /// off" from "refit ran but the reject-guard kept the seed" (`accepted: false`
   /// with `refinedTempo == coarseTempo`).
   public var beatGridTempoRefinement: BeatGridTempoRefinementEvidence?
 
   /// Drop-anchored downbeat-strategy outcome (Story 8.11): which strategy ran, the
   /// structural drop's time + derived phase, the metrical-accent phase, whether the
-  /// two agreed (`.combined` only), and the chosen phase. Populated only when
-  /// `enableTrace: true` AND the step-11 fan-out ran with `detectDownbeats: true`.
-  /// Nil when downbeats were off or the grid fan-out did not run.
+  /// two agreed (`.combined` only), and the chosen phase. Populated when
+  /// `enableTrace: true` AND the grid pass ran with `detectDownbeats: true` — on
+  /// every `AudioAnalysisService.Options.beatGridCoverage` (the default
+  /// `.analysisWindow` step-11 fan-out AND the `.window(seconds:)` / `.fullTrack`
+  /// coverage pass, threaded the same sink as of ticket #71). Nil when downbeats
+  /// were off or the grid pass did not run.
   public var downbeatStrategy: DownbeatStrategyEvidence?
 
   // MARK: - Final

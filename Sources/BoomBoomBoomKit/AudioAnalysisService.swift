@@ -53,6 +53,25 @@ public struct AudioAnalysisResult: Sendable {
   /// ``AudioAnalysisService/maximumSupportedIntensity(mlTechnique:)`` BEFORE
   /// analysis to query whether the configuration supports the requested intensity.**
   public let degradationReason: String?
+
+  /// Returns a copy with `trace` replaced, every other field forwarded verbatim
+  /// (ticket #71). Used by the combined ``AudioAnalysisService/analyze(url:options:)``
+  /// path to stitch the beat-grid coverage pass's refinement / downbeat evidence
+  /// onto the BPM result's trace, so `CombinedAnalysisResult.bpm.trace` carries it
+  /// on every ``AudioAnalysisService/Options/beatGridCoverage``. A forwarder (not a
+  /// field-enumerating re-init at the call site) so a future field is never
+  /// silently dropped here (mirrors the ``BPMResult/with(bpm:confidence:trace:)``
+  /// W52 pattern).
+  func with(trace newTrace: BPMDiagnosticTrace?) -> AudioAnalysisResult {
+    AudioAnalysisResult(
+      bpm: bpm,
+      confidence: confidence,
+      candidates: candidates,
+      trace: newTrace,
+      metadataEvidence: metadataEvidence,
+      effectiveIntensity: effectiveIntensity,
+      degradationReason: degradationReason)
+  }
 }
 
 /// Result of combined BPM + beat-grid analysis over a single shared decode
@@ -1512,15 +1531,53 @@ public struct AudioAnalysisService {
   private static func beatGrid(
     decoded: FeatureSubstrate.DecodedAudio, options: Options
   ) throws -> BeatGrid? {
+    // Standalone beat-grid analysis returns no trace, so keep it allocation-free
+    // even when the caller set `enableTrace`: the no-op sinks would discard any
+    // grid-pass trace anyway (Copilot review). `enableTrace` is output-inert, so
+    // forcing it off here leaves the grid value unchanged.
+    var untraced = options
+    untraced.enableTrace = false
+    return try beatGrid(
+      decoded: decoded, options: untraced,
+      refinementSink: { _ in }, downbeatSink: { _ in })
+  }
+
+  /// Trace-threaded overload (ticket #71). The combined ``analyze`` paths pass live
+  /// `refinementSink` / `downbeatSink` closures (only when `options.enableTrace`)
+  /// so the beat-grid coverage pass's refinement / downbeat evidence can be stitched
+  /// onto the returned `CombinedAnalysisResult.bpm.trace` regardless of coverage.
+  /// The standalone ``analyzeBeatGrid`` paths call the no-sink overload above, so
+  /// their behavior — and the `enableTrace == false` allocation profile — is
+  /// unchanged.
+  ///
+  /// On ``BeatGridCoverage/analysisWindow`` the grid is built inside the
+  /// `computeBeatGrid: true` `estimateBPM` pass, whose own step-11 fan-out owns the
+  /// sinks; we therefore enable that pass's trace ONLY when a live sink is wanted
+  /// (`options.enableTrace`) and forward its captured evidence to the sinks. On the
+  /// `.window(seconds:)` / `.fullTrack` second pass the sinks are threaded straight
+  /// into ``BPMAnalyzer/estimateBeatGrid(decoded:tempoBPM:coverage:options:refinementSink:downbeatSink:)``.
+  private static func beatGrid(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options,
+    refinementSink: (BeatGridTempoRefinementEvidence) -> Void,
+    downbeatSink: (DownbeatStrategyEvidence) -> Void
+  ) throws -> BeatGrid? {
     if case .analysisWindow = options.beatGridCoverage.sanitized {
       let bpmOptions = BPMAnalyzer.Options(
         intensity: options.intensity,
         techniqueSet: options.techniqueSet,
+        enableTrace: options.enableTrace,
         computeBeatGrid: true,
         detectDownbeats: options.detectDownbeats,
         downbeatStrategy: options.downbeatStrategy,
         refineBeatGridTempo: options.refineBeatGridTempo)
-      return BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.beatGrid
+      guard let result = BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)
+      else { return nil }
+      // The step-11 fan-out wrote the evidence onto this pass's own trace (present
+      // only when `enableTrace`); forward it to the sinks so the combined path can
+      // stitch it onto the BPM result's trace.
+      if let refinement = result.trace?.beatGridTempoRefinement { refinementSink(refinement) }
+      if let downbeat = result.trace?.downbeatStrategy { downbeatSink(downbeat) }
+      return result.beatGrid
     }
 
     // .window(seconds:) / .fullTrack — second-pass coverage seam. The shared
@@ -1541,7 +1598,28 @@ public struct AudioAnalysisService {
       decoded: decoded,
       tempoBPM: tempo,
       coverage: options.beatGridCoverage,
-      options: bpmOptions)
+      options: bpmOptions,
+      refinementSink: refinementSink,
+      downbeatSink: downbeatSink)
+  }
+
+  /// Runs ``beatGrid(decoded:options:)`` and, when `options.enableTrace`, captures
+  /// the grid pass's refinement / downbeat evidence into a local trace stitched onto
+  /// the supplied BPM result (ticket #71) — so `CombinedAnalysisResult.bpm.trace`
+  /// carries the evidence on every coverage. When tracing is off, no trace is built
+  /// and the BPM result is returned verbatim (allocation-free).
+  private static func beatGridStitchingTrace(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options, bpm: AudioAnalysisResult
+  ) throws -> (grid: BeatGrid?, bpm: AudioAnalysisResult) {
+    guard options.enableTrace else {
+      return (try beatGrid(decoded: decoded, options: options), bpm)
+    }
+    var gridTrace = bpm.trace ?? BPMDiagnosticTrace()
+    let grid = try beatGrid(
+      decoded: decoded, options: options,
+      refinementSink: { gridTrace.beatGridTempoRefinement = $0 },
+      downbeatSink: { gridTrace.downbeatStrategy = $0 })
+    return (grid, bpm.with(trace: gridTrace))
   }
 
   // MARK: - Story 8.5: combined BPM + beat-grid analysis (FR-31 / FR-35, KDD-C4)
@@ -1607,11 +1685,13 @@ public struct AudioAnalysisService {
     }
     // Checkpoint before the (separate) beat-grid pass (AC6).
     if options.isCancelled() { throw CancellationError() }
-    let grid = try beatGrid(decoded: decoded, options: options)
-    let resolved = grid.map { resolveTempoAgreement($0, against: bpm) }
+    let (grid, tracedBPM) = try beatGridStitchingTrace(
+      decoded: decoded, options: options, bpm: bpm)
+    let resolved = grid.map { resolveTempoAgreement($0, against: tracedBPM) }
     return CombinedAnalysisResult(
-      bpm: bpm,
-      beatGrid: applyTempoLock(resolved, lock: options.beatGridTempoLock, bpmStageTempo: bpm.bpm))
+      bpm: tracedBPM,
+      beatGrid: applyTempoLock(
+        resolved, lock: options.beatGridTempoLock, bpmStageTempo: tracedBPM.bpm))
   }
 
   /// Combined analysis over an already-decoded carrier — the shared-decode seam
@@ -1634,11 +1714,13 @@ public struct AudioAnalysisService {
     let capped = applyCap(decoded, maxSeconds: options.maxSeconds)
     guard let bpm = try analyzeBPM(decoded: capped, options: options) else { return nil }
     if options.isCancelled() { throw CancellationError() }
-    let grid = try beatGrid(decoded: capped, options: options)
-    let resolved = grid.map { resolveTempoAgreement($0, against: bpm) }
+    let (grid, tracedBPM) = try beatGridStitchingTrace(
+      decoded: capped, options: options, bpm: bpm)
+    let resolved = grid.map { resolveTempoAgreement($0, against: tracedBPM) }
     return CombinedAnalysisResult(
-      bpm: bpm,
-      beatGrid: applyTempoLock(resolved, lock: options.beatGridTempoLock, bpmStageTempo: bpm.bpm))
+      bpm: tracedBPM,
+      beatGrid: applyTempoLock(
+        resolved, lock: options.beatGridTempoLock, bpmStageTempo: tracedBPM.bpm))
   }
 
   /// Stamps the resolved ``TempoAgreement`` onto a grid the analyzer produced
