@@ -27,7 +27,7 @@
 /// ``BeatGridAnchor``.
 ///
 /// This is doubly true once the grid's tempo is **lock-overridden**
-/// (``with(estimatedTempo:)`` / `AudioAnalysisService.Options.beatGridTempoLock`)
+/// (``with(estimatedTempo:tempoLockOctaveFactor:)`` / `AudioAnalysisService.Options.beatGridTempoLock`)
 /// or **auto-refined** (`AudioAnalysisService.Options.refineBeatGridTempo`): both
 /// replace ``estimatedTempo`` with an independently-derived value while leaving the
 /// raw ``beats`` at their originally-tracked spacing, so ``beats`` and
@@ -91,7 +91,7 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// beat positions; they are NOT guaranteed to be evenly spaced according to
   /// ``estimatedTempo``. They never were exactly (per-beat onset quantization, the
   /// occasional dropped/doubled beat), and they are intentionally *more* divergent
-  /// after a tempo lock (``with(estimatedTempo:)``) or auto-refinement
+  /// after a tempo lock (``with(estimatedTempo:tempoLockOctaveFactor:)``) or auto-refinement
   /// (`AudioAnalysisService.Options.refineBeatGridTempo`), which override
   /// ``estimatedTempo`` without re-spacing this array. A consumer that needs the
   /// playable beat grid must extrapolate from ``gridOrigin`` + ``estimatedTempo``,
@@ -109,7 +109,7 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// **This is THE authoritative extrapolation tempo** — the one number a consumer
   /// pairs with ``gridOrigin`` to lay down the playable grid. It may be
   /// independently fit (`AudioAnalysisService.Options.refineBeatGridTempo`) or
-  /// overridden (``with(estimatedTempo:)`` /
+  /// overridden (``with(estimatedTempo:tempoLockOctaveFactor:)`` /
   /// `AudioAnalysisService.Options.beatGridTempoLock`) regardless of the raw
   /// ``beats`` spacing; when it is, ``beats`` no longer tracks it (see ``beats``).
   public let estimatedTempo: Double
@@ -348,28 +348,6 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       tempoLockOctaveFactor: tempoLockOctaveFactor)
   }
 
-  /// Returns a copy of this grid with ``estimatedTempo`` overridden and every
-  /// other field forwarded from `self`.
-  ///
-  /// Used by the tempo-lock path (``BeatGridTempoLock``) to replace the tracker's
-  /// measured tempo with an authoritative constant BPM while keeping the existing
-  /// ``gridOrigin`` anchor, raw ``beats``, and the pre-lock ``tempoAgreement``
-  /// diagnostic. The new tempo routes through the clamping memberwise init, so a
-  /// non-finite/non-positive value normalizes to the `0.0` sentinel exactly as a
-  /// freshly-constructed grid would (W52 forward-every-field).
-  func with(estimatedTempo newTempo: Double) -> BeatGrid {
-    BeatGrid(
-      beats: beats,
-      downbeats: downbeats,
-      estimatedTempo: newTempo,
-      confidence: confidence,
-      tempoAgreement: tempoAgreement,
-      gridOrigin: gridOrigin,
-      coverage: coverage,
-      schemaVersion: schemaVersion,
-      tempoLockOctaveFactor: tempoLockOctaveFactor)
-  }
-
   /// Returns a copy of this grid with both ``estimatedTempo`` and
   /// ``tempoLockOctaveFactor`` overridden and every other field forwarded from
   /// `self` (issue #62).
@@ -379,8 +357,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// both the octave-normalized authoritative tempo and the factor that
   /// normalization applied — so a consumer can detect a `.bpm(value)` that was
   /// snapped to `value × 2` / `value × 0.5`. The new tempo routes through the
-  /// clamping memberwise init exactly as ``with(estimatedTempo:)`` does (W52
-  /// forward-every-field).
+  /// clamping memberwise init (W52 forward-every-field), so a non-finite/non-positive
+  /// value normalizes to the `0.0` sentinel exactly as a freshly-constructed grid would.
   func with(estimatedTempo newTempo: Double, tempoLockOctaveFactor newFactor: Int) -> BeatGrid {
     BeatGrid(
       beats: beats,
