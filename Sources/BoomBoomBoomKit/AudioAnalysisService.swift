@@ -1531,8 +1531,14 @@ public struct AudioAnalysisService {
   private static func beatGrid(
     decoded: FeatureSubstrate.DecodedAudio, options: Options
   ) throws -> BeatGrid? {
-    try beatGrid(
-      decoded: decoded, options: options,
+    // Standalone beat-grid analysis returns no trace, so keep it allocation-free
+    // even when the caller set `enableTrace`: the no-op sinks would discard any
+    // grid-pass trace anyway (Copilot review). `enableTrace` is output-inert, so
+    // forcing it off here leaves the grid value unchanged.
+    var untraced = options
+    untraced.enableTrace = false
+    return try beatGrid(
+      decoded: decoded, options: untraced,
       refinementSink: { _ in }, downbeatSink: { _ in })
   }
 

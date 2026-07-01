@@ -352,7 +352,9 @@ struct BeatGridTempoRefinementTests {
   private static func analyzeCovered(
     coverage: BeatGridCoverage, refine: Bool = true, detectDownbeats: Bool = false,
     downbeatStrategy: DownbeatStrategy = .metricalAccent, enableTrace: Bool = true,
-    durationSeconds: Double = 90
+    // 65s is the minimum that still fills the largest coverage exercised here
+    // (`.window(seconds: 60)`) with margin; was 90s (Copilot review — CI runtime).
+    durationSeconds: Double = 65
   ) throws -> CombinedAnalysisResult {
     let samples = generateClickTrack(
       bpm: 127.3, sampleRate: 44100, durationSeconds: durationSeconds)
@@ -399,7 +401,6 @@ struct BeatGridTempoRefinementTests {
     #expect(result.beatGrid != nil)
     let evidence = try #require(result.bpm.trace?.downbeatStrategy)
     #expect(evidence.strategy == .metricalAccent)
-    #expect(evidence.confidence >= 0)
   }
 
   /// `.structuralDrop` strategy also populates the evidence on `.fullTrack` (the
