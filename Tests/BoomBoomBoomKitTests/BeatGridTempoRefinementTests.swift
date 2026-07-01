@@ -402,8 +402,9 @@ struct BeatGridTempoRefinementTests {
 
   /// Characterization test (issue #66): the authoritative `stageLockTempo` and the
   /// gated `octaveNormalizedLockTempo` (reached through `applyTempoLock(_:lock: .bpm,
-  /// ...)`) share the `.agree` / `.octaveEquivalent` octave arithmetic verbatim — now
-  /// a single `octaveShiftedLock` helper. This pins that shared-arm equivalence so a
+  /// ...)`) share the `.agree` / `.octaveEquivalent` octave arithmetic — `stageLockTempo`
+  /// now reuses `octaveNormalizedLockTempo`, the single copy of that arithmetic. This pins
+  /// that shared-arm equivalence so a
   /// future drift between the two octave-shift code paths fails loudly. The two
   /// resolvers must still DIFFER only on within-octave `.disagree`: the authoritative
   /// path restores the stage tempo, the gated path no-ops.
