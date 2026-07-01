@@ -215,6 +215,16 @@ struct LUFSReportTypeTests {
     let deep = LoudnessSample(time: 2.0, lufs: -150.0, series: .shortTerm)
     #expect(deep.lufs == -150.0)
   }
+
+  @Test("analyzer block-loudness floor is the same value as the report sentinel (issue #68)")
+  func analyzerFloorMatchesReportSentinel() {
+    // Single source of truth: LUFSAnalyzer.blockLoudnessFloor is now an alias
+    // for LUFSReport.sentinelFloor. This locks the coupling so a future edit to
+    // one floor cannot silently diverge from the other. The value must stay
+    // -100.0 (byte-identity invariant).
+    #expect(LUFSReport.sentinelFloor == LUFSAnalyzer.blockLoudnessFloor)
+    #expect(LUFSReport.sentinelFloor == -100.0)
+  }
 }
 
 // MARK: - AC4: fixture matrix
@@ -316,5 +326,40 @@ struct LUFSErrorContractTests {
     let report = try #require(
       try AudioAnalysisService.analyzeLUFS(url: url, options: options))
     #expect(report == baseline)
+  }
+
+  // MARK: - decoded: overload (parity with the url path, issue #59)
+
+  @Test(
+    "decoded overload: unsupported rate throws (parity with the url path)",
+    arguments: [22050.0, 8000.0] as [Double])
+  func decodedUnsupportedRateThrows(rate: Double) {
+    // Two distinct unsupported rates prove the guard is rate-table-driven, not
+    // hardcoded. The decoded: overload's throw path is otherwise untested — the
+    // url: path is locked by unsupportedRateThrows, this is its sibling.
+    let samples = quietSine(sampleRate: rate, durationSeconds: 2.0)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: rate)
+    #expect(throws: LUFSAnalysisError.self) {
+      try AudioAnalysisService.analyzeLUFS(decoded: decoded)
+    }
+    do {
+      _ = try AudioAnalysisService.analyzeLUFS(decoded: decoded)
+      Issue.record("Expected LUFSAnalysisError.unsupportedSampleRate")
+    } catch let LUFSAnalysisError.unsupportedSampleRate(sampleRate, supported) {
+      #expect(sampleRate == rate)
+      #expect(supported == [44100, 48000, 96000])
+    } catch {
+      Issue.record("Unexpected error: \(error)")
+    }
+  }
+
+  @Test(
+    "decoded overload: every supported rate succeeds",
+    arguments: [44100.0, 48000.0, 96000.0] as [Double])
+  func decodedSupportedRatesSucceed(rate: Double) throws {
+    let samples = quietSine(sampleRate: rate, durationSeconds: 5.0)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(samples, sampleRate: rate)
+    let report = try #require(try AudioAnalysisService.analyzeLUFS(decoded: decoded))
+    #expect(report.integratedLUFS.isFinite)
   }
 }

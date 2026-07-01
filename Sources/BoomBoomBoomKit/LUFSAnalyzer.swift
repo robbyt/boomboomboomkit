@@ -60,8 +60,13 @@ struct LUFSAnalyzer {
 
   // MARK: - Constants
 
-  /// Floor value for block loudness display (matches klangfreund histogram lower bound).
-  private static let blockLoudnessFloor: Double = -100.0
+  /// Floor value for block loudness display (matches klangfreund histogram
+  /// lower bound). Single source of truth: `LUFSReport.sentinelFloor` — this
+  /// is an alias, not an independent literal, so the analyzer's silent/
+  /// non-measurable floor can never drift from the report's non-finite clamp.
+  /// `internal` (not `private`) so `LUFSReportTests` can lock the coupling
+  /// directly. Stays `-100.0` (byte-identity invariant).
+  static let blockLoudnessFloor: Double = LUFSReport.sentinelFloor
 
   /// Sample rates with pre-computed K-weighting coefficients. The service
   /// layer consults this list to throw `LUFSAnalysisError.unsupportedSampleRate`
@@ -117,6 +122,16 @@ struct LUFSAnalyzer {
   /// no-result, never throws — unsupported-rate THROWING stays at the
   /// service layer (`LUFSAnalysisError.unsupportedSampleRate`).
   ///
+  /// Layering note: this analyzer returns nil for an unsupported rate, but the
+  /// public service path (`AudioAnalysisService.analyzeLUFS` →
+  /// `lufsReport`) guards the rate and THROWS *before* reaching this method, so
+  /// the unsupported-rate nil branch below is unreachable from the public API —
+  /// it is defensive only. Do NOT "align" the two layers by making this method
+  /// throw: the analyzer's never-throws nil contract is intentional and
+  /// test-locked (`LUFSAnalyzerTests.unsupportedSampleRateReturnsNil`), while
+  /// the service's throw contract is locked separately
+  /// (`LUFSErrorContractTests`).
+  ///
   /// - Parameters:
   ///   - decoded: Decoded mono PCM carrier. Supported rates: 44100, 48000,
   ///     96000 — anything else returns nil (no K-weighting coefficients).
@@ -145,8 +160,8 @@ struct LUFSAnalyzer {
 
     // Task 2: Compute per-block mean-square values
     let stepSize = Int(0.1 * sampleRate)
-    let blockResults = computeBlockMeanSquares(
-      filtered: filtered, blockSize: blockSize, stepSize: stepSize)
+    let blockResults = meanSquares(
+      filtered: filtered, windowSize: blockSize, stepSize: stepSize)
 
     guard !blockResults.isEmpty else { return nil }
 
@@ -208,7 +223,8 @@ struct LUFSAnalyzer {
     // an exact 3.0s rectangle = mean of 30 consecutive cells, energy domain,
     // 10·log10 applied last (EBU Tech 3341 §2.2).
     let cellSize = Int(0.1 * sampleRate)
-    let cellMeanSquares = computeCellMeanSquares(filtered: filtered, cellSize: cellSize)
+    let cellMeanSquares = meanSquares(
+      filtered: filtered, windowSize: cellSize, stepSize: cellSize)
     let shortTermMeanSquares = computeShortTermMeanSquares(cells: cellMeanSquares)
     let shortTermLoudness = shortTermMeanSquares.map { ms -> Double in
       guard ms > 0 else { return -.infinity }
@@ -266,51 +282,36 @@ struct LUFSAnalyzer {
     return filter.apply(input: doubleSamples)
   }
 
-  // MARK: - Block Mean-Square Computation (Task 2)
+  // MARK: - Mean-Square Primitive (Task 2 + Story 8.1, DD #4)
 
-  /// Computes mean-square per 400ms block with 100ms step (75% overlap).
-  private static func computeBlockMeanSquares(
-    filtered: [Double], blockSize: Int, stepSize: Int
+  /// Mean-square over a sliding `windowSize`-sample window advanced by
+  /// `stepSize`. One `vDSP_measqvD` sweep per window; energy domain (no log).
+  /// Returns empty when fewer than one full window fits. Callers own the
+  /// window/step contract — the 400ms blocks (overlapping) pass
+  /// `stepSize < windowSize`; the non-overlapping 100ms cells pass
+  /// `stepSize == windowSize`. Both call sites keep their distinct
+  /// `windowSize`/`stepSize`, so the per-window `vDSP_measqvD` calls — and
+  /// thus the floating-point reduction order — are identical to the prior two
+  /// specialized loops (locked by LUFSByteIdentityTests). The 100ms cells are
+  /// ADDITIVE: they feed the short-term series and LRA only; the 400ms block
+  /// path never reads them.
+  static func meanSquares(
+    filtered: [Double], windowSize: Int, stepSize: Int
   ) -> [Double] {
+    guard windowSize > 0, stepSize > 0 else { return [] }
     let totalSamples = filtered.count
-    guard totalSamples >= blockSize else { return [] }
+    guard totalSamples >= windowSize else { return [] }
 
-    let blockCount = (totalSamples - blockSize) / stepSize + 1
-    var meanSquares = [Double](repeating: 0, count: blockCount)
-
+    let windowCount = (totalSamples - windowSize) / stepSize + 1
+    var result = [Double](repeating: 0, count: windowCount)
     filtered.withUnsafeBufferPointer { bp in
-      for i in 0..<blockCount {
-        let blockStart = i * stepSize
+      for i in 0..<windowCount {
         var ms: Double = 0
-        vDSP_measqvD(bp.baseAddress! + blockStart, 1, &ms, vDSP_Length(blockSize))
-        meanSquares[i] = ms
+        vDSP_measqvD(bp.baseAddress! + i * stepSize, 1, &ms, vDSP_Length(windowSize))
+        result[i] = ms
       }
     }
-
-    return meanSquares
-  }
-
-  // MARK: - 100ms Cell Primitive + Short-Term Series (Story 8.1, DD #4)
-
-  /// Computes mean-square per non-overlapping 100ms cell over the K-weighted
-  /// signal. One `vDSP_measqvD` sweep per cell. Cells are ADDITIVE — they feed
-  /// the short-term series and LRA only; the 400ms block path never reads them.
-  private static func computeCellMeanSquares(
-    filtered: [Double], cellSize: Int
-  ) -> [Double] {
-    guard cellSize > 0 else { return [] }
-    let cellCount = filtered.count / cellSize
-    guard cellCount > 0 else { return [] }
-
-    var meanSquares = [Double](repeating: 0, count: cellCount)
-    filtered.withUnsafeBufferPointer { bp in
-      for i in 0..<cellCount {
-        var ms: Double = 0
-        vDSP_measqvD(bp.baseAddress! + i * cellSize, 1, &ms, vDSP_Length(cellSize))
-        meanSquares[i] = ms
-      }
-    }
-    return meanSquares
+    return result
   }
 
   /// Short-term mean-squares: exact mean of 30 consecutive 100ms cells

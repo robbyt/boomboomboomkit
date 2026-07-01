@@ -177,6 +177,70 @@ struct LUFSEdgeCaseTests {
   }
 }
 
+// MARK: - Shared Mean-Square Primitive (issue #67)
+
+@Suite("LUFSAnalyzer — Mean-Square Primitive")
+struct LUFSMeanSquareTests {
+
+  @Test("non-overlapping (cell mode) window count equals the old cellCount formula")
+  func nonOverlappingCount() {
+    // Old computeCellMeanSquares used `filtered.count / cellSize`; the shared
+    // formula gives `(count - window) / step + 1` which is algebraically equal
+    // for window == step. 16 samples / 4 == 4 windows.
+    let signal = (0..<16).map { Double($0) }
+    let result = LUFSAnalyzer.meanSquares(filtered: signal, windowSize: 4, stepSize: 4)
+    #expect(result.count == signal.count / 4)
+    #expect(result.count == 4)
+  }
+
+  @Test("overlapping (block mode) window count uses the sliding formula")
+  func overlappingCount() {
+    let signal = (0..<16).map { Double($0) }
+    let result = LUFSAnalyzer.meanSquares(filtered: signal, windowSize: 8, stepSize: 2)
+    #expect(result.count == (signal.count - 8) / 2 + 1)
+    #expect(result.count == 5)
+  }
+
+  @Test("element-wise mean-square is exact (bit-pattern) for a tiny known buffer")
+  func handComputedMeanSquare() {
+    // [1,2,3,4], window 2, step 2 → window0 = (1²+2²)/2 = 2.5,
+    // window1 = (3²+4²)/2 = 12.5.
+    let signal: [Double] = [1, 2, 3, 4]
+    let result = LUFSAnalyzer.meanSquares(filtered: signal, windowSize: 2, stepSize: 2)
+    #expect(result.count == 2)
+    #expect(result[0].bitPattern == (2.5).bitPattern)
+    #expect(result[1].bitPattern == (12.5).bitPattern)
+  }
+
+  @Test("empty input returns empty")
+  func emptyInput() {
+    #expect(LUFSAnalyzer.meanSquares(filtered: [], windowSize: 4, stepSize: 4).isEmpty)
+  }
+
+  @Test("fewer samples than one window returns empty")
+  func belowOneWindow() {
+    let signal: [Double] = [1, 2, 3]
+    #expect(LUFSAnalyzer.meanSquares(filtered: signal, windowSize: 4, stepSize: 4).isEmpty)
+  }
+
+  @Test("exactly one window yields one element")
+  func exactlyOneWindow() {
+    let signal: [Double] = [2, 2, 2, 2]
+    let result = LUFSAnalyzer.meanSquares(filtered: signal, windowSize: 4, stepSize: 4)
+    #expect(result.count == 1)
+    #expect(result[0].bitPattern == (4.0).bitPattern)  // mean of 2² == 4
+  }
+
+  @Test(
+    "non-positive window or step returns empty (no divide-by-zero)",
+    arguments: [(0, 4), (4, 0), (-1, 4), (4, -1)] as [(Int, Int)])
+  func nonPositiveGuards(window: Int, step: Int) {
+    let signal: [Double] = [1, 2, 3, 4, 5, 6, 7, 8]
+    #expect(
+      LUFSAnalyzer.meanSquares(filtered: signal, windowSize: window, stepSize: step).isEmpty)
+  }
+}
+
 // MARK: - Gating Behavior
 
 @Suite("LUFSAnalyzer — Gating")
