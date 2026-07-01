@@ -246,29 +246,47 @@ struct ReadDecodedAudioProducerTests {
     #expect(negHugeCap.count == full.count)
   }
 
-  /// Public `readMonoSamples` (un-sanitized entry): a FINITE non-positive cap
-  /// whose product with the sample rate stays finite — including `0`, a small
-  /// negative, and a large-magnitude negative that underflows past `Int64.min`
-  /// (the pre-fix `Int64(...)` trap) — clamps to zero frames (empty), never
-  /// traps (doc contract at `PCMBufferReader.swift`; Copilot PR #37
-  /// r3447381814). The `-1e15`/`-1e20` cases could not be written before the
-  /// fix — `Int64(-4.4e19)` / `Int64(-4.4e24)` trapped.
+  /// Public `readMonoSamples` now routes `maxSeconds` through
+  /// `sanitizedMaxSeconds` (issue #58 — unify the non-positive policy across
+  /// both public entry points), so a FINITE non-positive cap — including `0`,
+  /// a small negative, and a large-magnitude negative that would have
+  /// underflowed past `Int64.min` (the pre-fix `Int64(...)` trap) — sanitizes
+  /// to nil and reads the FULL file, matching `readDecodedAudio`. Previously
+  /// these clamped to an empty result (the now-removed DD #3b split).
   @Test(arguments: [0.0, -5.0, -1.0e15, -1.0e20])
-  func readMonoSamplesNonPositiveCapReadsEmpty(_ bad: Double) throws {
+  func readMonoSamplesNonPositiveCapReadsFullFile(_ bad: Double) throws {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let (full, _) = try PCMBufferReader.readMonoSamples(from: url)
     let (samples, _) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: bad)
-    #expect(samples.isEmpty)
+    try #require(!full.isEmpty)
+    #expect(samples.count == full.count)
   }
 
-  /// An empty capped read still reports the requested output rate when a
-  /// `targetSampleRate` was supplied — the rate contract points at the target
-  /// even with no samples to convert.
-  @Test func readMonoSamplesEmptyCapReportsTargetRate() throws {
+  /// With the unified rule (issue #58), a non-positive `maxSeconds` no longer
+  /// yields an empty read — the full file is downsampled to the requested
+  /// `targetSampleRate`, so the result is non-empty and reports the target
+  /// rate.
+  @Test func readMonoSamplesNonPositiveCapReportsTargetRate() throws {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
     let (samples, rate) = try PCMBufferReader.readMonoSamples(
       from: url, maxSeconds: -5, targetSampleRate: 22_050)
-    #expect(samples.isEmpty)
+    #expect(!samples.isEmpty)
     #expect(rate == 22_050)
+  }
+
+  /// Unified `maxSeconds` rule (issue #58): the two public entry points
+  /// `readMonoSamples(from:maxSeconds:)` and `readDecodedAudio(from:maxSeconds:)`
+  /// must yield the SAME frame count for every `maxSeconds` value — the
+  /// non-positive / non-finite / huge region (all full-file) and a normal
+  /// positive cap (the positive control). Before the fix the non-positive
+  /// cases (`0.0`, `-5.0`, `-1.0e20`) diverged: `readMonoSamples` returned an
+  /// empty array while `readDecodedAudio` read the full file.
+  @Test(arguments: [Double.nan, .infinity, -.infinity, 0.0, -5.0, -1.0e20, 1.0e12, 1.0])
+  func readMonoSamplesAndDecodedAudioAgreeOnCap(_ cap: Double) throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let (mono, _) = try PCMBufferReader.readMonoSamples(from: url, maxSeconds: cap)
+    let decoded = try PCMBufferReader.readDecodedAudio(from: url, maxSeconds: cap)
+    #expect(mono.count == decoded.samples.count)
   }
 
   /// Valid cap: maxSeconds = 1 on a 44.1 kHz fixture reads exactly 44100
@@ -314,6 +332,98 @@ struct ReadDecodedAudioProducerTests {
     let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
     let decoded = try PCMBufferReader.readDecodedAudio(from: url, maxSeconds: 0.7)
     #expect(decoded.samples.count == 30_869)
+  }
+}
+
+// MARK: - framesFromCap: single source of truth for the partial-read cap (issue #69)
+
+@Suite("Shared Decode — framesFromCap unified cap helper (issue #69)")
+struct FramesFromCapTests {
+
+  /// Non-integral boundary truncates toward zero (Int64(Double) truncation),
+  /// NOT rounds: 44_100 * 0.7 = 30_869.999... → 30_869. Policy-independent for
+  /// a positive cap.
+  @Test func positiveCapTruncatesTowardZero() {
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: 0.7, total: 1_000_000,
+        zeroOnNonPositive: true) == 30_869)
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: 0.7, total: 1_000_000,
+        zeroOnNonPositive: false) == 30_869)
+  }
+
+  /// A cap at or above `total` no-ops to `total` (the `min(cap, total)`
+  /// clamp). Policy-independent for a positive cap.
+  @Test func capAboveTotalNoOps() {
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: 100, total: 44_100,
+        zeroOnNonPositive: true) == 44_100)
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: 100, total: 44_100,
+        zeroOnNonPositive: false) == 44_100)
+  }
+
+  /// Non-finite or Int64-overflowing products cannot bound a real buffer →
+  /// `total`, regardless of the non-positive policy flag, and never a trap.
+  @Test(arguments: [Double.nan, .infinity, -.infinity, 1.0e300])
+  func nonFiniteOrOverflowReadsTotal(_ bad: Double) {
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: bad, total: 123,
+        zeroOnNonPositive: true) == 123)
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: bad, total: 123,
+        zeroOnNonPositive: false) == 123)
+  }
+
+  /// A huge-but-finite `sampleRate` whose product overflows Int64 also no-ops
+  /// to `total` (the `1.0e300`/`1.0e17` carrier mirrors `cappedSampleCount`),
+  /// never traps. Policy-independent.
+  @Test(arguments: [1.0e300, 1.0e17])
+  func overflowingSampleRateReadsTotal(_ rate: Double) {
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: rate, maxSeconds: 120, total: 123,
+        zeroOnNonPositive: true) == 123)
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: rate, maxSeconds: 120, total: 123,
+        zeroOnNonPositive: false) == 123)
+  }
+
+  /// The ONLY divergence between the two historical call sites: a FINITE
+  /// non-positive cap (incl. a large-magnitude negative that would have
+  /// trapped `Int64(...)`) → `0` under `zeroOnNonPositive: true` (the url-path
+  /// inline read), but `total` under `zeroOnNonPositive: false` (the
+  /// `cappedSampleCount` mirror). Never a trap on either branch.
+  @Test(arguments: [0.0, -5.0, -1.0e20])
+  func finiteNonPositiveSelectsPolicy(_ np: Double) {
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: np, total: 123,
+        zeroOnNonPositive: true) == 0)
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: np, total: 123,
+        zeroOnNonPositive: false) == 123)
+  }
+
+  /// `total == 0` is preserved across every branch — `min(cap, 0)` and both
+  /// non-positive policies converge on `0`.
+  @Test func zeroTotalConverges() {
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: 1.0, total: 0,
+        zeroOnNonPositive: true) == 0)
+    #expect(
+      PCMBufferReader.framesFromCap(
+        sampleRate: 44_100, maxSeconds: -5.0, total: 0,
+        zeroOnNonPositive: false) == 0)
   }
 }
 
