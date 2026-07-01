@@ -1055,6 +1055,61 @@ struct BeatGridTypesTests {
     #expect(v1.hashValue != v2.hashValue)
   }
 
+  // MARK: - issue #62: BeatGrid.tempoLockOctaveFactor (applied octave-lock factor)
+
+  /// A freshly-constructed grid defaults the factor to `1` (no shift) and a grid
+  /// carrying `2` round-trips through `Codable` exactly.
+  @Test func tempoLockOctaveFactorDefaultsToOneAndRoundTrips() throws {
+    let neutral = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
+    #expect(neutral.tempoLockOctaveFactor == 1)
+
+    let shifted = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 240, confidence: 0.5,
+      tempoAgreement: .octaveEquivalent(factor: 2), gridOrigin: nil,
+      coverage: .analysisWindow, tempoLockOctaveFactor: 2)
+    #expect(shifted.tempoLockOctaveFactor == 2)
+    let decoded = try JSONDecoder().decode(
+      BeatGrid.self, from: JSONEncoder().encode(shifted))
+    #expect(decoded.tempoLockOctaveFactor == 2)
+    #expect(decoded == shifted)
+  }
+
+  /// The encoder always emits the key, and a legacy payload WITHOUT it decodes to
+  /// the neutral `1` (`decodeIfPresent ?? 1`).
+  @Test func tempoLockOctaveFactorAbsentDefaultsToOneAndIsAlwaysEmitted() throws {
+    let legacyJSON = #"""
+      {"beats": [], "downbeats": {"notAttempted": {}}, "estimatedTempo": 120,
+       "confidence": 0.5}
+      """#
+    let decoded = try JSONDecoder().decode(BeatGrid.self, from: Data(legacyJSON.utf8))
+    #expect(decoded.tempoLockOctaveFactor == 1)
+
+    let grid = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 240, confidence: 0.5,
+      tempoAgreement: .octaveEquivalent(factor: -2), gridOrigin: nil,
+      coverage: .analysisWindow, tempoLockOctaveFactor: -2)
+    let obj = try #require(
+      try JSONSerialization.jsonObject(with: JSONEncoder().encode(grid)) as? [String: Any])
+    #expect(obj["tempoLockOctaveFactor"] as? Int == -2)
+  }
+
+  /// `tempoLockOctaveFactor` is a real stored `Int` field: two grids differing only
+  /// in it are unequal and hash differently, and `BeatGrid` stays `Hashable`-sound.
+  @Test func tempoLockOctaveFactorParticipatesInEqualityAndHash() {
+    let neutral = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 240, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow,
+      tempoLockOctaveFactor: 1)
+    let shifted = BeatGrid(
+      beats: [], downbeats: .notAttempted, estimatedTempo: 240, confidence: 0.5,
+      tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow,
+      tempoLockOctaveFactor: 2)
+    #expect(neutral != shifted)
+    #expect(neutral.hashValue != shifted.hashValue)
+  }
+
   // MARK: - Story 8.12: BeatGridAnchor.beatIndex: Int? (optional provenance)
 
   @Test func optionalBeatIndexClampsPresentNegativeAndPassesNil() {

@@ -139,6 +139,8 @@ struct BeatGridAnalyzerTests {
     // .off keeps the tracker's measured tempo and a real agreement classification
     // (the combined path always classifies; locking only overrides the scalar).
     #expect(grid.tempoAgreement != .notCompared)
+    // issue #62: no lock fired, so the applied octave factor stays at the neutral 1.
+    #expect(grid.tempoLockOctaveFactor == 1)
   }
 
   @Test func tempoLockExplicitBPMLocksWithinOctaveAndIgnoresAbsurd() throws {
@@ -153,6 +155,122 @@ struct BeatGridAnalyzerTests {
     // tracker's tempo stands (identical to .off on the same deterministic input).
     let absurd = try Self.analyzeClick(bpm: 120, lock: .bpm(1.0))
     #expect(try #require(absurd.beatGrid).estimatedTempo == offTempo)
+  }
+
+  // MARK: - Tempo-lock applied octave factor (issue #62)
+
+  /// A synthetic constant-tempo grid with `estimatedTempo` set, for driving the
+  /// internal `applyTempoLock` resolver directly (no decode). Two evenly-spaced
+  /// beats so `estimatedTempo` is the field under test, not derived from `beats`.
+  private static func syntheticGrid(estimatedTempo: Double) -> BeatGrid {
+    BeatGrid(
+      beats: [
+        BeatTimestamp(presentationTime: 0.0, confidence: 0.8, strength: 0.8),
+        BeatTimestamp(presentationTime: 0.5, confidence: 0.8, strength: 0.8),
+      ],
+      downbeats: .notAttempted,
+      estimatedTempo: estimatedTempo,
+      confidence: 0.8,
+      tempoAgreement: .notCompared,
+      gridOrigin: nil,
+      coverage: .analysisWindow)
+  }
+
+  /// THE issue-#62 characterization + new-assertion pair: `.bpm(120)` against a
+  /// ~240-BPM grid keeps the existing octave snap (estimatedTempo stays 240) AND
+  /// now surfaces the applied octave factor as 2 (FAILS before the fix).
+  @Test func tempoLockBpmExplicitOctaveShiftSurfacesFactorTwo() throws {
+    let grid = Self.syntheticGrid(estimatedTempo: 240)
+    let locked = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpm(120), bpmStageTempo: 120))
+    // Characterization: the existing octave snap is preserved (240, not 120).
+    #expect(locked.estimatedTempo == 240)
+    // NEW: the applied octave factor is surfaced (+2 = grid runs at the faster octave).
+    #expect(locked.tempoLockOctaveFactor == 2)
+  }
+
+  /// `.bpm(value)` where the target already shares the grid's octave: locked to the
+  /// target exactly, factor stays the neutral 1 (no shift).
+  @Test func tempoLockBpmSameOctaveLeavesFactorOne() throws {
+    let grid = Self.syntheticGrid(estimatedTempo: 120)
+    let locked = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpm(120), bpmStageTempo: 120))
+    #expect(locked.estimatedTempo == 120)
+    #expect(locked.tempoLockOctaveFactor == 1)
+  }
+
+  /// `.bpm(value)` where the grid is ~half the target: snapped down, factor -2.
+  @Test func tempoLockBpmHalfOctaveSurfacesFactorMinusTwo() throws {
+    let grid = Self.syntheticGrid(estimatedTempo: 120)
+    let locked = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpm(240), bpmStageTempo: 240))
+    // 240 halved to the grid's slower octave → 120.
+    #expect(locked.estimatedTempo == 120)
+    #expect(locked.tempoLockOctaveFactor == -2)
+  }
+
+  /// `.bpm(value)` more than an octave off: the grid is left unlocked and the
+  /// factor stays 1 (no shift, no evidence).
+  @Test func tempoLockBpmBeyondOctaveLeavesGridUnlockedFactorOne() throws {
+    let grid = Self.syntheticGrid(estimatedTempo: 240)
+    let locked = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpm(1.0), bpmStageTempo: 1.0))
+    #expect(locked.estimatedTempo == 240)
+    #expect(locked.tempoLockOctaveFactor == 1)
+  }
+
+  /// `.bpmStage` octave-shift case: the authoritative stage tempo is octave-shifted
+  /// onto the grid, surfacing factor 2 (grid ~2× the stage tempo) and -2 (grid ~½×).
+  @Test(arguments: [
+    (240.0, 120.0, 240.0, 2),
+    (120.0, 240.0, 120.0, -2),
+  ])
+  func tempoLockBpmStageOctaveShiftSurfacesFactor(
+    gridTempo: Double, stageTempo: Double, expectedTempo: Double, expectedFactor: Int
+  ) throws {
+    let grid = Self.syntheticGrid(estimatedTempo: gridTempo)
+    let locked = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpmStage, bpmStageTempo: stageTempo))
+    #expect(locked.estimatedTempo == expectedTempo)
+    #expect(locked.tempoLockOctaveFactor == expectedFactor)
+  }
+
+  /// `.bpmStage` within-octave `.disagree` pass-through: the stage tempo is
+  /// authoritative within an octave, so it overrides WITHOUT an octave shift —
+  /// factor stays 1.
+  @Test func tempoLockBpmStageWithinOctaveDisagreeLeavesFactorOne() throws {
+    // 130 vs 120: >2% apart (within-octave `.disagree`), ratio in (0.5, 2.0) →
+    // stage tempo wins, no octave shift.
+    let grid = Self.syntheticGrid(estimatedTempo: 130)
+    let locked = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpmStage, bpmStageTempo: 120))
+    #expect(locked.estimatedTempo == 120)
+    #expect(locked.tempoLockOctaveFactor == 1)
+  }
+
+  /// Non-finite / non-positive `.bpm` targets leave the grid unlocked, factor 1 —
+  /// and no `NaN` reaches the stored `Double` (the grid stays `Hashable`-sound).
+  @Test(arguments: [Double.nan, .infinity, 0.0, -120.0])
+  func tempoLockBpmDegenerateTargetLeavesGridUnlockedFactorOne(target: Double) throws {
+    let grid = Self.syntheticGrid(estimatedTempo: 120)
+    let locked = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .bpm(target), bpmStageTempo: target))
+    #expect(locked.estimatedTempo == 120)
+    #expect(locked.tempoLockOctaveFactor == 1)
+    // No NaN smuggled onto the grid's stored Double — Hashable invariant holds.
+    #expect(locked.estimatedTempo.isFinite)
+    #expect(locked == locked)
+  }
+
+  /// `lock == .off` returns the grid untouched, factor 1.
+  @Test func tempoLockOffReturnsGridUntouchedFactorOne() throws {
+    let grid = Self.syntheticGrid(estimatedTempo: 120)
+    let result = try #require(
+      AudioAnalysisService.applyTempoLock(grid, lock: .off, bpmStageTempo: 120))
+    #expect(result.estimatedTempo == 120)
+    #expect(result.tempoLockOctaveFactor == 1)
+    // .off forwards the grid bit-identically.
+    #expect(result == grid)
   }
 
   // MARK: - Deterministic DP recovery (no decode)
