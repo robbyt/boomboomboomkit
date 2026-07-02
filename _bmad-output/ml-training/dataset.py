@@ -36,6 +36,7 @@ import torch
 from torch.utils.data import Dataset
 
 import corpus_common as cc
+from jams_corpus import load_oa300_rows
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -153,9 +154,9 @@ def build_splits(verify: bool = True) -> dict[str, Any]:
     """Return {"train": [...], "val": [...], "test": [...]} per DD #3."""
     oa300_root, gs_root = get_corpus_paths()
 
-    # Load ground truth.
-    with open(OA300_GT_PATH) as f:
-        oa300_gt = json.load(f)
+    # Load ground truth. OA300 is a JAMS tempo corpus post-Story-8.8b (read back into the
+    # flat row shape); GiantSteps stays a flat array (not migrated).
+    oa300_gt = load_oa300_rows(OA300_GT_PATH)
     with open(gs_root / "giantsteps-tempo-ground-truth.json") as f:
         gs_gt = json.load(f)
 

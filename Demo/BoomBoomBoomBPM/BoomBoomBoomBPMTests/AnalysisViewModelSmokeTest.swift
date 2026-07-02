@@ -48,6 +48,24 @@ struct AnalysisViewModelSmokeTest {
     #expect(viewModel.pendingCancellations.isEmpty)
   }
 
+  // Beat-grid overlay: after analyze() completes on the click fixture, the
+  // combined analyze() path (not analyzeBPM) populates `gridVisualization`
+  // atomically with a tracked grid + a non-empty waveform envelope. Asserts the
+  // grid show-gate, a valid tempo, and that the library-decoder waveform read
+  // produced peaks (best-effort, but the wav fixture decodes cleanly).
+  @Test("analyze() populates the beat-grid visualization for the click fixture")
+  @MainActor
+  func beatGridVisualizationPopulates() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let grid = try #require(
+      viewModel.gridVisualization, "expected a beat-grid visualization after analyze")
+    #expect(grid.beatGrid.estimatedTempo > 0)
+    #expect(!grid.beatGrid.beats.isEmpty)
+    #expect(!grid.peaks.isEmpty)
+    #expect(grid.duration > 0)
+    #expect(grid.bpmTempo > 0)
+  }
+
   // MARK: - Drop Validator (Story 5-2 DD #11 / DD #13)
 
   @Test("validateDropPayload rejects empty payload")

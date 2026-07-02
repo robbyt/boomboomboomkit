@@ -1,49 +1,30 @@
 import Foundation
 
-/// OA300 corpus ground-truth row. Also covers the Ablation-matrix corpus, which shares the
-/// same on-disk schema.
+/// OA300 corpus ground-truth row, decoded from the migrated JAMS `tempo` corpus
+/// (`oa300-ground-truth.json`, Story 8.8b). Also covers the Ablation-matrix corpus, which
+/// shares the same on-disk corpus.
 ///
-/// JSON schema (`oa300-ground-truth.json`): `{ filename, bpm, subdir?, title, genre }`.
-/// `genre` is non-optional — the ground-truth fixture guarantees every row carries a genre
-/// label. The canonical (extensible) taxonomy is tracked in the `ALLOWED_GENRES` constant in
-/// `Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py`; Swift intentionally
-/// does not validate membership against that list here (so adding a new genre requires no
-/// library change), but the decoder does reject **blank** genres: a row missing `genre`
-/// throws `DecodingError.keyNotFound`, a row with `"genre": null` throws
-/// `DecodingError.valueNotFound`, and a row whose `genre` is empty or whitespace-only
-/// throws `DecodingError.dataCorrupted`. No silent skip in any of those cases.
+/// JAMS mapping: `bpm` from the single `tempo` observation; `filename`/`title` from
+/// `file_metadata`; `subdir`/`genre` from the per-entry `sandbox`. `genre` is non-optional —
+/// the loud-fail contract is preserved in ``init(jamsFile:)``: an absent `sandbox.genre`
+/// throws `DecodingError.keyNotFound`, a blank/whitespace one throws
+/// `DecodingError.dataCorrupted`. The canonical (extensible) genre taxonomy lives in the
+/// `ALLOWED_GENRES` constant in `Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py`;
+/// Swift does not validate membership here (adding a genre needs no library change).
 ///
-/// Required fields (`filename`, `bpm`, `title`, `genre`) are intentionally non-optional: a
-/// malformed corpus row missing one of these must break the benchmark suite loudly rather
-/// than silently drop to `nil` and be filtered out. Callers that need to tolerate partial
-/// rows should pre-clean the JSON file.
-public struct OA300Track: Decodable, Sendable {
+/// Decode a full corpus via ``loadCorpus(from:)``; there is no flat `Decodable` path since
+/// the on-disk artifact is JAMS (Story 8.8b — `init(from:)` removed).
+public struct OA300Track: Sendable {
   public let filename: String
   public let bpm: Double
   public let subdir: String?
   public let title: String
   public let genre: String
 
-  private enum CodingKeys: String, CodingKey {
+  /// Coding keys reused by ``init(jamsFile:)`` so its `DecodingError`s preserve the flat
+  /// decoder's `"filename"`/`"title"`/`"genre"` key contract (`CorpusTracksDecodingTests`).
+  fileprivate enum CodingKeys: String, CodingKey {
     case filename, bpm, subdir, title, genre
-  }
-
-  public init(from decoder: any Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    self.filename = try c.decode(String.self, forKey: .filename)
-    self.bpm = try c.decode(Double.self, forKey: .bpm)
-    self.subdir = try c.decodeIfPresent(String.self, forKey: .subdir)
-    self.title = try c.decode(String.self, forKey: .title)
-    let rawGenre = try c.decode(String.self, forKey: .genre)
-    guard !rawGenre.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-      throw DecodingError.dataCorruptedError(
-        forKey: .genre,
-        in: c,
-        debugDescription:
-          "`genre` must be a non-empty, non-whitespace string (got \(String(reflecting: rawGenre)))"
-      )
-    }
-    self.genre = rawGenre
   }
 }
 
@@ -66,12 +47,14 @@ public struct GiantStepsTrack: Decodable, Sendable {
   public let genre: String
 }
 
-/// DAW-verified oracle row. Produced by `scripts/dawproject-bpm.py` from the `.dawproject` file
-/// in the OA300 corpus directory and written to `daw-oracle.json` alongside the corpus.
+/// DAW-verified oracle row, decoded from the migrated JAMS `tempo` corpus (`daw-oracle.json`,
+/// Story 8.8b — produced by `scripts/dawproject-bpm.py`, written alongside the OA300 corpus).
 ///
-/// On-disk JSON uses snake_case; the struct declares `CodingKeys` so decoding works regardless
-/// of decoder configuration (no need for `.convertFromSnakeCase` at the call site).
-public struct DAWOracleTrack: Decodable, Sendable {
+/// JAMS mapping: `dawBpm` (the canonical manually-verified tempo) from the `tempo` observation;
+/// `filename` from `file_metadata.identifiers.basename`; the Rekordbox cross-check fields
+/// (`rekordboxBpm`/`rekordboxDisagrees`/`disagreementType`) + `subdir` from the per-entry
+/// `sandbox`. Decode a corpus via ``loadCorpus(from:)``; there is no flat `Decodable` path.
+public struct DAWOracleTrack: Sendable {
   public let filename: String
   public let dawBpm: Double
   public let rekordboxBpm: Double
@@ -79,12 +62,108 @@ public struct DAWOracleTrack: Decodable, Sendable {
   public let rekordboxDisagrees: Bool
   public let disagreementType: String?
 
-  private enum CodingKeys: String, CodingKey {
+  /// Coding keys reused by ``init(jamsFile:)`` for loud-fail `DecodingError` keys.
+  fileprivate enum CodingKeys: String, CodingKey {
     case filename
     case dawBpm = "daw_bpm"
     case rekordboxBpm = "rekordbox_bpm"
     case subdir
     case rekordboxDisagrees = "rekordbox_disagrees"
     case disagreementType = "disagreement_type"
+  }
+}
+
+// MARK: - JAMS corpus adapters (Story 8.8a)
+
+extension OA300Track {
+  /// Decode an OA300 ground-truth row from a migrated JAMS entry. The migration itself
+  /// lands in Story 8.8b; this adapter ships in 8.8a alongside the flat `init(from:)` so the
+  /// model can decode JAMS without yet flipping any call site. `bpm` reads the `tempo`
+  /// observation; `filename`/`title` read `file_metadata`; `subdir`/`genre` read the
+  /// per-entry `sandbox`. The non-empty-`genre` loud-fail contract is preserved verbatim:
+  /// an absent `sandbox.genre` throws `keyNotFound`, a blank/whitespace one throws
+  /// `dataCorrupted` — exactly as the flat decoder did.
+  public init(jamsFile: JAMSFile) throws {
+    guard let filename = jamsFile.fileMetadata.identifiers?.basename else {
+      throw DecodingError.keyNotFound(
+        CodingKeys.filename,
+        DecodingError.Context(
+          codingPath: [], debugDescription: "JAMS entry missing identifiers.basename (filename)"))
+    }
+    guard let title = jamsFile.fileMetadata.title else {
+      throw DecodingError.keyNotFound(
+        CodingKeys.title,
+        DecodingError.Context(
+          codingPath: [], debugDescription: "JAMS entry missing file_metadata.title"))
+    }
+    let bpm = try jamsFile.tempoBPM()
+
+    guard let rawGenre = jamsFile.sandbox?.genre else {
+      throw DecodingError.keyNotFound(
+        CodingKeys.genre,
+        DecodingError.Context(
+          codingPath: [CodingKeys.genre], debugDescription: "JAMS entry missing sandbox.genre"))
+    }
+    guard !rawGenre.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      throw DecodingError.dataCorrupted(
+        DecodingError.Context(
+          codingPath: [CodingKeys.genre],
+          debugDescription:
+            "`genre` must be a non-empty, non-whitespace string (got \(String(reflecting: rawGenre)))"
+        ))
+    }
+
+    self.filename = filename
+    self.bpm = bpm
+    self.subdir = jamsFile.sandbox?.subdir
+    self.title = title
+    self.genre = rawGenre
+  }
+
+  /// Decode a full OA300 corpus from migrated JAMS data (the `{ "entries": [...] }` wrapper).
+  public static func loadCorpus(from data: Data) throws -> [OA300Track] {
+    try JSONDecoder().decode(JAMSCorpus.self, from: data).entries.map(OA300Track.init(jamsFile:))
+  }
+}
+
+extension DAWOracleTrack {
+  /// Decode a DAW-oracle row from a migrated JAMS entry (Story 8.8b). `dawBpm` (the
+  /// canonical manually-verified tempo) reads the `tempo` observation; the Rekordbox
+  /// cross-check fields read the per-entry `sandbox`. Required fields fail loudly.
+  public init(jamsFile: JAMSFile) throws {
+    guard let filename = jamsFile.fileMetadata.identifiers?.basename else {
+      throw DecodingError.keyNotFound(
+        CodingKeys.filename,
+        DecodingError.Context(
+          codingPath: [], debugDescription: "JAMS entry missing identifiers.basename (filename)"))
+    }
+    let dawBpm = try jamsFile.tempoBPM()
+    guard let rekordboxBpm = jamsFile.sandbox?.rekordboxBpm else {
+      throw DecodingError.keyNotFound(
+        CodingKeys.rekordboxBpm,
+        DecodingError.Context(
+          codingPath: [CodingKeys.rekordboxBpm],
+          debugDescription: "JAMS entry missing sandbox.rekordbox_bpm"))
+    }
+    guard let rekordboxDisagrees = jamsFile.sandbox?.rekordboxDisagrees else {
+      throw DecodingError.keyNotFound(
+        CodingKeys.rekordboxDisagrees,
+        DecodingError.Context(
+          codingPath: [CodingKeys.rekordboxDisagrees],
+          debugDescription: "JAMS entry missing sandbox.rekordbox_disagrees"))
+    }
+
+    self.filename = filename
+    self.dawBpm = dawBpm
+    self.rekordboxBpm = rekordboxBpm
+    self.subdir = jamsFile.sandbox?.subdir
+    self.rekordboxDisagrees = rekordboxDisagrees
+    self.disagreementType = jamsFile.sandbox?.disagreementType
+  }
+
+  /// Decode a full DAW oracle from migrated JAMS data (the `{ "entries": [...] }` wrapper).
+  public static func loadCorpus(from data: Data) throws -> [DAWOracleTrack] {
+    try JSONDecoder().decode(JAMSCorpus.self, from: data)
+      .entries.map(DAWOracleTrack.init(jamsFile:))
   }
 }

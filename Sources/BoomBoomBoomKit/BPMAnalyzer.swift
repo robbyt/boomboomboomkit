@@ -18,6 +18,29 @@ struct BPMResult: Sendable {
   let candidates: [(bpm: Double, score: Float)]
   /// Diagnostic trace capturing per-step pipeline state. Nil unless `enableTrace` was true.
   let trace: BPMDiagnosticTrace?
+  /// Beat grid from the optional step-11 fan-out (Story 8.4). `nil` on the
+  /// default path (`Options.computeBeatGrid == false`) — keeping it `nil`
+  /// (and never entering the fan-out branch) is what makes the default-path
+  /// output byte-identical to the pre-8.4 pipeline.
+  let beatGrid: BeatGrid?
+
+  /// Memberwise initializer with `beatGrid` defaulted to `nil`. Written
+  /// explicitly (rather than relying on synthesis) so the ~40 existing
+  /// four-argument `BPMResult(bpm:confidence:candidates:trace:)` call sites keep
+  /// compiling unchanged while step 11 can supply a grid.
+  init(
+    bpm: Double,
+    confidence: Double,
+    candidates: [(bpm: Double, score: Float)],
+    trace: BPMDiagnosticTrace?,
+    beatGrid: BeatGrid? = nil
+  ) {
+    self.bpm = bpm
+    self.confidence = confidence
+    self.candidates = candidates
+    self.trace = trace
+    self.beatGrid = beatGrid
+  }
 }
 
 /// Estimates tempo from decoded PCM audio samples using spectral flux onset
@@ -55,6 +78,30 @@ struct BPMAnalyzer {
 
   /// Minimum audio duration in seconds for reliable BPM estimation
   private static let minimumDurationSeconds: Double = 4.0
+
+  /// Minimum sample rate for onset framing. Mirrors `DecodedAudio`'s 8 kHz floor
+  /// (`DecodedAudio.init` precondition-traps below it), so the carrier boundary and
+  /// these analyzer statics enforce one contract. Defense-in-depth: a synthetic/test
+  /// carrier or a future caller could reach these statics directly, where
+  /// `hopSize = Int(sampleRate / 100)` would round to 0.
+  private static let minOnsetSampleRate: Double = 8_000
+
+  /// Upper sample-rate bound (8× 96 kHz — covers every real / high-res audio rate). A
+  /// rate above this is rejected so `Int(sampleRate / 100)` and `Int(sampleRate)` cannot
+  /// overflow on a huge-but-finite carrier; the range check also excludes `NaN`/`±Inf`.
+  private static let maxOnsetSampleRate: Double = 768_000
+
+  /// Converts a seconds span to a sample count, clamped to `[0, cap]`, so a hostile
+  /// `Options.analysisWindowSeconds` can never trap `Int(...)` overflow: a non-positive or
+  /// `NaN` `seconds` yields `0`, and a `+Inf` or over-long `seconds` yields `cap` (the
+  /// whole available span). `cap` is the post-drop remaining buffer, so the caller adds
+  /// `dropOffset` without a further `min`. (`sampleRate` is finite and within
+  /// `[minOnsetSampleRate, maxOnsetSampleRate]` at the call sites.)
+  private static func sampleSpan(seconds: Double, sampleRate: Double, cap: Int) -> Int {
+    let product = seconds * sampleRate
+    guard product > 0 else { return 0 }
+    return product >= Double(cap) ? cap : Int(product)
+  }
 
   /// Default analysis window duration in seconds (applied after energy scan)
   private static let defaultAnalysisWindowSeconds: Double = 30.0
@@ -162,51 +209,90 @@ struct BPMAnalyzer {
     /// the spectrogram intermediate stays purely transient (the heavy `[Float]`
     /// payload is NEVER allocated).
     var captureMLFeatures: Bool = false
+
+    /// Story 8.4 — when `true`, the pipeline fans out to
+    /// ``BeatGridAnalyzer/estimateBeatGrid(onsetEnvelope:onsetRate:hopSize:sampleRate:acf:tempoBPM:windowStartSample:)``
+    /// after step 10c (the optional step-11 beat-grid extraction) and surfaces the
+    /// result on ``BPMResult/beatGrid``. Default `false` keeps the DSP path
+    /// byte-identical: the fan-out branch is not entered, no beat-grid buffer is
+    /// allocated, and `BPMResult.beatGrid` stays `nil`. Beat grid is a PARALLEL
+    /// step-11 output — it does not feed BPM winner selection, so no
+    /// ``BPMDiagnosticTrace`` field is added and KDD-T0 does not trigger.
+    var computeBeatGrid: Bool = false
+
+    /// Story 8.5a — when `true` AND `computeBeatGrid` is `true`, the step-11
+    /// fan-out forces sub-band onset computation and runs the downbeat-phase
+    /// estimator, populating ``BeatGrid/downbeats`` with
+    /// ``DownbeatResult/detected(estimate:)`` or ``DownbeatResult/noneDetected``.
+    /// Default `false` keeps ``BeatGrid/downbeats`` ``DownbeatResult/notAttempted``.
+    /// Forcing sub-bands is additive: they feed only the downbeat estimator (and
+    /// sub-band voting iff `.subBandVoting` is independently on), never the
+    /// full-band envelope or the BPM winner — the BPM result stays byte-identical.
+    var detectDownbeats: Bool = false
+
+    /// Story 8.11 — which ``DownbeatStrategy`` places the bar phase when
+    /// `detectDownbeats` is on. Default ``DownbeatStrategy/metricalAccent``
+    /// reproduces the Story-8.5a path bit-for-bit (no energy contour is computed),
+    /// so the `detectDownbeats == true` path stays byte-identical at the default.
+    /// ``DownbeatStrategy/structuralDrop`` / ``DownbeatStrategy/combined`` compute a
+    /// low-band energy contour over the full pre-trim samples and anchor the
+    /// downbeat to the track's main structural drop.
+    var downbeatStrategy: DownbeatStrategy = .metricalAccent
+
+    /// Story 8.10 — when `true` AND `computeBeatGrid` is `true`, the step-11
+    /// fan-out refines the grid's ``BeatGrid/estimatedTempo`` to sub-0.1-BPM
+    /// precision via a continuous interpolated onset-comb fit (guarded never worse
+    /// than the coarse tempo). Default `false` reports the coarse `tempoBPM`
+    /// verbatim, keeping ``BPMResult/beatGrid`` byte-identical. Refinement touches
+    /// ONLY the grid tempo — never the BPM winner — so the BPM result is unchanged.
+    var refineBeatGridTempo: Bool = false
   }
 
   // MARK: - Public API
 
-  /// Estimates the tempo (BPM) of audio samples using multi-estimator fusion.
+  /// Estimates the tempo (BPM) of decoded audio using multi-estimator fusion.
   ///
   /// Pipeline: energy scan → mel onset → autocorrelation + Fourier tempogram →
   /// periodicity fusion → TPS2 enhancement → peak extraction → range normalization →
   /// octave disambiguation → confidence.
   ///
-  /// - Parameters:
-  ///   - samples: Mono PCM samples as `[Float]` (up to 120s for energy scan).
-  ///   - sampleRate: Sample rate of the audio (e.g., 44100.0).
-  /// - Returns: A `BPMResult` with BPM and confidence, or `nil` for
-  ///   silence/noise/too-short input.
-  static func estimateBPM(
-    samples: [Float],
-    sampleRate: Double
-  ) -> BPMResult? {
-    estimateBPM(samples: samples, sampleRate: sampleRate, options: .init())
-  }
-
-  /// Estimates the tempo (BPM) of audio samples using multi-estimator fusion.
+  /// The single entry point since Story 8-2 (DD #4 — the
+  /// `samples:sampleRate:` forms are removed, no shim). `decoded` is a pure
+  /// carrier: the pipeline reads only `samples` and `sampleRate`; provenance
+  /// fields (`codecPriming`) never influence output (locked by the
+  /// provenance-invariance test in `SharedDecodeTests`).
   ///
   /// - Parameters:
-  ///   - samples: Mono PCM samples as `[Float]` (up to 120s for energy scan).
-  ///   - sampleRate: Sample rate of the audio (e.g., 44100.0).
+  ///   - decoded: Decoded mono PCM carrier (up to 120s for energy scan).
   ///   - options: Configuration controlling analysis window, intensity, technique set, and tracing.
   /// - Returns: A `BPMResult` with BPM and confidence, or `nil` for
   ///   silence/noise/too-short input.
   static func estimateBPM(
-    samples: [Float],
-    sampleRate: Double,
-    options: Options
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options = .init()
   ) -> BPMResult? {
+    let samples = decoded.samples
+    let sampleRate = decoded.sampleRate
     let techniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
-    guard !samples.isEmpty else { return nil }
+    // Defense-in-depth: bound the rate to `[minOnsetSampleRate, maxOnsetSampleRate]` so
+    // no `Int(... * sampleRate)` / `Int(sampleRate / 100)` can trap (overflow or
+    // non-finite), and route every seconds→samples conversion through `sampleSpan` so a
+    // hostile `analysisWindowSeconds` clamps instead of trapping. Production is already
+    // safe (DecodedAudio's >= 8 kHz precondition); this protects synthetic/test carriers
+    // and future callers. See `minOnsetSampleRate` / `maxOnsetSampleRate`.
+    guard !samples.isEmpty, sampleRate >= Self.minOnsetSampleRate,
+      sampleRate <= Self.maxOnsetSampleRate
+    else { return nil }
 
     let duration = Double(samples.count) / sampleRate
     guard duration >= minimumDurationSeconds else { return nil }
 
     // Step 1: Energy scan — find the "drop" for analysis window selection
     let dropOffset = findEnergyTransition(samples: samples, sampleRate: sampleRate)
-    let windowSamples = Int(options.analysisWindowSeconds * sampleRate)
-    let endSample = min(dropOffset + windowSamples, samples.count)
+    let remainingSamples = samples.count - dropOffset
+    let windowSamples = sampleSpan(
+      seconds: options.analysisWindowSeconds, sampleRate: sampleRate, cap: remainingSamples)
+    let endSample = dropOffset + windowSamples
     guard endSample > dropOffset else { return nil }
     let analysisWindow = Array(samples[dropOffset..<endSample])
 
@@ -224,6 +310,7 @@ struct BPMAnalyzer {
 
     // Adaptive hop: always 10ms regardless of sample rate
     let hopSize = Int(sampleRate / 100)
+    guard hopSize > 0 else { return nil }
     let onsetRate = sampleRate / Double(hopSize)
 
     // Step 3: Mel-spectrogram onset detection with sub-band envelopes.
@@ -232,17 +319,23 @@ struct BPMAnalyzer {
     // r=1). Same step number (3), same downstream contract (`OnsetEnvelopes`),
     // same callers — only the per-frame reference construction differs. See
     // `computeSuperFluxOnsetEnvelope` and Story 4-7 DD #2 / AC #2.
+    // Story 8.5a AC6: force sub-band onset computation when the step-11 fan-out
+    // will run the downbeat estimator, independent of the technique set. This is
+    // additive — `normalizeSubBandsInPlace` only touches the sub-band arrays, and
+    // sub-band ACFs / voting stay gated on `.subBandVoting`, so the full-band
+    // envelope and the BPM winner are unchanged (BPM byte-identity, AC2/AC8 d′).
+    let forceSubBands = options.computeBeatGrid && options.detectDownbeats
     let onsetResult: OnsetEnvelopes
     if techniqueSet.contains(.superFluxOnset) {
       onsetResult = computeSuperFluxOnsetEnvelope(
         samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
-        computeSubBands: techniqueSet.contains(.subBandVoting),
+        computeSubBands: techniqueSet.contains(.subBandVoting) || forceSubBands,
         normalizeSubBands: techniqueSet.contains(.subBandNormalization),
         captureMLFeatures: options.captureMLFeatures)
     } else {
       onsetResult = computeMelOnsetEnvelopeWithSubBands(
         samples: analysisWindow, sampleRate: sampleRate, hopSize: hopSize,
-        computeSubBands: techniqueSet.contains(.subBandVoting),
+        computeSubBands: techniqueSet.contains(.subBandVoting) || forceSubBands,
         normalizeSubBands: techniqueSet.contains(.subBandNormalization),
         captureMLFeatures: options.captureMLFeatures)
     }
@@ -459,7 +552,42 @@ struct BPMAnalyzer {
     let bpm = winner.bpm
     guard bpm >= minBPM && bpm <= maxBPM else { return nil }
 
-    // Step 11: Confidence
+    // Step 11: Beat-grid extraction (optional fan-out, Story 8.4).
+    // Gated by `options.computeBeatGrid` (default `false` → branch not entered →
+    // byte-identical default-path output). Reuses the in-scope `onsetEnvelope`,
+    // `acf`, `onsetRate`, `hopSize`, `sampleRate`, and the step-1 `dropOffset`
+    // (all still alive — the `acfBufs`/`pipelineBuffers` `defer`s have not fired),
+    // so no new onset/ACF buffer is allocated in the hot path. Beat grid is a
+    // PARALLEL output: it does not feed BPM winner selection, so KDD-T0 does not
+    // trigger and no `BPMDiagnosticTrace` field is added (W74 stays armed for a
+    // future beat-grid pool producer).
+    var beatGrid: BeatGrid?
+    if options.computeBeatGrid {
+      // Story 8.11: the structural-drop strategies source their energy contour from
+      // the FULL pre-trim `samples` (file t=0) — the analysis window already starts
+      // at the drop (`dropOffset`), so a contour over it would put the drop at frame
+      // 0, undetectable. Computed only for the drop strategies, so `.metricalAccent`
+      // (default) adds zero operations and stays byte-identical.
+      let dropContour = structuralDropContour(
+        samples: samples, sampleRate: sampleRate, options: options)
+      beatGrid = BeatGridAnalyzer.estimateBeatGrid(
+        onsetEnvelope: onsetEnvelope,
+        onsetRate: onsetRate,
+        hopSize: hopSize,
+        sampleRate: sampleRate,
+        acf: acf,
+        tempoBPM: bpm,
+        windowStartSample: dropOffset,
+        subBands: onsetResult.subBands,
+        detectDownbeats: options.detectDownbeats,
+        downbeatStrategy: options.downbeatStrategy,
+        dropContour: dropContour,
+        refineBeatGridTempo: options.refineBeatGridTempo,
+        refinementSink: { trace?.beatGridTempoRefinement = $0 },
+        downbeatSink: { trace?.downbeatStrategy = $0 })
+    }
+
+    // Step 12: Confidence
     let confidence = computeConfidence(fused: fused, winnerBPM: bpm, bpmMin: bpmMin)
 
     trace?.confidence = confidence
@@ -467,7 +595,154 @@ struct BPMAnalyzer {
     // BPMResult.candidates carries rescored + duration-hinted values (DD#11 contract);
     // trace.rawCandidates above preserves the pre-rescore signal for diagnostics.
     return BPMResult(
-      bpm: bpm, confidence: confidence, candidates: hintedCandidates, trace: trace)
+      bpm: bpm, confidence: confidence, candidates: hintedCandidates, trace: trace,
+      beatGrid: beatGrid)
+  }
+
+  // MARK: - Full-track beat-grid seam (Story 8.5, DD #10)
+
+  /// Builds a ``BeatGrid`` over a coverage span LONGER than the BPM analysis
+  /// window — the Story-8.5 full-track / explicit-window seam (DD #10).
+  ///
+  /// This is a **separate entry**, NOT a widened ``estimateBPM(decoded:options:)``:
+  /// folding the 30 s window out of a single full-track envelope would change the
+  /// onset/ACF the BPM pipeline sees and break the default-path byte-identity
+  /// contract (DD #9). The default ``BeatGridCoverage/analysisWindow`` path never
+  /// reaches here — the service reuses the cheap in-scope step-11 fan-out for it
+  /// (zero second onset pass). The service calls this only for
+  /// ``BeatGridCoverage/window(seconds:)`` / ``BeatGridCoverage/fullTrack`` AFTER
+  /// it has resolved `tempoBPM` (the single-window DSP tempo), and checks
+  /// cancellation immediately before calling — cancellation is a service concern,
+  /// so this pure-DSP entry carries none.
+  ///
+  /// Builds the coverage-length onset envelope + ACF (mirroring the technique-set
+  /// gating of ``estimateBPM(decoded:options:)`` for the full-band envelope:
+  /// SuperFlux vs log-mel, adaptive threshold, ACF sharpening), then runs the same
+  /// ``BeatGridAnalyzer/estimateBeatGrid(onsetEnvelope:onsetRate:hopSize:sampleRate:acf:tempoBPM:windowStartSample:coverage:)``
+  /// tracker the step-11 fan-out uses. Cost is O(track) — linear in the coverage
+  /// length (DD #5).
+  ///
+  /// - Parameters:
+  ///   - decoded: The same decoded carrier the BPM pass used (already
+  ///     `maxSeconds`-capped by the service); `.fullTrack` therefore spans up to
+  ///     `maxSeconds` of audio, like every other decode in the library.
+  ///   - tempoBPM: The tempo to track against — the single-window DSP tempo, so
+  ///     the grid's reported ``BeatGrid/estimatedTempo`` stays an independent
+  ///     estimate the consistency contract can compare against the full BPM
+  ///     result (AC7 — NOT tautological).
+  ///   - coverage: ``BeatGridCoverage/window(seconds:)`` or
+  ///     ``BeatGridCoverage/fullTrack``; recorded (sanitized) on the result.
+  ///   - options: Supplies `intensity` / `techniqueSet` (onset variant + gating)
+  ///     and `analysisWindowSeconds` (the fallback span if a degenerate coverage
+  ///     sanitizes to `.analysisWindow`).
+  ///   - refinementSink: Receives the ``BeatGridTempoRefinementEvidence`` when the
+  ///     coverage-span refit runs (ticket #71 — threads the step-11 fan-out's
+  ///     trace seam through the `.window` / `.fullTrack` grid pass so consumers
+  ///     observe the refit on every coverage). Defaults to a no-op, so existing
+  ///     callers are unaffected and the `enableTrace == false` path stays
+  ///     allocation-free (the service passes a live sink only when tracing is on).
+  ///   - downbeatSink: Receives the ``DownbeatStrategyEvidence`` when downbeat
+  ///     detection runs; defaults to a no-op (see `refinementSink`).
+  /// - Returns: A ``BeatGrid`` over the coverage span, or `nil` for silence,
+  ///   too-short coverage, or non-musical input.
+  static func estimateBeatGrid(
+    decoded: FeatureSubstrate.DecodedAudio,
+    tempoBPM: Double,
+    coverage: BeatGridCoverage,
+    options: Options = .init(),
+    refinementSink: (BeatGridTempoRefinementEvidence) -> Void = { _ in },
+    downbeatSink: (DownbeatStrategyEvidence) -> Void = { _ in }
+  ) -> BeatGrid? {
+    let samples = decoded.samples
+    let sampleRate = decoded.sampleRate
+    let techniqueSet = options.techniqueSet ?? options.intensity.techniqueSet
+    // Defense-in-depth: bound the rate so no `Int(... * sampleRate)` / `Int(sampleRate /
+    // 100)` can trap. Mirrors `estimateBPM`; production is safe via DecodedAudio's >= 8
+    // kHz precondition. See `minOnsetSampleRate` / `maxOnsetSampleRate`.
+    guard !samples.isEmpty, sampleRate >= Self.minOnsetSampleRate,
+      sampleRate <= Self.maxOnsetSampleRate
+    else { return nil }
+    guard tempoBPM.isFinite, tempoBPM > 0 else { return nil }
+
+    // Step 1: energy scan — the SAME drop offset estimateBPM derives, so the
+    // coverage span shares the BPM window's musical start and beats stay
+    // track-relative (decoded-PCM-relative `t=0` = file start).
+    let dropOffset = findEnergyTransition(samples: samples, sampleRate: sampleRate)
+
+    // Resolve the coverage span (in samples) from the sanitized coverage.
+    let cov = coverage.sanitized
+    let remainingSamples = samples.count - dropOffset
+    let spanSamples: Int
+    switch cov {
+    case .analysisWindow:
+      spanSamples = sampleSpan(
+        seconds: options.analysisWindowSeconds, sampleRate: sampleRate, cap: remainingSamples)
+    case .window(let seconds):
+      spanSamples = sampleSpan(seconds: seconds, sampleRate: sampleRate, cap: remainingSamples)
+    case .fullTrack:
+      spanSamples = remainingSamples
+    }
+    let endSample = dropOffset + spanSamples
+    guard endSample > dropOffset else { return nil }
+    let coverageWindow = Array(samples[dropOffset..<endSample])
+
+    guard !isSilent(coverageWindow) else { return nil }
+    let coverageDuration = Double(coverageWindow.count) / sampleRate
+    guard coverageDuration >= minimumDurationSeconds else { return nil }
+
+    let hopSize = Int(sampleRate / 100)
+    guard hopSize > 0 else { return nil }
+    let onsetRate = sampleRate / Double(hopSize)
+
+    // Full-band onset envelope. Sub-bands are unused by the beat tracker, so they
+    // are computed ONLY when the downbeat estimator needs them (Story 8.5a AC6 —
+    // the `.window` / `.fullTrack` coverage paths honor `detectDownbeats` too).
+    let onsetResult: OnsetEnvelopes
+    if techniqueSet.contains(.superFluxOnset) {
+      onsetResult = computeSuperFluxOnsetEnvelope(
+        samples: coverageWindow, sampleRate: sampleRate, hopSize: hopSize,
+        computeSubBands: options.detectDownbeats, normalizeSubBands: false,
+        captureMLFeatures: false)
+    } else {
+      onsetResult = computeMelOnsetEnvelopeWithSubBands(
+        samples: coverageWindow, sampleRate: sampleRate, hopSize: hopSize,
+        computeSubBands: options.detectDownbeats, normalizeSubBands: false,
+        captureMLFeatures: false)
+    }
+    var onsetEnvelope = onsetResult.fullBand
+    guard !onsetEnvelope.isEmpty else { return nil }
+
+    if techniqueSet.contains(.adaptiveThreshold) {
+      onsetEnvelope = adaptiveThreshold(envelope: onsetEnvelope, onsetRate: onsetRate)
+    }
+
+    var acf = computeAutocorrelation(onsetEnvelope)
+    guard !acf.isEmpty else { return nil }
+    if techniqueSet.contains(.acfSharpening) {
+      vDSP_vsq(acf, 1, &acf, 1, vDSP_Length(acf.count))
+    }
+
+    // Story 8.11: the structural-drop contour is sourced from the FULL pre-trim
+    // `samples` (file t=0), independent of `beatGridCoverage` — the coverage window
+    // already begins at the drop. Computed only for the drop strategies.
+    let dropContour = structuralDropContour(
+      samples: samples, sampleRate: sampleRate, options: options)
+    return BeatGridAnalyzer.estimateBeatGrid(
+      onsetEnvelope: onsetEnvelope,
+      onsetRate: onsetRate,
+      hopSize: hopSize,
+      sampleRate: sampleRate,
+      acf: acf,
+      tempoBPM: tempoBPM,
+      windowStartSample: dropOffset,
+      coverage: cov,
+      subBands: onsetResult.subBands,
+      detectDownbeats: options.detectDownbeats,
+      downbeatStrategy: options.downbeatStrategy,
+      dropContour: dropContour,
+      refineBeatGridTempo: options.refineBeatGridTempo,
+      refinementSink: refinementSink,
+      downbeatSink: downbeatSink)
   }
 
   // MARK: - Mel-Spectrogram Onset Detection (Story 33-4, Tasks 2-3)
@@ -1142,6 +1417,18 @@ struct BPMAnalyzer {
   ///   - samples: Full audio samples.
   ///   - sampleRate: Audio sample rate in Hz.
   /// - Returns: Sample offset of the drop, or 0 if no transition found.
+  /// Story 8.11: builds the structural-drop energy contour over the FULL pre-trim
+  /// `samples`, but ONLY when the selected ``DownbeatStrategy`` needs it (a
+  /// non-`.metricalAccent` strategy with `detectDownbeats` on). Returns `nil`
+  /// otherwise, so the default `.metricalAccent` path computes no contour and stays
+  /// byte-identical to Story 8.5a.
+  private static func structuralDropContour(
+    samples: [Float], sampleRate: Double, options: Options
+  ) -> StructuralDropAnalyzer.Contour? {
+    guard options.detectDownbeats, options.downbeatStrategy != .metricalAccent else { return nil }
+    return StructuralDropAnalyzer.computeContour(samples: samples, sampleRate: sampleRate)
+  }
+
   private static func findEnergyTransition(
     samples: [Float],
     sampleRate: Double

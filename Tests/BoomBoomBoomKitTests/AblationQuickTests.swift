@@ -98,7 +98,7 @@ struct AblationQuickTests {
 
     for (name, techniqueSet) in presets {
       let result = BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100, options: .init(techniqueSet: techniqueSet))
+        decoded: .synthetic(samples, sampleRate: 44100), options: .init(techniqueSet: techniqueSet))
       let r = try #require(result, "Preset \(name) returned nil")
       #expect(
         isAcc1Match(r.bpm, 120, tolerance: 0.02),

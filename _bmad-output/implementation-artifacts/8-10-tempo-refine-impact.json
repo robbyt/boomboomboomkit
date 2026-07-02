@@ -1,0 +1,252 @@
+{
+  "changedTempo" : 2,
+  "details" : [
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 172.53798680904524,
+      "dawBpm" : 170,
+      "driftOffSeconds" : 4.4129183190032,
+      "driftOnSeconds" : 4.4129183190032,
+      "filename" : "1. The Faraday_Bunker (D-Struct Remix).wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 172.53798680904524,
+      "tempoErrorOff" : 2.537986809045236,
+      "tempoErrorOn" : 2.537986809045236
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 169.56191195091068,
+      "dawBpm" : 170,
+      "driftOffSeconds" : 0.7750939654705524,
+      "driftOnSeconds" : 0.7750939654705524,
+      "filename" : "6. HEFT_Fuyu (Akinsa Remix).wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 169.56191195091068,
+      "tempoErrorOff" : 0.4380880490893162,
+      "tempoErrorOn" : 0.4380880490893162
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 160.11940640361684,
+      "dawBpm" : 160,
+      "driftOffSeconds" : 0.18131249989301013,
+      "driftOnSeconds" : 0.18131249989301013,
+      "filename" : "Echtoo - The Mummy - Seminal Sounds.wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 160.11940640361684,
+      "tempoErrorOff" : 0.11940640361683563,
+      "tempoErrorOn" : 0.11940640361683563
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 170.17556333406256,
+      "dawBpm" : 170,
+      "driftOffSeconds" : 0.30949802184805364,
+      "driftOnSeconds" : 0.30949802184805364,
+      "filename" : "3. D3Z_Axons (Offish Remix).wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 170.17556333406256,
+      "tempoErrorOff" : 0.1755633340625593,
+      "tempoErrorOn" : 0.1755633340625593
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 137.09124425414015,
+      "dawBpm" : 170,
+      "filename" : "2. Ahmad_The Wrong Place (Artilect Remix).wav",
+      "octaveMismatch" : true,
+      "refinedTempo" : 137.09124425414015
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 113.15209230769231,
+      "dawBpm" : 170,
+      "filename" : "4. Yin Yang Audio_Within Cells Interlinked (Acid Lab Remix).wav",
+      "octaveMismatch" : true,
+      "refinedTempo" : 113.15209230769231
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 139.04118695873663,
+      "dawBpm" : 159.99,
+      "filename" : "7. Everything Changes_Subotica (Esthetic & Reac-Zo Remix).wav",
+      "octaveMismatch" : true,
+      "refinedTempo" : 139.04118695873663
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 170.29083948838047,
+      "dawBpm" : 170,
+      "driftOffSeconds" : 0.5123695835682063,
+      "driftOnSeconds" : 0.5123695835682063,
+      "filename" : "10. Hellacopta_Assemby (Xiûa Remix).wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 170.29083948838047,
+      "tempoErrorOff" : 0.29083948838047036,
+      "tempoErrorOn" : 0.29083948838047036
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 170.42991190949132,
+      "dawBpm" : 170,
+      "driftOffSeconds" : 0.7567543244162867,
+      "driftOnSeconds" : 0.7567543244162867,
+      "filename" : "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 170.42991190949132,
+      "tempoErrorOff" : 0.42991190949132374,
+      "tempoErrorOn" : 0.42991190949132374
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 113.61116927041391,
+      "dawBpm" : 170,
+      "filename" : "9. HEFT_Anagram 6 (Owl Remix).wav",
+      "octaveMismatch" : true,
+      "refinedTempo" : 113.61116927041391
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 114.69069882702793,
+      "dawBpm" : 150,
+      "filename" : "8. Jonah K_Shadow Work (Esthetic Remix).wav",
+      "octaveMismatch" : true,
+      "refinedTempo" : 114.69069882702793
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 85.9057419135622,
+      "dawBpm" : 171.81,
+      "driftOffSeconds" : 0.002548236622943665,
+      "driftOnSeconds" : 0.002548236622943665,
+      "filename" : "11. Sorse_Remorse (Jonah K Remix).wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 85.9057419135622,
+      "tempoErrorOff" : 0.0007419135621944406,
+      "tempoErrorOn" : 0.0007419135621944406
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 130.17391640866873,
+      "dawBpm" : 129.99,
+      "driftOffSeconds" : 0.4238554398824368,
+      "driftOnSeconds" : 0.4238554398824368,
+      "filename" : "03 TVR.m4a",
+      "octaveMismatch" : false,
+      "refinedTempo" : 130.17391640866873,
+      "tempoErrorOff" : 0.18391640866872194,
+      "tempoErrorOn" : 0.18391640866872194
+    },
+    {
+      "changedTempo" : true,
+      "coarseTempo" : 79.9678051497582,
+      "dawBpm" : 160,
+      "driftOffSeconds" : 0.10754716031948346,
+      "driftOnSeconds" : 0.00380144723986581,
+      "filename" : "Echtoo - Chakra - Seminal Sounds.wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 79.9988615733354,
+      "tempoErrorOff" : 0.032194850241793915,
+      "tempoErrorOn" : 0.0011384266645961816
+    },
+    {
+      "changedTempo" : true,
+      "coarseTempo" : 79.96989456310469,
+      "dawBpm" : 160,
+      "driftOffSeconds" : 0.10164410002218016,
+      "driftOnSeconds" : 6.305143777085576e-05,
+      "filename" : "Echtoo - Chakra.wav",
+      "octaveMismatch" : false,
+      "refinedTempo" : 79.99998131809687,
+      "tempoErrorOff" : 0.030105436895311755,
+      "tempoErrorOn" : 1.868190312848128e-05
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 169.14756583569144,
+      "dawBpm" : 130,
+      "filename" : "Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 01 Conundrum.mp3",
+      "octaveMismatch" : true,
+      "refinedTempo" : 169.14756583569144
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 170.45283355063017,
+      "dawBpm" : 170,
+      "driftOffSeconds" : 0.7969950534656434,
+      "driftOnSeconds" : 0.7969950534656434,
+      "filename" : "5. Darkgray Heart_Beating Heart Of The Summer Sun (robbyt Remix).mp3",
+      "octaveMismatch" : false,
+      "refinedTempo" : 170.45283355063017,
+      "tempoErrorOff" : 0.4528335506301744,
+      "tempoErrorOn" : 0.4528335506301744
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 125.90745925992618,
+      "dawBpm" : 126.01,
+      "driftOffSeconds" : 0.24432406310921362,
+      "driftOnSeconds" : 0.24432406310921362,
+      "filename" : "College Hill - Undercurrents Vol 3 - 08 Self Immolation.mp3",
+      "octaveMismatch" : false,
+      "refinedTempo" : 125.90745925992618,
+      "tempoErrorOff" : 0.1025407400738203,
+      "tempoErrorOn" : 0.1025407400738203
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 106.29010646162945,
+      "dawBpm" : 160,
+      "filename" : "The Prodigy - 160 Experience - 06 Charly (Neekeetone Jungle Rework).aiff",
+      "octaveMismatch" : true,
+      "refinedTempo" : 106.29010646162945
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 176.89433962264152,
+      "dawBpm" : 126,
+      "filename" : "Icicle - Condense.wav",
+      "octaveMismatch" : true,
+      "refinedTempo" : 176.89433962264152
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 140.37910432604428,
+      "dawBpm" : 140,
+      "driftOffSeconds" : 0.6111566991583901,
+      "driftOnSeconds" : 0.6111566991583901,
+      "filename" : "Proxima_Trapped_Original Mix.mp3",
+      "octaveMismatch" : false,
+      "refinedTempo" : 140.37910432604428,
+      "tempoErrorOff" : 0.3791043260442848,
+      "tempoErrorOn" : 0.3791043260442848
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 194,
+      "dawBpm" : 160,
+      "filename" : "The Prodigy - Music For The 160 Generation - 06 Skylined (Neekeetone 160 Rework).aiff",
+      "octaveMismatch" : true,
+      "refinedTempo" : 194
+    },
+    {
+      "changedTempo" : false,
+      "coarseTempo" : 127.86232157577336,
+      "dawBpm" : 128,
+      "driftOffSeconds" : 0.23254307681533362,
+      "driftOnSeconds" : 0.23254307681533362,
+      "filename" : "Nautical Divine - Makara.mp3",
+      "octaveMismatch" : false,
+      "refinedTempo" : 127.86232157577336,
+      "tempoErrorOff" : 0.13767842422663534,
+      "tempoErrorOn" : 0.13767842422663534
+    }
+  ],
+  "improvedTempoError" : 2,
+  "meanDriftOffSeconds" : 0.6763257531139238,
+  "meanDriftOnSeconds" : 0.6616595558522075,
+  "octaveMismatch" : 9,
+  "scored" : 14,
+  "total" : 23,
+  "worsenedTempoError" : 0
+}

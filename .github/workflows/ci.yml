@@ -1,0 +1,81 @@
+name: CI
+
+# Build + corpus-free unit-test gate for pull requests. Pure infrastructure —
+# touches no Sources/ code. Runs on a macOS 26 runner (Package.swift targets
+# macOS 15 / Swift 6.0). Env-gated corpus/benchmark targets (benchmark,
+# benchmark-giantsteps, ablation, oracle, perf-benchmark, benchmark-beatgrid,
+# combined-analyze-impact-report, etc.) are intentionally EXCLUDED: the OA300 /
+# GiantSteps / Tony corpora are private and absent in CI. `make lint` is NOT
+# called either — it pulls in the develop-only `py-lint` (uv/ruff/ty over
+# _bmad-output/ml-training/), which will not resolve on a clean runner; the
+# Swift half (`swiftlint lint .`) is invoked directly instead.
+
+on:
+  # `pull_request` is the gate: it runs on the simulated head-into-base merge for
+  # every PR targeting these bases, so it already validates post-merge state.
+  # `push` is restricted to `main` ONLY — the one branch that is never the head of
+  # a PR — so no branch is ever matched by BOTH triggers for the same commit. An
+  # integration branch like `rterhaar/epic-8` that has an open PR previously
+  # double-ran (one `push` + one `pull_request` per commit, since `push` listed it
+  # and its PR's base matched `pull_request`); listing it under `push` was
+  # redundant with `pull_request` and is removed.
+  pull_request:
+    branches: [develop, main, rterhaar/epic-8]
+  push:
+    branches: [main]
+
+# Supersede an in-flight run when a newer commit lands on the same ref so PRs
+# don't pile up duplicate macOS runs.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build + unit tests (macOS)
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache SwiftPM build
+        # Warm the SwiftPM build directory so `swift build` / `make test` recompile
+        # only changed modules. The key hashes the manifest + every source/test file
+        # so a fresh cache is saved per source-set; `restore-keys` fall back to the
+        # nearest prior cache for incremental reuse (a Package.resolved-only key would
+        # never refresh — this package has zero external dependencies, so `.build` is
+        # the only win; `~/.swiftpm` is SwiftPM's own cache dir). Worst case is a miss
+        # → full rebuild, identical to no cache, so it can never change CI results.
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ hashFiles('Sources/**', 'Tests/**') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            ${{ runner.os }}-spm-
+
+      - name: Build (Debug)
+        run: swift build
+
+      - name: Unit tests (corpus-free)
+        # Calls `make test` → `swift test --parallel --filter
+        # BoomBoomBoomKitTests`. Needs no corpus env vars.
+        run: make test
+
+      - name: Format check
+        # swift-format has no `--lint` flag (the prior `swift format --recursive
+        # --lint` never parsed; the run died at `make test` first, so it was never
+        # exercised). Gate formatting the version-stable way: reformat the ephemeral
+        # CI checkout in place, then fail if anything changed. A dev machine's working
+        # tree is untouched (`make fmt` keeps it clean). Only formatting is applied —
+        # swift-format's naming rules are not — so pre-existing lint warnings don't gate.
+        run: |
+          swift format --recursive --in-place Sources/ Tests/
+          git diff --exit-code -- Sources/ Tests/
+
+      - name: SwiftLint (Swift-only; avoids develop-only py-lint)
+        run: |
+          brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
+          swiftlint lint .

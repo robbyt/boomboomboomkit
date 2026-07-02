@@ -29,6 +29,7 @@ import json
 import sys
 
 import corpus_common as cc
+import jams_corpus
 
 OUT_JAMS = (
     cc.REPO_ROOT
@@ -113,15 +114,23 @@ def select_expanded_sentinels() -> list[dict]:
 
 
 def load_originals() -> list[dict]:
+    # Story 8.8c: `4-dnb-triplet-targets.json` is now a JAMS corpus. The named DnB
+    # failures are the `target`-partition entries — read `track_id`/`source` from each
+    # entry (file_metadata.identifiers + sandbox) and the BPM from the `tempo` value.
     data = json.loads(CANONICAL_ORIGINALS.read_text())
     out = []
-    for t in data["targets"]:
+    for entry in data["entries"]:
+        sandbox = entry.get("sandbox") or {}
+        if sandbox.get("partition") != "target":
+            continue
+        # Reuse the shared, structurally-defensive extractor (raises a clear ValueError on a
+        # malformed corpus instead of StopIteration/IndexError; rejects bool/NaN/string).
         out.append(
             {
-                "track_id": t["track_id"],
-                "bpm": float(t["ground_truth_bpm"]),
+                "track_id": entry["file_metadata"]["identifiers"]["track_id"],
+                "bpm": jams_corpus.tempo_value(entry, CANONICAL_ORIGINALS),
                 "confidence": 1.0,
-                "source": t.get("source", "dawproject"),
+                "source": sandbox.get("source", "dawproject"),
             }
         )
     return out

@@ -1,0 +1,43 @@
+{
+  "corpus": "jams-decoder-sample-v1",
+  "xml_source": "(hand-written fixture)",
+  "track_count": 1,
+  "entries": [
+    {
+      "file_metadata": {
+        "title": "Sample Track",
+        "artist": "Tester",
+        "duration": 2.0,
+        "jams_version": "0.4.0",
+        "identifiers": {
+          "basename": "sample.wav",
+          "local_path": "/tmp/sample.wav",
+          "track_id": "1"
+        }
+      },
+      "annotations": [
+        {
+          "namespace": "beat",
+          "data": [
+            { "time": 0.5, "duration": 0.0, "value": 1, "confidence": 1.0 },
+            { "time": 1.0, "duration": 0.0, "value": null, "confidence": 1.0 }
+          ],
+          "annotation_metadata": {
+            "curator": { "name": "Tester", "email": "" },
+            "data_source": "hand-written fixture"
+          }
+        },
+        {
+          "namespace": "tempo",
+          "data": [
+            { "time": 0.0, "duration": 0.0, "value": 174.0, "confidence": 1.0 }
+          ],
+          "annotation_metadata": {
+            "curator": { "name": "Tester", "email": "" },
+            "data_source": "hand-written fixture"
+          }
+        }
+      ]
+    }
+  ]
+}

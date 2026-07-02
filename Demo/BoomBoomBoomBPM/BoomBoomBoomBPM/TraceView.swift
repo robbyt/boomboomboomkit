@@ -3,10 +3,14 @@ import SwiftUI
 
 struct TraceView: View {
   let snapshot: LastRunDiagnosticSnapshot
+  // The beat-grid metadata moved here from the main-body waveform strip so the
+  // strip stays compact; `nil` when no grid was tracked for the current result.
+  let gridVisualization: GridVisualizationState?
   let finalStep: FinalSelectionStep
 
-  init(snapshot: LastRunDiagnosticSnapshot) {
+  init(snapshot: LastRunDiagnosticSnapshot, gridVisualization: GridVisualizationState? = nil) {
     self.snapshot = snapshot
+    self.gridVisualization = gridVisualization
     self.finalStep = FinalSelectionStep.derive(
       from: snapshot.trace,
       lastBPM: snapshot.result.bpm
@@ -17,6 +21,9 @@ struct TraceView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
         runSection
+        if let grid = gridVisualization {
+          BeatGridDetailSection(state: grid)
+        }
         selectionSection
         candidatesSection
         subBandEnergiesSection

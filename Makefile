@@ -6,6 +6,11 @@ GIANTSTEPS_CORPUS_PATH ?= /Users/rterhaar/Dropbox/research/giantsteps-tempo-data
 ML_MODEL_INPUT ?= _bmad-output/ml-models/giantsteps_v1.mlmodel
 ML_MODEL_OUT_DIR ?= _bmad-output/ml-models
 BNNS_IMPACT_OUT_DIR ?= $(CURDIR)/_bmad-output/perf-baselines/bnns-impact
+# Story 8.7 beat-grid acceptance (develop-only): the Rekordbox-derived JAMS beat
+# oracle + the per-track estimated/accuracy artifacts. TONY_XML / TONY_AUDIO_ROOT
+# are defined in the Tony-corpus section below (recursive vars resolve at use).
+BEAT_ORACLE_JAMS ?= $(CURDIR)/_bmad-output/ml-training/tony-corpus/rekordbox-beats.jams.json
+BEAT_GRID_ACCURACY_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts
 
 .PHONY: all
 all: help
@@ -143,7 +148,11 @@ perf-benchmark:
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	PERF_BASELINE_DIR="$(CURDIR)/_bmad-output/perf-baselines" \
-	GIT_SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.PerformanceBenchmarkTests
 
 ## ablation: Run full 128-combination ablation matrix against OA300 corpus (ABLATION_PARALLELISM override range [1, 128]; default auto-detected)
@@ -228,6 +237,91 @@ super-flux-impact-report:
 	) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.SuperFluxImpactTests/superFluxImpactReport
 
+## shared-decode-impact-report: Story 8-2 AC8 — per-format sequential-vs-shared wall-clock gates + JSON to _bmad-output/implementation-artifacts/8-2-shared-decode-impact.json. Release config (timing-honest); gate 2 (never slower) asserts, the 0.8x-decode floor reports.
+.PHONY: shared-decode-impact-report
+shared-decode-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	SHARED_DECODE_IMPACT=1 \
+	SHARED_DECODE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.SharedDecodeImpactGateTests
+
+## beat-grid-impact-report: Story 8-4 AC8 — per-format beat-grid overhead gate (estimateBPM with vs without step-11 fan-out, shared decode) + JSON to _bmad-output/implementation-artifacts/8-4-beat-grid-impact.json. Release config; asserts +grid wall-clock <= BPM-only x1.25 per format.
+.PHONY: beat-grid-impact-report
+beat-grid-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	BEAT_GRID_IMPACT=1 \
+	BEAT_GRID_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridImpactGateTests
+
+## tempo-refine-impact-report: Story 8-10 AC9 — per-track beat-grid tempo-error + predicted last-beat drift, refinement ON vs OFF, scored against the DAW-verified oracle over .fullTrack coverage. JSON to _bmad-output/implementation-artifacts/8-10-tempo-refine-impact.json. Accuracy metric (config-agnostic); asserts the monotonic reject-guard (improved >= worsened, mean drift not increased).
+.PHONY: tempo-refine-impact-report
+tempo-refine-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	TEMPO_REFINE_IMPACT=1 \
+	TEMPO_REFINE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.DAWOracleBenchmarkTests/tempoRefinementImpact
+
+## accuracy-forensics: Phase 0 — forensic accuracy attribution over OA300 + GiantSteps (default pipeline). Per-corpus JSON to _bmad-output/implementation-artifacts/accuracy-forensics-<corpus>.json: candidate-recall oracle (true BPM in top-1/3/5/10 + factor + score margin), error-type histogram (octave vs triplet kept separate), recall split (selection-bound vs generation-bound), confidence reliability curve, BPM-error distribution, per-genre error-type composition, label-policy tags. Reporting-only — touches no DSP; corpus floors unaffected.
+.PHONY: accuracy-forensics
+accuracy-forensics:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	ACCURACY_FORENSICS=1 \
+	ACCURACY_FORENSICS_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.AccuracyForensicsTests/forensicReport
+
+## combined-analyze-impact-report: Story 8-5 AC10 — per-format shared-decode gate (analyze() one decode <= analyzeBPM + analyzeBeatGrid two decodes, x1.10 margin) + full-track-coverage overhead REPORT + JSON to _bmad-output/implementation-artifacts/8-5-combined-analyze-impact.json. Release config.
+.PHONY: combined-analyze-impact-report
+combined-analyze-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	COMBINED_ANALYZE_IMPACT=1 \
+	COMBINED_ANALYZE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.CombinedAnalyzeImpactGateTests
+
+## consistency-rate-oa300: Story 8-5 AC8 — over OA300, assert >= 90% of analyzable tracks are sync-usable (analyze() tempoAgreement != .disagree) + print the agree/octave/disagree breakdown. Accuracy gate (config-agnostic).
+.PHONY: consistency-rate-oa300
+consistency-rate-oa300:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	OA300_CONSISTENCY=1 \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.ConsistencyContractCorpusTests
+
+## benchmark-beatgrid: Story 8.7 — beat-grid acceptance F-measure + FR-29 drift + downbeat validation against the Rekordbox JAMS oracle. Three-step make-orchestration (DD-12): (1) Swift emits estimated beats + asserts coverage/drift/downbeat, (2) the develop-only Python sidecar computes mir_eval F-measure, (3) Swift asserts the committed F-measure floor against the sidecar's JSON. Requires $(BEAT_ORACLE_JAMS) (run `make oracle-generate-beats` first). Release config (timing-honest, full corpus). Fails loudly on a main-only checkout (the Python sidecar is develop-only — the ml-* convention; consumers don't run it). Pass BEAT_GRID_LIMIT=N to smoke a subset.
+.PHONY: benchmark-beatgrid
+benchmark-beatgrid:
+	@mkdir -p "$(BEAT_GRID_ACCURACY_OUT_DIR)"
+	BEAT_GRID_ORACLE="$(BEAT_ORACLE_JAMS)" \
+	BEAT_GRID_OUT_DIR="$(BEAT_GRID_ACCURACY_OUT_DIR)" \
+	$(if $(BEAT_GRID_LIMIT),BEAT_GRID_LIMIT="$(BEAT_GRID_LIMIT)",) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridBenchmarkTests
+	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/eval-beatgrid.py \
+		--reference "$(BEAT_ORACLE_JAMS)" \
+		--estimated "$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-estimated-beats.jams.json" \
+		$(if $(filter-out 0,$(BEAT_GRID_LIMIT)),--allow-missing-constant,) \
+		--out "$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json"
+	BEAT_GRID_ACCURACY_JSON="$(BEAT_GRID_ACCURACY_OUT_DIR)/8-7-beat-grid-accuracy.json" \
+	$(if $(BEAT_GRID_LIMIT),BEAT_GRID_LIMIT="$(BEAT_GRID_LIMIT)",) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridFloorTests
+
 ## bnns-impact-report: Generate per-track BNNS impact JSON to $(BNNS_IMPACT_OUT_DIR)
 .PHONY: bnns-impact-report
 bnns-impact-report:
@@ -269,6 +363,35 @@ oracle-generate:
 		--match Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
 		> "$(OA300_CORPUS_PATH)/daw-oracle.json"
 
+## oracle-generate-beats: Story 8.7 — build the JAMS beat oracle from Tony's Rekordbox XML grid (develop-only; story DD-13). Per-beat positions + Battito bar-phase from <TEMPO> markers. Writes $(BEAT_ORACLE_JAMS) (develop-only, NOT committed — mirrors daw-oracle.json). Fails loudly on a main-only checkout (the Python generator is develop-only — the ml-* convention; consumers don't run it).
+.PHONY: oracle-generate-beats
+oracle-generate-beats:
+	@mkdir -p "$(dir $(BEAT_ORACLE_JAMS))"
+	uv run scripts/rekordbox-beats.py "$(TONY_XML)" \
+		--audio-root "$(TONY_AUDIO_ROOT)" \
+		> "$(BEAT_ORACLE_JAMS)"
+
+## oracle-migrate-to-jams: Story 8.8 — one-time in-place migration of the flat ground-truth artifacts to JAMS 0.4 (develop-only; oa300 committed fixture + the corpus-local daw-oracle.json). Idempotent + validating: re-running on already-JAMS files validates the artifact min-shape and is a no-op (Codex P3). Fails loudly on a main-only checkout (the migrator is develop-only — consumers don't run it). Story 8.8c adds the DnB artifact.
+.PHONY: oracle-migrate-to-jams
+oracle-migrate-to-jams:
+	@mkdir -p _bmad-output/implementation-artifacts
+	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/migrate-to-jams.py \
+		--artifact oa300 \
+		--input Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
+		--report _bmad-output/implementation-artifacts/8-8-migration-report.md
+	@if [ -f "$(OA300_CORPUS_PATH)/daw-oracle.json" ]; then \
+		uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/migrate-to-jams.py \
+			--artifact daw \
+			--input "$(OA300_CORPUS_PATH)/daw-oracle.json" \
+			--report _bmad-output/implementation-artifacts/8-8-migration-report.md; \
+	else \
+		echo "Note: $(OA300_CORPUS_PATH)/daw-oracle.json not found; skipping daw migration (run make oracle-generate first)."; \
+	fi
+	uv run --project $(ML_TRAINING_DIR) python $(ML_TRAINING_DIR)/migrate-to-jams.py \
+		--artifact dnb \
+		--input Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json \
+		--report _bmad-output/implementation-artifacts/8-8-migration-report.md
+
 ## fmt: Format Swift source code
 .PHONY: fmt
 fmt:
@@ -279,7 +402,7 @@ fmt:
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint

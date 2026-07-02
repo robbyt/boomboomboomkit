@@ -362,8 +362,8 @@ struct ClickRescorePipelineTests {
     let techniqueSet = TechniqueSet.optimal.inserting(.clickTrackCorrelation)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100,
-        options: .init(techniqueSet: techniqueSet)))
+        decoded: .synthetic(samples, sampleRate: 44100), options: .init(techniqueSet: techniqueSet))
+    )
     #expect(
       result.bpm >= 117.6 && result.bpm <= 122.4,
       "Expected ~120 BPM (within 2%), got \(result.bpm)")
@@ -375,7 +375,7 @@ struct ClickRescorePipelineTests {
     let techniqueSet = TechniqueSet.optimal.inserting(.clickTrackCorrelation)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100,
+        decoded: .synthetic(samples, sampleRate: 44100),
         options: .init(techniqueSet: techniqueSet, enableTrace: true)))
     let trace = try #require(result.trace)
     let detail = try #require(trace.clickCorrelationDetail)
@@ -387,7 +387,7 @@ struct ClickRescorePipelineTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: 44100,
+        decoded: .synthetic(samples, sampleRate: 44100),
         options: .init(techniqueSet: .optimal, enableTrace: true)))
     let trace = try #require(result.trace)
     #expect(trace.clickCorrelationDetail == nil)
