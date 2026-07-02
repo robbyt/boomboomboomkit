@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import Synchronization
 
 /// Result of audio analysis containing BPM and confidence.
 public struct AudioAnalysisResult: Sendable {
@@ -52,6 +53,55 @@ public struct AudioAnalysisResult: Sendable {
   /// ``AudioAnalysisService/maximumSupportedIntensity(mlTechnique:)`` BEFORE
   /// analysis to query whether the configuration supports the requested intensity.**
   public let degradationReason: String?
+
+  /// Returns a copy with `trace` replaced, every other field forwarded verbatim
+  /// (ticket #71). Used by the combined ``AudioAnalysisService/analyze(url:options:)``
+  /// path to stitch the beat-grid coverage pass's refinement / downbeat evidence
+  /// onto the BPM result's trace, so `CombinedAnalysisResult.bpm.trace` carries it
+  /// on every ``AudioAnalysisService/Options/beatGridCoverage``. A forwarder (not a
+  /// field-enumerating re-init at the call site) so a future field is never
+  /// silently dropped here (mirrors the ``BPMResult/with(bpm:confidence:trace:)``
+  /// W52 pattern).
+  func with(trace newTrace: BPMDiagnosticTrace?) -> AudioAnalysisResult {
+    AudioAnalysisResult(
+      bpm: bpm,
+      confidence: confidence,
+      candidates: candidates,
+      trace: newTrace,
+      metadataEvidence: metadataEvidence,
+      effectiveIntensity: effectiveIntensity,
+      degradationReason: degradationReason)
+  }
+}
+
+/// Result of combined BPM + beat-grid analysis over a single shared decode
+/// (Story 8.5, FR-35 / KDD-C4): the output of
+/// ``AudioAnalysisService/analyze(url:options:)``.
+///
+/// Both raw tempos stay accessible — the full multi-window, metadata-corroborated
+/// BPM (`bpm.bpm`) AND the beat grid's own tempo (`beatGrid?.estimatedTempo`) —
+/// so a consumer that wants to reconcile an octave disagreement can do so from
+/// the raw pair rather than only the collapsed ``BeatGrid/tempoAgreement`` enum.
+///
+/// **Scope: BPM + beat grid only — no LUFS** (DD #1). The consistency contract
+/// relates the BPM and beat-grid stages; loudness is unrelated. For combined
+/// loudness, decode once and call ``AudioAnalysisService/analyzeLUFS(decoded:options:)``
+/// on the same carrier.
+public struct CombinedAnalysisResult: Sendable {
+
+  /// The full multi-window, metadata-corroborated BPM result (the same value
+  /// ``AudioAnalysisService/analyzeBPM(url:options:)`` would return).
+  public let bpm: AudioAnalysisResult
+
+  /// The beat grid, or `nil` when the grid could not be tracked (the ``bpm``
+  /// result is still present — BPM succeeded, the grid did not). When non-nil,
+  /// its ``BeatGrid/tempoAgreement`` has been resolved against ``bpm``'s tempo.
+  public let beatGrid: BeatGrid?
+
+  public init(bpm: AudioAnalysisResult, beatGrid: BeatGrid?) {
+    self.bpm = bpm
+    self.beatGrid = beatGrid
+  }
 }
 
 /// Stateless service that coordinates PCM reading and BPM estimation.
@@ -86,6 +136,13 @@ public struct AudioAnalysisService {
     /// performs energy scan on this buffer to find the musical onset, then
     /// takes analysis windows (30s/60s/90s) from that point. The default of
     /// 120s covers ~30s of intro headroom plus the longest 90s analysis window.
+    ///
+    /// Non-finite, non-positive, or absurdly large (≥ 1e9 s) values are
+    /// sanitized to a FULL-FILE read (DD #3b, same rule as
+    /// ``LUFSOptions/maxSeconds``) — never a trap and never an empty read.
+    /// Callers computing a dynamic budget must not let it underflow to 0
+    /// expecting a cheap call: pre-8.2 a non-positive cap read zero frames,
+    /// post-8.2 it reads (and analyzes) the entire file.
     public var maxSeconds: Double = 120
 
     /// Analysis intensity level (default: `.default`, which is level 7).
@@ -269,6 +326,85 @@ public struct AudioAnalysisService {
     /// merge-stage boost, empty ``AudioAnalysisResult/metadataEvidence``.
     public var metadataPolicy: MetadataPolicy = .default
 
+    /// How much of the track the beat grid's *detected* ``BeatGrid/beats`` array
+    /// covers (Story 8.5). Affects ``analyzeBeatGrid(url:options:)`` and the
+    /// beat grid produced by ``analyze(url:options:)``; ignored by
+    /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
+    ///
+    /// Default ``BeatGridCoverage/analysisWindow`` is the **cheap** path: the
+    /// detected beats cover the BPM analysis window the pipeline already computed,
+    /// at zero extra onset cost. The Rekordbox-style mid-track contract —
+    /// ``BeatGrid/gridOrigin`` + ``BeatGrid/estimatedTempo`` — extrapolates the
+    /// infinite grid drift-free on constant-tempo material regardless of this
+    /// setting, so the default is what a beat-math consumer usually wants.
+    ///
+    /// ``BeatGridCoverage/window(seconds:)`` and ``BeatGridCoverage/fullTrack``
+    /// trigger a second, coverage-length onset pass (O(track)); use them for
+    /// waveform display or QA, not for sync math. ``BeatGridCoverage/fullTrack``
+    /// is bounded by ``maxSeconds`` like every decode.
+    public var beatGridCoverage: BeatGridCoverage = .analysisWindow
+
+    /// Opt-in downbeat (bar-start) detection (Story 8.5a). Default `false` keeps
+    /// ``BeatGrid/downbeats`` ``DownbeatResult/notAttempted`` and the BPM/beat-grid
+    /// output byte-identical to 8.5. When `true`, ``analyzeBeatGrid(url:options:)``
+    /// (both overloads) and the grid produced by ``analyze(url:options:)`` run a
+    /// conservative, fixed-4/4 downbeat-phase estimator: ``BeatGrid/downbeats``
+    /// becomes ``DownbeatResult/detected(estimate:)`` on a strong recurring accent
+    /// (and ``BeatGrid/gridOrigin`` is repointed to the first downbeat with
+    /// ``BeatGridAnchorSource/downbeat``), or ``DownbeatResult/noneDetected`` — an
+    /// honest abstain — when the rhythmic evidence is weak. A wrong downbeat on a
+    /// live deck is worse than no downbeat, so the estimator abstains rather than
+    /// guess; gate bar-snap on `gridOrigin.source == .downbeat`. Ignored by
+    /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
+    public var detectDownbeats: Bool = false
+
+    /// Which ``DownbeatStrategy`` places the bar phase when ``detectDownbeats`` is
+    /// `true` (Story 8.11). Default ``DownbeatStrategy/metricalAccent`` reproduces
+    /// the Story-8.5a estimator bit-for-bit; ``DownbeatStrategy/structuralDrop``
+    /// anchors the downbeat to the track's main energy drop, and
+    /// ``DownbeatStrategy/combined`` cross-validates the two. Ignored when
+    /// ``detectDownbeats`` is `false` and by
+    /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
+    public var downbeatStrategy: DownbeatStrategy = .metricalAccent
+
+    /// Locks the beat-grid tempo to an authoritative constant BPM instead of the
+    /// tracker's measured tempo — see ``BeatGridTempoLock``. Default
+    /// ``BeatGridTempoLock/off`` reproduces prior behavior byte-for-byte. Honored
+    /// only on the combined ``analyze(url:options:)`` / ``analyze(decoded:options:)``
+    /// path (which has the BPM-stage tempo); standalone
+    /// ``analyzeBeatGrid(url:options:)`` ignores it. The target tempo is
+    /// octave-normalized to the grid's tempo before it is applied, and a
+    /// more-than-an-octave disagreement leaves the grid unlocked.
+    public var beatGridTempoLock: BeatGridTempoLock = .off
+
+    /// Opt-in continuous beat-grid tempo refinement (Story 8.10). Default `false`
+    /// reproduces prior behavior byte-for-byte (the grid reports the coarse
+    /// BPM-stage tempo). When `true`, the grid's ``BeatGrid/estimatedTempo`` is
+    /// refined to sub-0.1-BPM precision by fitting a continuous interpolated
+    /// onset-comb against the audio's own onset evidence (seeded by the BPM-stage
+    /// tempo), guarded so the result is never worse than the seed — this removes
+    /// the dominant beat-grid accuracy loss (a few-tenths-of-a-BPM rate error that
+    /// accumulates into within-track drift over a multi-minute track).
+    ///
+    /// **Scope.** Honored by ``analyzeBeatGrid(url:options:)``,
+    /// ``analyzeBPM(url:options:)`` (when `computeBeatGrid` is set internally),
+    /// and the grid produced by ``analyze(url:options:)``. Because sub-0.1-BPM
+    /// precision needs a long lever arm, the refit frequently abstains on the
+    /// short default ``BeatGridCoverage/analysisWindow`` (~30 s) span and delivers
+    /// its precision on ``BeatGridCoverage/window(seconds:)`` /
+    /// ``BeatGridCoverage/fullTrack`` coverage.
+    ///
+    /// **Interaction with ``beatGridTempoLock`` (combined ``analyze`` path).** The
+    /// lock is the explicit override and wins: a non-``BeatGridTempoLock/off`` lock
+    /// REPLACES the auto-refined tempo. In particular ``BeatGridTempoLock/bpmStage``
+    /// substitutes the COARSE stage BPM and DISCARDS the sub-0.1 precision (the
+    /// refit becomes a no-op on output) — authoritatively, even when the refit moved
+    /// the grid more than the 2% agreement band away from the stage tempo — while a
+    /// ``BeatGridTempoLock/bpm(_:)`` with a non-finite/≤0/more-than-an-octave value
+    /// is itself a no-op, leaving the refined tempo standing. ``BPMResult/bpm`` (`bpm.bpm`) is never affected — a
+    /// consumer may legitimately observe `bpm.bpm != beatGrid.estimatedTempo`.
+    public var refineBeatGridTempo: Bool = false
+
     /// Closure checked before each analysis window. When it returns `true`,
     /// the analysis throws `CancellationError`. Defaults to `Task.isCancelled`,
     /// giving automatic structured-concurrency support.
@@ -322,19 +458,109 @@ public struct AudioAnalysisService {
     url: URL,
     options: Options
   ) throws -> AudioAnalysisResult? {
-    // Story 4.3 + ADR-6 reconciled by Story 4.4 DD #2: trace is built when
-    // `mlTechnique != nil` AND the selected policy can consume the
-    // evaluation. Under `.dspOnly` the trace ML branch is moot because
-    // `MLTechnique.evaluate(trace:)` is short-circuited below — building the
-    // trace there would be wasted work and would also create the false
-    // expectation that ML inference is running.
-    let shouldBuildTrace =
-      options.enableTrace
-      || (options.mlTechnique != nil && options.ensemblePolicy.invokesMLInference)
+    try analyzeBPM(url: url, options: options, decodeObserver: nil)
+  }
 
+  /// Internal observer-threaded overload (Story 8-2 DD #9): the public
+  /// method passes `decodeObserver: nil`; AC1's structural decode-count
+  /// tests reach this seam via `@testable import`. The url path IS the
+  /// funnel (DD #2): URL-bound signal gathering + `decodeOnce` + the SAME
+  /// shared core (`preCorroborationCore` → `finishBPMAnalysis`) that
+  /// ``analyzeBPM(decoded:options:)`` calls.
+  static func analyzeBPM(
+    url: URL,
+    options: Options,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> AudioAnalysisResult? {
     let pre = try Self.runPreCorroborationPipeline(
-      url: url, options: options, enableTrace: shouldBuildTrace)
+      url: url, options: options,
+      enableTrace: shouldBuildTrace(options),
+      decodeObserver: decodeObserver)
+    return try finishBPMAnalysis(pre: pre, options: options)
+  }
 
+  /// Analyzes the BPM of already-decoded audio — the Story 8-2 shared-decode
+  /// seam (KDD-C4). Pair with ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``
+  /// and ``analyzeLUFS(decoded:options:)`` so combined analysis pays for the
+  /// decode exactly once:
+  ///
+  /// ```swift
+  /// let decoded = try PCMBufferReader.readDecodedAudio(from: url)
+  /// let bpm = try AudioAnalysisService.analyzeBPM(decoded: decoded)
+  /// let loudness = try AudioAnalysisService.analyzeLUFS(decoded: decoded)
+  /// ```
+  ///
+  /// **URL-bound signals are absent on this path (DD #2, by design):**
+  /// file-metadata corroboration never runs (no URL — `FileMetadataReader`
+  /// has nothing to read; ``AudioAnalysisResult/metadataEvidence`` is always
+  /// empty), and the duration-derived BPM hint is off
+  /// (`fileDurationSeconds = nil`; it is NOT derived from `samples.count`,
+  /// which would be wrong under a capped decode). Under
+  /// ``Options/metadataPolicy`` `.disabled` and ``Options/durationHint``
+  /// `false`, output is regression-locked equal to the url path on
+  /// LPCM-payload and FLAC fixtures — verified by tests, not guaranteed by
+  /// the platform (Apple documents no bit-stability contract for
+  /// `AVAudioFile`).
+  ///
+  /// ``Options/maxSeconds`` applies as a prefix slice mirroring the reader's
+  /// partial-read cap arithmetic bit-for-bit (DD #3b), so a capped analysis
+  /// of a full decode equals an analysis of a capped decode on the locked
+  /// fixture set (the locked path has no sample-rate conversion).
+  ///
+  /// Cancellation (``Options/isCancelled``) is checked before each analysis
+  /// window — same semantics as the url path. Progress
+  /// (``Options/onProgress``) fires before each window.
+  ///
+  /// - Parameters:
+  ///   - decoded: Decoded mono PCM carrier, typically from
+  ///     ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``.
+  ///   - options: Same options as the url path; URL-bound fields
+  ///     (`metadataPolicy`, `durationHint`) are inert here as documented.
+  /// - Returns: An `AudioAnalysisResult`, or `nil` for silence, too-short
+  ///   input, or non-musical content.
+  /// - Throws: `CancellationError` if cancelled via `options.isCancelled`.
+  public static func analyzeBPM(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options = .init()
+  ) throws -> AudioAnalysisResult? {
+    // Early checkpoint BEFORE the maxSeconds prefix slice — a pre-cancelled
+    // call must not pay a potentially multi-MB prefix copy first (mirrors
+    // the url path's pre-decode check and the LUFS decoded path's ordering).
+    // The window loop re-checks before each window as on the url path.
+    if options.isCancelled() { throw CancellationError() }
+    // No URL → metadata can never participate; the empty input mirrors what
+    // `buildMetadataInput` produces for a tag-free file.
+    let emptyMetadata = MetadataCorroborationInput(
+      consensusBPM: nil, participatingTags: [],
+      conflictDetected: false, policy: options.metadataPolicy)
+    let pre = try preCorroborationCore(
+      decoded: applyCap(decoded, maxSeconds: options.maxSeconds),
+      metadataInput: emptyMetadata,
+      fileDurationSeconds: nil,
+      options: options,
+      enableTrace: shouldBuildTrace(options))
+    return try finishBPMAnalysis(pre: pre, options: options)
+  }
+
+  /// Story 4.3 + ADR-6 reconciled by Story 4.4 DD #2: trace is built when
+  /// `mlTechnique != nil` AND the selected policy can consume the
+  /// evaluation. Under `.dspOnly` the trace ML branch is moot because
+  /// `MLTechnique.evaluate(trace:)` is short-circuited in
+  /// `finishBPMAnalysis` — building the trace there would be wasted work and
+  /// would also create the false expectation that ML inference is running.
+  private static func shouldBuildTrace(_ options: Options) -> Bool {
+    options.enableTrace
+      || (options.mlTechnique != nil && options.ensemblePolicy.invokesMLInference)
+  }
+
+  /// Post-pipeline half shared VERBATIM by the url and decoded paths
+  /// (Story 8-2 DD #2 — one code path, so the trace-write / ML-trace /
+  /// progress divergence class is shared behavior, not a reconciliation
+  /// burden): pool selection → ML evaluation → ensemble combination →
+  /// effective-intensity reporting → result assembly.
+  private static func finishBPMAnalysis(
+    pre: PreCorroborationOutput, options: Options
+  ) throws -> AudioAnalysisResult? {
     // Story 6.5b (KDD-A6 Stage 3): Phase 1 (cross-window aggregation) + Phase 2a
     // (pool-authoritative multiplicative metadata corroboration) collapse into a
     // single pool-consuming entry point — `BPMSelectionPolicy.select(from:)`. The
@@ -811,7 +1037,8 @@ public struct AudioAnalysisService {
   /// - Throws: `PCMBufferReaderError` if the file cannot be read.
   ///   `CancellationError` if cancelled via `options.isCancelled`.
   static func runPreCorroborationPipeline(
-    url: URL, options: Options, enableTrace: Bool
+    url: URL, options: Options, enableTrace: Bool,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)? = nil
   ) throws -> PreCorroborationOutput {
     // Early cancellation check — avoid ~10MB PCM read on pre-cancelled calls.
     if options.isCancelled() { throw CancellationError() }
@@ -833,10 +1060,32 @@ public struct AudioAnalysisService {
         .flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
       : nil
 
-    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
-      from: url, maxSeconds: options.maxSeconds
-    )
+    // Story 8-2 (DD #9 / AC1): the funnel — the only PCM decode on this path.
+    let decoded = try decodeOnce(
+      url: url, maxSeconds: options.maxSeconds,
+      isCancelled: options.isCancelled, observer: decodeObserver)
 
+    return try preCorroborationCore(
+      decoded: decoded,
+      metadataInput: metadataInput,
+      fileDurationSeconds: fileDurationSeconds,
+      options: options,
+      enableTrace: enableTrace)
+  }
+
+  /// Decode-agnostic half of the pre-corroboration pipeline, shared VERBATIM
+  /// by the url path (via ``runPreCorroborationPipeline(url:options:enableTrace:decodeObserver:)``)
+  /// and the decoded overload ``analyzeBPM(decoded:options:)`` — Story 8-2
+  /// DD #2's "the url path IS the funnel". Window loop ordering
+  /// (cancellation → progress → window) is unchanged from the pre-8.2
+  /// production order.
+  private static func preCorroborationCore(
+    decoded: FeatureSubstrate.DecodedAudio,
+    metadataInput: MetadataCorroborationInput,
+    fileDurationSeconds: Double?,
+    options: Options,
+    enableTrace: Bool
+  ) throws -> PreCorroborationOutput {
     // Resolve the technique set once: explicit override wins, otherwise derive from
     // intensity. BPMAnalyzer.estimateBPM repeats this resolution internally, but we need
     // the resolved set here for `candidateCount` so the merge step matches what the
@@ -864,7 +1113,7 @@ public struct AudioAnalysisService {
 
       guard
         let bpmResult = BPMAnalyzer.estimateBPM(
-          samples: samples, sampleRate: sampleRate,
+          decoded: decoded,
           options: .init(
             analysisWindowSeconds: windowSeconds,
             intensity: options.intensity,
@@ -912,6 +1161,45 @@ public struct AudioAnalysisService {
       weight: 1.0)
 
     return PreCorroborationOutput(metadataInput: metadataInput, pool: pool)
+  }
+
+  // MARK: - Story 8-2: decodeOnce funnel + decoded-path cap (DD #9 / DD #3b)
+
+  /// The ONLY decode entry inside `AudioAnalysisService` (AC1d — grep-locked:
+  /// no direct `readMonoSamples` call survives in this file). Checks
+  /// cancellation immediately before the decode, decodes exactly once via
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``, and fires the
+  /// internal `observer` once per actual decode (the AC1 structural-gate
+  /// seam — public Options structs are untouched, DD #9).
+  static func decodeOnce(
+    url: URL,
+    maxSeconds: Double?,
+    isCancelled: @Sendable () -> Bool,
+    observer: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> FeatureSubstrate.DecodedAudio {
+    if isCancelled() { throw CancellationError() }
+    let decoded = try PCMBufferReader.readDecodedAudio(
+      from: url, maxSeconds: maxSeconds)
+    observer?(decoded)
+    return decoded
+  }
+
+  /// Applies a `maxSeconds` prefix slice to an already-decoded carrier,
+  /// mirroring the reader's partial-read cap arithmetic bit-for-bit via
+  /// ``PCMBufferReader/cappedSampleCount(sampleRate:maxSeconds:totalSamples:)``
+  /// (DD #3b — sanitization included). No-op (and no copy) when the cap
+  /// meets or exceeds the sample count.
+  private static func applyCap(
+    _ decoded: FeatureSubstrate.DecodedAudio, maxSeconds: Double?
+  ) -> FeatureSubstrate.DecodedAudio {
+    let capped = PCMBufferReader.cappedSampleCount(
+      sampleRate: decoded.sampleRate, maxSeconds: maxSeconds,
+      totalSamples: decoded.samples.count)
+    guard capped < decoded.samples.count else { return decoded }
+    return FeatureSubstrate.DecodedAudio(
+      samples: Array(decoded.samples.prefix(capped)),
+      sampleRate: decoded.sampleRate,
+      codecPriming: decoded.codecPriming)
   }
 
   // MARK: - Story 6.5b: weight resolution (KDD-A5)
@@ -990,25 +1278,604 @@ public struct AudioAnalysisService {
       policy: policy)
   }
 
-  /// Measures integrated loudness per ITU-R BS.1770-5.
-  /// Returns the integrated loudness in LUFS, or nil for silence/too-short/unsupported sample rate.
+  /// Measures loudness per ITU-R BS.1770-5 / EBU R 128 and returns a
+  /// chart-ready ``LUFSReport``: integrated loudness, max true-peak
+  /// (BS.1770-5 Annex 2), loudness range (EBU Tech 3342 §3.1), and
+  /// momentary/short-term time series on the shared 100ms grid
+  /// (EBU Tech 3341 §2.2).
+  ///
+  /// Analyzes the FULL file by default — integrated loudness is
+  /// whole-programme by definition. Bound the cost via
+  /// ``LUFSOptions/maxSeconds``.
+  ///
+  /// Nil-vs-throw contract: throwing means the measurement could not run
+  /// (unreadable file, unsupported sample rate); `nil` means the audio was
+  /// measured but produced no result (all-silence after gating, or input
+  /// shorter than one 400ms gating block).
+  ///
+  /// Supports cooperative cancellation via ``LUFSOptions/isCancelled``
+  /// (default `Task.isCancelled`): checked before the decode and after the
+  /// decode / before measurement. An in-flight measurement runs to
+  /// completion (O(n) vDSP passes — service-level granularity only, same
+  /// ADR-1 rationale as the BPM side's between-windows-only checks).
+  ///
+  /// For combined BPM + loudness analysis, decode once via
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)`` and use
+  /// ``analyzeLUFS(decoded:options:)`` — this url entry point pays its own
+  /// decode.
   ///
   /// - Parameters:
   ///   - url: Path to the audio file.
-  ///   - maxSeconds: Maximum seconds of audio to analyze (default: 30).
-  /// - Returns: Integrated loudness in LUFS, or `nil` for silence, too-short, or unsupported input.
-  /// - Throws: `PCMBufferReaderError` if the file cannot be read.
+  ///   - options: Analysis options (``LUFSOptions``); the default analyzes
+  ///     the full file.
+  /// - Returns: A ``LUFSReport``, or `nil` for silence or sub-400ms input.
+  /// - Throws: `PCMBufferReaderError` if the file cannot be read;
+  ///   ``LUFSAnalysisError/unsupportedSampleRate(sampleRate:supported:)`` if
+  ///   the decoded rate has no K-weighting coefficient set (44.1/48/96 kHz
+  ///   are supported); `CancellationError` if cancelled via
+  ///   ``LUFSOptions/isCancelled``.
   public static func analyzeLUFS(
     url: URL,
-    maxSeconds: Double = 30
-  ) throws -> Double? {
-    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(
-      from: url, maxSeconds: maxSeconds
-    )
-    return LUFSAnalyzer.measureLoudness(
-      samples: samples, sampleRate: sampleRate
-    )?.integratedLoudness
+    options: LUFSOptions = LUFSOptions()
+  ) throws -> LUFSReport? {
+    try analyzeLUFS(url: url, options: options, decodeObserver: nil)
   }
+
+  /// Internal observer-threaded overload (Story 8-2 DD #9) — same seam
+  /// pattern as the BPM side; the public method passes `decodeObserver: nil`.
+  ///
+  /// Cancellation checkpoints (DD #8): before decode (inside ``decodeOnce``;
+  /// a pre-cancelled call observes decode count 0) and after decode / before
+  /// measurement. An in-flight measurement runs to completion.
+  static func analyzeLUFS(
+    url: URL,
+    options: LUFSOptions,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> LUFSReport? {
+    // DD #3b: the shared sanitize rule (PCMBufferReader.sanitizedMaxSeconds)
+    // replaces 8-1's inline use-site sanitization. `decodeOnce` →
+    // `readDecodedAudio` re-applies it idempotently; sanitizing here keeps
+    // the rule visible at the service entry as well.
+    let decoded = try decodeOnce(
+      url: url,
+      maxSeconds: PCMBufferReader.sanitizedMaxSeconds(options.maxSeconds),
+      isCancelled: options.isCancelled,
+      observer: decodeObserver)
+    // Post-decode / pre-measurement checkpoint (DD #8).
+    if options.isCancelled() { throw CancellationError() }
+    return try lufsReport(decoded: decoded)
+  }
+
+  /// Measures loudness of already-decoded audio — the Story 8-2 shared-decode
+  /// seam (KDD-C4). Pair with ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``
+  /// and ``analyzeBPM(decoded:options:)`` so combined analysis pays for the
+  /// decode exactly once (see ``analyzeBPM(decoded:options:)`` for the
+  /// shared snippet).
+  ///
+  /// Same nil-vs-throw contract as the url path: throwing means the
+  /// measurement could not run (unsupported sample rate), `nil` means the
+  /// audio was measured but produced no result. ``LUFSOptions/maxSeconds``
+  /// applies as a prefix slice mirroring the reader's cap arithmetic
+  /// bit-for-bit (DD #3b). ``LUFSOptions/isCancelled`` is checked once,
+  /// before measurement; an in-flight measurement runs to completion.
+  ///
+  /// - Parameters:
+  ///   - decoded: Decoded mono PCM carrier, typically from
+  ///     ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``.
+  ///   - options: Analysis options; the default measures the full carrier.
+  /// - Returns: A ``LUFSReport``, or `nil` for silence or sub-400ms input.
+  /// - Throws: ``LUFSAnalysisError/unsupportedSampleRate(sampleRate:supported:)``
+  ///   if `decoded.sampleRate` has no K-weighting coefficient set (44.1/48/96
+  ///   kHz are supported); `CancellationError` if cancelled.
+  public static func analyzeLUFS(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: LUFSOptions = LUFSOptions()
+  ) throws -> LUFSReport? {
+    // Pre-measurement checkpoint (DD #8) — the decoded path never decodes
+    // (no URL parameter), so this is its only checkpoint.
+    if options.isCancelled() { throw CancellationError() }
+    return try lufsReport(decoded: applyCap(decoded, maxSeconds: options.maxSeconds))
+  }
+
+  /// Measurement core shared VERBATIM by the url and decoded LUFS paths:
+  /// rate guard (throw = cannot measure) → analyzer (nil = measured, no
+  /// result) → report assembly.
+  private static func lufsReport(
+    decoded: FeatureSubstrate.DecodedAudio
+  ) throws -> LUFSReport? {
+    guard LUFSAnalyzer.supportedSampleRates.contains(decoded.sampleRate) else {
+      throw LUFSAnalysisError.unsupportedSampleRate(
+        sampleRate: decoded.sampleRate,
+        supported: LUFSAnalyzer.supportedSampleRates)
+    }
+    guard let result = LUFSAnalyzer.measureLoudness(decoded: decoded) else {
+      return nil
+    }
+    return LUFSReport(
+      integratedLUFS: result.integratedLoudness,
+      maxTruePeakDBTP: result.maxTruePeakDBTP,
+      loudnessRangeLU: result.loudnessRange,
+      lraLowLUFS: result.lraLow,
+      lraHighLUFS: result.lraHigh,
+      momentaryLUFS: result.blockLoudnessValues,
+      shortTermLUFS: result.shortTermLoudnessValues,
+      stepSeconds: result.blockStepSeconds)
+  }
+
+  // MARK: - Story 8.4: beat-grid extraction
+
+  /// Extracts a beat grid from an audio file — the public sibling of
+  /// ``analyzeBPM(url:options:)`` and ``analyzeLUFS(url:options:)``.
+  ///
+  /// Runs the DSP BPM pipeline on a single analysis window with step-11 beat-grid
+  /// extraction enabled, then returns the resulting ``BeatGrid``. The grid's
+  /// ``BeatGrid/estimatedTempo`` is octave-locked to the tempo resolved for
+  /// tracking *in this call*. Because that tempo comes from a single-window,
+  /// DSP-only `BPMAnalyzer` pass — not the multi-window, metadata-corroborated
+  /// ``analyzeBPM(url:options:)`` — it can differ from `analyzeBPM` on the same
+  /// file, including by an octave; do not assume close agreement between the two.
+  /// Beats carry decoded-PCM-relative ``BeatTimestamp/presentationTime`` (`t=0`
+  /// is the decoded file start, energy-scan drop included, with no codec-priming
+  /// subtraction — AVFoundation already removes declared priming; apply any
+  /// output-latency or manual offset with ``BeatGrid/offset(by:)``) and a per-beat
+  /// onset ``BeatTimestamp/strength``.
+  ///
+  /// **Standalone scope.** This entry does NOT compare against a BPM result, so
+  /// ``BeatGrid/tempoAgreement`` is ``TempoAgreement/notCompared`` — use the
+  /// combined ``analyze(url:options:)`` to get a resolved agreement. ``BeatGrid/downbeats``
+  /// is ``DownbeatResult/notAttempted`` unless ``Options/detectDownbeats`` is set,
+  /// in which case the conservative fixed-4/4 downbeat-phase estimator runs and the
+  /// grid carries ``DownbeatResult/detected(estimate:)`` (``BeatGrid/gridOrigin``
+  /// repointed to the first downbeat, ``BeatGridAnchorSource/downbeat``) or an
+  /// honest ``DownbeatResult/noneDetected`` abstain. For continuous sync /
+  /// sub-beat math, anchor on ``BeatGrid/gridOrigin`` + ``BeatGrid/estimatedTempo``
+  /// rather than trusting every entry of ``BeatGrid/beats``.
+  ///
+  /// ``Options/beatGridCoverage`` controls what span the detected beats cover
+  /// (default ``BeatGridCoverage/analysisWindow``, the cheap path).
+  ///
+  /// - Note: Assumes a **constant tempo**. The tracker does not detect or adapt
+  ///   to tempo changes (accelerando, rubato, tempo-change sections); on
+  ///   variable-tempo material the beats drift out of phase. Supply
+  ///   constant-tempo audio for a meaningful grid.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file.
+  ///   - options: Analysis options; ``Options/intensity``,
+  ///     ``Options/techniqueSet``, ``Options/maxSeconds``,
+  ///     ``Options/beatGridCoverage``, and ``Options/isCancelled`` apply. URL-bound
+  ///     and ensemble fields (`metadataPolicy`, `ensemblePolicy`, `mlTechnique`)
+  ///     do not affect the grid.
+  /// - Returns: A ``BeatGrid``, or `nil` for silence, too-short input, or
+  ///   non-musical content (the same nil contract as ``analyzeBPM(url:options:)``).
+  /// - Throws: `PCMBufferReaderError` if the file cannot be read;
+  ///   `CancellationError` if cancelled via ``Options/isCancelled``.
+  public static func analyzeBeatGrid(
+    url: URL,
+    options: Options = .init()
+  ) throws -> BeatGrid? {
+    try analyzeBeatGrid(url: url, options: options, decodeObserver: nil)
+  }
+
+  /// Internal observer-threaded overload (Story 8-2 DD #9 seam) — the public
+  /// method passes `decodeObserver: nil`. Cancellation checkpoints mirror
+  /// ``analyzeLUFS(url:options:decodeObserver:)``: before decode (inside
+  /// ``decodeOnce``) and after decode / before analysis.
+  static func analyzeBeatGrid(
+    url: URL,
+    options: Options,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> BeatGrid? {
+    let decoded = try decodeOnce(
+      url: url,
+      maxSeconds: PCMBufferReader.sanitizedMaxSeconds(options.maxSeconds),
+      isCancelled: options.isCancelled,
+      observer: decodeObserver)
+    // Post-decode / pre-analysis checkpoint.
+    if options.isCancelled() { throw CancellationError() }
+    return try beatGrid(decoded: decoded, options: options)
+  }
+
+  /// Extracts a beat grid from already-decoded audio — the Story 8-2
+  /// shared-decode seam (KDD-C4). Pair with
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``,
+  /// ``analyzeBPM(decoded:options:)``, and ``analyzeLUFS(decoded:options:)`` so
+  /// combined analysis pays for the decode exactly once.
+  ///
+  /// ``Options/maxSeconds`` applies as a prefix slice mirroring the reader's cap
+  /// arithmetic (DD #3b). ``Options/isCancelled`` is checked once, before
+  /// analysis. See ``analyzeBeatGrid(url:options:)`` for scope, the anchor +
+  /// tempo extrapolation contract, and ``Options/beatGridCoverage``.
+  ///
+  /// - Note: Assumes a **constant tempo** — see ``analyzeBeatGrid(url:options:)``.
+  ///   Variable-tempo material (accelerando, rubato, tempo-change sections) is
+  ///   not tracked; the beats drift out of phase.
+  ///
+  /// - Parameters:
+  ///   - decoded: Decoded mono PCM carrier, typically from
+  ///     ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``.
+  ///   - options: Same options as the url path.
+  /// - Returns: A ``BeatGrid``, or `nil` for silence, too-short, or non-musical
+  ///   input.
+  /// - Throws: `CancellationError` if cancelled via ``Options/isCancelled``.
+  public static func analyzeBeatGrid(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options = .init()
+  ) throws -> BeatGrid? {
+    if options.isCancelled() { throw CancellationError() }
+    return try beatGrid(
+      decoded: applyCap(decoded, maxSeconds: options.maxSeconds), options: options)
+  }
+
+  /// Beat-grid core shared by the url, decoded, and combined ``analyze`` paths.
+  ///
+  /// Routes by ``Options/beatGridCoverage`` (Story 8.5):
+  ///
+  /// - ``BeatGridCoverage/analysisWindow`` (default) — the cheap path: a single
+  ///   ``BPMAnalyzer/estimateBPM(decoded:options:)`` pass with step-11 beat-grid
+  ///   extraction enabled. The grid covers the BPM analysis window with **zero
+  ///   extra onset cost** (reuses the in-scope envelope).
+  /// - ``BeatGridCoverage/window(seconds:)`` / ``BeatGridCoverage/fullTrack`` —
+  ///   resolve the single-window DSP tempo first (`computeBeatGrid: false`, so the
+  ///   window grid is not built), then track the coverage span against that tempo
+  ///   via ``BPMAnalyzer/estimateBeatGrid(decoded:tempoBPM:coverage:options:)``
+  ///   (DD #10 — a second O(track) onset pass). ``Options/isCancelled`` is checked
+  ///   between the two passes so a cancel aborts before the long pass (DD #4).
+  ///
+  /// The grid is a parallel pipeline output: no metadata corroboration / ensemble
+  /// / multi-window pool path is involved. ``BeatGrid/tempoAgreement`` is
+  /// ``TempoAgreement/notCompared`` (the analyzer sets it; the combined ``analyze``
+  /// path re-stamps it). Tracking against the single-window tempo (not the full
+  /// multi-window BPM) keeps ``BeatGrid/estimatedTempo`` an independent estimate
+  /// the consistency contract can compare against (AC7).
+  private static func beatGrid(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options
+  ) throws -> BeatGrid? {
+    // Standalone beat-grid analysis returns no trace, so keep it allocation-free
+    // even when the caller set `enableTrace`: the no-op sinks would discard any
+    // grid-pass trace anyway (Copilot review). `enableTrace` is output-inert, so
+    // forcing it off here leaves the grid value unchanged.
+    var untraced = options
+    untraced.enableTrace = false
+    return try beatGrid(
+      decoded: decoded, options: untraced,
+      refinementSink: { _ in }, downbeatSink: { _ in })
+  }
+
+  /// Trace-threaded overload (ticket #71). The combined ``analyze`` paths pass live
+  /// `refinementSink` / `downbeatSink` closures (only when `options.enableTrace`)
+  /// so the beat-grid coverage pass's refinement / downbeat evidence can be stitched
+  /// onto the returned `CombinedAnalysisResult.bpm.trace` regardless of coverage.
+  /// The standalone ``analyzeBeatGrid`` paths call the no-sink overload above, so
+  /// their behavior — and the `enableTrace == false` allocation profile — is
+  /// unchanged.
+  ///
+  /// On ``BeatGridCoverage/analysisWindow`` the grid is built inside the
+  /// `computeBeatGrid: true` `estimateBPM` pass, whose own step-11 fan-out owns the
+  /// sinks; we therefore enable that pass's trace ONLY when a live sink is wanted
+  /// (`options.enableTrace`) and forward its captured evidence to the sinks. On the
+  /// `.window(seconds:)` / `.fullTrack` second pass the sinks are threaded straight
+  /// into ``BPMAnalyzer/estimateBeatGrid(decoded:tempoBPM:coverage:options:refinementSink:downbeatSink:)``.
+  private static func beatGrid(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options,
+    refinementSink: (BeatGridTempoRefinementEvidence) -> Void,
+    downbeatSink: (DownbeatStrategyEvidence) -> Void
+  ) throws -> BeatGrid? {
+    if case .analysisWindow = options.beatGridCoverage.sanitized {
+      let bpmOptions = BPMAnalyzer.Options(
+        intensity: options.intensity,
+        techniqueSet: options.techniqueSet,
+        enableTrace: options.enableTrace,
+        computeBeatGrid: true,
+        detectDownbeats: options.detectDownbeats,
+        downbeatStrategy: options.downbeatStrategy,
+        refineBeatGridTempo: options.refineBeatGridTempo)
+      guard let result = BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)
+      else { return nil }
+      // The step-11 fan-out wrote the evidence onto this pass's own trace (present
+      // only when `enableTrace`); forward it to the sinks so the combined path can
+      // stitch it onto the BPM result's trace.
+      if let refinement = result.trace?.beatGridTempoRefinement { refinementSink(refinement) }
+      if let downbeat = result.trace?.downbeatStrategy { downbeatSink(downbeat) }
+      return result.beatGrid
+    }
+
+    // .window(seconds:) / .fullTrack — second-pass coverage seam. The shared
+    // `bpmOptions` carries `detectDownbeats` for the second-pass grid; the
+    // tempo-resolution pass leaves `computeBeatGrid` false, so forcing sub-bands
+    // (gated on `computeBeatGrid && detectDownbeats`) does not affect it.
+    let bpmOptions = BPMAnalyzer.Options(
+      intensity: options.intensity,
+      techniqueSet: options.techniqueSet,
+      detectDownbeats: options.detectDownbeats,
+      downbeatStrategy: options.downbeatStrategy,
+      refineBeatGridTempo: options.refineBeatGridTempo)
+    guard let tempo = BPMAnalyzer.estimateBPM(decoded: decoded, options: bpmOptions)?.bpm
+    else { return nil }
+    // Checkpoint before the long O(track) onset pass (DD #4).
+    if options.isCancelled() { throw CancellationError() }
+    return BPMAnalyzer.estimateBeatGrid(
+      decoded: decoded,
+      tempoBPM: tempo,
+      coverage: options.beatGridCoverage,
+      options: bpmOptions,
+      refinementSink: refinementSink,
+      downbeatSink: downbeatSink)
+  }
+
+  /// Runs ``beatGrid(decoded:options:)`` and, when `options.enableTrace`, captures
+  /// the grid pass's refinement / downbeat evidence into a local trace stitched onto
+  /// the supplied BPM result (ticket #71) — so `CombinedAnalysisResult.bpm.trace`
+  /// carries the evidence on every coverage. When tracing is off, no trace is built
+  /// and the BPM result is returned verbatim (allocation-free).
+  private static func beatGridStitchingTrace(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options, bpm: AudioAnalysisResult
+  ) throws -> (grid: BeatGrid?, bpm: AudioAnalysisResult) {
+    guard options.enableTrace else {
+      return (try beatGrid(decoded: decoded, options: options), bpm)
+    }
+    var gridTrace = bpm.trace ?? BPMDiagnosticTrace()
+    let grid = try beatGrid(
+      decoded: decoded, options: options,
+      refinementSink: { gridTrace.beatGridTempoRefinement = $0 },
+      downbeatSink: { gridTrace.downbeatStrategy = $0 })
+    return (grid, bpm.with(trace: gridTrace))
+  }
+
+  // MARK: - Story 8.5: combined BPM + beat-grid analysis (FR-31 / FR-35, KDD-C4)
+
+  /// Analyzes BPM **and** beat grid over a single shared decode, and reports how
+  /// the two tempos agree (Story 8.5).
+  ///
+  /// This is the combined entry KDD-C4 deferred to a follow-up story. It decodes
+  /// the file exactly once and runs both the full multi-window,
+  /// metadata-corroborated BPM pipeline AND beat-grid extraction over that one
+  /// decode (FR-35) — strictly cheaper than calling ``analyzeBPM(url:options:)``
+  /// and ``analyzeBeatGrid(url:options:)`` separately, which would decode twice.
+  ///
+  /// The returned grid's ``BeatGrid/tempoAgreement`` is set by comparing the
+  /// grid's ``BeatGrid/estimatedTempo`` (an independent single-window estimate)
+  /// against the full BPM result (NOT the single-window tempo the grid tracked,
+  /// which would be tautological — AC7). Both raw tempos remain accessible on the
+  /// result so a consumer can reconcile an octave case itself.
+  ///
+  /// Cancellation (``Options/isCancelled``) is honored at the same checkpoints as
+  /// ``analyzeBPM(url:options:)`` plus once more before the (separate) beat-grid
+  /// pass — so cancelling a library batch-index aborts the in-flight file
+  /// promptly. ``Options/beatGridCoverage`` controls the grid's detected-beat span.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file.
+  ///   - options: Configuration; the BPM, beat-grid coverage, cancellation, and
+  ///     (BPM-side) metadata/duration fields all apply.
+  /// - Returns: A ``CombinedAnalysisResult``, or `nil` when there is no analyzable
+  ///   audio (silence, too-short, or non-musical — the BPM stage's `nil` contract).
+  ///   A non-nil result with `beatGrid == nil` means BPM succeeded but the grid
+  ///   could not be tracked.
+  /// - Throws: `PCMBufferReaderError` if the file cannot be read;
+  ///   `CancellationError` if cancelled via ``Options/isCancelled``.
+  public static func analyze(
+    url: URL,
+    options: Options = .init()
+  ) throws -> CombinedAnalysisResult? {
+    try analyze(url: url, options: options, decodeObserver: nil)
+  }
+
+  /// Internal observer-threaded overload (Story 8-2 DD #9 seam): the public
+  /// method passes `decodeObserver: nil`. The combined path captures the BPM
+  /// url path's single decode and reuses it for the grid (one decode total —
+  /// the FR-35 shared-decode property the structural tests assert); any caller
+  /// observer is chained so it still sees exactly one decode.
+  static func analyze(
+    url: URL,
+    options: Options,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> CombinedAnalysisResult? {
+    let capture = DecodedCapture()
+    let chained: @Sendable (FeatureSubstrate.DecodedAudio) -> Void = { decoded in
+      capture.set(decoded)
+      decodeObserver?(decoded)
+    }
+    guard let bpm = try analyzeBPM(url: url, options: options, decodeObserver: chained)
+    else { return nil }
+    guard let decoded = capture.value else {
+      // analyzeBPM produced a result, so it decoded and the observer fired;
+      // this is unreachable, but fail safe by returning BPM with no grid.
+      return CombinedAnalysisResult(bpm: bpm, beatGrid: nil)
+    }
+    // Checkpoint before the (separate) beat-grid pass (AC6).
+    if options.isCancelled() { throw CancellationError() }
+    return try combineGridWithBPM(decoded: decoded, options: options, bpm: bpm)
+  }
+
+  /// Combined analysis over an already-decoded carrier — the shared-decode seam
+  /// (KDD-C4). URL-bound BPM signals (file-metadata corroboration, duration hint)
+  /// are inert here, exactly as on ``analyzeBPM(decoded:options:)``.
+  ///
+  /// - Parameters:
+  ///   - decoded: Decoded mono PCM carrier.
+  ///   - options: Same options as the url path.
+  /// - Returns: A ``CombinedAnalysisResult``, or `nil` when there is no analyzable
+  ///   audio.
+  /// - Throws: `CancellationError` if cancelled via ``Options/isCancelled``.
+  public static func analyze(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options = .init()
+  ) throws -> CombinedAnalysisResult? {
+    if options.isCancelled() { throw CancellationError() }
+    // Cap once so the BPM pass and the grid pass see the identical buffer
+    // (`analyzeBPM(decoded:)` re-applies the cap idempotently).
+    let capped = applyCap(decoded, maxSeconds: options.maxSeconds)
+    guard let bpm = try analyzeBPM(decoded: capped, options: options) else { return nil }
+    if options.isCancelled() { throw CancellationError() }
+    return try combineGridWithBPM(decoded: capped, options: options, bpm: bpm)
+  }
+
+  /// The grid-pass tail shared by both combined ``analyze`` entry points: run the
+  /// beat-grid pass over `decoded` (stitching its trace onto `bpm` when tracing is
+  /// on), resolve the grid's ``TempoAgreement`` against that BPM result, and apply
+  /// the configured ``BeatGridTempoLock``. The url and decoded paths differ only in
+  /// which carrier they pass here.
+  private static func combineGridWithBPM(
+    decoded: FeatureSubstrate.DecodedAudio, options: Options, bpm: AudioAnalysisResult
+  ) throws -> CombinedAnalysisResult {
+    let (grid, tracedBPM) = try beatGridStitchingTrace(
+      decoded: decoded, options: options, bpm: bpm)
+    let resolved = grid.map { resolveTempoAgreement($0, against: tracedBPM) }
+    return CombinedAnalysisResult(
+      bpm: tracedBPM,
+      beatGrid: applyTempoLock(
+        resolved, lock: options.beatGridTempoLock, bpmStageTempo: tracedBPM.bpm))
+  }
+
+  /// Stamps the resolved ``TempoAgreement`` onto a grid the analyzer produced
+  /// with ``TempoAgreement/notCompared``, via the ``BeatGrid/with(tempoAgreement:)``
+  /// forwarder (W52 — never a field-enumerating re-init).
+  private static func resolveTempoAgreement(
+    _ grid: BeatGrid, against bpm: AudioAnalysisResult
+  ) -> BeatGrid {
+    grid.with(
+      tempoAgreement: classifyTempoAgreement(
+        gridTempo: grid.estimatedTempo, bpmTempo: bpm.bpm))
+  }
+
+  /// Applies ``BeatGridTempoLock`` to a grid in the combined-analysis path,
+  /// AFTER ``resolveTempoAgreement`` so the grid keeps its pre-lock
+  /// ``BeatGrid/tempoAgreement`` diagnostic (overriding the tempo first would
+  /// make it artificially ``TempoAgreement/agree`` and hide the exact drift this
+  /// feature exists to fix).
+  ///
+  /// The two locking cases differ in authority:
+  /// - ``BeatGridTempoLock/bpmStage`` is the pipeline's OWN authoritative tempo, so
+  ///   it overrides even a within-octave disagreement — an accepted refit (up to the
+  ///   4% search window) or a single- vs multi-window split can push the grid >2%
+  ///   from it, and the documented precedence is that `.bpmStage` still wins. Only a
+  ///   true >octave divergence (or a non-finite/non-positive stage tempo) leaves the
+  ///   grid unlocked. Octave-normalized to the grid's octave (see ``stageLockTempo``).
+  /// - ``BeatGridTempoLock/bpm(_:)`` is arbitrary caller input, so it stays GATED:
+  ///   octave-normalized to the grid, and a target that disagrees by more than an
+  ///   octave — or is non-finite/non-positive — leaves the grid unlocked
+  ///   (``octaveNormalizedLockTempo``).
+  static func applyTempoLock(
+    _ grid: BeatGrid?, lock: BeatGridTempoLock, bpmStageTempo: Double
+  ) -> BeatGrid? {
+    guard let grid else { return nil }
+    let locked: Double?
+    // The lock target before octave normalization — the caller's `.bpm(value)`
+    // or the BPM-stage tempo for `.bpmStage`. Used ONLY to surface the applied
+    // octave factor (issue #62); `.off` returns early before the factor compute.
+    let target: Double
+    switch lock {
+    case .off: return grid
+    case .bpmStage:
+      target = bpmStageTempo
+      locked = stageLockTempo(target: bpmStageTempo, gridTempo: grid.estimatedTempo)
+    case .bpm(let value):
+      target = value
+      locked = octaveNormalizedLockTempo(target: value, gridTempo: grid.estimatedTempo)
+    }
+    guard let locked else { return grid }
+    // Surface the octave factor the snap applied (issue #62) from the SAME
+    // `classifyTempoAgreement` source of truth both resolvers used — do NOT
+    // re-derive a `locked / target` ratio (it could disagree at the 2% boundary).
+    // `.octaveEquivalent(factor:)` is the only shifting case; `.agree` (target
+    // already shared the grid's octave) and the within-octave `.disagree`
+    // `.bpmStage` pass-through leave the factor at the neutral `1`.
+    let octaveFactor: Int
+    if case .octaveEquivalent(let factor) =
+      classifyTempoAgreement(gridTempo: grid.estimatedTempo, bpmTempo: target)
+    {
+      octaveFactor = factor
+    } else {
+      octaveFactor = 1
+    }
+    return grid.with(estimatedTempo: locked, tempoLockOctaveFactor: octaveFactor)
+  }
+
+  /// The authoritative ``BeatGridTempoLock/bpmStage`` resolver: the target IS the
+  /// BPM stage's own tempo, so a within-octave disagreement with the (possibly
+  /// refined) grid must NOT silently no-op (the bug that let a 2–4% refit leave the
+  /// refined grid standing instead of restoring the stage tempo). Returns `target`
+  /// octave-shifted to the grid's octave, or `target` itself on a within-octave
+  /// disagreement; `nil` only when `target` is non-finite/≤0 or the two genuinely
+  /// disagree by more than an octave (which the bounded refit cannot produce, but a
+  /// single- vs multi-window split could). Unlike ``octaveNormalizedLockTempo`` it
+  /// does NOT reject a within-octave `.disagree`.
+  static func stageLockTempo(target: Double, gridTempo: Double) -> Double? {
+    guard target.isFinite, target > 0 else { return nil }
+    if let shifted = octaveNormalizedLockTempo(target: target, gridTempo: gridTempo) {
+      return shifted
+    }
+    // `.disagree`/`.notCompared`: `.disagree` conflates within-octave (>2%) with true
+    // >octave. The stage tempo is authoritative within an octave; only a real >octave
+    // gap (ratio outside (0.5, 2.0)) leaves the grid unlocked. A non-finite/≤0 grid
+    // tempo (the "no estimate" sentinel) has no octave to compare, so the stage tempo
+    // wins.
+    guard gridTempo.isFinite, gridTempo > 0 else { return target }
+    let ratio = gridTempo / target
+    return ratio > 0.5 && ratio < 2.0 ? target : nil
+  }
+
+  /// Returns `target` octave-shifted (×1, ×2, or ×½) to whichever octave lands within the
+  /// 2% agreement band of `gridTempo`, or `nil` when none does (a more-than-an-octave
+  /// `.disagree`/`.notCompared`, or a non-finite/non-positive input — each caller decides
+  /// what to do with that `nil`). **Single source of truth for the lock octave arithmetic:**
+  /// the gated ``BeatGridTempoLock/bpm(_:)`` path uses it directly, and ``stageLockTempo``
+  /// reuses it before applying its own within-octave `.disagree` policy — so the two
+  /// resolvers can never drift. Reuses ``classifyTempoAgreement`` so the lock's octave logic
+  /// and the cross-stage agreement classifier never drift apart.
+  private static func octaveNormalizedLockTempo(target: Double, gridTempo: Double) -> Double? {
+    switch classifyTempoAgreement(gridTempo: gridTempo, bpmTempo: target) {
+    case .agree: return target
+    case .octaveEquivalent(let factor): return factor == 2 ? target * 2.0 : target * 0.5
+    case .disagree, .notCompared: return nil
+    }
+  }
+
+  /// Classifies how a beat-grid tempo relates to a BPM-stage tempo (AC7 / FR-31).
+  ///
+  /// `.agree` iff within ~2% **relative** (`abs(a-b)/min(a,b) ≤ 0.02`, the
+  /// library's own `isNearMatch` band — NOT an absolute BPM delta, which is
+  /// 6.7% of 30 BPM but 0.67% of 300). Else `.octaveEquivalent(factor:)` iff the
+  /// grid tempo is within that band of `bpmTempo·2` (`factor = +2`) or
+  /// `bpmTempo·½` (`factor = -2`). Else `.disagree`. **One octave only** — a
+  /// genuine 4×/¼× relationship is `.disagree` (a four-octaves-off track should
+  /// prompt the user, not auto-sync to a quarter tempo). Non-positive/non-finite
+  /// inputs are `.disagree` (the safe "don't auto-sync" answer).
+  static func classifyTempoAgreement(gridTempo: Double, bpmTempo: Double) -> TempoAgreement {
+    guard gridTempo.isFinite, gridTempo > 0, bpmTempo.isFinite, bpmTempo > 0 else {
+      return .disagree
+    }
+    if isWithin2PercentRelative(gridTempo, bpmTempo) { return .agree }
+    if isWithin2PercentRelative(gridTempo, bpmTempo * 2.0) {
+      return .octaveEquivalent(factor: 2)
+    }
+    if isWithin2PercentRelative(gridTempo, bpmTempo * 0.5) {
+      return .octaveEquivalent(factor: -2)
+    }
+    return .disagree
+  }
+
+  /// `abs(a-b)/min(a,b) ≤ 0.02` — the same relative band as
+  /// `BPMSelectionPolicy.isNearMatch`. Both must be positive.
+  private static func isWithin2PercentRelative(_ a: Double, _ b: Double) -> Bool {
+    let lo = min(a, b)
+    guard lo > 0 else { return false }
+    return abs(a - b) / lo <= 0.02
+  }
+}
+
+// MARK: - Shared-decode capture (Story 8.5)
+
+/// Captures the single ``FeatureSubstrate/DecodedAudio`` the BPM url path
+/// produces so ``AudioAnalysisService/analyze(url:options:)`` can reuse it for
+/// the beat-grid pass — one decode total. The decode observer fires
+/// synchronously within the `analyzeBPM` call; the `Mutex` keeps the capture
+/// `Sendable`-clean under Swift 6 strict concurrency without an `@unchecked`.
+private final class DecodedCapture: Sendable {
+  private let storage = Mutex<FeatureSubstrate.DecodedAudio?>(nil)
+  func set(_ decoded: FeatureSubstrate.DecodedAudio) { storage.withLock { $0 = decoded } }
+  var value: FeatureSubstrate.DecodedAudio? { storage.withLock { $0 } }
 }
 
 // MARK: - Story 6.4 (W52): BPMResult value-type forwarding
@@ -1031,6 +1898,7 @@ extension BPMResult {
       bpm: newBPM ?? bpm,
       confidence: newConfidence ?? confidence,
       candidates: candidates,
-      trace: newTrace)
+      trace: newTrace,
+      beatGrid: beatGrid)
   }
 }

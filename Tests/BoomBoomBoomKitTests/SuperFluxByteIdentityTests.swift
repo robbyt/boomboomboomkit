@@ -73,12 +73,24 @@ private func loadBaseline() throws -> ByteIdentityBaseline {
 struct SuperFluxByteIdentityTests {
 
   /// AC #3 first half: with `.superFluxOnset` ABSENT from `Options.techniqueSet`,
-  /// the analyzer output is byte-identical to the frozen pre-Story-4-7 baseline
-  /// for every bundled click fixture. If this fails, HALT-(g) fires — the new
-  /// code path is leaking into the default.
+  /// the analyzer output matches the frozen pre-Story-4-7 baseline for every
+  /// bundled click fixture. If this drifts, the new code path is leaking into the
+  /// default (HALT-(g)).
+  ///
+  /// This is the one test here that legitimately pins to a FROZEN baseline (the
+  /// pre-SuperFlux historical output), so it cannot be expressed live-vs-live. The
+  /// committed `4-7-byte-identity-baseline.json` bits are reinterpreted as values
+  /// via `Double(bitPattern:)` and compared with a tight tolerance: the `Float`
+  /// Accelerate/vDSP BPM path is not bit-reproducible across CPU/toolchain (the bits
+  /// were captured on one machine; CI runs another), but the VALUES agree to far
+  /// inside `1e-4` BPM / `1e-6` confidence — ~10x above the observed ~1e-5 / ~1e-9
+  /// cross-toolchain noise, so genuine SuperFlux leakage is still caught. The
+  /// fixture is unchanged (bits reinterpreted, not regenerated).
   @Test("dspOnlyByteIdenticalWithSuperFluxAbsent (AC #3)")
   func dspOnlyByteIdenticalWithSuperFluxAbsent() async throws {
     let baseline = try loadBaseline()
+    let bpmTol = 1e-4
+    let confTol = 1e-6
 
     for row in baseline.fixtures {
       let url = try AudioFixtures.url(for: row.fixture, extension: row.extension)
@@ -87,51 +99,69 @@ struct SuperFluxByteIdentityTests {
         try AudioAnalysisService.analyzeBPM(url: url, options: opts),
         "analyzeBPM returned nil — unexpected on bundled click fixture")
 
+      let baselineBPM = Double(bitPattern: row.bpmBits)
+      let baselineConf = Double(bitPattern: row.confidenceBits)
+      #expect(baselineBPM.isFinite && baselineConf.isFinite)
+
       #expect(
-        result.bpm.bitPattern == row.bpmBits,
+        NumericTestHelpers.approxEqual(result.bpm, baselineBPM, tol: bpmTol),
         """
-        Byte-identity violation on \(row.fixture).\(row.extension):
-        bpm bits \(result.bpm.bitPattern) vs baseline \(row.bpmBits)
-        (got=\(result.bpm), captured at SHA \(baseline.capturedAtSHA))
+        SuperFlux-absent drift on \(row.fixture).\(row.extension):
+        bpm \(result.bpm) vs baseline \(baselineBPM) (Δ=\(abs(result.bpm - baselineBPM)), tol \(bpmTol))
+        captured at SHA \(baseline.capturedAtSHA)
         """)
       #expect(
-        result.confidence.bitPattern == row.confidenceBits,
+        NumericTestHelpers.approxEqual(result.confidence, baselineConf, tol: confTol),
         """
-        Byte-identity violation on \(row.fixture).\(row.extension):
-        confidence bits \(result.confidence.bitPattern) vs baseline \(row.confidenceBits)
-        (got=\(result.confidence), captured at SHA \(baseline.capturedAtSHA))
+        SuperFlux-absent drift on \(row.fixture).\(row.extension):
+        confidence \(result.confidence) vs baseline \(baselineConf) \
+        (Δ=\(abs(result.confidence - baselineConf)), tol \(confTol))
+        captured at SHA \(baseline.capturedAtSHA)
         """)
     }
   }
 
   /// AC #3 second half: an explicit `.optimal` techniqueSet (the same one
-  /// `AnalysisIntensity.default` resolves to) MUST produce the same
-  /// bitPatterns as the default `Options()` path. Proves both code routes
-  /// converge on identical analyzer output.
+  /// `AnalysisIntensity.default` resolves to) MUST produce byte-identical output to
+  /// the default `Options()` path. The real claim is route CONVERGENCE, not a match
+  /// against history — so it's asserted live-vs-live: both results are computed in
+  /// the same run on the same host, where Accelerate is deterministic, so exact
+  /// `bitPattern ==` holds and is CI-portable (no frozen baseline involved).
   @Test("explicit .optimal techniqueSet matches default Options() byte-for-byte")
   func optimalEqualsDefault() async throws {
     let baseline = try loadBaseline()
 
     for row in baseline.fixtures {
       let url = try AudioFixtures.url(for: row.fixture, extension: row.extension)
-      var opts = AudioAnalysisService.Options()
-      opts.techniqueSet = .optimal
-      let result = try #require(
-        try AudioAnalysisService.analyzeBPM(url: url, options: opts),
+
+      let defaultResult = try #require(
+        try AudioAnalysisService.analyzeBPM(url: url, options: AudioAnalysisService.Options()),
+        "analyzeBPM returned nil — unexpected on bundled click fixture")
+
+      var optimalOpts = AudioAnalysisService.Options()
+      optimalOpts.techniqueSet = .optimal
+      let optimalResult = try #require(
+        try AudioAnalysisService.analyzeBPM(url: url, options: optimalOpts),
         "analyzeBPM returned nil — unexpected on bundled click fixture")
 
       #expect(
-        result.bpm.bitPattern == row.bpmBits,
-        "\(row.fixture).\(row.extension): explicit .optimal differs from default Options() baseline"
+        optimalResult.bpm.bitPattern == defaultResult.bpm.bitPattern,
+        "\(row.fixture).\(row.extension): explicit .optimal diverges from default Options()"
       )
-      #expect(result.confidence.bitPattern == row.confidenceBits)
+      #expect(optimalResult.confidence.bitPattern == defaultResult.confidence.bitPattern)
     }
   }
 
-  /// AC #8: with `.superFluxOnset` PRESENT in the technique set, analyzer
-  /// output MUST differ from the no-variant baseline on at least one bundled
-  /// fixture. Proves the gate actually does something — if this test passes
-  /// byte-identity, the integration is broken.
+  /// AC #8: with `.superFluxOnset` PRESENT in the technique set, analyzer output
+  /// MUST differ from the no-variant run on at least one bundled fixture. Proves the
+  /// gate actually does something — if it produces byte-identical output, the
+  /// integration is broken (HALT-(g)).
+  ///
+  /// Asserted live-vs-live: the no-variant default and the `+.superFluxOnset` result
+  /// are computed in the same run, and ANY bit difference counts. Same-host
+  /// comparison is CI-portable and preserves the exact "any difference" semantics of
+  /// the original frozen-baseline form — the bundled-fixture analog of
+  /// `dspOnlyDifferentOnDiscriminatingFixture` below.
   @Test("dspOnlyDifferentWithSuperFluxPresent (AC #8 / gate-does-something)")
   func dspOnlyDifferentWithSuperFluxPresent() async throws {
     let baseline = try loadBaseline()
@@ -139,14 +169,19 @@ struct SuperFluxByteIdentityTests {
     var anyFixtureDiffered = false
     for row in baseline.fixtures {
       let url = try AudioFixtures.url(for: row.fixture, extension: row.extension)
-      var opts = AudioAnalysisService.Options()
-      opts.techniqueSet = TechniqueSet.optimal.inserting(.superFluxOnset)
-      let result = try #require(
-        try AudioAnalysisService.analyzeBPM(url: url, options: opts),
+
+      let absentResult = try #require(
+        try AudioAnalysisService.analyzeBPM(url: url, options: AudioAnalysisService.Options()),
         "analyzeBPM returned nil — unexpected on bundled click fixture")
 
-      if result.bpm.bitPattern != row.bpmBits
-        || result.confidence.bitPattern != row.confidenceBits
+      var variantOpts = AudioAnalysisService.Options()
+      variantOpts.techniqueSet = TechniqueSet.optimal.inserting(.superFluxOnset)
+      let variantResult = try #require(
+        try AudioAnalysisService.analyzeBPM(url: url, options: variantOpts),
+        "analyzeBPM returned nil — unexpected on bundled click fixture")
+
+      if variantResult.bpm.bitPattern != absentResult.bpm.bitPattern
+        || variantResult.confidence.bitPattern != absentResult.confidence.bitPattern
       {
         anyFixtureDiffered = true
         break
@@ -156,8 +191,8 @@ struct SuperFluxByteIdentityTests {
       anyFixtureDiffered,
       """
       AC #8 violation: enabling .superFluxOnset produced byte-identical output
-      to the no-variant baseline across ALL bundled fixtures. Either the gate
-      at BPMAnalyzer.swift step 3 is unconditional in the wrong direction, or
+      to the no-variant run across ALL bundled fixtures. Either the gate at
+      BPMAnalyzer.swift step 3 is unconditional in the wrong direction, or
       computeSuperFluxOnsetEnvelope is computing the same envelope as the
       baseline path. See Story 4-7 HALT-(g).
       """)
@@ -198,12 +233,12 @@ struct SuperFluxByteIdentityTests {
 
     let baselineResult = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, options: baselineOpts),
+        decoded: .synthetic(samples, sampleRate: sampleRate), options: baselineOpts),
       "baseline BPMAnalyzer.estimateBPM returned nil on synthesized boundary fixture"
     )
     let variantResult = try #require(
       BPMAnalyzer.estimateBPM(
-        samples: samples, sampleRate: sampleRate, options: variantOpts),
+        decoded: .synthetic(samples, sampleRate: sampleRate), options: variantOpts),
       "variant BPMAnalyzer.estimateBPM returned nil on synthesized boundary fixture"
     )
 

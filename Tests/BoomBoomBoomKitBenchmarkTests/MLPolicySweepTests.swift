@@ -59,7 +59,7 @@ struct MLPolicySweepTests {
     }
 
     let data = try Data(contentsOf: url)
-    groundTruth = try JSONDecoder().decode([OA300Track].self, from: data)
+    groundTruth = try OA300Track.loadCorpus(from: data)
   }
 
   // MARK: - Task 1: baseline capture (env-gated CAPTURE_BASELINE=1)

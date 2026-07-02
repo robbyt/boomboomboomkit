@@ -9,7 +9,7 @@ Standalone audio analysis package for BPM estimation and LUFS loudness measureme
 ## Features
 
 - **BPM Estimation** — Mel-spectrogram onset detection + autocorrelation-based beat tracking with progressive analysis, sub-band voting disambiguation, optional click-track cross-correlation rescoring, and optional file-tag corroboration
-- **LUFS Measurement** — ITU-R BS.1770-5 integrated loudness with K-weighting filter and dual gating
+- **LUFS Measurement** — chart-ready `LUFSReport`: ITU-R BS.1770-5 integrated loudness + max true-peak (Annex 2 polyphase), EBU Tech 3342 loudness range, and momentary/short-term time series on the 100ms EBU Tech 3341 grid
 - **PCM Reading** — Universal audio file reader producing mono `[Float]` samples (WAV, AIFF, MP3, FLAC, M4A, CAF)
 
 ## Installation
@@ -70,9 +70,10 @@ let traced = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: tra
 print("Pre-rescore candidates: \(traced?.trace?.rawCandidates ?? [])")
 print("Sub-band energies: \(traced?.trace?.subBandEnergies ?? .zero)")
 
-// LUFS Measurement (ITU-R BS.1770-5; 44.1/48/96 kHz only — returns nil otherwise)
-let lufs = try AudioAnalysisService.analyzeLUFS(url: audioFileURL)
-print("Loudness: \(lufs ?? 0) LUFS")
+// LUFS Measurement (ITU-R BS.1770-5; 44.1/48/96 kHz — throws LUFSAnalysisError otherwise)
+if let report = try AudioAnalysisService.analyzeLUFS(url: audioFileURL) {
+  print("Integrated: \(report.integratedLUFS) LUFS, true peak: \(report.maxTruePeakDBTP) dBTP")
+}
 
 // Direct PCM reading (mono [Float] at native sample rate)
 let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: audioFileURL)
@@ -122,9 +123,197 @@ See the inline `///` docs on `AnalysisIntensity` for the authoritative mapping a
 |-----------|--------------|----------------------|------------|
 | Silence | `BPMAnalyzer` step 2 RMS guard rejects below-threshold audio | `try analyzeBPM(url:)` returns `nil` | Check audio energy upstream; raise input gain if applicable. |
 | Too-short audio | File contains fewer than ~4 analyzable seconds after the energy transition (the `BPMAnalyzer.minimumDurationSeconds` floor) | `try analyzeBPM(url:)` returns `nil` | Use a longer clip — at least a few seconds of continuous audio after any silent intro. |
-| Unsupported sample rate | `analyzeLUFS` only — `LUFSAnalyzer` supports 44.1 / 48 / 96 kHz only | `try analyzeLUFS(url:)` returns `nil` | Resample to a supported rate before LUFS analysis. Does NOT affect `analyzeBPM`. |
+| Unsupported sample rate | `analyzeLUFS` only — K-weighting coefficients ship for 44.1 / 48 / 96 kHz only | `try analyzeLUFS(url:)` **throws** `LUFSAnalysisError.unsupportedSampleRate` | Resample to a supported rate before LUFS analysis. Does NOT affect `analyzeBPM`. |
 | Cancelled analysis | Caller's `Task` was cancelled OR `Options.isCancelled` returned `true` between window iterations | `try analyzeBPM(url:)` **throws** `CancellationError`; `try?` collapses to `nil` | Distinguish explicitly via `do { try analyzeBPM(...) } catch is CancellationError { ... }` if cancellation needs differentiated handling. |
 | No candidates found | Degenerate audio (white noise, sustained pitched material) produced zero surviving candidates after range normalization (step 9) | `try analyzeBPM(url:)` returns `nil` | Inspect with `enableTrace: true` and read `result?.candidates` (and `trace?.rawCandidates`); this is the rarest case. |
+
+## LUFS measurement
+
+`analyzeLUFS(url:options:)` returns a `LUFSReport?` carrying both the normative scalars and chart-ready time series:
+
+- `integratedLUFS` — programme loudness per ITU-R BS.1770-5 (400ms gating blocks, −70 LUFS absolute / −10 LU relative gates). Analyzes the **full file by default** (integrated loudness is whole-programme by definition); bound the cost with `LUFSOptions.maxSeconds`.
+- `maxTruePeakDBTP` — max true-peak per BS.1770-5 Annex 2 polyphase oversampling (4× at 44.1/48 kHz, 2× at 96 kHz). Computed post-mono-mixdown: it may **understate** per-channel inter-sample peaks, so do not use it to certify delivery compliance against a per-channel ceiling.
+- `loudnessRangeLU` + `lraLowLUFS`/`lraHighLUFS` — EBU Tech 3342 loudness range (P95 − P10 of the gated short-term distribution) with the percentile band edges for charting. `nil` below 60s of gated programme (EBU R 128 reliability floor).
+- `momentaryLUFS` (400ms window) and `shortTermLUFS` (exact 3.0s window) — both stepped on the shared 100ms grid per EBU Tech 3341 §2.2. Element `i` starts at `Double(i) * stepSeconds`.
+
+Errors vs nil: a **throw** means the measurement could not run (`PCMBufferReaderError` for unreadable files, `LUFSAnalysisError.unsupportedSampleRate` for rates outside 44.1/48/96 kHz); **`nil`** means the audio was measured but produced no result (all-silence after gating, or under 400ms of input).
+
+### Charting the loudness shape
+
+`LUFSReport.samples` flattens both series into `(time, lufs, series)` points — Swift Charts plots it directly. Use the classic `ForEach` + `LineMark` form; the vectorized `LinePlot(x:y:series:)` initializer is known to overwhelm the preview type-checker on this shape:
+
+```swift
+import Charts
+import SwiftUI
+
+struct LoudnessChart: View {
+  let report: LUFSReport
+  // Materialize once — `samples` is O(n) computed, not stored.
+  private var points: [LoudnessSample] { report.samples }
+
+  var body: some View {
+    Chart {
+      if report.loudnessRangeLU != nil {
+        RectangleMark(
+          yStart: .value("LRA low", report.lraLowLUFS),
+          yEnd: .value("LRA high", report.lraHighLUFS)
+        )
+        .foregroundStyle(.green.opacity(0.12))
+      }
+      ForEach(points) { sample in
+        LineMark(
+          x: .value("Time", sample.time),
+          y: .value("LUFS", sample.lufs)
+        )
+        .foregroundStyle(by: .value("Series", sample.series.rawValue))
+      }
+      RuleMark(y: .value("Integrated", report.integratedLUFS))
+        .lineStyle(StrokeStyle(lineWidth: 1, dash: [6, 3]))
+    }
+    .chartXAxisLabel("Time (s)")
+    .chartYAxisLabel("LUFS")
+  }
+}
+```
+
+## Shared decode
+
+`analyzeBPM(url:)` and `analyzeLUFS(url:)` each pay their own decode. When you want both numbers for the same file, decode once and hand the same `DecodedAudio` to both analyzers:
+
+```swift
+let decoded = try PCMBufferReader.readDecodedAudio(from: url)
+let bpm = try AudioAnalysisService.analyzeBPM(decoded: decoded)
+let loudness = try AudioAnalysisService.analyzeLUFS(decoded: decoded)
+```
+
+On decode-heavy formats (MP3, FLAC) this recovers roughly the full cost of one decode — about a third of the combined sequential wall-clock; for uncompressed payloads (WAV/AIFF) decode is trivial and the saving is small.
+
+What you need to know about the decoded path:
+
+- **URL-bound signals are off by design.** File-metadata BPM corroboration never runs (there is no URL to read tags from — `metadataEvidence` is always empty), and the duration-derived BPM hint is off (it is not derived from `samples.count`, which would be wrong for a capped decode). Under `metadataPolicy = .disabled` + `durationHint = false`, decoded-path output is regression-locked equal to the url path on linear-PCM and FLAC fixtures — verified by tests, not guaranteed by the platform (Apple documents no bit-stability contract for `AVAudioFile`).
+- `Options.maxSeconds` / `LUFSOptions.maxSeconds` still apply on the decoded path, as a prefix slice that mirrors the reader's partial-read cap arithmetic bit-for-bit.
+- `DecodedAudio.codecPriming` carries content-true provenance: the codec comes from the encoded on-disk format (an ALAC `.m4a` reads `.alac`, not `.aac`), and `trimState` is honest about priming — `.knownNone` only for linear PCM; `.unknown` for every compressed codec (the decoder either already trimmed declared priming, or a headerless stream leaked it undetectably). Nothing in the analysis pipeline branches on provenance — it is forensic context, not configuration.
+- `analyzeLUFS` (both paths) supports cooperative cancellation via `LUFSOptions.isCancelled`, checked before decode and before measurement; an in-flight measurement runs to completion.
+
+## Beat grid
+
+`BeatGrid` is the typed result container for beat extraction: the detected beats, a tri-state downbeat outcome, the grid's own tempo estimate, an overall confidence, an extrapolation **anchor**, what span the beats cover, and how that tempo relates to the BPM stage.
+
+```swift
+public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
+  public let beats: [BeatTimestamp]          // each beat's time + confidence + strength
+  public let downbeats: DownbeatResult       // .notAttempted / .noneDetected / .detected(estimate:)
+  public let estimatedTempo: Double          // BPM; 0.0 is the "no valid estimate" sentinel
+  public let confidence: Float               // [0, 1]
+  public let tempoAgreement: TempoAgreement  // .notCompared / .agree / .octaveEquivalent / .disagree
+  public let gridOrigin: BeatGridAnchor?     // the Rekordbox-style extrapolation anchor (nil if no beats)
+  public let coverage: BeatGridCoverage      // .analysisWindow / .window(seconds:) / .fullTrack
+  public let schemaVersion: Int              // persisted-shape semantic-contract version (currentSchemaVersion)
+}
+```
+
+`schemaVersion` stamps the persisted `BeatGrid` *semantic* contract (the `confidence` formula, the time/tempo provenance, the enum meanings) — not backwards compatibility, and not cache protection. If you cache a raw `BeatGrid`, compare its `schemaVersion` against `BeatGrid.currentSchemaVersion` (or the version your cache was written under) and re-index on a mismatch; the library decodes any version faithfully and never migrates old grids.
+
+### Extrapolate from the anchor — don't trust every beat
+
+For beat math (continuous sync, sub-beat quantize), anchor on `gridOrigin` and extrapolate the grid rather than trusting each entry of `beats`:
+
+```swift
+// n-th beat after the anchor — drift-free on constant-tempo material:
+let t = anchor.presentationTime + (60.0 / grid.estimatedTempo) * Double(n)
+```
+
+`gridOrigin` is the single most-trustworthy reference beat, chosen by **phase consistency** (how well its neighbors line up to `time + k·period`), not by raw onset strength or "first beat". The dynamic-programming tracker can occasionally drop or double a beat, which corrupts sub-beat midpoints and accumulates sync error if you trust the whole array; the anchor + tempo is drift-free by construction on constant tempo. This is why `coverage` defaults to `.analysisWindow` (the beats span only the analysis window, at zero extra cost) — the anchor + tempo already covers mid-track positions. Request `.window(seconds:)` or `.fullTrack` (a second, O(track) onset pass) only when you actually need the detected-beat array across the file, e.g. for a waveform overlay.
+
+### Tempo agreement
+
+`TempoAgreement` reports how the grid tempo relates to the BPM stage — distinguishing a clean octave error (87 vs 174 BPM, still syncable by halving/doubling) from genuine disagreement (120 vs 137 BPM, reject):
+
+```swift
+public enum TempoAgreement: Sendable, Hashable, Codable {
+  case notCompared                   // standalone grid (no BPM result compared)
+  case agree                         // within ~2% relative
+  case octaveEquivalent(factor: Int) // +2 = grid ≈ 2× bpm, -2 = grid ≈ ½× bpm
+  case disagree                      // neither — do not auto-sync
+}
+```
+
+It is `.notCompared` for a standalone `analyzeBeatGrid`; it is resolved only by the combined `analyze` entry point, which compares the grid against the full multi-window BPM result. Both raw tempos stay accessible (`result.bpm.bpm` and `result.beatGrid?.estimatedTempo`) so you can reconcile an octave case yourself.
+
+### Combined BPM + beat grid over one decode
+
+```swift
+import BoomBoomBoomKit
+
+if let result = try AudioAnalysisService.analyze(url: fileURL) {
+    print("\(result.bpm.bpm) BPM")
+    if let grid = result.beatGrid {
+        switch grid.tempoAgreement {
+        case .agree:                       autoSync(to: grid)
+        case .octaveEquivalent(let f):     autoSync(to: grid, octaveFactor: f)
+        case .disagree, .notCompared:      askForManualConfirmation()
+        }
+    }
+}
+```
+
+`analyze` decodes once and runs both the full BPM pipeline and beat-grid extraction over that single decode — cheaper than calling `analyzeBPM` and `analyzeBeatGrid` separately. (`analyze` covers BPM + beat grid only; for loudness, decode once and call `analyzeLUFS(decoded:)` on the same carrier.) `analyzeBeatGrid` remains available standalone:
+
+```swift
+let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL)   // pays its own decode
+```
+
+`DownbeatResult` is deliberately tri-state so a consumer can tell "downbeat detection never ran" (`.notAttempted`) apart from "it ran and found nothing" (`.noneDetected`) apart from "it found a downbeat" (`.detected(estimate:)`). Every float field is clamped finite at construction (and on `Codable` decode), so the value types are soundly `Hashable`; gate tempo validity with `estimatedTempo > 0`.
+
+### Downbeats (opt-in)
+
+Downbeat detection is **off by default** (`downbeats` is `.notAttempted`). Set `Options.detectDownbeats = true` and `analyzeBeatGrid` / `analyze` run a conservative, fixed-4/4 downbeat-**phase** estimator: it estimates *which* beat-in-bar is beat 1 for percussive, constant-tempo, common-time music, and **abstains** (`.noneDetected`) when the rhythmic evidence is weak. A wrong downbeat on a live deck is worse than no downbeat, so it would rather say nothing than guess — gate bar-snap on `gridOrigin.source == .downbeat`.
+
+```swift
+public struct DownbeatEstimate: Sendable, Hashable, Codable {
+  public let beats: [BeatTimestamp]   // the downbeat beats (bar starts), in order
+  public let meter: MeterEstimate     // { beatsPerBar: 4, source: .assumed }
+  public let confidence: Float        // [0, 1]
+  public let phaseIndex: Int          // which beat-in-bar (0..<beatsPerBar) is the downbeat
+}
+```
+
+On a confident detection `gridOrigin` is repointed to the first downbeat (`source == .downbeat`), so you can extrapolate bar lines:
+
+```swift
+var options = AudioAnalysisService.Options()
+options.detectDownbeats = true
+if let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL, options: options),
+   case .detected(let estimate) = grid.downbeats,
+   let firstDownbeat = estimate.beats.first {
+    let barSeconds = 60.0 / grid.estimatedTempo * Double(estimate.meter.beatsPerBar)
+    // k-th bar start after the first downbeat (constant tempo):
+    let barStart = firstDownbeat.presentationTime + barSeconds * Double(k)
+}
+```
+
+The meter is **assumed** 4/4, not measured (`meter.source == .assumed`); non-4/4 meter detection and per-beat bar positions are out of scope. It assumes a constant tempo (like the beat tracker).
+
+### Timestamp contract — decoded-PCM-relative
+
+Beat and anchor `presentationTime`s are **relative to the decoded-PCM origin**: `t = 0` is the start of the file as decoded, energy-scan drop included, with **no codec-priming subtraction**. Two consumers that decode the same file through AVFoundation share this origin, so the grid lines up with their own playback clock without per-codec offset guesswork.
+
+- **Lossless** input (WAV, FLAC, AIFF, CAF-LPCM) → sample-exact alignment.
+- **Lossy** input (MP3, AAC) → aligned to *our* AVFoundation decode. A different decoder may differ by an undetectable encoder delay. The worst-case bound is AAC's ~2112-sample encoder priming (≈ **48 ms at 44.1 kHz**) *if a decoder does not trim it*; in practice AVFoundation pre-trims declared priming, so the practical offset is near zero. That near-zero is empirical, not a published platform guarantee, and a precise figure awaits a future release — treat the ~48 ms as a documented upper bound, not a promise.
+
+**Applying your own offset.** For output-device latency compensation, a manual nudge, or a residual offset on an exotic headerless stream, use `BeatGrid.offset(by:)` — a non-destructive copy that shifts every beat, every detected downbeat, and the `gridOrigin` uniformly (a negative shift that would cross zero is clamped as a single delta, so beat spacing is preserved). Source the value from your own runtime (e.g. `AVAudioEngine.outputLatency`); do **not** subtract codec priming yourself — AVFoundation already removes it, so a manual priming subtraction would double-correct.
+
+`confidence` is `0.5·meanOnsetStrength + 0.5·acfStrengthAtPeriod` (half "how strong are the beats we picked", half "how periodic is the signal at the tracked tempo"); `BeatGridAnchor.confidence` is the anchor beat's per-beat confidence. Treat these as stability contracts — compose thresholds (e.g. a `0.5` floor) against them.
+
+`analyze` / `analyzeBeatGrid` return `nil` for silence, too-short, or non-musical input — the same contract as `analyzeBPM`.
+
+The beat-tracker assumes a **constant tempo**: it fixes beat phase against a single tempo and does not detect or adapt to tempo changes (accelerando, rubato, tempo-change sections). On variable-tempo material the beats hold a near-constant spacing and drift out of phase with the music — supply constant-tempo audio for a meaningful grid. Variable-tempo tracking is not planned.
+
+### Accuracy
+
+Beat-position accuracy is measured as the standard MIR beat **F-measure** (±70 ms tolerance) of the extrapolated grid against a reference beat grid exported from DJ software, over a real-world, constant-tempo drum & bass corpus, with tempo-octave equivalence allowed (a half- or double-time grid is not penalized). The current mean F-measure is **≈ 0.37**, with a committed regression floor of **0.33** that the test suite enforces.
+
+This is honest about the present state: agreement with an auto-analyzed DJ-software reference on heavily-produced, real-world material is moderate, and the figure reflects fine tempo and phase disagreements that accumulate across a track rather than gross errors. The opt-in downbeat detector is **deliberately conservative** — it abstains on the large majority of tracks and, when it does commit to a bar phase, its agreement with the reference is itself moderate, so treat a detected downbeat as a hint, not a guarantee. Prefer the anchor + tempo extrapolation for sync, gate on `confidence`, and validate against your own material before relying on the grid for beat-critical work.
 
 ## Batch workflow patterns
 
@@ -226,7 +415,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 
 | Type | Role |
 |------|------|
-| `AudioAnalysisService` | Public facade composing reader + analyzers |
+| `AudioAnalysisService` | Public facade composing reader + analyzers (`analyzeBPM`, `analyzeLUFS`, `analyzeBeatGrid`, and the combined `analyze` — each with a `url:` and a shared-decode `decoded:` overload) |
 | `AudioAnalysisResult` | BPM + confidence + candidates + optional trace + optional metadata evidence |
 | `PCMBufferReader` | Audio file → `[Float]` mono samples |
 | `PCMBufferReaderError` | Error cases for file reading |
@@ -249,6 +438,21 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `MLTechniqueError` | Construction-time errors for ML conformers |
 | `BPMDiagnosticTrace` | Per-step pipeline diagnostic state |
 | `ProgressUpdate` | Per-window progress payload for the `Options.onProgress` callback |
+| `LUFSReport` | Chart-ready loudness report (integrated, true peak, LRA + band edges, momentary/short-term series) |
+| `LoudnessSample`, `LoudnessSeries` | Foundation-only plotting adapter for `LUFSReport.samples` |
+| `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file; `isCancelled` cooperative-cancellation closure) |
+| `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
+| `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, `gridOrigin` anchor, `coverage`, `tempoAgreement`) returned by `analyzeBeatGrid` / `analyze`; see "Beat grid" |
+| `BeatTimestamp` | One detected beat: `presentationTime` + per-beat `confidence` + `strength` (all clamped finite) |
+| `BeatGridAnchor` / `BeatGridAnchorSource` | The Rekordbox-style extrapolation anchor on `BeatGrid.gridOrigin` (phase-consistency selected) + its provenance |
+| `BeatGridCoverage` | What span the detected `beats` cover (`.analysisWindow` default / `.window(seconds:)` / `.fullTrack`); set via `Options.beatGridCoverage` |
+| `TempoAgreement` | How the grid tempo relates to the BPM stage (`.notCompared` / `.agree` / `.octaveEquivalent(factor:)` / `.disagree`) |
+| `CombinedAnalysisResult` | BPM + beat grid over one shared decode, returned by `AudioAnalysisService.analyze(url:options:)` / `analyze(decoded:options:)` |
+| `DownbeatResult` | Tri-state downbeat outcome (`.notAttempted` / `.noneDetected` / `.detected(estimate:)`) |
+| `DownbeatEstimate` | The `.detected` payload: the downbeat beats, `meter`, `confidence`, and `phaseIndex` (opt-in via `Options.detectDownbeats`) |
+| `MeterEstimate` / `MeterSource` | The assumed-or-detected meter on a `DownbeatEstimate` (always `{ beatsPerBar: 4, source: .assumed }` today) |
+| `FeatureSubstrate.DecodedAudio` | Decoded mono PCM carrier for the shared-decode seam (see "Shared decode") |
+| `FeatureSubstrate.PrimingInfo`, `FeatureSubstrate.AudioCodec`, `FeatureSubstrate.TrimState` | Content-true codec + trim-state provenance carried on `DecodedAudio.codecPriming` |
 
 ## Test Support
 
@@ -327,6 +531,46 @@ let result = try AudioAnalysisService.analyzeBPM(url: trackURL, options: options
 **No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of OA300 audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
 
 To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project). It supports the reference architecture (the one the historical `giantsteps_v1` was trained on) as well as fully custom architectures via your own `nn.Module` class.
+
+## Model registry
+
+When you ship more than one model — a bundled default, a few the user adds, a known public reference — it helps to have one place that catalogs them and checks that each one is what you think it is. `ModelRegistry` is that catalog. It hashes a model bundle's contents with SHA-256 at registration time, so a corrupted download, a wrong-version checkpoint, or a silently swapped file on disk surfaces as a typed error instead of as quietly-wrong tempo output.
+
+It is a standalone, opt-in catalog. It is **not** wired into `analyzeBPM` — registering models does not change analysis results. Wire a registered model into analysis yourself via `Options.mlTechnique` (see *Using your own tempo model* above).
+
+```swift
+import BoomBoomBoomKit
+
+let registry = ModelRegistry()
+
+// Trust-on-first-use: record whatever is on disk now, detect a swap later.
+let entry = try registry.register(
+    url: modelURL,
+    metadata: ModelMetadata(
+        identifier: "my_tempo_model_v1",
+        capabilities: [.tempoEstimation],
+        license: "Apache-2.0"))
+
+print(entry.digestHexString)            // e.g. "a3f1…"  (display as `Integrity: verified`)
+registry.lookup(identifier: "my_tempo_model_v1")  // -> entry
+```
+
+Two integrity modes:
+
+- **Trust-on-first-use** (`expectedDigest: nil`, the default) records the digest of whatever is on disk the first time you register. This is *pin-now-detect-later* — it can catch a later swap, but it does not vouch for the original bytes. The digest is computed once per file URL and cached for the registry's lifetime, so a swap is detected when you re-register on a fresh launch (a new registry re-hashes), not by re-registering the same URL in the same session.
+- **Pinned** verifies against a digest you already know. Reconstruct it from a hash published in a manifest (or one you persisted as hex) and pass it in; a mismatch throws and the model is not registered:
+
+```swift
+let pinned = try ModelDigest(hex: publishedHexFromYourManifest)
+do {
+    _ = try registry.register(url: modelURL, expectedDigest: pinned,
+                              metadata: ModelMetadata(identifier: "reference_v2"))
+} catch let ModelRegistryError.integrityCheckFailed(expected, actual) {
+    print("model on disk does not match: expected \(expected.hexString), got \(actual.hexString)")
+}
+```
+
+The registry is **in-memory only** — there is no `save`/`load`. Persisting registrations across launches is your app's job (store a security-scoped bookmark for the file plus the identifier and the `ModelDigest` hex, then re-register on launch). `ModelDigest` is `Codable`, so the fingerprint persists directly; `ModelRegistryEntry` is intentionally not `Codable`, because its file URL would not round-trip a sandboxed path.
 
 ## References
 

@@ -251,7 +251,7 @@ struct PerformanceBenchmarkTests {
     }
 
     let data = try Data(contentsOf: url)
-    groundTruth = try JSONDecoder().decode([OA300Track].self, from: data)
+    groundTruth = try OA300Track.loadCorpus(from: data)
   }
 
   @Test("benchmark wall-clock time at intensity 7 (serial) + accuracy snapshot")

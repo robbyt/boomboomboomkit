@@ -884,6 +884,14 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 
 ### Story 8.1: LUFS public API — `analyzeLUFS(url:options:)` + `LUFSReport` promotion
 
+> **AMENDED 2026-06-10 — story spec is authoritative** (`_bmad-output/implementation-artifacts/8-1-lufs-public-api-and-lufsreport-promotion.md`). Four factual errors in the ACs below, found by the mandatory pre-spec grep, plus one operator-directed design change:
+> 1. `analyzeLUFS` ALREADY EXISTS (`AudioAnalysisService.swift:1001`, `(url:maxSeconds:) throws -> Double?`) — the story is a reshape, not a new sibling.
+> 2. Audio fixtures live at `Sources/BoomBoomBoomKitTestSupport/Resources/AudioFixtures/` (not `Tests/BoomBoomBoomKitTests/Fixtures/`), and no CAF fixture exists — the story generates one.
+> 3. The cited Story-6.2 seam surfaces (`analyzeShared(url:options:)` helpers, `BPMDiagnosticTrace` `decodedAudio` field) were never built; the seam-mitigation AC reduces to DocC + README documentation of the new LUFS surface. `DecodedAudio` consumer wiring remains Story 8.2.
+> 4. `PCMBufferReaderError.unsupportedSampleRate` is the wrong error domain (the reader CAN decode 22.05 kHz; the K-weighting coefficient table is what cannot proceed) — a new `LUFSAnalysisError.unsupportedSampleRate` is introduced instead.
+> 5. **`LUFSReport` is NOT "exactly three fields."** Operator direction (2026-06-10): integrated LUFS as a single number misdescribes dynamic material (quiet intro / loud middle). The report carries the three scalars PLUS momentary (400ms) and short-term (3s) loudness series on the shared 100ms grid (EBU Tech 3341 §2.2), LRA P10/P95 band edges (EBU Tech 3342 §3.1), and a Foundation-only Swift Charts sample adapter — shape proven by rendering through Swift Charts before spec freeze. `Hashable` dropped (`EnsembleDecision` value-carrier precedent); true-peak ships as the single normative max (no time series — BS.1770-5 defines none). `LUFSOptions.maxSeconds` defaults to full-file (was 30s) so integrated/LRA are whole-program per the standard.
+> Demo consumption of the chart lands in existing Story 10.4 (`LUFSReadoutView`), whose true dependency is 8.1 only — it may be pulled forward immediately after 8.1 closes; `Demo/BoomBoomBoomBPM/LUFSChartSchemaProbe.swift` (untracked) is its seed. Original text preserved below for the audit trail.
+
 **As a** library consumer,
 **I want** a public `AudioAnalysisService.analyzeLUFS(url:options:) -> LUFSReport` sibling to `analyzeBPM`,
 **So that** I can extract ITU-R BS.1770-5 integrated loudness, true-peak, and loudness range (LRA) from any supported audio file without touching the internal `LUFSAnalyzer` type.
@@ -920,35 +928,37 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 
 ### Story 8.2: Shared-decode wiring — three analyzers consume one `DecodedAudio`
 
+> PATCHED by the Story 8-2 PR (spec-validation corrections + the DD #10 perf-AC replacement; original wording preserved in git history). Corrections applied: (1) `PCMBufferReader.read(url:)` never existed — the decode entry is `readMonoSamples(from:maxSeconds:targetSampleRate:)`, and the seam producer is the new `readDecodedAudio(from:maxSeconds:)`; (2) the original AC2's "typically a `DecodedAudio` accessor on `BPMDiagnosticTrace` plus a `decodeOnce` parameter on the service Options struct" was REJECTED at spec review (multi-MB PCM in every Sendable trace snapshot; an Options-level DI seam nothing needs) — the promotion list is the one in the story spec's DD #1; (3) the original AC6 was factually impossible — `LUFSAnalyzer` never consumes `OnsetFeatures` (it K-weights raw samples); corrected to: all three consume the SAME `DecodedAudio`, `OnsetFeatures` bit-identity applies to the onset consumers only; (4) the Tier-3 builder inversion is NOT this story (Story 8.4's step-11 insertion owns it, per Story 6.2 DD #8); (5) the ≥ 35% perf gate was asserted, not derived (Codex CRITICAL, panel unanimous) — replaced by the probe-first formulation below; the T0 probe measured the THEORETICAL ceiling (decode share of sequential) at 33.7% (mp3) / 31.3% (flac) / 6.4% (wav-class), so 35% was physically unreachable; (6) `AudioCodec` reshaped to codec semantics + `PrimingInfo` to `{codec, trimState}` (operator-approved pre-1.0 breaks).
+
 **As a** library consumer,
-**I want** `analyzeBPM`, `analyzeLUFS`, and the forthcoming `analyzeBeatGrid` to share a single decode pass when orchestrated by `AudioAnalysisService`,
-**So that** combined analysis no longer pays 3× file-decode cost, and the `DecodedAudio` seam is in place before any unified `analyze(...)` follow-up.
+**I want** `analyzeBPM` and `analyzeLUFS` (and the forthcoming `analyzeBeatGrid`) to share a single decode pass via public `DecodedAudio`-accepting overloads on `AudioAnalysisService`,
+**So that** combined analysis never pays for the same decode twice (FR-35, structural), and the KDD-C4 seam is in place before Story 8.4's step-11 insertion and any unified `analyze(...)` follow-up.
 
-**Acceptance Criteria:**
+**Acceptance Criteria (as corrected):**
 
-**Given** `AudioAnalysisService` is refactored to expose an internal `decodeOnce(url:options:) -> FeatureSubstrate.DecodedAudio` helper,
-**When** `analyzeBPM` and `analyzeLUFS` are called within the same outer call frame on the same URL,
-**Then** `PCMBufferReader.read(url:)` is invoked exactly once (verified by a test-only injectable decode counter on the service).
+**Given** the internal `decodeOnce(url:maxSeconds:isCancelled:observer:)` funnel,
+**When** `analyzeBPM(url:)` or `analyzeLUFS(url:)` runs,
+**Then** `PCMBufferReader.readDecodedAudio` is invoked exactly once per analysis (verified via the internal `decodeObserver` parameter seam), and the shared pattern — one `readDecodedAudio` + `analyzeBPM(decoded:)` + `analyzeLUFS(decoded:)` — decodes once BY CONSTRUCTION (the decoded overloads have no URL parameter).
 
-**Given** Mary's seam-mitigation rule,
-**When** Story 6.2 left the `FeatureSubstrate.DecodedAudio` type `public` (already) but `AudioAnalysisService`'s decode-orchestration helpers `internal`,
-**Then** this story promotes whichever orchestration touchpoint the public sibling methods need (typically a `DecodedAudio` accessor on `BPMDiagnosticTrace` plus a `decodeOnce` parameter on the service Options struct) to `public` — the promotion list is explicitly enumerated in the PR description.
+**Given** the promotion list in the story spec DD #1 (`readDecodedAudio`, the two decoded overloads, `LUFSOptions.isCancelled`, the `AudioCodec`/`PrimingInfo` reshapes, `DecodedAudio.synthetic` in TestSupport),
+**When** the PR lands,
+**Then** the promotion/removal list appears verbatim in the PR description; no other public surface changes.
 
-**Given** the existing `BPMAnalyzer.estimateBPM` entrypoint,
-**When** the analyzer is refactored to accept `DecodedAudio` instead of `[Float]` + sampleRate scalars,
-**Then** `BPMAnalyzer` signature changes are confined to internal callers (no consumer-facing API change), and `BPMAnalyzerTests` still pass with semantic equality vs the pre-Story-8.2 OA300 measurement (Acc1 ≥ 58/82, Acc2 ≥ 74/82).
+**Given** the removed `estimateBPM(samples:sampleRate:options:)` / `measureLoudness(samples:sampleRate:)` entries (operator no-cruft directive),
+**When** the migration commit (commit 1, mechanical) lands,
+**Then** the full unit suite plus all four corpus floors hold at the exact pre-migration measurement (OA300 Acc1 = 58/82, Acc2 = 74/82; GiantSteps 537/661, 546/661).
 
-**Given** `LUFSAnalyzer` is similarly retargeted to consume `DecodedAudio`,
+**Given** `LUFSAnalyzer` retargeted to consume `DecodedAudio`,
 **When** the test suite runs,
-**Then** integrated LUFS for every test fixture is byte-identical to the Story-8.1 measurement (decode reuse cannot perturb the K-weighting filter output — Double precision preserved end-to-end).
+**Then** `LUFSByteIdentityTests`' bitPattern literals are untouched and green (decode reuse cannot perturb the K-weighting filter output — Double precision preserved end-to-end), and url-vs-decoded `LUFSReport` equality holds on LPCM/FLAC fixtures at matched `maxSeconds`.
 
-**Given** `make perf-benchmark` runs after Story 8.2 lands,
-**When** OA300 wall-clock is measured for combined BPM + LUFS analysis,
-**Then** the combined call is ≥ 35% faster than two sequential calls against the same URL.
+**Given** the perf instrumentation (replaces the original ≥ 35% gate),
+**When** `make shared-decode-impact-report` runs in release config,
+**Then** (hard, structural) decode-count == 1 on every path; (hard, directional) combined shared-path wall-clock ≤ sequential wall-clock per format within measurement noise; (probe-derived floor, reported) achieved saving ≥ 0.8 × same-run decode median on MP3 + FLAC, wav-class reported-only; the JSON report lands in `_bmad-output/implementation-artifacts/8-2-shared-decode-impact.json`.
 
 **Given** `FeatureSubstrateTests.swift` from Story 6.2,
-**When** the cross-consumer byte-identity assertion runs against the new combined orchestration path,
-**Then** `BPMAnalyzer`, `LUFSAnalyzer`, and a placeholder `BeatGridAnalyzer` stub all receive identical `OnsetFeatures` for the same `(decoded, weighting)` input.
+**When** the cross-consumer assertion runs against one `readDecodedAudio`-produced carrier,
+**Then** the `OnsetFeaturesBuilder` facade and the placeholder `BeatGridAnalyzer` stub return bit-identical `OnsetFeatures` for the same `(decoded, weighting)` input, and `LUFSAnalyzer` consumes the SAME `DecodedAudio` value (LUFS shares the decode, not the onset features).
 
 **FRs covered:** FR-35.
 **KDDs implemented:** C4.
@@ -1066,6 +1076,19 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **KDDs implemented:** C3.
 **Pressure-release valve:** If the playback-alignment-oracle fixture cannot be hand-clicked within the story's window, defer the AAC/MP3 priming-trim AC to Story 8.7 (acceptance corpus) and ship FLAC/WAV/AIFF/CAF coverage here. Document the deviation in `_bmad-output/implementation-artifacts/8-5-pressure-release.md`.
 
+### Story 8.5a: Downbeat detection — fixed-meter downbeat-phase estimation
+
+**As a** library consumer (Rekordbox-style DJ app doing bar/half-bar quantized launch),
+**I want** `DownbeatResult.detected` populated with a first-downbeat anchor + the assumed meter when rhythmic evidence is strong, and an honest `.noneDetected` abstain otherwise,
+**So that** I can extrapolate bar lines (`anchorTime + barIndex × beatsPerBar / (tempo/60)`) and snap launches to the top of the bar without the library ever fabricating a downbeat it isn't sure of.
+
+A quick follow-up to Story 8.5 (depends on it: consumes `BeatGrid.gridOrigin`/`BeatGridAnchorSource.downbeat`). **First story to POPULATE `DownbeatResult`** — closes the gap that no Epic-8 story did so (8.5 DD #13). Conservative pure-DSP downbeat-*phase* estimator: assume 4/4 (`MeterEstimate { beatsPerBar: 4, source: .assumed }` — NOT pretend-detected), per-beat low-band/percussive accent (reuses `OnsetEnvelopes.subBands` kick/snareCrack/full-band) folded modulo `beatsPerBar` with median aggregation, margin+support confidence, and a 4-part abstain gate (≥3 bars, winner ≥1.25× runner-up, confidence ≥0.4, multi-bar support) → `.noneDetected` when weak (a wrong downbeat on a live deck is worse than none). On success: `gridOrigin.source == .downbeat`. Enriches `DownbeatResult.detected(beats:)` → `.detected(estimate: DownbeatEstimate { beats, meter, confidence, phaseIndex })` (labeled for a stable `Codable` wire-shape; additive-extensible to a future per-beat `Battito` payload). Opt-in `Options.detectDownbeats = false` → BPM byte-identical. aubio fence held — academic references only (Goto; Klapuri/Eronen/Astola; Durand et al. + Böck et al. cited as the ML direction deliberately NOT taken). Full spec: `_bmad-output/implementation-artifacts/8-5a-downbeat-detection.md`.
+
+**FRs covered:** FR-28 (downbeat tri-state — first to populate it).
+**KDDs implemented:** C2 (beat/downbeat provenance).
+**Deferred:** non-4/4 meter detection, per-beat `Battito` labels, harmonic-change/section downbeats, full-track downbeat correction, ML/DBN models, variable-tempo bar tracking.
+**Pressure-release valve:** If the estimator + the type enrichment can't both land in one window, ship the enriched `DownbeatResult`/`MeterEstimate`/`DownbeatEstimate` types + the opt-in flag wired to always-`.noneDetected` (types land, detection deferred), OR ship the estimator against the existing `.detected(beats:)`. Prefer landing the estimator — types without a populator repeat the 8.3 gap. Document in `8-5a-pressure-release.md`.
+
 ### Story 8.6: `ModelRegistry` + `ModelRegistryEntry` + `ModelRegistryError` + CryptoKit SHA-256
 
 **As a** library consumer,
@@ -1148,6 +1171,8 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 
 ### Story 8.8: Migrate existing oracle and sentinel artifacts to JAMS format
 
+> **Split 2026-06-20 (operator decision):** During spec creation a factual-claims grep found this AC understates the blast radius (real ~13 Swift + 5 Python consumers + the shipping `CorpusTracks` decoders, not the 3 named here) and that 8.7's JAMS decoder is benchmark-internal. Operator ruled "nothing shipping / no BC," so the work was split 3 ways: **8.8a** (relocate the JAMS model into public `BoomBoomBoomKitTestSupport` + add the deferred `tempo`-encode guard + `loadCorpus` adapters; no migration), **8.8b** (OA300 + DAW oracle in-place migration + consumers + `migrate-to-jams.py` + `make oracle-migrate-to-jams`), **8.8c** (DnB regression-config migration — corpus-level `sandbox` for `schema_version`/`regression_threshold`/`captured_with`). 8.8a is the prerequisite for b and c. The AC below is the combined source of truth; per-slice ACs live in `_bmad-output/implementation-artifacts/8-8{a,b,c}-*.md`.
+
 **As a** library maintainer adopting JAMS as the canonical annotation format,
 **I want** the existing `daw-oracle.json`, `oa300-ground-truth.json`, and `4-dnb-triplet-targets.json` artifacts converted to JAMS shape via a one-time migration script,
 **So that** Story 8.7's beat-grid benchmark + Story 1-1's BPM benchmark + all future ground-truth-consuming benchmarks share a single canonical annotation format with mir_eval interop and curator metadata discipline.
@@ -1177,6 +1202,34 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **FRs covered:** None directly (infrastructure migration; supports FR-17, FR-34 indirectly).
 **KDDs implemented:** None directly (consumer-of-Story-8.7's JAMS decoder).
 **Pressure-release valve:** If the migration script discovers schema-incompatibility issues with any source artifact (e.g., `4-dnb-triplet-targets.json` carrying additional fields that don't fit JAMS), the migration writes the additional fields to `annotation.sandbox` (JAMS's documented extension point for non-schema data) rather than dropping them. Document the deviation in `_bmad-output/implementation-artifacts/8-8-pressure-release.md`.
+
+---
+
+> **Beat-grid accuracy follow-up (operator decision 2026-06-23).** Story 8.7 measured beat-grid accuracy far below the aspirational targets (F 0.37 vs 0.75; drift P95 1652 ms vs 30 ms) and its pressure-release doc recommended reopening the tracker. 8.7 is now `done` (its job — the measurement harness + regression floors — shipped). The accuracy-improvement work is scoped, via party-mode + two Codex consults (thread `019ef269`), into three focused stories below. Shared framing: keep the Rekordbox-style one-anchor + one-tempo contract; the dominant failure is **tempo precision** (a sub-BPM rate error accumulating as a lever arm across the track), not phase placement. The manual *BPM*-lock primitive already ships (`BeatGridTempoLock.bpm(Double)`, Story 8.9).
+
+### Story 8.10: Continuous beat-grid tempo refinement (sub-0.1-BPM) + drift-rate acceptance harness
+
+**As a** Rekordbox-style beat-grid consumer,
+**I want** the grid's tempo refined to sub-0.1-BPM precision from the audio's own onset evidence (seeded by the BPM detection result),
+**So that** the extrapolated grid does not drift off the beat by the end of a multi-minute track.
+
+Replace `BeatGridAnalyzer`'s `estimatedTempo = tempoBPM` (verbatim, coarse) with a continuous onset-comb period search at sub-frame resolution — NOT integer DP inter-beat intervals (the reverted Story 8.4/8.9 trap). Refined value reported AS the one BPM; residual reject-guard makes it monotonic (byte-identical when off / when the seed wins); opt-in `Options` flag with a byte-identity opt-out test. Primary acceptance = drift-rate / tempo error against the OA300 DAW-verified oracle (verified BPM suffices); Rekordbox JAMS F-measure is a secondary regression check (≥ 0.33). Full spec: `_bmad-output/implementation-artifacts/8-10-beat-grid-continuous-tempo-refinement.md`. **Out of scope:** drop-anchor (8.11), manual anchor reposition (8.12), variable-tempo/multi-segment, ML tempo.
+
+### Story 8.11: Drop-anchored downbeat / measure-top inference
+
+**As a** beat-grid consumer needing bar-aligned (1/1, 1/2) quantization,
+**I want** the grid's downbeat / top-of-measure anchored to the track's main structural drop (typically 8/16/24/32 bars in),
+**So that** bar-snap lands on the musically-correct downbeat instead of an arbitrary beat-phase guess.
+
+Detect the main energy impact/drop and use its bar-quantized position to place the downbeat / `gridOrigin` (`BeatGridAnchorSource.downbeat`). Builds on and reconsiders the conservative Story 8.5a `DownbeatAnalyzer` (4.4% fire rate, 0.14 correctness). Scored against the Rekordbox `Battito` downbeat oracle. Status: backlog (planned; not yet specced).
+
+### Story 8.12: Manual anchor reposition
+
+**As a** DJ-app user hand-correcting a grid,
+**I want** to set a new grid start position (anchor) by hand, complementing the existing manual BPM lock,
+**So that** I can lock the grid in Rekordbox-style (click a new downbeat, adjust BPM) when auto-detection is off.
+
+Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-supplied time (deterministic, no re-decode, `source == .manual`), pairing with the already-shipping `BeatGridTempoLock.bpm(Double)`. Status: backlog (planned; not yet specced).
 
 ## Epic 9: Demo shell + ensemble picker (stories)
 
@@ -1700,3 +1753,21 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 **Dependencies / sequencing.** Comes AFTER Epic 8: Epic 8's ModelRegistry is the distribution channel for whatever this epic produces (bundled or BYOW, a config flip not a `main`-history event), and Epic 8's beat-grid (`SignalSource.beatGrid`, W53) is an independent tempo signal that can cross-check octave errors in the ensemble. The bigger-model training run does not start until step 2 lands with parity green and the ANE inference path (step 4 skeleton) is proven end-to-end — training on a substrate the runtime can't reproduce, or for a backend that can't run it, is wasted compute (the exact Epic-7 mistake).
 
 **Open scoping questions for the PRD:** does the representation redesign stand alone as a substrate epic between 8 and 12? new corpus signoff on par with KDD-B4 against the new representation? does GiantSteps' own sub-120 annotation set need an octave-cleanliness audit (the ruler vs the lens)? Genre/tempo mixture-of-experts is explicitly the LAST resort, not a first move (router-error surface + N model loads + re-bundling).
+
+**Measurement infrastructure landed (2026-06-27, `spec-accuracy-forensics`, branch `rterhaar/accuracy-forensics`).** The forensic-accuracy harness (`make accuracy-forensics`) now supplies exactly the per-band / octave-isolated / recall-aware attribution this epic's step 1 gate demands ("per-band net impact, MEASURED not assumed"): octave vs triplet vs other error-type histograms, a candidate-recall oracle (true BPM in top-1/3/5/10 + factor + score-margin), a recall split (selection- vs generation-bound), and a DSP-confidence reliability curve — all reproducing the committed floors exactly (reporting-only). **First read:** OA300 misses are octave/**selection**-bound (16/24 octave, 21/24 with truth in top-5, 17/24 with truth at candidate rank 1) — the octave-aware DECODE (step 1) is the indicated cheap first move and its headroom is now directly measurable; GiantSteps misses are mostly non-harmonic "other" (98/124) with a cleanly monotonic confidence curve, so octave decode pays off mostly on OA300. Use `accuracy-forensics-*.json` as the step-1 / step-2 diagnostic substrate before any retrain.
+
+## Epic 13 — DSP accuracy experiments (CHARTER / UNPLANNED)
+
+> **Status: CHARTER ONLY (added 2026-06-27 from the GLM/Gemini/ChatGPT external-audit triage).** Named so the gap is visible; NOT scoped into stories. Distinct from Epic 12 (which redesigns the ML *model*): Epic 13 is hand-DSP experiments on the existing pipeline. Each is a flagged, ablation-gated `DSPTechnique`-style experiment with a revert clause — the project reverted Stories 8.4 and 8.9 this way; nothing here ships on a flag-off default without a measured ≥2-track OA300 lift and no GiantSteps regression.
+
+**Why this epic exists.** Three external LLM audits (`docs/{glm,gemini,chatgpt}-audit.md`) were triaged against the source (every verifiable claim confirmed; many framings context-blind — "algorithm hidden", "no harness", "causal-DP = switch to Viterbi" all refuted). The surviving signal is a cluster of pipeline experiments, now measurable via the Epic-12 forensic harness.
+
+**Provisional scope (sequenced — Phase 0.5 ceiling sweep CHOOSES the first move; do NOT pre-commit):**
+1. **Phase 0.5 — offline ceiling sweep** (no shipped DSP): from the forensic JSON, compute the octave-resolver ceiling (sweep the hand-tuned `0.3`/`0.5` `resolveOctaveAmbiguity` thresholds + sub-band vote weights on an OA300 dev slice, report OA300 holdout + GiantSteps once) vs the candidate-recall ceiling. Whichever is higher picks Phase 1.
+2. **Beat-grid-support candidate rescoring** (W53/W74 — the `.beatGrid` `SignalSource` has no producer): score each top-N candidate's grid support INDEPENDENTLY (coverage + inter-beat stability at that candidate's tempo, never seeded by the winner — circular otherwise), with an ABSTAIN path (override only when grid evidence is decisive). Overlaps Epic 12's beat-grid-arbiter idea — coordinate.
+3. **Sliding/aggregated tempogram + tempo-stability** (today a single 8s local window, `BPMAnalyzer.swift:113/1425`).
+4. **subBandEmphasis / adaptive sub-band weighting** (W64/W71; `OnsetFeaturesBuilder.build` throws for `.subBandEmphasis`; fixed kick/snare/hat weights) — validate on GiantSteps (a hand-tuned ratio rule is likely OA300-specific).
+5. **Multi-region anchor** vs the single `findEnergyTransition` first-drop (`BPMAnalyzer.swift:1376`) — demoted unless forensics show localized intro/transition locks.
+6. **Normalized ACF** (LAST, not cheap: octave fusion + sub-band thresholds are tuned against the current biased ACF → a full 256-combo re-tune).
+
+**Discipline (gate, from `3-3-click-track-cross-correlation.md`).** ≥2-track OA300 margin (1 track ≈ 1.2pp, below the ~5pp binomial SE); no GiantSteps regression for a default-path change (flagged experiments may be "OA300 lift, GiantSteps neutral-or-explained" while default-off); freeze OA300-tuned changes before re-measuring GiantSteps (no tuning on both); report per-track deltas + the error-type/recall split. Product surface (split `audio`/`metadata`/`final` confidence + an "ambiguous" result signal) belongs in Epic 10/11, gated on the reliability curve.

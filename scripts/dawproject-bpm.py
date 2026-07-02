@@ -12,11 +12,128 @@ Usage:
 
 import argparse
 import json
+import math
 import os
+import subprocess
 import sys
 import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
+from typing import TypeGuard
+
+
+def _is_json_number(x: object) -> TypeGuard[float]:
+    """True iff `x` is a real (non-`bool`) finite JSON number. Mirrors the same guard in
+    `_bmad-output/ml-training/migrate-to-jams.py` (a different uv project this script cannot
+    import): `bool` is an `int` subclass and `json` parses `NaN`/`Infinity` into floats."""
+    return not isinstance(x, bool) and isinstance(x, (int, float)) and math.isfinite(x)
+
+
+# --- JAMS interop (Story 8.8b) -------------------------------------------------
+# The OA300 ground truth this script reads (--match) is a JAMS `tempo` corpus, and the
+# daw oracle it writes is migrated to JAMS too. These inline helpers mirror
+# `_bmad-output/ml-training/migrate-to-jams.py` (which this script cannot import — a
+# different uv project); the emitted shape is what that migrator validates as already-JAMS.
+
+
+def _load_oa300_rows(path: str) -> list[dict]:
+    """Read a JAMS oa300 corpus back into flat {filename, bpm, subdir, title} rows."""
+    with open(path) as f:
+        doc = json.load(f)
+    if not isinstance(doc, dict) or "entries" not in doc:
+        raise ValueError(f"{path} is not a JAMS corpus (expected a top-level 'entries' list)")
+    rows = []
+    for entry in doc["entries"]:
+        file_metadata = entry.get("file_metadata", {})
+        identifiers = file_metadata.get("identifiers", {})
+        sandbox = entry.get("sandbox", {})
+        bpm = None
+        for ann in entry.get("annotations", []):
+            if ann.get("namespace") == "tempo":
+                data = ann.get("data") or []
+                if data:
+                    bpm = data[0].get("value")
+                break
+        # Fail loudly with a sourced message rather than letting a None/non-numeric BPM reach
+        # classify_disagreement downstream as an obscure TypeError.
+        if not _is_json_number(bpm):
+            raise ValueError(
+                f"{path}: JAMS entry {identifiers.get('basename')!r} has no finite numeric tempo value"
+            )
+        rows.append(
+            {
+                "filename": identifiers.get("basename"),
+                "bpm": float(bpm),
+                "subdir": sandbox.get("subdir"),
+                "title": file_metadata.get("title"),
+            }
+        )
+    return rows
+
+
+def _git_config(key: str, fallback: str) -> str:
+    try:
+        out = subprocess.run(["git", "config", key], capture_output=True, text=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return fallback
+    return out.stdout.strip() or fallback
+
+
+def _curator() -> dict:
+    return {
+        "name": _git_config("user.name", "Robert Terhaar"),
+        "email": _git_config("user.email", "robbyt@gmail.com"),
+    }
+
+
+def _daw_oracle_to_jams(oracle: list[dict], curator: dict) -> dict:
+    """Convert the flat daw-oracle rows to a JAMS `tempo` corpus (canonical value = daw_bpm)."""
+    entries = []
+    for row in oracle:
+        basename = row["filename"]
+        subdir = row.get("subdir")
+        local_path = f"{subdir}/{basename}" if subdir else basename
+        sandbox: dict = {}
+        if subdir is not None:
+            sandbox["subdir"] = subdir
+        sandbox["rekordbox_bpm"] = float(row["rekordbox_bpm"])
+        # Preserve the source type (it is already a real bool from match_to_ground_truth);
+        # do NOT bool()-coerce, which would flip a stray string to True. The migrator's daw
+        # validator enforces a real bool on the resulting file.
+        sandbox["rekordbox_disagrees"] = row["rekordbox_disagrees"]
+        sandbox["disagreement_type"] = row.get("disagreement_type")
+        entries.append(
+            {
+                "file_metadata": {
+                    "duration": 0,
+                    "jams_version": "0.4.0",
+                    "identifiers": {
+                        "basename": basename,
+                        "local_path": local_path,
+                        "track_id": basename,
+                    },
+                },
+                "annotations": [
+                    {
+                        "namespace": "tempo",
+                        "data": [
+                            {
+                                "time": 0.0,
+                                "duration": 0.0,
+                                "value": float(row["daw_bpm"]),
+                                "confidence": 1.0,
+                            }
+                        ],
+                        "annotation_metadata": {
+                            "curator": curator,
+                            "data_source": "DAW manual placement",
+                        },
+                    }
+                ],
+                "sandbox": sandbox,
+            }
+        )
+    return {"entries": entries}
 
 
 def extract_clip_bpms(dawproject_path: str) -> tuple[list[dict], float | None]:
@@ -140,8 +257,8 @@ def classify_disagreement(daw_bpm: float, rkbx_bpm: float) -> str | None:
 
 def match_to_ground_truth(clips: list[dict], gt_path: str) -> list[dict]:
     """Match dawproject clips to ground truth and produce oracle entries."""
-    with open(gt_path) as f:
-        gt_entries = json.load(f)
+    # OA300 ground truth is a JAMS tempo corpus post-Story-8.8b; read it back to flat rows.
+    gt_entries = _load_oa300_rows(gt_path)
 
     oracle = []
     unmatched = []
@@ -200,7 +317,9 @@ def main():
 
     if args.match:
         oracle = match_to_ground_truth(clips, args.match)
-        print(json.dumps(oracle, indent=2))
+        # Emit the daw oracle as a JAMS tempo corpus (Story 8.8b AC 3) so a regenerate is a
+        # no-op against the migrated file.
+        print(json.dumps(_daw_oracle_to_jams(oracle, _curator()), indent=2, ensure_ascii=False))
         return
 
     if args.json:

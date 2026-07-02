@@ -49,7 +49,7 @@ struct OA300BenchmarkTests {
     }
 
     let data = try Data(contentsOf: url)
-    groundTruth = try JSONDecoder().decode([OA300Track].self, from: data)
+    groundTruth = try OA300Track.loadCorpus(from: data)
   }
 
   @Test("benchmark at default intensity (7)")
@@ -284,7 +284,7 @@ struct OA300BenchmarkTests {
         var windowResults: [BPMResult] = []
         for windowSeconds in AnalysisIntensity.default.windowSizes {
           if let result = BPMAnalyzer.estimateBPM(
-            samples: audio.samples, sampleRate: audio.sampleRate,
+            decoded: .synthetic(audio.samples, sampleRate: audio.sampleRate),
             options: .init(
               analysisWindowSeconds: windowSeconds,
               intensity: .default))
@@ -361,7 +361,7 @@ struct OA300BenchmarkTests {
       var windowResults: [BPMResult] = []
       for windowSeconds in AnalysisIntensity.default.windowSizes {
         if let result = BPMAnalyzer.estimateBPM(
-          samples: audio.samples, sampleRate: audio.sampleRate,
+          decoded: .synthetic(audio.samples, sampleRate: audio.sampleRate),
           options: .init(
             analysisWindowSeconds: windowSeconds,
             intensity: .default))

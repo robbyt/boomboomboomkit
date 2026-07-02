@@ -64,6 +64,13 @@ _bmad-output/ml-training/tony-corpus/fingerprint-cache.npz
 # the two reviewable .md reports ARE committed.
 _bmad-output/ml-training/non-rekordbox-survey.json
 
+# Story 8.7 — large regenerable beat-grid artifacts (embed absolute audio paths;
+# regenerate via `make oracle-generate-beats` / `make benchmark-beatgrid`, mirroring
+# the un-committed daw-oracle.json). The small accuracy + downbeat report JSONs and
+# 8-7-pressure-release.md ARE committed as evidence.
+_bmad-output/ml-training/tony-corpus/rekordbox-beats.jams.json
+_bmad-output/implementation-artifacts/8-7-estimated-beats.jams.json
+
 # Story 7.3 — per-run ablation model artifacts. Only the large/regenerable ones
 # are ignored: the model weights, the per-epoch log, and the run-B split sidecar.
 # model_metadata.json IS committed (DD #8 forensic record). The harness (.py), the
