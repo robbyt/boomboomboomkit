@@ -35,8 +35,9 @@ struct EnsemblePresetPickerTests {
   }
 
   // Minimal MLTechnique conformer for the DD3 precedence tests. Returns a
-  // fixed evaluation so `trace.ensembleDecision` populates whenever the
-  // technique is attached AND the active policy invokes ML.
+  // fixed evaluation so the weighted-voting resolution records an ML voice
+  // (`trace.ensembleWeightResolution.mlEffectiveVote`) whenever the technique
+  // is attached AND the active preset's policy invokes ML.
   private struct StubTechnique: MLTechnique {
     func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation? {
       MLEvaluation(bpm: 120.0, confidence: 0.9, modelIdentifier: "stub")
