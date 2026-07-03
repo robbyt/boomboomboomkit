@@ -20,14 +20,19 @@ final class AnalysisViewModel {
   struct Configuration: Sendable {
     let defaults: UserDefaults
     let fallbackStrategy: BPMSelectionPolicy
+    // First-launch ensemble preset (Story 9.1). `var` with a default so the
+    // memberwise init keeps every pre-9.1 construction site compiling.
+    var fallbackPreset: EnsemblePreset = .default
 
     static let live = Configuration(
       defaults: .standard,
-      fallbackStrategy: .quorum
+      fallbackStrategy: .quorum,
+      fallbackPreset: .default
     )
   }
 
   static let preferredMergeStrategyKey = "preferredMergeStrategy"
+  static let preferredEnsemblePresetKey = "preferredEnsemblePreset"
 
   @ObservationIgnored
   private let configuration: Configuration
@@ -66,6 +71,29 @@ final class AnalysisViewModel {
     } else {
       options.mergeStrategy = configuration.fallbackStrategy
     }
+
+    // Ensemble preset (Story 9.1): same three-branch hydrate, same no-flash
+    // rationale. The demo's first-launch preset is `Default` (the balanced
+    // ensemble — the demo's job is proving the ensemble) and deliberately
+    // diverges from the library default `Options.ensemblePolicy = .dspOnly`;
+    // this seeding is demo-side only and MUST NOT leak into the library.
+    // SPM consumers receive the library default unless they opt in.
+    if let rawValue = configuration.defaults.string(
+      forKey: Self.preferredEnsemblePresetKey
+    ) {
+      if let preset = EnsemblePreset(rawValue: rawValue) {
+        selectedEnsemblePreset = preset
+      } else {
+        // Self-heal: remove the bad key, fall back. Future launches take
+        // the absent-key path.
+        configuration.defaults.removeObject(
+          forKey: Self.preferredEnsemblePresetKey
+        )
+        selectedEnsemblePreset = configuration.fallbackPreset
+      }
+    } else {
+      selectedEnsemblePreset = configuration.fallbackPreset
+    }
   }
 
   /// Persist the current `options.mergeStrategy` to the configured
@@ -76,6 +104,17 @@ final class AnalysisViewModel {
     configuration.defaults.set(
       options.mergeStrategy.rawValue,
       forKey: Self.preferredMergeStrategyKey
+    )
+  }
+
+  /// Persist the current `selectedEnsemblePreset` case identifier to the
+  /// configured UserDefaults. Called from `ContentView`'s
+  /// `.onChange(of: viewModel.selectedEnsemblePreset)` so every picker
+  /// change survives quit/relaunch (Story 9.1).
+  func persistPreferredEnsemblePreset() {
+    configuration.defaults.set(
+      selectedEnsemblePreset.rawValue,
+      forKey: Self.preferredEnsemblePresetKey
     )
   }
 
@@ -210,19 +249,32 @@ final class AnalysisViewModel {
 
   var options: AudioAnalysisService.Options = .init()
 
-  // MARK: - BYOW ML (Epic 7 close-out)
-  // Bring-your-own-weights: load a compiled `.mlmodelc` and run it through the
-  // production runtime path (`BNNSTechnique(modelURL:)` -> `analyzeBPM` with
-  // `ensemblePolicy = .mlOnly`). Default off keeps the demo DSP-only + byte-
-  // identical to its prior behavior (the library default `ensemblePolicy` is
-  // `.dspOnly`; setting `mlTechnique` has no effect until ML is enabled here).
+  // MARK: - Ensemble preset (Story 9.1)
+
+  /// The active named ensemble preset (FR-36). The single source of the
+  /// per-run `Options.ensemblePolicy` — `analyze()` derives the policy from
+  /// this on every run. Stored + observed (deliberately NOT
+  /// `@ObservationIgnored`, unlike the adjacent `configuration`): the
+  /// primary-view picker binds to it. Hydrated in `init` before first
+  /// render; the property default is overwritten there.
+  var selectedEnsemblePreset: EnsemblePreset = .default
+
+  // MARK: - BYOW ML (Epic 7 close-out; preset-governed since Story 9.1)
+  // Bring-your-own-weights: load a compiled `.mlmodelc` and run it through
+  // the production runtime path (`BNNSTechnique(modelURL:)` -> `analyzeBPM`).
+  // How the model participates is governed by `selectedEnsemblePreset` —
+  // weighted under `ML augmented`, short-circuited under `DSP only`. Default
+  // off (no model, toggle off) keeps ML absent from the run entirely.
 
   /// Display name of the loaded model (the `.mlmodelc` last path component), or
   /// `nil` when no model is loaded.
   var mlModelName: String?
 
-  /// When `true` (and a model is loaded), analysis runs `.mlOnly`. Bound to the
-  /// ContentView toggle; flipping it triggers a re-analyze.
+  /// When `true` (and a model is loaded), the model is attached to the run
+  /// (`Options.mlTechnique`) and participates per the active preset's
+  /// policy. Bound to the ContentView "Use loaded model" toggle; flipping it
+  /// triggers a re-analyze. When `false`, ML is absent from the run while
+  /// the preset stays selected and persisted.
   var mlEnabled: Bool = false
 
   /// Surfaces a model-load failure (e.g. raw `.mlmodel` instead of compiled
@@ -357,13 +409,19 @@ final class AnalysisViewModel {
     // downbeat layer populates.
     opts.beatGridCoverage = .fullTrack
     opts.detectDownbeats = true
-    // BYOW ML (Epic 7): when a model is loaded AND the toggle is on, run the
-    // production .mlOnly path so the ML prediction wins. enableMLDiagnostics
-    // surfaces the decoded BPM / softmax on the trace. Off by default -> the
-    // .dspOnly path is byte-identical to the demo's prior behavior.
+    // Story 9.1: the preset picker is the single writer of the per-run
+    // ensemble policy — applied unconditionally so the effective policy
+    // always value-equals the picker's resolved `EnsemblePolicy` (AC3),
+    // including when a BYOW model is attached below.
+    opts.ensemblePolicy = selectedEnsemblePreset.policy
+    // BYOW ML (Epic 7; preset-governed since Story 9.1): when a model is
+    // loaded AND the toggle is on, attach it — the preset's policy governs
+    // how it participates (weighted under `ML augmented`, short-circuited
+    // under `DSP only`). Toggle off (or no model) -> `mlTechnique` stays
+    // nil and ML is absent from the run. enableMLDiagnostics surfaces the
+    // decoded BPM / softmax on the trace.
     if mlEnabled, let technique = mlTechnique {
       opts.mlTechnique = technique
-      opts.ensemblePolicy = .mlOnly
       opts.enableMLDiagnostics = true
     }
     opts.isCancelled = { @Sendable in cancelFlag.load(ordering: .acquiring) }
@@ -637,13 +695,14 @@ final class AnalysisViewModel {
 
   // MARK: - Parameter Controls
 
-  // 4-line copy-pasteable Swift snippet reflecting (intensity,
-  // mergeStrategy). The literal `yourURL` placeholder is deliberate —
-  // the demo does NOT export real sandbox URLs into copy-paste content.
-  // No leading whitespace, no trailing newline.
+  // 5-line copy-pasteable Swift snippet reflecting (intensity,
+  // mergeStrategy, ensemblePreset — Story 9.1). The literal `yourURL`
+  // placeholder is deliberate — the demo does NOT export real sandbox URLs
+  // into copy-paste content. No leading whitespace, no trailing newline.
   static func generateConfigSnippet(
     intensity: AnalysisIntensity,
-    mergeStrategy: BPMSelectionPolicy
+    mergeStrategy: BPMSelectionPolicy,
+    ensemblePreset: EnsemblePreset
   ) -> String {
     let intensityLiteral: String
     switch intensity.rawValue {
@@ -656,8 +715,9 @@ final class AnalysisViewModel {
     let line1 = "var opts = AudioAnalysisService.Options()"
     let line2 = "opts.intensity = \(intensityLiteral)"
     let line3 = "opts.mergeStrategy = .\(mergeStrategy.rawValue)"
-    let line4 = "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
-    return "\(line1)\n\(line2)\n\(line3)\n\(line4)"
+    let line4 = "opts.ensemblePolicy = \(ensemblePreset.policyLiteral)"
+    let line5 = "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
+    return "\(line1)\n\(line2)\n\(line3)\n\(line4)\n\(line5)"
   }
 
   // `clearContents()` BEFORE `setString` is mandatory per AppKit's
@@ -667,7 +727,8 @@ final class AnalysisViewModel {
   func copyConfigToPasteboard() -> Bool {
     let snippet = Self.generateConfigSnippet(
       intensity: options.intensity,
-      mergeStrategy: options.mergeStrategy
+      mergeStrategy: options.mergeStrategy,
+      ensemblePreset: selectedEnsemblePreset
     )
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
@@ -687,7 +748,8 @@ final class AnalysisViewModel {
   // MARK: - BYOW Model Loading
 
   /// Present an open panel for a compiled `.mlmodelc`, load it via
-  /// `BNNSTechnique(modelURL:)`, and enable ML on success. Mirrors
+  /// `BNNSTechnique(modelURL:)`, and attach it on success (the model then
+  /// participates per the active ensemble preset — Story 9.1). Mirrors
   /// `exportTrace`'s security-scoped-resource handling for the sandbox. A raw
   /// (uncompiled) `.mlmodel`, a missing bundle, or a tensor-contract mismatch
   /// surfaces as `mlModelError` and leaves ML disabled. UI-agnostic: the caller
@@ -712,10 +774,7 @@ final class AnalysisViewModel {
       }
     }
     do {
-      mlTechnique = try BNNSTechnique(modelURL: url)
-      mlModelName = url.lastPathComponent
-      mlEnabled = true
-      mlModelError = nil
+      attachMLTechnique(try BNNSTechnique(modelURL: url), named: url.lastPathComponent)
       return true
     } catch {
       mlTechnique = nil
@@ -724,6 +783,19 @@ final class AnalysisViewModel {
       mlModelError = "Could not load model: \(error)"
       return false
     }
+  }
+
+  /// Attach an already-constructed ML technique — the behavior-preserving
+  /// extraction of `pickAndLoadMLModel`'s success block (Story 9.1 DD3
+  /// testability seam). Sets the full success quartet: the toggle's
+  /// visibility is gated on `mlModelName != nil`, so all four writes are
+  /// load-bearing. The active preset's policy governs how the technique
+  /// participates in the next run.
+  func attachMLTechnique(_ technique: any MLTechnique, named name: String) {
+    mlTechnique = technique
+    mlModelName = name
+    mlEnabled = true
+    mlModelError = nil
   }
 
   // CRITICAL: MUST NOT reassign `currentTaskID`. The cancelled task
