@@ -183,12 +183,14 @@ struct AnalysisViewModelSmokeTest {
   func generateConfigSnippetIntensityFormatting(_ raw: Int, _ expectedLiteral: String) {
     let snippet = AnalysisViewModel.generateConfigSnippet(
       intensity: AnalysisIntensity(rawValue: raw),
-      mergeStrategy: .maxConfidence
+      mergeStrategy: .maxConfidence,
+      ensemblePreset: .default
     )
     let expected = [
       "var opts = AudioAnalysisService.Options()",
       "opts.intensity = \(expectedLiteral)",
       "opts.mergeStrategy = .maxConfidence",
+      "opts.ensemblePolicy = .default",
       "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)",
     ].joined(separator: "\n")
     #expect(snippet == expected)
@@ -204,23 +206,43 @@ struct AnalysisViewModelSmokeTest {
   func generateConfigSnippetMergeStrategyFormatting(_ strategy: BPMSelectionPolicy) {
     let snippet = AnalysisViewModel.generateConfigSnippet(
       intensity: .default,
-      mergeStrategy: strategy
+      mergeStrategy: strategy,
+      ensemblePreset: .default
     )
     #expect(snippet.contains("opts.mergeStrategy = .\(strategy.rawValue)"))
   }
 
-  // Snippet shape sanity per DD #7 + AC #10 Task 3.3: exactly 4 lines,
-  // contains literal `yourURL`, contains `try AudioAnalysisService.
-  // analyzeBPM`, no leading/trailing whitespace, last line shape.
-  @Test("generateConfigSnippet shape: 4 lines, yourURL placeholder, no surrounding whitespace")
+  // Ensemble-preset formatting (Story 9.1): the snippet's policy line is the
+  // preset's copy-pasteable literal — mirrors `EnsemblePreset.policy` so the
+  // copied config reproduces the picker's run.
+  @Test(
+    "generateConfigSnippet emits the preset's policy literal for all 4 presets",
+    arguments: EnsemblePreset.allCases
+  )
+  @MainActor
+  func generateConfigSnippetEnsemblePresetFormatting(_ preset: EnsemblePreset) {
+    let snippet = AnalysisViewModel.generateConfigSnippet(
+      intensity: .default,
+      mergeStrategy: .maxConfidence,
+      ensemblePreset: preset
+    )
+    #expect(snippet.contains("opts.ensemblePolicy = \(preset.policyLiteral)"))
+  }
+
+  // Snippet shape sanity per DD #7 + AC #10 Task 3.3 (grown to 5 lines by
+  // Story 9.1's ensemblePolicy line): contains literal `yourURL`, contains
+  // `try AudioAnalysisService.analyzeBPM`, no leading/trailing whitespace,
+  // last line shape.
+  @Test("generateConfigSnippet shape: 5 lines, yourURL placeholder, no surrounding whitespace")
   @MainActor
   func generateConfigSnippetShape() {
     let snippet = AnalysisViewModel.generateConfigSnippet(
       intensity: .default,
-      mergeStrategy: .maxConfidence
+      mergeStrategy: .maxConfidence,
+      ensemblePreset: .default
     )
     let lines = snippet.components(separatedBy: "\n")
-    #expect(lines.count == 4)
+    #expect(lines.count == 5)
     #expect(snippet.contains("yourURL"))
     #expect(snippet.contains("try AudioAnalysisService.analyzeBPM"))
     #expect(!snippet.hasPrefix(" "))
@@ -558,11 +580,16 @@ struct AnalysisViewModelSmokeTest {
     let viewModel = AnalysisViewModel()
     viewModel.options.intensity = .fastest
     viewModel.options.mergeStrategy = .median
+    // Pin the preset explicitly — this test constructs the `.live`
+    // configuration, so hydration read the operator's real prefs
+    // (Story 9.1: the snippet now reflects the preset too).
+    viewModel.selectedEnsemblePreset = .dspOnly
     #expect(viewModel.copyConfigToPasteboard() == true)
     let readBack = pasteboard.string(forType: .string)
     let expected = AnalysisViewModel.generateConfigSnippet(
       intensity: .fastest,
-      mergeStrategy: .median
+      mergeStrategy: .median,
+      ensemblePreset: .dspOnly
     )
     #expect(readBack == expected)
   }

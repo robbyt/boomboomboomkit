@@ -64,6 +64,7 @@ struct ContentView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         bannerView
         beatGridSection
+        ensembleSection
         controlsSection
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -224,6 +225,50 @@ struct ContentView: View {
     }
   }
 
+  // Story 9.1 (FR-36): the ensemble preset is the demo's headline consumer
+  // control — its own GroupBox ABOVE Parameters, not a ninth knob inside
+  // it. Primary view per FR-43: functional with the inspector closed.
+  @ViewBuilder
+  private var ensembleSection: some View {
+    GroupBox("Ensemble") {
+      VStack(alignment: .leading, spacing: 8) {
+        EnsemblePresetPicker(selection: $viewModel.selectedEnsemblePreset)
+          // Preset changes never touch `options.mergeStrategy`, so the
+          // merge-strategy Picker's `.onChange` cannot cascade — one
+          // persist + one re-analyze per user selection (Story 9.1 DD5).
+          .onChange(of: viewModel.selectedEnsemblePreset) { _, _ in
+            viewModel.persistPreferredEnsemblePreset()
+            triggerReanalyze()
+          }
+        // Honest degradation (Story 9.1 DD7): `ML augmented` does nothing
+        // until a model is attached AND enabled. Keyed off the public
+        // observables (`mlModelName` / `mlEnabled`) — `mlTechnique` is
+        // private by design.
+        if viewModel.selectedEnsemblePreset == .mlAugmented {
+          if viewModel.mlModelName == nil {
+            Text("No model loaded — ML signal is absent until you load one.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          } else if !viewModel.mlEnabled {
+            Text("Model loaded but \"Use loaded model\" is off — ML signal is absent.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        } else if viewModel.selectedEnsemblePreset == .dspOnly,
+          viewModel.mlModelName != nil, viewModel.mlEnabled
+        {
+          // Mirror of the DD7 honesty rule for the inverse trap: a loaded +
+          // enabled model under `DSP only` is short-circuited by the
+          // library's operation-inert contract (code-review follow-up).
+          Text("DSP only ignores the loaded model — ML signal is absent.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
   @ViewBuilder
   private var controlsSection: some View {
     GroupBox("Parameters") {
@@ -300,10 +345,11 @@ struct ContentView: View {
           triggerReanalyze()
         }
 
-        // BYOW ML (Epic 7): load a compiled `.mlmodelc` and run `.mlOnly`
-        // inference through the production runtime path. Default off keeps the
-        // demo DSP-only. The toggle appears once a model is loaded; flipping it
-        // re-analyzes the current file.
+        // BYOW ML (Epic 7; preset-governed since Story 9.1): load a compiled
+        // `.mlmodelc` and attach it to the run — the ensemble preset's
+        // policy governs how it participates. Toggle off keeps ML absent.
+        // The toggle appears once a model is loaded; flipping it re-analyzes
+        // the current file.
         VStack(alignment: .leading, spacing: 4) {
           HStack(spacing: 8) {
             Button("Load Model…") {
@@ -313,7 +359,7 @@ struct ContentView: View {
             }
             .buttonStyle(.bordered)
             if viewModel.mlModelName != nil {
-              Toggle("ML (.mlOnly)", isOn: $viewModel.mlEnabled)
+              Toggle("Use loaded model", isOn: $viewModel.mlEnabled)
                 .toggleStyle(.switch)
                 .onChange(of: viewModel.mlEnabled) { _, _ in
                   triggerReanalyze()
