@@ -529,7 +529,8 @@ struct ContentView: View {
 
       VStack(alignment: .trailing, spacing: 4) {
         secondaryMetadataRow(row.fileName)
-        secondaryMetadataRow("Confidence: \(row.confidence)")
+        // TODO(Epic 11): align with KDD-E8 style guide
+        secondaryMetadataRow("BPM confidence: \(row.confidence)")
         secondaryMetadataRow("Elapsed: \(row.elapsed)")
       }
       .font(.callout)

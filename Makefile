@@ -99,13 +99,14 @@ demo-bump-build:
 demo-fmt:
 	swift format --recursive --in-place Demo/
 
-## demo-lint: Guard against DEVELOPMENT_TEAM leak across all Demo/.pbxproj files (Story 5-2 W16 close-out — regex covers both quoted and unquoted Xcode-emitted team-ID forms)
+## demo-lint: Guard against DEVELOPMENT_TEAM leak across all Demo/.pbxproj files (Story 5-2 W16) + FR-44 confidence-label / FR-43 no-diagnostic-leak audit (Story 9.3)
 .PHONY: demo-lint
 demo-lint:
 	@if grep -rnE 'DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*"?[A-Z0-9]{10}"?[[:space:]]*;' Demo/ --include='project.pbxproj'; then \
 		echo "ERROR: DEVELOPMENT_TEAM leak detected in Demo/ .pbxproj — must be empty for public release."; \
 		exit 1; \
 	fi
+	@bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
 
 ## pre-commit: Run all pre-PR gates (library + demo fmt + lint). NOT a git hook — runs on demand
 .PHONY: pre-commit
