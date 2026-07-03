@@ -79,6 +79,14 @@ struct BeatGridTempoRefinementTests {
       tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
   }
 
+  /// Drive the gated `octaveNormalizedLockTempo` through its only public seam.
+  private static func gated(target: Double, gridTempo: Double) throws -> Double {
+    let candidate = AudioAnalysisService.applyTempoLock(
+      Self.constantGrid(estimatedTempo: gridTempo), lock: .bpm(target), bpmStageTempo: 0)
+    let grid = try #require(candidate)
+    return grid.estimatedTempo
+  }
+
   // MARK: - AC8: fractional refine from a coarse seed
 
   /// A constant-tempo click at a fractional BPM (127.3), fitted from a coarse seed
@@ -502,31 +510,23 @@ struct BeatGridTempoRefinementTests {
   @Test func stageAndGatedResolversShareOctaveArms() throws {
     typealias Svc = AudioAnalysisService
 
-    /// Drive the gated `octaveNormalizedLockTempo` through its only public seam.
-    func gated(target: Double, gridTempo: Double) throws -> Double {
-      try #require(
-        AudioAnalysisService.applyTempoLock(
-          Self.constantGrid(estimatedTempo: gridTempo), lock: .bpm(target), bpmStageTempo: 0)
-      ).estimatedTempo
-    }
-
     // .agree → both paths return the target.
     #expect(Svc.stageLockTempo(target: 120, gridTempo: 122) == 120)
-    #expect(try gated(target: 120, gridTempo: 122) == 120)
+    #expect(try Self.gated(target: 120, gridTempo: 122) == 120)
 
     // .octaveEquivalent ×2 → both paths octave-shift up.
     #expect(Svc.stageLockTempo(target: 120, gridTempo: 240) == 240)
-    #expect(try gated(target: 120, gridTempo: 240) == 240)
+    #expect(try Self.gated(target: 120, gridTempo: 240) == 240)
 
     // .octaveEquivalent ×½ → both paths octave-shift down.
     #expect(Svc.stageLockTempo(target: 120, gridTempo: 60) == 60)
-    #expect(try gated(target: 120, gridTempo: 60) == 60)
+    #expect(try Self.gated(target: 120, gridTempo: 60) == 60)
 
     // Differ ONLY on within-octave .disagree (124 vs 120, >2%): the authoritative
     // resolver restores the stage tempo; the gated resolver no-ops. This asymmetry
     // must survive the de-duplication (issue #66 OUT-OF-SCOPE: the policy difference
     // itself, deferred 8-10-D6).
     #expect(Svc.stageLockTempo(target: 120, gridTempo: 124) == 120)
-    #expect(try gated(target: 120, gridTempo: 124) == 124)
+    #expect(try Self.gated(target: 120, gridTempo: 124) == 124)
   }
 }

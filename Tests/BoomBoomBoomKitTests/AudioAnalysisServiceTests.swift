@@ -322,7 +322,7 @@ struct AudioAnalysisServiceCancellationTests {
           try AudioAnalysisService.analyzeBPM(url: url)
         }
         group.cancelAll()
-        try await group.next()
+        _ = try await group.next()
       }
       Issue.record("Expected CancellationError")
     } catch is CancellationError {

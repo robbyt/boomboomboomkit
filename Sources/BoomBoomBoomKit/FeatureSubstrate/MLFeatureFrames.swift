@@ -178,6 +178,7 @@ public struct MLFeatureFrames: Sendable, CustomStringConvertible, Equatable {
   ///
   /// See ``_testingMaximumLogMelDataCount`` for the unstructured-`Task { }`
   /// propagation caveat.
+  @discardableResult
   internal static func _withTestingMaximumLogMelDataCount<R>(
     _ cap: Int, _ body: () throws -> R
   ) rethrows -> R {
