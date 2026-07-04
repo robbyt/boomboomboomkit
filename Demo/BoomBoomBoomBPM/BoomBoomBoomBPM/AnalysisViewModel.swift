@@ -693,6 +693,54 @@ final class AnalysisViewModel {
     }
   }
 
+  // One-line description of a merge strategy for the demo's dynamic help line,
+  // mirroring the ensemble preset's description. Verified against
+  // `BPMSelectionPolicy.merge`: these policies aggregate candidate SCORES
+  // within 2% BPM clusters, not the BPM values themselves.
+  static func strategyDescription(_ strategy: BPMSelectionPolicy) -> String {
+    switch strategy {
+    case .maxConfidence: return "Uses the highest-confidence window result."
+    case .dedup: return "Clusters near-match BPMs, keeping each cluster's best score."
+    case .quorum: return "Ranks BPM clusters by how many windows contributed."
+    case .average: return "Ranks BPM clusters by average candidate score."
+    case .median: return "Ranks BPM clusters by median candidate score."
+    case .weightedAverage:
+      return "Ranks BPM clusters by confidence-weighted candidate score."
+    case .union: return "Pools all candidates without deduplication, then sorts by score."
+    case .windowVoting:
+      return "Votes by each window's final BPM, falling back when no consensus forms."
+    }
+  }
+
+  // Honest-degradation caption for the ensemble control (Story 9.1 DD7),
+  // extracted as a pure function so it is unit-testable and so the view can
+  // reserve two caption lines via `.lineLimit(2, reservesSpace:)`. Defined
+  // behaviorally from observable state — returns "" when there is nothing to
+  // warn about. `ML augmented` does nothing until a model is attached AND
+  // enabled; `DSP only` short-circuits a loaded + enabled model.
+  static func ensembleDegradationCaption(
+    preset: EnsemblePreset,
+    mlModelName: String?,
+    mlEnabled: Bool
+  ) -> String {
+    switch preset {
+    case .mlAugmented:
+      if mlModelName == nil {
+        return "No model loaded — ML signal is absent until you load one."
+      } else if !mlEnabled {
+        return "Model loaded but \"Use loaded model\" is off — ML signal is absent."
+      }
+      return ""
+    case .dspOnly:
+      if mlModelName != nil, mlEnabled {
+        return "DSP only ignores the loaded model — ML signal is absent."
+      }
+      return ""
+    default:
+      return ""
+    }
+  }
+
   // MARK: - Parameter Controls
 
   // 5-line copy-pasteable Swift snippet reflecting (intensity,

@@ -26,11 +26,12 @@ enum EnsemblePreset: String, CaseIterable, Sendable {
     }
   }
 
-  // Inline-authored per-preset description. Rendered by EnsemblePresetPicker
-  // as the single caption line below the pop-up, updating with the selection.
-  // The authored contract strings are "<displayName> — <subtitle>" (e.g.
-  // "Default — balanced ensemble"); the caption shows only the text after the
-  // em dash. The seam is the text, not the layout.
+  // Inline-authored per-preset description. This IS the standalone description
+  // fragment (there is no runtime em-dash parsing); EnsemblePresetPicker renders
+  // it verbatim as the caption line below the pop-up, updating with the
+  // selection. The "<displayName> — <subtitle>" form is only the joined *test*
+  // contract (`verbatimNamesAndSubtitles`), never a runtime string. The seam is
+  // the text, not the layout.
   //
   // NOTE: the earlier plan (Story 10.5) was to replace this with a "?" popover
   // wired to Epic 11 docs; this inline dynamic description supersedes that for
@@ -38,7 +39,8 @@ enum EnsemblePreset: String, CaseIterable, Sendable {
   // merge-strategy controls.
   var subtitle: String {
     switch self {
-    case .default: return "balanced ensemble"
+    case .default:
+      return "Balanced weighting of DSP, ML, and file-tag signals (the recommended default)."
     case .dspOnly: return "disables ML, fastest"
     case .mlAugmented: return "adds the trained classifier"
     case .trustFileTags: return "prefer ID3/MP4/Vorbis tempo tags"
