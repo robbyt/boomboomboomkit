@@ -185,7 +185,7 @@ struct FeatureSubstrateTests {
         featureSetVersion: "v1", parameters: validParams)
     }
     // oversize buffer (lower cap via TaskLocal, then exceed it)
-    try MLFeatureFrames._withTestingMaximumLogMelDataCount(100) {
+    MLFeatureFrames._withTestingMaximumLogMelDataCount(100) {
       let tooMany: [Float] = Array(repeating: 0.0, count: 128 * 4)
       #expect(throws: MLTechniqueError.self) {
         _ = try FeatureSubstrate.OnsetFeatures(
@@ -322,7 +322,7 @@ struct FeatureSubstrateTests {
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url)
     let decoded = FeatureSubstrate.DecodedAudio(
       samples: samples, sampleRate: sampleRate, codecPriming: priming)
-    try MLFeatureFrames._withTestingMaximumLogMelDataCount(100) {
+    MLFeatureFrames._withTestingMaximumLogMelDataCount(100) {
       #expect(throws: FeatureSubstrate.FeatureSubstrateError.self) {
         _ = try FeatureSubstrate.OnsetFeaturesBuilder.build(
           decoded: decoded, weighting: .uniform)

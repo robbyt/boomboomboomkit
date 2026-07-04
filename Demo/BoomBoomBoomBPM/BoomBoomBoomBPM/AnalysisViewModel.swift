@@ -41,12 +41,15 @@ final class AnalysisViewModel {
   /// BEFORE `ContentView.body` first renders, so the Picker shows the
   /// persisted value with no transient flash.
   ///
-  /// Demo policy: when the stored raw value is absent OR unrecognized
-  /// (e.g., a library case was renamed/removed), fall back to
-  /// `configuration.fallbackStrategy` (`.quorum` for `.live`). On the
-  /// unrecognized path we also remove the bad key — self-healing per
-  /// the pre-1.0 framing in `CLAUDE.md` — so subsequent launches take
-  /// the absent-key path cleanly.
+  /// Demo policy: when the stored value is absent, fall back to
+  /// `configuration.fallbackStrategy` (`.quorum` for `.live`) without
+  /// writing. When a value is present but unusable — a non-`String` type
+  /// (`string(forKey:)` returns nil) or an unrecognized case
+  /// (renamed/removed) — fall back AND remove the bad key, self-healing
+  /// per the pre-1.0 framing in `CLAUDE.md`, so subsequent launches take
+  /// the absent-key path cleanly. Presence is detected via
+  /// `object(forKey:)` so a non-`String` poison value is healed rather
+  /// than silently ignored on every launch.
   ///
   /// The library default at
   /// `AudioAnalysisService.Options.mergeStrategy` remains
@@ -55,20 +58,20 @@ final class AnalysisViewModel {
   /// unless they opt in.
   init(configuration: Configuration = .live) {
     self.configuration = configuration
-    if let rawValue = configuration.defaults.string(
+    if configuration.defaults.object(forKey: Self.preferredMergeStrategyKey) == nil {
+      // Genuinely absent (first launch) — seed the demo default, no write.
+      options.mergeStrategy = configuration.fallbackStrategy
+    } else if let rawValue = configuration.defaults.string(
       forKey: Self.preferredMergeStrategyKey
-    ) {
-      if let strategy = BPMSelectionPolicy(rawValue: rawValue) {
-        options.mergeStrategy = strategy
-      } else {
-        // Self-heal: remove the bad key, fall back to the configured
-        // default. Future launches take the absent-key path.
-        configuration.defaults.removeObject(
-          forKey: Self.preferredMergeStrategyKey
-        )
-        options.mergeStrategy = configuration.fallbackStrategy
-      }
+    ), let strategy = BPMSelectionPolicy(rawValue: rawValue) {
+      options.mergeStrategy = strategy
     } else {
+      // Present but unusable — a non-String type (`string(forKey:)` is nil)
+      // or an unrecognized case (renamed/removed). Self-heal: remove the bad
+      // key so future launches take the absent path, then fall back.
+      configuration.defaults.removeObject(
+        forKey: Self.preferredMergeStrategyKey
+      )
       options.mergeStrategy = configuration.fallbackStrategy
     }
 
@@ -78,20 +81,20 @@ final class AnalysisViewModel {
     // diverges from the library default `Options.ensemblePolicy = .dspOnly`;
     // this seeding is demo-side only and MUST NOT leak into the library.
     // SPM consumers receive the library default unless they opt in.
-    if let rawValue = configuration.defaults.string(
+    if configuration.defaults.object(forKey: Self.preferredEnsemblePresetKey) == nil {
+      // Genuinely absent (first launch) — seed the demo default, no write.
+      selectedEnsemblePreset = configuration.fallbackPreset
+    } else if let rawValue = configuration.defaults.string(
       forKey: Self.preferredEnsemblePresetKey
-    ) {
-      if let preset = EnsemblePreset(rawValue: rawValue) {
-        selectedEnsemblePreset = preset
-      } else {
-        // Self-heal: remove the bad key, fall back. Future launches take
-        // the absent-key path.
-        configuration.defaults.removeObject(
-          forKey: Self.preferredEnsemblePresetKey
-        )
-        selectedEnsemblePreset = configuration.fallbackPreset
-      }
+    ), let preset = EnsemblePreset(rawValue: rawValue) {
+      selectedEnsemblePreset = preset
     } else {
+      // Present but unusable — a non-String type or an unrecognized case.
+      // Self-heal: remove the bad key so future launches take the absent
+      // path, then fall back.
+      configuration.defaults.removeObject(
+        forKey: Self.preferredEnsemblePresetKey
+      )
       selectedEnsemblePreset = configuration.fallbackPreset
     }
   }
@@ -693,12 +696,64 @@ final class AnalysisViewModel {
     }
   }
 
+  // One-line description of a merge strategy for the demo's dynamic help line,
+  // mirroring the ensemble preset's description. Verified against
+  // `BPMSelectionPolicy.merge`: these policies aggregate candidate SCORES
+  // within 2% BPM clusters, not the BPM values themselves.
+  static func strategyDescription(_ strategy: BPMSelectionPolicy) -> String {
+    switch strategy {
+    case .maxConfidence: return "Uses the highest-confidence window result."
+    case .dedup: return "Clusters near-match BPMs, keeping each cluster's best score."
+    case .quorum: return "Ranks BPM clusters by how many windows contributed."
+    case .average: return "Ranks BPM clusters by average candidate score."
+    case .median: return "Ranks BPM clusters by median candidate score."
+    case .weightedAverage:
+      return "Ranks BPM clusters by confidence-weighted candidate score."
+    case .union: return "Pools all candidates without deduplication, then sorts by score."
+    case .windowVoting:
+      return "Votes by each window's final BPM, falling back when no consensus forms."
+    }
+  }
+
+  // Honest-degradation caption for the ensemble control (Story 9.1 DD7),
+  // extracted as a pure function so it is unit-testable and so the view can
+  // reserve two caption lines via `.lineLimit(2, reservesSpace:)`. Defined
+  // behaviorally from observable state — returns "" when there is nothing to
+  // warn about. `ML augmented` does nothing until a model is attached AND
+  // enabled; `DSP only` short-circuits a loaded + enabled model.
+  static func ensembleDegradationCaption(
+    preset: EnsemblePreset,
+    mlModelName: String?,
+    mlEnabled: Bool
+  ) -> String {
+    switch preset {
+    case .mlAugmented:
+      if mlModelName == nil {
+        return "No model loaded — ML signal is absent until you load one."
+      } else if !mlEnabled {
+        return "Model loaded but \"Use loaded model\" is off — ML signal is absent."
+      }
+      return ""
+    case .dspOnly:
+      if mlModelName != nil, mlEnabled {
+        return "DSP only ignores the loaded model — ML signal is absent."
+      }
+      return ""
+    default:
+      return ""
+    }
+  }
+
   // MARK: - Parameter Controls
 
-  // 5-line copy-pasteable Swift snippet reflecting (intensity,
-  // mergeStrategy, ensemblePreset — Story 9.1). The literal `yourURL`
-  // placeholder is deliberate — the demo does NOT export real sandbox URLs
-  // into copy-paste content. No leading whitespace, no trailing newline.
+  // Copy-pasteable Swift snippet reflecting (intensity, mergeStrategy,
+  // ensemblePreset — Story 9.1). Five lines for the DSP-only preset; the
+  // three ML-invoking presets add a two-line `opts.mlTechnique` attach hint
+  // before the analyze call (Story 9.1 deferred-work edge #4) so the copied
+  // config reproduces the picker's run instead of silently abstaining ML.
+  // The literal `yourURL` / `yourModelURL` placeholders are deliberate — the
+  // demo does NOT export real sandbox URLs into copy-paste content. No
+  // leading whitespace, no trailing newline.
   static func generateConfigSnippet(
     intensity: AnalysisIntensity,
     mergeStrategy: BPMSelectionPolicy,
@@ -712,12 +767,26 @@ final class AnalysisViewModel {
     case 10: intensityLiteral = ".maximum"
     default: intensityLiteral = "AnalysisIntensity(rawValue: \(intensity.rawValue))"
     }
-    let line1 = "var opts = AudioAnalysisService.Options()"
-    let line2 = "opts.intensity = \(intensityLiteral)"
-    let line3 = "opts.mergeStrategy = .\(mergeStrategy.rawValue)"
-    let line4 = "opts.ensemblePolicy = \(ensemblePreset.policyLiteral)"
-    let line5 = "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
-    return "\(line1)\n\(line2)\n\(line3)\n\(line4)\n\(line5)"
+    var lines = [
+      "var opts = AudioAnalysisService.Options()",
+      "opts.intensity = \(intensityLiteral)",
+      "opts.mergeStrategy = .\(mergeStrategy.rawValue)",
+      "opts.ensemblePolicy = \(ensemblePreset.policyLiteral)",
+    ]
+    // An ML-invoking policy is inert without a technique — the ML signal
+    // records as absent and the copied config behaves like a DSP-weighted
+    // run. Emit the attach hint so the paste matches what the picker did.
+    if ensemblePreset.policy.invokesMLInference {
+      lines.append(
+        "// This preset uses the ML signal — attach a model "
+          + "(needs import BoomBoomBoomKitML), or ML abstains:"
+      )
+      lines.append("opts.mlTechnique = try BNNSTechnique(modelURL: yourModelURL)")
+    }
+    lines.append(
+      "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
+    )
+    return lines.joined(separator: "\n")
   }
 
   // `clearContents()` BEFORE `setString` is mandatory per AppKit's

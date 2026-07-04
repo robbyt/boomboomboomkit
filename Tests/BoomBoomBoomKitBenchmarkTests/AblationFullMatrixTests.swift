@@ -412,10 +412,13 @@ struct AblationMatrixTests {
   /// **Implementation note**: production default α=0.7 lives in `BPMAnalyzer.clickRescore`.
   /// This sweep mutates the `CLICK_RESCORE_ALPHA_OVERRIDE` env hook (DEBUG-only, gated in
   /// `BPMAnalyzer.alphaOverride()`) per-iteration with a `defer` cleanup so a thrown
-  /// `runCorpusFromDisk` cannot leak the override into later analyses. The whole sweep
-  /// runs under `.serialized` because env mutation is process-global and would race
-  /// with concurrent click-using tests in the same suite.
-  @Test("α-sweep over .optimal-family combos", .timeLimit(.minutes(10)), .serialized)
+  /// `runCorpusFromDisk` cannot leak the override into later analyses. Env mutation is
+  /// process-global and could race with concurrent click-using tests in the same suite;
+  /// a per-test `.serialized` trait cannot express that (it only affects parameterized
+  /// tests / `@Suite`, so this test previously carried the trait without it doing
+  /// anything), and suite-wide serialization is a larger behavioral tradeoff this
+  /// `ALPHA_SWEEP=1`-gated sweep doesn't currently take on.
+  @Test("α-sweep over .optimal-family combos", .timeLimit(.minutes(10)))
   func alphaSweep() async throws {
     guard ProcessInfo.processInfo.environment["ALPHA_SWEEP"] == "1" else { return }
 
@@ -440,7 +443,7 @@ struct AblationMatrixTests {
 
     print("\n=== α-Sweep over .optimal-family combos ===")
     print("(α-sweep drives BPMAnalyzer via the CLICK_RESCORE_ALPHA_OVERRIDE env hook;")
-    print(" hook is DEBUG-only and serialized; production default α=0.7.)")
+    print(" hook is DEBUG-only; production default α=0.7.)")
 
     for (label, techniqueSet) in combos {
       for alpha in alphas {
