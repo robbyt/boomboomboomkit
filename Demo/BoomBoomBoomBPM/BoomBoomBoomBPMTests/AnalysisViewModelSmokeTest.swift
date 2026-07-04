@@ -68,6 +68,57 @@ struct AnalysisViewModelSmokeTest {
 
   // MARK: - Drop Validator (Story 5-2 DD #11 / DD #13)
 
+  // MARK: - Merge-strategy description + ensemble degradation caption (demo UX)
+
+  @Test("strategyDescription returns the exact line for every BPMSelectionPolicy")
+  @MainActor
+  func strategyDescriptionExactStrings() {
+    let expected: [BPMSelectionPolicy: String] = [
+      .maxConfidence: "Uses the highest-confidence window result.",
+      .dedup: "Clusters near-match BPMs, keeping each cluster's best score.",
+      .quorum: "Ranks BPM clusters by how many windows contributed.",
+      .average: "Ranks BPM clusters by average candidate score.",
+      .median: "Ranks BPM clusters by median candidate score.",
+      .weightedAverage: "Ranks BPM clusters by confidence-weighted candidate score.",
+      .union: "Pools all candidates without deduplication, then sorts by score.",
+      .windowVoting: "Votes by each window's final BPM, falling back when no consensus forms.",
+    ]
+    // Total function: every case present, mapped to its exact documented string.
+    #expect(expected.count == BPMSelectionPolicy.allCases.count)
+    for policy in BPMSelectionPolicy.allCases {
+      #expect(AnalysisViewModel.strategyDescription(policy) == expected[policy])
+    }
+  }
+
+  @Test("ensembleDegradationCaption covers the preset x model-state matrix")
+  @MainActor
+  func ensembleDegradationCaptionMatrix() {
+    let noModel = "No model loaded — ML signal is absent until you load one."
+    let modelOff = "Model loaded but \"Use loaded model\" is off — ML signal is absent."
+    let dspIgnores = "DSP only ignores the loaded model — ML signal is absent."
+
+    func caption(_ preset: EnsemblePreset, _ name: String?, _ enabled: Bool) -> String {
+      AnalysisViewModel.ensembleDegradationCaption(
+        preset: preset, mlModelName: name, mlEnabled: enabled)
+    }
+
+    // ML augmented: warns until a model is loaded AND enabled.
+    #expect(caption(.mlAugmented, nil, false) == noModel)
+    #expect(caption(.mlAugmented, nil, true) == noModel)  // degenerate: enabled, no model
+    #expect(caption(.mlAugmented, "m.mlmodelc", false) == modelOff)
+    #expect(caption(.mlAugmented, "m.mlmodelc", true) == "")
+
+    // DSP only: warns only for a loaded + enabled model (the inverse trap).
+    #expect(caption(.dspOnly, "m.mlmodelc", true) == dspIgnores)
+    #expect(caption(.dspOnly, "m.mlmodelc", false) == "")  // degenerate: loaded but off
+    #expect(caption(.dspOnly, nil, false) == "")
+    #expect(caption(.dspOnly, nil, true) == "")
+
+    // Presets with no honesty caption.
+    #expect(caption(.default, "m.mlmodelc", true) == "")
+    #expect(caption(.trustFileTags, "m.mlmodelc", true) == "")
+  }
+
   @Test("validateDropPayload rejects empty payload")
   @MainActor
   func rejectsEmptyDrop() {

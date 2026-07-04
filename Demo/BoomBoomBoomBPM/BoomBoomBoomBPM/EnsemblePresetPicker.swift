@@ -26,16 +26,21 @@ enum EnsemblePreset: String, CaseIterable, Sendable {
     }
   }
 
-  // REPLACED BY Story 10.5: subtitle becomes a "?" popover wired to Epic 11 docs via BoomBoomBoomKitDocs.attributedString(for:id:)
+  // Inline-authored per-preset description. This IS the standalone description
+  // fragment (there is no runtime em-dash parsing); EnsemblePresetPicker renders
+  // it verbatim as the caption line below the pop-up, updating with the
+  // selection. The "<displayName> — <subtitle>" form is only the joined *test*
+  // contract (`verbatimNamesAndSubtitles`), never a runtime string. The seam is
+  // the text, not the layout.
   //
-  // Inline-authored subtitle line rendered beneath the row title. The
-  // authored contract strings are "<displayName> — <subtitle>" (e.g.
-  // "Default — balanced ensemble"); the title carries the name, so only the
-  // text after the em dash renders here. The seam is the text, not the
-  // layout — Story 10.5 swaps this property for the popover accessor.
+  // NOTE: the earlier plan (Story 10.5) was to replace this with a "?" popover
+  // wired to Epic 11 docs; this inline dynamic description supersedes that for
+  // this control. Story 10.5's popovers may still cover the DSP-technique /
+  // merge-strategy controls.
   var subtitle: String {
     switch self {
-    case .default: return "balanced ensemble"
+    case .default:
+      return "Balanced weighting of DSP, ML, and file-tag signals (the recommended default)."
     case .dspOnly: return "disables ML, fastest"
     case .mlAugmented: return "adds the trained classifier"
     case .trustFileTags: return "prefer ID3/MP4/Vorbis tempo tags"
@@ -82,30 +87,35 @@ enum EnsemblePreset: String, CaseIterable, Sendable {
 
 // MARK: - EnsemblePresetPicker
 
-// Primary-view preset picker (FR-36). Four visible rows — radio group per
-// Apple's two-to-five-options guidance — each with the title and the
-// inline-authored caption. Lives OUTSIDE the inspector per FR-43: it must
-// stay functional with the sidebar closed. No fifth raw-weights row; raw
+// Primary-view preset picker (FR-36). A pop-up menu paired with the Merge
+// strategy control, with a single description line below that updates as the
+// selection changes. Lives OUTSIDE the inspector per FR-43: it must stay
+// functional with the sidebar closed. No fifth raw-weights row; raw
 // per-source weights are sidebar territory (Story 9.2+).
 struct EnsemblePresetPicker: View {
   @Binding var selection: EnsemblePreset
 
   var body: some View {
-    Picker("Ensemble preset", selection: $selection) {
-      ForEach(EnsemblePreset.allCases, id: \.self) { preset in
-        VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 4) {
+      // Menu pop-up (matches the Merge strategy Picker it sits beneath). The
+      // visible "Ensemble" label stands in for the removed GroupBox title.
+      Picker("Ensemble", selection: $selection) {
+        ForEach(EnsemblePreset.allCases, id: \.self) { preset in
+          // Visual menu title stays the terse name; VoiceOver gets the full
+          // "<name>, <description>" so the per-option guidance survives the
+          // radio-group → menu conversion (a11y parity while browsing).
           Text(preset.displayName)
-          Text(preset.subtitle)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .tag(preset)
+            .accessibilityLabel("\(preset.displayName), \(preset.subtitle)")
         }
-        .accessibilityElement(children: .combine)
-        .tag(preset)
       }
+      .pickerStyle(.menu)
+      // Dynamic description — the selected preset's authored subtitle, now a
+      // single caption that updates with the selection instead of four
+      // always-on radio-row captions.
+      Text(selection.subtitle)
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
-    .pickerStyle(.radioGroup)
-    // The enclosing GroupBox("Ensemble") carries the visible section title;
-    // the Picker label stays for accessibility only.
-    .labelsHidden()
   }
 }

@@ -115,14 +115,15 @@ struct EnsemblePresetPickerTests {
     #expect(
       EnsemblePreset.allCases.map(\.subtitle)
         == [
-          "balanced ensemble",
+          "Balanced weighting of DSP, ML, and file-tag signals (the recommended default).",
           "disables ML, fastest",
           "adds the trained classifier",
           "prefer ID3/MP4/Vorbis tempo tags",
         ])
     // The authored AC contract strings, reconstructed exactly.
     let expected: [EnsemblePreset: String] = [
-      .default: "Default — balanced ensemble",
+      .default:
+        "Default — Balanced weighting of DSP, ML, and file-tag signals (the recommended default).",
       .dspOnly: "DSP only — disables ML, fastest",
       .mlAugmented: "ML augmented — adds the trained classifier",
       .trustFileTags: "Trust file tags — prefer ID3/MP4/Vorbis tempo tags",
