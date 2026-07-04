@@ -12,20 +12,29 @@
 # regex blind spots (accepted — the pressure-release valve covers brittleness):
 # a label-less `Text(String(format:...))`/`monoFloat(...)` (the value is in the
 # argument, not the string), an inner-string-literal interpolation, a raw
-# Swift string `#"...\#(...)..."#`, and a THEORETICAL false-positive on a
-# label that FOLLOWS a leading interpolation (`"\(a) confidence: \(b)"`) — none
-# occur in the current demo. These are covered by the render inventory + review.
+# Swift string `#"...\#(...)..."#`, a bare interpolation with an ALPHABETIC unit
+# suffix (`"\(x) dB"` — the trailing-suffix match stops at the first letter to
+# avoid flagging trailing labels), and a THEORETICAL false-positive on a label
+# that FOLLOWS a leading interpolation (`"\(a) confidence: \(b)"`) — none occur
+# in the current demo. These are covered by the render inventory + review. (A
+# NON-alphabetic unit suffix such as `%` IS now caught — Codex PR #88 review.)
 set -euo pipefail
 
 SRC="Demo/BoomBoomBoomBPM/BoomBoomBoomBPM"
 CONTENT_VIEW="$SRC/ContentView.swift"
 
 # A double-quoted Swift string that is a BARE interpolation — starts with `\(`,
-# closes `)"`, no label characters — of a confidence-like value. Wrapper-
-# agnostic (no `Text(` anchor), so it catches `Text("\(x.confidence)")` AND the
-# demo's own `secondaryMetadataRow("\(x.confidence)")` primary-view pattern. A
-# labeled render (`"BPM confidence: \(x)"`) starts with a letter, not `\(`.
-PATTERN='"\\\([^"]*([Cc]onfidence|[Ww]eight|[Ss]oftmax|reliability|[Ss]core|[Ee]ffectiveVote|[Vv]ote)[^"]*\)"'
+# no leading label — of a confidence-like value, optionally followed by a
+# non-alphabetic unit suffix (`%`, whitespace, digits, symbols) before the
+# closing quote. Wrapper-agnostic (no `Text(` anchor), so it catches
+# `Text("\(x.confidence)")`, `Text("\(x.confidence)%")`, AND the demo's own
+# `secondaryMetadataRow("\(x.confidence)")` primary-view pattern. A labeled
+# render (`"BPM confidence: \(x)"`) starts with a letter, not `\(`, so it is not
+# matched. The trailing suffix stops at the first LETTER so an alphabetic unit
+# (`"\(x) dB"`) stays a documented blind spot — a trailing letter could be a
+# legitimate label, and broadening there is the brittleness DD3's pressure-
+# release valve exists for.
+PATTERN='"\\\([^"]*([Cc]onfidence|[Ww]eight|[Ss]oftmax|reliability|[Ss]core|[Ee]ffectiveVote|[Vv]ote)[^"]*\)[^"[:alpha:]]*"'
 
 # The gate must FAIL, never silently pass, if it cannot see what it audits
 # (Codex review: a missing path makes `grep` error, which a naked `if grep`
@@ -41,9 +50,22 @@ fi
 
 # Non-vacuous self-test: the pattern MUST fire on the known-bad forms, or the
 # gate has silently broken (a bad regex edit, a grep-dialect or escaping slip).
-for bad in 'Text("\(row.confidence)")' 'secondaryMetadataRow("\(row.confidence)")'; do
+for bad in \
+  'Text("\(row.confidence)")' \
+  'secondaryMetadataRow("\(row.confidence)")' \
+  'Text("\(row.confidence)%")' \
+  'secondaryMetadataRow("\(row.confidence)%")'; do
   if ! printf '%s\n' "$bad" | grep -qE "$PATTERN"; then
     echo "confidence-label-audit: SELF-TEST FAILED — pattern no longer catches: $bad" >&2
+    exit 2
+  fi
+done
+
+# Negative self-test: the sanctioned leading-label form MUST NOT trip the gate,
+# or a regex edit has introduced a false positive on a correctly-labeled render.
+for ok in 'Text("BPM confidence: \(row.confidence)")'; do
+  if printf '%s\n' "$ok" | grep -qE "$PATTERN"; then
+    echo "confidence-label-audit: SELF-TEST FAILED — pattern false-positives on a labeled render: $ok" >&2
     exit 2
   fi
 done
