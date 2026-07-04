@@ -115,14 +115,15 @@ struct EnsemblePresetPickerTests {
     #expect(
       EnsemblePreset.allCases.map(\.subtitle)
         == [
-          "balanced ensemble",
+          "Balanced weighting of DSP, ML, and file-tag signals (the recommended default).",
           "disables ML, fastest",
           "adds the trained classifier",
           "prefer ID3/MP4/Vorbis tempo tags",
         ])
     // The authored AC contract strings, reconstructed exactly.
     let expected: [EnsemblePreset: String] = [
-      .default: "Default — balanced ensemble",
+      .default:
+        "Default — Balanced weighting of DSP, ML, and file-tag signals (the recommended default).",
       .dspOnly: "DSP only — disables ML, fastest",
       .mlAugmented: "ML augmented — adds the trained classifier",
       .trustFileTags: "Trust file tags — prefer ID3/MP4/Vorbis tempo tags",
@@ -215,6 +216,35 @@ struct EnsemblePresetPickerTests {
     #expect(viewModel.selectedEnsemblePreset == .default)
     // On disk: the bad key has been removed (self-heal contract).
     #expect(defaults.string(forKey: AnalysisViewModel.preferredEnsemblePresetKey) == nil)
+  }
+
+  // Non-String, non-coercible stored value (an array) — `string(forKey:)`
+  // returns nil for it (unlike an NSNumber, which coerces and already
+  // self-heals), so the pre-fix hydrate took the absent branch and left the
+  // poison value on disk to be silently ignored on every launch. Self-heal
+  // must remove it (fixed for BOTH preference keys together). Edge #1.
+  @Test("hydrate self-heals on a non-String, non-coercible stored value")
+  @MainActor
+  func hydrateSelfHealsNonStringValue() throws {
+    let suiteName = "com.robbyt.BoomBoomBoomBPMTests.preset.nonstring"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { Self.cleanUp(suiteName) }
+    defaults.set(["not-a-preset"], forKey: AnalysisViewModel.preferredEnsemblePresetKey)
+    // Sanity: present as an object, but NOT readable as a String.
+    #expect(defaults.object(forKey: AnalysisViewModel.preferredEnsemblePresetKey) != nil)
+    #expect(defaults.string(forKey: AnalysisViewModel.preferredEnsemblePresetKey) == nil)
+
+    let viewModel = AnalysisViewModel(
+      configuration: AnalysisViewModel.Configuration(
+        defaults: defaults,
+        fallbackStrategy: .quorum
+      )
+    )
+
+    // In-memory: fell back to the configured default.
+    #expect(viewModel.selectedEnsemblePreset == .default)
+    // On disk: the poison value is GONE (not merely unreadable as a String).
+    #expect(defaults.object(forKey: AnalysisViewModel.preferredEnsemblePresetKey) == nil)
   }
 
   @Test("preset persistence neither overwrites nor self-heals the merge-strategy key")

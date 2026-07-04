@@ -68,6 +68,57 @@ struct AnalysisViewModelSmokeTest {
 
   // MARK: - Drop Validator (Story 5-2 DD #11 / DD #13)
 
+  // MARK: - Merge-strategy description + ensemble degradation caption (demo UX)
+
+  @Test("strategyDescription returns the exact line for every BPMSelectionPolicy")
+  @MainActor
+  func strategyDescriptionExactStrings() {
+    let expected: [BPMSelectionPolicy: String] = [
+      .maxConfidence: "Uses the highest-confidence window result.",
+      .dedup: "Clusters near-match BPMs, keeping each cluster's best score.",
+      .quorum: "Ranks BPM clusters by how many windows contributed.",
+      .average: "Ranks BPM clusters by average candidate score.",
+      .median: "Ranks BPM clusters by median candidate score.",
+      .weightedAverage: "Ranks BPM clusters by confidence-weighted candidate score.",
+      .union: "Pools all candidates without deduplication, then sorts by score.",
+      .windowVoting: "Votes by each window's final BPM, falling back when no consensus forms.",
+    ]
+    // Total function: every case present, mapped to its exact documented string.
+    #expect(expected.count == BPMSelectionPolicy.allCases.count)
+    for policy in BPMSelectionPolicy.allCases {
+      #expect(AnalysisViewModel.strategyDescription(policy) == expected[policy])
+    }
+  }
+
+  @Test("ensembleDegradationCaption covers the preset x model-state matrix")
+  @MainActor
+  func ensembleDegradationCaptionMatrix() {
+    let noModel = "No model loaded — ML signal is absent until you load one."
+    let modelOff = "Model loaded but \"Use loaded model\" is off — ML signal is absent."
+    let dspIgnores = "DSP only ignores the loaded model — ML signal is absent."
+
+    func caption(_ preset: EnsemblePreset, _ name: String?, _ enabled: Bool) -> String {
+      AnalysisViewModel.ensembleDegradationCaption(
+        preset: preset, mlModelName: name, mlEnabled: enabled)
+    }
+
+    // ML augmented: warns until a model is loaded AND enabled.
+    #expect(caption(.mlAugmented, nil, false) == noModel)
+    #expect(caption(.mlAugmented, nil, true) == noModel)  // degenerate: enabled, no model
+    #expect(caption(.mlAugmented, "m.mlmodelc", false) == modelOff)
+    #expect(caption(.mlAugmented, "m.mlmodelc", true) == "")
+
+    // DSP only: warns only for a loaded + enabled model (the inverse trap).
+    #expect(caption(.dspOnly, "m.mlmodelc", true) == dspIgnores)
+    #expect(caption(.dspOnly, "m.mlmodelc", false) == "")  // degenerate: loaded but off
+    #expect(caption(.dspOnly, nil, false) == "")
+    #expect(caption(.dspOnly, nil, true) == "")
+
+    // Presets with no honesty caption.
+    #expect(caption(.default, "m.mlmodelc", true) == "")
+    #expect(caption(.trustFileTags, "m.mlmodelc", true) == "")
+  }
+
   @Test("validateDropPayload rejects empty payload")
   @MainActor
   func rejectsEmptyDrop() {
@@ -181,16 +232,19 @@ struct AnalysisViewModelSmokeTest {
   )
   @MainActor
   func generateConfigSnippetIntensityFormatting(_ raw: Int, _ expectedLiteral: String) {
+    // `.dspOnly` keeps this a clean 5-line assertion focused on intensity —
+    // the ML-invoking presets add the mlTechnique attach hint (covered by
+    // `generateConfigSnippetShapeMLInvoking`), which is orthogonal here.
     let snippet = AnalysisViewModel.generateConfigSnippet(
       intensity: AnalysisIntensity(rawValue: raw),
       mergeStrategy: .maxConfidence,
-      ensemblePreset: .default
+      ensemblePreset: .dspOnly
     )
     let expected = [
       "var opts = AudioAnalysisService.Options()",
       "opts.intensity = \(expectedLiteral)",
       "opts.mergeStrategy = .maxConfidence",
-      "opts.ensemblePolicy = .default",
+      "opts.ensemblePolicy = .dspOnly",
       "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)",
     ].joined(separator: "\n")
     #expect(snippet == expected)
@@ -229,25 +283,52 @@ struct AnalysisViewModelSmokeTest {
     #expect(snippet.contains("opts.ensemblePolicy = \(preset.policyLiteral)"))
   }
 
-  // Snippet shape sanity per DD #7 + AC #10 Task 3.3 (grown to 5 lines by
-  // Story 9.1's ensemblePolicy line): contains literal `yourURL`, contains
-  // `try AudioAnalysisService.analyzeBPM`, no leading/trailing whitespace,
-  // last line shape.
-  @Test("generateConfigSnippet shape: 5 lines, yourURL placeholder, no surrounding whitespace")
+  // Snippet shape sanity per DD #7 + AC #10 Task 3.3. The DSP-only preset
+  // stays 5 lines (no ML hint); it does NOT emit an `opts.mlTechnique` line.
+  @Test("generateConfigSnippet shape (DSP only): 5 lines, no ML hint, no surrounding whitespace")
   @MainActor
-  func generateConfigSnippetShape() {
+  func generateConfigSnippetShapeDSPOnly() {
     let snippet = AnalysisViewModel.generateConfigSnippet(
       intensity: .default,
       mergeStrategy: .maxConfidence,
-      ensemblePreset: .default
+      ensemblePreset: .dspOnly
     )
     let lines = snippet.components(separatedBy: "\n")
     #expect(lines.count == 5)
     #expect(snippet.contains("yourURL"))
+    #expect(!snippet.contains("opts.mlTechnique"))
     #expect(snippet.contains("try AudioAnalysisService.analyzeBPM"))
     #expect(!snippet.hasPrefix(" "))
     #expect(!snippet.hasPrefix("\n"))
     #expect(!snippet.hasSuffix(" "))
+    #expect(!snippet.hasSuffix("\n"))
+    #expect(
+      lines.last == "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
+    )
+  }
+
+  // The three ML-invoking presets add a two-line attach hint (comment +
+  // `opts.mlTechnique`) BEFORE the analyze call (Story 9.1 deferred-work
+  // edge #4). Seven lines total; the mlTechnique line precedes analyzeBPM so
+  // the paste executes top-to-bottom.
+  @Test(
+    "generateConfigSnippet shape (ML-invoking presets): 7 lines with mlTechnique attach hint",
+    arguments: [EnsemblePreset.default, .mlAugmented, .trustFileTags]
+  )
+  @MainActor
+  func generateConfigSnippetShapeMLInvoking(_ preset: EnsemblePreset) {
+    // Guard the fixture: these three presets MUST invoke ML for the 7-line
+    // shape to hold; a mapping change that flips one would surface here.
+    #expect(preset.policy.invokesMLInference)
+    let snippet = AnalysisViewModel.generateConfigSnippet(
+      intensity: .default,
+      mergeStrategy: .maxConfidence,
+      ensemblePreset: preset
+    )
+    let lines = snippet.components(separatedBy: "\n")
+    #expect(lines.count == 7)
+    #expect(snippet.contains("opts.mlTechnique = try BNNSTechnique(modelURL: yourModelURL)"))
+    #expect(snippet.contains("import BoomBoomBoomKitML"))
     #expect(!snippet.hasSuffix("\n"))
     #expect(
       lines.last == "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"

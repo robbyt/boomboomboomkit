@@ -64,7 +64,6 @@ struct ContentView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         bannerView
         beatGridSection
-        ensembleSection
         controlsSection
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -225,50 +224,6 @@ struct ContentView: View {
     }
   }
 
-  // Story 9.1 (FR-36): the ensemble preset is the demo's headline consumer
-  // control — its own GroupBox ABOVE Parameters, not a ninth knob inside
-  // it. Primary view per FR-43: functional with the inspector closed.
-  @ViewBuilder
-  private var ensembleSection: some View {
-    GroupBox("Ensemble") {
-      VStack(alignment: .leading, spacing: 8) {
-        EnsemblePresetPicker(selection: $viewModel.selectedEnsemblePreset)
-          // Preset changes never touch `options.mergeStrategy`, so the
-          // merge-strategy Picker's `.onChange` cannot cascade — one
-          // persist + one re-analyze per user selection (Story 9.1 DD5).
-          .onChange(of: viewModel.selectedEnsemblePreset) { _, _ in
-            viewModel.persistPreferredEnsemblePreset()
-            triggerReanalyze()
-          }
-        // Honest degradation (Story 9.1 DD7): `ML augmented` does nothing
-        // until a model is attached AND enabled. Keyed off the public
-        // observables (`mlModelName` / `mlEnabled`) — `mlTechnique` is
-        // private by design.
-        if viewModel.selectedEnsemblePreset == .mlAugmented {
-          if viewModel.mlModelName == nil {
-            Text("No model loaded — ML signal is absent until you load one.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          } else if !viewModel.mlEnabled {
-            Text("Model loaded but \"Use loaded model\" is off — ML signal is absent.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-        } else if viewModel.selectedEnsemblePreset == .dspOnly,
-          viewModel.mlModelName != nil, viewModel.mlEnabled
-        {
-          // Mirror of the DD7 honesty rule for the inverse trap: a loaded +
-          // enabled model under `DSP only` is short-circuited by the
-          // library's operation-inert contract (code-review follow-up).
-          Text("DSP only ignores the loaded model — ML signal is absent.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
-    }
-  }
-
   @ViewBuilder
   private var controlsSection: some View {
     GroupBox("Parameters") {
@@ -344,47 +299,71 @@ struct ContentView: View {
           viewModel.persistPreferredMergeStrategy()
           triggerReanalyze()
         }
+        // One-line help mirroring the ensemble control — updates with the
+        // selected policy.
+        Text(AnalysisViewModel.strategyDescription(viewModel.options.mergeStrategy))
+          .font(.caption)
+          .foregroundStyle(.secondary)
 
-        // BYOW ML (Epic 7; preset-governed since Story 9.1): load a compiled
-        // `.mlmodelc` and attach it to the run — the ensemble preset's
-        // policy governs how it participates. Toggle off keeps ML absent.
-        // The toggle appears once a model is loaded; flipping it re-analyzes
-        // the current file.
-        VStack(alignment: .leading, spacing: 4) {
+        Divider()
+
+        // Ensemble preset — governs how DSP / ML / metadata votes combine.
+        // Placed directly beneath Merge strategy so the two "how signals
+        // combine" controls read together (demo UX relayout, post-9.1). Preset
+        // changes never touch `options.mergeStrategy`, so the merge-strategy
+        // Picker's `.onChange` cannot cascade — one persist + one re-analyze
+        // per selection (the no-cascade rule from Story 9.1 DD5).
+        EnsemblePresetPicker(selection: $viewModel.selectedEnsemblePreset)
+          .onChange(of: viewModel.selectedEnsemblePreset) { _, _ in
+            viewModel.persistPreferredEnsemblePreset()
+            triggerReanalyze()
+          }
+        // Honest degradation (Story 9.1 DD7): `ML augmented` / `DSP only` warn
+        // when the loaded-model state makes the ML signal absent. Consolidated
+        // into one pure helper and reserved at two lines so switching presets
+        // never shifts the divider/buttons below.
+        Text(
+          AnalysisViewModel.ensembleDegradationCaption(
+            preset: viewModel.selectedEnsemblePreset,
+            mlModelName: viewModel.mlModelName,
+            mlEnabled: viewModel.mlEnabled)
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(2, reservesSpace: true)
+
+        Divider()
+
+        // BYOW ML (Epic 7; preset-governed since Story 9.1): the "Use loaded
+        // model" toggle + model name form a status line shown once a model is
+        // loaded. `mlModelError` is rendered independently so a failed load is
+        // never swallowed. The `Load Model…` button lives in the action row
+        // below, next to Copy Config.
+        if let name = viewModel.mlModelName {
           HStack(spacing: 8) {
-            Button("Load Model…") {
-              if viewModel.pickAndLoadMLModel() {
+            Toggle("Use loaded model", isOn: $viewModel.mlEnabled)
+              .toggleStyle(.switch)
+              .onChange(of: viewModel.mlEnabled) { _, _ in
                 triggerReanalyze()
               }
-            }
-            .buttonStyle(.bordered)
-            if viewModel.mlModelName != nil {
-              Toggle("Use loaded model", isOn: $viewModel.mlEnabled)
-                .toggleStyle(.switch)
-                .onChange(of: viewModel.mlEnabled) { _, _ in
-                  triggerReanalyze()
-                }
-            }
-          }
-          if let name = viewModel.mlModelName {
             Text("Model: \(name)")
               .font(.caption)
               .foregroundStyle(.secondary)
               .lineLimit(1)
               .truncationMode(.middle)
           }
-          if let mlError = viewModel.mlModelError {
-            Text(mlError)
-              .font(.caption)
-              .foregroundStyle(.red)
-              .lineLimit(2)
-          }
+        }
+        if let mlError = viewModel.mlModelError {
+          Text(mlError)
+            .font(.caption)
+            .foregroundStyle(.red)
+            .lineLimit(2)
         }
 
-        // Cancel / Re-analyze / Copy Config / Export Trace.
-        // Cancel + Re-analyze are mutually exclusive (analyzing vs
-        // idle); Copy Config is always visible; Export Trace requires
-        // a populated snapshot.
+        // Bottom action row: Cancel / Re-analyze │ Load Model… / Copy Config /
+        // Export Trace. Cancel + Re-analyze are mutually exclusive (analyzing
+        // vs idle); Load Model… + Copy Config are always visible; Export Trace
+        // requires a populated snapshot.
         HStack(spacing: 8) {
           if viewModel.isAnalyzing {
             Button(viewModel.isCancelling ? "Cancelling…" : "Cancel") {
@@ -399,6 +378,12 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             Divider().frame(height: 16)
           }
+          Button("Load Model…") {
+            if viewModel.pickAndLoadMLModel() {
+              triggerReanalyze()
+            }
+          }
+          .buttonStyle(.bordered)
           Button("Copy Config") {
             viewModel.copyConfigToPasteboard()
           }
@@ -529,7 +514,8 @@ struct ContentView: View {
 
       VStack(alignment: .trailing, spacing: 4) {
         secondaryMetadataRow(row.fileName)
-        secondaryMetadataRow("Confidence: \(row.confidence)")
+        // TODO(Epic 11): align with KDD-E8 style guide
+        secondaryMetadataRow("BPM confidence: \(row.confidence)")
         secondaryMetadataRow("Elapsed: \(row.elapsed)")
       }
       .font(.callout)

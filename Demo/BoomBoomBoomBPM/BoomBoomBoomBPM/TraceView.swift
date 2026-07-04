@@ -30,6 +30,7 @@ struct TraceView: View {
         disambiguationSection
         fineGridSection
         metadataSection
+        signalPoolSection
         mlSection
       }
       .padding()
@@ -235,40 +236,37 @@ struct TraceView: View {
     }
   }
 
-  // MARK: - Section 8: ML ensemble
+  // MARK: - Section 8: Signal pool
+
+  // FR-41 / Story 9.2: the sortable per-signal participation table. Replaces the
+  // former on-screen ensemble-decision summary block (previously inside the ML
+  // section) as the sidebar's ensemble-audit surface; the weighted resolution
+  // the demo's presets actually emit is rendered by the table's summary line.
+  @ViewBuilder
+  private var signalPoolSection: some View {
+    GroupBox("Signal pool") {
+      SignalPoolDiagnosticTable(
+        entries: snapshot.trace.signalParticipationTrace,
+        resolution: snapshot.trace.ensembleWeightResolution,
+        selectedBPM: snapshot.trace.ensembleWeightResolution?.selectedBPM ?? snapshot.result.bpm
+      )
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  // MARK: - Section 9: ML ensemble
 
   @ViewBuilder
   private var mlSection: some View {
     let trace = snapshot.trace
     let hasAnyML =
-      trace.ensembleDecision != nil
-      || trace.mlDiagnosticSnapshot != nil
+      trace.mlDiagnosticSnapshot != nil
       || trace.mlFeatures != nil
     GroupBox("ML ensemble") {
       VStack(alignment: .leading, spacing: 4) {
         if !hasAnyML {
           Text("(ML not active)").foregroundStyle(.secondary)
         } else {
-          if let decision = trace.ensembleDecision {
-            LabeledContent("Policy", value: decision.policy.stableKey)
-            LabeledContent("Winner", value: decision.winner.rawValue)
-            LabeledContent("DSP confidence") {
-              monoFloat(Double(decision.dspConfidence), digits: 4)
-            }
-            if let mlConf = decision.mlConfidence {
-              LabeledContent("ML confidence") {
-                monoFloat(Double(mlConf), digits: 4)
-              }
-            }
-            LabeledContent("ML abstained", value: decision.mlAbstained ? "yes" : "no")
-            LabeledContent("Selected BPM") {
-              monoFloat(decision.selectedBPM, digits: 2)
-            }
-          } else {
-            Text("(ensemble decision absent — ML abstained pre-ensemble)")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
           if let diag = trace.mlDiagnosticSnapshot {
             mlDiagnosticRows(diag)
           }

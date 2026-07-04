@@ -147,7 +147,7 @@ struct LUFSAnalyzer {
 
     // Task 1.5: Guard against unsupported sample rates
     guard let filterCoeffs = coefficients[Int(sampleRate)] else {
-      // TODO: bilinear transform derivation for arbitrary rates
+      // Bilinear transform derivation for arbitrary rates is not yet implemented.
       return nil
     }
 

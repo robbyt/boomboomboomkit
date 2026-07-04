@@ -123,4 +123,35 @@ struct MergeStrategyPersistenceTests {
     // On disk: the bad key has been removed (self-heal contract).
     #expect(defaults.string(forKey: AnalysisViewModel.preferredMergeStrategyKey) == nil)
   }
+
+  // (5) Non-String, non-coercible stored value (e.g. an array from a stray
+  // `defaults write -array`) — `string(forKey:)` returns nil for it (unlike
+  // an NSNumber, which coerces to its string form and already self-heals via
+  // case #4). Pre-fix, this took the absent branch and left the poison value
+  // on disk to be silently ignored on every launch. Self-heal must remove it.
+  // Presence is asserted via `object(forKey:)`, not `string(forKey:)` (which
+  // is already nil here). Deferred-work edge #1.
+  @Test("hydrate self-heals on a non-String, non-coercible stored value")
+  @MainActor
+  func hydrateSelfHealsNonStringValue() throws {
+    let suiteName = "com.robbyt.BoomBoomBoomBPMTests.persist.nonstring"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+    defaults.set(["not-a-strategy"], forKey: AnalysisViewModel.preferredMergeStrategyKey)
+    // Sanity: present as an object, but NOT readable as a String.
+    #expect(defaults.object(forKey: AnalysisViewModel.preferredMergeStrategyKey) != nil)
+    #expect(defaults.string(forKey: AnalysisViewModel.preferredMergeStrategyKey) == nil)
+
+    let viewModel = AnalysisViewModel(
+      configuration: AnalysisViewModel.Configuration(
+        defaults: defaults,
+        fallbackStrategy: .quorum
+      )
+    )
+
+    // In-memory: fell back to the configured default.
+    #expect(viewModel.options.mergeStrategy == .quorum)
+    // On disk: the poison value is GONE (not merely unreadable as a String).
+    #expect(defaults.object(forKey: AnalysisViewModel.preferredMergeStrategyKey) == nil)
+  }
 }
