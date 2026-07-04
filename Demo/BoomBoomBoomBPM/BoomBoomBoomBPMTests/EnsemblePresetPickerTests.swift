@@ -218,6 +218,35 @@ struct EnsemblePresetPickerTests {
     #expect(defaults.string(forKey: AnalysisViewModel.preferredEnsemblePresetKey) == nil)
   }
 
+  // Non-String, non-coercible stored value (an array) — `string(forKey:)`
+  // returns nil for it (unlike an NSNumber, which coerces and already
+  // self-heals), so the pre-fix hydrate took the absent branch and left the
+  // poison value on disk to be silently ignored on every launch. Self-heal
+  // must remove it (fixed for BOTH preference keys together). Edge #1.
+  @Test("hydrate self-heals on a non-String, non-coercible stored value")
+  @MainActor
+  func hydrateSelfHealsNonStringValue() throws {
+    let suiteName = "com.robbyt.BoomBoomBoomBPMTests.preset.nonstring"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { Self.cleanUp(suiteName) }
+    defaults.set(["not-a-preset"], forKey: AnalysisViewModel.preferredEnsemblePresetKey)
+    // Sanity: present as an object, but NOT readable as a String.
+    #expect(defaults.object(forKey: AnalysisViewModel.preferredEnsemblePresetKey) != nil)
+    #expect(defaults.string(forKey: AnalysisViewModel.preferredEnsemblePresetKey) == nil)
+
+    let viewModel = AnalysisViewModel(
+      configuration: AnalysisViewModel.Configuration(
+        defaults: defaults,
+        fallbackStrategy: .quorum
+      )
+    )
+
+    // In-memory: fell back to the configured default.
+    #expect(viewModel.selectedEnsemblePreset == .default)
+    // On disk: the poison value is GONE (not merely unreadable as a String).
+    #expect(defaults.object(forKey: AnalysisViewModel.preferredEnsemblePresetKey) == nil)
+  }
+
   @Test("preset persistence neither overwrites nor self-heals the merge-strategy key")
   @MainActor
   func dualPreferenceIsolation() throws {
