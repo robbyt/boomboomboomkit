@@ -26,6 +26,7 @@ partyModeAmendmentsApplied:
   - '2026-05-26: Codex-blessed iteration-leak mitigation (thread 019e6662-22ab-7451-957e-ae93b0cb1a6e). Story 7.6 grows N=3 FR-18 re-run governance tripwire with deviation log at _bmad-output/implementation-artifacts/7-6-fr18-rerun-log.md. Story 7.7 grows held-out GiantSteps slice of n=150 tracks (Codex preferred over Mary suggested 50) with stratified-by-tempo-band + stratified-by-style-label selection; sealed locally with committed selection-script + seed + SHA256 manifest digest; iteration-leak tripwire fires at gap ≥ 8 Acc1 points. ACs added to Stories 7.6 + 7.7; no new Story 7.8 needed per Codex verdict.'
   - '2026-05-26: JAMS (JSON Annotated Music Specification, marl/jams, ISC) + mir_eval adopted for ground-truth annotation artifacts. Story 8.7 updated: F-measure via mir_eval.beat.f_measure (Python sidecar, develop-only Python dep), daw-oracle-beats.json emits JAMS natively, Swift JAMS decoder lands at Tests/BoomBoomBoomKitBenchmarkTests/Helpers/JAMSDecoder.swift (~100-150 LOC). Story 8.8 added: one-time migration of daw-oracle.json + oa300-ground-truth.json + 4-dnb-triplet-targets.json to JAMS shape via make oracle-migrate-to-jams. Python jams + mir_eval deps added to _bmad-output/ml-training/pyproject.toml (develop-only, NOT shipped to main).'
   - '2026-05-26: Global valve artifact-path pass — every Pressure-release valve in the file that proposes a deviation now cites _bmad-output/implementation-artifacts/<story>-pressure-release.md as documentation target. 13 valves updated; 11 already cited; 10 say None. Closes audit-trail hole flagged by Amelia #6.'
+  - '2026-07-07: Epic 10 prep party-mode review (John, Winston, Sally, Amelia, Gloria) — operator robbyt directing. Three decisions. (1) Story order = build order: the only Epic 10 inversion was 10.1 (ModelPickerView) consuming 10.2 (BookmarkPersistence), so the two were swapped — BookmarkPersistence is now 10.1, ModelPickerView 10.2 — and the epic runs chronologically 10.1→10.5 with every dep satisfied per step. Cross-refs + pressure-release filenames flipped with the numbers. (2) Story 10.2 folds Epic 9 retro action AI-3: relocate the grandfathered primary-view "Load Model…" button into the picker sheet, restoring FR-43. (3) DocumentedCase seam: robbyt chose scope-into-10.5 over pull-Epic-11-forward. Because DocumentedCase is a LIBRARY protocol (Story 11.1, KDD-E1 one-protocol cap), 10.5 declares a demo-local descriptor protocol bridged to Epic 11 by string docID (not shared type) — Epic 10 now has zero compile-time Epic 11 dependency; docs content still degrades via FR-42. Epic 9 (in-progress, held only by operator GUI smokes) is NOT a blocker: full-speed on Epic 10 per operator. No sprint-status story-keys seeded yet.'
   - '2026-05-30: Epic 7 runtime-gate reconciliation (Epic 6 retro Action Item A1). The genuine KDD-A6 Stage 3 semantic flip + KDD-A5 activation landed in Story 6.5b, not Story 6.4 — 6.4b was byte-inert prep and FR-1/2/6/7 were reallocated to 6.5 on 2026-05-29 (see the Story 6.4/6.5 sections at the merge-flip text). The Epic 7 FR-18 runtime-stability gates (dependency preamble bullet 3, dependency diagram, Epic 7 stories preamble, Story 7.5 precondition AC, Story 7.6 want-statement) are repointed Story 6.4 to Story 6.5b. Guardrail (2) feature-config reference is corrected Story 6.4 to Story 6.2 (the mel/FFT/log feature shape freezes in 6.2, consumed unchanged by the 6.5b runtime). The 2026-05-26 entries above are kept as the historical record of what was decided at the time. No code change; epics.md + architecture.md doc-only. Also corrected architecture.md residual drift: SignalParticipationTraceEntry Hashable drop, MLExecutionPolicy non-allCases case-coverage invariant, and the BPMSelectionPolicy/OctaveEquivalencePolicy invariant-test file pointers.'
 ---
 
@@ -1357,37 +1358,9 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 ## Epic 10: Demo integration — beat-grid + LUFS + model selection + popovers (stories)
 
-5 stories wire the Epic 8 surface (`BeatGrid`, `BeatTimestamp`, `DownbeatResult`, `LUFSReport`, `ModelRegistry`) and Epic 11 docs accessor (`BoomBoomBoomKitDocs.attributedString(for:id:)`) into the `Demo/BoomBoomBoomBPM/` Xcode app. FR-44 confidence-label discipline (from Story 9.3) applies throughout; FR-42 graceful degradation ensures Epic 10 can ship before Epic 11 closes.
+5 stories wire the Epic 8 surface (`BeatGrid`, `BeatTimestamp`, `DownbeatResult`, `LUFSReport`, `ModelRegistry`) and Epic 11 docs accessor (`BoomBoomBoomKitDocs.attributedString(for:id:)`) into the `Demo/BoomBoomBoomBPM/` Xcode app. FR-44 confidence-label discipline (from Story 9.3) applies throughout; FR-42 graceful degradation ensures Epic 10 can ship before Epic 11 closes. **Story order = build order (renumbered 2026-07-07):** the only cross-story dependency is 10.2 (ModelPickerView) consuming 10.1 (BookmarkPersistence), so the numbering was swapped to run top-to-bottom with every dependency satisfied at each step — `10.1 → 10.2 → 10.3 → 10.4 → 10.5`. Epic 10 has **zero compile-time dependency on Epic 11**: Story 10.5 declares a demo-local descriptor protocol bridged to Epic 11's library `DocumentedCase` by string `docID` (not shared type), and the docs *content* degrades via FR-42.
 
-### Story 10.1: ModelPickerView — registry-backed model selection
-
-**As a** demo user evaluating BoomBoomBoomKit's ML augmentation,
-**I want** to pick an ML model from a list of registry entries (bundled + known-public references + previously-added) or add a new one via file picker,
-**So that** I can compare model behavior across runs without rebuilding the app.
-
-**Acceptance Criteria:**
-
-**Given** the demo launches with no user-added models,
-**When** the user opens the model picker sheet from the main window,
-**Then** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/ModelPickerView.swift` renders a SwiftUI `List` populated by `ModelRegistry.allEntries()` (Epic 8 dependency — story spec cites the upstream `ModelRegistry` API), with each row showing the entry's display name, source category (`Bundled` / `Known-public` / `User-added`), and a labeled integrity status string (e.g., `Integrity: verified` — bare booleans/numerics are FR-44 violations).
-
-**Given** the picker sheet is open,
-**When** the user taps "Add model from disk…",
-**Then** the view presents an `NSOpenPanel` constrained to `.mlmodelc` bundles and `.mlmodel` files, and on selection invokes `BookmarkPersistence.store(url:)` from Story 10.2 before appending the resolved entry to the registry's user-added slot.
-
-**Given** a registry entry is highlighted,
-**When** the user taps "Use this model",
-**Then** the demo's analysis service options carry the resolved URL on the next `analyzeBPM(url:options:)` invocation, and the picker dismisses; the previously selected entry is visually marked with a labeled `Selected: yes` indicator.
-
-**Given** `ModelRegistry` returns an empty list (no bundled, no known-public, no user adds),
-**When** the picker sheet opens,
-**Then** the view renders a non-empty-state explanatory panel ("No models available — add one to begin"), and the "Use this model" button is disabled with a labeled rationale (`Reason: no-models-available`).
-
-**FRs covered:** FR-37.
-**KDDs implemented:** None directly (composes Epic 8's `ModelRegistry`).
-**Pressure-release valve:** If `ModelRegistry` from Epic 8 lands late, ship a stub registry that surfaces only the file-picker path; document the dependency in the story implementation artifact and reopen the AC once Epic 8 closes. Document the deviation in `_bmad-output/implementation-artifacts/10-1-pressure-release.md`.
-
-### Story 10.2: BookmarkPersistence — security-scoped bookmarks across launches
+### Story 10.1: BookmarkPersistence — security-scoped bookmarks across launches
 
 **As a** demo developer ensuring user-added models survive app restarts,
 **I want** a `BookmarkPersistence` helper that stores security-scoped bookmark `Data` in `UserDefaults` and resolves them on launch,
@@ -1399,7 +1372,7 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 **When** the operator inspects `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements`,
 **Then** all three keys are present and `true`: `com.apple.security.app-sandbox` (per NFR-9), `com.apple.security.files.user-selected.read-only`, AND `com.apple.security.files.bookmarks.app-scope` — the third is the one developers commonly forget; the story spec explicitly enumerates it so the implementation cannot silently omit it.
 
-**Given** the user picks a model file via the Story 10.1 file picker,
+**Given** the user picks a model file via the Story 10.2 file picker,
 **When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift` calls `URL.bookmarkData(options: .withSecurityScope, …)`,
 **Then** the resulting `Data` is stored under `UserDefaults.standard` keyed by a stable user-added-model UUID, mirroring the `MergeStrategyPersistence` precedent from Story 5-6 (KDD-D3); no Keychain, no file-system sidecar, no JSON wrappers.
 
@@ -1413,7 +1386,39 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **FRs covered:** FR-38.
 **KDDs implemented:** D3.
-**Pressure-release valve:** If `URL.bookmarkData(options: .withSecurityScope, …)` proves unstable for `.mlmodelc` directory bundles specifically, fall back to storing the parent directory bookmark and reconstructing the bundle path on resolve; do not abandon security scope. Document the deviation in `_bmad-output/implementation-artifacts/10-2-pressure-release.md`.
+**Pressure-release valve:** If `URL.bookmarkData(options: .withSecurityScope, …)` proves unstable for `.mlmodelc` directory bundles specifically, fall back to storing the parent directory bookmark and reconstructing the bundle path on resolve; do not abandon security scope. Document the deviation in `_bmad-output/implementation-artifacts/10-1-pressure-release.md`.
+
+### Story 10.2: ModelPickerView — registry-backed model selection
+
+**As a** demo user evaluating BoomBoomBoomKit's ML augmentation,
+**I want** to pick an ML model from a list of registry entries (bundled + known-public references + previously-added) or add a new one via file picker,
+**So that** I can compare model behavior across runs without rebuilding the app.
+
+**Acceptance Criteria:**
+
+**Given** the demo launches with no user-added models,
+**When** the user opens the model picker sheet from the main window,
+**Then** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/ModelPickerView.swift` renders a SwiftUI `List` populated by `ModelRegistry.allEntries()` (Epic 8 dependency — story spec cites the upstream `ModelRegistry` API), with each row showing the entry's display name, source category (`Bundled` / `Known-public` / `User-added`), and a labeled integrity status string (e.g., `Integrity: verified` — bare booleans/numerics are FR-44 violations).
+
+**Given** the picker sheet is open,
+**When** the user taps "Add model from disk…",
+**Then** the view presents an `NSOpenPanel` constrained to `.mlmodelc` bundles and `.mlmodel` files, and on selection invokes `BookmarkPersistence.store(url:)` from Story 10.1 before appending the resolved entry to the registry's user-added slot.
+
+**Given** a registry entry is highlighted,
+**When** the user taps "Use this model",
+**Then** the demo's analysis service options carry the resolved URL on the next `analyzeBPM(url:options:)` invocation, and the picker dismisses; the previously selected entry is visually marked with a labeled `Selected: yes` indicator.
+
+**Given** `ModelRegistry` returns an empty list (no bundled, no known-public, no user adds),
+**When** the picker sheet opens,
+**Then** the view renders a non-empty-state explanatory panel ("No models available — add one to begin"), and the "Use this model" button is disabled with a labeled rationale (`Reason: no-models-available`).
+
+**Given** the current demo grandfathers a "Load Model…" button into the primary view (Story 9.3 decision D1),
+**When** Story 10.2 lands the model-picker sheet,
+**Then** that primary-view "Load Model…" affordance is relocated into the picker sheet (Epic 9 retrospective action AI-3), restoring the FR-43 "primary stays primary" surface that 9.3 grandfathered.
+
+**FRs covered:** FR-37.
+**KDDs implemented:** None directly (composes Epic 8's `ModelRegistry`).
+**Pressure-release valve:** If `ModelRegistry` from Epic 8 lands late, ship a stub registry that surfaces only the file-picker path; document the dependency in the story implementation artifact and reopen the AC once Epic 8 closes. Document the deviation in `_bmad-output/implementation-artifacts/10-2-pressure-release.md`.
 
 ### Story 10.3: BeatGridTimelineView — Canvas-based timeline + text readout
 
@@ -1483,17 +1488,17 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **Acceptance Criteria:**
 
-**Given** the `HelpButton` type is being designed,
+**Given** `DocumentedCase` is a **library** protocol Epic 11's Story 11.1 declares (KDD-E1 caps the family at one protocol, pre-1.0) — so Epic 10 must NOT compile-depend on it,
 **When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/HelpButton.swift` is implemented,
-**Then** it is declared as `struct HelpButton<T: DocumentedCase>: View` (generic over Epic 11's `DocumentedCase` protocol — story spec cites Epic 11 dependency), taking a `case: T` parameter and rendering an SF Symbol `questionmark.circle` button.
+**Then** it declares a **demo-local** descriptor protocol (e.g. `DemoDocumentedCase`, distinct from the library `DocumentedCase`) exposing `var docID: String` and `var shortDescription: String`, and is `struct HelpButton<T: DemoDocumentedCase>: View` taking a `case: T` parameter and rendering an SF Symbol `questionmark.circle` button. The demo protocol is bridged to Epic 11 by the **string `docID`**, NOT by shared type — a future dev must not make a library enum conform to this demo protocol (Epic 10 party-mode decision, 2026-07-07).
 
 **Given** the user taps the "?" button beside a `TechniqueSet` preset control,
 **When** the button's `.popover()` modifier fires (KDD-D4 — SwiftUI `.popover()`, NOT a custom overlay, NOT a sheet, NOT a tooltip-emulation),
-**Then** the popover renders the result of `BoomBoomBoomKitDocs.attributedString(for: T.self, id: case.docID)` (Epic 11 dependency — public library accessor that hides `Bundle.module` resolution).
+**Then** the popover renders the result of `BoomBoomBoomKitDocs.attributedString(for:id:)` keyed by `case.docID` (Epic 11 dependency — public library accessor that hides `Bundle.module` resolution; referenced by string id, absent-until-Epic-11 per FR-42, wired at the call site when Story 11.1 lands).
 
 **Given** Epic 11 has NOT yet shipped or `BoomBoomBoomKitDocs.attributedString(for:id:)` returns `nil` (FR-42 graceful degradation),
 **When** the popover would render,
-**Then** the view falls back to a two-element view: a one-line description sourced from `case.shortDescription` (declared on `DocumentedCase`) and a `Link` to the repo's GitHub docs URL for that case — NOT a broken `Bundle.module` lookup, NOT an empty popover, NOT a crash, NOT a hidden button.
+**Then** the view falls back to a two-element view: a one-line description sourced from `case.shortDescription` (declared on the demo-local descriptor protocol — demo-authored, so the fallback needs nothing from Epic 11) and a `Link` to the repo's GitHub docs URL for that case — NOT a broken `Bundle.module` lookup, NOT an empty popover, NOT a crash, NOT a hidden button.
 
 **Given** the demo is built without Epic 11's Markdown resource bundle present (simulated by stubbing the docs accessor to return `nil` for all IDs),
 **When** the operator clicks every "?" button in the demo across every wired control,
@@ -1505,7 +1510,7 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **FRs covered:** FR-42.
 **KDDs implemented:** D4.
-**Pressure-release valve:** FR-42 IS the pressure-release valve at the epic level. If Epic 11's `DocumentedCase` protocol shape diverges from what Story 10.5 expects, update the call site; do not abandon the popover-with-fallback contract. Document the deviation in `_bmad-output/implementation-artifacts/10-5-pressure-release.md`.
+**Pressure-release valve:** FR-42 IS the pressure-release valve at the epic level. The demo-local descriptor protocol + string-`docID` bridge (above) already decouples Epic 10 from Epic 11's type shape, so a `DocumentedCase` divergence only touches the string-keyed accessor call site — update it there; do not abandon the popover-with-fallback contract. Document the deviation in `_bmad-output/implementation-artifacts/10-5-pressure-release.md`.
 
 ## Epic 11: Per-case selection-strategy docs (stories)
 
