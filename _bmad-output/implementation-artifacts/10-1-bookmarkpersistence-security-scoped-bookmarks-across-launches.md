@@ -1,6 +1,10 @@
+---
+baseline_commit: b4d7211dd031ec81f927eacbd0ba97a0f2148b55
+---
+
 # Story 10.1: BookmarkPersistence — security-scoped bookmarks across launches
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -46,35 +50,35 @@ so that **user-added model URLs from the file picker keep resolving after the de
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Add the missing entitlement (AC1).**
-  - [ ] In `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements`, add `<key>com.apple.security.files.bookmarks.app-scope</key><true/>`.
-  - [ ] Keep the existing `com.apple.security.files.user-selected.read-write` (DD1 — superset of the epic's `read-only`; the audio-file open path already relies on it). Do NOT downgrade.
-  - [ ] Confirm `com.apple.security.app-sandbox` stays `true`.
+- [x] **Task 1 — Add the missing entitlement (AC1).**
+  - [x] In `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements`, add `<key>com.apple.security.files.bookmarks.app-scope</key><true/>`.
+  - [x] Keep the existing `com.apple.security.files.user-selected.read-write` (DD1 — superset of the epic's `read-only`; the audio-file open path already relies on it). Do NOT downgrade.
+  - [x] Confirm `com.apple.security.app-sandbox` stays `true`.
 
-- [ ] **Task 2 — `BookmarkPersistence` type + injectable bookmark seam (AC2, AC5).**
-  - [ ] Create `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift`.
-  - [ ] Declare it `nonisolated` and `Sendable`-clean (the demo target defaults to `@MainActor` isolation — mark pure helpers `nonisolated` so off-actor tests can drive them; precedent: `nonisolated enum SignalPoolDiagnostics`). It is a helper over `UserDefaults`, not a view model.
-  - [ ] Inject `UserDefaults` (mirror `AnalysisViewModel.Configuration.defaults`) so tests supply an isolated suite.
-  - [ ] Inject the bookmark codec seam: a small protocol or closure pair `makeBookmark(URL) throws -> Data` / `resolveBookmark(Data) throws -> (url: URL, isStale: Bool)`, defaulting to the real `.withSecurityScope` calls. Tests inject a fake.
-  - [ ] Persist a single plist-native `[String: Data]` map under ONE stable key (UserDefaults has no prefix-scan, so a single enumerable dictionary is cleaner than per-UUID keys + a separate index). Key the dictionary by `UUID().uuidString`. `store(url:) -> UUID` mints the UUID, encodes the bookmark, writes the map.
+- [x] **Task 2 — `BookmarkPersistence` type + injectable bookmark seam (AC2, AC5).**
+  - [x] Create `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift`.
+  - [x] Declare it `nonisolated` and `Sendable`-clean (the demo target defaults to `@MainActor` isolation — mark pure helpers `nonisolated` so off-actor tests can drive them; precedent: `nonisolated enum SignalPoolDiagnostics`). It is a helper over `UserDefaults`, not a view model.
+  - [x] Inject `UserDefaults` (mirror `AnalysisViewModel.Configuration.defaults`) so tests supply an isolated suite.
+  - [x] Inject the bookmark codec seam: a small protocol or closure pair `makeBookmark(URL) throws -> Data` / `resolveBookmark(Data) throws -> (url: URL, isStale: Bool)`, defaulting to the real `.withSecurityScope` calls. Tests inject a fake.
+  - [x] Persist a single plist-native `[String: Data]` map under ONE stable key (UserDefaults has no prefix-scan, so a single enumerable dictionary is cleaner than per-UUID keys + a separate index). Key the dictionary by `UUID().uuidString`. `store(url:) -> UUID` mints the UUID, encodes the bookmark, writes the map.
 
-- [ ] **Task 3 — `resolveAll()` with stale-refresh + drop-on-failure (AC3).**
-  - [ ] `resolveAll() -> [(id: UUID, url: URL)]`: read the map, resolve each bookmark, refresh+re-persist when `isStale`, drop+diagnostic when resolve throws, never prompt. Return only resolved entries.
-  - [ ] Emit the labeled diagnostic `Reason: bookmark-resolution-failed` (FR-44 discipline — labeled, not a bare value) on the drop path. Persist the pruned map back.
+- [x] **Task 3 — `resolveAll()` with stale-refresh + drop-on-failure (AC3).**
+  - [x] `resolveAll() -> [(id: UUID, url: URL)]`: read the map, resolve each bookmark, refresh+re-persist when `isStale`, drop+diagnostic when resolve throws, never prompt. Return only resolved entries.
+  - [x] Emit the labeled diagnostic `Reason: bookmark-resolution-failed` (FR-44 discipline — labeled, not a bare value) on the drop path. Persist the pruned map back.
 
-- [ ] **Task 4 — Security-scoped access bracket helper (AC4).**
-  - [ ] Add `withSecurityScopedAccess<T>(to url: URL, perform: () throws -> T) rethrows -> T`: call `startAccessingSecurityScopedResource()`, `defer { if started { url.stopAccessingSecurityScopedResource() } }`, run the body. Stop iff start returned `true`.
-  - [ ] Document that `resolveAll()` hands back URLs with the scope NOT started; Story 10.2 / the analysis call site wraps its read in this helper.
+- [x] **Task 4 — Security-scoped access bracket helper (AC4).**
+  - [x] Add `withSecurityScopedAccess<T>(to url: URL, perform: () throws -> T) rethrows -> T`: call `startAccessingSecurityScopedResource()`, `defer { if started { url.stopAccessingSecurityScopedResource() } }`, run the body. Stop iff start returned `true`.
+  - [x] Document that `resolveAll()` hands back URLs with the scope NOT started; Story 10.2 / the analysis call site wraps its read in this helper.
 
-- [ ] **Task 5 — Tests (AC5) — red first.**
-  - [ ] Create `Demo/BoomBoomBoomBPM/BoomBoomBoomBPMTests/BookmarkPersistenceTests.swift`, mirroring `MergeStrategyPersistenceTests` isolation (`UserDefaults(suiteName:)` + `removePersistentDomain(forName:)`, parallel-safe).
-  - [ ] Cover: store→resolveAll round-trip (fake seam); `isStale` forces refresh + re-persist (assert the stored Data changed); resolve-throw drops the entry + prunes the map + leaves siblings intact; empty/absent map resolves to `[]`; the access-bracket helper balances start/stop (assert stop only when start returned true, via a fake URL access counter or a documented note if not fakeable).
-  - [ ] These are pure-logic tests over injected seams — no real security scope, so they run green in unsigned CI.
+- [x] **Task 5 — Tests (AC5) — red first.**
+  - [x] Create `Demo/BoomBoomBoomBPM/BoomBoomBoomBPMTests/BookmarkPersistenceTests.swift`, mirroring `MergeStrategyPersistenceTests` isolation (`UserDefaults(suiteName:)` + `removePersistentDomain(forName:)`, parallel-safe).
+  - [x] Cover: store→resolveAll round-trip (fake seam); `isStale` forces refresh + re-persist (assert the stored Data changed); resolve-throw drops the entry + prunes the map + leaves siblings intact; empty/absent map resolves to `[]`; the access-bracket helper balances start/stop (assert stop only when start returned true, via a fake URL access counter or a documented note if not fakeable).
+  - [x] These are pure-logic tests over injected seams — no real security scope, so they run green in unsigned CI.
 
-- [ ] **Task 6 — Gauntlet + operator-run negative path (AC6).**
-  - [ ] `make demo-fmt`, `make demo-build` (BUILD SUCCEEDED), `make demo-test` (TEST SUCCEEDED), `make demo-lint` (`confidence-label-audit: PASS` — the `Reason:` diagnostic is labeled, no bare numerics).
-  - [ ] `git diff --stat Sources/ Tests/` empty (demo-only; library byte-identical by construction).
-  - [ ] Record the AC6 operator verification (`make demo-build-sandboxed` with the entitlement removed → 2nd-launch resolution fails) in Completion Notes, or mark it operator-deferred with the exact command.
+- [x] **Task 6 — Gauntlet + operator-run negative path (AC6).**
+  - [x] `make demo-fmt`, `make demo-build` (BUILD SUCCEEDED), `make demo-test` (TEST SUCCEEDED), `make demo-lint` (`confidence-label-audit: PASS` — the `Reason:` diagnostic is labeled, no bare numerics).
+  - [x] `git diff --stat Sources/ Tests/` empty (demo-only; library byte-identical by construction).
+  - [x] Record the AC6 operator verification (`make demo-build-sandboxed` with the entitlement removed → 2nd-launch resolution fails) in Completion Notes, or mark it operator-deferred with the exact command.
 
 ## Dev Notes
 
@@ -140,10 +144,42 @@ Every API below was confirmed against Apple Developer Documentation via the `mcp
 
 ### Agent Model Used
 
+claude-opus-4-8[1m] (Claude Code, /bmad-dev-story) — 2026-07-08.
+
 ### Debug Log References
+
+- `make demo-build` — initial `struct` version failed the `Sendable` check on the `UserDefaults` stored property (thread-safe but not SDK-`Sendable`; a `nonisolated` type can't lean on main-actor isolation like `AnalysisViewModel.Configuration`). During code-review hardening this became a lock-guarded `final class`; a first `Mutex<UserDefaults>` attempt then hit `sending 'defaults' risks causing data races` (vending a non-`Sendable` value across the mutex region), resolved by using `Mutex(())` as a pure critical section with `defaults` staying a plain `let` touched only inside `withLock`. Final: `** BUILD SUCCEEDED **`.
+- `make demo-test` — `** TEST SUCCEEDED **`; all 7 `BookmarkPersistenceTests` green (round-trip, stale-refresh, drop-on-throw, empty map, access bracket, non-UUID self-heal, 50-way concurrent-store no-lost-updates).
+- `make demo-lint` — `confidence-label-audit: PASS` (the `Reason: bookmark-resolution-failed` diagnostic is a labeled string, FR-44 compliant; no `SignalPoolDiagnosticTable(` leak).
+- `make demo-fmt` — clean.
 
 ### Completion Notes List
 
+- **AC1** — added `com.apple.security.files.bookmarks.app-scope` to `BoomBoomBoomBPM.entitlements`; kept `app-sandbox` + the existing `user-selected.read-write` superset (DD1 — not downgraded).
+- **AC2/AC5** — `BookmarkPersistence` is a `nonisolated final class` (`@unchecked Sendable`) over an injected `UserDefaults`, with an injectable `Codec` seam (`makeBookmark` / `resolveBookmark`, default `.live` = real `.withSecurityScope`). The create path uses `[.withSecurityScope, .securityScopeAllowOnlyReadAccess]` (least-privilege read-only, DD1) with app-scoped `relativeTo: nil`. `store(url:) throws -> UUID` mints a stable UUID and persists a single plist-native `[String: Data]` under `bookmarksKey` (`store` is `throws` because bookmark creation can fail — the spec's `-> UUID` shape plus the honest error surface). The compound map read-modify-write in `store`/`resolveAll` runs inside a **process-global `static Mutex(())`** critical section (see code-review note).
+- **AC3** — `resolveAll()` refreshes stale bookmarks in place (re-encode under active scope, re-persist same UUID), drops resolve-failures with the labeled `Reason: bookmark-resolution-failed` diagnostic (no mid-launch prompt), prunes the map, and returns only resolved entries. Empty/absent map → `[]` (no precondition). A non-UUID poisoned key also self-heals. The per-entry decision is a pure `classify(key:data:) -> EntryOutcome` (`.keep`/`.refresh`/`.drop`) state machine; the loop just applies outcomes, and drop diagnostics are emitted after the lock releases (no injected-closure reentrancy deadlock).
+- **AC4** — `withSecurityScopedAccess(to:perform:)` brackets `start`/`stop`, stopping iff `start` returned `true` (via `defer`). `resolveAll()` hands back URLs with the scope NOT started; the read bracket is the caller's per-use responsibility (Story 10.2 / analysis path).
+- **AC6 — OPERATOR-DEFERRED (not a CI assertion, by design — DD4).** The entitlement-is-load-bearing proof cannot run in an unsigned, non-sandboxed `swift test` process. To verify manually: temporarily remove the `com.apple.security.files.bookmarks.app-scope` key from `BoomBoomBoomBPM.entitlements`, then `DEVELOPMENT_TEAM=<team-id> make demo-build-sandboxed` (NOT `make demo-build`, which bypasses signing so entitlements never attach — Story 5-1 DD #6), launch, add a model, relaunch → bookmark resolution should FAIL on the second launch. Restore the key afterward.
+- **Code review (Codex diff-review, 2026-07-08 — pre-review hardening).** Round 1 flagged one merge-blocker: the original `struct` + `@unchecked Sendable` design did an unsynchronized compound read-modify-write of the map, so concurrent `store`/`resolveAll` could silently drop a good bookmark — the `Sendable` contract lied. Resolution (matches the library's `Mutex`-guarded `ModelRegistry` precedent): converted to a `final class` and guarded the map mutation with a `Mutex`; `@unchecked Sendable` is now justified by the lock rather than hand-waved. Round 2/3 tightened it: the lock is **`static`** (the shared resource is the process-global `bookmarksKey`, not the instance, closing a cross-instance race), diagnostics moved outside the lock, and the nested per-entry conditional was refactored into the `classify` FSM. Added a `concurrentStoresDoNotLoseEntries` regression test (50-way `DispatchQueue.concurrentPerform`, asserts zero lost updates). Codex round 3: both findings closed, "ready for review." The remaining nit (a deliberately reentrant fake codec could deadlock under the lock) is documented, not blocking — the live codec is pure.
+- **`@unchecked Sendable` (recorded for the reviewer):** the one deviation from the spec's literal "`Sendable`-clean" wording. It is now the correct, precedented form (`UserDefaults` is thread-safe but not SDK-`Sendable`; a `nonisolated` type can't lean on main-actor isolation like `AnalysisViewModel.Configuration` does), justified by the `Mutex` — same as `ModelRegistry` / `BNNSTechnique`.
+- Library byte-identity: `git diff --stat Sources/ Tests/` empty — zero library change by construction (demo-only, ships via `make demo-archive`, never `main`).
+
 ### File List
 
+- `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift` (NEW)
+- `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements` (UPDATE — added `bookmarks.app-scope`)
+- `Demo/BoomBoomBoomBPM/BoomBoomBoomBPMTests/BookmarkPersistenceTests.swift` (NEW)
+
 ### Change Log
+
+- 2026-07-08 — Story 10.1 implemented: security-scoped bookmark persistence for user-added model files (demo-only). New `BookmarkPersistence` helper (injected UserDefaults + bookmark Codec seam; store/resolveAll/stale-refresh/drop; access bracket), the `bookmarks.app-scope` entitlement, and CI-testable unit tests. AC6 operator-deferred. Demo gauntlet green; `Sources/`/`Tests/` byte-identical.
+- 2026-07-08 — Code-review hardening (Codex diff-review): converted `BookmarkPersistence` struct → `final class` guarded by a process-global `static Mutex` (fixes an unsynchronized-map-mutation lost-update race that the `@unchecked Sendable` contract had masked); refactored the per-entry resolve logic into a `classify` outcome FSM; moved drop diagnostics outside the lock; added a 50-way concurrent-store regression test. 7 tests green.
+- 2026-07-08 — `/bmad-code-review` (3-layer: Codex Blind Hunter, Edge Case Hunter, Acceptance Auditor; all six ACs SATISFIED). Two patches applied, one defer: (1) `resolveAll()` no longer holds the static `Mutex` across the injectable codec's file I/O — refactored to snapshot-classify-merge with a compare-and-swap merge (`map[key] == snapshot[key]`), closing the re-entrancy-deadlock trap while preserving concurrent-`store` UUIDs and concurrent-refresh writes; validated by `axiom:concurrency` + Codex (Codex caught a stale-drop hole in the first presence-only guard → CAS). (2) Poison-husk prune folded into the merge write-back. Duplicate-URL dedup deferred to Story 10.2 (W79). New regression test `concurrentResolveDuringStoresLosesNothing`; 8 tests green. Demo gauntlet re-run green (demo-fmt/build/test/lint); `git diff Sources/ Tests/` still empty.
+
+### Review Findings
+
+Code review 2026-07-08 (`/bmad-code-review`, baseline b4d7211) — 3 parallel layers: Blind Hunter (Codex adversarial), Edge Case Hunter, Acceptance Auditor. Acceptance Auditor: all six ACs SATISFIED, DD1–DD5 met, zero library change confirmed. Triage: 2 decision-needed, 1 patch, 0 defer, 8 dismissed as noise/by-design.
+
+- [x] [Review][Patch] Narrow the static lock so codec I/O runs outside it — APPLIED. `resolveAll()` refactored to snapshot-classify-merge: snapshot the map under the lock, run all `classify()` codec resolve/refresh I/O OUTSIDE the lock, then re-acquire and merge each outcome via **compare-and-swap** (`map[key] == snapshot[key]`) on both the refresh and drop branches, writing back only on change. Closes the re-entrancy-deadlock trap; a concurrent `store()`'s new UUID and a concurrent resolver's fresh refresh are both preserved. Validated by `axiom:concurrency` (canonical "refactor to avoid nested locking" pattern) and Codex (which caught the original presence-only guard's stale-drop hole → CAS fix). Added regression test `concurrentResolveDuringStoresLosesNothing`. [Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift:175]
+- [x] [Review][Patch] `resolveAll()` poisoned-husk self-heal — APPLIED (folded into the merge). The merge write-back writes the re-read filtered `bookmarkMap()`, so non-`Data` junk is pruned on any refresh/drop write. Residual: a value that is not a dictionary at all (zero valid entries) is still healed by the next `store()`, not by `resolveAll` alone — accepted as low (store() self-heals; no per-launch write churn). [Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift:271]
+- [x] [Review][Defer] Duplicate-URL stores create duplicate entries [Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift:141] — deferred to Story 10.2. `store(url:)` mints a fresh `UUID()` unconditionally, so the same file added twice yields two entries / two registrations. AC2 requires only "mint a UUID" — dedup is the picker's add-model UX concern; the persistence layer stays intentionally URL-agnostic.
