@@ -262,6 +262,14 @@ nonisolated final class BookmarkPersistence: @unchecked Sendable {
       }
       return .refresh(id: id, url: url, refreshed: refreshed)
     } catch {
+      // Log the raw error PRIVATELY so an operator can tell an unmounted volume
+      // from a deleted file from a sandbox denial. It is NOT folded into the
+      // public `Reason:` string because a resolution error can carry a file
+      // path / NSError.userInfo, and the default `onDiagnostic` sink logs at
+      // `privacy: .public`; the public reason stays labeled and path-free.
+      Self.logger.debug(
+        "bookmark-resolution-failed (id \(id.uuidString, privacy: .public)): \(String(describing: error), privacy: .private)"
+      )
       return .drop(reason: "Reason: bookmark-resolution-failed (id \(id.uuidString))")
     }
   }

@@ -144,8 +144,16 @@ struct BookmarkPersistenceTests {
     let map = storedMap(defaults)
     #expect(map[badID.uuidString] == nil)
     #expect(map[goodID.uuidString] == goodData)
-    // The labeled diagnostic fired (FR-44: labeled, never a bare value).
-    #expect(capture.all.contains { $0.hasPrefix("Reason: bookmark-resolution-failed") })
+    // The labeled diagnostic fired (FR-44: labeled, never a bare value), and the
+    // PUBLIC reason is exactly the labeled string with NO error description —
+    // the raw error is logged privately (privacy: .private), never surfaced
+    // through the public `onDiagnostic` sink (would leak a path / NSError.userInfo).
+    #expect(
+      capture.all.contains {
+        $0 == "Reason: bookmark-resolution-failed (id \(badID.uuidString))"
+      }
+    )
+    #expect(!capture.all.contains { $0.contains("ResolveFailure") })
   }
 
   // (4) An absent map resolves to an empty array (no precondition crash).
@@ -239,14 +247,15 @@ struct BookmarkPersistenceTests {
     #expect(persistence.resolveAll().count == iterations)
   }
 
-  // (8) resolveAll() running concurrently with stores loses no entry — the
-  // review refactor moved codec I/O out of the lock and merges each outcome via
-  // compare-and-swap against the snapshot, so a concurrent store()'s brand-new
-  // UUID (absent from resolveAll's snapshot) is never clobbered by the merge
-  // write-back. Seeds K, then races N stores against interleaved resolveAll
-  // calls; the final map must hold exactly K + N entries.
-  @Test("resolveAll racing concurrent stores loses no entry")
-  func concurrentResolveDuringStoresLosesNothing() throws {
+  // (8) STRESS: resolveAll() interleaved with stores never loses an entry.
+  // NOTE the round-trip codec is never stale and never throws, so every entry
+  // classifies `.keep` and resolveAll takes NO write-back path here — this is a
+  // liveness / no-lost-update stress check under TSan, not the merge-CAS proof.
+  // Test (9) deterministically proves the merge write-back itself. (Kept because
+  // `concurrentPerform` exercises real thread interleaving the barrier test does
+  // not.)
+  @Test("stress: resolveAll interleaved with concurrent stores loses no entry")
+  func concurrentResolveDuringStoresStress() throws {
     let suiteName = "com.robbyt.BoomBoomBoomBPMTests.bookmark.concurrentResolve"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
@@ -271,5 +280,91 @@ struct BookmarkPersistenceTests {
 
     #expect(storedMap(defaults).count == seeded + newStores)
     #expect(persistence.resolveAll().count == seeded + newStores)
+  }
+
+  // (9) DETERMINISTIC proof that the resolveAll merge write-back preserves stores
+  // that land AFTER the resolver snapshots. A codec-as-barrier parks the single
+  // resolver mid-classify (it has already snapshotted `{seed}` under the lock and
+  // released it — resolveAll classifies outside the lock), 40 stores then commit
+  // brand-new UUIDs, and the resolver is released into its merge. Because the
+  // merge re-reads the CURRENT map and CAS-applies the refresh only to the still-
+  // matching seed key, all 40 new UUIDs survive AND the seed is refreshed. A
+  // blind `writeBookmarkMap(snapshot)` would drop all 40 every run (count -> 1),
+  // so this test fails against that regression where test (8) would not.
+  @Test("deterministic: merge write-back preserves concurrently-added stores")
+  func mergeWriteBackPreservesConcurrentStores() throws {
+    let suiteName = "com.robbyt.BoomBoomBoomBPMTests.bookmark.mergeBarrier"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let seedURL = URL(fileURLWithPath: "/tmp/seed.mlmodelc")
+    let staleBlob = Data("stale:\(seedURL.absoluteString)".utf8)
+    let freshSeedBlob = Data("fresh:\(seedURL.absoluteString)".utf8)
+
+    let resolverClassifying = DispatchSemaphore(value: 0)
+    let storesDone = DispatchSemaphore(value: 0)
+
+    // Codec-as-barrier: resolveBookmark on the stale seed blocks the resolver
+    // AFTER it snapshotted + released the lock, so the stores can take the lock.
+    // makeBookmark re-encodes the seed to a distinguishable fresh blob.
+    let codec = BookmarkPersistence.Codec(
+      makeBookmark: { url in
+        url == seedURL ? freshSeedBlob : Data(url.absoluteString.utf8)
+      },
+      resolveBookmark: { data in
+        let string = String(decoding: data, as: UTF8.self)
+        if string.hasPrefix("stale:") {
+          resolverClassifying.signal()  // resolver has snapshotted; it is parked
+          storesDone.wait()  // until the stores commit
+          return (URL(string: String(string.dropFirst("stale:".count)))!, true)
+        }
+        return (URL(string: string)!, false)
+      }
+    )
+
+    // Seed exactly one stale entry directly in the isolated suite.
+    let seedID = UUID()
+    defaults.set([seedID.uuidString: staleBlob], forKey: BookmarkPersistence.bookmarksKey)
+
+    let persistence = BookmarkPersistence(defaults: defaults, codec: codec)
+
+    // Drive the resolver on a background queue; it will park in resolveBookmark.
+    let resolverDone = DispatchSemaphore(value: 0)
+    DispatchQueue.global().async {
+      defer { resolverDone.signal() }
+      _ = persistence.resolveAll()
+    }
+
+    // Wait for the resolver to snapshot + enter classify. Fail cleanly (never
+    // deadlock the suite) if it never reaches the barrier.
+    guard resolverClassifying.wait(timeout: .now() + 5) == .success else {
+      storesDone.signal()
+      Issue.record("resolver never reached the stale-classify barrier")
+      return
+    }
+    // The resolver is now parked; guarantee it is always released even if an
+    // assertion throws mid store-loop.
+    defer { storesDone.signal() }
+
+    // Commit 40 stores (new UUIDs) while the resolver is inside its merge window.
+    var storedIDs: [UUID] = []
+    for i in 0..<40 {
+      storedIDs.append(
+        try persistence.store(url: URL(fileURLWithPath: "/tmp/new-\(i).mlmodelc")))
+    }
+
+    // Release the resolver into its merge and wait for it to finish.
+    storesDone.signal()
+    guard resolverDone.wait(timeout: .now() + 5) == .success else {
+      Issue.record("resolveAll did not complete after the stores committed")
+      return
+    }
+
+    let map = storedMap(defaults)
+    #expect(map.count == 1 + storedIDs.count)  // seed + all 40 stores
+    #expect(map[seedID.uuidString] == freshSeedBlob)  // seed genuinely refreshed
+    for id in storedIDs {
+      #expect(map[id.uuidString] != nil)  // every store UUID survived
+    }
   }
 }

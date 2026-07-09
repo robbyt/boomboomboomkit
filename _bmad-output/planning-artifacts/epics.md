@@ -100,7 +100,7 @@ Epic numbering continues monotonically from the archived `epics-2026-03-31.md`, 
 
 - **FR-36** Demo exposes named ensemble presets in primary view. 4 PRD presets (`Default`, `DSP only`, `ML augmented`, `Trust file tags`) in primary view; raw signal weights in advanced sidebar (existing `.inspector(isPresented:)` from Story 5-6b).
 - **FR-37** Model selection from registry + file picker. Demo lets users select an ML model from registry OR add new via file picker. Selection drives subsequent analysis.
-- **FR-38** Demo owns persistence for user-added models only. Security-scoped bookmark stored by demo for user-added models. Library accepts already-resolved URLs. Bundled + known-public entries are stateless. Required entitlements: `user-selected.read-only` + `bookmarks.app-scope`.
+- **FR-38** Demo owns persistence for user-added models only. Security-scoped bookmark stored by demo for user-added models. Library accepts already-resolved URLs. Bundled + known-public entries are stateless. Required entitlements: `user-selected.read-write` (the shipped app-level superset — read-only is *sufficient* for the model bookmark and is enforced at bookmark creation via `.securityScopeAllowOnlyReadAccess`, but the audio-file open path already requires read-write; Story 10.1 DD1) + `bookmarks.app-scope`.
 - **FR-39** Beat-grid as timeline + text readout. SwiftUI Canvas timeline with current-time scrubber + text readout (tempo, beat count, downbeat status, confidence). No waveform.
 - **FR-40** LUFS as primary measurement, secondary breakdown. Integrated LUFS as single number with unit label + small panel for true-peak + LRA. Does not dominate BPM-centric flow.
 - **FR-41** Final-state signal-pool diagnostic table in advanced sidebar. When `enableTrace: true`, sortable Table with one row per contributing signal (source, BPM, confidence, weight, contribution, cluster). Final-state, post-analysis. Replaces current `EnsembleDecision` summary view.
@@ -129,7 +129,7 @@ _(FR-48 moved to NFR-5; FR-51 dropped per PRD — `BNNSTechnique` is a struct, n
 - **NFR-6** Performance budgets. OA300 wall-clock at default intensity ≤ 15% regression (per FR-11). Beat-grid extraction overhead bounded and measured separately. LUFS analysis cost dominated by file decode (paid for BPM under FR-35 shared-decode). Combined analysis decodes once, not three times.
 - **NFR-7** Accuracy floors hold across the refactor. OA300 Acc1 ≥ 55/82 + GiantSteps Acc1 ≥ 537/661 unconditional CI assertions (per FR-10). Trained-model bundling has its own gates (FR-18) beyond these floors.
 - **NFR-8** Test discipline. New analyzer/algorithm work includes paired byte-equality opt-out tests where feasible (no longer default contract per NFR-4, but valuable as architecture-refactor regression scaffolding). Drift-detection (FR-50) gates every CI run.
-- **NFR-9** App Store compliance (demo). Demo sandboxed (`com.apple.security.app-sandbox`), signs with developer identity, ships via `make demo-archive`. Entitlements: `user-selected.read-only` + `bookmarks.app-scope`.
+- **NFR-9** App Store compliance (demo). Demo sandboxed (`com.apple.security.app-sandbox`), signs with developer identity, ships via `make demo-archive`. Entitlements: `user-selected.read-write` (app-level superset required by the audio-file open path; the model bookmark itself is read-only via `.securityScopeAllowOnlyReadAccess`) + `bookmarks.app-scope`.
 - **NFR-10** No new internet requests. Library and demo make no internet requests from any code in this PRD (per FR-46 + FR-52). Privacy manifest reason codes already covered by Story 5-7.
 
 ### Additional Requirements
@@ -166,7 +166,7 @@ Implementation-level requirements derived from `architecture.md` that shape epic
 **Security & integrity:**
 
 - ModelRegistry uses CryptoKit `SHA256.hash(data:)`. SHA-256 over `.mlmodelc` directory contents (sorted-by-relative-path, concatenated bytes). Computed once per registration; cached.
-- Demo entitlements: `com.apple.security.app-sandbox` + `com.apple.security.files.user-selected.read-only` + `com.apple.security.files.bookmarks.app-scope`. The third is the one developers commonly forget for security-scoped bookmark resolution.
+- Demo entitlements: `com.apple.security.app-sandbox` + `com.apple.security.files.user-selected.read-write` (app-level superset for the audio-file open path; the model bookmark is read-only via `.securityScopeAllowOnlyReadAccess`) + `com.apple.security.files.bookmarks.app-scope`. The third is the one developers commonly forget for security-scoped bookmark resolution.
 
 **License & provenance:**
 
@@ -328,7 +328,7 @@ Primary view = audio file picker + ensemble preset picker (4 PRD presets `Defaul
 
 The demo's deeper-integration surface — beat-grid timeline rendering, LUFS readout panel, ML model selection from registry plus user-added models via file picker with security-scoped bookmark persistence, and strategy popovers wired to per-case authored prose from Epic 11. Builds on Epic 8 (beat-grid + LUFS + ModelRegistry public APIs) and Epic 11 (per-case docs), with FR-42 graceful degradation allowing Epic 10 to ship before Epic 11 closes (popover degrades to one-line description + repo URL fallback).
 
-Beat-grid renders as a SwiftUI Canvas timeline with current-time scrubber plus text readout (estimated tempo, beat count, downbeat status, grid confidence) — no waveform per FR-39. LUFS displays as a primary integrated-loudness number plus a secondary panel for true-peak and LRA. Model selection draws from `ModelRegistry` (bundled + known-public + user-added); user-added models persist via security-scoped bookmark stored in `UserDefaults` (matching the Story 5-6 `MergeStrategyPersistence` precedent), with required entitlements `com.apple.security.files.user-selected.read-only` + `com.apple.security.files.bookmarks.app-scope`. Strategy popovers ("?" buttons next to ensemble preset / DSP technique / merge strategy controls) anchor SwiftUI `.popover()` to `BoomBoomBoomKitDocs.attributedString(for:id:)` resolution.
+Beat-grid renders as a SwiftUI Canvas timeline with current-time scrubber plus text readout (estimated tempo, beat count, downbeat status, grid confidence) — no waveform per FR-39. LUFS displays as a primary integrated-loudness number plus a secondary panel for true-peak and LRA. Model selection draws from `ModelRegistry` (bundled + known-public + user-added); user-added models persist via security-scoped bookmark stored in `UserDefaults` (matching the Story 5-6 `MergeStrategyPersistence` precedent), with required entitlements `com.apple.security.files.user-selected.read-write` (app-level superset; the model bookmark is read-only via `.securityScopeAllowOnlyReadAccess`) + `com.apple.security.files.bookmarks.app-scope`. Strategy popovers ("?" buttons next to ensemble preset / DSP technique / merge strategy controls) anchor SwiftUI `.popover()` to `BoomBoomBoomKitDocs.attributedString(for:id:)` resolution.
 
 **FRs covered:** FR-37, FR-38, FR-39, FR-40, FR-42
 
@@ -1370,7 +1370,7 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **Given** the demo's `Info.plist` and entitlements file are being audited,
 **When** the operator inspects `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements`,
-**Then** all three keys are present and `true`: `com.apple.security.app-sandbox` (per NFR-9), `com.apple.security.files.user-selected.read-only`, AND `com.apple.security.files.bookmarks.app-scope` — the third is the one developers commonly forget; the story spec explicitly enumerates it so the implementation cannot silently omit it.
+**Then** all three keys are present and `true`: `com.apple.security.app-sandbox` (per NFR-9), `com.apple.security.files.user-selected.read-write` (the actually-shipped app-level superset — read-only suffices for the model bookmark and is enforced at creation via `.securityScopeAllowOnlyReadAccess`, but the audio-file open path already requires read-write; Story 10.1 DD1 — do NOT downgrade), AND `com.apple.security.files.bookmarks.app-scope` — the third is the one developers commonly forget; the story spec explicitly enumerates it so the implementation cannot silently omit it.
 
 **Given** the user picks a model file via the Story 10.2 file picker,
 **When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift` calls `URL.bookmarkData(options: .withSecurityScope, …)`,
