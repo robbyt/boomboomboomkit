@@ -5,6 +5,13 @@ struct ContentView: View {
   @State private var viewModel = AnalysisViewModel()
   @State private var isDropTargeted: Bool = false
 
+  // Registry-backed model catalog + picker-sheet gate (Story 10.2). The catalog
+  // restores persisted user-added models on init and is the ONLY add-model
+  // surface after the primary-view "Load Model…" button is relocated here (AC6 /
+  // FR-43).
+  @State private var modelCatalog = ModelCatalog()
+  @State private var isModelPickerPresented: Bool = false
+
   // Persisted via @SceneStorage so the inspector preference survives
   // window-close / app-relaunch. Default false — end-user audience;
   // power users toggle via the Diagnostics button (Command-Shift-D),
@@ -91,6 +98,15 @@ struct ContentView: View {
     // `.dropDestination`.
     .onOpenURL { url in
       viewModel.handleOpenURL(url)
+    }
+    // Registry-backed model picker (Story 10.2). On a successful "Use this
+    // model" the sheet re-analyzes the current file if one is loaded.
+    .sheet(isPresented: $isModelPickerPresented) {
+      ModelPickerView(
+        catalog: modelCatalog,
+        viewModel: viewModel,
+        onModelUsed: { triggerReanalyze() }
+      )
     }
     .toolbar {
       // AC #9: explicit toolbar toggle in addition to the system
@@ -337,8 +353,8 @@ struct ContentView: View {
         // BYOW ML (Epic 7; preset-governed since Story 9.1): the "Use loaded
         // model" toggle + model name form a status line shown once a model is
         // loaded. `mlModelError` is rendered independently so a failed load is
-        // never swallowed. The `Load Model…` button lives in the action row
-        // below, next to Copy Config.
+        // never swallowed. Adding / choosing a model lives in the "Models…"
+        // sheet (Story 10.2), opened from the action row below.
         if let name = viewModel.mlModelName {
           HStack(spacing: 8) {
             Toggle("Use loaded model", isOn: $viewModel.mlEnabled)
@@ -354,15 +370,15 @@ struct ContentView: View {
           }
         }
         if let mlError = viewModel.mlModelError {
-          Text(mlError)
+          Text("Reason: \(mlError)")
             .font(.caption)
             .foregroundStyle(.red)
             .lineLimit(2)
         }
 
-        // Bottom action row: Cancel / Re-analyze │ Load Model… / Copy Config /
+        // Bottom action row: Cancel / Re-analyze │ Models… / Copy Config /
         // Export Trace. Cancel + Re-analyze are mutually exclusive (analyzing
-        // vs idle); Load Model… + Copy Config are always visible; Export Trace
+        // vs idle); Models… + Copy Config are always visible; Export Trace
         // requires a populated snapshot.
         HStack(spacing: 8) {
           if viewModel.isAnalyzing {
@@ -378,10 +394,8 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             Divider().frame(height: 16)
           }
-          Button("Load Model…") {
-            if viewModel.pickAndLoadMLModel() {
-              triggerReanalyze()
-            }
+          Button("Models…") {
+            isModelPickerPresented = true
           }
           .buttonStyle(.bordered)
           Button("Copy Config") {
