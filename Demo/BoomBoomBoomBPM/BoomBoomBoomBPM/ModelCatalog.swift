@@ -96,6 +96,12 @@ final class ModelCatalog {
 
   /// The URL of the model the user chose via "Use this model" (DD7 — keyed by
   /// URL, drives the `Selected:` mark). `nil` until a model is used.
+  ///
+  /// Session-scoped by design: `restore()` re-lists persisted models but does
+  /// NOT re-attach a technique, so after relaunch a previously-chosen model
+  /// appears in the list but is not loaded and `selectedURL` is `nil` again
+  /// (AC5 promises list presence only). Persisting the selection + auto-reload
+  /// on launch is deferred-work W81.
   var selectedURL: URL?
 
   /// Labeled `Reason:` diagnostics accumulated during `restore()` (one per
@@ -123,7 +129,12 @@ final class ModelCatalog {
       let key = url.standardizedFileURL
       guard seen.insert(key).inserted else { continue }
       do {
-        let entry = try bookmarks.withSecurityScopedAccess(to: url) {
+        // Scope is started on the bookmark-bearing `url` (it carries the
+        // security-scope token from resolveAll); `key` is its standardized-path
+        // equivalent for the SAME file, so the process-wide sandbox grant covers
+        // the `registerEntry` read. Starting the scope on `key` instead would
+        // return false — a fresh URL has no token.
+        let entry = try BookmarkPersistence.withSecurityScopedAccess(to: url) {
           try registerEntry(standardizedURL: key)
         }
         mirror(entry, source: .userAdded)
@@ -150,7 +161,10 @@ final class ModelCatalog {
       return .failure(.alreadyAdded)
     }
     do {
-      let entry = try bookmarks.withSecurityScopedAccess(to: url) {
+      // Scope started on the token-bearing `url`; `key` is its standardized-path
+      // equivalent (same file), so the register/store I/O is covered. Starting
+      // on `key` would return false — a fresh URL carries no scope token.
+      let entry = try BookmarkPersistence.withSecurityScopedAccess(to: url) {
         () throws -> ModelRegistryEntry in
         let registered: ModelRegistryEntry
         do {
@@ -210,6 +224,14 @@ final class ModelCatalog {
   /// failed `loadModel` clears the prior technique, so nothing is in use).
   func clearSelection() {
     selectedURL = nil
+  }
+
+  /// Clear the launch-time restore diagnostics. `restoreDiagnostics` is a
+  /// once-per-launch event; the picker shows it on the first open and calls this
+  /// on dismiss so a `Reason: restored-model-unavailable` from launch doesn't
+  /// haunt every later sheet open all session. Does NOT touch `entries`.
+  func clearRestoreDiagnostics() {
+    restoreDiagnostics.removeAll()
   }
 
   // MARK: - Private

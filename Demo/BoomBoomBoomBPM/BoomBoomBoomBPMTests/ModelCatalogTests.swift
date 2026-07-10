@@ -120,6 +120,30 @@ struct ModelCatalogTests {
     #expect(catalog.restoreDiagnostics.contains("Reason: restored-model-unavailable"))
   }
 
+  // (3b) clearRestoreDiagnostics() empties the diagnostics WITHOUT mutating the
+  // restored entries — the picker calls it on dismiss so a launch-time
+  // `Reason: restored-model-unavailable` doesn't haunt every later open.
+  @Test("clearRestoreDiagnostics empties diagnostics but keeps entries")
+  func clearRestoreDiagnosticsKeepsEntries() throws {
+    let (defaults, suiteName) = try makeDefaults("clearRestoreDiag")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let goodBundle = try makeBundle()
+    let badFile = try makePlainFile()  // register throws unsupportedFormat
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    _ = try persistence.store(url: goodBundle)
+    _ = try persistence.store(url: badFile)
+
+    let catalog = ModelCatalog(bookmarks: persistence)
+    #expect(!catalog.restoreDiagnostics.isEmpty)
+    #expect(catalog.entries.count == 1)
+
+    catalog.clearRestoreDiagnostics()
+    #expect(catalog.restoreDiagnostics.isEmpty)
+    #expect(catalog.entries.count == 1)  // clearing diagnostics must not lose data
+    #expect(catalog.entries.first?.url.standardizedFileURL == goodBundle.standardizedFileURL)
+  }
+
   // MARK: - Add from disk
 
   // (4) addFromDisk dedups a re-added URL — one entry, labeled reject (W79).

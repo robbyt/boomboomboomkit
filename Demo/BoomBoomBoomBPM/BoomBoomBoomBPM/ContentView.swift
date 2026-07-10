@@ -5,12 +5,22 @@ struct ContentView: View {
   @State private var viewModel = AnalysisViewModel()
   @State private var isDropTargeted: Bool = false
 
-  // Registry-backed model catalog + picker-sheet gate (Story 10.2). The catalog
-  // restores persisted user-added models on init and is the ONLY add-model
-  // surface after the primary-view "Load Model…" button is relocated here (AC6 /
-  // FR-43).
-  @State private var modelCatalog = ModelCatalog()
+  // Registry-backed model catalog (Story 10.2), the ONLY add-model surface after
+  // the primary-view "Load Model…" button was relocated into the picker sheet
+  // (AC6 / FR-43). Owned by `BoomBoomBoomBPMApp` and injected here — NOT a local
+  // `@State`: `ModelCatalog.init` runs a synchronous `restore()` (bookmark
+  // resolution + SHA-256 of every model), and a `@State` initial value is
+  // re-evaluated on every `ContentView` construction and discarded after the
+  // first, so a local `@State` would re-run restore-and-throw-away. App-level
+  // ownership constructs it once at app lifetime. (Consequence: a second
+  // `WindowGroup` window would share this one catalog + `selectedURL` — fine for
+  // this single-window demo, deliberate.)
+  private let modelCatalog: ModelCatalog
   @State private var isModelPickerPresented: Bool = false
+
+  init(modelCatalog: ModelCatalog) {
+    self.modelCatalog = modelCatalog
+  }
 
   // Persisted via @SceneStorage so the inspector preference survives
   // window-close / app-relaunch. Default false — end-user audience;

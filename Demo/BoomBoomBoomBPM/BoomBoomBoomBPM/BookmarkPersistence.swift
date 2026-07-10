@@ -253,7 +253,7 @@ nonisolated final class BookmarkPersistence: @unchecked Sendable {
       // Re-encode from the resolved URL under active scope. If the re-encode
       // throws, keep the resolvable URL and leave the stale data to retry.
       guard
-        let refreshed = try? withSecurityScopedAccess(
+        let refreshed = try? Self.withSecurityScopedAccess(
           to: url,
           perform: { try codec.makeBookmark(url) }
         )
@@ -285,7 +285,7 @@ nonisolated final class BookmarkPersistence: @unchecked Sendable {
   /// DD3). Resolving does NOT implicitly start access for a security-scoped
   /// bookmark (`withoutImplicitStartAccessing` is documented as "not applicable
   /// to security-scoped bookmarks"), so this explicit bracket is mandatory.
-  func withSecurityScopedAccess<T>(
+  static func withSecurityScopedAccess<T>(
     to url: URL,
     perform body: () throws -> T
   ) rethrows -> T {

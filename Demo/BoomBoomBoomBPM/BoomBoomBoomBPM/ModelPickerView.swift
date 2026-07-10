@@ -105,6 +105,13 @@ struct ModelPickerView: View {
         catalog.selectedURL?.standardizedFileURL
         ?? catalog.entries.first?.url.standardizedFileURL
     }
+    .onDisappear {
+      // Restore diagnostics are a once-per-launch event: shown on the first open
+      // (above), cleared on dismiss so they don't haunt every later open all
+      // session. `onDisappear` (not `onAppear`) so the first open actually shows
+      // them before they're cleared.
+      catalog.clearRestoreDiagnostics()
+    }
   }
 
   // MARK: - Subviews
@@ -116,9 +123,8 @@ struct ModelPickerView: View {
         .foregroundStyle(.secondary)
       Text("No models available — add one to begin")
         .font(.headline)
-      Text("Reason: no-models-available")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      // The labeled `Reason: no-models-available` lives beside the disabled
+      // "Use this model" button (AC2's mandated placement); not duplicated here.
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
