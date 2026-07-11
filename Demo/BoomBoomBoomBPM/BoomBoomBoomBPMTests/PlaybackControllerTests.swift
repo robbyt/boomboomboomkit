@@ -103,13 +103,13 @@ struct PlaybackControllerTests {
 
   @Test("the generation guard makes a stale completion inert (F5)")
   @MainActor
-  func generationGuard() {
+  func generationGuard() throws {
     let capture = CaptureBox()
     let controller = makeController(recorder: EngineRecorder(), capture: capture)
     controller.load(url: url("a.wav"))
     controller.play()
     #expect(controller.isPlaying)
-    let stale = try! #require(capture.entries.first)
+    let stale = try #require(capture.entries.first)
 
     // Replace the engine (bumps the generation).
     controller.load(url: url("b.wav"))
@@ -121,7 +121,7 @@ struct PlaybackControllerTests {
     #expect(controller.isPlaying)
 
     // The CURRENT engine's completion settles to stopped-at-zero.
-    let current = try! #require(capture.entries.last)
+    let current = try #require(capture.entries.last)
     current.onFinish(current.generation, true)
     #expect(!controller.isPlaying)
     #expect(controller.currentTime.isApproximately(0))
@@ -130,12 +130,12 @@ struct PlaybackControllerTests {
   @Test(
     "an unsuccessful finish surfaces a labeled error; a stale unsuccessful finish is inert (P4)")
   @MainActor
-  func unsuccessfulFinishSurfacesError() {
+  func unsuccessfulFinishSurfacesError() throws {
     let capture = CaptureBox()
     let controller = makeController(recorder: EngineRecorder(), capture: capture)
     controller.load(url: url("a.wav"))
     controller.play()
-    let first = try! #require(capture.entries.first)
+    let first = try #require(capture.entries.first)
 
     // Replace the engine (bumps the generation), so `first` is now stale.
     controller.load(url: url("b.wav"))
@@ -150,7 +150,7 @@ struct PlaybackControllerTests {
 
     // The CURRENT engine's unsuccessful finish (flag == false) stops with a labeled
     // reason; audio stays loaded (hasAudio true), distinguishing it from a clean finish.
-    let current = try! #require(capture.entries.last)
+    let current = try #require(capture.entries.last)
     current.onFinish(current.generation, false)
     #expect(!controller.isPlaying)
     #expect(controller.currentTime.isApproximately(0))
@@ -166,7 +166,7 @@ struct PlaybackControllerTests {
   @Test(
     "replacing the engine stops the old one before building the new (release-before-acquire, F6)")
   @MainActor
-  func replaceStopsOldBeforeNew() {
+  func replaceStopsOldBeforeNew() throws {
     let recorder = EngineRecorder()
     let controller = makeController(recorder: recorder)
     controller.load(url: url("a.wav"))
@@ -174,8 +174,8 @@ struct PlaybackControllerTests {
 
     // Ordering proxy for the scope release-before-acquire: the old engine is stopped
     // before the new engine is constructed.
-    let stopA = try! #require(recorder.events.firstIndex(of: "stop(a.wav)"))
-    let makeB = try! #require(recorder.events.firstIndex(of: "make(b.wav)"))
+    let stopA = try #require(recorder.events.firstIndex(of: "stop(a.wav)"))
+    let makeB = try #require(recorder.events.firstIndex(of: "make(b.wav)"))
     #expect(stopA < makeB)
   }
 
