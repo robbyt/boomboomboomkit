@@ -451,7 +451,10 @@ struct BeatGridView: View {
   /// every click snaps — falling back to the raw clicked time when no beats
   /// exist. Returns `nil` for degenerate input (non-finite x, `pointsPerSecond`
   /// not finite-positive) so the tap is simply ignored. An exact-midpoint tie
-  /// resolves to the earlier beat. The result is always `>= 0`;
+  /// resolves to the earlier beat. Non-finite and negative `beatTimes` entries
+  /// are ignored (unrepresentable from the production caller — `BeatTimestamp`
+  /// clamps `presentationTime >= 0` at construction — but this pure helper
+  /// enforces its own contract). The result is always `>= 0`;
   /// `PlaybackController.seek(to:)` owns the `[0, duration]` clamp.
   nonisolated static func clickSeekTime(
     contentX: CGFloat, pointsPerSecond: Double, beatTimes: [Double]
@@ -461,7 +464,7 @@ struct BeatGridView: View {
     }
     let rawTime = max(0, Double(contentX) / pointsPerSecond)
     // Linear scan — beats number in the low thousands, no binary search needed.
-    let nearest = beatTimes.filter(\.isFinite).min { a, b in
+    let nearest = beatTimes.filter { $0.isFinite && $0 >= 0 }.min { a, b in
       let da = abs(a - rawTime)
       let db = abs(b - rawTime)
       return da == db ? a < b : da < db

@@ -118,13 +118,22 @@ struct BeatGridLogicTests {
         .isApproximately(0))
   }
 
-  @Test("clickSeekTime ignores non-finite beat entries and rejects degenerate input")
+  @Test("clickSeekTime ignores non-finite and negative beat entries, rejects degenerate input")
   func clickGuards() {
     // Non-finite beats are skipped; the finite one wins.
     #expect(
       BeatGridView.clickSeekTime(
         contentX: 160, pointsPerSecond: 16, beatTimes: [.nan, .infinity, 9.0])!
         .isApproximately(9))
+    // A negative entry is skipped even when it is numerically NEARER than the
+    // valid beat (the `>= 0` result contract): rawTime 1, |-0.5 - 1| < |9 - 1|.
+    #expect(
+      BeatGridView.clickSeekTime(contentX: 16, pointsPerSecond: 16, beatTimes: [-0.5, 9.0])!
+        .isApproximately(9))
+    // Only invalid entries -> behaves like an empty list (raw clicked time).
+    #expect(
+      BeatGridView.clickSeekTime(contentX: 160, pointsPerSecond: 16, beatTimes: [-1.0, .nan])!
+        .isApproximately(10))
     // Degenerate x / pps -> nil (tap ignored).
     #expect(BeatGridView.clickSeekTime(contentX: .nan, pointsPerSecond: 16, beatTimes: []) == nil)
     #expect(BeatGridView.clickSeekTime(contentX: 10, pointsPerSecond: 0, beatTimes: []) == nil)
