@@ -18,7 +18,7 @@ import SwiftUI
 /// scrubber lives in a `TimelineView(.animation)` overlay, so the (potentially
 /// thousand-tick) static layer is not regenerated every frame. When paused / no audio,
 /// a non-animating branch draws a static scrubber from the observable `currentTime`
-/// snapshot (so a paused seek still redraws — DD11).
+/// snapshot (written by pause/finish, so the paused scrubber lands where playback stopped — DD11).
 struct BeatGridTimelineView: View {
   let state: GridVisualizationState
   let controller: PlaybackController
@@ -48,7 +48,7 @@ struct BeatGridTimelineView: View {
     .overlay {
       // Scrubber layer. While playing, `TimelineView(.animation)` re-reads the live
       // playhead each display frame; while paused / no audio, a plain Canvas reads the
-      // observable snapshot (updated on seek), so a paused seek redraws once (DD11).
+      // observable snapshot (written by pause/finish), so it lands where playback stopped (DD11).
       if controller.isPlaying && controller.hasAudio {
         TimelineView(.animation) { _ in
           Canvas { context, size in
@@ -136,13 +136,17 @@ struct BeatGridTimelineView: View {
       .disabled(!controller.hasAudio)
       .help(controller.hasAudio ? "Play / pause" : "Playback unavailable for this file")
 
-      if !controller.hasAudio {
-        // Labeled rationale for the disabled transport (FR-44 discipline — no bare state).
-        Text(
-          "Reason: \(controller.playbackError.map { _ in "audio-unavailable" } ?? "no-audio-loaded")"
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      // Surface the controller's already-labeled error verbatim (FR-44 — no bare state):
+      // a load failure OR an interrupted playback (which leaves hasAudio == true) both show
+      // their real reason; only a clean no-audio state falls back to the generic label.
+      if let error = controller.playbackError {
+        Text(error)
+          .font(.caption)
+          .foregroundStyle(.red)
+      } else if !controller.hasAudio {
+        Text("Reason: no-audio-loaded")
+          .font(.caption)
+          .foregroundStyle(.secondary)
       }
 
       Spacer()

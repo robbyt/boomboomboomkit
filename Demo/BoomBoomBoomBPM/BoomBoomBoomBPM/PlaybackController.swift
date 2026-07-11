@@ -5,13 +5,14 @@ import Observation
 /// The audio-playback backing the ``BeatGridTimelineView`` scrubber depends on
 /// (Story 10.3). A protocol, not `AVAudioPlayer` directly, so ``PlaybackController``
 /// is CI-testable with a deterministic fake: the pure state transitions (`isPlaying`,
-/// `seek` clamp, the load-failure path, the generation guard) never need real audio
+/// the load-failure path, the generation guard) never need real audio
 /// hardware or a decodable file. The production implementation is
 /// ``AVAudioPlayerEngine``; tests inject their own.
 ///
-/// `currentTime` is get/set: `set` is how ``PlaybackController/seek(to:)`` moves the
-/// playhead. `duration` may legitimately be `0` transiently (unknown/short); the
-/// timeline never trusts it as the span (see ``BeatGridTimelineView`` span logic).
+/// `currentTime` is get/set: the `set` lets ``PlaybackController`` reset the playhead
+/// (e.g. `handleFinish` returns it to `0`). `duration` may legitimately be `0` transiently
+/// (unknown/short); the timeline never trusts it as the span (see ``BeatGridTimelineView``
+/// span logic).
 @MainActor
 protocol AudioPlaybackEngine: AnyObject {
   var duration: Double { get }
@@ -88,7 +89,7 @@ final class AVAudioPlayerEngine: NSObject, AudioPlaybackEngine, AVAudioPlayerDel
 /// engine, though the delegate itself lives on ``AVAudioPlayerEngine``.
 ///
 /// ## Long-lived security scope (DD5)
-/// `AVAudioPlayer` reads its file LAZILY during `play()`/`seek()`, so a short-lived
+/// `AVAudioPlayer` reads its file LAZILY during `play()`, so a short-lived
 /// `withSecurityScopedAccess { AVAudioPlayer(contentsOf:) }` bracket would release the
 /// sandbox scope before playback ever reads — working for a drag/dropped file (its
 /// transient scope is still active) while silently failing for a restored-bookmark
@@ -118,14 +119,13 @@ final class PlaybackController: NSObject {
   /// Whether an engine is currently loaded.
   private(set) var hasAudio: Bool = false
 
-  /// Observable playhead snapshot in seconds (DD11/F2). Written by ``pause()``,
-  /// ``seek(to:)``, ``load(url:)``, and ``handleFinish(generation:successfully:)`` — the
-  /// PAUSED-branch scrubber's only source. While PLAYING, the scrubber reads
-  /// ``livePlayhead`` directly (a non-observed engine read driven by the view's
-  /// `TimelineView(.animation)`), so this snapshot is not updated per frame. It exists so a
-  /// seek while PAUSED — when the animation branch is idle — still invalidates the view and
-  /// redraws the scrubber once. A plain computed passthrough to `engine.currentTime` would
-  /// not, and the paused scrubber would lie until the next play.
+  /// Observable playhead snapshot in seconds (DD11). Written by ``pause()``, ``load(url:)``,
+  /// and ``handleFinish(generation:successfully:)`` — the PAUSED-branch scrubber's only
+  /// source. While PLAYING, the scrubber reads ``livePlayhead`` directly (a non-observed
+  /// engine read driven by the view's `TimelineView(.animation)`), so this snapshot is not
+  /// updated per frame. It exists so that when the animation branch is idle (paused / no
+  /// audio) the scrubber still reads observable state and lands where playback stopped —
+  /// a plain computed passthrough to `engine.currentTime` would not invalidate the view.
   private(set) var currentTime: Double = 0
 
   /// Labeled, FR-44-safe failure reason surfaced when a load fails (`nil` when clean).
@@ -219,10 +219,14 @@ final class PlaybackController: NSObject {
   }
 
   /// Starts playback if audio is loaded. `isPlaying` reflects the engine's own report
-  /// (`AVAudioPlayer.play()`'s Bool), never a wished-for state.
+  /// (`AVAudioPlayer.play()`'s Bool), never a wished-for state. A successful (re)start
+  /// clears a stale `playbackError` (e.g. a prior `playback-interrupted`) so the surfaced
+  /// reason does not linger while audio plays again; a load failure keeps its error
+  /// because `engine == nil` there and the guard returns first.
   func play() {
     guard let engine else { return }
     isPlaying = engine.play()
+    if isPlaying { playbackError = nil }
   }
 
   func pause() {
@@ -242,15 +246,6 @@ final class PlaybackController: NSObject {
     }
   }
 
-  /// Moves the playhead. Clamped to `[0, duration]`; a no-op without audio. Writes the
-  /// observable `currentTime` snapshot so a PAUSED seek redraws the scrubber (DD11/F2).
-  func seek(to seconds: Double) {
-    guard let engine, hasAudio else { return }
-    let target = min(max(seconds.isFinite ? seconds : 0, 0), max(duration, 0))
-    engine.currentTime = target
-    currentTime = target
-  }
-
   func stop() {
     load(url: nil)
   }
@@ -260,7 +255,8 @@ final class PlaybackController: NSObject {
   /// on purpose — `TimelineView(.animation)` drives the redraw cadence while playing, so
   /// the scrubber does not depend on observation there. Falls back to the observable
   /// `currentTime` snapshot when no engine is loaded. The PAUSED branch reads the
-  /// observable `currentTime` instead, which a `seek` writes (so a paused seek redraws).
+  /// observable `currentTime` instead, which `pause()` and `handleFinish` write (so it
+  /// stays correct while the animation branch is idle).
   var livePlayhead: Double { engine?.currentTime ?? currentTime }
 
   /// End-of-track handler (from the engine's delegate). Applies only when the finishing

@@ -135,9 +135,9 @@ struct BeatGridTimelineViewTests {
 
   // MARK: - PlaybackController (via the fake AudioPlaybackEngine seam)
 
-  @Test("load populates hasAudio/duration; play reflects the engine; seek clamps")
+  @Test("load populates hasAudio/duration; play reflects the engine")
   @MainActor
-  func loadPlaySeek() {
+  func loadPlay() {
     let recorder = EngineRecorder()
     let controller = makeController(recorder: recorder)
     controller.load(url: url("a.wav"))
@@ -148,25 +148,6 @@ struct BeatGridTimelineViewTests {
 
     controller.play()
     #expect(controller.isPlaying)
-
-    controller.seek(to: 5)
-    #expect(controller.currentTime.isApproximately(5))
-    // Clamp above duration and below zero.
-    controller.seek(to: 999)
-    #expect(controller.currentTime.isApproximately(10))
-    controller.seek(to: -3)
-    #expect(controller.currentTime.isApproximately(0))
-  }
-
-  @Test("a paused seek writes the observable currentTime snapshot (DD11/F2)")
-  @MainActor
-  func pausedSeekIsObservable() {
-    let controller = makeController(recorder: EngineRecorder())
-    controller.load(url: url("a.wav"))
-    // Paused (never played). The snapshot must move so the static scrubber redraws.
-    controller.seek(to: 7)
-    #expect(!controller.isPlaying)
-    #expect(controller.currentTime.isApproximately(7))
   }
 
   @Test("play reflects an engine that refuses to start")
@@ -178,7 +159,7 @@ struct BeatGridTimelineViewTests {
     #expect(!controller.isPlaying)
   }
 
-  @Test("load(nil) tears down to the no-audio state; seek is then a no-op")
+  @Test("load(nil) tears down to the no-audio state")
   @MainActor
   func loadNilTearsDown() {
     let controller = makeController(recorder: EngineRecorder())
@@ -187,8 +168,6 @@ struct BeatGridTimelineViewTests {
     controller.load(url: nil)
     #expect(!controller.hasAudio)
     #expect(!controller.isPlaying)
-    #expect(controller.currentTime.isApproximately(0))
-    controller.seek(to: 5)  // no-op without audio
     #expect(controller.currentTime.isApproximately(0))
   }
 
@@ -260,6 +239,11 @@ struct BeatGridTimelineViewTests {
     #expect(controller.currentTime.isApproximately(0))
     #expect(controller.hasAudio)
     #expect(controller.playbackError == "Reason: playback-interrupted")
+
+    // Resuming playback clears the surfaced reason (so it does not linger while playing).
+    controller.play()
+    #expect(controller.isPlaying)
+    #expect(controller.playbackError == nil)
   }
 
   @Test(
