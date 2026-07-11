@@ -18,7 +18,7 @@ struct ContentView: View {
   private let modelCatalog: ModelCatalog
   @State private var isModelPickerPresented: Bool = false
 
-  // Audio playback for the Story-10.3 beat-grid timeline scrubber. A local `@State`
+  // Audio playback for the Story-10.3 beat-grid scrubber. A local `@State`
   // (unlike `modelCatalog`, which was App-hoisted): `PlaybackController.init` does NO
   // I/O — the file loads only when the result-paired `.onChange` below fires — so a
   // per-construction `@State` re-eval is harmless and does not regress the 10.2 R3
@@ -117,7 +117,7 @@ struct ContentView: View {
     .onOpenURL { url in
       viewModel.handleOpenURL(url)
     }
-    // Beat-grid timeline playback (Story 10.3). RESULT-paired: load audio off the
+    // Beat-grid playback (Story 10.3). RESULT-paired: load audio off the
     // atomic grid payload's `sourceURL`, NOT the prologue `selectedFileURL` (which is
     // set before analysis publishes and is not cleared on the no-BPM/failure arms). A
     // nil `sourceURL` (every grid-clear path) tears down playback + releases the scope.
@@ -131,10 +131,6 @@ struct ContentView: View {
     }
     .onDisappear {
       playback.load(url: nil)
-    }
-    // Persist the beat-grid view-mode choice so it survives quit/relaunch (Story 10.3).
-    .onChange(of: viewModel.beatGridViewMode) { _, _ in
-      viewModel.persistBeatGridViewMode()
     }
     // Registry-backed model picker (Story 10.2). On a successful "Use this
     // model" the sheet re-analyzes the current file if one is loaded.
@@ -256,42 +252,23 @@ struct ContentView: View {
   }
 
   // Beat-grid section for the current result. Shown only when a grid was tracked
-  // (`gridVisualization != nil`). A view-mode switch (Story 10.3) flips between the new
-  // waveform-free `BeatGridTimelineView` (FR-39 — beat/downbeat ticks + a playback
-  // scrubber + labeled readout) and the Epic-8 `BeatGridView` (waveform inspection); the
-  // choice is persisted. The `maxHeight: 340` cap is load-bearing: the waveform block is
-  // otherwise an unbounded, incompressible view (its horizontal ScrollView reports an
-  // unbounded ideal cross-axis height) that grows the window and starves
-  // `primaryStateView`'s `maxHeight: .infinity` share, hiding the BPM hero. The cap
-  // bounds the block; each child view flexes within it (the timeline gives its Canvas a
-  // `minHeight` and keeps the transport/readout in the fixed region).
+  // (`gridVisualization != nil`). ONE combined view (Story 10.3 UX rework): waveform +
+  // beat markers + playback scrubber + click-to-scrub + labeled readout. The
+  // `maxHeight: 340` cap is load-bearing: the waveform block is otherwise an unbounded,
+  // incompressible view (its horizontal ScrollView reports an unbounded ideal
+  // cross-axis height) that grows the window and starves `primaryStateView`'s
+  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the block; the
+  // lane flexes within it (measured `laneHeight`) while the transport/readout rows
+  // keep their fixed height.
   @ViewBuilder
   private var beatGridSection: some View {
     if let grid = viewModel.gridVisualization {
       GroupBox {
-        switch viewModel.beatGridViewMode {
-        case .timeline:
-          BeatGridTimelineView(state: grid, controller: playback)
-        case .waveform:
-          BeatGridView(state: grid)
-        }
+        BeatGridView(state: grid, controller: playback)
       } label: {
         HStack(spacing: 6) {
           Text("Beat grid")
-          Picker("Beat-grid view", selection: $viewModel.beatGridViewMode) {
-            ForEach(AnalysisViewModel.BeatGridViewMode.allCases, id: \.self) { mode in
-              Text(mode.label).tag(mode)
-            }
-          }
-          .pickerStyle(.segmented)
-          .labelsHidden()
-          .fixedSize()
-          // The waveform view's legend lives in this label; the timeline view carries its
-          // own inline (?) — so this help button only rides along in waveform mode.
-          if viewModel.beatGridViewMode == .waveform {
-            BeatGridHelpButton()
-          }
-          Spacer()
+          BeatGridHelpButton()
         }
       }
       .frame(maxWidth: .infinity, maxHeight: 340, alignment: .topLeading)
