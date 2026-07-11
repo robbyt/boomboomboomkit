@@ -56,7 +56,9 @@ final class AnalysisViewModel {
   /// `.maxConfidence`; this seeding is demo-side only and MUST NOT
   /// leak into the library. SPM consumers receive the library default
   /// unless they opt in.
-  init(configuration: Configuration = .live) {
+  init(
+    configuration: Configuration = .live
+  ) {
     self.configuration = configuration
     if configuration.defaults.object(forKey: Self.preferredMergeStrategyKey) == nil {
       // Genuinely absent (first launch) — seed the demo default, no write.
@@ -816,34 +818,28 @@ final class AnalysisViewModel {
 
   // MARK: - BYOW Model Loading
 
-  /// Present an open panel for a compiled `.mlmodelc`, load it via
-  /// `BNNSTechnique(modelURL:)`, and attach it on success (the model then
-  /// participates per the active ensemble preset — Story 9.1). Mirrors
-  /// `exportTrace`'s security-scoped-resource handling for the sandbox. A raw
-  /// (uncompiled) `.mlmodel`, a missing bundle, or a tensor-contract mismatch
-  /// surfaces as `mlModelError` and leaves ML disabled. UI-agnostic: the caller
-  /// re-analyzes after a successful load.
+  /// Construct and attach a `BNNSTechnique` for `url` — the model-load entry
+  /// point (Story 10.2 Task 4), invoked from `ModelPickerView`'s "Use this model"
+  /// (`ModelPickerView.addFromDisk` owns the `NSOpenPanel` flow). The construct
+  /// is wrapped in ``BookmarkPersistence/withSecurityScopedAccess(to:perform:)``
+  /// (DD9): restored bookmark URLs arrive with their security scope NOT started,
+  /// and `BNNSTechnique.init` reads/compiles from disk. A freshly-picked
+  /// `NSOpenPanel` URL is also scoped — `start...` returns `true` and the bracket
+  /// balances the `stop`, so the same path serves both callers. On success the
+  /// full quartet (`mlTechnique`/`mlModelName`/`mlEnabled`/`mlModelError`) is set
+  /// via ``attachMLTechnique(_:named:)``; on failure ML is left disabled and
+  /// `mlModelError` surfaces the reason.
   @discardableResult
-  func pickAndLoadMLModel() -> Bool {
+  func loadModel(at url: URL) -> Bool {
     guard #available(macOS 15.0, *) else {
       mlModelError = "ML inference requires macOS 15 or later."
       return false
     }
-    let panel = NSOpenPanel()
-    panel.canChooseFiles = true
-    panel.canChooseDirectories = true  // a .mlmodelc is a directory bundle
-    panel.allowsMultipleSelection = false
-    panel.message = "Choose a compiled Core ML model (.mlmodelc)"
-    let response = panel.runModal()
-    guard response == .OK, let url = panel.url else { return false }
-    let didStart = url.startAccessingSecurityScopedResource()
-    defer {
-      if didStart {
-        url.stopAccessingSecurityScopedResource()
-      }
-    }
     do {
-      attachMLTechnique(try BNNSTechnique(modelURL: url), named: url.lastPathComponent)
+      let technique = try BookmarkPersistence.withSecurityScopedAccess(to: url) {
+        try BNNSTechnique(modelURL: url)
+      }
+      attachMLTechnique(technique, named: url.lastPathComponent)
       return true
     } catch {
       mlTechnique = nil
@@ -854,12 +850,11 @@ final class AnalysisViewModel {
     }
   }
 
-  /// Attach an already-constructed ML technique — the behavior-preserving
-  /// extraction of `pickAndLoadMLModel`'s success block (Story 9.1 DD3
-  /// testability seam). Sets the full success quartet: the toggle's
-  /// visibility is gated on `mlModelName != nil`, so all four writes are
-  /// load-bearing. The active preset's policy governs how the technique
-  /// participates in the next run.
+  /// Attach an already-constructed ML technique — the success block shared by
+  /// `loadModel(at:)` (Story 9.1 DD3 testability seam). Sets the full success
+  /// quartet: the toggle's visibility is gated on `mlModelName != nil`, so all
+  /// four writes are load-bearing. The active preset's policy governs how the
+  /// technique participates in the next run.
   func attachMLTechnique(_ technique: any MLTechnique, named name: String) {
     mlTechnique = technique
     mlModelName = name

@@ -174,15 +174,12 @@ struct BookmarkPersistenceTests {
   // operator-run AC6 sandbox step, not fakeable in CI (DD4).
   @Test("withSecurityScopedAccess runs the body and propagates value and errors")
   func accessBracketRunsAndPropagates() throws {
-    let suiteName = "com.robbyt.BoomBoomBoomBPMTests.bookmark.bracket"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
-    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
-
-    let persistence = BookmarkPersistence(defaults: defaults)
+    // Static: the bracket touches no instance state, so no persistence instance
+    // is constructed here.
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
 
     var ran = false
-    let result = persistence.withSecurityScopedAccess(to: url) {
+    let result = BookmarkPersistence.withSecurityScopedAccess(to: url) {
       ran = true
       return 42
     }
@@ -191,7 +188,7 @@ struct BookmarkPersistenceTests {
 
     struct BodyError: Error {}
     #expect(throws: BodyError.self) {
-      try persistence.withSecurityScopedAccess(to: url) { throw BodyError() }
+      try BookmarkPersistence.withSecurityScopedAccess(to: url) { throw BodyError() }
     }
   }
 
