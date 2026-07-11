@@ -101,7 +101,7 @@ Epic numbering continues monotonically from the archived `epics-2026-03-31.md`, 
 - **FR-36** Demo exposes named ensemble presets in primary view. 4 PRD presets (`Default`, `DSP only`, `ML augmented`, `Trust file tags`) in primary view; raw signal weights in advanced sidebar (existing `.inspector(isPresented:)` from Story 5-6b).
 - **FR-37** Model selection from registry + file picker. Demo lets users select an ML model from registry OR add new via file picker. Selection drives subsequent analysis.
 - **FR-38** Demo owns persistence for user-added models only. Security-scoped bookmark stored by demo for user-added models. Library accepts already-resolved URLs. Bundled + known-public entries are stateless. Required entitlements: `user-selected.read-write` (the shipped app-level superset — read-only is *sufficient* for the model bookmark and is enforced at bookmark creation via `.securityScopeAllowOnlyReadAccess`, but the audio-file open path already requires read-write; Story 10.1 DD1) + `bookmarks.app-scope`.
-- **FR-39** Beat-grid as timeline + text readout. SwiftUI Canvas timeline with current-time scrubber + text readout (tempo, beat count, downbeat status, confidence). No waveform.
+- **FR-39** Beat-grid as timeline + text readout. SwiftUI Canvas timeline with current-time scrubber, click-to-scrub (beat-snap), and text readout (tempo, beat count, downbeat status, confidence), on the Epic-8 `BeatGridView` waveform overlay. No new waveform engine. *(Amended 2026-07-11, Story 10-3.)*
 - **FR-40** LUFS as primary measurement, secondary breakdown. Integrated LUFS as single number with unit label + small panel for true-peak + LRA. Does not dominate BPM-centric flow.
 - **FR-41** Final-state signal-pool diagnostic table in advanced sidebar. When `enableTrace: true`, sortable Table with one row per contributing signal (source, BPM, confidence, weight, contribution, cluster). Final-state, post-analysis. Replaces current `EnsembleDecision` summary view.
 - **FR-42** Strategy popover wired to Epic 11 docs with graceful degradation. "?" buttons open SwiftUI `.popover()` rendering docs from Epic 11's runtime Markdown bundle via `BoomBoomBoomKitDocs.attributedString(for:id:)` accessor. If Epic 11 ships late or bundle unavailable, popover shows fallback (one-line description + repo URL). _(PRD originally referenced "Epic E" — per-case docs renumbered to Epic 11 after Epic 9 split during party-mode review 2026-05-26.)_
@@ -198,7 +198,7 @@ Implementation-level requirements derived from `architecture.md` that shape epic
 
 No standalone UX design document exists. UX is captured inline in PRD Epic D / Epic 9 (FR-36 through FR-44) and resolved via architecture KDD-D1 through KDD-D5. The demo's UX requirements appear as Epic 9 FRs above, not as separate UX-DRs.
 
-Treat Epic 9 FRs as both functional requirements AND the UX specification — primary-view ensemble presets, advanced-sidebar diagnostics, beat-grid timeline (no waveform), strategy popover with graceful degradation, confidence-label discipline.
+Treat Epic 9 FRs as both functional requirements AND the UX specification — primary-view ensemble presets, advanced-sidebar diagnostics, beat-grid timeline on the shared waveform view (no new waveform engine), strategy popover with graceful degradation, confidence-label discipline.
 
 ### FR Coverage Map
 
@@ -328,7 +328,7 @@ Primary view = audio file picker + ensemble preset picker (4 PRD presets `Defaul
 
 The demo's deeper-integration surface — beat-grid timeline rendering, LUFS readout panel, ML model selection from registry plus user-added models via file picker with security-scoped bookmark persistence, and strategy popovers wired to per-case authored prose from Epic 11. Builds on Epic 8 (beat-grid + LUFS + ModelRegistry public APIs) and Epic 11 (per-case docs), with FR-42 graceful degradation allowing Epic 10 to ship before Epic 11 closes (popover degrades to one-line description + repo URL fallback).
 
-Beat-grid renders as a SwiftUI Canvas timeline with current-time scrubber plus text readout (estimated tempo, beat count, downbeat status, grid confidence) — no waveform per FR-39. LUFS displays as a primary integrated-loudness number plus a secondary panel for true-peak and LRA. Model selection draws from `ModelRegistry` (bundled + known-public + user-added); user-added models persist via security-scoped bookmark stored in `UserDefaults` (matching the Story 5-6 `MergeStrategyPersistence` precedent), with required entitlements `com.apple.security.files.user-selected.read-write` (app-level superset; the model bookmark is read-only via `.securityScopeAllowOnlyReadAccess`) + `com.apple.security.files.bookmarks.app-scope`. Strategy popovers ("?" buttons next to ensemble preset / DSP technique / merge strategy controls) anchor SwiftUI `.popover()` to `BoomBoomBoomKitDocs.attributedString(for:id:)` resolution.
+Beat-grid renders as a SwiftUI Canvas timeline with current-time scrubber, click-to-scrub (beat-snap), plus text readout (estimated tempo, beat count, downbeat status, grid confidence), merged onto the Epic-8 `BeatGridView` waveform overlay — no new waveform engine per FR-39 (amended 2026-07-11). LUFS displays as a primary integrated-loudness number plus a secondary panel for true-peak and LRA. Model selection draws from `ModelRegistry` (bundled + known-public + user-added); user-added models persist via security-scoped bookmark stored in `UserDefaults` (matching the Story 5-6 `MergeStrategyPersistence` precedent), with required entitlements `com.apple.security.files.user-selected.read-write` (app-level superset; the model bookmark is read-only via `.securityScopeAllowOnlyReadAccess`) + `com.apple.security.files.bookmarks.app-scope`. Strategy popovers ("?" buttons next to ensemble preset / DSP technique / merge strategy controls) anchor SwiftUI `.popover()` to `BoomBoomBoomKitDocs.attributedString(for:id:)` resolution.
 
 **FRs covered:** FR-37, FR-38, FR-39, FR-40, FR-42
 
@@ -1420,33 +1420,35 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 **KDDs implemented:** None directly (composes Epic 8's `ModelRegistry`).
 **Pressure-release valve:** If `ModelRegistry` from Epic 8 lands late, ship a stub registry that surfaces only the file-picker path; document the dependency in the story implementation artifact and reopen the AC once Epic 8 closes. Document the deviation in `_bmad-output/implementation-artifacts/10-2-pressure-release.md`.
 
-### Story 10.3: BeatGridTimelineView — Canvas-based timeline + text readout
+### Story 10.3: Beat-grid timeline + text readout on the merged BeatGridView
+
+> **Amended 2026-07-11** (Sprint Change Proposal, operator UX rework `cac4fe6`/PR #94). The originally-specced separate waveform-free `BeatGridTimelineView` and the Timeline/Waveform view-mode switch were superseded: the beat-grid timeline, scrubber, and readout are **merged into the Epic-8 `BeatGridView`** (one view, sharing its pre-existing waveform overlay), and **click-to-scrub with beat-snapping** was added. FR-39's no-new-waveform-*engine* intent is retained; its "no waveform at all" presentation letter is superseded. See `sprint-change-proposal-2026-07-11.md`.
 
 **As a** demo user evaluating BoomBoomBoomKit's beat-grid output,
-**I want** a horizontal timeline showing beats and downbeats with a current-time scrubber, alongside a text readout,
-**So that** I can visually verify the grid aligns with the audio and read out the tempo / beat-count / confidence numbers without inspecting JSON.
+**I want** a horizontal timeline showing beats and downbeats with a current-time scrubber and click-to-scrub, on the same view as the waveform, alongside a text readout,
+**So that** I can watch the grid track the audio, click to audition a beat, and read the tempo / beat-count / downbeat / confidence numbers without inspecting JSON.
 
 **Acceptance Criteria:**
 
-**Given** an `AudioAnalysisResult` carrying a non-nil `BeatGrid` (Epic 8 dependency — `BeatGrid`, `BeatTimestamp`, and `DownbeatResult` produced by Epic 8 stories),
-**When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BeatGridTimelineView.swift` renders,
-**Then** the view uses SwiftUI `Canvas` (KDD-D2 — not `Path`-in-`ZStack`, not Metal, not `UIView`/`NSView` bridging) to draw vertical tick marks for each `BeatTimestamp` and visually-distinguished taller marks for `DownbeatResult` positions across a horizontal time axis.
+**Given** a tracked `BeatGrid` (Epic 8 dependency — `BeatGrid`, `BeatTimestamp`, `DownbeatResult`, from `CombinedAnalysisResult.beatGrid`),
+**When** the merged `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BeatGridView.swift` renders,
+**Then** it uses SwiftUI `Canvas` (KDD-D2 — not `Path`-in-`ZStack`, not Metal, not `UIView`/`NSView` bridging) to draw vertical tick marks for each `BeatTimestamp` and visually-distinguished marks for `DownbeatResult` positions across a horizontal, zoomable time axis, over the view's waveform overlay.
 
 **Given** the audio is mid-playback,
 **When** the playback time advances,
-**Then** a vertical scrubber line tracks the current time across the Canvas at 60Hz via `TimelineView(.animation)`, NOT via `Timer`-driven `@State` mutation; the scrubber stays within the Canvas bounds at all zoom levels.
+**Then** a vertical scrubber tracks the current time via `TimelineView(.animation)` (a positioned marker, not a per-frame Canvas raster), NOT via `Timer`-driven `@State` mutation; paused, it reads the observable `currentTime` snapshot; the scrubber x is clamped within bounds.
 
-**Given** the timeline view is visible,
-**When** the user reads the text readout panel beneath the Canvas,
-**Then** the panel shows four labeled fields (FR-44 discipline — no bare numerics): `Estimated tempo: <X> BPM`, `Beat count: <N>`, `Downbeat status: <detected | not-detected | partial>`, and `Grid confidence: <0.00-1.00>` formatted to two decimal places with the literal `Grid confidence:` label preceding the value.
+**Given** the timeline is visible,
+**When** the user reads the text readout,
+**Then** four labeled fields render (FR-44 discipline — no bare numerics): `Estimated tempo: <X> BPM` (`unavailable` for the `0.0` sentinel), `Beat count: <N>`, `Downbeat status: <detected | not-detected | not-attempted>` (the real tri-state), and `Grid confidence: <0.00-1.00>` formatted to two decimals with the literal `Grid confidence:` label.
 
-**Given** the analysis produced a `BeatGrid` but no `DownbeatResult` (downbeats absent or low confidence),
+**Given** the analysis produced a `BeatGrid` but no downbeats (`.noneDetected`),
 **When** the view renders,
-**Then** the Canvas draws only beat ticks (no taller downbeat marks), and the text readout shows `Downbeat status: not-detected` with the grid-confidence field still populated; no silent rendering of zero-confidence downbeats.
+**Then** the Canvas draws only beat ticks (no downbeat accent marks), and the readout shows `Downbeat status: not-detected` with grid confidence still populated; no silent rendering of zero-confidence downbeats.
 
-**Given** the operator inspects the file diff for waveform-rendering primitives,
-**When** the search is run for `AVAudioFile` waveform sampling, `FFT`-on-display, or any pixel-per-sample loop,
-**Then** zero matches are found in `BeatGridTimelineView.swift` — waveform rendering is explicitly OUT of scope per FR-39.
+**Given** the timeline is visible,
+**When** the user clicks the lane,
+**Then** the click maps content-x → time via `pointsPerSecond` and **snaps to the nearest raw detected beat** (`clickSeekTime`; exact-midpoint tie → earlier beat; `>= 0` result); a click while stopped/paused starts playback; the transport is a bordered play/pause with a labeled disabled reason and verbatim `playbackError` render; the pure `clickSeekTime`/`scrubberX` helpers are unit-locked in `BeatGridLogicTests`.
 
 **FRs covered:** FR-39.
 **KDDs implemented:** D2.
