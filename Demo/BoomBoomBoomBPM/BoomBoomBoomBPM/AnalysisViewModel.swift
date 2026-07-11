@@ -244,7 +244,7 @@ final class AnalysisViewModel {
   var lufsReport: LUFSReport?
 
   /// The `maxSeconds` the LUFS measurement used, paired with `lufsReport` so
-  /// `LUFSReadoutView.windowCaption` reports the analyzed window honestly
+  /// `LoudnessGraphView.windowCaption` reports the analyzed window honestly
   /// (Story 10.4 DD7). Set and cleared in lockstep with `lufsReport`, in the
   /// same MainActor turn with no suspension between, so the window can never
   /// drift out of sync with its report.
