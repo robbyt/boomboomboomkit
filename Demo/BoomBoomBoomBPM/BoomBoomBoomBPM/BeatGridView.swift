@@ -15,16 +15,35 @@ struct GridVisualizationState: Equatable {
   let duration: Double
   /// The BPM stage's tempo, for the agreement label.
   let bpmTempo: Double
+  /// The analyzed audio file. Carried on this ATOMIC payload (Story 10.3) so the
+  /// `BeatGridView` playback scrubber loads audio keyed to the *matching*
+  /// result — driven off `gridVisualization?.sourceURL`, NOT the prologue
+  /// `selectedFileURL` (which is set before analysis publishes and is not cleared
+  /// on the no-BPM/failure arms). Every `gridVisualization = nil` clear therefore
+  /// also stops playback.
+  let sourceURL: URL
 }
 
-/// Horizontal beat-grid + waveform overlay. Shows the **extrapolated** grid
-/// (the trustworthy `anchor + period·n` line the F-measure is scored on) as the
-/// primary layer and the **raw detected beats** as a faint secondary layer, so
-/// raw-vs-extrapolated drift — and drift against the waveform transients — is
-/// directly visible. This is the inspection surface for refining the tracker;
-/// it is the estimate against the audio, not accuracy vs a ground-truth oracle.
+/// The demo's single beat-grid surface: horizontal beat-grid + waveform overlay
+/// with a playback scrubber, click-to-scrub, transport, and the FR-44 labeled
+/// readout (Story 10.3 UX rework merged the waveform-free timeline view into
+/// this one — one lane shows everything).
+///
+/// Layers: the **extrapolated** grid (the trustworthy `anchor + period·n` line
+/// the F-measure is scored on) as the primary layer and the **raw detected
+/// beats** as a faint secondary layer, so raw-vs-extrapolated drift — and drift
+/// against the waveform transients — is directly visible.
+///
+/// Playback: clicking anywhere on the lane seeks to the **nearest raw detected
+/// beat** (every click snaps — the feature exists to audition whether the beat
+/// markers align with the audio) and, when stopped/paused, starts playback. The
+/// scrubber follows KDD-D2: the static grid Canvas never redraws per frame —
+/// while playing, only a positioned marker animates inside
+/// `TimelineView(.animation)`; while paused, a static marker reads the
+/// observable `currentTime` snapshot (so a paused seek redraws once).
 struct BeatGridView: View {
   let state: GridVisualizationState
+  let controller: PlaybackController
 
   @State private var pointsPerSecond: Double = 16
   @State private var showRawBeats: Bool = true
@@ -60,52 +79,69 @@ struct BeatGridView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       ScrollView(.horizontal, showsIndicators: true) {
-        Canvas { context, size in draw(in: context, size: size) }
-          .frame(width: contentWidth, height: laneHeight)
-          .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
-          // `.simultaneousGesture` on the canvas content (not the ScrollView) so
-          // trackpad pinch-to-zoom coexists with horizontal pan — they are
-          // distinct trackpad gestures. `.contentShape` gives the gesture a hit
-          // region across the full lane.
-          .contentShape(Rectangle())
-          .simultaneousGesture(
-            MagnifyGesture()
-              .onChanged { value in
-                if pinchBasePPS == nil {
-                  // Capture the anchor ONCE. Cursor viewport-x (invariant to panning),
-                  // or viewport-center when there's no active hover. The content-x is
-                  // derived from the offset NOW (`currentOffsetX + vx`), so a pan before
-                  // the pinch can't stale it. The viewport↔content origin coincidence
-                  // holds while the Canvas is the sole scroll content with no leading
-                  // gutter / contentMargins — revisit this mapping if that changes.
-                  pinchBasePPS = pointsPerSecond
-                  let vx = min(max(hoverViewportX ?? (laneSize.width / 2), 0), laneSize.width)
-                  let cx = currentOffsetX + vx
-                  pinchAnchorTime = Double(cx) / pointsPerSecond
-                  pinchAnchorViewportX = vx
-                }
-                let base = pinchBasePPS ?? pointsPerSecond
-                let lo = minPointsPerSecond
-                let hi = max(80, lo * 4)
-                let newPPS = min(max(base * value.magnification, lo), hi)
-                // Own the offset during the pinch: disable the scroll view's automatic
-                // content-offset adjustment so it doesn't fight our explicit scrollTo
-                // when contentWidth changes in the same layout pass.
-                var txn = Transaction()
-                txn.scrollContentOffsetAdjustmentBehavior = .disabled
-                withTransaction(txn) {
-                  pointsPerSecond = newPPS
-                  if let t = pinchAnchorTime, let vx = pinchAnchorViewportX {
-                    scrollPosition.scrollTo(x: CGFloat(max(0, t * newPPS - Double(vx))))
-                  }
+        // ZStack: static grid Canvas below, animated scrubber marker above. Both live
+        // INSIDE the scroll content (same contentWidth frame), so the scrubber pans
+        // and zooms with the lane. KDD-D2: the Canvas never redraws per frame — only
+        // the marker's offset animates.
+        ZStack(alignment: .topLeading) {
+          Canvas { context, size in draw(in: context, size: size) }
+          scrubberLayer
+        }
+        .frame(width: contentWidth, height: laneHeight)
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
+        // `.simultaneousGesture` on the scroll content (not the ScrollView) so
+        // trackpad pinch-to-zoom and click-to-scrub coexist with horizontal pan —
+        // distinct input events, and a drag cancels a tap natively. `.contentShape`
+        // gives both gestures a hit region across the full lane, including the
+        // transparent gaps between waveform peaks.
+        .contentShape(Rectangle())
+        // Click-to-scrub: `.local` on the scroll CONTENT is content space, so
+        // `location.x / pointsPerSecond` is the clicked time — no scroll-offset math.
+        .simultaneousGesture(
+          SpatialTapGesture(coordinateSpace: .local)
+            .onEnded { value in
+              handleTap(atContentX: value.location.x)
+            }
+        )
+        .simultaneousGesture(
+          MagnifyGesture()
+            .onChanged { value in
+              if pinchBasePPS == nil {
+                // Capture the anchor ONCE. Cursor viewport-x (invariant to panning),
+                // or viewport-center when there's no active hover. The content-x is
+                // derived from the offset NOW (`currentOffsetX + vx`), so a pan before
+                // the pinch can't stale it. The viewport↔content origin coincidence
+                // holds while the ZStack is the sole scroll content with no leading
+                // gutter / contentMargins — revisit this mapping (and the tap gesture's
+                // content-space assumption) if that changes.
+                pinchBasePPS = pointsPerSecond
+                let vx = min(max(hoverViewportX ?? (laneSize.width / 2), 0), laneSize.width)
+                let cx = currentOffsetX + vx
+                pinchAnchorTime = Double(cx) / pointsPerSecond
+                pinchAnchorViewportX = vx
+              }
+              let base = pinchBasePPS ?? pointsPerSecond
+              let lo = minPointsPerSecond
+              let hi = max(80, lo * 4)
+              let newPPS = min(max(base * value.magnification, lo), hi)
+              // Own the offset during the pinch: disable the scroll view's automatic
+              // content-offset adjustment so it doesn't fight our explicit scrollTo
+              // when contentWidth changes in the same layout pass.
+              var txn = Transaction()
+              txn.scrollContentOffsetAdjustmentBehavior = .disabled
+              withTransaction(txn) {
+                pointsPerSecond = newPPS
+                if let t = pinchAnchorTime, let vx = pinchAnchorViewportX {
+                  scrollPosition.scrollTo(x: CGFloat(max(0, t * newPPS - Double(vx))))
                 }
               }
-              .onEnded { _ in
-                pinchBasePPS = nil
-                pinchAnchorTime = nil
-                pinchAnchorViewportX = nil
-              }
-          )
+            }
+            .onEnded { _ in
+              pinchBasePPS = nil
+              pinchAnchorTime = nil
+              pinchAnchorViewportX = nil
+            }
+        )
       }
       .scrollPosition($scrollPosition)
       // Track the live scroll offset for the pinch-anchor mapping. Read only at
@@ -143,6 +179,60 @@ struct BeatGridView: View {
         if pointsPerSecond != clamped { pointsPerSecond = clamped }
       }
       controls
+      readout
+    }
+  }
+
+  // MARK: - Scrubber (KDD-D2: only the marker animates; the grid Canvas never
+  // redraws per frame)
+
+  /// The playhead marker layer inside the scroll content. While PLAYING,
+  /// `TimelineView(.animation)` re-reads the live engine playhead each display
+  /// frame; while paused, a static marker reads the observable `currentTime`
+  /// snapshot (written by `pause`/`seek`), so a paused seek redraws exactly once.
+  /// A positioned 1.5-pt Rectangle, NOT a content-width Canvas — at high zoom the
+  /// content is tens of thousands of points wide and a per-frame full-width
+  /// raster would be a real cost; an offset Rectangle is layout-only per frame.
+  @ViewBuilder
+  private var scrubberLayer: some View {
+    if controller.hasAudio {
+      if controller.isPlaying {
+        TimelineView(.animation) { _ in
+          scrubberMarker(at: controller.livePlayhead)
+        }
+      } else {
+        scrubberMarker(at: controller.currentTime)
+      }
+    }
+  }
+
+  private func scrubberMarker(at time: Double) -> some View {
+    Rectangle()
+      .fill(Color.primary)
+      .frame(width: 1.5, height: laneHeight)
+      .offset(
+        x: Self.scrubberX(time: time, pointsPerSecond: pointsPerSecond, contentWidth: contentWidth)
+          - 0.75
+      )
+      // The playhead must never swallow a click at its own position.
+      .allowsHitTesting(false)
+  }
+
+  // MARK: - Click-to-scrub
+
+  /// A click seeks to the nearest RAW detected beat (every click snaps — the
+  /// markers under audit are the raw beats, even while the raw-ticks toggle is
+  /// off) and, when stopped/paused, starts playback immediately.
+  private func handleTap(atContentX x: CGFloat) {
+    guard controller.hasAudio else { return }
+    let beatTimes = state.beatGrid.beats.map(\.presentationTime)
+    guard
+      let target = Self.clickSeekTime(
+        contentX: x, pointsPerSecond: pointsPerSecond, beatTimes: beatTimes)
+    else { return }
+    controller.seek(to: target)
+    if !controller.isPlaying {
+      controller.play()
     }
   }
 
@@ -178,15 +268,60 @@ struct BeatGridView: View {
     return []
   }
 
-  // MARK: - Controls
+  // MARK: - Controls (transport + raw-beats toggle)
 
-  // Sits below the waveform now (the Zoom slider was replaced by trackpad
-  // pinch-to-zoom; the legend (?) moved next to the GroupBox title).
+  // Sits below the waveform (the Zoom slider was replaced by trackpad
+  // pinch-to-zoom; the legend (?) lives next to the GroupBox title). The
+  // play/pause button fronts the row; clicking the lane is the primary seek
+  // interaction (see `handleTap`).
   @ViewBuilder
   private var controls: some View {
-    Toggle("Show raw beat indicators", isOn: $showRawBeats)
-      .toggleStyle(.checkbox)
-      .font(.caption)
+    HStack(spacing: 8) {
+      Button {
+        controller.togglePlayPause()
+      } label: {
+        Image(systemName: controller.isPlaying ? "pause.fill" : "play.fill")
+      }
+      .buttonStyle(.bordered)
+      .disabled(!controller.hasAudio)
+      .help(
+        controller.hasAudio
+          ? "Play / pause — or click the waveform to jump to the nearest beat"
+          : "Playback unavailable for this file")
+
+      if let error = controller.playbackError {
+        // Rendered verbatim — the controller's reasons are already FR-44-labeled.
+        Text(error)
+          .font(.caption)
+          .foregroundStyle(.red)
+      } else if !controller.hasAudio {
+        Text("Reason: no-audio-loaded")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
+      Spacer()
+
+      Toggle("Show raw beat indicators", isOn: $showRawBeats)
+        .toggleStyle(.checkbox)
+        .font(.caption)
+    }
+  }
+
+  // MARK: - Readout (FR-44: every value behind a label)
+
+  @ViewBuilder
+  private var readout: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("Estimated tempo: \(Self.tempoValue(state.beatGrid.estimatedTempo))")
+        .monospacedDigit()
+      Text("Beat count: \(state.beatGrid.beats.count)").monospacedDigit()
+      Text("Downbeat status: \(Self.downbeatStatusLabel(state.beatGrid.downbeats))")
+      Text("Grid confidence: \(Self.gridConfidenceValue(state.beatGrid.confidence))")
+        .monospacedDigit()
+    }
+    .font(.callout)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   // MARK: - Drawing
@@ -244,7 +379,8 @@ struct BeatGridView: View {
     }
     context.stroke(grid, with: .color(.blue.opacity(0.7)), lineWidth: 1)
 
-    // Downbeats — taller accent lines.
+    // Downbeats — full-height accents, distinguished from the blue grid by the
+    // heavier pink stroke (color + weight, not height); the legend names them.
     var down = Path()
     for t in downbeatTimes {
       let dx = x(for: t, width: width)
@@ -307,6 +443,72 @@ struct BeatGridView: View {
     }
     return times
   }
+
+  // MARK: - Click / scrubber geometry (pure, unit-tested)
+
+  /// Maps a click at content-x (the zoomed coordinate system, `x = time *
+  /// pointsPerSecond`) to the seek target: the nearest raw detected beat —
+  /// every click snaps — falling back to the raw clicked time when no beats
+  /// exist. Returns `nil` for degenerate input (non-finite x, `pointsPerSecond`
+  /// not finite-positive) so the tap is simply ignored. An exact-midpoint tie
+  /// resolves to the earlier beat. Non-finite and negative `beatTimes` entries
+  /// are ignored (unrepresentable from the production caller — `BeatTimestamp`
+  /// clamps `presentationTime >= 0` at construction — but this pure helper
+  /// enforces its own contract). The result is always `>= 0`;
+  /// `PlaybackController.seek(to:)` owns the `[0, duration]` clamp.
+  nonisolated static func clickSeekTime(
+    contentX: CGFloat, pointsPerSecond: Double, beatTimes: [Double]
+  ) -> Double? {
+    guard contentX.isFinite, pointsPerSecond.isFinite, pointsPerSecond > 0 else {
+      return nil
+    }
+    let rawTime = max(0, Double(contentX) / pointsPerSecond)
+    // Linear scan — beats number in the low thousands, no binary search needed.
+    let nearest = beatTimes.filter { $0.isFinite && $0 >= 0 }.min { a, b in
+      let da = abs(a - rawTime)
+      let db = abs(b - rawTime)
+      return da == db ? a < b : da < db
+    }
+    return nearest ?? rawTime
+  }
+
+  /// The scrubber x in the zoomed coordinate system: `time * pointsPerSecond`,
+  /// clamped to `[0, contentWidth]` (playback past the analyzed span pins the
+  /// marker at the right edge). Defends non-finite/degenerate input by
+  /// returning 0.
+  nonisolated static func scrubberX(
+    time: Double, pointsPerSecond: Double, contentWidth: CGFloat
+  ) -> CGFloat {
+    guard time.isFinite, pointsPerSecond.isFinite, pointsPerSecond > 0,
+      contentWidth.isFinite, contentWidth >= 0
+    else { return 0 }
+    let x = CGFloat(time * pointsPerSecond)
+    return min(max(x, 0), contentWidth)
+  }
+
+  // MARK: - Readout labels (pure, unit-tested)
+
+  /// FR-44 value for the tempo field: `%.2f BPM`, or `unavailable` for the `0.0`
+  /// "no valid estimate" sentinel.
+  nonisolated static func tempoValue(_ tempo: Double) -> String {
+    guard tempo.isFinite, tempo > 0 else { return "unavailable" }
+    return String(format: "%.2f BPM", tempo)
+  }
+
+  /// FR-44 value for the confidence field: two decimals in `[0, 1]`.
+  nonisolated static func gridConfidenceValue(_ confidence: Float) -> String {
+    let clamped = min(max(confidence.isFinite ? confidence : 0, 0), 1)
+    return String(format: "%.2f", clamped)
+  }
+
+  /// The tri-state downbeat label (the real `DownbeatResult`, no "partial").
+  nonisolated static func downbeatStatusLabel(_ result: DownbeatResult) -> String {
+    switch result {
+    case .detected: return "detected"
+    case .noneDetected: return "not-detected"
+    case .notAttempted: return "not-attempted"
+    }
+  }
 }
 
 /// The `(?)` help button shown next to the "Beat grid" title. Self-contained — it
@@ -350,6 +552,12 @@ struct BeatGridHelpButton: View {
       legendRow(
         .orange, "Anchor",
         "The single most-trusted beat that the extrapolated grid is built outward from.")
+      legendRow(
+        .primary, "Playhead",
+        "The playback position. Click anywhere on the waveform to jump to the nearest "
+          + "detected beat and start playback — use it to audition whether the beat markers "
+          + "line up with the audio. Clicks snap to detected beats even while the raw "
+          + "indicators are hidden.")
     }
   }
 

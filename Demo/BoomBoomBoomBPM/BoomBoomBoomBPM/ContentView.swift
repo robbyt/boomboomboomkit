@@ -18,6 +18,14 @@ struct ContentView: View {
   private let modelCatalog: ModelCatalog
   @State private var isModelPickerPresented: Bool = false
 
+  // Audio playback for the Story-10.3 beat-grid scrubber. A local `@State`
+  // (unlike `modelCatalog`, which was App-hoisted): `PlaybackController.init` does NO
+  // I/O — the file loads only when the result-paired `.onChange` below fires — so a
+  // per-construction `@State` re-eval is harmless and does not regress the 10.2 R3
+  // hoist lesson (that was about an expensive `restore()` in `init`). Scope is released
+  // deterministically on `.onDisappear` (below); `deinit` is only a backstop.
+  @State private var playback = PlaybackController()
+
   init(modelCatalog: ModelCatalog) {
     self.modelCatalog = modelCatalog
   }
@@ -108,6 +116,21 @@ struct ContentView: View {
     // `.dropDestination`.
     .onOpenURL { url in
       viewModel.handleOpenURL(url)
+    }
+    // Beat-grid playback (Story 10.3). RESULT-paired: load audio off the
+    // atomic grid payload's `sourceURL`, NOT the prologue `selectedFileURL` (which is
+    // set before analysis publishes and is not cleared on the no-BPM/failure arms). A
+    // nil `sourceURL` (every grid-clear path) tears down playback + releases the scope.
+    // Re-analyzing the CURRENT file reloads playback (scrubber resets to 0): `analyze()`
+    // nils `gridVisualization` at its synchronous prologue before the async result
+    // republishes the same `sourceURL`, so this observer sees A -> nil -> A and reloads.
+    // Accepted — the grid is freshly recomputed each analysis. `.onDisappear` is the
+    // deterministic scope release (DD5/F3).
+    .onChange(of: viewModel.gridVisualization?.sourceURL) { _, url in
+      playback.load(url: url)
+    }
+    .onDisappear {
+      playback.load(url: nil)
     }
     // Registry-backed model picker (Story 10.2). On a successful "Use this
     // model" the sheet re-analyzes the current file if one is loaded.
@@ -228,18 +251,20 @@ struct ContentView: View {
     viewModel.analyze(url: url, autoStarted: false)
   }
 
-  // Beat-grid + waveform overlay for the current result. Shown only when a grid
-  // was tracked (`gridVisualization != nil`). The `maxHeight: 340` cap is
-  // load-bearing: the beat-grid block is otherwise an unbounded, incompressible
-  // view (its horizontal ScrollView reports an unbounded ideal cross-axis height)
-  // that grows the window to fill the screen and starves `primaryStateView`'s
-  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the block
-  // and `BeatGridView` fills it; the (?) help sits in the custom GroupBox label.
+  // Beat-grid section for the current result. Shown only when a grid was tracked
+  // (`gridVisualization != nil`). ONE combined view (Story 10.3 UX rework): waveform +
+  // beat markers + playback scrubber + click-to-scrub + labeled readout. The
+  // `maxHeight: 340` cap is load-bearing: the waveform block is otherwise an unbounded,
+  // incompressible view (its horizontal ScrollView reports an unbounded ideal
+  // cross-axis height) that grows the window and starves `primaryStateView`'s
+  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the block; the
+  // lane flexes within it (measured `laneHeight`) while the transport/readout rows
+  // keep their fixed height.
   @ViewBuilder
   private var beatGridSection: some View {
     if let grid = viewModel.gridVisualization {
       GroupBox {
-        BeatGridView(state: grid)
+        BeatGridView(state: grid, controller: playback)
       } label: {
         HStack(spacing: 6) {
           Text("Beat grid")

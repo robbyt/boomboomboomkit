@@ -536,7 +536,10 @@ final class AnalysisViewModel {
               beatGrid: grid,
               peaks: detached.waveform?.peaks ?? [],
               duration: detached.waveform?.duration ?? 0,
-              bpmTempo: value.bpm
+              bpmTempo: value.bpm,
+              // The analyzed file, carried atomically so the timeline scrubber loads
+              // audio keyed to THIS result (Story 10.3 DD5/F4).
+              sourceURL: url
             )
           } else {
             self.gridVisualization = nil
