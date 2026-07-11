@@ -66,6 +66,44 @@ struct AnalysisViewModelSmokeTest {
     #expect(grid.bpmTempo > 0)
   }
 
+  // LUFS wiring (Story 10.4 AC1/AC5): after analyze() completes on the click
+  // fixture, the best-effort `analyzeLUFS` call is threaded into the detached
+  // task and both companions commit in the success turn. `bpm-120-click.wav` is
+  // 44.1 kHz (no unsupportedSampleRate throw), not silent, not sub-400 ms, so it
+  // yields a real, above-sentinel integrated LUFS. Assert USABILITY, not
+  // `integratedLUFS.isFinite` (which `LUFSReport.init` clamps finite -> vacuous):
+  // `integratedValue(...) != "unavailable"` is the readout the operator sees.
+  // Then the clear path (`handleDrop([])` -> `clearPriorResult()`; there is no
+  // `reset()` method) nils both companions.
+  @Test("analyze() wires LUFS onto the view model; clear path nils it")
+  @MainActor
+  func lufsReportWiring() async throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let viewModel = try Self.makeIsolatedViewModel(suiteName: "smoke.lufsWiring")
+    defer { Self.removeIsolatedSuite("smoke.lufsWiring") }
+    viewModel.analyze(url: url)
+
+    let deadline = ContinuousClock.now.advanced(by: .seconds(30))
+    while viewModel.isAnalyzing && ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    try #require(!viewModel.isAnalyzing, "analyze(url:) did not complete within 30s")
+
+    // (a) LUFS + its window companion committed in the success turn.
+    let report = try #require(viewModel.lufsReport, "expected a LUFS report after analyze")
+    #expect(viewModel.lufsAnalysisWindowSeconds != nil)
+    // Usability, not the vacuous `.isFinite`: a real click track measures a
+    // finite, above-sentinel integrated LUFS -> the readout is a real value.
+    #expect(LUFSReadoutView.integratedValue(report.integratedLUFS) != "unavailable")
+    // (b) the BPM result is populated in the SAME run (AC5 "BPM hero unaffected").
+    #expect(viewModel.detectedBPM != nil)
+
+    // (c) the clear path nils both companions (the clear invariant).
+    #expect(viewModel.handleDrop([]) == false)
+    #expect(viewModel.lufsReport == nil)
+    #expect(viewModel.lufsAnalysisWindowSeconds == nil)
+  }
+
   // MARK: - Drop Validator (Story 5-2 DD #11 / DD #13)
 
   // MARK: - Merge-strategy description + ensemble degradation caption (demo UX)

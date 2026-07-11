@@ -52,6 +52,13 @@ struct ContentView: View {
   // Font.system(size: 96) is fixed-point and does NOT scale.
   @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 96
 
+  // Shared height cap for the subordinate result panels (beat grid + loudness).
+  // Load-bearing (F04 / Story 5-6b): an unbounded panel grows the window and
+  // starves `primaryStateView`'s `maxHeight: .infinity` BPM-hero share. Named +
+  // reused by both `beatGridSection` and `lufsSection` (Story 10.4 AC6) so the
+  // combined panels cannot jointly starve the hero.
+  private let panelMaxHeight: CGFloat = 340
+
   // `nil` until the first run completes — that's the cue for the
   // neutral pre-analysis gradient (KDD #8). Once a snapshot exists,
   // the user-chosen merge strategy keys the visual.
@@ -89,6 +96,7 @@ struct ContentView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         bannerView
         beatGridSection
+        lufsSection
         controlsSection
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -254,7 +262,7 @@ struct ContentView: View {
   // Beat-grid section for the current result. Shown only when a grid was tracked
   // (`gridVisualization != nil`). ONE combined view (Story 10.3 UX rework): waveform +
   // beat markers + playback scrubber + click-to-scrub + labeled readout. The
-  // `maxHeight: 340` cap is load-bearing: the waveform block is otherwise an unbounded,
+  // `panelMaxHeight` cap is load-bearing: the waveform block is otherwise an unbounded,
   // incompressible view (its horizontal ScrollView reports an unbounded ideal
   // cross-axis height) that grows the window and starves `primaryStateView`'s
   // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the block; the
@@ -271,7 +279,28 @@ struct ContentView: View {
           BeatGridHelpButton()
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: 340, alignment: .topLeading)
+      .frame(maxWidth: .infinity, maxHeight: panelMaxHeight, alignment: .topLeading)
+    }
+  }
+
+  // Loudness section for the current result (Story 10.4). Shown only when a
+  // best-effort LUFS report was measured (`lufsReport != nil`, exactly like
+  // `beatGridSection`'s `if let grid`) — silence / sub-400 ms / unsupported-rate
+  // runs leave it nil and the panel is omitted entirely (AC5). Subordinate
+  // GroupBox height-capped by the shared `panelMaxHeight` so the BPM hero stays
+  // dominant (AC6 / FR-40). The `?? 0` window fallback is inert — the companion
+  // is set with the report; `windowCaption` guards <=0 to the plain caption.
+  @ViewBuilder
+  private var lufsSection: some View {
+    if let report = viewModel.lufsReport {
+      GroupBox {
+        LUFSReadoutView(
+          report: report,
+          analysisWindowSeconds: viewModel.lufsAnalysisWindowSeconds ?? 0)
+      } label: {
+        Text("Loudness")
+      }
+      .frame(maxWidth: .infinity, maxHeight: panelMaxHeight, alignment: .topLeading)
     }
   }
 
