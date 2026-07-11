@@ -94,7 +94,7 @@ struct AnalysisViewModelSmokeTest {
     #expect(viewModel.lufsAnalysisWindowSeconds != nil)
     // Usability, not the vacuous `.isFinite`: a real click track measures a
     // finite, above-sentinel integrated LUFS -> the readout is a real value.
-    #expect(LUFSReadoutView.integratedValue(report.integratedLUFS) != "unavailable")
+    #expect(LoudnessGraphView.integratedValue(report.integratedLUFS) != "unavailable")
     // (b) the BPM result is populated in the SAME run (AC5 "BPM hero unaffected").
     #expect(viewModel.detectedBPM != nil)
 
