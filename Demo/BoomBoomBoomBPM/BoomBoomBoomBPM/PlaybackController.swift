@@ -2,17 +2,17 @@ import AVFoundation
 import Foundation
 import Observation
 
-/// The audio-playback backing the ``BeatGridTimelineView`` scrubber depends on
+/// The audio-playback backing the ``BeatGridView`` scrubber depends on
 /// (Story 10.3). A protocol, not `AVAudioPlayer` directly, so ``PlaybackController``
 /// is CI-testable with a deterministic fake: the pure state transitions (`isPlaying`,
-/// the load-failure path, the generation guard) never need real audio
+/// `seek` clamp, the load-failure path, the generation guard) never need real audio
 /// hardware or a decodable file. The production implementation is
 /// ``AVAudioPlayerEngine``; tests inject their own.
 ///
-/// `currentTime` is get/set: the `set` lets ``PlaybackController`` reset the playhead
-/// (e.g. `handleFinish` returns it to `0`). `duration` may legitimately be `0` transiently
-/// (unknown/short); the timeline never trusts it as the span (see ``BeatGridTimelineView``
-/// span logic).
+/// `currentTime` is get/set: `set` is how ``PlaybackController/seek(to:)`` moves the
+/// playhead (and how `handleFinish` returns it to `0`). `duration` may legitimately be
+/// `0` transiently (unknown/short); the view never trusts it as the lane span (see
+/// ``BeatGridView``'s `effectiveDuration`).
 @MainActor
 protocol AudioPlaybackEngine: AnyObject {
   var duration: Double { get }
@@ -83,7 +83,7 @@ final class AVAudioPlayerEngine: NSObject, AudioPlaybackEngine, AVAudioPlayerDel
   }
 }
 
-/// Owns the demo's audio playback so the ``BeatGridTimelineView`` scrubber has a live
+/// Owns the demo's audio playback so the ``BeatGridView`` scrubber has a live
 /// clock (Story 10.3 — the demo's first playback substrate). `@MainActor @Observable`
 /// (the demo's default isolation); `NSObject` for parity with the delegate-owning
 /// engine, though the delegate itself lives on ``AVAudioPlayerEngine``.
@@ -111,21 +111,22 @@ final class PlaybackController: NSObject {
   /// Whether the backing engine reports it is playing.
   private(set) var isPlaying: Bool = false
 
-  /// Loaded-file duration in seconds (`0` when no audio / unknown). The timeline does
-  /// NOT use this as its span — the analyzed span (`.fullTrack` is `maxSeconds`-capped)
-  /// is authoritative (DD6/F1); this is only the transport's own extent.
+  /// Loaded-file duration in seconds (`0` when no audio / unknown). The view does
+  /// NOT use this as its lane span — the analyzed span (`.fullTrack` is `maxSeconds`-capped)
+  /// is authoritative (DD6/F1); this is only the transport's own extent (`seek` clamp).
   private(set) var duration: Double = 0
 
   /// Whether an engine is currently loaded.
   private(set) var hasAudio: Bool = false
 
-  /// Observable playhead snapshot in seconds (DD11). Written by ``pause()``, ``load(url:)``,
-  /// and ``handleFinish(generation:successfully:)`` — the PAUSED-branch scrubber's only
-  /// source. While PLAYING, the scrubber reads ``livePlayhead`` directly (a non-observed
-  /// engine read driven by the view's `TimelineView(.animation)`), so this snapshot is not
-  /// updated per frame. It exists so that when the animation branch is idle (paused / no
-  /// audio) the scrubber still reads observable state and lands where playback stopped —
-  /// a plain computed passthrough to `engine.currentTime` would not invalidate the view.
+  /// Observable playhead snapshot in seconds (DD11). Written by ``pause()``, ``seek(to:)``,
+  /// ``load(url:)``, and ``handleFinish(generation:successfully:)`` — the PAUSED-branch
+  /// scrubber's only source. While PLAYING, the scrubber reads ``livePlayhead`` directly
+  /// (a non-observed engine read driven by the view's `TimelineView(.animation)`), so this
+  /// snapshot is not updated per frame. It exists so a seek while PAUSED — when the
+  /// animation branch is idle — still invalidates the view and redraws the scrubber once.
+  /// A plain computed passthrough to `engine.currentTime` would not, and the paused
+  /// scrubber would lie until the next play.
   private(set) var currentTime: Double = 0
 
   /// Labeled, FR-44-safe failure reason surfaced when a load fails (`nil` when clean).
@@ -246,12 +247,23 @@ final class PlaybackController: NSObject {
     }
   }
 
+  /// Moves the playhead. Clamped to `[0, duration]`; a no-op without audio. Writes the
+  /// observable `currentTime` snapshot so a PAUSED seek redraws the scrubber (DD11/F2).
+  /// The caller (``BeatGridView``'s click-to-scrub) owns beat-snapping and the
+  /// content-x → time mapping; this owns only the duration clamp.
+  func seek(to seconds: Double) {
+    guard let engine, hasAudio else { return }
+    let target = min(max(seconds.isFinite ? seconds : 0, 0), max(duration, 0))
+    engine.currentTime = target
+    currentTime = target
+  }
+
   func stop() {
     load(url: nil)
   }
 
-  /// The live playhead, read directly from the engine every animation frame by the
-  /// timeline's PLAYING branch (DD11). Non-observed (the engine is `@ObservationIgnored`)
+  /// The live playhead, read directly from the engine every animation frame by
+  /// ``BeatGridView``'s PLAYING scrubber branch (DD11). Non-observed (the engine is `@ObservationIgnored`)
   /// on purpose — `TimelineView(.animation)` drives the redraw cadence while playing, so
   /// the scrubber does not depend on observation there. Falls back to the observable
   /// `currentTime` snapshot when no engine is loaded. The PAUSED branch reads the
