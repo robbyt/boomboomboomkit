@@ -23,16 +23,41 @@ final class AnalysisViewModel {
     // First-launch ensemble preset (Story 9.1). `var` with a default so the
     // memberwise init keeps every pre-9.1 construction site compiling.
     var fallbackPreset: EnsemblePreset = .default
+    // First-launch beat-grid view mode (Story 10.3). Demo default `.timeline` —
+    // the new FR-39 timeline is the showcase surface; the waveform view is the
+    // alternate. `var` with a default keeps existing construction sites compiling.
+    var fallbackViewMode: BeatGridViewMode = .timeline
 
     static let live = Configuration(
       defaults: .standard,
       fallbackStrategy: .quorum,
-      fallbackPreset: .default
+      fallbackPreset: .default,
+      fallbackViewMode: .timeline
     )
+  }
+
+  /// Which beat-grid visual the `beatGridSection` renders (Story 10.3). Persisted as a
+  /// stable `rawValue` so a future table change cannot poison stored state.
+  enum BeatGridViewMode: String, CaseIterable, Sendable {
+    case timeline
+    case waveform
+
+    /// User-facing label for the segmented control.
+    var label: String {
+      switch self {
+      case .timeline: return "Timeline"
+      case .waveform: return "Waveform"
+      }
+    }
   }
 
   static let preferredMergeStrategyKey = "preferredMergeStrategy"
   static let preferredEnsemblePresetKey = "preferredEnsemblePreset"
+  static let preferredBeatGridViewModeKey = "preferredBeatGridViewMode"
+
+  /// The active beat-grid view mode, hydrated from UserDefaults in `init` and persisted
+  /// on change via `persistBeatGridViewMode()` (Story 10.3).
+  var beatGridViewMode: BeatGridViewMode = .timeline
 
   @ObservationIgnored
   private let configuration: Configuration
@@ -99,6 +124,24 @@ final class AnalysisViewModel {
       )
       selectedEnsemblePreset = configuration.fallbackPreset
     }
+
+    // Beat-grid view mode (Story 10.3): same three-branch hydrate + write-back
+    // poison-heal. Demo default `.timeline`.
+    if configuration.defaults.object(forKey: Self.preferredBeatGridViewModeKey) == nil {
+      // Genuinely absent (first launch) — seed the demo default, no write.
+      beatGridViewMode = configuration.fallbackViewMode
+    } else if let rawValue = configuration.defaults.string(
+      forKey: Self.preferredBeatGridViewModeKey
+    ), let mode = BeatGridViewMode(rawValue: rawValue) {
+      beatGridViewMode = mode
+    } else {
+      // Present but unusable — a non-String type or an unrecognized case. Self-heal:
+      // remove the bad key so future launches take the absent path, then fall back.
+      configuration.defaults.removeObject(
+        forKey: Self.preferredBeatGridViewModeKey
+      )
+      beatGridViewMode = configuration.fallbackViewMode
+    }
   }
 
   /// Persist the current `options.mergeStrategy` to the configured
@@ -120,6 +163,16 @@ final class AnalysisViewModel {
     configuration.defaults.set(
       selectedEnsemblePreset.rawValue,
       forKey: Self.preferredEnsemblePresetKey
+    )
+  }
+
+  /// Persist the current `beatGridViewMode` case identifier to the configured
+  /// UserDefaults. Called from `ContentView`'s `.onChange(of:)` so the picker choice
+  /// survives quit/relaunch (Story 10.3).
+  func persistBeatGridViewMode() {
+    configuration.defaults.set(
+      beatGridViewMode.rawValue,
+      forKey: Self.preferredBeatGridViewModeKey
     )
   }
 
@@ -536,7 +589,10 @@ final class AnalysisViewModel {
               beatGrid: grid,
               peaks: detached.waveform?.peaks ?? [],
               duration: detached.waveform?.duration ?? 0,
-              bpmTempo: value.bpm
+              bpmTempo: value.bpm,
+              // The analyzed file, carried atomically so the timeline scrubber loads
+              // audio keyed to THIS result (Story 10.3 DD5/F4).
+              sourceURL: url
             )
           } else {
             self.gridVisualization = nil

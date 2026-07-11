@@ -15,6 +15,13 @@ struct GridVisualizationState: Equatable {
   let duration: Double
   /// The BPM stage's tempo, for the agreement label.
   let bpmTempo: Double
+  /// The analyzed audio file. Carried on this ATOMIC payload (Story 10.3) so the
+  /// `BeatGridTimelineView` playback scrubber loads audio keyed to the *matching*
+  /// result — driven off `gridVisualization?.sourceURL`, NOT the prologue
+  /// `selectedFileURL` (which is set before analysis publishes and is not cleared
+  /// on the no-BPM/failure arms). Every `gridVisualization = nil` clear therefore
+  /// also stops playback.
+  let sourceURL: URL
 }
 
 /// Horizontal beat-grid + waveform overlay. Shows the **extrapolated** grid
