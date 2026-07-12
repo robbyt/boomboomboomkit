@@ -102,7 +102,7 @@ Epic numbering continues monotonically from the archived `epics-2026-03-31.md`, 
 - **FR-37** Model selection from registry + file picker. Demo lets users select an ML model from registry OR add new via file picker. Selection drives subsequent analysis.
 - **FR-38** Demo owns persistence for user-added models only. Security-scoped bookmark stored by demo for user-added models. Library accepts already-resolved URLs. Bundled + known-public entries are stateless. Required entitlements: `user-selected.read-write` (the shipped app-level superset — read-only is *sufficient* for the model bookmark and is enforced at bookmark creation via `.securityScopeAllowOnlyReadAccess`, but the audio-file open path already requires read-write; Story 10.1 DD1) + `bookmarks.app-scope`.
 - **FR-39** Beat-grid as timeline + text readout. SwiftUI Canvas timeline with current-time scrubber, click-to-scrub (beat-snap), and text readout (tempo, beat count, downbeat status, confidence), on the Epic-8 `BeatGridView` waveform overlay. No new waveform engine. *(Amended 2026-07-11, Story 10-3.)*
-- **FR-40** LUFS as primary measurement, secondary breakdown. Integrated LUFS as single number with unit label + small panel for true-peak + LRA. Does not dominate BPM-centric flow.
+- **FR-40** Loudness surfaced as a time-series graph with a labeled scalar summary, subordinate to BPM. LUFS-over-time graph (X time, Y loudness on a fixed dB-FS axis: momentary + short-term series, integrated + max-true-peak reference lines, LRA band) PLUS a compact FR-44-labeled scalar summary (integrated LUFS / true-peak dBTP / loudness range LU). Occupies a subordinate, height-capped region (shares the analysis lane with the beat grid behind a segmented switch); does not dominate the BPM-centric flow. *(Amended 2026-07-11: the original "single number + small panel" wording was superseded by Story 8.1 DD#5 (2026-06-10) — a single integrated number misdescribes dynamic material; 8.1 shipped the momentary/short-term series specifically to enable this time-series rendering. Shipped as `LoudnessGraphView`, d3af680/#96; see sprint-change-proposal-2026-07-11-story-10-4.md.)*
 - **FR-41** Final-state signal-pool diagnostic table in advanced sidebar. When `enableTrace: true`, sortable Table with one row per contributing signal (source, BPM, confidence, weight, contribution, cluster). Final-state, post-analysis. Replaces current `EnsembleDecision` summary view.
 - **FR-42** Strategy popover wired to Epic 11 docs with graceful degradation. "?" buttons open SwiftUI `.popover()` rendering docs from Epic 11's runtime Markdown bundle via `BoomBoomBoomKitDocs.attributedString(for:id:)` accessor. If Epic 11 ships late or bundle unavailable, popover shows fallback (one-line description + repo URL). _(PRD originally referenced "Epic E" — per-case docs renumbered to Epic 11 after Epic 9 split during party-mode review 2026-05-26.)_
 - **FR-43** Primary flow stays primary; developer surface in sidebar. "Drop file → get answer" remains dominant interaction. All developer/diagnostic affordances live in `.inspector(isPresented:)` sidebar (keyboard `⌘⇧D`).
@@ -246,7 +246,7 @@ Every FR maps to exactly one epic. NFRs are cross-cutting (apply across all epic
 | FR-37 | Epic 10 | Model selection from registry + file picker (Epic 8 dep) |
 | FR-38 | Epic 10 | Demo owns persistence for user-added models only (follows FR-37) |
 | FR-39 | Epic 10 | Beat-grid as timeline + text readout (Epic 8 dep) |
-| FR-40 | Epic 10 | LUFS as primary measurement (Epic 8 dep) |
+| FR-40 | Epic 10 | Loudness-over-time graph + labeled scalar summary, subordinate to BPM (Epic 8 dep; supersedes "single number" per 8.1 DD#5) |
 | FR-41 | Epic 9 | Final-state signal-pool diagnostic table (Epic 6 dep) |
 | FR-42 | Epic 10 | Strategy popover wired to Epic 11 docs (Epic 11 dep + graceful degradation) |
 | FR-43 | Epic 9 | Primary flow stays primary (cross-cutting discipline) |
@@ -891,7 +891,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 > 3. The cited Story-6.2 seam surfaces (`analyzeShared(url:options:)` helpers, `BPMDiagnosticTrace` `decodedAudio` field) were never built; the seam-mitigation AC reduces to DocC + README documentation of the new LUFS surface. `DecodedAudio` consumer wiring remains Story 8.2.
 > 4. `PCMBufferReaderError.unsupportedSampleRate` is the wrong error domain (the reader CAN decode 22.05 kHz; the K-weighting coefficient table is what cannot proceed) — a new `LUFSAnalysisError.unsupportedSampleRate` is introduced instead.
 > 5. **`LUFSReport` is NOT "exactly three fields."** Operator direction (2026-06-10): integrated LUFS as a single number misdescribes dynamic material (quiet intro / loud middle). The report carries the three scalars PLUS momentary (400ms) and short-term (3s) loudness series on the shared 100ms grid (EBU Tech 3341 §2.2), LRA P10/P95 band edges (EBU Tech 3342 §3.1), and a Foundation-only Swift Charts sample adapter — shape proven by rendering through Swift Charts before spec freeze. `Hashable` dropped (`EnsembleDecision` value-carrier precedent); true-peak ships as the single normative max (no time series — BS.1770-5 defines none). `LUFSOptions.maxSeconds` defaults to full-file (was 30s) so integrated/LRA are whole-program per the standard.
-> Demo consumption of the chart lands in existing Story 10.4 (`LUFSReadoutView`), whose true dependency is 8.1 only — it may be pulled forward immediately after 8.1 closes; `Demo/BoomBoomBoomBPM/LUFSChartSchemaProbe.swift` (untracked) is its seed. Original text preserved below for the audit trail.
+> Demo consumption of the chart lands in existing Story 10.4 (shipped as `LoudnessGraphView` — the LUFS-over-time graph; reworked from the originally-spec'd `LUFSReadoutView` in d3af680/#96), whose true dependency is 8.1 only — it may be pulled forward immediately after 8.1 closes. Its chart-probe seed (added in eca19a3 "Land epic 8", 22 Jun) has been removed post-reconciliation, its intent realized in `LoudnessGraphView`. Original text preserved below for the audit trail.
 
 **As a** library consumer,
 **I want** a public `AudioAnalysisService.analyzeLUFS(url:options:) -> LUFSReport` sibling to `analyzeBPM`,
@@ -1454,29 +1454,35 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 **KDDs implemented:** D2.
 **Pressure-release valve:** If SwiftUI `Canvas` performance degrades at high beat density (e.g., 200+ beats visible), reduce visible-tick density via downsampling at the view layer, not by switching to Metal. Document the deviation in `_bmad-output/implementation-artifacts/10-3-pressure-release.md`.
 
-### Story 10.4: LUFSReadoutView — primary integrated LUFS + secondary breakdown
+### Story 10.4: LoudnessGraphView — LUFS-over-time graph + labeled scalar summary
+
+*(Shipped design. Originally specified as `LUFSReadoutView` — a scalar panel — and reworked to the graph in d3af680 / PR #96; reconciled 2026-07-11, see sprint-change-proposal-2026-07-11-story-10-4.md and the story spec's top note. Amendment justified by 8.1 DD#5: a single integrated number misdescribes dynamic material.)*
 
 **As a** demo user comparing tracks for loudness alongside BPM,
-**I want** a clean LUFS panel showing integrated loudness as the primary number with true-peak and LRA as secondary context,
+**I want** a loudness-over-time graph with a compact labeled scalar summary, sharing one analysis lane with the beat grid,
 **So that** loudness information surfaces without competing with the BPM-centric flow.
 
 **Acceptance Criteria:**
 
-**Given** an `AudioAnalysisResult` carrying a non-nil `LUFSReport` (Epic 8 dependency),
-**When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/LUFSReadoutView.swift` renders,
-**Then** the primary readout shows `<X.X> LUFS` (FR-44 — the literal `LUFS` unit label is always present; never a bare number) using a typography scale at least 2× larger than the secondary panel.
+**Given** a non-nil `LUFSReport` threaded onto the demo view model (via the best-effort `analyzeLUFS(url:)` wiring this story adds — Epic 8 dependency; DD1),
+**When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/LoudnessGraphView.swift` renders,
+**Then** a `Canvas` plot (X time, Y loudness on a fixed −60…+6 dB-FS axis) draws the momentary (thin red) + short-term (light-blue) series with integrated (blue) and max-true-peak (green) horizontal reference lines and a translucent LRA band (drawn only when `loudnessRangeLU` is non-nil); silence / the −100 sentinel pins to the bottom edge.
 
-**Given** the secondary panel is visible,
+**Given** the scalar summary row beneath the plot is visible,
 **When** the operator inspects the rendered text,
-**Then** two labeled fields appear: `True peak: <Y.Y> dBTP` and `Loudness range: <Z.Z> LU`, both formatted to one decimal place with explicit unit suffixes.
+**Then** a compact FR-44-labeled caption row shows integrated LUFS / true-peak dBTP (with a post-mono-mixdown help caveat) / loudness range LU — each unit-labeled, one decimal; a non-finite or ≤-sentinel value renders `unavailable` (never a bare number, never `−100.0`).
 
 **Given** the demo's main analysis result pane is laid out,
 **When** the operator inspects the visual hierarchy,
-**Then** the LUFS panel occupies a clearly subordinate region (right sidebar, below-the-fold accordion, or equivalent) such that BPM remains the dominant visual element; LUFS does NOT take center stage per FR-40 framing.
+**Then** loudness lives in the merged `analysisSection` lane behind a segmented **Beats | Loudness** switch, height-capped, such that the BPM hero remains the dominant visual element; loudness does NOT take center stage per FR-40 framing.
 
-**Given** the `LUFSReport` carries any field as `nil` (e.g., true-peak unavailable for a particular sample rate),
+**Given** `loudnessRangeLU == nil` (the gated programme is < 60 s — LRA is the SOLE optional field; true-peak is a non-optional `Double` and unsupported sample rates *throw*, not nil — DD2),
 **When** the view renders,
-**Then** the absent field shows `True peak: unavailable` (labeled fallback) rather than silently hiding the row or rendering `0.0 dBTP`.
+**Then** the LRA band is omitted and the scalar row shows `Loudness range: unavailable` (labeled fallback) rather than hiding the row or leaking the `−100.0` sentinel. *(This corrects the original AC's factually-wrong "true-peak unavailable for a particular sample rate" example.)*
+
+**Given** the loudness plot is showing,
+**When** the operator clicks it or plays back,
+**Then** the plot shares the lane's `PlaybackController`; a click seeks to the clicked time (no beat snapping in this pane) and starts playback; the playhead animates via `TimelineView(.animation)`, the `BeatGridView` scrubber split.
 
 **FRs covered:** FR-40.
 **KDDs implemented:** None directly (consumes Epic 8's `LUFSReport`).

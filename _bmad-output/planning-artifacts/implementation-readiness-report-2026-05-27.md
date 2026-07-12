@@ -304,7 +304,7 @@ Demo view-layer file layout is planned in `architecture.md:1071-1077`:
 - `EnsemblePresetPicker.swift` (FR-36)
 - `ModelPickerView.swift` (FR-37 + FR-38 bookmarks)
 - `BeatGridTimelineView.swift` (FR-39, SwiftUI Canvas)
-- `LUFSReadoutView.swift` (FR-40)
+- `LUFSReadoutView.swift` (FR-40) *(superseded 2026-07-11: shipped as `LoudnessGraphView` — the LUFS-over-time graph, d3af680/#96; see sprint-change-proposal-2026-07-11-story-10-4.md)*
 - `SignalPoolDiagnosticTable.swift` (FR-41, sortable Table)
 - `HelpButton.swift` (FR-42, generic over `DocumentedCase`)
 - `BookmarkPersistence.swift` (KDD-D3, UserDefaults)
