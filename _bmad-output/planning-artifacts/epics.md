@@ -1522,7 +1522,7 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 ## Epic 11: Per-case selection-strategy docs (stories)
 
-6 stories implement the `DocumentedCase` protocol and its **49** canonical Markdown files (count corrected from "~46" per Paige's audit 2026-05-26 — original miscount dropped `AbstainReason/` (4) and `DemotionReason/` (2) as separate directories). Story 11.1 lands the protocol + accessor + cache; 11.2 reshapes `AnalysisIntensity` to a 10-level enum (depends on Story 6.5 `ComputeBudget`); 11.3 split into 11.3a (24 files: `BPMSelectionPolicy` + `VotingPolicy` + `EnsemblePolicy` + `DSPTechnique`) and 11.3b (25 files: `AnalysisIntensity` + `OctaveEquivalencePolicy` + `MLExecutionPolicy` + `DownbeatResult` + `AbstainReason` + `DemotionReason`) per Amelia's sizing review; 11.4 locks drift detection; 11.5 wires the DocC parallel surface.
+7 stories implement the `DocumentedCase` protocol and its **49** canonical Markdown files (count corrected from "~46" per Paige's audit 2026-05-26 — original miscount dropped `AbstainReason/` (4) and `DemotionReason/` (2) as separate directories). Story 11.1 lands the protocol + accessor + cache; 11.2 reshapes `AnalysisIntensity` to a 10-level enum (depends on Story 6.5 `ComputeBudget`); 11.3 split into 11.3a (24 files: `BPMSelectionPolicy` + `VotingPolicy` + `EnsemblePolicy` + `DSPTechnique`) and 11.3b (25 files: `AnalysisIntensity` + `OctaveEquivalencePolicy` + `MLExecutionPolicy` + `DownbeatResult` + `AbstainReason` + `DemotionReason`) per Amelia's sizing review; 11.4 locks drift detection; 11.5 wires the DocC parallel surface; 11.6 (added 2026-07-12) wires the demo strategy popovers to the authored docs — the FR-42 work deferred from the reverted Story 10.5.
 
 ### Story 11.1: DocumentedCase protocol, Bundle.module accessor, Mutex<T> cache
 
@@ -1747,6 +1747,32 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 **FRs covered:** FR-46, FR-52.
 **KDDs implemented:** E-8 (DocC parallel surface + transclude generator).
 **Pressure-release valve:** If DocC fails to ingest the transcluded `Cases/` content cleanly, the catalog ships with `Articles/` only and the per-case pages move to a follow-up — the inline `.docs` accessor (Story 11.1) is the load-bearing surface. Document the deviation in `_bmad-output/implementation-artifacts/11-5-pressure-release.md`.
+
+### Story 11.6: Demo strategy popovers wired to DocumentedCase docs (FR-42 — deferred from Story 10.5)
+
+> **Deferred from Story 10.5 (reverted 2026-07-12).** Story 10.5 built the generic demo `HelpButton` + injected docs-resolver seam, then reverted it as **prematurely sequenced**: before authored docs exist, a "?" docs-popover is redundant with the demo's always-visible inline subtitles, a UX downgrade, or confusing. It belongs here — wired to the real per-case prose from Stories 11.1/11.3. The full reverted implementation, the resolver-seam / string-`docID`-bridge pattern, and the UX rules are captured in `_bmad-output/implementation-artifacts/fr42-demo-popover-design-note.md`.
+
+**As a** demo user exploring the analysis controls,
+**I want** a "?" button that opens a popover with the authored per-case docs (graceful fallback when a doc is missing),
+**So that** I can read the full "what + why" for a strategy/policy without leaving the app.
+
+**Acceptance Criteria (stub — expand via `bmad-create-story` when 11.1 + 11.3 have landed):**
+
+**Given** Story 11.1's `BoomBoomBoomKitDocs.attributedString(for:id:)` accessor and the authored Markdown (11.3a/11.3b) exist,
+**When** the demo wires the popover,
+**Then** it reintroduces the generic `HelpButton<T: DemoDocumentedCase>` + injected `@Entry docsResolver` seam (per the design note), and overrides the resolver **once** at the demo app root to split the demo `docID` (`"kind/id"`) and call the two-arg `attributedString(for:id:)` accessor — the demo bridges by the string `docID` ONLY and never conforms a library enum to the demo protocol (KDD-E1).
+
+**Given** the "inline caption vs popover" UX rule,
+**When** deciding where to attach a "?",
+**Then** wire it ONLY where the authored prose **materially exceeds** the existing always-visible inline subtitle (a per-control call made against the real content — merge strategy? ensemble? maybe neither); keep inline one-liners for orientation; never add or distort a control just to host a popover; leave the graph-legend popovers (`BeatGridHelpButton`/`LoudnessHelpButton`) as separate specialized UI.
+
+**Given** a doc is missing or the id is unknown,
+**When** the popover renders,
+**Then** it degrades to the case's short description + a repo docs `Link` (FR-42) — noting that 11.1's accessor is non-optional and owns its own informative fallback, so the demo fallback is the belt-and-suspenders path.
+
+**FRs covered:** FR-42.
+**Depends on:** Story 11.1 (accessor), 11.3a/11.3b (authored Markdown). Demo-only; `Sources/`/`Tests/` byte-identical.
+**Reference:** `_bmad-output/implementation-artifacts/fr42-demo-popover-design-note.md`, `_bmad-output/implementation-artifacts/10-5-helpbutton-and-strategy-popovers-wired-to-epic-11-docs.md` (reverted 10.5 audit record).
 
 ---
 
