@@ -154,13 +154,17 @@ final class AnalysisViewModel {
     let duration: Double
   }
   private struct DetachedAnalysis: Sendable {
-    let combined: CombinedAnalysisResult?
+    let fullAnalysis: FullAnalysisResult
     let waveform: WaveformData?
-    // Best-effort integrated-loudness report (Story 10.4), nil when LUFS was
-    // not measured (a failure, thrown unsupportedSampleRate, nil return, or a
-    // skipped cancelled run). `LUFSReport` is Sendable, so `DetachedAnalysis`
-    // stays Sendable and crosses the task boundary clean.
-    let lufs: LUFSReport?
+  }
+
+  /// One result-paired loudness payload. Keeping the report, its measurement
+  /// window, and the analyzed URL together prevents a graph or transport from
+  /// borrowing state from a previous run.
+  struct LoudnessVisualizationState: Equatable {
+    let report: LUFSReport
+    let analysisWindowSeconds: Double
+    let sourceURL: URL
   }
 
   // `.nonFinite` covers NaN/Inf AND out-of-range (bpm <= 0, confidence
@@ -231,24 +235,16 @@ final class AnalysisViewModel {
   /// while a new run is in flight.
   var gridVisualization: GridVisualizationState?
 
-  /// Best-effort integrated-loudness report for the current result (Story 10.4),
-  /// or `nil` when LUFS was not measured (silence, sub-400 ms input, an
-  /// unsupported sample rate, a decode failure, or a superseded/cancelled run —
-  /// all folded to `nil` by the best-effort `try?`). A plain observed `var`
-  /// (Swift `Observation` auto-tracks it), NOT `@Published` (this class is
-  /// `@Observable`). Committed in the SAME MainActor turn as `gridVisualization`
-  /// on the success path, and cleared alongside it at every invalidate/failure/
-  /// reset site — EXCEPT the BPM-success-without-grid arm, where it is
-  /// deliberately RETAINED (loudness needs no beat grid; lifecycle, not textual
-  /// coupling).
-  var lufsReport: LUFSReport?
+  var loudnessVisualization: LoudnessVisualizationState?
 
-  /// The `maxSeconds` the LUFS measurement used, paired with `lufsReport` so
-  /// `LoudnessGraphView.windowCaption` reports the analyzed window honestly
-  /// (Story 10.4 DD7). Set and cleared in lockstep with `lufsReport`, in the
-  /// same MainActor turn with no suspension between, so the window can never
-  /// drift out of sync with its report.
-  var lufsAnalysisWindowSeconds: Double?
+  var lufsReport: LUFSReport? { loudnessVisualization?.report }
+  var lufsAnalysisWindowSeconds: Double? { loudnessVisualization?.analysisWindowSeconds }
+
+  /// The current result-paired playback source. Grid wins when both analyses
+  /// exist; loudness-only analysis remains independently playable.
+  var playbackSourceURL: URL? {
+    gridVisualization?.sourceURL ?? loudnessVisualization?.sourceURL
+  }
 
   /// Display-layer convenience — derived from `error`. Read-only on
   /// purpose; producers assign the typed `error` case directly.
@@ -395,8 +391,7 @@ final class AnalysisViewModel {
     // LUFS (Story 10.4) rides the same prologue clear as the grid: a stale
     // loudness readout for the PRIOR file is misleading while a new run is in
     // flight. The fresh result reassigns both atomically on success.
-    lufsReport = nil
-    lufsAnalysisWindowSeconds = nil
+    loudnessVisualization = nil
     // F09 (Story 5-6 review): do NOT clear `lastRunSnapshot` at the
     // analyze() prologue. ContentView.backgroundStrategy reads
     // `lastRunSnapshot == nil ? nil : options.mergeStrategy`; clearing
@@ -473,48 +468,26 @@ final class AnalysisViewModel {
         let optsForDetached = opts
         let value = try await withTaskCancellationHandler {
           try await Task.detached { @Sendable in
-            // analyze() (not analyzeBPM) returns BPM + beat grid from ONE
-            // shared decode; `combined.bpm` is the same AudioAnalysisResult the
-            // hero already renders. URL path keeps file-metadata corroboration
-            // + duration-hint live (the decoded: overload inerts them).
-            let combined = try AudioAnalysisService.analyze(
-              url: url, options: optsForDetached)
-            // LUFS (Story 10.4) is best-effort and independent of the beat grid
-            // in BOTH data source and failure handling: a thrown
-            // unsupportedSampleRate, a read error, or a nil return MUST NOT fail
-            // the analysis or perturb the BPM hero (mirrors the `try?` waveform
-            // decode below). An added full decode is not free, so skip it
-            // entirely — leaving `lufs == nil` — on an already-cancelled /
-            // superseded run (the waveform pre-check pattern). Bounded to the
-            // same `maxSeconds` window as the rest of the pipeline (LUFSOptions
-            // has only `init()`, so `maxSeconds` is set by mutation).
+            // Full analysis preserves URL-backed BPM metadata and performs one
+            // union-cap decode for independent BPM/grid and loudness outcomes.
             var lufsOptions = LUFSOptions()
             lufsOptions.maxSeconds = optsForDetached.maxSeconds
-            // Thread the run's cancellation into the decode itself so a
-            // superseded run bails at the service's checkpoints (before decode /
-            // before measurement) instead of paying the full extra decode + O(n)
-            // loudness pass — the added decode "is not free" (AC1). `try?` folds
-            // the resulting CancellationError to nil, same as any other failure.
             lufsOptions.isCancelled = optsForDetached.isCancelled
-            let lufs: LUFSReport? =
-              optsForDetached.isCancelled()
-              ? nil : (try? AudioAnalysisService.analyzeLUFS(url: url, options: lufsOptions))
-            // A cancel can land after analyze() returns; skip the extra
-            // (non-cancellation-polling) waveform decode so Cancel stays
-            // responsive instead of paying a full decode that's discarded.
+            let fullAnalysis = try AudioAnalysisService.analyzeFull(
+              url: url, options: optsForDetached, lufsOptions: lufsOptions)
             if optsForDetached.isCancelled() { throw CancellationError() }
             // Waveform is best-effort: a decode failure must NOT fail the
             // analysis. Decode only when there is a grid to overlay, via the
             // library's own decoder so the waveform shares the grid's exact
             // decoded-PCM time origin / sample rate.
             var waveform: WaveformData?
-            if combined?.beatGrid != nil,
+            if fullAnalysis.bpmAndBeatGrid?.beatGrid != nil,
               let wf = try? Waveform.decode(
                 url: url, maxSeconds: optsForDetached.maxSeconds, columns: 2000)
             {
               waveform = WaveformData(peaks: wf.peaks, duration: wf.duration)
             }
-            return DetachedAnalysis(combined: combined, waveform: waveform, lufs: lufs)
+            return DetachedAnalysis(fullAnalysis: fullAnalysis, waveform: waveform)
           }.value
         } onCancel: { @Sendable in
           cancelFlag.store(true, ordering: .releasing)
@@ -556,7 +529,17 @@ final class AnalysisViewModel {
 
       switch result {
       case .success(let detached):
-        if let combined = detached.combined {
+        let loudnessVisualization: LoudnessVisualizationState?
+        switch detached.fullAnalysis.loudness {
+        case .success(let report):
+          loudnessVisualization = report.map {
+            LoudnessVisualizationState(
+              report: $0, analysisWindowSeconds: opts.maxSeconds, sourceURL: url)
+          }
+        case .failure:
+          loudnessVisualization = nil
+        }
+        if let combined = detached.fullAnalysis.bpmAndBeatGrid {
           let value = combined.bpm
           // Clear any banner from an invalid drop that arrived during
           // analysis; without this it persists past the successful
@@ -593,18 +576,7 @@ final class AnalysisViewModel {
           } else {
             self.gridVisualization = nil
           }
-          // LUFS (Story 10.4): committed in the SAME MainActor turn as the grid,
-          // after the request/cancellation guard, no suspension between — so an
-          // obsolete report can never be published. `opts.maxSeconds` equals the
-          // `optsForDetached.maxSeconds` passed to the LUFS decode (a value copy,
-          // no drift). RETAINED even on the BPM-success-without-grid arm above:
-          // loudness needs no beat grid (lifecycle, not textual coupling).
-          self.lufsReport = detached.lufs
-          // Lockstep with the report: on BPM-success-but-LUFS-nil (e.g. an
-          // LUFS-unsupported sample rate that BPM still handled) the window is
-          // nil'd too, so the pair is never (nil, 120). `opts.maxSeconds` equals
-          // the `optsForDetached.maxSeconds` the decode used (a value copy).
-          self.lufsAnalysisWindowSeconds = detached.lufs != nil ? opts.maxSeconds : nil
+          self.loudnessVisualization = loudnessVisualization
         } else {
           // No analyzable audio (silence, too-short, or non-musical content).
           self.error = .noBPMDetected
@@ -620,8 +592,8 @@ final class AnalysisViewModel {
           // the same MainActor turn per DD #10).
           self.lastRunSnapshot = nil
           self.gridVisualization = nil
-          self.lufsReport = nil
-          self.lufsAnalysisWindowSeconds = nil
+          // A no-BPM result does not invalidate successful loudness.
+          self.loudnessVisualization = loudnessVisualization
         }
       case .failure(let readerError as PCMBufferReaderError):
         let sandboxDenied: Bool
@@ -636,14 +608,12 @@ final class AnalysisViewModel {
         )
         self.lastRunSnapshot = nil  // P_D4 — see comment in no-audio arm
         self.gridVisualization = nil
-        self.lufsReport = nil
-        self.lufsAnalysisWindowSeconds = nil
+        self.loudnessVisualization = nil
       case .failure(let other):
         self.error = .unexpected("\(other)")
         self.lastRunSnapshot = nil  // P_D4 — see comment in no-audio arm
         self.gridVisualization = nil
-        self.lufsReport = nil
-        self.lufsAnalysisWindowSeconds = nil
+        self.loudnessVisualization = nil
       }
       self.elapsedSeconds = secs
       self.isAnalyzing = false
@@ -748,8 +718,7 @@ final class AnalysisViewModel {
     elapsedSeconds = nil
     lastRunSnapshot = nil
     gridVisualization = nil
-    lufsReport = nil
-    lufsAnalysisWindowSeconds = nil
+    loudnessVisualization = nil
   }
 
   // MARK: - Humanization

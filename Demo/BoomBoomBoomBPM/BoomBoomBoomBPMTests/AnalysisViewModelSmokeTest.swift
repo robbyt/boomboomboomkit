@@ -104,6 +104,35 @@ struct AnalysisViewModelSmokeTest {
     #expect(viewModel.lufsAnalysisWindowSeconds == nil)
   }
 
+  @Test("loudness-only state remains paired with its playback source")
+  @MainActor
+  func loudnessOnlyPlaybackSource() throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let viewModel = try Self.makeIsolatedViewModel(suiteName: "smoke.loudnessPlayback")
+    defer { Self.removeIsolatedSuite("smoke.loudnessPlayback") }
+
+    let report = LUFSReport(
+      integratedLUFS: -14,
+      maxTruePeakDBTP: -1,
+      loudnessRangeLU: nil,
+      lraLowLUFS: LUFSReport.sentinelFloor,
+      lraHighLUFS: LUFSReport.sentinelFloor,
+      momentaryLUFS: [-14],
+      shortTermLUFS: [],
+      stepSeconds: 0.1)
+    viewModel.loudnessVisualization = AnalysisViewModel.LoudnessVisualizationState(
+      report: report, analysisWindowSeconds: 120, sourceURL: url)
+
+    #expect(viewModel.gridVisualization == nil)
+    #expect(viewModel.playbackSourceURL == url)
+    #expect(viewModel.lufsReport == report)
+    #expect(viewModel.lufsAnalysisWindowSeconds == 120)
+
+    #expect(viewModel.handleDrop([]) == false)
+    #expect(viewModel.playbackSourceURL == nil)
+    #expect(viewModel.loudnessVisualization == nil)
+  }
+
   // MARK: - Drop Validator (Story 5-2 DD #11 / DD #13)
 
   // MARK: - Merge-strategy description + ensemble degradation caption (demo UX)

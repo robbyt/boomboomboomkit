@@ -123,16 +123,11 @@ struct ContentView: View {
     .onOpenURL { url in
       viewModel.handleOpenURL(url)
     }
-    // Beat-grid playback (Story 10.3). RESULT-paired: load audio off the
-    // atomic grid payload's `sourceURL`, NOT the prologue `selectedFileURL` (which is
-    // set before analysis publishes and is not cleared on the no-BPM/failure arms). A
-    // nil `sourceURL` (every grid-clear path) tears down playback + releases the scope.
-    // Re-analyzing the CURRENT file reloads playback (scrubber resets to 0): `analyze()`
-    // nils `gridVisualization` at its synchronous prologue before the async result
-    // republishes the same `sourceURL`, so this observer sees A -> nil -> A and reloads.
-    // Accepted — the grid is freshly recomputed each analysis. `.onDisappear` is the
-    // deterministic scope release (DD5/F3).
-    .onChange(of: viewModel.gridVisualization?.sourceURL) { _, url in
+    // Playback follows the current result-paired source: beat-grid wins when
+    // both results exist, and a loudness-only graph still gets seek/play.
+    // Re-analysis clears both result payloads synchronously, so A -> nil -> A
+    // reloads freshly analyzed audio even when the URL itself is unchanged.
+    .onChange(of: viewModel.playbackSourceURL) { _, url in
       playback.load(url: url)
     }
     .onDisappear {
@@ -292,7 +287,7 @@ struct ContentView: View {
   @ViewBuilder
   private var analysisSection: some View {
     let grid = viewModel.gridVisualization
-    let lufs = viewModel.lufsReport
+    let lufs = viewModel.loudnessVisualization
     if grid != nil || lufs != nil {
       GroupBox {
         switch effectivePane {
@@ -303,8 +298,8 @@ struct ContentView: View {
         case .loudness:
           if let lufs {
             LoudnessGraphView(
-              report: lufs,
-              analysisWindowSeconds: viewModel.lufsAnalysisWindowSeconds ?? 0,
+              report: lufs.report,
+              analysisWindowSeconds: lufs.analysisWindowSeconds,
               controller: playback)
           }
         }
