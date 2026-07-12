@@ -100,6 +100,18 @@ struct BeatGridLogicTests {
         .isApproximately(0))
   }
 
+  @Test("clickSeekTime returns the raw click time when beat snapping is disabled")
+  func clickWithoutSnap() {
+    #expect(
+      BeatGridView.clickSeekTime(
+        contentX: 30.4, pointsPerSecond: 16, beatTimes: [0, 2, 4], snapToBeat: false)!
+        .isApproximately(1.9))
+    #expect(
+      BeatGridView.clickSeekTime(
+        contentX: -20, pointsPerSecond: 16, beatTimes: [0, 2, 4], snapToBeat: false)!
+        .isApproximately(0))
+  }
+
   @Test("clickSeekTime resolves an exact midpoint to the earlier beat")
   func clickMidpointTieEarlierBeat() {
     // rawTime 1.0 is exactly between 0.0 and 2.0 -> earlier beat wins.
@@ -139,6 +151,10 @@ struct BeatGridLogicTests {
     #expect(BeatGridView.clickSeekTime(contentX: 10, pointsPerSecond: 0, beatTimes: []) == nil)
     #expect(BeatGridView.clickSeekTime(contentX: 10, pointsPerSecond: -4, beatTimes: []) == nil)
     #expect(BeatGridView.clickSeekTime(contentX: 10, pointsPerSecond: .nan, beatTimes: []) == nil)
+    #expect(
+      BeatGridView.clickSeekTime(
+        contentX: .greatestFiniteMagnitude, pointsPerSecond: .leastNonzeroMagnitude, beatTimes: [],
+        snapToBeat: false) == nil)
   }
 
   // MARK: - scrubberX (playhead marker in the zoomed coordinate system)

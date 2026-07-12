@@ -249,25 +249,24 @@ struct LoudnessGraphView: View {
     }
   }
 
-  // MARK: - Readout (FR-44: the compact caption row replacing the old panel)
+  // MARK: - Readout (FR-44: compact, labeled metadata chips)
 
   @ViewBuilder
   private var readout: some View {
-    HStack(spacing: 12) {
-      Text(
-        "\(Self.windowCaption(report: report, analysisWindowSeconds: analysisWindowSeconds)): "
-          + Self.integratedValue(report.integratedLUFS)
-      )
-      .monospacedDigit()
-      Text("True peak: \(Self.truePeakValue(report.maxTruePeakDBTP))")
-        .monospacedDigit()
-        .help(
-          "Measured after mono mixdown — may understate per-channel peaks; not a delivery-compliance value."
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 6) {
+        AnalysisMetadataChip(
+          label: Self.windowCaption(report: report, analysisWindowSeconds: analysisWindowSeconds),
+          value: Self.integratedValue(report.integratedLUFS))
+        AnalysisMetadataChip(
+          label: "True peak", value: Self.truePeakValue(report.maxTruePeakDBTP),
+          help:
+            "Measured after mono mixdown — may understate per-channel peaks; not a delivery-compliance value."
         )
-      Text("Loudness range: \(Self.loudnessRangeValue(report.loudnessRangeLU))")
-        .monospacedDigit()
+        AnalysisMetadataChip(
+          label: "Loudness range", value: Self.loudnessRangeValue(report.loudnessRangeLU))
+      }
     }
-    .font(.callout)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 

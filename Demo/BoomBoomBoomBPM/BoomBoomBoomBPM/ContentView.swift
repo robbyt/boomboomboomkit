@@ -220,13 +220,13 @@ struct ContentView: View {
     )
   }
 
-  // Maps the 3-case `BeatGridTempoLock` to a simple on/off toggle for the demo:
-  // off <-> .off, on <-> .bpmStage (lock to the detected BPM). The `.bpm(Double)`
-  // pin-an-exact-BPM case is API-only.
-  private var lockToDetectedBPMBinding: Binding<Bool> {
+  /// Grid refinement fits the extrapolated grid to onset evidence. It is
+  /// intentionally independent from the headline BPM and leaves BPM-stage
+  /// locking off, so a coarse BPM estimate cannot overwrite the refined grid.
+  private var refineGridTempoBinding: Binding<Bool> {
     Binding(
-      get: { viewModel.options.beatGridTempoLock == .bpmStage },
-      set: { viewModel.options.beatGridTempoLock = $0 ? .bpmStage : .off }
+      get: { viewModel.options.refineBeatGridTempo },
+      set: { viewModel.options.refineBeatGridTempo = $0 }
     )
   }
 
@@ -372,18 +372,15 @@ struct ContentView: View {
               + "cover exactly this span.")
         }
 
-        // Beat-grid tempo lock. For constant-BPM electronic / DJ material, force
-        // the grid to extrapolate from the clean detected BPM so it stops drifting.
-        Toggle("Lock grid to detected BPM", isOn: lockToDetectedBPMBinding)
+        Toggle("Refine grid tempo", isOn: refineGridTempoBinding)
           .toggleStyle(.checkbox)
-          .onChange(of: viewModel.options.beatGridTempoLock) { _, _ in
+          .onChange(of: viewModel.options.refineBeatGridTempo) { _, _ in
             triggerReanalyze()
           }
           .help(
-            "Lock the beat grid to the clean detected BPM instead of the tracker's measured "
-              + "tempo — removes the slow drift that a fraction-of-a-BPM error accumulates over a "
-              + "track. Octave-normalized to the grid; ignored if the two disagree by more than "
-              + "an octave. Best for constant-tempo electronic / DJ music.")
+            "Fit the blue extrapolated grid to the track's onset evidence for tighter long-track "
+              + "alignment. This can refine the grid tempo without changing the headline BPM. "
+              + "Best for constant-tempo electronic / DJ music.")
 
         // `.onChange(of:)` fires for any mutation, including
         // programmatic writes — today only this Picker mutates the

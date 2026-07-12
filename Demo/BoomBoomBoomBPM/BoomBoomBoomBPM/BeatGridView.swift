@@ -67,6 +67,9 @@ struct BeatGridView: View {
   // Last cursor x in VIEWPORT space (`[0, laneWidth]`, scroll-independent). Viewport
   // space — not content space — so panning between hover and pinch can't stale it.
   @State private var hoverViewportX: CGFloat?
+  // SpatialTapGesture supplies a location but not the modifier state. Track
+  // Command separately so a Cmd-click can deliberately bypass beat snapping.
+  @State private var isCommandPressed = false
   // Captured once per pinch: the content time under the cursor, and the cursor's
   // (fixed) viewport x. `newOffset = anchorTime * newPPS − anchorViewportX`.
   @State private var pinchAnchorTime: Double?
@@ -100,7 +103,7 @@ struct BeatGridView: View {
         .simultaneousGesture(
           SpatialTapGesture(coordinateSpace: .local)
             .onEnded { value in
-              handleTap(atContentX: value.location.x)
+              handleTap(atContentX: value.location.x, snapToBeat: !isCommandPressed)
             }
         )
         .simultaneousGesture(
@@ -158,6 +161,9 @@ struct BeatGridView: View {
         case .active(let location): hoverViewportX = location.x
         case .ended: hoverViewportX = nil
         }
+      }
+      .onModifierKeysChanged(mask: .command, initial: true) { _, modifiers in
+        isCommandPressed = modifiers.contains(.command)
       }
       // Fill the box vertically (the lane height is then read back from the
       // measured size below). Safe despite a horizontal ScrollView's unbounded
@@ -220,15 +226,15 @@ struct BeatGridView: View {
 
   // MARK: - Click-to-scrub
 
-  /// A click seeks to the nearest RAW detected beat (every click snaps — the
-  /// markers under audit are the raw beats, even while the raw-ticks toggle is
-  /// off) and, when stopped/paused, starts playback immediately.
-  private func handleTap(atContentX x: CGFloat) {
+  /// A plain click seeks to the nearest raw detected beat; Command-click seeks
+  /// to the exact waveform time. Either starts playback when paused.
+  private func handleTap(atContentX x: CGFloat, snapToBeat: Bool) {
     guard controller.hasAudio else { return }
     let beatTimes = state.beatGrid.beats.map(\.presentationTime)
     guard
       let target = Self.clickSeekTime(
-        contentX: x, pointsPerSecond: pointsPerSecond, beatTimes: beatTimes)
+        contentX: x, pointsPerSecond: pointsPerSecond, beatTimes: beatTimes,
+        snapToBeat: snapToBeat)
     else { return }
     controller.seek(to: target)
     if !controller.isPlaying {
@@ -286,7 +292,7 @@ struct BeatGridView: View {
       .disabled(!controller.hasAudio)
       .help(
         controller.hasAudio
-          ? "Play / pause — or click the waveform to jump to the nearest beat"
+          ? "Play / pause — click to jump to the nearest beat, or Command-click for an exact time"
           : "Playback unavailable for this file")
 
       if let error = controller.playbackError {
@@ -312,15 +318,17 @@ struct BeatGridView: View {
 
   @ViewBuilder
   private var readout: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text("Estimated tempo: \(Self.tempoValue(state.beatGrid.estimatedTempo))")
-        .monospacedDigit()
-      Text("Beat count: \(state.beatGrid.beats.count)").monospacedDigit()
-      Text("Downbeat status: \(Self.downbeatStatusLabel(state.beatGrid.downbeats))")
-      Text("Grid confidence: \(Self.gridConfidenceValue(state.beatGrid.confidence))")
-        .monospacedDigit()
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 6) {
+        AnalysisMetadataChip(
+          label: "Estimated tempo", value: Self.tempoValue(state.beatGrid.estimatedTempo))
+        AnalysisMetadataChip(label: "Beat count", value: "\(state.beatGrid.beats.count)")
+        AnalysisMetadataChip(
+          label: "Downbeat status", value: Self.downbeatStatusLabel(state.beatGrid.downbeats))
+        AnalysisMetadataChip(
+          label: "Grid confidence", value: Self.gridConfidenceValue(state.beatGrid.confidence))
+      }
     }
-    .font(.callout)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
@@ -447,9 +455,10 @@ struct BeatGridView: View {
   // MARK: - Click / scrubber geometry (pure, unit-tested)
 
   /// Maps a click at content-x (the zoomed coordinate system, `x = time *
-  /// pointsPerSecond`) to the seek target: the nearest raw detected beat —
-  /// every click snaps — falling back to the raw clicked time when no beats
-  /// exist. Returns `nil` for degenerate input (non-finite x, `pointsPerSecond`
+  /// pointsPerSecond`) to the seek target. When `snapToBeat` is true, it uses
+  /// the nearest raw detected beat; otherwise it returns the raw clicked time.
+  /// It falls back to that raw time when no beats exist. Returns `nil` for
+  /// degenerate input (non-finite x, `pointsPerSecond`
   /// not finite-positive) so the tap is simply ignored. An exact-midpoint tie
   /// resolves to the earlier beat. Non-finite and negative `beatTimes` entries
   /// are ignored (unrepresentable from the production caller — `BeatTimestamp`
@@ -457,12 +466,14 @@ struct BeatGridView: View {
   /// enforces its own contract). The result is always `>= 0`;
   /// `PlaybackController.seek(to:)` owns the `[0, duration]` clamp.
   nonisolated static func clickSeekTime(
-    contentX: CGFloat, pointsPerSecond: Double, beatTimes: [Double]
+    contentX: CGFloat, pointsPerSecond: Double, beatTimes: [Double], snapToBeat: Bool = true
   ) -> Double? {
     guard contentX.isFinite, pointsPerSecond.isFinite, pointsPerSecond > 0 else {
       return nil
     }
     let rawTime = max(0, Double(contentX) / pointsPerSecond)
+    guard rawTime.isFinite else { return nil }
+    guard snapToBeat else { return rawTime }
     // Linear scan — beats number in the low thousands, no binary search needed.
     let nearest = beatTimes.filter { $0.isFinite && $0 >= 0 }.min { a, b in
       let da = abs(a - rawTime)
@@ -555,9 +566,8 @@ struct BeatGridHelpButton: View {
       legendRow(
         .primary, "Playhead",
         "The playback position. Click anywhere on the waveform to jump to the nearest "
-          + "detected beat and start playback — use it to audition whether the beat markers "
-          + "line up with the audio. Clicks snap to detected beats even while the raw "
-          + "indicators are hidden.")
+          + "detected beat and start playback, or Command-click to seek to the exact waveform "
+          + "time. Use either to audition whether the beat markers line up with the audio.")
     }
   }
 

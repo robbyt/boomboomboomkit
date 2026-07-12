@@ -438,6 +438,10 @@ final class AnalysisViewModel {
     // downbeat layer populates.
     opts.beatGridCoverage = .fullTrack
     opts.detectDownbeats = true
+    // The demo's refinement control deliberately replaces the old BPM-stage
+    // lock. Keep the latter off so it cannot overwrite a better fitted grid
+    // tempo with the coarse headline BPM.
+    opts.beatGridTempoLock = .off
     // Story 9.1: the preset picker is the single writer of the per-run
     // ensemble policy — applied unconditionally so the effective policy
     // always value-equals the picker's resolved `EnsemblePolicy` (AC3),
