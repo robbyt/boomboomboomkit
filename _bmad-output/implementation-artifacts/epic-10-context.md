@@ -11,7 +11,7 @@ Wire the deeper Epic 8 public surface (`BeatGrid`, `BeatTimestamp`, `DownbeatRes
 - Story 10.1: BookmarkPersistence — security-scoped bookmarks across launches
 - Story 10.2: ModelPickerView — registry-backed model selection
 - Story 10.3: BeatGridTimelineView — Canvas-based timeline + text readout
-- Story 10.4: LUFSReadoutView — primary integrated LUFS + secondary breakdown
+- Story 10.4: LoudnessGraphView — LUFS-over-time graph + labeled scalar summary (shipped; orig. LUFSReadoutView, reworked d3af680/#96)
 - Story 10.5: HelpButton + strategy popovers wired to Epic 11 docs
 
 ## Requirements & Constraints

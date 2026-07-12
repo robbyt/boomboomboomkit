@@ -52,6 +52,12 @@ struct ContentView: View {
   // Font.system(size: 96) is fixed-point and does NOT scale.
   @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 96
 
+  // Height cap for the subordinate analysis lane (Beats / Loudness panes).
+  // Load-bearing (F04 / Story 5-6b): an unbounded panel grows the window and
+  // starves `primaryStateView`'s `maxHeight: .infinity` BPM-hero share. One
+  // lane now (Story 10.4 UX rework), so the cap is a single bound.
+  private let panelMaxHeight: CGFloat = 340
+
   // `nil` until the first run completes — that's the cue for the
   // neutral pre-analysis gradient (KDD #8). Once a snapshot exists,
   // the user-chosen merge strategy keys the visual.
@@ -88,7 +94,7 @@ struct ContentView: View {
         primaryStateView
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         bannerView
-        beatGridSection
+        analysisSection
         controlsSection
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -251,27 +257,80 @@ struct ContentView: View {
     viewModel.analyze(url: url, autoStarted: false)
   }
 
-  // Beat-grid section for the current result. Shown only when a grid was tracked
-  // (`gridVisualization != nil`). ONE combined view (Story 10.3 UX rework): waveform +
-  // beat markers + playback scrubber + click-to-scrub + labeled readout. The
-  // `maxHeight: 340` cap is load-bearing: the waveform block is otherwise an unbounded,
-  // incompressible view (its horizontal ScrollView reports an unbounded ideal
-  // cross-axis height) that grows the window and starves `primaryStateView`'s
-  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the block; the
-  // lane flexes within it (measured `laneHeight`) while the transport/readout rows
-  // keep their fixed height.
+  // Which pane the shared analysis lane renders (Story 10.4 UX rework): the
+  // Beats waveform/grid view or the LUFS-over-time graph — one lane, one
+  // GroupBox, a segmented switch when both have data. Session-scoped by design
+  // (no UserDefaults persistence — the 10.3 rework precedent for lane modes).
+  private enum AnalysisPane: String, CaseIterable {
+    case beats = "Beats"
+    case loudness = "Loudness"
+  }
+  @State private var analysisPane: AnalysisPane = .beats
+
+  // The pane actually rendered: the user's choice when its data exists, else
+  // whichever side has data (a no-BPM file can still measure loudness, and
+  // vice versa) — never an empty lane while either result exists.
+  private var effectivePane: AnalysisPane {
+    switch analysisPane {
+    case .beats:
+      return viewModel.gridVisualization != nil ? .beats : .loudness
+    case .loudness:
+      return viewModel.lufsReport != nil ? .loudness : .beats
+    }
+  }
+
+  // Analysis lane for the current result: ONE GroupBox hosting either the
+  // Beats view (waveform + grid + scrubber, Story 10.3) or the loudness graph
+  // (LUFS over time, Story 10.4 UX rework — replaces the old full-height
+  // bottom loudness panel). Shown when either result exists; the segmented
+  // switch appears only when both do. The `panelMaxHeight` cap is
+  // load-bearing: the lane is otherwise an unbounded, incompressible view
+  // that grows the window and starves `primaryStateView`'s
+  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the
+  // block; the lane flexes within it while the transport/readout rows keep
+  // their fixed height.
   @ViewBuilder
-  private var beatGridSection: some View {
-    if let grid = viewModel.gridVisualization {
+  private var analysisSection: some View {
+    let grid = viewModel.gridVisualization
+    let lufs = viewModel.lufsReport
+    if grid != nil || lufs != nil {
       GroupBox {
-        BeatGridView(state: grid, controller: playback)
+        switch effectivePane {
+        case .beats:
+          if let grid {
+            BeatGridView(state: grid, controller: playback)
+          }
+        case .loudness:
+          if let lufs {
+            LoudnessGraphView(
+              report: lufs,
+              analysisWindowSeconds: viewModel.lufsAnalysisWindowSeconds ?? 0,
+              controller: playback)
+          }
+        }
       } label: {
         HStack(spacing: 6) {
-          Text("Beat grid")
-          BeatGridHelpButton()
+          if grid != nil && lufs != nil {
+            Picker("Analysis pane", selection: $analysisPane) {
+              ForEach(AnalysisPane.allCases, id: \.self) { pane in
+                Text(pane.rawValue).tag(pane)
+              }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+          } else {
+            // Only one side has data — a switch would be a lie; name the pane.
+            Text(effectivePane == .beats ? "Beat grid" : "Loudness")
+          }
+          switch effectivePane {
+          case .beats: BeatGridHelpButton()
+          case .loudness: LoudnessHelpButton()
+          }
+          Spacer()
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: 340, alignment: .topLeading)
+      .frame(maxWidth: .infinity, maxHeight: panelMaxHeight, alignment: .topLeading)
     }
   }
 
