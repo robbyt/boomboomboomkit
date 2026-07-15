@@ -496,6 +496,71 @@ struct DecodeCountTests {
     #expect(probe.count == 1)
     #expect(probe.lastSampleCount == 44_100)
   }
+
+  /// Full analysis owns the shared decode itself, rather than composing the
+  /// two URL entry points (which would decode twice).
+  @Test func fullURLPathDecodesOnce() throws {
+    let url = try AudioFixtures.url(for: "bpm-120-click", extension: "wav")
+    let probe = DecodeProbe()
+    let result = try AudioAnalysisService.analyzeFull(
+      url: url, options: .init(), lufsOptions: .init(),
+      decodeObserver: { probe.record($0) })
+    #expect(probe.count == 1)
+    #expect(result.bpmAndBeatGrid != nil)
+    if case .success(let report) = result.loudness {
+      #expect(report != nil)
+    } else {
+      Issue.record("supported fixture must not fail loudness")
+    }
+  }
+}
+
+// MARK: - Full analysis aggregate API
+
+@Suite("Shared Decode — full analysis aggregate")
+struct FullAnalysisTests {
+
+  @Test func preservesURLMetadataAndStandaloneOutcomes() throws {
+    let url = try ClickTrackAIFFBuilder.write(
+      clickBPM: 128, durationSeconds: 10, tbpm: "128")
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let expectedBPM = try #require(try AudioAnalysisService.analyze(url: url))
+    let expectedLoudness = try AudioAnalysisService.analyzeLUFS(url: url)
+    let full = try AudioAnalysisService.analyzeFull(url: url)
+    let actualBPM = try #require(full.bpmAndBeatGrid)
+    #expect(actualBPM.bpm.bpm.bitPattern == expectedBPM.bpm.bpm.bitPattern)
+    #expect(!actualBPM.bpm.metadataEvidence.isEmpty)
+    if case .success(let report) = full.loudness {
+      #expect(report == expectedLoudness)
+    } else {
+      Issue.record("supported fixture must not fail loudness")
+    }
+  }
+
+  @Test func retainsLoudnessWhenBPMHasNoResult() throws {
+    let url = try AudioFixtures.url(for: "test-audio", extension: "flac")
+    let full = try AudioAnalysisService.analyzeFull(url: url)
+    #expect(full.bpmAndBeatGrid == nil)
+    if case .success = full.loudness {
+      // A successful nil is still an independently-consumed measurement outcome.
+    } else {
+      Issue.record("supported sample rate must not fail loudness")
+    }
+  }
+
+  @Test func reportsLoudnessFailureForUnsupportedRate() throws {
+    let url = try AudioFixtures.url(for: "sample", extension: "wav")
+    let full = try AudioAnalysisService.analyzeFull(url: url)
+    if case .failure(let error) = full.loudness {
+      guard case .unsupportedSampleRate = error else {
+        Issue.record("unexpected loudness failure: \(error)")
+        return
+      }
+    } else {
+      Issue.record("8 kHz fixture must report loudness failure")
+    }
+  }
 }
 
 // MARK: - AC2: BPM decoded-path equality (DD #2 / DD #3a / DD #3b)

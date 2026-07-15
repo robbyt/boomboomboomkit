@@ -5,6 +5,31 @@ struct ContentView: View {
   @State private var viewModel = AnalysisViewModel()
   @State private var isDropTargeted: Bool = false
 
+  // Registry-backed model catalog (Story 10.2), the ONLY add-model surface after
+  // the primary-view "Load Model…" button was relocated into the picker sheet
+  // (AC6 / FR-43). Owned by `BoomBoomBoomBPMApp` and injected here — NOT a local
+  // `@State`: `ModelCatalog.init` runs a synchronous `restore()` (bookmark
+  // resolution + SHA-256 of every model), and a `@State` initial value is
+  // re-evaluated on every `ContentView` construction and discarded after the
+  // first, so a local `@State` would re-run restore-and-throw-away. App-level
+  // ownership constructs it once at app lifetime. (Consequence: a second
+  // `WindowGroup` window would share this one catalog + `selectedURL` — fine for
+  // this single-window demo, deliberate.)
+  private let modelCatalog: ModelCatalog
+  @State private var isModelPickerPresented: Bool = false
+
+  // Audio playback for the Story-10.3 beat-grid scrubber. A local `@State`
+  // (unlike `modelCatalog`, which was App-hoisted): `PlaybackController.init` does NO
+  // I/O — the file loads only when the result-paired `.onChange` below fires — so a
+  // per-construction `@State` re-eval is harmless and does not regress the 10.2 R3
+  // hoist lesson (that was about an expensive `restore()` in `init`). Scope is released
+  // deterministically on `.onDisappear` (below); `deinit` is only a backstop.
+  @State private var playback = PlaybackController()
+
+  init(modelCatalog: ModelCatalog) {
+    self.modelCatalog = modelCatalog
+  }
+
   // Persisted via @SceneStorage so the inspector preference survives
   // window-close / app-relaunch. Default false — end-user audience;
   // power users toggle via the Diagnostics button (Command-Shift-D),
@@ -26,6 +51,12 @@ struct ContentView: View {
   // modifier on the Text). Fixes KDD #4's "honors AX1-AX3" promise — bare
   // Font.system(size: 96) is fixed-point and does NOT scale.
   @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 96
+
+  // Height cap for the subordinate analysis lane (Beats / Loudness panes).
+  // Load-bearing (F04 / Story 5-6b): an unbounded panel grows the window and
+  // starves `primaryStateView`'s `maxHeight: .infinity` BPM-hero share. One
+  // lane now (Story 10.4 UX rework), so the cap is a single bound.
+  private let panelMaxHeight: CGFloat = 340
 
   // `nil` until the first run completes — that's the cue for the
   // neutral pre-analysis gradient (KDD #8). Once a snapshot exists,
@@ -63,7 +94,7 @@ struct ContentView: View {
         primaryStateView
           .frame(maxWidth: .infinity, maxHeight: .infinity)
         bannerView
-        beatGridSection
+        analysisSection
         controlsSection
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -91,6 +122,25 @@ struct ContentView: View {
     // `.dropDestination`.
     .onOpenURL { url in
       viewModel.handleOpenURL(url)
+    }
+    // Playback follows the current result-paired source: beat-grid wins when
+    // both results exist, and a loudness-only graph still gets seek/play.
+    // Re-analysis clears both result payloads synchronously, so A -> nil -> A
+    // reloads freshly analyzed audio even when the URL itself is unchanged.
+    .onChange(of: viewModel.playbackSourceURL) { _, url in
+      playback.load(url: url)
+    }
+    .onDisappear {
+      playback.load(url: nil)
+    }
+    // Registry-backed model picker (Story 10.2). On a successful "Use this
+    // model" the sheet re-analyzes the current file if one is loaded.
+    .sheet(isPresented: $isModelPickerPresented) {
+      ModelPickerView(
+        catalog: modelCatalog,
+        viewModel: viewModel,
+        onModelUsed: { triggerReanalyze() }
+      )
     }
     .toolbar {
       // AC #9: explicit toolbar toggle in addition to the system
@@ -170,13 +220,13 @@ struct ContentView: View {
     )
   }
 
-  // Maps the 3-case `BeatGridTempoLock` to a simple on/off toggle for the demo:
-  // off <-> .off, on <-> .bpmStage (lock to the detected BPM). The `.bpm(Double)`
-  // pin-an-exact-BPM case is API-only.
-  private var lockToDetectedBPMBinding: Binding<Bool> {
+  /// Grid refinement fits the extrapolated grid to onset evidence. It is
+  /// intentionally independent from the headline BPM and leaves BPM-stage
+  /// locking off, so a coarse BPM estimate cannot overwrite the refined grid.
+  private var refineGridTempoBinding: Binding<Bool> {
     Binding(
-      get: { viewModel.options.beatGridTempoLock == .bpmStage },
-      set: { viewModel.options.beatGridTempoLock = $0 ? .bpmStage : .off }
+      get: { viewModel.options.refineBeatGridTempo },
+      set: { viewModel.options.refineBeatGridTempo = $0 }
     )
   }
 
@@ -202,25 +252,80 @@ struct ContentView: View {
     viewModel.analyze(url: url, autoStarted: false)
   }
 
-  // Beat-grid + waveform overlay for the current result. Shown only when a grid
-  // was tracked (`gridVisualization != nil`). The `maxHeight: 340` cap is
-  // load-bearing: the beat-grid block is otherwise an unbounded, incompressible
-  // view (its horizontal ScrollView reports an unbounded ideal cross-axis height)
-  // that grows the window to fill the screen and starves `primaryStateView`'s
-  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the block
-  // and `BeatGridView` fills it; the (?) help sits in the custom GroupBox label.
+  // Which pane the shared analysis lane renders (Story 10.4 UX rework): the
+  // Beats waveform/grid view or the LUFS-over-time graph — one lane, one
+  // GroupBox, a segmented switch when both have data. Session-scoped by design
+  // (no UserDefaults persistence — the 10.3 rework precedent for lane modes).
+  private enum AnalysisPane: String, CaseIterable {
+    case beats = "Beats"
+    case loudness = "Loudness"
+  }
+  @State private var analysisPane: AnalysisPane = .beats
+
+  // The pane actually rendered: the user's choice when its data exists, else
+  // whichever side has data (a no-BPM file can still measure loudness, and
+  // vice versa) — never an empty lane while either result exists.
+  private var effectivePane: AnalysisPane {
+    switch analysisPane {
+    case .beats:
+      return viewModel.gridVisualization != nil ? .beats : .loudness
+    case .loudness:
+      return viewModel.lufsReport != nil ? .loudness : .beats
+    }
+  }
+
+  // Analysis lane for the current result: ONE GroupBox hosting either the
+  // Beats view (waveform + grid + scrubber, Story 10.3) or the loudness graph
+  // (LUFS over time, Story 10.4 UX rework — replaces the old full-height
+  // bottom loudness panel). Shown when either result exists; the segmented
+  // switch appears only when both do. The `panelMaxHeight` cap is
+  // load-bearing: the lane is otherwise an unbounded, incompressible view
+  // that grows the window and starves `primaryStateView`'s
+  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the
+  // block; the lane flexes within it while the transport/readout rows keep
+  // their fixed height.
   @ViewBuilder
-  private var beatGridSection: some View {
-    if let grid = viewModel.gridVisualization {
+  private var analysisSection: some View {
+    let grid = viewModel.gridVisualization
+    let lufs = viewModel.loudnessVisualization
+    if grid != nil || lufs != nil {
       GroupBox {
-        BeatGridView(state: grid)
+        switch effectivePane {
+        case .beats:
+          if let grid {
+            BeatGridView(state: grid, controller: playback)
+          }
+        case .loudness:
+          if let lufs {
+            LoudnessGraphView(
+              report: lufs.report,
+              analysisWindowSeconds: lufs.analysisWindowSeconds,
+              controller: playback)
+          }
+        }
       } label: {
         HStack(spacing: 6) {
-          Text("Beat grid")
-          BeatGridHelpButton()
+          if grid != nil && lufs != nil {
+            Picker("Analysis pane", selection: $analysisPane) {
+              ForEach(AnalysisPane.allCases, id: \.self) { pane in
+                Text(pane.rawValue).tag(pane)
+              }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+          } else {
+            // Only one side has data — a switch would be a lie; name the pane.
+            Text(effectivePane == .beats ? "Beat grid" : "Loudness")
+          }
+          switch effectivePane {
+          case .beats: BeatGridHelpButton()
+          case .loudness: LoudnessHelpButton()
+          }
+          Spacer()
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: 340, alignment: .topLeading)
+      .frame(maxWidth: .infinity, maxHeight: panelMaxHeight, alignment: .topLeading)
     }
   }
 
@@ -267,18 +372,15 @@ struct ContentView: View {
               + "cover exactly this span.")
         }
 
-        // Beat-grid tempo lock. For constant-BPM electronic / DJ material, force
-        // the grid to extrapolate from the clean detected BPM so it stops drifting.
-        Toggle("Lock grid to detected BPM", isOn: lockToDetectedBPMBinding)
+        Toggle("Refine grid tempo", isOn: refineGridTempoBinding)
           .toggleStyle(.checkbox)
-          .onChange(of: viewModel.options.beatGridTempoLock) { _, _ in
+          .onChange(of: viewModel.options.refineBeatGridTempo) { _, _ in
             triggerReanalyze()
           }
           .help(
-            "Lock the beat grid to the clean detected BPM instead of the tracker's measured "
-              + "tempo — removes the slow drift that a fraction-of-a-BPM error accumulates over a "
-              + "track. Octave-normalized to the grid; ignored if the two disagree by more than "
-              + "an octave. Best for constant-tempo electronic / DJ music.")
+            "Fit the blue extrapolated grid to the track's onset evidence for tighter long-track "
+              + "alignment. This can refine the grid tempo without changing the headline BPM. "
+              + "Best for constant-tempo electronic / DJ music.")
 
         // `.onChange(of:)` fires for any mutation, including
         // programmatic writes — today only this Picker mutates the
@@ -337,8 +439,8 @@ struct ContentView: View {
         // BYOW ML (Epic 7; preset-governed since Story 9.1): the "Use loaded
         // model" toggle + model name form a status line shown once a model is
         // loaded. `mlModelError` is rendered independently so a failed load is
-        // never swallowed. The `Load Model…` button lives in the action row
-        // below, next to Copy Config.
+        // never swallowed. Adding / choosing a model lives in the "Models…"
+        // sheet (Story 10.2), opened from the action row below.
         if let name = viewModel.mlModelName {
           HStack(spacing: 8) {
             Toggle("Use loaded model", isOn: $viewModel.mlEnabled)
@@ -354,15 +456,15 @@ struct ContentView: View {
           }
         }
         if let mlError = viewModel.mlModelError {
-          Text(mlError)
+          Text("Reason: \(mlError)")
             .font(.caption)
             .foregroundStyle(.red)
             .lineLimit(2)
         }
 
-        // Bottom action row: Cancel / Re-analyze │ Load Model… / Copy Config /
+        // Bottom action row: Cancel / Re-analyze │ Models… / Copy Config /
         // Export Trace. Cancel + Re-analyze are mutually exclusive (analyzing
-        // vs idle); Load Model… + Copy Config are always visible; Export Trace
+        // vs idle); Models… + Copy Config are always visible; Export Trace
         // requires a populated snapshot.
         HStack(spacing: 8) {
           if viewModel.isAnalyzing {
@@ -378,10 +480,8 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             Divider().frame(height: 16)
           }
-          Button("Load Model…") {
-            if viewModel.pickAndLoadMLModel() {
-              triggerReanalyze()
-            }
+          Button("Models…") {
+            isModelPickerPresented = true
           }
           .buttonStyle(.bordered)
           Button("Copy Config") {
