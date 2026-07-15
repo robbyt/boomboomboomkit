@@ -26,6 +26,7 @@ partyModeAmendmentsApplied:
   - '2026-05-26: Codex-blessed iteration-leak mitigation (thread 019e6662-22ab-7451-957e-ae93b0cb1a6e). Story 7.6 grows N=3 FR-18 re-run governance tripwire with deviation log at _bmad-output/implementation-artifacts/7-6-fr18-rerun-log.md. Story 7.7 grows held-out GiantSteps slice of n=150 tracks (Codex preferred over Mary suggested 50) with stratified-by-tempo-band + stratified-by-style-label selection; sealed locally with committed selection-script + seed + SHA256 manifest digest; iteration-leak tripwire fires at gap ≥ 8 Acc1 points. ACs added to Stories 7.6 + 7.7; no new Story 7.8 needed per Codex verdict.'
   - '2026-05-26: JAMS (JSON Annotated Music Specification, marl/jams, ISC) + mir_eval adopted for ground-truth annotation artifacts. Story 8.7 updated: F-measure via mir_eval.beat.f_measure (Python sidecar, develop-only Python dep), daw-oracle-beats.json emits JAMS natively, Swift JAMS decoder lands at Tests/BoomBoomBoomKitBenchmarkTests/Helpers/JAMSDecoder.swift (~100-150 LOC). Story 8.8 added: one-time migration of daw-oracle.json + oa300-ground-truth.json + 4-dnb-triplet-targets.json to JAMS shape via make oracle-migrate-to-jams. Python jams + mir_eval deps added to _bmad-output/ml-training/pyproject.toml (develop-only, NOT shipped to main).'
   - '2026-05-26: Global valve artifact-path pass — every Pressure-release valve in the file that proposes a deviation now cites _bmad-output/implementation-artifacts/<story>-pressure-release.md as documentation target. 13 valves updated; 11 already cited; 10 say None. Closes audit-trail hole flagged by Amelia #6.'
+  - '2026-07-07: Epic 10 prep party-mode review (John, Winston, Sally, Amelia, Gloria) — operator robbyt directing. Three decisions. (1) Story order = build order: the only Epic 10 inversion was 10.1 (ModelPickerView) consuming 10.2 (BookmarkPersistence), so the two were swapped — BookmarkPersistence is now 10.1, ModelPickerView 10.2 — and the epic runs chronologically 10.1→10.5 with every dep satisfied per step. Cross-refs + pressure-release filenames flipped with the numbers. (2) Story 10.2 folds Epic 9 retro action AI-3: relocate the grandfathered primary-view "Load Model…" button into the picker sheet, restoring FR-43. (3) DocumentedCase seam: robbyt chose scope-into-10.5 over pull-Epic-11-forward. Because DocumentedCase is a LIBRARY protocol (Story 11.1, KDD-E1 one-protocol cap), 10.5 declares a demo-local descriptor protocol bridged to Epic 11 by string docID (not shared type) — Epic 10 now has zero compile-time Epic 11 dependency; docs content still degrades via FR-42. Epic 9 (in-progress, held only by operator GUI smokes) is NOT a blocker: full-speed on Epic 10 per operator. No sprint-status story-keys seeded yet.'
   - '2026-05-30: Epic 7 runtime-gate reconciliation (Epic 6 retro Action Item A1). The genuine KDD-A6 Stage 3 semantic flip + KDD-A5 activation landed in Story 6.5b, not Story 6.4 — 6.4b was byte-inert prep and FR-1/2/6/7 were reallocated to 6.5 on 2026-05-29 (see the Story 6.4/6.5 sections at the merge-flip text). The Epic 7 FR-18 runtime-stability gates (dependency preamble bullet 3, dependency diagram, Epic 7 stories preamble, Story 7.5 precondition AC, Story 7.6 want-statement) are repointed Story 6.4 to Story 6.5b. Guardrail (2) feature-config reference is corrected Story 6.4 to Story 6.2 (the mel/FFT/log feature shape freezes in 6.2, consumed unchanged by the 6.5b runtime). The 2026-05-26 entries above are kept as the historical record of what was decided at the time. No code change; epics.md + architecture.md doc-only. Also corrected architecture.md residual drift: SignalParticipationTraceEntry Hashable drop, MLExecutionPolicy non-allCases case-coverage invariant, and the BPMSelectionPolicy/OctaveEquivalencePolicy invariant-test file pointers.'
 ---
 
@@ -99,9 +100,9 @@ Epic numbering continues monotonically from the archived `epics-2026-03-31.md`, 
 
 - **FR-36** Demo exposes named ensemble presets in primary view. 4 PRD presets (`Default`, `DSP only`, `ML augmented`, `Trust file tags`) in primary view; raw signal weights in advanced sidebar (existing `.inspector(isPresented:)` from Story 5-6b).
 - **FR-37** Model selection from registry + file picker. Demo lets users select an ML model from registry OR add new via file picker. Selection drives subsequent analysis.
-- **FR-38** Demo owns persistence for user-added models only. Security-scoped bookmark stored by demo for user-added models. Library accepts already-resolved URLs. Bundled + known-public entries are stateless. Required entitlements: `user-selected.read-only` + `bookmarks.app-scope`.
-- **FR-39** Beat-grid as timeline + text readout. SwiftUI Canvas timeline with current-time scrubber + text readout (tempo, beat count, downbeat status, confidence). No waveform.
-- **FR-40** LUFS as primary measurement, secondary breakdown. Integrated LUFS as single number with unit label + small panel for true-peak + LRA. Does not dominate BPM-centric flow.
+- **FR-38** Demo owns persistence for user-added models only. Security-scoped bookmark stored by demo for user-added models. Library accepts already-resolved URLs. Bundled + known-public entries are stateless. Required entitlements: `user-selected.read-write` (the shipped app-level superset — read-only is *sufficient* for the model bookmark and is enforced at bookmark creation via `.securityScopeAllowOnlyReadAccess`, but the audio-file open path already requires read-write; Story 10.1 DD1) + `bookmarks.app-scope`.
+- **FR-39** Beat-grid as timeline + text readout. SwiftUI Canvas timeline with current-time scrubber, click-to-scrub (beat-snap), and text readout (tempo, beat count, downbeat status, confidence), on the Epic-8 `BeatGridView` waveform overlay. No new waveform engine. *(Amended 2026-07-11, Story 10-3.)*
+- **FR-40** Loudness surfaced as a time-series graph with a labeled scalar summary, subordinate to BPM. LUFS-over-time graph (X time, Y loudness on a fixed dB-FS axis: momentary + short-term series, integrated + max-true-peak reference lines, LRA band) PLUS a compact FR-44-labeled scalar summary (integrated LUFS / true-peak dBTP / loudness range LU). Occupies a subordinate, height-capped region (shares the analysis lane with the beat grid behind a segmented switch); does not dominate the BPM-centric flow. *(Amended 2026-07-11: the original "single number + small panel" wording was superseded by Story 8.1 DD#5 (2026-06-10) — a single integrated number misdescribes dynamic material; 8.1 shipped the momentary/short-term series specifically to enable this time-series rendering. Shipped as `LoudnessGraphView`, d3af680/#96; see sprint-change-proposal-2026-07-11-story-10-4.md.)*
 - **FR-41** Final-state signal-pool diagnostic table in advanced sidebar. When `enableTrace: true`, sortable Table with one row per contributing signal (source, BPM, confidence, weight, contribution, cluster). Final-state, post-analysis. Replaces current `EnsembleDecision` summary view.
 - **FR-42** Strategy popover wired to Epic 11 docs with graceful degradation. "?" buttons open SwiftUI `.popover()` rendering docs from Epic 11's runtime Markdown bundle via `BoomBoomBoomKitDocs.attributedString(for:id:)` accessor. If Epic 11 ships late or bundle unavailable, popover shows fallback (one-line description + repo URL). _(PRD originally referenced "Epic E" — per-case docs renumbered to Epic 11 after Epic 9 split during party-mode review 2026-05-26.)_
 - **FR-43** Primary flow stays primary; developer surface in sidebar. "Drop file → get answer" remains dominant interaction. All developer/diagnostic affordances live in `.inspector(isPresented:)` sidebar (keyboard `⌘⇧D`).
@@ -128,7 +129,7 @@ _(FR-48 moved to NFR-5; FR-51 dropped per PRD — `BNNSTechnique` is a struct, n
 - **NFR-6** Performance budgets. OA300 wall-clock at default intensity ≤ 15% regression (per FR-11). Beat-grid extraction overhead bounded and measured separately. LUFS analysis cost dominated by file decode (paid for BPM under FR-35 shared-decode). Combined analysis decodes once, not three times.
 - **NFR-7** Accuracy floors hold across the refactor. OA300 Acc1 ≥ 55/82 + GiantSteps Acc1 ≥ 537/661 unconditional CI assertions (per FR-10). Trained-model bundling has its own gates (FR-18) beyond these floors.
 - **NFR-8** Test discipline. New analyzer/algorithm work includes paired byte-equality opt-out tests where feasible (no longer default contract per NFR-4, but valuable as architecture-refactor regression scaffolding). Drift-detection (FR-50) gates every CI run.
-- **NFR-9** App Store compliance (demo). Demo sandboxed (`com.apple.security.app-sandbox`), signs with developer identity, ships via `make demo-archive`. Entitlements: `user-selected.read-only` + `bookmarks.app-scope`.
+- **NFR-9** App Store compliance (demo). Demo sandboxed (`com.apple.security.app-sandbox`), signs with developer identity, ships via `make demo-archive`. Entitlements: `user-selected.read-write` (app-level superset required by the audio-file open path; the model bookmark itself is read-only via `.securityScopeAllowOnlyReadAccess`) + `bookmarks.app-scope`.
 - **NFR-10** No new internet requests. Library and demo make no internet requests from any code in this PRD (per FR-46 + FR-52). Privacy manifest reason codes already covered by Story 5-7.
 
 ### Additional Requirements
@@ -165,7 +166,7 @@ Implementation-level requirements derived from `architecture.md` that shape epic
 **Security & integrity:**
 
 - ModelRegistry uses CryptoKit `SHA256.hash(data:)`. SHA-256 over `.mlmodelc` directory contents (sorted-by-relative-path, concatenated bytes). Computed once per registration; cached.
-- Demo entitlements: `com.apple.security.app-sandbox` + `com.apple.security.files.user-selected.read-only` + `com.apple.security.files.bookmarks.app-scope`. The third is the one developers commonly forget for security-scoped bookmark resolution.
+- Demo entitlements: `com.apple.security.app-sandbox` + `com.apple.security.files.user-selected.read-write` (app-level superset for the audio-file open path; the model bookmark is read-only via `.securityScopeAllowOnlyReadAccess`) + `com.apple.security.files.bookmarks.app-scope`. The third is the one developers commonly forget for security-scoped bookmark resolution.
 
 **License & provenance:**
 
@@ -197,7 +198,7 @@ Implementation-level requirements derived from `architecture.md` that shape epic
 
 No standalone UX design document exists. UX is captured inline in PRD Epic D / Epic 9 (FR-36 through FR-44) and resolved via architecture KDD-D1 through KDD-D5. The demo's UX requirements appear as Epic 9 FRs above, not as separate UX-DRs.
 
-Treat Epic 9 FRs as both functional requirements AND the UX specification — primary-view ensemble presets, advanced-sidebar diagnostics, beat-grid timeline (no waveform), strategy popover with graceful degradation, confidence-label discipline.
+Treat Epic 9 FRs as both functional requirements AND the UX specification — primary-view ensemble presets, advanced-sidebar diagnostics, beat-grid timeline on the shared waveform view (no new waveform engine), strategy popover with graceful degradation, confidence-label discipline.
 
 ### FR Coverage Map
 
@@ -245,7 +246,7 @@ Every FR maps to exactly one epic. NFRs are cross-cutting (apply across all epic
 | FR-37 | Epic 10 | Model selection from registry + file picker (Epic 8 dep) |
 | FR-38 | Epic 10 | Demo owns persistence for user-added models only (follows FR-37) |
 | FR-39 | Epic 10 | Beat-grid as timeline + text readout (Epic 8 dep) |
-| FR-40 | Epic 10 | LUFS as primary measurement (Epic 8 dep) |
+| FR-40 | Epic 10 | Loudness-over-time graph + labeled scalar summary, subordinate to BPM (Epic 8 dep; supersedes "single number" per 8.1 DD#5) |
 | FR-41 | Epic 9 | Final-state signal-pool diagnostic table (Epic 6 dep) |
 | FR-42 | Epic 10 | Strategy popover wired to Epic 11 docs (Epic 11 dep + graceful degradation) |
 | FR-43 | Epic 9 | Primary flow stays primary (cross-cutting discipline) |
@@ -327,7 +328,7 @@ Primary view = audio file picker + ensemble preset picker (4 PRD presets `Defaul
 
 The demo's deeper-integration surface — beat-grid timeline rendering, LUFS readout panel, ML model selection from registry plus user-added models via file picker with security-scoped bookmark persistence, and strategy popovers wired to per-case authored prose from Epic 11. Builds on Epic 8 (beat-grid + LUFS + ModelRegistry public APIs) and Epic 11 (per-case docs), with FR-42 graceful degradation allowing Epic 10 to ship before Epic 11 closes (popover degrades to one-line description + repo URL fallback).
 
-Beat-grid renders as a SwiftUI Canvas timeline with current-time scrubber plus text readout (estimated tempo, beat count, downbeat status, grid confidence) — no waveform per FR-39. LUFS displays as a primary integrated-loudness number plus a secondary panel for true-peak and LRA. Model selection draws from `ModelRegistry` (bundled + known-public + user-added); user-added models persist via security-scoped bookmark stored in `UserDefaults` (matching the Story 5-6 `MergeStrategyPersistence` precedent), with required entitlements `com.apple.security.files.user-selected.read-only` + `com.apple.security.files.bookmarks.app-scope`. Strategy popovers ("?" buttons next to ensemble preset / DSP technique / merge strategy controls) anchor SwiftUI `.popover()` to `BoomBoomBoomKitDocs.attributedString(for:id:)` resolution.
+Beat-grid renders as a SwiftUI Canvas timeline with current-time scrubber, click-to-scrub (beat-snap), plus text readout (estimated tempo, beat count, downbeat status, grid confidence), merged onto the Epic-8 `BeatGridView` waveform overlay — no new waveform engine per FR-39 (amended 2026-07-11). LUFS displays as a primary integrated-loudness number plus a secondary panel for true-peak and LRA. Model selection draws from `ModelRegistry` (bundled + known-public + user-added); user-added models persist via security-scoped bookmark stored in `UserDefaults` (matching the Story 5-6 `MergeStrategyPersistence` precedent), with required entitlements `com.apple.security.files.user-selected.read-write` (app-level superset; the model bookmark is read-only via `.securityScopeAllowOnlyReadAccess`) + `com.apple.security.files.bookmarks.app-scope`. Strategy popovers ("?" buttons next to ensemble preset / DSP technique / merge strategy controls) anchor SwiftUI `.popover()` to `BoomBoomBoomKitDocs.attributedString(for:id:)` resolution.
 
 **FRs covered:** FR-37, FR-38, FR-39, FR-40, FR-42
 
@@ -890,7 +891,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popo
 > 3. The cited Story-6.2 seam surfaces (`analyzeShared(url:options:)` helpers, `BPMDiagnosticTrace` `decodedAudio` field) were never built; the seam-mitigation AC reduces to DocC + README documentation of the new LUFS surface. `DecodedAudio` consumer wiring remains Story 8.2.
 > 4. `PCMBufferReaderError.unsupportedSampleRate` is the wrong error domain (the reader CAN decode 22.05 kHz; the K-weighting coefficient table is what cannot proceed) — a new `LUFSAnalysisError.unsupportedSampleRate` is introduced instead.
 > 5. **`LUFSReport` is NOT "exactly three fields."** Operator direction (2026-06-10): integrated LUFS as a single number misdescribes dynamic material (quiet intro / loud middle). The report carries the three scalars PLUS momentary (400ms) and short-term (3s) loudness series on the shared 100ms grid (EBU Tech 3341 §2.2), LRA P10/P95 band edges (EBU Tech 3342 §3.1), and a Foundation-only Swift Charts sample adapter — shape proven by rendering through Swift Charts before spec freeze. `Hashable` dropped (`EnsembleDecision` value-carrier precedent); true-peak ships as the single normative max (no time series — BS.1770-5 defines none). `LUFSOptions.maxSeconds` defaults to full-file (was 30s) so integrated/LRA are whole-program per the standard.
-> Demo consumption of the chart lands in existing Story 10.4 (`LUFSReadoutView`), whose true dependency is 8.1 only — it may be pulled forward immediately after 8.1 closes; `Demo/BoomBoomBoomBPM/LUFSChartSchemaProbe.swift` (untracked) is its seed. Original text preserved below for the audit trail.
+> Demo consumption of the chart lands in existing Story 10.4 (shipped as `LoudnessGraphView` — the LUFS-over-time graph; reworked from the originally-spec'd `LUFSReadoutView` in d3af680/#96), whose true dependency is 8.1 only — it may be pulled forward immediately after 8.1 closes. Its chart-probe seed (added in eca19a3 "Land epic 8", 22 Jun) has been removed post-reconciliation, its intent realized in `LoudnessGraphView`. Original text preserved below for the audit trail.
 
 **As a** library consumer,
 **I want** a public `AudioAnalysisService.analyzeLUFS(url:options:) -> LUFSReport` sibling to `analyzeBPM`,
@@ -1357,37 +1358,9 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 ## Epic 10: Demo integration — beat-grid + LUFS + model selection + popovers (stories)
 
-5 stories wire the Epic 8 surface (`BeatGrid`, `BeatTimestamp`, `DownbeatResult`, `LUFSReport`, `ModelRegistry`) and Epic 11 docs accessor (`BoomBoomBoomKitDocs.attributedString(for:id:)`) into the `Demo/BoomBoomBoomBPM/` Xcode app. FR-44 confidence-label discipline (from Story 9.3) applies throughout; FR-42 graceful degradation ensures Epic 10 can ship before Epic 11 closes.
+5 stories wire the Epic 8 surface (`BeatGrid`, `BeatTimestamp`, `DownbeatResult`, `LUFSReport`, `ModelRegistry`) and Epic 11 docs accessor (`BoomBoomBoomKitDocs.attributedString(for:id:)`) into the `Demo/BoomBoomBoomBPM/` Xcode app. FR-44 confidence-label discipline (from Story 9.3) applies throughout; FR-42 graceful degradation ensures Epic 10 can ship before Epic 11 closes. **Story order = build order (renumbered 2026-07-07):** the only cross-story dependency is 10.2 (ModelPickerView) consuming 10.1 (BookmarkPersistence), so the numbering was swapped to run top-to-bottom with every dependency satisfied at each step — `10.1 → 10.2 → 10.3 → 10.4 → 10.5`. Epic 10 has **zero compile-time dependency on Epic 11**: Story 10.5 declares a demo-local descriptor protocol bridged to Epic 11's library `DocumentedCase` by string `docID` (not shared type), and the docs *content* degrades via FR-42.
 
-### Story 10.1: ModelPickerView — registry-backed model selection
-
-**As a** demo user evaluating BoomBoomBoomKit's ML augmentation,
-**I want** to pick an ML model from a list of registry entries (bundled + known-public references + previously-added) or add a new one via file picker,
-**So that** I can compare model behavior across runs without rebuilding the app.
-
-**Acceptance Criteria:**
-
-**Given** the demo launches with no user-added models,
-**When** the user opens the model picker sheet from the main window,
-**Then** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/ModelPickerView.swift` renders a SwiftUI `List` populated by `ModelRegistry.allEntries()` (Epic 8 dependency — story spec cites the upstream `ModelRegistry` API), with each row showing the entry's display name, source category (`Bundled` / `Known-public` / `User-added`), and a labeled integrity status string (e.g., `Integrity: verified` — bare booleans/numerics are FR-44 violations).
-
-**Given** the picker sheet is open,
-**When** the user taps "Add model from disk…",
-**Then** the view presents an `NSOpenPanel` constrained to `.mlmodelc` bundles and `.mlmodel` files, and on selection invokes `BookmarkPersistence.store(url:)` from Story 10.2 before appending the resolved entry to the registry's user-added slot.
-
-**Given** a registry entry is highlighted,
-**When** the user taps "Use this model",
-**Then** the demo's analysis service options carry the resolved URL on the next `analyzeBPM(url:options:)` invocation, and the picker dismisses; the previously selected entry is visually marked with a labeled `Selected: yes` indicator.
-
-**Given** `ModelRegistry` returns an empty list (no bundled, no known-public, no user adds),
-**When** the picker sheet opens,
-**Then** the view renders a non-empty-state explanatory panel ("No models available — add one to begin"), and the "Use this model" button is disabled with a labeled rationale (`Reason: no-models-available`).
-
-**FRs covered:** FR-37.
-**KDDs implemented:** None directly (composes Epic 8's `ModelRegistry`).
-**Pressure-release valve:** If `ModelRegistry` from Epic 8 lands late, ship a stub registry that surfaces only the file-picker path; document the dependency in the story implementation artifact and reopen the AC once Epic 8 closes. Document the deviation in `_bmad-output/implementation-artifacts/10-1-pressure-release.md`.
-
-### Story 10.2: BookmarkPersistence — security-scoped bookmarks across launches
+### Story 10.1: BookmarkPersistence — security-scoped bookmarks across launches
 
 **As a** demo developer ensuring user-added models survive app restarts,
 **I want** a `BookmarkPersistence` helper that stores security-scoped bookmark `Data` in `UserDefaults` and resolves them on launch,
@@ -1397,9 +1370,9 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **Given** the demo's `Info.plist` and entitlements file are being audited,
 **When** the operator inspects `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BoomBoomBoomBPM.entitlements`,
-**Then** all three keys are present and `true`: `com.apple.security.app-sandbox` (per NFR-9), `com.apple.security.files.user-selected.read-only`, AND `com.apple.security.files.bookmarks.app-scope` — the third is the one developers commonly forget; the story spec explicitly enumerates it so the implementation cannot silently omit it.
+**Then** all three keys are present and `true`: `com.apple.security.app-sandbox` (per NFR-9), `com.apple.security.files.user-selected.read-write` (the actually-shipped app-level superset — read-only suffices for the model bookmark and is enforced at creation via `.securityScopeAllowOnlyReadAccess`, but the audio-file open path already requires read-write; Story 10.1 DD1 — do NOT downgrade), AND `com.apple.security.files.bookmarks.app-scope` — the third is the one developers commonly forget; the story spec explicitly enumerates it so the implementation cannot silently omit it.
 
-**Given** the user picks a model file via the Story 10.1 file picker,
+**Given** the user picks a model file via the Story 10.2 file picker,
 **When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BookmarkPersistence.swift` calls `URL.bookmarkData(options: .withSecurityScope, …)`,
 **Then** the resulting `Data` is stored under `UserDefaults.standard` keyed by a stable user-added-model UUID, mirroring the `MergeStrategyPersistence` precedent from Story 5-6 (KDD-D3); no Keychain, no file-system sidecar, no JSON wrappers.
 
@@ -1413,63 +1386,103 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **FRs covered:** FR-38.
 **KDDs implemented:** D3.
-**Pressure-release valve:** If `URL.bookmarkData(options: .withSecurityScope, …)` proves unstable for `.mlmodelc` directory bundles specifically, fall back to storing the parent directory bookmark and reconstructing the bundle path on resolve; do not abandon security scope. Document the deviation in `_bmad-output/implementation-artifacts/10-2-pressure-release.md`.
+**Pressure-release valve:** If `URL.bookmarkData(options: .withSecurityScope, …)` proves unstable for `.mlmodelc` directory bundles specifically, fall back to storing the parent directory bookmark and reconstructing the bundle path on resolve; do not abandon security scope. Document the deviation in `_bmad-output/implementation-artifacts/10-1-pressure-release.md`.
 
-### Story 10.3: BeatGridTimelineView — Canvas-based timeline + text readout
+### Story 10.2: ModelPickerView — registry-backed model selection
 
-**As a** demo user evaluating BoomBoomBoomKit's beat-grid output,
-**I want** a horizontal timeline showing beats and downbeats with a current-time scrubber, alongside a text readout,
-**So that** I can visually verify the grid aligns with the audio and read out the tempo / beat-count / confidence numbers without inspecting JSON.
+**As a** demo user evaluating BoomBoomBoomKit's ML augmentation,
+**I want** to pick an ML model from a list of registry entries (bundled + known-public references + previously-added) or add a new one via file picker,
+**So that** I can compare model behavior across runs without rebuilding the app.
 
 **Acceptance Criteria:**
 
-**Given** an `AudioAnalysisResult` carrying a non-nil `BeatGrid` (Epic 8 dependency — `BeatGrid`, `BeatTimestamp`, and `DownbeatResult` produced by Epic 8 stories),
-**When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BeatGridTimelineView.swift` renders,
-**Then** the view uses SwiftUI `Canvas` (KDD-D2 — not `Path`-in-`ZStack`, not Metal, not `UIView`/`NSView` bridging) to draw vertical tick marks for each `BeatTimestamp` and visually-distinguished taller marks for `DownbeatResult` positions across a horizontal time axis.
+**Given** the demo launches with no user-added models,
+**When** the user opens the model picker sheet from the main window,
+**Then** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/ModelPickerView.swift` renders a SwiftUI `List` populated by `ModelRegistry.allEntries()` (Epic 8 dependency — story spec cites the upstream `ModelRegistry` API), with each row showing the entry's display name, source category (`Bundled` / `Known-public` / `User-added`), and a labeled integrity status string (e.g., `Integrity: verified` — bare booleans/numerics are FR-44 violations).
+
+**Given** the picker sheet is open,
+**When** the user taps "Add model from disk…",
+**Then** the view presents an `NSOpenPanel` constrained to `.mlmodelc` bundles and `.mlmodel` files, and on selection invokes `BookmarkPersistence.store(url:)` from Story 10.1 before appending the resolved entry to the registry's user-added slot.
+
+**Given** a registry entry is highlighted,
+**When** the user taps "Use this model",
+**Then** the demo's analysis service options carry the resolved URL on the next `analyzeBPM(url:options:)` invocation, and the picker dismisses; the previously selected entry is visually marked with a labeled `Selected: yes` indicator.
+
+**Given** `ModelRegistry` returns an empty list (no bundled, no known-public, no user adds),
+**When** the picker sheet opens,
+**Then** the view renders a non-empty-state explanatory panel ("No models available — add one to begin"), and the "Use this model" button is disabled with a labeled rationale (`Reason: no-models-available`).
+
+**Given** the current demo grandfathers a "Load Model…" button into the primary view (Story 9.3 decision D1),
+**When** Story 10.2 lands the model-picker sheet,
+**Then** that primary-view "Load Model…" affordance is relocated into the picker sheet (Epic 9 retrospective action AI-3), restoring the FR-43 "primary stays primary" surface that 9.3 grandfathered.
+
+**FRs covered:** FR-37.
+**KDDs implemented:** None directly (composes Epic 8's `ModelRegistry`).
+**Pressure-release valve:** If `ModelRegistry` from Epic 8 lands late, ship a stub registry that surfaces only the file-picker path; document the dependency in the story implementation artifact and reopen the AC once Epic 8 closes. Document the deviation in `_bmad-output/implementation-artifacts/10-2-pressure-release.md`.
+
+### Story 10.3: Beat-grid timeline + text readout on the merged BeatGridView
+
+> **Amended 2026-07-11** (Sprint Change Proposal, operator UX rework `cac4fe6`/PR #94). The originally-specced separate waveform-free `BeatGridTimelineView` and the Timeline/Waveform view-mode switch were superseded: the beat-grid timeline, scrubber, and readout are **merged into the Epic-8 `BeatGridView`** (one view, sharing its pre-existing waveform overlay), and **click-to-scrub with beat-snapping** was added. FR-39's no-new-waveform-*engine* intent is retained; its "no waveform at all" presentation letter is superseded. See `sprint-change-proposal-2026-07-11.md`.
+
+**As a** demo user evaluating BoomBoomBoomKit's beat-grid output,
+**I want** a horizontal timeline showing beats and downbeats with a current-time scrubber and click-to-scrub, on the same view as the waveform, alongside a text readout,
+**So that** I can watch the grid track the audio, click to audition a beat, and read the tempo / beat-count / downbeat / confidence numbers without inspecting JSON.
+
+**Acceptance Criteria:**
+
+**Given** a tracked `BeatGrid` (Epic 8 dependency — `BeatGrid`, `BeatTimestamp`, `DownbeatResult`, from `CombinedAnalysisResult.beatGrid`),
+**When** the merged `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/BeatGridView.swift` renders,
+**Then** it uses SwiftUI `Canvas` (KDD-D2 — not `Path`-in-`ZStack`, not Metal, not `UIView`/`NSView` bridging) to draw vertical tick marks for each `BeatTimestamp` and visually-distinguished marks for `DownbeatResult` positions across a horizontal, zoomable time axis, over the view's waveform overlay.
 
 **Given** the audio is mid-playback,
 **When** the playback time advances,
-**Then** a vertical scrubber line tracks the current time across the Canvas at 60Hz via `TimelineView(.animation)`, NOT via `Timer`-driven `@State` mutation; the scrubber stays within the Canvas bounds at all zoom levels.
+**Then** a vertical scrubber tracks the current time via `TimelineView(.animation)` (a positioned marker, not a per-frame Canvas raster), NOT via `Timer`-driven `@State` mutation; paused, it reads the observable `currentTime` snapshot; the scrubber x is clamped within bounds.
 
-**Given** the timeline view is visible,
-**When** the user reads the text readout panel beneath the Canvas,
-**Then** the panel shows four labeled fields (FR-44 discipline — no bare numerics): `Estimated tempo: <X> BPM`, `Beat count: <N>`, `Downbeat status: <detected | not-detected | partial>`, and `Grid confidence: <0.00-1.00>` formatted to two decimal places with the literal `Grid confidence:` label preceding the value.
+**Given** the timeline is visible,
+**When** the user reads the text readout,
+**Then** four labeled fields render (FR-44 discipline — no bare numerics): `Estimated tempo: <X> BPM` (`unavailable` for the `0.0` sentinel), `Beat count: <N>`, `Downbeat status: <detected | not-detected | not-attempted>` (the real tri-state), and `Grid confidence: <0.00-1.00>` formatted to two decimals with the literal `Grid confidence:` label.
 
-**Given** the analysis produced a `BeatGrid` but no `DownbeatResult` (downbeats absent or low confidence),
+**Given** the analysis produced a `BeatGrid` but no downbeats (`.noneDetected`),
 **When** the view renders,
-**Then** the Canvas draws only beat ticks (no taller downbeat marks), and the text readout shows `Downbeat status: not-detected` with the grid-confidence field still populated; no silent rendering of zero-confidence downbeats.
+**Then** the Canvas draws only beat ticks (no downbeat accent marks), and the readout shows `Downbeat status: not-detected` with grid confidence still populated; no silent rendering of zero-confidence downbeats.
 
-**Given** the operator inspects the file diff for waveform-rendering primitives,
-**When** the search is run for `AVAudioFile` waveform sampling, `FFT`-on-display, or any pixel-per-sample loop,
-**Then** zero matches are found in `BeatGridTimelineView.swift` — waveform rendering is explicitly OUT of scope per FR-39.
+**Given** the timeline is visible,
+**When** the user clicks the lane,
+**Then** the click maps content-x → time via `pointsPerSecond` and **snaps to the nearest raw detected beat** (`clickSeekTime`; exact-midpoint tie → earlier beat; `>= 0` result); a click while stopped/paused starts playback; the transport is a bordered play/pause with a labeled disabled reason and verbatim `playbackError` render; the pure `clickSeekTime`/`scrubberX` helpers are unit-locked in `BeatGridLogicTests`.
 
 **FRs covered:** FR-39.
 **KDDs implemented:** D2.
 **Pressure-release valve:** If SwiftUI `Canvas` performance degrades at high beat density (e.g., 200+ beats visible), reduce visible-tick density via downsampling at the view layer, not by switching to Metal. Document the deviation in `_bmad-output/implementation-artifacts/10-3-pressure-release.md`.
 
-### Story 10.4: LUFSReadoutView — primary integrated LUFS + secondary breakdown
+### Story 10.4: LoudnessGraphView — LUFS-over-time graph + labeled scalar summary
+
+*(Shipped design. Originally specified as `LUFSReadoutView` — a scalar panel — and reworked to the graph in d3af680 / PR #96; reconciled 2026-07-11, see sprint-change-proposal-2026-07-11-story-10-4.md and the story spec's top note. Amendment justified by 8.1 DD#5: a single integrated number misdescribes dynamic material.)*
 
 **As a** demo user comparing tracks for loudness alongside BPM,
-**I want** a clean LUFS panel showing integrated loudness as the primary number with true-peak and LRA as secondary context,
+**I want** a loudness-over-time graph with a compact labeled scalar summary, sharing one analysis lane with the beat grid,
 **So that** loudness information surfaces without competing with the BPM-centric flow.
 
 **Acceptance Criteria:**
 
-**Given** an `AudioAnalysisResult` carrying a non-nil `LUFSReport` (Epic 8 dependency),
-**When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/LUFSReadoutView.swift` renders,
-**Then** the primary readout shows `<X.X> LUFS` (FR-44 — the literal `LUFS` unit label is always present; never a bare number) using a typography scale at least 2× larger than the secondary panel.
+**Given** a non-nil `LUFSReport` threaded onto the demo view model (via the best-effort `analyzeLUFS(url:)` wiring this story adds — Epic 8 dependency; DD1),
+**When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/LoudnessGraphView.swift` renders,
+**Then** a `Canvas` plot (X time, Y loudness on a fixed −60…+6 dB-FS axis) draws the momentary (thin red) + short-term (light-blue) series with integrated (blue) and max-true-peak (green) horizontal reference lines and a translucent LRA band (drawn only when `loudnessRangeLU` is non-nil); silence / the −100 sentinel pins to the bottom edge.
 
-**Given** the secondary panel is visible,
+**Given** the scalar summary row beneath the plot is visible,
 **When** the operator inspects the rendered text,
-**Then** two labeled fields appear: `True peak: <Y.Y> dBTP` and `Loudness range: <Z.Z> LU`, both formatted to one decimal place with explicit unit suffixes.
+**Then** a compact FR-44-labeled caption row shows integrated LUFS / true-peak dBTP (with a post-mono-mixdown help caveat) / loudness range LU — each unit-labeled, one decimal; a non-finite or ≤-sentinel value renders `unavailable` (never a bare number, never `−100.0`).
 
 **Given** the demo's main analysis result pane is laid out,
 **When** the operator inspects the visual hierarchy,
-**Then** the LUFS panel occupies a clearly subordinate region (right sidebar, below-the-fold accordion, or equivalent) such that BPM remains the dominant visual element; LUFS does NOT take center stage per FR-40 framing.
+**Then** loudness lives in the merged `analysisSection` lane behind a segmented **Beats | Loudness** switch, height-capped, such that the BPM hero remains the dominant visual element; loudness does NOT take center stage per FR-40 framing.
 
-**Given** the `LUFSReport` carries any field as `nil` (e.g., true-peak unavailable for a particular sample rate),
+**Given** `loudnessRangeLU == nil` (the gated programme is < 60 s — LRA is the SOLE optional field; true-peak is a non-optional `Double` and unsupported sample rates *throw*, not nil — DD2),
 **When** the view renders,
-**Then** the absent field shows `True peak: unavailable` (labeled fallback) rather than silently hiding the row or rendering `0.0 dBTP`.
+**Then** the LRA band is omitted and the scalar row shows `Loudness range: unavailable` (labeled fallback) rather than hiding the row or leaking the `−100.0` sentinel. *(This corrects the original AC's factually-wrong "true-peak unavailable for a particular sample rate" example.)*
+
+**Given** the loudness plot is showing,
+**When** the operator clicks it or plays back,
+**Then** the plot shares the lane's `PlaybackController`; a click seeks to the clicked time (no beat snapping in this pane) and starts playback; the playhead animates via `TimelineView(.animation)`, the `BeatGridView` scrubber split.
 
 **FRs covered:** FR-40.
 **KDDs implemented:** None directly (consumes Epic 8's `LUFSReport`).
@@ -1483,17 +1496,17 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **Acceptance Criteria:**
 
-**Given** the `HelpButton` type is being designed,
+**Given** `DocumentedCase` is a **library** protocol Epic 11's Story 11.1 declares (KDD-E1 caps the family at one protocol, pre-1.0) — so Epic 10 must NOT compile-depend on it,
 **When** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/HelpButton.swift` is implemented,
-**Then** it is declared as `struct HelpButton<T: DocumentedCase>: View` (generic over Epic 11's `DocumentedCase` protocol — story spec cites Epic 11 dependency), taking a `case: T` parameter and rendering an SF Symbol `questionmark.circle` button.
+**Then** it declares a **demo-local** descriptor protocol (e.g. `DemoDocumentedCase`, distinct from the library `DocumentedCase`) exposing `var docID: String` and `var shortDescription: String`, and is `struct HelpButton<T: DemoDocumentedCase>: View` taking a `case: T` parameter and rendering an SF Symbol `questionmark.circle` button. The demo protocol is bridged to Epic 11 by the **string `docID`**, NOT by shared type — a future dev must not make a library enum conform to this demo protocol (Epic 10 party-mode decision, 2026-07-07).
 
 **Given** the user taps the "?" button beside a `TechniqueSet` preset control,
 **When** the button's `.popover()` modifier fires (KDD-D4 — SwiftUI `.popover()`, NOT a custom overlay, NOT a sheet, NOT a tooltip-emulation),
-**Then** the popover renders the result of `BoomBoomBoomKitDocs.attributedString(for: T.self, id: case.docID)` (Epic 11 dependency — public library accessor that hides `Bundle.module` resolution).
+**Then** the popover renders the result of `BoomBoomBoomKitDocs.attributedString(for:id:)` keyed by `case.docID` (Epic 11 dependency — public library accessor that hides `Bundle.module` resolution; referenced by string id, absent-until-Epic-11 per FR-42, wired at the call site when Story 11.1 lands).
 
 **Given** Epic 11 has NOT yet shipped or `BoomBoomBoomKitDocs.attributedString(for:id:)` returns `nil` (FR-42 graceful degradation),
 **When** the popover would render,
-**Then** the view falls back to a two-element view: a one-line description sourced from `case.shortDescription` (declared on `DocumentedCase`) and a `Link` to the repo's GitHub docs URL for that case — NOT a broken `Bundle.module` lookup, NOT an empty popover, NOT a crash, NOT a hidden button.
+**Then** the view falls back to a two-element view: a one-line description sourced from `case.shortDescription` (declared on the demo-local descriptor protocol — demo-authored, so the fallback needs nothing from Epic 11) and a `Link` to the repo's GitHub docs URL for that case — NOT a broken `Bundle.module` lookup, NOT an empty popover, NOT a crash, NOT a hidden button.
 
 **Given** the demo is built without Epic 11's Markdown resource bundle present (simulated by stubbing the docs accessor to return `nil` for all IDs),
 **When** the operator clicks every "?" button in the demo across every wired control,
@@ -1505,11 +1518,11 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **FRs covered:** FR-42.
 **KDDs implemented:** D4.
-**Pressure-release valve:** FR-42 IS the pressure-release valve at the epic level. If Epic 11's `DocumentedCase` protocol shape diverges from what Story 10.5 expects, update the call site; do not abandon the popover-with-fallback contract. Document the deviation in `_bmad-output/implementation-artifacts/10-5-pressure-release.md`.
+**Pressure-release valve:** FR-42 IS the pressure-release valve at the epic level. The demo-local descriptor protocol + string-`docID` bridge (above) already decouples Epic 10 from Epic 11's type shape, so a `DocumentedCase` divergence only touches the string-keyed accessor call site — update it there; do not abandon the popover-with-fallback contract. Document the deviation in `_bmad-output/implementation-artifacts/10-5-pressure-release.md`.
 
 ## Epic 11: Per-case selection-strategy docs (stories)
 
-6 stories implement the `DocumentedCase` protocol and its **49** canonical Markdown files (count corrected from "~46" per Paige's audit 2026-05-26 — original miscount dropped `AbstainReason/` (4) and `DemotionReason/` (2) as separate directories). Story 11.1 lands the protocol + accessor + cache; 11.2 reshapes `AnalysisIntensity` to a 10-level enum (depends on Story 6.5 `ComputeBudget`); 11.3 split into 11.3a (24 files: `BPMSelectionPolicy` + `VotingPolicy` + `EnsemblePolicy` + `DSPTechnique`) and 11.3b (25 files: `AnalysisIntensity` + `OctaveEquivalencePolicy` + `MLExecutionPolicy` + `DownbeatResult` + `AbstainReason` + `DemotionReason`) per Amelia's sizing review; 11.4 locks drift detection; 11.5 wires the DocC parallel surface.
+7 stories implement the `DocumentedCase` protocol and its **49** canonical Markdown files (count corrected from "~46" per Paige's audit 2026-05-26 — original miscount dropped `AbstainReason/` (4) and `DemotionReason/` (2) as separate directories). Story 11.1 lands the protocol + accessor + cache; 11.2 reshapes `AnalysisIntensity` to a 10-level enum (depends on Story 6.5 `ComputeBudget`); 11.3 split into 11.3a (24 files: `BPMSelectionPolicy` + `VotingPolicy` + `EnsemblePolicy` + `DSPTechnique`) and 11.3b (25 files: `AnalysisIntensity` + `OctaveEquivalencePolicy` + `MLExecutionPolicy` + `DownbeatResult` + `AbstainReason` + `DemotionReason`) per Amelia's sizing review; 11.4 locks drift detection; 11.5 wires the DocC parallel surface; 11.6 (added 2026-07-12) wires the demo strategy popovers to the authored docs — the FR-42 work deferred from the reverted Story 10.5.
 
 ### Story 11.1: DocumentedCase protocol, Bundle.module accessor, Mutex<T> cache
 
@@ -1734,6 +1747,32 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 **FRs covered:** FR-46, FR-52.
 **KDDs implemented:** E-8 (DocC parallel surface + transclude generator).
 **Pressure-release valve:** If DocC fails to ingest the transcluded `Cases/` content cleanly, the catalog ships with `Articles/` only and the per-case pages move to a follow-up — the inline `.docs` accessor (Story 11.1) is the load-bearing surface. Document the deviation in `_bmad-output/implementation-artifacts/11-5-pressure-release.md`.
+
+### Story 11.6: Demo strategy popovers wired to DocumentedCase docs (FR-42 — deferred from Story 10.5)
+
+> **Deferred from Story 10.5 (reverted 2026-07-12).** Story 10.5 built the generic demo `HelpButton` + injected docs-resolver seam, then reverted it as **prematurely sequenced**: before authored docs exist, a "?" docs-popover is redundant with the demo's always-visible inline subtitles, a UX downgrade, or confusing. It belongs here — wired to the real per-case prose from Stories 11.1/11.3. The full reverted implementation, the resolver-seam / string-`docID`-bridge pattern, and the UX rules are captured in `_bmad-output/implementation-artifacts/fr42-demo-popover-design-note.md`.
+
+**As a** demo user exploring the analysis controls,
+**I want** a "?" button that opens a popover with the authored per-case docs (graceful fallback when a doc is missing),
+**So that** I can read the full "what + why" for a strategy/policy without leaving the app.
+
+**Acceptance Criteria (stub — expand via `bmad-create-story` when 11.1 + 11.3 have landed):**
+
+**Given** Story 11.1's `BoomBoomBoomKitDocs.attributedString(for:id:)` accessor and the authored Markdown (11.3a/11.3b) exist,
+**When** the demo wires the popover,
+**Then** it reintroduces the generic `HelpButton<T: DemoDocumentedCase>` + injected `@Entry docsResolver` seam (per the design note), and overrides the resolver **once** at the demo app root to split the demo `docID` (`"kind/id"`) and call the two-arg `attributedString(for:id:)` accessor — the demo bridges by the string `docID` ONLY and never conforms a library enum to the demo protocol (KDD-E1).
+
+**Given** the "inline caption vs popover" UX rule,
+**When** deciding where to attach a "?",
+**Then** wire it ONLY where the authored prose **materially exceeds** the existing always-visible inline subtitle (a per-control call made against the real content — merge strategy? ensemble? maybe neither); keep inline one-liners for orientation; never add or distort a control just to host a popover; leave the graph-legend popovers (`BeatGridHelpButton`/`LoudnessHelpButton`) as separate specialized UI.
+
+**Given** a doc is missing or the id is unknown,
+**When** the popover renders,
+**Then** it degrades to the case's short description + a repo docs `Link` (FR-42) — noting that 11.1's accessor is non-optional and owns its own informative fallback, so the demo fallback is the belt-and-suspenders path.
+
+**FRs covered:** FR-42.
+**Depends on:** Story 11.1 (accessor), 11.3a/11.3b (authored Markdown). Demo-only; `Sources/`/`Tests/` byte-identical.
+**Reference:** `_bmad-output/implementation-artifacts/fr42-demo-popover-design-note.md`, `_bmad-output/implementation-artifacts/10-5-helpbutton-and-strategy-popovers-wired-to-epic-11-docs.md` (reverted 10.5 audit record).
 
 ---
 

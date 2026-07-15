@@ -104,6 +104,34 @@ public struct CombinedAnalysisResult: Sendable {
   }
 }
 
+/// Independent outcomes from one shared URL decode of BPM/beat-grid and
+/// loudness analysis.
+///
+/// Rhythmic analyzability and loudness measurability are intentionally
+/// independent: a file with no BPM result can still have a usable loudness
+/// report, while an unsupported loudness sample rate does not discard a BPM
+/// and beat-grid result. Shared decode and cancellation failures still throw
+/// from ``AudioAnalysisService/analyzeFull(url:options:lufsOptions:)``.
+public struct FullAnalysisResult: Sendable {
+
+  /// The BPM and beat-grid outcome, or `nil` when the BPM stage found no
+  /// analyzable rhythmic content.
+  public let bpmAndBeatGrid: CombinedAnalysisResult?
+
+  /// The loudness outcome. A successful `nil` means loudness was measured but
+  /// no report was available (for example, silence or sub-400ms input); a
+  /// failure means only that loudness cannot measure this sample rate.
+  public let loudness: Result<LUFSReport?, LUFSAnalysisError>
+
+  public init(
+    bpmAndBeatGrid: CombinedAnalysisResult?,
+    loudness: Result<LUFSReport?, LUFSAnalysisError>
+  ) {
+    self.bpmAndBeatGrid = bpmAndBeatGrid
+    self.loudness = loudness
+  }
+}
+
 /// Stateless service that coordinates PCM reading and BPM estimation.
 public struct AudioAnalysisService {
 
@@ -472,10 +500,16 @@ public struct AudioAnalysisService {
     options: Options,
     decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
   ) throws -> AudioAnalysisResult? {
-    let pre = try Self.runPreCorroborationPipeline(
-      url: url, options: options,
-      enableTrace: shouldBuildTrace(options),
-      decodeObserver: decodeObserver)
+    let inputs = try urlBPMInputs(url: url, options: options)
+    let decoded = try decodeOnce(
+      url: url, maxSeconds: options.maxSeconds,
+      isCancelled: options.isCancelled, observer: decodeObserver)
+    let pre = try preCorroborationCore(
+      decoded: decoded,
+      metadataInput: inputs.metadataInput,
+      fileDurationSeconds: inputs.fileDurationSeconds,
+      options: options,
+      enableTrace: shouldBuildTrace(options))
     return try finishBPMAnalysis(pre: pre, options: options)
   }
 
@@ -1007,6 +1041,15 @@ public struct AudioAnalysisService {
     let pool: UnifiedSignalPool
   }
 
+  /// URL-derived BPM inputs gathered before a shared decode. Keeping these
+  /// separate lets ``analyzeFull(url:options:lufsOptions:)`` preserve the URL
+  /// path's metadata corroboration and duration hint while choosing a decode
+  /// cap that satisfies both feature lanes.
+  private struct URLBPMInputs: Sendable {
+    let metadataInput: MetadataCorroborationInput
+    let fileDurationSeconds: Double?
+  }
+
   /// Runs the full pre-corroboration sequence in production order:
   /// cancellation check → metadata read → duration read → PCM read →
   /// window loop with cancellation/progress → ``BPMSelectionPolicy/merge``.
@@ -1040,25 +1083,7 @@ public struct AudioAnalysisService {
     url: URL, options: Options, enableTrace: Bool,
     decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)? = nil
   ) throws -> PreCorroborationOutput {
-    // Early cancellation check — avoid ~10MB PCM read on pre-cancelled calls.
-    if options.isCancelled() { throw CancellationError() }
-
-    // Story 3.6: read embedded BPM tags once, before the PCM read. Empty-source
-    // policy (e.g., `.disabled`) short-circuits to zero file-metadata I/O.
-    let metadataInput = buildMetadataInput(
-      url: url, policy: options.metadataPolicy)
-
-    // Story 3-4: read the file duration once (cheap AVAudioFile metadata open) so the
-    // BPM pipeline can compute structurally-plausible bar-count BPMs at step 9.7.
-    // `try?` swallows the throw — graceful degradation if the file briefly fails the
-    // duration read (AC #3b). `flatMap { $0.isFinite && $0 > 0 ? $0 : nil }` collapses
-    // both the zero-length contract AND non-finite metadata (`+Inf` / `NaN`) to nil so
-    // the analyzer skips the hint cleanly. Finiteness gate from code-review Patch #3.
-    let fileDurationSeconds: Double? =
-      options.durationHint
-      ? (try? PCMBufferReader.fileDuration(url: url))
-        .flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
-      : nil
+    let inputs = try urlBPMInputs(url: url, options: options)
 
     // Story 8-2 (DD #9 / AC1): the funnel — the only PCM decode on this path.
     let decoded = try decodeOnce(
@@ -1067,10 +1092,28 @@ public struct AudioAnalysisService {
 
     return try preCorroborationCore(
       decoded: decoded,
-      metadataInput: metadataInput,
-      fileDurationSeconds: fileDurationSeconds,
+      metadataInput: inputs.metadataInput,
+      fileDurationSeconds: inputs.fileDurationSeconds,
       options: options,
       enableTrace: enableTrace)
+  }
+
+  /// Gathers the URL-bound inputs that the BPM path needs before decoding.
+  /// This is shared by the standalone URL entry and the full-analysis URL
+  /// entry so their metadata and duration semantics remain identical.
+  private static func urlBPMInputs(
+    url: URL, options: Options
+  ) throws -> URLBPMInputs {
+    // Early cancellation check — avoid metadata I/O and a potentially large PCM read.
+    if options.isCancelled() { throw CancellationError() }
+    let metadataInput = buildMetadataInput(url: url, policy: options.metadataPolicy)
+    let fileDurationSeconds: Double? =
+      options.durationHint
+      ? (try? PCMBufferReader.fileDuration(url: url))
+        .flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+      : nil
+    return URLBPMInputs(
+      metadataInput: metadataInput, fileDurationSeconds: fileDurationSeconds)
   }
 
   /// Decode-agnostic half of the pre-corroboration pipeline, shared VERBATIM
@@ -1400,6 +1443,101 @@ public struct AudioAnalysisService {
       momentaryLUFS: result.blockLoudnessValues,
       shortTermLUFS: result.shortTermLoudnessValues,
       stepSeconds: result.blockStepSeconds)
+  }
+
+  // MARK: - Full BPM, beat-grid, and loudness analysis
+
+  /// Runs BPM, beat-grid, and loudness analysis from one shared URL decode.
+  ///
+  /// The result deliberately keeps the feature lanes independent: BPM can be
+  /// absent while loudness succeeds, and an unsupported loudness sample rate is
+  /// returned as ``FullAnalysisResult/loudness`` failure without discarding a
+  /// BPM/grid result. URL-backed BPM metadata corroboration and duration hints
+  /// remain active on this path.
+  ///
+  /// The decoder reads the union of the two requested caps (the full file when
+  /// either cap is full), then each feature receives its own prefix cap before
+  /// analysis. This gives the same feature-level cap semantics as the existing
+  /// standalone APIs without decoding the file twice.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file.
+  ///   - options: BPM and beat-grid configuration.
+  ///   - lufsOptions: Loudness configuration.
+  /// - Returns: Independent BPM/grid and loudness outcomes from one decode.
+  /// - Throws: `PCMBufferReaderError` if the file cannot be read, or
+  ///   `CancellationError` when either feature's cancellation closure fires.
+  public static func analyzeFull(
+    url: URL,
+    options: Options = .init(),
+    lufsOptions: LUFSOptions = LUFSOptions()
+  ) throws -> FullAnalysisResult {
+    try analyzeFull(
+      url: url, options: options, lufsOptions: lufsOptions, decodeObserver: nil)
+  }
+
+  /// Internal observer-threaded overload for the shared-decode structural test.
+  static func analyzeFull(
+    url: URL,
+    options: Options,
+    lufsOptions: LUFSOptions,
+    decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
+  ) throws -> FullAnalysisResult {
+    let isCancelled: @Sendable () -> Bool = {
+      options.isCancelled() || lufsOptions.isCancelled()
+    }
+    var bpmOptions = options
+    bpmOptions.isCancelled = isCancelled
+    var loudnessOptions = lufsOptions
+    loudnessOptions.isCancelled = isCancelled
+
+    let inputs = try urlBPMInputs(url: url, options: bpmOptions)
+    let decoded = try decodeOnce(
+      url: url,
+      maxSeconds: unionDecodeCap(options.maxSeconds, lufsOptions.maxSeconds),
+      isCancelled: isCancelled,
+      observer: decodeObserver)
+    if isCancelled() { throw CancellationError() }
+
+    let bpmCarrier = applyCap(decoded, maxSeconds: options.maxSeconds)
+    let pre = try preCorroborationCore(
+      decoded: bpmCarrier,
+      metadataInput: inputs.metadataInput,
+      fileDurationSeconds: inputs.fileDurationSeconds,
+      options: bpmOptions,
+      enableTrace: shouldBuildTrace(bpmOptions))
+    let bpmAndBeatGrid: CombinedAnalysisResult?
+    if let bpm = try finishBPMAnalysis(pre: pre, options: bpmOptions) {
+      if isCancelled() { throw CancellationError() }
+      bpmAndBeatGrid = try combineGridWithBPM(
+        decoded: bpmCarrier, options: bpmOptions, bpm: bpm)
+    } else {
+      bpmAndBeatGrid = nil
+    }
+
+    if isCancelled() { throw CancellationError() }
+    let loudness: Result<LUFSReport?, LUFSAnalysisError>
+    do {
+      loudness = .success(
+        try lufsReport(
+          decoded: applyCap(decoded, maxSeconds: loudnessOptions.maxSeconds)))
+    } catch let error as LUFSAnalysisError {
+      loudness = .failure(error)
+    }
+    // LUFS measurement itself is intentionally non-interruptible, matching the
+    // standalone API. Honor a cancellation that arrived while it ran before
+    // publishing this aggregate result.
+    if isCancelled() { throw CancellationError() }
+    return FullAnalysisResult(bpmAndBeatGrid: bpmAndBeatGrid, loudness: loudness)
+  }
+
+  /// The decode cap required to satisfy two independently-capped feature
+  /// analyses. A nil/invalid cap means full-file decode, so it dominates.
+  private static func unionDecodeCap(_ bpmCap: Double?, _ loudnessCap: Double?) -> Double? {
+    let sanitizedBPM = PCMBufferReader.sanitizedMaxSeconds(bpmCap)
+    let sanitizedLoudness = PCMBufferReader.sanitizedMaxSeconds(loudnessCap)
+    guard let sanitizedBPM, let sanitizedLoudness else { return nil }
+    return max(sanitizedBPM, sanitizedLoudness)
   }
 
   // MARK: - Story 8.4: beat-grid extraction

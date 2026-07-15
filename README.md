@@ -178,7 +178,33 @@ struct LoudnessChart: View {
 
 ## Shared decode
 
-`analyzeBPM(url:)` and `analyzeLUFS(url:)` each pay their own decode. When you want both numbers for the same file, decode once and hand the same `DecodedAudio` to both analyzers:
+Use `analyzeFull(url:)` when an app needs BPM, beat-grid, and loudness for one
+file. It decodes once, keeps URL-backed BPM metadata corroboration active, and
+returns independent feature outcomes:
+
+```swift
+let full = try AudioAnalysisService.analyzeFull(url: audioFileURL)
+
+if let rhythm = full.bpmAndBeatGrid {
+  print("BPM: \(rhythm.bpm.bpm)")
+}
+switch full.loudness {
+case .success(let report):
+  print("LUFS: \(report?.integratedLUFS ?? -100)")
+case .failure(let error):
+  // BPM/grid may still be usable; this failure is loudness-specific.
+  print("Loudness unavailable: \(error)")
+}
+```
+
+`bpmAndBeatGrid == nil` means the BPM stage found no rhythmic result; it does
+not discard a successful loudness report. Conversely, an unsupported loudness
+rate appears as `loudness.failure` and does not discard BPM/grid. Reader and
+cancellation failures still throw from `analyzeFull`.
+
+For lower-level composition, `analyzeBPM(url:)` and `analyzeLUFS(url:)` each
+pay their own decode. Decode once and hand the same `DecodedAudio` to both when
+you explicitly want the URL-free decoded path:
 
 ```swift
 let decoded = try PCMBufferReader.readDecodedAudio(from: url)
@@ -257,7 +283,7 @@ if let result = try AudioAnalysisService.analyze(url: fileURL) {
 }
 ```
 
-`analyze` decodes once and runs both the full BPM pipeline and beat-grid extraction over that single decode — cheaper than calling `analyzeBPM` and `analyzeBeatGrid` separately. (`analyze` covers BPM + beat grid only; for loudness, decode once and call `analyzeLUFS(decoded:)` on the same carrier.) `analyzeBeatGrid` remains available standalone:
+`analyze` decodes once and runs both the full BPM pipeline and beat-grid extraction over that single decode — cheaper than calling `analyzeBPM` and `analyzeBeatGrid` separately. Use `analyzeFull` when loudness is also needed. `analyzeBeatGrid` remains available standalone:
 
 ```swift
 let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL)   // pays its own decode
@@ -415,7 +441,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 
 | Type | Role |
 |------|------|
-| `AudioAnalysisService` | Public facade composing reader + analyzers (`analyzeBPM`, `analyzeLUFS`, `analyzeBeatGrid`, and the combined `analyze` — each with a `url:` and a shared-decode `decoded:` overload) |
+| `AudioAnalysisService` | Public facade composing reader + analyzers (`analyzeBPM`, `analyzeLUFS`, `analyzeBeatGrid`, combined `analyze`, and one-decode `analyzeFull`) |
 | `AudioAnalysisResult` | BPM + confidence + candidates + optional trace + optional metadata evidence |
 | `PCMBufferReader` | Audio file → `[Float]` mono samples |
 | `PCMBufferReaderError` | Error cases for file reading |
@@ -448,6 +474,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `BeatGridCoverage` | What span the detected `beats` cover (`.analysisWindow` default / `.window(seconds:)` / `.fullTrack`); set via `Options.beatGridCoverage` |
 | `TempoAgreement` | How the grid tempo relates to the BPM stage (`.notCompared` / `.agree` / `.octaveEquivalent(factor:)` / `.disagree`) |
 | `CombinedAnalysisResult` | BPM + beat grid over one shared decode, returned by `AudioAnalysisService.analyze(url:options:)` / `analyze(decoded:options:)` |
+| `FullAnalysisResult` | Independent BPM/grid and loudness outcomes from `AudioAnalysisService.analyzeFull(url:options:lufsOptions:)` |
 | `DownbeatResult` | Tri-state downbeat outcome (`.notAttempted` / `.noneDetected` / `.detected(estimate:)`) |
 | `DownbeatEstimate` | The `.detected` payload: the downbeat beats, `meter`, `confidence`, and `phaseIndex` (opt-in via `Options.detectDownbeats`) |
 | `MeterEstimate` / `MeterSource` | The assumed-or-detected meter on a `DownbeatEstimate` (always `{ beatsPerBar: 4, source: .assumed }` today) |

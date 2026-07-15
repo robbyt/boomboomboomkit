@@ -56,7 +56,9 @@ final class AnalysisViewModel {
   /// `.maxConfidence`; this seeding is demo-side only and MUST NOT
   /// leak into the library. SPM consumers receive the library default
   /// unless they opt in.
-  init(configuration: Configuration = .live) {
+  init(
+    configuration: Configuration = .live
+  ) {
     self.configuration = configuration
     if configuration.defaults.object(forKey: Self.preferredMergeStrategyKey) == nil {
       // Genuinely absent (first launch) — seed the demo default, no write.
@@ -152,8 +154,17 @@ final class AnalysisViewModel {
     let duration: Double
   }
   private struct DetachedAnalysis: Sendable {
-    let combined: CombinedAnalysisResult?
+    let fullAnalysis: FullAnalysisResult
     let waveform: WaveformData?
+  }
+
+  /// One result-paired loudness payload. Keeping the report, its measurement
+  /// window, and the analyzed URL together prevents a graph or transport from
+  /// borrowing state from a previous run.
+  struct LoudnessVisualizationState: Equatable {
+    let report: LUFSReport
+    let analysisWindowSeconds: Double
+    let sourceURL: URL
   }
 
   // `.nonFinite` covers NaN/Inf AND out-of-range (bpm <= 0, confidence
@@ -223,6 +234,17 @@ final class AnalysisViewModel {
   /// `lastRunSnapshot`, a stale grid/waveform for the prior file is misleading
   /// while a new run is in flight.
   var gridVisualization: GridVisualizationState?
+
+  var loudnessVisualization: LoudnessVisualizationState?
+
+  var lufsReport: LUFSReport? { loudnessVisualization?.report }
+  var lufsAnalysisWindowSeconds: Double? { loudnessVisualization?.analysisWindowSeconds }
+
+  /// The current result-paired playback source. Grid wins when both analyses
+  /// exist; loudness-only analysis remains independently playable.
+  var playbackSourceURL: URL? {
+    gridVisualization?.sourceURL ?? loudnessVisualization?.sourceURL
+  }
 
   /// Display-layer convenience — derived from `error`. Read-only on
   /// purpose; producers assign the typed `error` case directly.
@@ -366,6 +388,10 @@ final class AnalysisViewModel {
     // file is actively misleading while a new run is in flight. The fresh
     // result reassigns it atomically on success.
     gridVisualization = nil
+    // LUFS (Story 10.4) rides the same prologue clear as the grid: a stale
+    // loudness readout for the PRIOR file is misleading while a new run is in
+    // flight. The fresh result reassigns both atomically on success.
+    loudnessVisualization = nil
     // F09 (Story 5-6 review): do NOT clear `lastRunSnapshot` at the
     // analyze() prologue. ContentView.backgroundStrategy reads
     // `lastRunSnapshot == nil ? nil : options.mergeStrategy`; clearing
@@ -412,6 +438,10 @@ final class AnalysisViewModel {
     // downbeat layer populates.
     opts.beatGridCoverage = .fullTrack
     opts.detectDownbeats = true
+    // The demo's refinement control deliberately replaces the old BPM-stage
+    // lock. Keep the latter off so it cannot overwrite a better fitted grid
+    // tempo with the coarse headline BPM.
+    opts.beatGridTempoLock = .off
     // Story 9.1: the preset picker is the single writer of the per-run
     // ensemble policy — applied unconditionally so the effective policy
     // always value-equals the picker's resolved `EnsemblePolicy` (AC3),
@@ -442,28 +472,26 @@ final class AnalysisViewModel {
         let optsForDetached = opts
         let value = try await withTaskCancellationHandler {
           try await Task.detached { @Sendable in
-            // analyze() (not analyzeBPM) returns BPM + beat grid from ONE
-            // shared decode; `combined.bpm` is the same AudioAnalysisResult the
-            // hero already renders. URL path keeps file-metadata corroboration
-            // + duration-hint live (the decoded: overload inerts them).
-            let combined = try AudioAnalysisService.analyze(
-              url: url, options: optsForDetached)
-            // A cancel can land after analyze() returns; skip the extra
-            // (non-cancellation-polling) waveform decode so Cancel stays
-            // responsive instead of paying a full decode that's discarded.
+            // Full analysis preserves URL-backed BPM metadata and performs one
+            // union-cap decode for independent BPM/grid and loudness outcomes.
+            var lufsOptions = LUFSOptions()
+            lufsOptions.maxSeconds = optsForDetached.maxSeconds
+            lufsOptions.isCancelled = optsForDetached.isCancelled
+            let fullAnalysis = try AudioAnalysisService.analyzeFull(
+              url: url, options: optsForDetached, lufsOptions: lufsOptions)
             if optsForDetached.isCancelled() { throw CancellationError() }
             // Waveform is best-effort: a decode failure must NOT fail the
             // analysis. Decode only when there is a grid to overlay, via the
             // library's own decoder so the waveform shares the grid's exact
             // decoded-PCM time origin / sample rate.
             var waveform: WaveformData?
-            if combined?.beatGrid != nil,
+            if fullAnalysis.bpmAndBeatGrid?.beatGrid != nil,
               let wf = try? Waveform.decode(
                 url: url, maxSeconds: optsForDetached.maxSeconds, columns: 2000)
             {
               waveform = WaveformData(peaks: wf.peaks, duration: wf.duration)
             }
-            return DetachedAnalysis(combined: combined, waveform: waveform)
+            return DetachedAnalysis(fullAnalysis: fullAnalysis, waveform: waveform)
           }.value
         } onCancel: { @Sendable in
           cancelFlag.store(true, ordering: .releasing)
@@ -505,7 +533,17 @@ final class AnalysisViewModel {
 
       switch result {
       case .success(let detached):
-        if let combined = detached.combined {
+        let loudnessVisualization: LoudnessVisualizationState?
+        switch detached.fullAnalysis.loudness {
+        case .success(let report):
+          loudnessVisualization = report.map {
+            LoudnessVisualizationState(
+              report: $0, analysisWindowSeconds: opts.maxSeconds, sourceURL: url)
+          }
+        case .failure:
+          loudnessVisualization = nil
+        }
+        if let combined = detached.fullAnalysis.bpmAndBeatGrid {
           let value = combined.bpm
           // Clear any banner from an invalid drop that arrived during
           // analysis; without this it persists past the successful
@@ -534,11 +572,15 @@ final class AnalysisViewModel {
               beatGrid: grid,
               peaks: detached.waveform?.peaks ?? [],
               duration: detached.waveform?.duration ?? 0,
-              bpmTempo: value.bpm
+              bpmTempo: value.bpm,
+              // The analyzed file, carried atomically so the timeline scrubber loads
+              // audio keyed to THIS result (Story 10.3 DD5/F4).
+              sourceURL: url
             )
           } else {
             self.gridVisualization = nil
           }
+          self.loudnessVisualization = loudnessVisualization
         } else {
           // No analyzable audio (silence, too-short, or non-musical content).
           self.error = .noBPMDetected
@@ -554,6 +596,8 @@ final class AnalysisViewModel {
           // the same MainActor turn per DD #10).
           self.lastRunSnapshot = nil
           self.gridVisualization = nil
+          // A no-BPM result does not invalidate successful loudness.
+          self.loudnessVisualization = loudnessVisualization
         }
       case .failure(let readerError as PCMBufferReaderError):
         let sandboxDenied: Bool
@@ -568,10 +612,12 @@ final class AnalysisViewModel {
         )
         self.lastRunSnapshot = nil  // P_D4 — see comment in no-audio arm
         self.gridVisualization = nil
+        self.loudnessVisualization = nil
       case .failure(let other):
         self.error = .unexpected("\(other)")
         self.lastRunSnapshot = nil  // P_D4 — see comment in no-audio arm
         self.gridVisualization = nil
+        self.loudnessVisualization = nil
       }
       self.elapsedSeconds = secs
       self.isAnalyzing = false
@@ -676,6 +722,7 @@ final class AnalysisViewModel {
     elapsedSeconds = nil
     lastRunSnapshot = nil
     gridVisualization = nil
+    loudnessVisualization = nil
   }
 
   // MARK: - Humanization
@@ -816,50 +863,66 @@ final class AnalysisViewModel {
 
   // MARK: - BYOW Model Loading
 
-  /// Present an open panel for a compiled `.mlmodelc`, load it via
-  /// `BNNSTechnique(modelURL:)`, and attach it on success (the model then
-  /// participates per the active ensemble preset — Story 9.1). Mirrors
-  /// `exportTrace`'s security-scoped-resource handling for the sandbox. A raw
-  /// (uncompiled) `.mlmodel`, a missing bundle, or a tensor-contract mismatch
-  /// surfaces as `mlModelError` and leaves ML disabled. UI-agnostic: the caller
-  /// re-analyzes after a successful load.
+  /// Construct and attach a `BNNSTechnique` for `url` — the model-load entry
+  /// point (Story 10.2 Task 4), invoked from `ModelPickerView`'s "Use this model"
+  /// (`ModelPickerView.addFromDisk` owns the `NSOpenPanel` flow). The construct
+  /// is wrapped in ``BookmarkPersistence/withSecurityScopedAccess(to:perform:)``
+  /// (DD9) and `BNNSTechnique.init` reads/compiles from disk.
+  ///
+  /// The caller MUST pass a URL that retains security-scope provenance — the raw
+  /// `NSOpenPanel` URL or a bookmark-resolved URL (via ``ModelCatalog/loadableURL(for:)``),
+  /// NOT a standardized `ModelRegistryEntry.url` (which is tokenless, so the
+  /// sandboxed read would be denied). The bracket starts/stops access and runs the
+  /// read inside it; note it deliberately runs the body even when `start...` returns
+  /// `false` (see `BookmarkPersistence.withSecurityScopedAccess`), so callers must
+  /// not assume a `true` return — the provenance of `url` is what makes the read
+  /// succeed under sandbox. On success the full quartet
+  /// (`mlTechnique`/`mlModelName`/`mlEnabled`/`mlModelError`) is set via
+  /// ``attachMLTechnique(_:named:)``; every failure path detaches uniformly via
+  /// ``detachMLTechnique()`` and surfaces `mlModelError`.
   @discardableResult
-  func pickAndLoadMLModel() -> Bool {
+  func loadModel(at url: URL) -> Bool {
     guard #available(macOS 15.0, *) else {
-      mlModelError = "ML inference requires macOS 15 or later."
+      failModelLoad(reason: "ML inference requires macOS 15 or later.")
       return false
     }
-    let panel = NSOpenPanel()
-    panel.canChooseFiles = true
-    panel.canChooseDirectories = true  // a .mlmodelc is a directory bundle
-    panel.allowsMultipleSelection = false
-    panel.message = "Choose a compiled Core ML model (.mlmodelc)"
-    let response = panel.runModal()
-    guard response == .OK, let url = panel.url else { return false }
-    let didStart = url.startAccessingSecurityScopedResource()
-    defer {
-      if didStart {
-        url.stopAccessingSecurityScopedResource()
-      }
-    }
     do {
-      attachMLTechnique(try BNNSTechnique(modelURL: url), named: url.lastPathComponent)
+      let technique = try BookmarkPersistence.withSecurityScopedAccess(to: url) {
+        try BNNSTechnique(modelURL: url)
+      }
+      attachMLTechnique(technique, named: url.lastPathComponent)
       return true
     } catch {
-      mlTechnique = nil
-      mlModelName = nil
-      mlEnabled = false
-      mlModelError = "Could not load model: \(error)"
+      failModelLoad(reason: "Could not load model: \(error)")
       return false
     }
   }
 
-  /// Attach an already-constructed ML technique — the behavior-preserving
-  /// extraction of `pickAndLoadMLModel`'s success block (Story 9.1 DD3
-  /// testability seam). Sets the full success quartet: the toggle's
-  /// visibility is gated on `mlModelName != nil`, so all four writes are
-  /// load-bearing. The active preset's policy governs how the technique
-  /// participates in the next run.
+  /// Detach any attached ML technique so nothing is in use (FR-44 honesty: a
+  /// failed or absent load must never leave the UI able to render `Selected: yes`
+  /// while no technique is attached). The single uniform failure primitive routed
+  /// through by every `loadModel` failure branch and by the picker's
+  /// capability-missing path. Does NOT touch `mlModelError` — a successful
+  /// ``attachMLTechnique(_:named:)`` clears that; a failure sets it explicitly.
+  func detachMLTechnique() {
+    mlTechnique = nil
+    mlModelName = nil
+    mlEnabled = false
+  }
+
+  /// Detach + surface a labeled load-failure reason. `reason` is UNLABELED — the
+  /// picker renders it behind a leading `Reason:` (`ModelPickerView` FR-44), so a
+  /// pre-labeled value would double it.
+  func failModelLoad(reason: String) {
+    detachMLTechnique()
+    mlModelError = reason
+  }
+
+  /// Attach an already-constructed ML technique — the success block shared by
+  /// `loadModel(at:)` (Story 9.1 DD3 testability seam). Sets the full success
+  /// quartet: the toggle's visibility is gated on `mlModelName != nil`, so all
+  /// four writes are load-bearing. The active preset's policy governs how the
+  /// technique participates in the next run.
   func attachMLTechnique(_ technique: any MLTechnique, named name: String) {
     mlTechnique = technique
     mlModelName = name
