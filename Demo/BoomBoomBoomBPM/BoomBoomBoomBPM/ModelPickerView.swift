@@ -186,18 +186,22 @@ struct ModelPickerView: View {
     guard let key = highlightedURL,
       let entry = catalog.entries.first(where: { $0.url.standardizedFileURL == key })
     else { return }
-    // loadModel constructs BNNSTechnique inside its own security-scope bracket
-    // (DD9). On failure, mlModelError stays visible and the sheet does not
-    // dismiss (AC4).
-    if viewModel.loadModel(at: entry.url) {
-      catalog.select(url: entry.url)
+    // The catalog resolves the entry to its token-bearing capability URL and hands
+    // THAT (never the tokenless `entry.url`) to the loader — `loadModel` scopes it
+    // and constructs `BNNSTechnique` (DD9). On any failure the sheet stays open with
+    // the labeled error visible (AC4).
+    switch catalog.useModel(entry, load: { viewModel.loadModel(at: $0) }) {
+    case .loaded:
       onModelUsed()
       dismiss()
-    } else {
-      // Load failed: `loadModel` cleared any prior technique, so nothing is in
-      // use. Clear the selection mark so no row can lie "Selected: yes" (FR-44).
-      // The sheet stays open with the labeled error visible (AC4).
-      catalog.clearSelection()
+    case .loadFailed:
+      // `loadModel` already detached; `useModel` cleared the selection mark. The
+      // labeled `mlModelError` from `loadModel` stays visible.
+      break
+    case .capabilityMissing:
+      // No retained capability URL (e.g. a restore whose resolve failed). Detach and
+      // surface a labeled reason, consistent with the failed-load contract (FR-44).
+      viewModel.failModelLoad(reason: "model-unavailable")
     }
   }
 }

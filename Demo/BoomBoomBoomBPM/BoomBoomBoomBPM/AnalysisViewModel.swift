@@ -867,17 +867,23 @@ final class AnalysisViewModel {
   /// point (Story 10.2 Task 4), invoked from `ModelPickerView`'s "Use this model"
   /// (`ModelPickerView.addFromDisk` owns the `NSOpenPanel` flow). The construct
   /// is wrapped in ``BookmarkPersistence/withSecurityScopedAccess(to:perform:)``
-  /// (DD9): restored bookmark URLs arrive with their security scope NOT started,
-  /// and `BNNSTechnique.init` reads/compiles from disk. A freshly-picked
-  /// `NSOpenPanel` URL is also scoped — `start...` returns `true` and the bracket
-  /// balances the `stop`, so the same path serves both callers. On success the
-  /// full quartet (`mlTechnique`/`mlModelName`/`mlEnabled`/`mlModelError`) is set
-  /// via ``attachMLTechnique(_:named:)``; on failure ML is left disabled and
-  /// `mlModelError` surfaces the reason.
+  /// (DD9) and `BNNSTechnique.init` reads/compiles from disk.
+  ///
+  /// The caller MUST pass a URL that retains security-scope provenance — the raw
+  /// `NSOpenPanel` URL or a bookmark-resolved URL (via ``ModelCatalog/loadableURL(for:)``),
+  /// NOT a standardized `ModelRegistryEntry.url` (which is tokenless, so the
+  /// sandboxed read would be denied). The bracket starts/stops access and runs the
+  /// read inside it; note it deliberately runs the body even when `start...` returns
+  /// `false` (see `BookmarkPersistence.withSecurityScopedAccess`), so callers must
+  /// not assume a `true` return — the provenance of `url` is what makes the read
+  /// succeed under sandbox. On success the full quartet
+  /// (`mlTechnique`/`mlModelName`/`mlEnabled`/`mlModelError`) is set via
+  /// ``attachMLTechnique(_:named:)``; every failure path detaches uniformly via
+  /// ``detachMLTechnique()`` and surfaces `mlModelError`.
   @discardableResult
   func loadModel(at url: URL) -> Bool {
     guard #available(macOS 15.0, *) else {
-      mlModelError = "ML inference requires macOS 15 or later."
+      failModelLoad(reason: "ML inference requires macOS 15 or later.")
       return false
     }
     do {
@@ -887,12 +893,29 @@ final class AnalysisViewModel {
       attachMLTechnique(technique, named: url.lastPathComponent)
       return true
     } catch {
-      mlTechnique = nil
-      mlModelName = nil
-      mlEnabled = false
-      mlModelError = "Could not load model: \(error)"
+      failModelLoad(reason: "Could not load model: \(error)")
       return false
     }
+  }
+
+  /// Detach any attached ML technique so nothing is in use (FR-44 honesty: a
+  /// failed or absent load must never leave the UI able to render `Selected: yes`
+  /// while no technique is attached). The single uniform failure primitive routed
+  /// through by every `loadModel` failure branch and by the picker's
+  /// capability-missing path. Does NOT touch `mlModelError` — a successful
+  /// ``attachMLTechnique(_:named:)`` clears that; a failure sets it explicitly.
+  func detachMLTechnique() {
+    mlTechnique = nil
+    mlModelName = nil
+    mlEnabled = false
+  }
+
+  /// Detach + surface a labeled load-failure reason. `reason` is UNLABELED — the
+  /// picker renders it behind a leading `Reason:` (`ModelPickerView` FR-44), so a
+  /// pre-labeled value would double it.
+  func failModelLoad(reason: String) {
+    detachMLTechnique()
+    mlModelError = reason
   }
 
   /// Attach an already-constructed ML technique — the success block shared by

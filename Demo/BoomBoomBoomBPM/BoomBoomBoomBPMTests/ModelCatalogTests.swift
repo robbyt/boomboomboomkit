@@ -42,6 +42,15 @@ struct ModelCatalogTests {
     return url
   }
 
+  // A non-standardized spelling of `url` (redundant `/./`) that standardizes back
+  // to it. Used to prove the retained capability URL is the RAW value the scope was
+  // started on, not the standardized identity `entry.url`. Callers first
+  // `#expect(raw != raw.standardizedFileURL)` so the assertion can't go vacuous.
+  private func nonStandardized(_ url: URL) -> URL {
+    let parent = url.deletingLastPathComponent().path
+    return URL(fileURLWithPath: parent + "/./" + url.lastPathComponent, isDirectory: true)
+  }
+
   // Round-trip codec: encodes a URL's absoluteString as its bookmark and decodes
   // it back. Never stale, never throws — the happy-path seam (mirrors
   // BookmarkPersistenceTests).
@@ -324,6 +333,165 @@ struct ModelCatalogTests {
     #expect(catalog.addFromDisk(url: bundle).isSuccess)
     #expect(catalog.entries.count == 1)
     #expect(storedMap(defaults).count == 1)
+  }
+
+  // MARK: - Capability URL retention + load handoff (PR #91 Codex P1)
+  //
+  // The P1 fix: `entry.url` is standardized/tokenless (a sandboxed BNNSTechnique
+  // read on it is denied), so the catalog retains the RAW token-bearing URL its
+  // scope was started on and hands THAT to the loader. These tests prove the raw
+  // capability URL is retained and reaches the loader — a `URL` value cannot prove
+  // it "contains a scope token", so we assert value-equality with the raw URL, not
+  // token possession. The terminal BNNSTechnique load stays operator/macOS-gated.
+
+  // (12) addFromDisk retains the RAW panel URL as the load capability, distinct
+  // from the standardized entry identity.
+  @Test("addFromDisk retains the raw capability URL, distinct from the standardized entry.url")
+  func addRetainsRawCapabilityURL() throws {
+    let (defaults, suiteName) = try makeDefaults("addCapability")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundle = try makeBundle()
+    let raw = nonStandardized(bundle)
+    #expect(raw != raw.standardizedFileURL)  // non-vacuous: raw really is non-standard
+    #expect(raw.standardizedFileURL == bundle.standardizedFileURL)
+
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    let catalog = ModelCatalog(bookmarks: persistence)
+    #expect(catalog.addFromDisk(url: raw).isSuccess)
+
+    let entry = try #require(catalog.entries.first)
+    #expect(entry.url == entry.url.standardizedFileURL)  // identity is standardized
+    let capability = try #require(catalog.loadableURL(for: entry))
+    #expect(capability == raw)  // exact raw value retained
+    #expect(capability != entry.url)  // distinct from the tokenless identity
+  }
+
+  // (13) restore retains the RAW resolved bookmark URL, and loading performs NO
+  // resolution (the destructive resolveAll is a launch-only event, exactly once).
+  @Test("restore retains the raw resolved URL and loadableURL does no resolution")
+  func restoreRetainsRawCapabilityURLNoLoadResolve() throws {
+    let (defaults, suiteName) = try makeDefaults("restoreCapability")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundle = try makeBundle()
+    let raw = nonStandardized(bundle)
+    #expect(raw != raw.standardizedFileURL)
+
+    nonisolated(unsafe) var resolveCount = 0
+    let codec = BookmarkPersistence.Codec(
+      makeBookmark: { url in Data(url.absoluteString.utf8) },
+      resolveBookmark: { _ in
+        resolveCount += 1
+        return (raw, false)  // hand back the non-standardized (raw) URL
+      }
+    )
+    let persistence = BookmarkPersistence(defaults: defaults, codec: codec)
+    _ = try persistence.store(url: bundle)
+
+    let catalog = ModelCatalog(bookmarks: persistence)  // restore resolves exactly once
+    #expect(resolveCount == 1)
+
+    let entry = try #require(catalog.entries.first)
+    #expect(entry.url.standardizedFileURL == bundle.standardizedFileURL)
+    let capability = try #require(catalog.loadableURL(for: entry))
+    #expect(capability == raw)
+
+    // Loading does no resolution — repeated lookups are pure and destructive-free.
+    let before = resolveCount
+    _ = catalog.loadableURL(for: entry)
+    _ = catalog.loadableURL(for: entry)
+    #expect(resolveCount == before)
+  }
+
+  // (14) useModel hands the RAW capability URL — never entry.url — to the loader,
+  // and on success marks the standardized entry selected.
+  @Test("useModel passes the raw capability URL to the loader and selects on success")
+  func useModelHandsCapabilityURLToLoaderOnSuccess() throws {
+    let (defaults, suiteName) = try makeDefaults("useLoaded")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundle = try makeBundle()
+    let raw = nonStandardized(bundle)
+    #expect(raw != raw.standardizedFileURL)
+
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    let catalog = ModelCatalog(bookmarks: persistence)
+    #expect(catalog.addFromDisk(url: raw).isSuccess)
+    let entry = try #require(catalog.entries.first)
+
+    nonisolated(unsafe) var loadedURL: URL?
+    let outcome = catalog.useModel(entry) { url in
+      loadedURL = url
+      return true
+    }
+
+    #expect(outcome == .loaded)
+    #expect(loadedURL == raw)  // the RAW capability URL, not entry.url…
+    #expect(loadedURL != entry.url)  // …which is exactly the P1 regression guard
+    #expect(catalog.selectedURL?.standardizedFileURL == entry.url.standardizedFileURL)
+  }
+
+  // (15) A failing loader yields .loadFailed and clears the selection mark; the
+  // loader still received the raw capability URL.
+  @Test("useModel with a failing loader clears selection and reports loadFailed")
+  func useModelLoadFailureClearsSelection() throws {
+    let (defaults, suiteName) = try makeDefaults("useFailed")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundle = try makeBundle()
+    let raw = nonStandardized(bundle)
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    let catalog = ModelCatalog(bookmarks: persistence)
+    #expect(catalog.addFromDisk(url: raw).isSuccess)
+    let entry = try #require(catalog.entries.first)
+    _ = catalog.select(url: raw)  // pretend a prior model was in use
+    #expect(catalog.selectedURL != nil)
+
+    nonisolated(unsafe) var loadedURL: URL?
+    let outcome = catalog.useModel(entry) { url in
+      loadedURL = url
+      return false
+    }
+
+    #expect(outcome == .loadFailed)
+    #expect(loadedURL == raw)
+    #expect(catalog.selectedURL == nil)  // FR-44: nothing may claim Selected: yes
+  }
+
+  // (16) An entry with no retained capability URL (defensive: a restore whose
+  // resolve failed never mirrors, so this uses a synthetic entry) reports
+  // capabilityMissing WITHOUT invoking the loader, and clears selection.
+  @Test("useModel with no retained capability URL reports capabilityMissing")
+  func useModelCapabilityMissing() throws {
+    let (defaults, suiteName) = try makeDefaults("useMissing")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    let catalog = ModelCatalog(bookmarks: persistence)
+
+    // A synthetic entry never routed through `mirror`, so no capability is retained.
+    let orphan = FileManager.default.temporaryDirectory
+      .appendingPathComponent("orphan.mlmodelc", isDirectory: true)
+    let entry = ModelRegistryEntry(
+      identifier: "orphan",
+      digest: try ModelDigest(hex: String(repeating: "0", count: 64)),
+      capabilities: [.tempoEstimation],
+      license: nil,
+      sourceURL: nil,
+      url: orphan.standardizedFileURL)
+
+    #expect(catalog.loadableURL(for: entry) == nil)
+
+    nonisolated(unsafe) var loaderCalled = false
+    let outcome = catalog.useModel(entry) { _ in
+      loaderCalled = true
+      return true
+    }
+
+    #expect(outcome == .capabilityMissing)
+    #expect(!loaderCalled)  // never attempted a tokenless read
+    #expect(catalog.selectedURL == nil)
   }
 }
 

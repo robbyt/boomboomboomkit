@@ -26,6 +26,16 @@ import Observation
 /// - **Security scope is explicit (DD9).** `resolveAll()` returns URLs with the
 ///   scope NOT started; every `register` (which does file I/O to hash the
 ///   bundle) runs inside ``BookmarkPersistence/withSecurityScopedAccess(to:perform:)``.
+/// - **A token-bearing capability URL is retained per entry.** `entry.url` is the
+///   standardized identity URL (tokenless — correct for dedupe/marking, but a
+///   sandboxed read on it is denied because `startAccessingSecurityScopedResource()`
+///   returns false). So every mirrored entry also retains, in ``accessURLs`` keyed
+///   by that standardized identity, the *raw* URL its security scope was started on
+///   (the `NSOpenPanel` URL for add; the `resolveAll()` bookmark URL for restore).
+///   ``loadableURL(for:)`` hands that back so the load path scopes a URL that can
+///   actually grant access. Same-session move/rename before load is an accepted
+///   edge case (relaunch recovers via bookmark resolution); full same-session
+///   recovery would need a retained bookmark UUID + targeted re-resolve.
 ///
 /// `@MainActor @Observable` per the demo's `SWIFT_DEFAULT_ACTOR_ISOLATION =
 /// MainActor` default. `register` recomputes SHA-256 synchronously on the main
@@ -94,6 +104,16 @@ final class ModelCatalog {
   /// unique).
   private var sources: [URL: ModelSource] = [:]
 
+  /// The token-bearing capability URL per entry, keyed by the entry's standardized
+  /// identity URL (DD7). `entry.url` is standardized/tokenless and unusable for a
+  /// sandboxed read; this holds the raw URL the security scope was started on (the
+  /// `NSOpenPanel` URL for add, the `resolveAll()` bookmark URL for restore), which
+  /// retains its scope provenance and can be re-started at load. `@ObservationIgnored`
+  /// — it drives no UI; ``entries`` does. Never store `standardizedFileURL` here:
+  /// standardizing strips the scope token (the whole reason for the map).
+  @ObservationIgnored
+  private var accessURLs: [URL: URL] = [:]
+
   /// The URL of the model the user chose via "Use this model" (DD7 — keyed by
   /// URL, drives the `Selected:` mark). `nil` until a model is used.
   ///
@@ -137,7 +157,9 @@ final class ModelCatalog {
         let entry = try BookmarkPersistence.withSecurityScopedAccess(to: url) {
           try registerEntry(standardizedURL: key)
         }
-        mirror(entry, source: .userAdded)
+        // Retain the raw resolved bookmark `url` (token-bearing) — NOT `key` — so
+        // the later load path can re-start its scope for the sandboxed read.
+        mirror(entry, source: .userAdded, accessURL: url)
       } catch {
         restoreDiagnostics.append("Reason: restored-model-unavailable")
       }
@@ -181,7 +203,10 @@ final class ModelCatalog {
         return registered
       }
       // Mirror only after both steps committed (never a half-committed row).
-      mirror(entry, source: .userAdded)
+      // Retain the raw panel `url` (token-bearing) — NOT `key` — as the load-path
+      // capability URL; an NSOpenPanel URL can be re-started after its add-time
+      // scope was stopped.
+      mirror(entry, source: .userAdded, accessURL: url)
       return .success(())
     } catch let addError as AddError {
       return .failure(addError)
@@ -196,9 +221,59 @@ final class ModelCatalog {
     sources[url.standardizedFileURL] ?? .userAdded
   }
 
+  /// The token-bearing capability URL to hand to the load path for `entry`, or
+  /// `nil` if none is retained (e.g. a restore whose earlier resolve failed).
+  /// Pure in-memory lookup — no I/O, and NOT `resolveAll()` (that API is
+  /// launch-only and destructively prunes/refreshes persistence; running it per
+  /// load click could drop an unrelated temporarily-unavailable model).
+  ///
+  /// `entry.url` is standardized/tokenless, so loading THAT is exactly the P1 bug
+  /// (a sandboxed `BNNSTechnique` read is denied). This returns the raw URL whose
+  /// scope was started at add/restore, which retains its provenance.
+  func loadableURL(for entry: ModelRegistryEntry) -> URL? {
+    accessURLs[entry.url.standardizedFileURL]
+  }
+
+  /// Outcome of ``useModel(_:load:)`` — the catalog-side decision the picker maps
+  /// to its view-side effects (dismiss / detach / error surface).
+  enum UseOutcome: Equatable {
+    /// The capability URL loaded; the entry is now the `Selected:` model.
+    case loaded
+    /// A capability URL existed but `load` returned false; selection cleared.
+    case loadFailed
+    /// No capability URL is retained for the entry; selection cleared. The picker
+    /// surfaces this as a load failure (detach + labeled error).
+    case capabilityMissing
+  }
+
+  /// Resolve `entry` to its token-bearing capability URL and drive `load` with it
+  /// (NEVER `entry.url` — that tokenless URL is the original P1). This is the
+  /// regression-critical handoff, kept here (not inlined in the SwiftUI view) so a
+  /// unit test can assert the raw capability URL — not `entry.url` — reaches the
+  /// loader. Applies the catalog-side selection effect; the picker owns the
+  /// view-model side (`loadModel` already detaches on its own failure).
+  @discardableResult
+  func useModel(_ entry: ModelRegistryEntry, load: (URL) -> Bool) -> UseOutcome {
+    guard let loadURL = loadableURL(for: entry) else {
+      clearSelection()
+      return .capabilityMissing
+    }
+    if load(loadURL) {
+      select(url: entry.url)
+      return .loaded
+    }
+    clearSelection()
+    return .loadFailed
+  }
+
   /// The labeled trust-on-first-use integrity string (DD4). `register` with
   /// `expectedDigest: nil` records the current bytes; it does NOT verify against
   /// a pin, so the honest label is "recorded", never "verified".
+  ///
+  /// TOFU limitation: the digest is recorded when `register` reads the bundle at
+  /// add/restore; the later ``AnalysisViewModel/loadModel(at:)`` does NOT re-verify
+  /// current bytes against it. An on-disk swap between registration and load is not
+  /// detected by this label (out of scope for the sandbox-load fix).
   func integrityLabel(for entry: ModelRegistryEntry) -> String {
     "Integrity: recorded \(entry.digestHexString.prefix(12))"
   }
@@ -253,8 +328,18 @@ final class ModelCatalog {
   /// half-committed (ghost) row. Appends the single entry rather than copying
   /// `registry.entries` wholesale, so a `store`-failure that leaves the ephemeral
   /// registry with an unshown entry cannot resurface as a duplicate row on retry.
-  private func mirror(_ entry: ModelRegistryEntry, source: ModelSource) {
-    sources[entry.url.standardizedFileURL] = source
+  ///
+  /// `accessURL` is the raw, token-bearing URL the scope was started on for this
+  /// entry; it is REQUIRED so the load-path capability can never be missing for a
+  /// visible row. `sources`/`accessURLs` are populated BEFORE `entries.append` so
+  /// an `@Observable` re-render can never see a row before its capability exists.
+  private func mirror(_ entry: ModelRegistryEntry, source: ModelSource, accessURL: URL) {
+    assert(
+      accessURL.standardizedFileURL == entry.url.standardizedFileURL,
+      "capability URL must address the same file as the entry")
+    let key = entry.url.standardizedFileURL
+    sources[key] = source
+    accessURLs[key] = accessURL
     entries.append(entry)
   }
 }
