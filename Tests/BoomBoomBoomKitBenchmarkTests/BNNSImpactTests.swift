@@ -850,7 +850,7 @@ struct BNNSImpactTests {
           os_version: osVersion),
         model_identifier: bnnsTechnique.modelIdentifier,
         pinned_config: PinnedConfig(
-          intensity: AnalysisIntensity.thorough.rawValue,
+          intensity: AnalysisIntensity.thorough.level,
           ensemble_policy: String(describing: EnsemblePolicy.mlOnly)),
         named_dnb_track_results: namedResults,
         dsp_correct_control_results: controlResults,

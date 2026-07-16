@@ -198,7 +198,7 @@ func analyze(track: SurveyTrack, intensity: Int, noMetadata: Bool) -> DSPTrackRe
 
   let url = URL(fileURLWithPath: path)
   var options = AudioAnalysisService.Options()
-  options.intensity = AnalysisIntensity(rawValue: intensity)
+  options.intensity = AnalysisIntensity(level: min(max(intensity, 1), 10)) ?? .default
   if noMetadata {
     // BPM-tag-blind DSP: suppress ID3/MP4/Vorbis tag I/O and merge-stage
     // corroboration so result.bpm is a pure DSP estimate (Story 7.2 DD #2).
