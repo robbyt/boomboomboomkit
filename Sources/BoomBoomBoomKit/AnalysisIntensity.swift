@@ -115,13 +115,18 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
   /// Users who want the technique can opt in by setting
   /// `AudioAnalysisService.Options.techniqueSet = .clickAugmented`, which overrides the
   /// intensity-derived default.
+  // The three per-level switches below are deliberately EXHAUSTIVE (no
+  // `default:` arm): the point of the Story 11.2 enum reshape is that the
+  // compiler forces a per-level decision, so a hypothetical future case must
+  // be placed in each table explicitly instead of silently inheriting the
+  // top-level behavior.
   public var techniqueSet: TechniqueSet {
     switch self {
     case .level1:
       return TechniqueSet(candidateCount: 1)
     case .level2:
       return .baseline
-    default:  // level3 and above
+    case .level3, .level4, .level5, .level6, .level7, .level8, .level9, .level10:
       return .optimal
     }
   }
@@ -133,7 +138,7 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
     case .level1: return [15]
     case .level2, .level3, .level4, .level5: return [30]
     case .level6: return [30, 60]
-    default: return [30, 60, 90]  // level7 and above
+    case .level7, .level8, .level9, .level10: return [30, 60, 90]
     }
   }
 
@@ -142,7 +147,7 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
   public var progressiveThreshold: Double? {
     switch self {
     case .level1, .level2, .level3, .level4, .level5: return nil
-    default: return 0.40  // level6 and above
+    case .level6, .level7, .level8, .level9, .level10: return 0.40
     }
   }
 }
