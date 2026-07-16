@@ -102,6 +102,12 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
 
   // MARK: - Computed Configuration Properties
 
+  // The three per-level switches below (techniqueSet / windowSizes /
+  // progressiveThreshold) are deliberately EXHAUSTIVE (no `default:` arm): the
+  // point of the Story 11.2 enum reshape is that the compiler forces a per-level
+  // decision, so a hypothetical future case must be placed in each table
+  // explicitly instead of silently inheriting the top-level behavior.
+
   /// The technique set for this intensity level, based on empirical ablation data.
   ///
   /// Mapping (ADR-2, Phase 2; Story 3-3 ablation revisited but did not change):
@@ -115,11 +121,6 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
   /// Users who want the technique can opt in by setting
   /// `AudioAnalysisService.Options.techniqueSet = .clickAugmented`, which overrides the
   /// intensity-derived default.
-  // The three per-level switches below are deliberately EXHAUSTIVE (no
-  // `default:` arm): the point of the Story 11.2 enum reshape is that the
-  // compiler forces a per-level decision, so a hypothetical future case must
-  // be placed in each table explicitly instead of silently inheriting the
-  // top-level behavior.
   public var techniqueSet: TechniqueSet {
     switch self {
     case .level1:
