@@ -83,6 +83,26 @@ struct DocumentedCaseTests {
     #expect(text.contains("_blank"))
   }
 
+  // MARK: - Front-matter stripping
+
+  @Test("YAML front matter is stripped, not rendered as visible docs")
+  func frontMatterIsStripped() {
+    // Every authored 11.3 doc file carries `---`-delimited id:/title:/payload:
+    // metadata (KDD-E7). The accessor must strip it so `.docs` shows only the
+    // prose body — inline-only parsing would otherwise render the metadata as
+    // literal text ahead of the content.
+    let doc = BoomBoomBoomKitDocs.attributedString(for: "_Fixture", id: "_frontmatter")
+    let text = String(doc.characters)
+    // Body survives.
+    #expect(text.contains("Body"))
+    #expect(text.contains("visible prose"))
+    // Metadata does NOT.
+    #expect(!text.contains("METADATA_TITLE_SHOULD_NOT_RENDER"))
+    #expect(!text.contains("id:"))
+    #expect(!text.contains("payload:"))
+    #expect(!text.contains("---"))
+  }
+
   // MARK: - Split-extension invariant
 
   @Test("Associated-value conformer inherits docs from the unconstrained extension")

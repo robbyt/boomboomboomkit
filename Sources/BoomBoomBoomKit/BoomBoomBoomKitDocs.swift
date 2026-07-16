@@ -101,16 +101,22 @@ public enum BoomBoomBoomKitDocs {
       return fallback
     }
 
+    // Read the raw text first (not the one-call `AttributedString(contentsOf:)`)
+    // so the YAML front-matter block can be stripped BEFORE markdown parsing.
+    // Every authored doc file carries `---`-delimited `id:`/`title:`/`payload:`
+    // metadata (KDD-E7); that block is tooling/validator input, not user-visible
+    // prose, and `AttributedString` has no front-matter concept — inline-only
+    // mode would otherwise render it as literal text ahead of the body.
     guard
       let url = Bundle.module.url(
         forResource: id, withExtension: "md", subdirectory: "Documentation/\(kind)"),
+      let raw = try? String(contentsOf: url, encoding: .utf8),
       let parsed = try? AttributedString(
-        contentsOf: url,
-        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace),
-        baseURL: nil),
-      // Blank-parse is a MISS: a zero-length parse OR an all-whitespace file
+        markdown: strippingFrontMatter(raw),
+        options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)),
+      // Blank-parse is a MISS: a zero-length parse OR an all-whitespace body
       // must not defeat the never-empty guarantee. Inline-only mode PRESERVES
-      // whitespace, so a whitespace-only file parses to a non-empty but visually
+      // whitespace, so a whitespace-only body parses to a non-empty but visually
       // blank string — `isEmpty` alone would let it through. Block markup under
       // inline-only mode is retained as literal text, so genuine content always
       // contains a non-whitespace character and is never wrongly rejected.
@@ -120,6 +126,30 @@ public enum BoomBoomBoomKitDocs {
     }
 
     return parsed
+  }
+
+  /// Strips a leading YAML front-matter block (`---` … `---`, KDD-E7) so the
+  /// `id:`/`title:`/`payload:` metadata never renders as visible documentation.
+  ///
+  /// Returns `raw` unchanged when the file does not open with a `---` delimiter
+  /// line or when the block is unterminated (an authoring error that Story 11.4's
+  /// validator catches — the accessor stays total and simply parses the whole
+  /// file rather than discarding content).
+  private static func strippingFrontMatter(_ raw: String) -> String {
+    let lines = raw.split(separator: "\n", omittingEmptySubsequences: false)
+    guard let first = lines.first,
+      first.trimmingCharacters(in: .whitespacesAndNewlines) == "---"
+    else {
+      return raw
+    }
+    guard
+      let closing = lines.dropFirst().firstIndex(where: {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines) == "---"
+      })
+    else {
+      return raw
+    }
+    return lines[lines.index(after: closing)...].joined(separator: "\n")
   }
 
   /// Rejects an empty identifier or one containing a path separator or a `..`
