@@ -237,8 +237,8 @@ struct TraceExport: Codable, Sendable, Equatable {
 
     let run = RunInfo(
       fileName: fileName,
-      intensityRequested: runOptions.intensity.rawValue,
-      intensityEffective: result.effectiveIntensity.rawValue,
+      intensityRequested: runOptions.intensity.level,
+      intensityEffective: result.effectiveIntensity.level,
       mergeStrategy: runOptions.mergeStrategy.rawValue,
       votingPolicy: runOptions.votingPolicy.rawValue,
       votingThreshold: runOptions.votingThreshold,

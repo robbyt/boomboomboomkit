@@ -174,7 +174,7 @@ struct BPMAnalyzer85BPMTests {
     // that doesn't affect real music (where the fundamental is stronger).
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        decoded: .synthetic(samples, sampleRate: sampleRate), options: .init(intensity: 4)))
+        decoded: .synthetic(samples, sampleRate: sampleRate), options: .init(intensity: .level4)))
     #expect(
       result.bpm >= 83 && result.bpm <= 87,
       "Expected ~85 BPM, got \(result.bpm)")
@@ -185,7 +185,7 @@ struct BPMAnalyzer85BPMTests {
     // Even when disambiguation picks a harmonic at higher intensity,
     // the correct 85 BPM should always be the top raw candidate.
     for level in [1, 3, 5, 7] {
-      let intensity = AnalysisIntensity(rawValue: level)
+      let intensity = try #require(AnalysisIntensity(level: level))
       let result = try #require(
         BPMAnalyzer.estimateBPM(
           decoded: .synthetic(samples, sampleRate: sampleRate), options: .init(intensity: intensity)
@@ -203,79 +203,128 @@ struct BPMAnalyzer85BPMTests {
 @Suite("AnalysisIntensity")
 struct AnalysisIntensityTests {
 
-  @Test("clamps values below 1 to 1")
-  func clampsBelow() {
-    #expect(AnalysisIntensity(rawValue: 0).rawValue == 1)
-    #expect(AnalysisIntensity(rawValue: -5).rawValue == 1)
+  @Test("allCases is the ten levels in ascending ordinal order")
+  func allCasesOrderLocked() {
+    #expect(AnalysisIntensity.allCases.count == 10)
+    #expect(AnalysisIntensity.allCases.map(\.level) == Array(1...10))
   }
 
-  @Test("clamps values above 10 to 10")
-  func clampsAbove() {
-    #expect(AnalysisIntensity(rawValue: 15).rawValue == 10)
-    #expect(AnalysisIntensity(rawValue: 100).rawValue == 10)
+  @Test("documentationID equals the String rawValue (level1…level10)")
+  func documentationIDMatchesRawValue() {
+    #expect(
+      AnalysisIntensity.allCases.map(\.documentationID)
+        == AnalysisIntensity.allCases.map(\.rawValue))
+    #expect(AnalysisIntensity.level7.documentationID == "level7")
+    #expect(AnalysisIntensity.allCases.map(\.rawValue) == (1...10).map { "level\($0)" })
   }
 
-  @Test("ExpressibleByIntegerLiteral clamps")
-  func integerLiteralClamps() {
-    let x: AnalysisIntensity = 42
-    #expect(x.rawValue == 10)
-    let y: AnalysisIntensity = 0
-    #expect(y.rawValue == 1)
+  @Test("init?(level:) round-trips 1…10 and is nil outside")
+  func levelBridgeRoundTrips() {
+    for n in 1...10 {
+      #expect(AnalysisIntensity(level: n)?.level == n)
+    }
+    #expect(AnalysisIntensity(level: 0) == nil)
+    #expect(AnalysisIntensity(level: 11) == nil)
+    #expect(AnalysisIntensity(level: -5) == nil)
   }
 
-  @Test("Comparable works correctly")
+  @Test("Comparable orders by ordinal level")
   func comparable() {
     #expect(AnalysisIntensity.fastest < AnalysisIntensity.default)
     #expect(AnalysisIntensity.default < AnalysisIntensity.maximum)
-    #expect(AnalysisIntensity(rawValue: 3) >= AnalysisIntensity(rawValue: 3))
+    #expect(AnalysisIntensity.level3 >= AnalysisIntensity.level3)
+    #expect(AnalysisIntensity.allCases == AnalysisIntensity.allCases.sorted())
   }
 
-  @Test("named constants have expected values")
+  @Test("named constants alias the expected levels")
   func namedConstants() {
-    #expect(AnalysisIntensity.fastest.rawValue == 1)
-    #expect(AnalysisIntensity.default.rawValue == 7)
-    #expect(AnalysisIntensity.thorough.rawValue == 8)
-    #expect(AnalysisIntensity.maximum.rawValue == 10)
+    #expect(AnalysisIntensity.fastest == .level1)
+    #expect(AnalysisIntensity.default == .level7)
+    #expect(AnalysisIntensity.thorough == .level8)
+    #expect(AnalysisIntensity.maximum == .level10)
+    #expect(AnalysisIntensity.fastest.level == 1)
+    #expect(AnalysisIntensity.maximum.level == 10)
   }
 
   @Test("computed properties at key levels")
   func computedProperties() {
-    let i1 = AnalysisIntensity(rawValue: 1)
+    let i1 = AnalysisIntensity.level1
     #expect(i1.techniqueSet.dspTechniques.isEmpty)
     #expect(i1.techniqueSet.candidateCount == 1)
     #expect(i1.windowSizes == [15])
     #expect(i1.progressiveThreshold == nil)
 
-    let i2 = AnalysisIntensity(rawValue: 2)
+    let i2 = AnalysisIntensity.level2
     #expect(i2.techniqueSet == .baseline)
     #expect(i2.techniqueSet.contains(.subBandVoting))
     #expect(i2.techniqueSet.contains(.fineGridRefinement))
     #expect(!i2.techniqueSet.contains(.acfSharpening))
 
-    let i3 = AnalysisIntensity(rawValue: 3)
+    let i3 = AnalysisIntensity.level3
     #expect(i3.techniqueSet == .optimal)
     #expect(i3.techniqueSet.contains(.acfSharpening))
     #expect(!i3.techniqueSet.contains(.adaptiveThreshold))
 
-    let i5 = AnalysisIntensity(rawValue: 5)
+    let i5 = AnalysisIntensity.level5
     #expect(i5.techniqueSet == .optimal)
     #expect(i5.techniqueSet.candidateCount == 3)
     #expect(i5.progressiveThreshold == nil)
 
-    let i7 = AnalysisIntensity(rawValue: 7)
+    let i7 = AnalysisIntensity.level7
     #expect(i7.techniqueSet == .optimal)
     #expect(i7.progressiveThreshold == 0.40)
     #expect(i7.windowSizes == [30, 60, 90])
   }
 
+  @Test("per-level value table is preserved exactly (DD-6)")
+  func perLevelValueTable() {
+    // Story 11.2 DD-6: the struct→enum reshape must not change any per-level
+    // behavior. Assert the full table so a mis-transcribed `switch self` fails
+    // here (unit time), not at corpus time.
+    for level in AnalysisIntensity.allCases {
+      let expectedWindows: [Double]
+      let expectedThreshold: Double?
+      switch level.level {
+      case 1:
+        expectedWindows = [15]
+        expectedThreshold = nil
+      case 2...5:
+        expectedWindows = [30]
+        expectedThreshold = nil
+      case 6:
+        expectedWindows = [30, 60]
+        expectedThreshold = 0.40
+      default:
+        expectedWindows = [30, 60, 90]
+        expectedThreshold = 0.40
+      }
+      #expect(level.windowSizes == expectedWindows, "windowSizes wrong at \(level)")
+      #expect(level.progressiveThreshold == expectedThreshold, "threshold wrong at \(level)")
+      switch level.level {
+      case 1: #expect(level.techniqueSet.candidateCount == 1)
+      case 2: #expect(level.techniqueSet == .baseline)
+      default: #expect(level.techniqueSet == .optimal)
+      }
+    }
+  }
+
   @Test("levels 8-10 match level 7 properties")
   func placeholderLevels() {
-    let i7 = AnalysisIntensity(rawValue: 7)
-    for level in 8...10 {
-      let ix = AnalysisIntensity(rawValue: level)
-      #expect(ix.techniqueSet == i7.techniqueSet)
-      #expect(ix.windowSizes == i7.windowSizes)
-      #expect(ix.progressiveThreshold == i7.progressiveThreshold)
+    let i7 = AnalysisIntensity.level7
+    for level in [AnalysisIntensity.level8, .level9, .level10] {
+      #expect(level.techniqueSet == i7.techniqueSet)
+      #expect(level.windowSizes == i7.windowSizes)
+      #expect(level.progressiveThreshold == i7.progressiveThreshold)
+    }
+  }
+
+  @Test("DocumentedCase docs resolves to a non-empty value for every level")
+  func docsNonEmpty() {
+    // Story 11.2 reserves the AnalysisIntensity/ doc directory but authors no
+    // prose (that is Story 11.3b), so every case resolves to the informative
+    // fallback — which must still be non-empty (the total-function contract).
+    for level in AnalysisIntensity.allCases {
+      #expect(!String(level.docs.characters).isEmpty)
     }
   }
 }
@@ -312,11 +361,11 @@ struct BPMAnalyzerTraceTests {
     let result = try #require(
       BPMAnalyzer.estimateBPM(
         decoded: .synthetic(samples, sampleRate: 44100),
-        options: .init(intensity: 1, enableTrace: true)))
+        options: .init(intensity: .level1, enableTrace: true)))
     let trace = try #require(result.trace)
     #expect(trace.subBandEnergies == .zero)
     #expect(trace.refinedBPM == nil)
-    #expect(trace.intensityUsed.rawValue == 1)
+    #expect(trace.intensityUsed.level == 1)
   }
 }
 
@@ -330,7 +379,7 @@ struct BPMAnalyzerIntensityTests {
     let samples = generateClickTrack(bpm: 120, sampleRate: 44100, durationSeconds: 15)
     let result = try #require(
       BPMAnalyzer.estimateBPM(
-        decoded: .synthetic(samples, sampleRate: 44100), options: .init(intensity: 1)))
+        decoded: .synthetic(samples, sampleRate: 44100), options: .init(intensity: .level1)))
     #expect(
       result.bpm >= 116 && result.bpm <= 124,
       "Expected ~120 BPM at intensity 1, got \(result.bpm)")
@@ -355,7 +404,7 @@ struct BPMAnalyzerIntensityTests {
     for tc in testCases {
       let samples = generateClickTrack(bpm: tc.bpm, sampleRate: 44100, durationSeconds: 15)
       for level in [3, 5, 7] {
-        let intensity = AnalysisIntensity(rawValue: level)
+        let intensity = try #require(AnalysisIntensity(level: level))
         let result = try #require(
           BPMAnalyzer.estimateBPM(
             decoded: .synthetic(samples, sampleRate: 44100), options: .init(intensity: intensity)),
@@ -449,7 +498,7 @@ struct BPMAnalyzerFineGridPrecisionTests {
     let result = try #require(
       BPMAnalyzer.estimateBPM(
         decoded: .synthetic(samples, sampleRate: sampleRate),
-        options: .init(intensity: 7, enableTrace: true)),
+        options: .init(intensity: .level7, enableTrace: true)),
       "\(trueBPM) BPM @ \(sampleRate) Hz click track should produce a result")
     #expect(
       abs(result.bpm - actualBPM) < Self.tolerance,
@@ -484,7 +533,7 @@ struct BPMAnalyzerFineGridPrecisionTests {
       let result = try #require(
         BPMAnalyzer.estimateBPM(
           decoded: .synthetic(samples, sampleRate: Self.traceSampleRate),
-          options: .init(intensity: 7, enableTrace: true)),
+          options: .init(intensity: .level7, enableTrace: true)),
         "\(trueBPM) BPM click track should produce a result")
       let trace = try #require(result.trace, "trace must be populated when enableTrace: true")
       let refined = try #require(trace.refinedBPM, "refinedBPM must be populated at intensity 7")

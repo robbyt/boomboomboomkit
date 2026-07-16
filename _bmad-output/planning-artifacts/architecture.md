@@ -591,6 +591,10 @@ extension DocumentedCase where Self: RawRepresentable, Self.RawValue == String {
 
 #### KDD-E4 — `AnalysisIntensity` reshape
 
+> **AMENDED BY Story 11.2 (2026-07-16) — two corrections, verified by an empirical `swift` compile:**
+> 1. **The `case .default:` footgun premise below is FALSE.** `.default` is a `static let` of a `Hashable` (∴ `Equatable`) type, so `case .default:` compiles and matches `.level7` via expression-pattern `~=` — Swift does NOT treat it as the `default:` keyword. The only real nuance: an expression pattern does not establish enum exhaustivity (a switch with only `case .default:` still needs the other cases or a real `default:`), and `case .default:` must precede any real `default:` block. **The proposed custom SwiftLint rule is RETIRED** — its premise is void, and a blanket `case .default:` regex would false-positive `EnsemblePolicy.default` (a genuine case switched in the same files). Rely on the type checker.
+> 2. **Story 11.2 adds `Comparable`** (via `static func < { $0.level < $1.level }`) beyond the minimal conformance list below — `AnalysisIntensity` is a documented ordinal scale, so ordering is semantically correct. It also adds `DocumentedCase`, a `var level: Int` ordinal accessor, and a failable `init?(level: Int)` (call sites clamp to `1...10` first). Original text preserved below for the audit trail.
+
 **Decision:** 10-level `String, CaseIterable, Sendable, Hashable` enum with static-let convenience aliases.
 
 ```swift
@@ -875,7 +879,7 @@ The following are the specific scenarios where an AI agent implementing a story 
 | 2 | Demo references `Bundle.module` directly | No — use `BoomBoomBoomKitDocs.attributedString(for:id:)` accessor. |
 | 3 | New `DSPTechnique` case added without updating ablation matrix | Unit-test invariant `allCases.count == 8` and `allDSPCombinations().count == 256` fail at unit-test time. |
 | 4 | `MetadataCorroborator.apply` re-introduced after KDD-A6 Stage 2 | Story 3-6 byte-equality `Options.metadataPolicy = .disabled` test still applies; semantic-equality test replaces it in Stage 3. |
-| 5 | `case .default:` in `switch` over `AnalysisIntensity` | SwiftLint custom rule rejects it. DocC on `.default` alias documents "comparison only — not pattern-matchable." |
+| 5 | ~~`case .default:` in `switch` over `AnalysisIntensity`~~ | **RETIRED by Story 11.2** — `case .default:` legitimately matches `.level7` via `~=`; no rule. (Note: expression patterns don't establish exhaustivity.) |
 | 6 | `OSAllocatedUnfairLock` used for new thread-safe cache instead of `Mutex<T>` | Code review catches; macOS 15+ targets `Mutex<T>` per pattern #7. |
 | 7 | aubio code transcribed into Swift (GPL contamination) | License-check at code-review time; `///` doc comment must cite aubio file + Davies & Plumbley papers, not paste source. |
 | 8 | Markdown file with tables / code blocks / images / `<doc:...>` / headings | `DocumentationValidatorTests` Swift Testing suite fails CI with per-file per-line violations. |
@@ -906,7 +910,7 @@ The following are the specific scenarios where an AI agent implementing a story 
   - `GiantSteps Acc1 ≥ 537/661, Acc2 ≥ 546/661` (existing)
   - `.optimal` Acc1 ≥ 55/82 floor (existing)
 - **CI validators (new):** `Tests/BoomBoomBoomKitTests/DocumentationValidatorTests.swift` (Markdown rule enforcement, per-rule `@Test` for category-level aggregation; rendering smoke test parameterized on file URLs for per-file failure granularity); FR-50 drift detection test (exhaustive switch over each `CaseIterable`).
-- **SwiftLint custom rule (new):** ban `case .default:` against `AnalysisIntensity`.
+- ~~**SwiftLint custom rule (new):** ban `case .default:` against `AnalysisIntensity`.~~ **RETIRED by Story 11.2 (2026-07-16)** — premise empirically false (`case .default:` matches `.level7` via `~=`); a blanket regex would also false-positive `EnsemblePolicy.default`. No custom rule.
 - **CI grep gate (new):** `grep -rE "^import AppKit" Sources/ | grep -v "#if os(macOS)"` returns zero matches.
 - **BPMDiagnosticTrace audit recipes:** 5 grep recipes in `.claude/skills/bpm-diagnostic-trace/SKILL.md` return zero matches against `Sources/` and `Tests/` after every trace-field change. Existing + KDD-T0 reinforces.
 - **`@Tag`-based stage-gating (new):** per Pattern #11. `swift test --filter-tag stage1Floor` (and `stage2Floor`) before each stage merges. Stage 3 PR atomically deletes the tagged tests + introduces semantic-equality replacement.

@@ -806,14 +806,10 @@ final class AnalysisViewModel {
     mergeStrategy: BPMSelectionPolicy,
     ensemblePreset: EnsemblePreset
   ) -> String {
-    let intensityLiteral: String
-    switch intensity.rawValue {
-    case 1: intensityLiteral = ".fastest"
-    case 7: intensityLiteral = ".default"
-    case 8: intensityLiteral = ".thorough"
-    case 10: intensityLiteral = ".maximum"
-    default: intensityLiteral = "AnalysisIntensity(rawValue: \(intensity.rawValue))"
-    }
+    // Canonical case literal for every level (Story 11.2 DD-1a): one uniform
+    // shape (`.level7`), never a mix of named aliases + the removed
+    // `AnalysisIntensity(rawValue:)` constructor.
+    let intensityLiteral = ".level\(intensity.level)"
     var lines = [
       "var opts = AudioAnalysisService.Options()",
       "opts.intensity = \(intensityLiteral)",
@@ -969,7 +965,7 @@ final class AnalysisViewModel {
       fileName: fileName ?? "—",
       bpm: String(format: "%.1f BPM", bpm),
       confidence: String(format: "%.0f%%", confidence * 100),
-      intensity: "\(effectiveIntensity.rawValue)",
+      intensity: "\(effectiveIntensity.level)",
       elapsed: String(format: "%.2fs", elapsedSeconds)
     )
     return .success(row)

@@ -197,16 +197,20 @@ struct ContentView: View {
 
   // MARK: - Parameter Controls
 
-  // `Int($0.rounded())`, NOT `Int($0)` — without rounding, `Int(6.999)`
-  // truncates to 6 and silently downgrades by one step. The non-finite
-  // guard defends against the trap `Int.init(_: Double)` would emit if
-  // a NaN/Inf somehow reached this setter.
+  // `.rounded()`, NOT a bare `Int($0)` — without rounding, `Int(6.999)`
+  // truncates to 6 and silently downgrades by one step.
   private var intensityBinding: Binding<Double> {
     Binding(
-      get: { Double(viewModel.options.intensity.rawValue) },
+      get: { Double(viewModel.options.intensity.level) },
       set: { newValue in
         guard newValue.isFinite else { return }
-        viewModel.options.intensity = AnalysisIntensity(rawValue: Int(newValue.rounded()))
+        // Clamp in the Double domain BEFORE the Int conversion: `Int(_:)` traps
+        // on any finite value beyond Int's range too, not just NaN/Inf, so the
+        // clamp must precede the conversion (not follow it). The slider is bound
+        // 1...10, so this is defense-in-depth; it also keeps the failable
+        // `init?(level:)` from ever returning nil here.
+        let clampedLevel = Int(min(max(newValue.rounded(), 1), 10))
+        viewModel.options.intensity = AnalysisIntensity(level: clampedLevel) ?? .default
       }
     )
   }
@@ -231,7 +235,7 @@ struct ContentView: View {
   }
 
   private var intensityLabelText: String {
-    let raw = viewModel.options.intensity.rawValue
+    let raw = viewModel.options.intensity.level
     let suffix: String
     switch raw {
     case 1: suffix = " (fastest)"

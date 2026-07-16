@@ -178,7 +178,7 @@ Implementation-level requirements derived from `architecture.md` that shape epic
 - Unit-test-locked invariants: `BPMSelectionPolicy.allCases.count == 8` (renamed from `CandidateMergeStrategy`), `OctaveEquivalencePolicy.allCases.count == 3` (new), `MLExecutionPolicy.allCases` (associated-value pattern check), `DownbeatResult.allCases` (associated-value pattern check), `AnalysisIntensity.allCases.count == 10` (new — struct → enum reshape).
 - CI grep gate (iOS-neutrality): `grep -rE "^import AppKit" Sources/ | grep -v "#if os(macOS)"` returns zero matches. Complements the platforms-array compile-fail tripwire.
 - CI iOS compile lane: `swift build -Xswiftc -sdk -Xswiftc iphoneos` clean compile required. Architecture remains macOS-15+ for testing/benchmarks.
-- SwiftLint custom rule: ban `case .default:` against `AnalysisIntensity` (static-let alias not pattern-matchable as switch case).
+- ~~SwiftLint custom rule: ban `case .default:` against `AnalysisIntensity`~~ **RETIRED by Story 11.2 (2026-07-16):** the premise is empirically false — `case .default:` matches `.level7` via expression-pattern `~=` (Hashable ⇒ Equatable), it does NOT mis-parse as `default:`; and a blanket regex would false-positive `EnsemblePolicy.default`. No custom rule; rely on the type checker.
 - `DocumentationValidatorTests.swift` per-rule + per-file-parameterized smoke test: no fenced code blocks / no tables / no images / no DocC symbol links / no heading hierarchy / files ≤ 10 KB / required bold leads present / `AttributedString(markdown:)` parse-error → test failure.
 
 **Tooling additions (Makefile, develop-only):**
@@ -1579,9 +1579,8 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 **When** consumers reference `.fastest`, `AnalysisIntensity.default`, etc.,
 **Then** the extension declares `public static let fastest: AnalysisIntensity = .level1`, `public static let default: AnalysisIntensity = .level7`, `public static let thorough: AnalysisIntensity = .level8`, `public static let maximum: AnalysisIntensity = .level10` per KDD-E4.
 
-**Given** `static let default` is NOT pattern-matchable as `case .default:` (Swift parses the identifier as the default-case keyword),
-**When** a new contributor writes `switch intensity { case .default: ... }`,
-**Then** a custom SwiftLint rule named `analysis_intensity_default_case` in `.swiftlint.yml` rejects the pattern with an error-level violation; the rule ships with at least one positive and one negative test fixture under `Tests/BoomBoomBoomKitTests/LintFixtures/`.
+**~~Given `static let default` is NOT pattern-matchable as `case .default:`~~ — RETIRED by Story 11.2 (2026-07-16), premise empirically false.**
+`case .default:` on `AnalysisIntensity` compiles and matches `.level7` via expression-pattern `~=` (Hashable ⇒ Equatable) — it does NOT parse as the `default:` keyword (verified by `swift` compile). A blanket `case .default:` SwiftLint regex would also false-positive `EnsemblePolicy.default`, a genuine case switched in the same files. **No custom SwiftLint rule, no `LintFixtures/`.** Instead, Story 11.2 adds `Comparable` (ordinal scale), a `var level: Int` accessor, and a failable `init?(level:)`. The one real nuance to document (not police): an expression pattern does not establish enum exhaustivity, and `case .default:` must precede any real `default:`.
 
 **Given** Story 6.5 introduces `ComputeBudget` carrying the ensemble-budget semantic per KDD-A4a,
 **When** Story 11.2 reshapes `AnalysisIntensity`,
