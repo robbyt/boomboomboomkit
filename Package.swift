@@ -12,7 +12,12 @@ let package = Package(
   targets: [
     .target(
       name: "BoomBoomBoomKit",
-      path: "Sources/BoomBoomBoomKit"
+      path: "Sources/BoomBoomBoomKit",
+      // `.copy` (NOT `.process`): `.process` copies unprocessed `.md` files to
+      // the bundle top level, flattening `Documentation/<kind>/` and colliding
+      // same-basename files — which breaks the `subdirectory:`-keyed accessor in
+      // BoomBoomBoomKitDocs. `.copy` retains the directory structure verbatim.
+      resources: [.copy("Resources/Documentation")]
     ),
     .target(
       name: "BoomBoomBoomKitTestSupport",

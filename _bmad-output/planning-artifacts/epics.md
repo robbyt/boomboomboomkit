@@ -140,7 +140,7 @@ Implementation-level requirements derived from `architecture.md` that shape epic
 
 - No starter template (brownfield SPM library bootstrapped with `swift package init --type library` and accumulated 30+ stories of conventions). No new initialization story.
 - Subfolder creation (`Sources/BoomBoomBoomKit/SignalPool/`, `Sources/BoomBoomBoomKit/FeatureSubstrate/`) happens inside Epic 6 stories, not as separate scaffolding work.
-- `Package.swift` updates (platforms expansion to `[.macOS(.v15), .iOS(.v18), .visionOS(.v2)]`, `resources: [.process("Resources/Documentation")]`) land inside their respective Epic stories.
+- `Package.swift` updates (platforms expansion to `[.macOS(.v15), .iOS(.v18), .visionOS(.v2)]`, `resources: [.copy("Resources/Documentation")]` — amended from `.process` by Story 11.1, see KDD-E6) land inside their respective Epic stories.
 
 **Target & structure boundaries (architecture-pinned, do not redrew):**
 
@@ -324,23 +324,25 @@ Primary view = audio file picker + ensemble preset picker (4 PRD presets `Defaul
 
 **Architecture KDDs landed in this epic:** KDD-D1 (4 PRD presets verbatim, mapped to `EnsemblePolicy` per KDD-A5), KDD-D5 (SwiftUI `Table` with `sortOrder:` for diagnostic table).
 
-### Epic 10: Demo integration — beat-grid, LUFS, model selection, per-case docs popovers (split from PRD Epic D — part 2 of 2)
+### Epic 10: Demo integration — beat-grid, LUFS, model selection (split from PRD Epic D — part 2 of 2)
 
-The demo's deeper-integration surface — beat-grid timeline rendering, LUFS readout panel, ML model selection from registry plus user-added models via file picker with security-scoped bookmark persistence, and strategy popovers wired to per-case authored prose from Epic 11. Builds on Epic 8 (beat-grid + LUFS + ModelRegistry public APIs) and Epic 11 (per-case docs), with FR-42 graceful degradation allowing Epic 10 to ship before Epic 11 closes (popover degrades to one-line description + repo URL fallback).
+> **Reconciled 2026-07-15 (post-landing).** Epic 10 shipped as commit #91 (demo-only, `Sources/`/`Tests/` byte-identical) BEFORE Epic 11 — inverting the planned dependency described below. Story 10.5's strategy popovers (FR-42) were built, rejected on live operator GUI as prematurely sequenced, and fully **reverted → deferred to Story 11.6**. The "per-case docs popovers" scope and the Epic-11 dependency in this section are the pre-execution plan, retained for audit; the popover / FR-42 lines are historical, not shipped.
+
+The demo's deeper-integration surface — beat-grid timeline rendering, LUFS readout panel, and ML model selection from registry plus user-added models via file picker with security-scoped bookmark persistence. Builds on Epic 8 (beat-grid + LUFS + ModelRegistry public APIs). (Planned-but-reverted: strategy popovers wired to per-case authored prose from Epic 11 via FR-42 graceful degradation — that work moved to Story 11.6, see reconciliation note above.)
 
 Beat-grid renders as a SwiftUI Canvas timeline with current-time scrubber, click-to-scrub (beat-snap), plus text readout (estimated tempo, beat count, downbeat status, grid confidence), merged onto the Epic-8 `BeatGridView` waveform overlay — no new waveform engine per FR-39 (amended 2026-07-11). LUFS displays as a primary integrated-loudness number plus a secondary panel for true-peak and LRA. Model selection draws from `ModelRegistry` (bundled + known-public + user-added); user-added models persist via security-scoped bookmark stored in `UserDefaults` (matching the Story 5-6 `MergeStrategyPersistence` precedent), with required entitlements `com.apple.security.files.user-selected.read-write` (app-level superset; the model bookmark is read-only via `.securityScopeAllowOnlyReadAccess`) + `com.apple.security.files.bookmarks.app-scope`. Strategy popovers ("?" buttons next to ensemble preset / DSP technique / merge strategy controls) anchor SwiftUI `.popover()` to `BoomBoomBoomKitDocs.attributedString(for:id:)` resolution.
 
-**FRs covered:** FR-37, FR-38, FR-39, FR-40, FR-42
+**FRs covered:** FR-37, FR-38, FR-39, FR-40 (FR-42 planned but reverted → deferred to Story 11.6, 2026-07-15)
 
-**Architecture KDDs landed in this epic:** KDD-D2 (SwiftUI `Canvas` for timeline), KDD-D3 (`UserDefaults` for bookmark persistence — matches Story 5-6 `MergeStrategyPersistence`), KDD-D4 (SwiftUI `.popover()` for strategy help).
+**Architecture KDDs landed in this epic:** KDD-D2 (SwiftUI `Canvas` for timeline), KDD-D3 (`UserDefaults` for bookmark persistence — matches Story 5-6 `MergeStrategyPersistence`). (KDD-D4, SwiftUI `.popover()` for strategy help, was reverted with Story 10.5 → carried to Story 11.6.)
 
 ### Epic 11: Per-case selection-strategy docs (formerly PRD Epic E; renumbered after Epic 9 split)
 
-Every public mode case (`BPMSelectionPolicy`, `VotingPolicy`, `EnsemblePolicy`, `DSPTechnique`, `AnalysisIntensity`, `OctaveEquivalencePolicy`, `MLExecutionPolicy`, `DownbeatResult`, `*Reason` enums) carries authored prose via `case.docs: AttributedString` — Xcode autocomplete surfaces documentation without string lookups. Canonical Markdown lives at `Sources/BoomBoomBoomKit/Resources/Documentation/<Type>/<case>.md` (~46 files), shipped via `.process` SPM resource bundle. Documentation renders offline, no network calls. Authoring style: three bold-lead paragraphs (`**What it does.**` / `**When to pick it.**` / `**Tradeoff.**`), 200-400 words per case, 10 KB ceiling, no tables / code blocks / images / DocC symbol links / heading hierarchy. CI validator (`DocumentationValidatorTests.swift`) enforces per-rule + per-file via Swift Testing `@Test` + parameterized smoke test. FR-50 drift detection via exhaustive `switch` over `CaseIterable` fails CI when a new case lands without doc. DocC catalog at `BoomBoomBoomKit.docc/` generates `Cases/` build artifact via `make docc-transclude` from canonical Markdown; `Articles/` carries narrative comparisons (tables, code blocks allowed per DocC). `Mutex<T>` from Swift 6 `Synchronization` module backs the cache with double-checked locking (file I/O outside the lock).
+Every public mode case (`BPMSelectionPolicy`, `VotingPolicy`, `EnsemblePolicy`, `DSPTechnique`, `AnalysisIntensity`, `OctaveEquivalencePolicy`, `MLExecutionPolicy`, `DownbeatResult`, `*Reason` enums) carries authored prose via `case.docs: AttributedString` — Xcode autocomplete surfaces documentation without string lookups. Canonical Markdown lives at `Sources/BoomBoomBoomKit/Resources/Documentation/<Type>/<case>.md` (49 files — count corrected from "~46" per Paige's audit 2026-05-26; see the Epic 11 stories section), shipped via a `.copy` SPM resource bundle (amended from `.process` by Story 11.1 — see KDD-E6). Documentation renders offline, no network calls. Authoring style: three bold-lead paragraphs (`**What it does.**` / `**When to pick it.**` / `**Tradeoff.**`), 200-400 words per case, 10 KB ceiling, no tables / code blocks / images / DocC symbol links / heading hierarchy. CI validator (`DocumentationValidatorTests.swift`) enforces per-rule + per-file via Swift Testing `@Test` + parameterized smoke test. FR-50 drift detection via exhaustive `switch` over `CaseIterable` fails CI when a new case lands without doc. DocC catalog at `BoomBoomBoomKit.docc/` generates `Cases/` build artifact via `make docc-transclude` from canonical Markdown; `Articles/` carries narrative comparisons (tables, code blocks allowed per DocC). `Mutex<T>` from Swift 6 `Synchronization` module backs the cache with double-checked locking (file I/O outside the lock).
 
 **FRs covered:** FR-45, FR-46, FR-47, FR-49, FR-50, FR-52
 
-**Architecture KDDs landed in this epic:** KDD-E1 (one protocol — `DocumentedCase` — pre-1.0 cap), KDD-E2 (per-instance `var docs` shape), KDD-E3 (raw-value default + exhaustive switch fallback for associated-value enums), KDD-E4 (`AnalysisIntensity` 10-level enum reshape with static-let aliases; bundles two breaking changes per Amelia — paired with KDD-A4a `ComputeBudget`), KDD-E5 (`Mutex<T>` cache + double-checked locking per Axiom Concurrency audit), KDD-E6 (`.process` SPM resource), KDD-E7 (minimal 2-field YAML schema + filename-matches-Swift-identifier rule), KDD-E8 (DocC + runtime Markdown as parallel surfaces with one-way transclude).
+**Architecture KDDs landed in this epic:** KDD-E1 (one protocol — `DocumentedCase` — pre-1.0 cap), KDD-E2 (per-instance `var docs` shape), KDD-E3 (raw-value default + exhaustive switch fallback for associated-value enums), KDD-E4 (`AnalysisIntensity` 10-level enum reshape with static-let aliases; bundles two breaking changes per Amelia — paired with KDD-A4a `ComputeBudget`), KDD-E5 (`Mutex<T>` cache + double-checked locking per Axiom Concurrency audit), KDD-E6 (SPM resource bundle for per-case Markdown — **AMENDED BY Story 11.1, 2026-07-15: use `.copy` NOT `.process`**; `.process` flattens `Documentation/<Type>/` to the bundle top level and collides same-basename files like `sourceSpecific.md`, breaking `subdirectory:`-keyed resolution — verified against SwiftPM BundlingResources docs + Codex review), KDD-E7 (minimal 2-field YAML schema + filename-matches-Swift-identifier rule), KDD-E8 (DocC + runtime Markdown as parallel surfaces with one-way transclude).
 
 ### Epic dependency graph
 
@@ -367,10 +369,11 @@ Epic 6 (unified-signal-pool — foundation; 5-story Tier-1 sequence)
              MLExecutionPolicy / EnsemblePolicy) + Epic 8 enum (DownbeatResult)
              + KDD-E4 AnalysisIntensity reshape (paired with KDD-A4a from Epic 6).
 
-Epic 10 (demo integration — beat-grid + LUFS + model selection + strategy popovers)
-   └─ Depends on Epic 8 (ModelRegistry, BeatGrid, LUFSReport) AND
-      Epic 11 (per-case docs accessor); FR-42 graceful degradation lets Epic 10
-      ship before Epic 11 closes (popover degrades to one-line fallback).
+Epic 10 (demo integration — beat-grid + LUFS + model selection) [SHIPPED #91, 2026-07-15]
+   └─ Depended on Epic 8 (ModelRegistry, BeatGrid, LUFSReport) ONLY.
+      The planned Epic 11 (per-case docs accessor) dependency did NOT materialize:
+      Epic 10 shipped first, and the FR-42 strategy popovers were reverted and
+      deferred to Story 11.6 — so Epic 11 is now fully DOWNSTREAM of Epic 10.
 ```
 
 **Calendar implications:**
@@ -1534,7 +1537,7 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **Given** the library source tree has no `DocumentedCase` protocol yet,
 **When** Story 11.1 lands,
-**Then** `Sources/BoomBoomBoomKit/DocumentedCase.swift` declares `public protocol DocumentedCase: Sendable, Hashable` with `static var documentedKind: String { get }`, `var documentationID: String { get }`, and `var docs: AttributedString { get }` per KDD-E2.
+**Then** `Sources/BoomBoomBoomKit/DocumentedCase.swift` declares `public protocol DocumentedCase: Sendable` with `static var documentedKind: String { get }`, `var documentationID: String { get }`, and `var docs: AttributedString { get }` per KDD-E2. **AMENDED BY Story 11.1 Review pass 1, 2026-07-15: `Hashable` DROPPED from the superprotocol bound** (was `Sendable, Hashable`) — 3-reviewer consensus (Blind Hunter + Edge Case Hunter + Codex): the bound is unused by the docs mechanism (the cache keys on an internal `(kind,id)`, never on `Self`) and overturns `MLExecutionPolicy`'s checked-in `Sendable, Equatable` (deliberately non-`Hashable`, NaN-bearing `Double`), a named future conformer. KDD-E2 governs only the `var docs` shape, not the bound — nothing in KDD-E2 changes.
 
 **Given** a conformer is `RawRepresentable` where `RawValue == String`,
 **When** it adopts `DocumentedCase` without overriding `documentationID`,
@@ -1550,7 +1553,7 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **Given** the SPM manifest currently has no resource declaration on the `BoomBoomBoomKit` target,
 **When** Story 11.1 ships,
-**Then** `Package.swift` adds `resources: [.process("Resources/Documentation")]` per KDD-E6, and `Sources/BoomBoomBoomKit/Resources/Documentation/.gitkeep` reserves the directory until Story 11.3 populates it.
+**Then** `Package.swift` adds `resources: [.copy("Resources/Documentation")]` per KDD-E6 (amended 2026-07-15: `.copy`, not `.process` — preserves the `Documentation/<Type>/` subdir structure the accessor resolves against), and `Sources/BoomBoomBoomKit/Resources/Documentation/.gitkeep` reserves the directory until Story 11.3 populates it.
 
 **Given** the protocol family cap rule applies pre-1.0,
 **When** the PR is reviewed,
