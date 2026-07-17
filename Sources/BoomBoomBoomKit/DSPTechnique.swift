@@ -16,7 +16,10 @@ import Foundation
 ///
 /// This is a closed set — all DSP techniques are enumerated here.
 /// Use `TechniqueSet` to compose combinations for analysis or ablation.
-public enum DSPTechnique: String, CaseIterable, Sendable, Hashable {
+public enum DSPTechnique: String, CaseIterable, Sendable, Hashable, DocumentedCase {
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "DSPTechnique"
 
   /// Element-wise squaring of the autocorrelation function (`vDSP_vsq`).
   /// Sharpens ACF peaks to improve peak selection for ambiguous tempos.

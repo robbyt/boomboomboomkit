@@ -978,7 +978,7 @@ Epic 10 (demo integration — beat-grid + LUFS + model selection) [SHIPPED #91, 
 
 **Given** new files at `Sources/BoomBoomBoomKit/BeatGrid.swift`, `BeatTimestamp.swift`, `DownbeatResult.swift`,
 **When** the test suite runs,
-**Then** all three types are `public`, `Sendable`, `Hashable`; `BeatGrid` carries exactly five fields (`beats: [BeatTimestamp]`, `downbeats: DownbeatResult`, `estimatedTempo: Double`, `confidence: Float`, `tempoAgreedWithBPMStage: Bool?`); `BeatTimestamp` carries exactly three fields (`presentationTime: Double`, `confidence: Float`, `strength: Float`); `DownbeatResult` carries exactly three cases (`.notAttempted`, `.noneDetected`, `.detected([BeatTimestamp])`).
+**Then** all three types are `public`, `Sendable`, `Hashable`; `BeatGrid` carries exactly five fields (`beats: [BeatTimestamp]`, `downbeats: DownbeatResult`, `estimatedTempo: Double`, `confidence: Float`, `tempoAgreedWithBPMStage: Bool?`); `BeatTimestamp` carries exactly three fields (`presentationTime: Double`, `confidence: Float`, `strength: Float`); `DownbeatResult` carries exactly three cases (`.notAttempted`, `.noneDetected`, `.detected(estimate: DownbeatEstimate)` — enriched from the original `.detected([BeatTimestamp])` by Story 8.5a, see line ~1089).
 
 **Given** `BeatTimestamp.init`,
 **When** any of `confidence` or `strength` is passed `Double.nan`, `Double.infinity`, or a value outside `[0.0, 1.0]`,
@@ -1664,7 +1664,7 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 **Given** YAML front-matter (KDD-E7),
 **When** files are validated by Story 11.4,
-**Then** every file carries `id:` matching the case identifier, `title:` as a human-readable phrase, and `payload:` for the two `sourceSpecific(String)` cases plus `whenDSPConfidenceBelow(Double)` and `detected([BeatTimestamp])`.
+**Then** every file carries `id:` matching the case identifier, `title:` as a human-readable phrase, and `payload:` for the two `sourceSpecific(String)` cases plus `whenDSPConfidenceBelow(Double)` and `detected(estimate: DownbeatEstimate)` (corrected from the stale `detected([BeatTimestamp])` — Story 8.5a enriched the payload).
 
 **FRs covered:** FR-46, FR-47, FR-52, FR-50 (drift-detection-ready surface complete).
 **KDDs implemented:** E-7, E-8 (authoring portion for the 6 types).
