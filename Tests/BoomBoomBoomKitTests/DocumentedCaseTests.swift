@@ -148,3 +148,166 @@ struct DocumentedCaseTests {
     #expect(results.allSatisfy { $0 == reference })
   }
 }
+
+// MARK: - Story 11.4: FR-50 drift detection
+
+/// One child `@Suite` per documented type, each asserting every case resolves
+/// to authored prose (NOT the `"Documentation unavailable"` fallback). This is
+/// the FR-50 drift check: for a `CaseIterable` type, adding a case grows
+/// `allCases`, the parameterized test auto-covers it, and CI fails (fallback)
+/// until the `.md` is authored. Grouped under one parent suite so
+/// `make docc-validate`'s `--filter DocumentedCaseDriftTests` selects them all.
+/// The registry + representative case lists live in `DocCorpus`
+/// (`DocumentationValidatorTests.swift`).
+@Suite("Story 11.4 DocumentedCase drift")
+struct DocumentedCaseDriftTests {
+
+  // MARK: Per-type drift (CaseIterable — mechanical runtime coverage)
+
+  @Suite("BPMSelectionPolicy drift")
+  struct BPMSelectionPolicyDrift {
+    @Test("docs resolve", arguments: BPMSelectionPolicy.allCases)
+    func docsResolve(_ c: BPMSelectionPolicy) {
+      DocCorpus.assertResolved(c.docs, c.documentationID)
+    }
+  }
+
+  @Suite("VotingPolicy drift")
+  struct VotingPolicyDrift {
+    @Test("docs resolve", arguments: VotingPolicy.allCases)
+    func docsResolve(_ c: VotingPolicy) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  @Suite("DSPTechnique drift")
+  struct DSPTechniqueDrift {
+    @Test("docs resolve", arguments: DSPTechnique.allCases)
+    func docsResolve(_ c: DSPTechnique) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  @Suite("AnalysisIntensity drift")
+  struct AnalysisIntensityDrift {
+    @Test("docs resolve", arguments: AnalysisIntensity.allCases)
+    func docsResolve(_ c: AnalysisIntensity) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  @Suite("OctaveEquivalencePolicy drift")
+  struct OctaveEquivalencePolicyDrift {
+    @Test("docs resolve", arguments: OctaveEquivalencePolicy.allCases)
+    func docsResolve(_ c: OctaveEquivalencePolicy) {
+      DocCorpus.assertResolved(c.docs, c.documentationID)
+    }
+  }
+
+  // MARK: Per-type drift (hand-rostered — runtime list + compile tripwire below)
+
+  @Suite("EnsemblePolicy drift")
+  struct EnsemblePolicyDrift {
+    @Test("docs resolve", arguments: EnsemblePolicy.allPolicies)
+    func docsResolve(_ c: EnsemblePolicy) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  @Suite("MLExecutionPolicy drift")
+  struct MLExecutionPolicyDrift {
+    @Test("docs resolve", arguments: DocCorpus.mlCases)
+    func docsResolve(_ c: MLExecutionPolicy) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  @Suite("DownbeatResult drift")
+  struct DownbeatResultDrift {
+    @Test("docs resolve", arguments: DocCorpus.downbeatCases)
+    func docsResolve(_ c: DownbeatResult) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  @Suite("AbstainReason drift")
+  struct AbstainReasonDrift {
+    @Test("docs resolve", arguments: DocCorpus.abstainCases)
+    func docsResolve(_ c: AbstainReason) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  @Suite("DemotionReason drift")
+  struct DemotionReasonDrift {
+    @Test("docs resolve", arguments: DocCorpus.demotionCases)
+    func docsResolve(_ c: DemotionReason) { DocCorpus.assertResolved(c.docs, c.documentationID) }
+  }
+
+  // MARK: Compile-time tripwire for the 5 hand-rostered enums (absorbs RosterDriftCanaries)
+
+  /// These `switch`es have NO `default:` arm, so adding a case to any of the
+  /// five non-`CaseIterable` enums breaks the test-target BUILD here, forcing an
+  /// explicit acknowledgment.
+  ///
+  /// HONEST LIMIT (Story 11.4 DD-2): this forces a developer to add a `case`
+  /// arm; it CANNOT mechanically force them to also add the value to
+  /// `allPolicies` / the `DocCorpus` representative list. A case added to
+  /// source + this switch but omitted from the list stays invisible to the
+  /// runtime `.docs` drift check above, and — if no `.md` was authored for it —
+  /// NO CI test catches it (the file<->id check only fires on an ORPHAN or stale
+  /// `.md`, i.e. a file present with no matching case; it cannot inspect a case
+  /// that has no file). Swift cannot enumerate a non-`CaseIterable` enum's cases
+  /// at runtime, so this residual is inherent; it is caught only by code review
+  /// (deferred-work W84) and, at runtime, by the visible production fallback if
+  /// code accesses the case. Do NOT add `@frozen` to any of these enums.
+  @Test("Hand-rostered enums have no undocumented cases (compile-time tripwire)")
+  func handRosteredEnumsHaveNoUndocumentedCases() {
+    func ens(_ p: EnsemblePolicy) {
+      switch p {
+      case .default, .dspOnly, .mlOnly, .highestConfidence, .weightedVoting: break
+      }
+    }
+    func ml(_ p: MLExecutionPolicy) {
+      switch p {
+      case .never, .always, .whenDSPConfidenceBelow: break
+      }
+    }
+    func db(_ p: DownbeatResult) {
+      switch p {
+      case .notAttempted, .noneDetected, .detected: break
+      }
+    }
+    func ab(_ p: AbstainReason) {
+      switch p {
+      case .policyDisabled, .inputBelowMinimum, .confidenceBelowFloor, .sourceSpecific: break
+      }
+    }
+    func dm(_ p: DemotionReason) {
+      switch p {
+      case .implausibleForContext, .sourceSpecific: break
+      }
+    }
+    // Reference each with a representative value so the helpers are not dead code.
+    ens(.dspOnly)
+    ml(.never)
+    db(.notAttempted)
+    ab(.policyDisabled)
+    dm(.implausibleForContext)
+  }
+
+  // MARK: Payload-invariant documentationID (assoc-value cases, >=2 payloads)
+
+  @Test("Associated-value documentationID ignores the payload value")
+  func payloadInvariantDocumentationID() {
+    // EnsemblePolicy.weightedVoting carries a SignalWeights payload — prove the
+    // ID is invariant across two DISTINCT weightings (a payload-dependent ID
+    // would silently fallback for any non-default weights, since allPolicies
+    // only carries .weightedVoting(.default)).
+    #expect(EnsemblePolicy.weightedVoting(.default).documentationID == "weightedVoting")
+    #expect(
+      EnsemblePolicy.weightedVoting(SignalWeights(dsp: 2.0, ml: 0.5)).documentationID
+        == "weightedVoting")
+    #expect(
+      MLExecutionPolicy.whenDSPConfidenceBelow(0.1).documentationID == "whenDSPConfidenceBelow")
+    #expect(
+      MLExecutionPolicy.whenDSPConfidenceBelow(0.9).documentationID == "whenDSPConfidenceBelow")
+    #expect(AbstainReason.sourceSpecific("a").documentationID == "sourceSpecific")
+    #expect(AbstainReason.sourceSpecific("b").documentationID == "sourceSpecific")
+    #expect(DemotionReason.sourceSpecific("a").documentationID == "sourceSpecific")
+    #expect(DemotionReason.sourceSpecific("b").documentationID == "sourceSpecific")
+    let other = DownbeatEstimate(
+      beats: [BeatTimestamp(presentationTime: 1.0, confidence: 0.5, strength: 0.5)],
+      meter: MeterEstimate(beatsPerBar: 3, source: .assumed),
+      confidence: 0.7, phaseIndex: 1)
+    #expect(
+      DownbeatResult.detected(estimate: DocCorpus.sampleEstimate).documentationID == "detected")
+    #expect(DownbeatResult.detected(estimate: other).documentationID == "detected")
+  }
+}

@@ -130,6 +130,14 @@ ifndef SUITE
 endif
 	swift test --filter $(SUITE)
 
+## docc-validate: Run the documentation validator + FR-50 drift suites independently (Story 11.4). Three --filter regexes union: the file-driven authoring validator, the type-specific content checks, and the per-type drift suites (nested under DocumentedCaseDriftTests). Consumer-runnable — pure swift test, no develop-only tooling.
+.PHONY: docc-validate
+docc-validate:
+	swift test \
+		--filter BoomBoomBoomKitTests.DocumentationValidatorTests \
+		--filter BoomBoomBoomKitTests.DocumentationContentChecksTests \
+		--filter BoomBoomBoomKitTests.DocumentedCaseDriftTests
+
 ## benchmark: Run OA300 accuracy benchmark (fails loudly if OA300_CORPUS_PATH unset)
 .PHONY: benchmark
 benchmark:
