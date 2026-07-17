@@ -13,7 +13,10 @@ import Foundation
 /// In Story 6.5a this ships as configurable-but-inert config: the type is public
 /// and `CaseIterable`, but the pool-authoritative selection that consumes it
 /// lands in Story 6.5b.
-public enum OctaveEquivalencePolicy: String, CaseIterable, Sendable, Hashable {
+public enum OctaveEquivalencePolicy: String, CaseIterable, Sendable, Hashable, DocumentedCase {
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "OctaveEquivalencePolicy"
 
   /// Treat `x`, `2x`, and `x/2` as the same tempo, collapsing octave-related
   /// votes onto the fundamental before selection.

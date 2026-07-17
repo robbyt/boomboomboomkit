@@ -20,7 +20,21 @@ import Foundation
 /// Story 6.1 `SignalParticipation` family). `Equatable` is sufficient for the
 /// configuration use case; the threshold is finiteness-guarded where it is
 /// consumed (Story 6.5b).
-public enum MLExecutionPolicy: Sendable, Equatable {
+public enum MLExecutionPolicy: Sendable, Equatable, DocumentedCase {
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "MLExecutionPolicy"
+
+  /// Per-case documentation filename stem — hand-written (associated-value enum,
+  /// not `RawRepresentable`); payload-ignoring so every threshold resolves the
+  /// single `whenDSPConfidenceBelow.md`.
+  public var documentationID: String {
+    switch self {
+    case .never: return "never"
+    case .always: return "always"
+    case .whenDSPConfidenceBelow: return "whenDSPConfidenceBelow"
+    }
+  }
 
   /// Never run ML inference.
   case never
