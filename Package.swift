@@ -13,6 +13,10 @@ let package = Package(
     .target(
       name: "BoomBoomBoomKit",
       path: "Sources/BoomBoomBoomKit",
+      // `Resources/README.md` documents the doc-authoring format for contributors;
+      // it is a repo artifact, not a bundled resource, so it is excluded to avoid
+      // an SPM unhandled-file warning (and to keep it out of `Bundle.module`).
+      exclude: ["Resources/README.md"],
       // `.copy` (NOT `.process`): `.process` copies unprocessed `.md` files to
       // the bundle top level, flattening `Documentation/<kind>/` and colliding
       // same-basename files — which breaks the `subdirectory:`-keyed accessor in

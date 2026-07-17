@@ -1,0 +1,9 @@
+---
+id: confidenceWeighted
+title: Confidence-Weighted Cluster
+---
+**What it does.** Scores every window cluster — singletons included — by the sum of its windows' confidences, and elects the highest total. Ties break toward the cluster with the strongest single window, then toward the lowest original window index. If the winner turns out to be a singleton — its summed confidence is just one window's, so it carries no consensus benefit — the policy falls back to _maxConfidence_ over all windows; otherwise it returns the highest-confidence window in the winning cluster. The _votingThreshold_ option is ignored.
+
+**When to pick it.** Choose it when a smaller group of highly confident windows should be able to outvote a larger group of lukewarm ones — the case _simpleMajority_ cannot express, because it counts heads before it weighs confidence. It suits corpora where confidence is well-calibrated and genuinely discriminating, letting two emphatic windows outweigh three tentative ones. It rewards conviction pooled across a cluster rather than raw membership.
+
+**Tradeoff.** Summed confidence is only as trustworthy as the confidence calibration, and it fails loudly when the pipeline is systematically over-confident about a wrong tempo: an octave-doubled cluster with two very confident windows beats a correct three-window cluster of modest confidence, turning mis-calibration directly into a mis-pick. The singleton-fallback guard keeps one loud window from masquerading as consensus, but it also means the policy adds nothing over plain _maxConfidence_ whenever the highest-scoring cluster is a lone window — the consensus machinery simply defers to the loudest window, so on tracks where no two windows agree it inherits _maxConfidence_'s over-confident-outlier failure rather than improving on it.

@@ -20,7 +20,7 @@ import Foundation
 /// they differ only in how the winning cluster is chosen and gated. The
 /// threshold value (``AudioAnalysisService/Options/votingThreshold``) applies
 /// only to ``thresholdGated``; the other two policies ignore it.
-public enum VotingPolicy: String, CaseIterable, Sendable, Hashable {
+public enum VotingPolicy: String, CaseIterable, Sendable, Hashable, DocumentedCase {
   /// Pick the cluster with the most windows (`indices.count >= 2` required).
   ///
   /// When two or more clusters tie on size, the cluster whose highest-confidence
@@ -66,4 +66,9 @@ public enum VotingPolicy: String, CaseIterable, Sendable, Hashable {
   /// raising it lets benchmark sweeps reject low-confidence consensus without
   /// recompiling.
   case thresholdGated
+
+  // MARK: - DocumentedCase
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "VotingPolicy"
 }
