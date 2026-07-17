@@ -12,6 +12,11 @@ public facade is ``AudioAnalysisService``; analysis depth is controlled via
 
 ## Topics
 
+### Guides
+
+- <doc:SelectionStrategies>
+- <doc:EnsemblePresets>
+
 ### Public Facade
 
 - ``AudioAnalysisService``
