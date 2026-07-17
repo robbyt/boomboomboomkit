@@ -13,10 +13,13 @@ let package = Package(
     .target(
       name: "BoomBoomBoomKit",
       path: "Sources/BoomBoomBoomKit",
-      // `Resources/README.md` documents the doc-authoring format for contributors;
-      // it is a repo artifact, not a bundled resource, so it is excluded to avoid
-      // an SPM unhandled-file warning (and to keep it out of `Bundle.module`).
-      exclude: ["Resources/README.md"],
+      // `Resources/README.md` documents the doc-authoring format for contributors,
+      // and `Resources/_template.md` is the `make new-case` scaffolding stub. Both
+      // are repo artifacts, not bundled resources, so they are excluded to avoid an
+      // SPM unhandled-file warning (and to keep them out of `Bundle.module`). The
+      // template sits BESIDE the copied tree, not inside it — `exclude:` cannot
+      // reach into a `.copy`'d directory, which is why it is not under `Documentation/`.
+      exclude: ["Resources/README.md", "Resources/_template.md"],
       // `.copy` (NOT `.process`): `.process` copies unprocessed `.md` files to
       // the bundle top level, flattening `Documentation/<kind>/` and colliding
       // same-basename files — which breaks the `subdirectory:`-keyed accessor in

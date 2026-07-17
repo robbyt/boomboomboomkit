@@ -2,9 +2,10 @@
 """Scaffold a new per-case documentation Markdown file from the shared template.
 
 Invoked by `make new-case TYPE=<TypeName> CASE=<caseName>`. Copies
-`Sources/BoomBoomBoomKit/Resources/Documentation/_template.md`, substitutes the
+`Sources/BoomBoomBoomKit/Resources/_template.md`, substitutes the
 `{{TYPE}}` / `{{CASE}}` placeholders, and writes
-`Documentation/<TYPE>/<CASE>.md`.
+`Documentation/<TYPE>/<CASE>.md`. The template sits beside the copied
+`Documentation/` tree (not inside it) so it stays out of `Bundle.module`.
 
 Design (Story 11.3a DD-10):
   - Stdlib-only, run via `uv run` — deliberately NOT a shell target. A shell
@@ -32,7 +33,9 @@ IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_ROOT = REPO_ROOT / "Sources/BoomBoomBoomKit/Resources/Documentation"
-TEMPLATE = DOCS_ROOT / "_template.md"
+# The template lives BESIDE the copied Documentation/ tree (in Resources/), not
+# inside it, so it does not ship in Bundle.module.
+TEMPLATE = DOCS_ROOT.parent / "_template.md"
 
 
 def fail(message: str) -> None:

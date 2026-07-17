@@ -27,13 +27,19 @@ Inline `**bold**` and `_italic_` are the only permitted markup. Do **not** use:
 
 `.inlineOnlyPreservingWhitespace` does not render these as structure — per Apple's
 documentation it includes the excluded syntax as literal, unattributed text — so
-they degrade the rendered output rather than failing loudly. The Story 11.4
-validator rejects them.
+they degrade the rendered output rather than failing loudly. The structural
+validator test suite rejects them.
 
 If a case genuinely needs a table or code sample, keep the per-case file plain and
 put the richer treatment in `BoomBoomBoomKit.docc/Articles/SelectionStrategies.md`.
 
 ## Adding a case
 
-Run `make new-case TYPE=<TypeName> CASE=<caseName>` to scaffold a new file from
-`Documentation/_template.md`.
+Run `make new-case TYPE=<TypeName> CASE=<caseName>` to scaffold a new file from the
+shared template (repo-internal maintainer tooling — this fails on a public snapshot,
+where the generator is not shipped). On a public snapshot, copy
+`Sources/BoomBoomBoomKit/Resources/_template.md` to
+`Sources/BoomBoomBoomKit/Resources/Documentation/<Type>/<case>.md`, replace the
+`{{TYPE}}` / `{{CASE}}` placeholders, and — for an associated-value case — add a
+`payload:` line inside the front matter naming the associated-value type (not a
+sample value).

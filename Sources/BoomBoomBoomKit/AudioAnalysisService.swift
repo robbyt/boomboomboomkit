@@ -1174,7 +1174,10 @@ public struct AudioAnalysisService {
       windowResults.append(bpmResult)
       completed += 1
 
-      // Non-progressive intensities (1-5): single window, break immediately.
+      // Non-progressive intensities (1-5, `progressiveThreshold == nil`): stop
+      // after this first successful window. Progressive intensities (6-10, non-nil)
+      // fall through and attempt every remaining window. The threshold's numeric
+      // value is intentionally NOT consulted — only its nil-ness gates the loop.
       if options.intensity.progressiveThreshold == nil {
         break
       }

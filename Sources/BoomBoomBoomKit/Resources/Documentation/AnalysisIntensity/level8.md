@@ -2,7 +2,7 @@
 id: level8
 title: Level 8 — Reserved for ML
 ---
-**What it does.** Uses the same full progressive DSP configuration as level 7 — the _optimal_ technique set across 30, 60, and 90-second windows with a 0.40 retry threshold — and is the first of the three levels (8-10) reserved for future ML integration (aliased _thorough_). Today it resolves to the same DSP configuration as level 7: no ML augmentation is wired into the intensity mapping, and the ComputeBudget fractions are reserved and uniform (_budget_ is _ComputeBudget.default_) like every other level. The reservation is forward-looking headroom, not present-day extra work.
+**What it does.** Uses the same full progressive DSP configuration as level 7 — the _optimal_ technique set over three windows (30, 60, and 90 seconds); it attempts all three and merges the successful results — and is the first of the three levels (8-10) reserved for future ML integration (aliased _thorough_). Today it resolves to the same DSP configuration as level 7: no ML augmentation is wired into the intensity mapping, and the ComputeBudget fractions are reserved and uniform (_budget_ is _ComputeBudget.default_) like every other level. The reservation is forward-looking headroom, not present-day extra work.
 
 **When to pick it.** Choose it when you want to signal intent to use the deepest analysis, including future ML tiers, and are comfortable that today it equals level 7's DSP-only behavior. It is the natural level at which the ML-invoking _EnsemblePolicy_ cases (_default_, _mlOnly_, _highestConfidence_, _weightedVoting_) are conceptually meant to operate — though they stay inert unless you actually wire an _MLTechnique_, at which point they fuse an ML voice with the DSP result.
 

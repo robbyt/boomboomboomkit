@@ -43,7 +43,7 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
   ///   exhaustivity, so the remaining cases (or a `default:`) are still required.
   public static let fastest: AnalysisIntensity = .level1
 
-  /// Full DSP pipeline with all improvements and progressive retry. (~400ms)
+  /// Full DSP pipeline with all improvements and progressive multi-window analysis. (~400ms)
   ///
   /// - Note: A convenience alias for ``level7`` (see ``fastest`` for the
   ///   expression-pattern note).
@@ -143,8 +143,11 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
     }
   }
 
-  /// Confidence threshold below which progressive analysis retries with longer windows.
-  /// Returns `nil` when progressive retry is disabled (intensity 1-5).
+  /// Controls whether progressive analysis stops after its first successful window
+  /// result. `nil` stops after the first success; non-`nil` attempts every
+  /// configured window (unless cancelled) and merges the successful results. The
+  /// numeric value is NOT consulted at the call site (`AudioAnalysisService` only
+  /// checks `== nil`) — reserved for a future confidence-gated early stop.
   public var progressiveThreshold: Double? {
     switch self {
     case .level1, .level2, .level3, .level4, .level5: return nil
