@@ -130,13 +130,36 @@ ifndef SUITE
 endif
 	swift test --filter $(SUITE)
 
-## docc-validate: Run the documentation validator + FR-50 drift suites independently (Story 11.4). Three --filter regexes union: the file-driven authoring validator, the type-specific content checks, and the per-type drift suites (nested under DocumentedCaseDriftTests). Consumer-runnable — pure swift test, no develop-only tooling.
+## docc-validate: Run the documentation validator + FR-50 drift suites independently (Story 11.4), then (Story 11.5) the DocC transclude generation check. Three --filter regexes union: the file-driven authoring validator, the type-specific content checks, and the per-type drift suites (nested under DocumentedCaseDriftTests) — this swift-test portion is consumer-runnable (and is also covered in CI via `make test`). The transclude step generates the full roster into an isolated temp dir and byte-verifies it (exercising the real generate/atomic-swap/write path, independent of the gitignored repo Cases/); it uses develop-only uv tooling — a develop/local gate that self-skips on a main-only checkout where scripts/docc-transclude.py is absent. NOT a CI gate (CI keeps develop-only uv tooling out, same policy as py-lint).
 .PHONY: docc-validate
 docc-validate:
 	swift test \
 		--filter BoomBoomBoomKitTests.DocumentationValidatorTests \
 		--filter BoomBoomBoomKitTests.DocumentationContentChecksTests \
 		--filter BoomBoomBoomKitTests.DocumentedCaseDriftTests
+	@if [ -f scripts/docc-transclude.py ]; then \
+		TMP_ROOT="$$(mktemp -d)" || exit 1; \
+		trap 'status=$$?; rm -rf "$$TMP_ROOT"; exit $$status' 0; \
+		uv run scripts/docc-transclude.py --output-dir "$$TMP_ROOT/Cases" >/dev/null && \
+		uv run scripts/docc-transclude.py --check --output-dir "$$TMP_ROOT/Cases"; \
+	else \
+		echo "Note: scripts/docc-transclude.py absent (main-only checkout); skipping transclude generation check."; \
+	fi
+
+## docc-transclude: Regenerate the DocC Cases/ symbol-extension pages from the canonical per-case docs (Story 11.5). Writes Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases/ (a gitignored build artifact). Develop-only; fails on a main-only checkout (generator lives in scripts/).
+.PHONY: docc-transclude
+docc-transclude:
+	uv run scripts/docc-transclude.py
+
+## docc-build: Build the BoomBoomBoomKit DocC .doccarchive (Story 11.5, AC6). Regenerates the Cases/ transclude pages, then runs `xcodebuild docbuild` against the SPM-auto-generated scheme into build/docc/. The library is a pure SPM package (no committed .xcodeproj) — xcodebuild uses the implicit scheme; `swift package generate-documentation` is intentionally NOT used (it needs apple/swift-docc-plugin, a package dependency banned by NFR-2). Needs full Xcode (macOS); develop-only via the docc-transclude prerequisite (fails loudly on a main-only checkout). Deliberately NOT run with --warnings-as-errors: a repo-wide warnings-clean docbuild is blocked by pre-existing doc-comment symbol-link debt in unrelated Swift source (deferred-work W86) — this target confirms the catalog, Articles/, and the per-case pages build and archive cleanly.
+.PHONY: docc-build
+docc-build: docc-transclude
+	@rm -rf build/docc
+	xcodebuild docbuild \
+		-scheme BoomBoomBoomKit \
+		-destination 'platform=macOS' \
+		-derivedDataPath build/docc
+	@echo "DocC archive: build/docc/Build/Products/Debug/BoomBoomBoomKit.doccarchive"
 
 ## benchmark: Run OA300 accuracy benchmark (fails loudly if OA300_CORPUS_PATH unset)
 .PHONY: benchmark
@@ -422,7 +445,7 @@ endif
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
