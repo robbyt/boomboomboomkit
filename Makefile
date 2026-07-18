@@ -130,7 +130,7 @@ ifndef SUITE
 endif
 	swift test --filter $(SUITE)
 
-## docc-validate: Run the documentation validator + FR-50 drift suites independently (Story 11.4), then (Story 11.5) the DocC transclude drift check. Three --filter regexes union: the file-driven authoring validator, the type-specific content checks, and the per-type drift suites (nested under DocumentedCaseDriftTests) — this swift-test portion is consumer-runnable. The transclude drift step (`docc-transclude --check`) uses develop-only tooling and self-skips on a main-only checkout where scripts/docc-transclude.py is absent.
+## docc-validate: Run the documentation validator + FR-50 drift suites independently (Story 11.4), then (Story 11.5) the DocC transclude generation check. Three --filter regexes union: the file-driven authoring validator, the type-specific content checks, and the per-type drift suites (nested under DocumentedCaseDriftTests) — this swift-test portion is consumer-runnable (and is also covered in CI via `make test`). The transclude step generates the full roster into an isolated temp dir and byte-verifies it (exercising the real generate/atomic-swap/write path, independent of the gitignored repo Cases/); it uses develop-only uv tooling — a develop/local gate that self-skips on a main-only checkout where scripts/docc-transclude.py is absent. NOT a CI gate (CI keeps develop-only uv tooling out, same policy as py-lint).
 .PHONY: docc-validate
 docc-validate:
 	swift test \
@@ -138,9 +138,12 @@ docc-validate:
 		--filter BoomBoomBoomKitTests.DocumentationContentChecksTests \
 		--filter BoomBoomBoomKitTests.DocumentedCaseDriftTests
 	@if [ -f scripts/docc-transclude.py ]; then \
-		uv run scripts/docc-transclude.py --check; \
+		TMP_ROOT="$$(mktemp -d)" || exit 1; \
+		trap 'status=$$?; rm -rf "$$TMP_ROOT"; exit $$status' 0; \
+		uv run scripts/docc-transclude.py --output-dir "$$TMP_ROOT/Cases" >/dev/null && \
+		uv run scripts/docc-transclude.py --check --output-dir "$$TMP_ROOT/Cases"; \
 	else \
-		echo "Note: scripts/docc-transclude.py absent (main-only checkout); skipping transclude drift check."; \
+		echo "Note: scripts/docc-transclude.py absent (main-only checkout); skipping transclude generation check."; \
 	fi
 
 ## docc-transclude: Regenerate the DocC Cases/ symbol-extension pages from the canonical per-case docs (Story 11.5). Writes Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases/ (a gitignored build artifact). Develop-only; fails on a main-only checkout (generator lives in scripts/).

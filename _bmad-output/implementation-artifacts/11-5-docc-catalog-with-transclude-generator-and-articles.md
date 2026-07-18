@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-07-17'
 status: 'done'
 baseline_revision: ca06957a2582d0163f15a61ba8862529a7bbb919
+final_revision: 6882e1bd9cff9c024701a78dcafe49ef78de4b29
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -54,7 +55,7 @@ warnings: [oversized]
 | Colliding stem | `AbstainReason/sourceSpecific.md` + `DemotionReason/sourceSpecific.md` | Two distinct files `Cases/AbstainReason-sourceSpecific.md` + `Cases/DemotionReason-sourceSpecific.md`; h1s `` ``AbstainReason/sourceSpecific(_:)`` `` / `` ``DemotionReason/sourceSpecific(_:)`` `` | No collision (Type-prefixed) |
 | Skipped inputs | `_Fixture/*`, a future `_template.md`, `Resources/README.md`, a future `_`-prefixed dir | Not emitted; not counted | Silently skipped |
 | Malformed input | A `<Type>/<stem>.md` missing opening/closing `---`, invalid UTF-8, or two inputs mapping to one output path | Generator exits nonzero; existing `Cases/` left untouched (temp-build-then-swap) | Fail-closed, no partial update |
-| Drift / coverage (`--check`) | On-disk `Cases/` vs a fresh in-memory generation | Filename SETS match (no missing/orphan) AND every on-disk page's bytes == fresh; nonzero on stale/hand-edited/deleted page or empty corpus | Missing/extra/byte-mismatch/empty → fail nonzero |
+| `docc-validate` transclude gate | Generate into a throwaway temp dir, then `--check` that dir | Generate validates the corpus + exercises atomic-swap/write; `--check` byte-verifies the written pages (filename set + bytes) against a fresh build + empty-corpus floor; independent of the repo `Cases/` | Malformed/collision/empty/byte-mismatch → fail nonzero |
 | Main-only checkout | `scripts/docc-transclude.py` absent | `make docc-transclude` fails loudly; `make docc-validate` drift step self-skips with a printed note; swift-test portion still runs | Graceful skip in docc-validate; hard fail in docc-transclude (intentional) |
 
 </intent-contract>
@@ -67,15 +68,15 @@ warnings: [oversized]
 - `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/README.txt` -- NEW. Author-facing note: `Cases/*.md` is generated, edit `Resources/Documentation/` instead. `.txt` so DocC treats it as inert (mirror `Resources/README.md` "Adding a case" guidance).
 - `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases/` -- generated build artifact (gitignored). Populated by the generator.
 - `scripts/docc-transclude.py` -- NEW, stdlib-only, develop-only. The generator. Mirrors `scripts/new-case.py` conventions.
-- `Makefile` -- add `docc-transclude` target (single `uv run` line, `## ` help); add `docc-build` target (`docc-transclude` prereq → `xcodebuild docbuild` into `build/docc/`, the AC6 gate as a make target); extend `docc-validate` with a presence-guarded drift step; add `../../scripts/docc-transclude.py` to the `py-lint` ty file list (ruff already covers via the `../../scripts/` glob).
+- `Makefile` -- add `docc-transclude` target (single `uv run` line, `## ` help); add `docc-build` target (`docc-transclude` prereq → `xcodebuild docbuild` into `build/docc/`, the AC6 gate as a make target); extend `docc-validate` with a presence-guarded temp-generation gate (generate into `$(mktemp -d)/Cases`, then `--check` it); add `../../scripts/docc-transclude.py` to the `py-lint` ty file list (ruff already covers via the `../../scripts/` glob).
 - `.gitignore` -- add `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases/` (anchored full path) in a new build-artifact section near the SPM/Xcode block.
 - `Sources/BoomBoomBoomKit/Resources/README.md` -- EXISTING; its "richer treatments live in `Articles/SelectionStrategies.md`" pointer now resolves to a real file — verify/keep accurate.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `scripts/docc-transclude.py` -- Implement the stdlib-only generator: walk `Resources/Documentation/<Type>/*.md` (sorted; skip `_`-prefixed stems AND `_`-prefixed dirs), strip front-matter to the closing `---`, emit `Cases/<Type>-<stem>.md` with the signature-aware symbol-extension h1 (ASSOC-VALUE SIGNATURE MAP for the 5 assoc-value cases; bare stem otherwise) + verbatim byte-preserved body (LF, no `@Metadata` block). Atomic temp-build-then-swap; fail nonzero on malformed input / duplicate output path / `--output-dir` nested in `--docs-root`, leaving `Cases/` untouched. CLI: `--docs-root` (default `Sources/BoomBoomBoomKit/Resources/Documentation`), `--output-dir` (default `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases`), `--check` (verify-only mode for docc-validate: assert the ON-DISK `Cases/` matches a fresh generation — filename set identical, each on-disk page's bytes equal the freshly-built page — so it detects a stale/missing/hand-edited/orphan page; fails nonzero on empty corpus; no writes); print count. Deterministic output.
-- [x] `Makefile` -- add `## docc-transclude:` target = `uv run scripts/docc-transclude.py` (help notes "Develop-only; fails on a main-only checkout"); extend `docc-validate` with a `[ -f scripts/docc-transclude.py ]`-guarded step invoking `docc-transclude --check` (roster-derived coverage + per-file body byte-equality + determinism), skipping with a printed note otherwise, and update the `docc-validate` help line so it no longer claims "no develop-only tooling"; append `../../scripts/docc-transclude.py` to the `py-lint` ty list.
+- [x] `scripts/docc-transclude.py` -- Implement the stdlib-only generator: walk `Resources/Documentation/<Type>/*.md` (sorted; skip `_`-prefixed stems AND `_`-prefixed dirs), strip front-matter to the closing `---`, emit `Cases/<Type>-<stem>.md` with the signature-aware symbol-extension h1 (ASSOC-VALUE SIGNATURE MAP for the 5 assoc-value cases; bare stem otherwise) + verbatim byte-preserved body (LF, no `@Metadata` block). Atomic temp-build-then-swap; fail nonzero on malformed input / duplicate output path / `--output-dir` nested in `--docs-root`, leaving `Cases/` untouched. CLI: `--docs-root` (default `Sources/BoomBoomBoomKit/Resources/Documentation`), `--output-dir` (default `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases`), `--check` (verify-only: assert the pages under `--output-dir` match a fresh generation — filename set identical, each page's bytes equal the freshly-built page; empty-corpus floor; no writes. `docc-validate` feeds it a freshly-generated temp dir; a direct call with the default output-dir audits the repo `Cases/`); print count. Deterministic output.
+- [x] `Makefile` -- add `## docc-transclude:` target = `uv run scripts/docc-transclude.py` (help notes "Develop-only; fails on a main-only checkout"); extend `docc-validate` with a `[ -f scripts/docc-transclude.py ]`-guarded step that generates into a throwaway `$(mktemp -d)/Cases` then `--check`s it (byte-verifies the full write/swap path, independent of the repo `Cases/`; status-preserving `trap` cleanup), skipping with a printed note otherwise, and reframe the `docc-validate` help line as a develop/local gate (not CI); append `../../scripts/docc-transclude.py` to the `py-lint` ty list.
 - [x] `.gitignore` -- ignore `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases/`.
 - [x] `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Articles/SelectionStrategies.md` -- author the survey article (tables + symbol links allowed) from the verified case data; include the `OctaveEquivalencePolicy`-is-inert honesty note.
 - [x] `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Articles/EnsemblePresets.md` -- author the ensemble/weighting article; include all four honesty flags (default case ≠ Options default; MLExecutionPolicy not wired; beatGrid inert; fileMetadata dual role).
@@ -86,7 +87,7 @@ warnings: [oversized]
 - Given a clean tree, when `make docc-transclude` runs, then `Cases/` contains one `<Type>-<stem>.md` page per eligible source file (49 today), each with the stripped front-matter + signature-aware symbol-extension h1 + byte-verbatim body (no `@Metadata` block), the five assoc-value pages carry their signature-suffixed h1s, and running it twice yields byte-identical output.
 - Given `Cases/` is a build artifact, when `git status` runs after generation, then no `Cases/` file is staged/tracked (gitignored), and `BoomBoomBoomKit.docc/README.txt` documents the regenerate-don't-edit rule.
 - Given the Articles ship to main, when they are read, then every enum/case/symbol named matches live source (assoc-value case links use the `(_:)`/`(estimate:)` signature form) and the four ensemble honesty flags + the octave-inert flag are present; no per-case three-paragraph prose is copied verbatim (NFR-5).
-- Given `make docc-validate` runs on develop, then it runs the swift-test suites AND (script present) invokes `docc-transclude --check`, which asserts the on-disk `Cases/` file set + per-file bytes match a fresh generation (so a stale, missing, or hand-edited page fails CI); on a main-only checkout the drift step self-skips with a note and the swift-test portion still passes.
+- Given `make docc-validate` runs on develop, then it runs the swift-test suites AND (script present) generates the roster into a throwaway temp dir and `--check`s it — byte-verifying the full generate/atomic-swap/write path and enforcing the empty-corpus floor, independent of (and never mutating) the gitignored repo `Cases/`; a malformed doc, collision, or empty corpus fails it. On a main-only checkout the transclude step self-skips with a note and the swift-test portion still passes. (Develop/local gate — NOT a CI gate; CI keeps develop-only uv tooling out by policy, and the swift suites here are already run in CI via `make test`.)
 - Given `xcodebuild docbuild -scheme BoomBoomBoomKit -destination 'platform=macOS'` runs after transclusion, then the build succeeds (exit 0, `BUILD DOCUMENTATION SUCCEEDED`), the `.doccarchive` contains both article identifiers (`selectionstrategies`, `ensemblepresets`) and the per-case symbol pages (incl. the collision-safe `AbstainReason`/`DemotionReason` `sourceSpecific` pair), and ZERO DocC diagnostics originate from `Articles/` or `Cases/`. (VERIFIED — Xcode 26.6: archive built, both articles + all case pages bound, no `.docc/Articles|Cases` diagnostics.) NOTE: a repo-wide `--warnings-as-errors`-clean docbuild is NOT achievable today and is explicitly OUT of 11.5 scope — pre-existing malformed symbol links in unrelated Swift `///` doc comments (e.g. `MLFeatureFrames`, `BeatGrid`, renamed `with(...)`/`combineEnsemble`/`merge`, and structurally-unresolvable cross-target `` ``BNNSTechnique`` `` refs per DD #14) fail that flag; tracked as deferred work. DocC ingested `Cases/` cleanly, so the pressure-release valve was NOT triggered.
 - Given `make py-lint` runs, then `scripts/docc-transclude.py` passes ruff + ty with zero findings.
 
@@ -97,6 +98,13 @@ warnings: [oversized]
 - **Amended:** the Tasks `--check` line, the `docc-validate` AC, and the I/O matrix drift row now specify on-disk comparison — the `Cases/` filename set and each page's bytes must match a fresh generation — plus an empty-corpus floor. The original wording ("each output body byte-identical to source body") described exactly the tautological check and was the root cause. Fixed as a localized patch to `run_check` (not a full code-revert loopback: the generator's naming, signature map, atomic swap, byte/LF discipline, the two articles, and the verified-green docbuild were all correct and re-deriving them would have risked regressing verified-good work).
 - **Known-bad avoided:** a validation gate that silently passes on a stale or hand-edited `Cases/`.
 - **KEEP:** uniform `<Type>-<stem>.md` naming; the 5-entry assoc-value signature map; atomic temp-build-then-swap; byte-verbatim/LF discipline; the source-verified honesty flags in both articles.
+
+### 2026-07-17 — `docc-validate` uses isolated temp generation (PR #101 review, P2) — SUPERSEDES the entry above
+- **Triggering finding:** PR #101 bot comment `r3606335389` (P2). The prior review fix (entry above) made `docc-validate`'s `--check` read the on-disk repo `Cases/` — which is gitignored and absent on a clean checkout, so `make docc-validate` failed with "generated Cases/ dir missing" until a developer ran `make docc-transclude` first.
+- **Amended (intentional semantic replacement, NOT a clarification):** `docc-validate`'s transclude step now generates the roster into a throwaway `$(mktemp -d)/Cases` and `--check`s *that*, independent of the repo `Cases/`. This is state-independent, exercises the real generate/atomic-swap/write path (which the earlier in-memory-only check skipped), and mutates nothing. The earlier AC ("a stale/missing/deleted repo `Cases/` fails") is dropped: a gitignored, `docc-build`-regenerated artifact is not a meaningful drift target. `run_check` itself is unchanged (still strictly verifies whatever `--output-dir` it is given); only the Makefile recipe + the `--check` success message (names the actual `output_dir`) changed.
+- **CI framing corrected:** the transclude step is develop/local, not a CI gate — CI deliberately excludes develop-only uv tooling (ci.yml, same policy as `py-lint`); its swift suites are already run in CI via `make test`. All "fails CI" wording removed.
+- **Known-bad avoided:** an advertised develop gate that breaks on every fresh clone; and an environment-dependent `--check` (the rejected "conditional on-disk compare" alternative that would silently pass when the artifact is absent).
+- **KEEP:** the temp-generation gate, the `$$`-escaped status-preserving `trap` recipe, and the develop-only self-skip on a main-only checkout.
 
 ## Review Triage Log
 
@@ -117,6 +125,16 @@ warnings: [oversized]
   - `[low]` `[patch]` `--check` passed on a 0-file corpus — added an empty-corpus floor (fail nonzero, "wrong --docs-root?").
   - `[low]` `[patch]` orphan swap dirs sit inside the tracked `.docc/` — added `.gitignore` backstop for `.cases-tmp-*`/`.cases-bak-*`.
 - rejected (no change, verified): `EnsemblePolicy/default` reserved-word link (VERIFIED bound in the archive as `default.json`); `---`-inside-front-matter early truncation (documented by-design — first closing delimiter wins; corpus is 11.4-validated); CRLF-front-matter message wording (file still correctly rejected nonzero; corpus is LF); `docc-build` main-only failure message (matches the existing `new-case`/`ml-*` fail-loud convention).
+
+### 2026-07-17 — PR #101 review pass (chatgpt-codex-connector bot + Codex plan review, Opus 4.8)
+- intent_gap: 0
+- bad_spec: 0
+- patch: 1: (medium 1)
+- defer: 1
+- reject: 0
+- addressed_findings:
+  - `[medium]` `[patch]` Bot `r3606335389` (P2): the prior `--check` fix made `docc-validate` read the gitignored repo `Cases/`, which is absent on a clean checkout → `make docc-validate` failed "generated Cases/ dir missing". Reworked the `docc-validate` recipe to generate into a throwaway temp dir then `--check` it (isolated, exercises the real write/swap path, no repo dependency or mutation); `run_check` unchanged; success message names the actual output-dir; CI framing corrected to develop/local. Verified: recipe exits 0 with repo `Cases/` present or absent, leaves the tree/`Cases/` untouched, and still fails on malformed/empty/byte-drift.
+  - deferred (W87): automated pytest coverage for `scripts/docc-transclude.py` (absent/file/broken-symlink output dir, malformed, empty, missing/extra, byte drift, path overlap) — no `scripts/` pytest harness today + CI runs no uv, so it needs a new home + make target; out of this P2's scope.
 
 ## Design Notes
 
@@ -149,7 +167,7 @@ The Articles must use the same signature form for these case links (e.g. `` ``En
 
 **Commands:**
 - `make docc-transclude` -- expected: one page per eligible source (49 today) into `Cases/`; deterministic + byte-identical on re-run.
-- `make docc-validate` -- expected: swift-test suites green + `--check` drift step (roster coverage + per-file body byte-equality + determinism) passes; main-only checkout self-skips the drift step.
+- `make docc-validate` -- expected: swift-test suites green + the transclude gate (generate into a temp dir → `--check` it) passes, touching no repo `Cases/`; main-only checkout self-skips the transclude step.
 - `make py-lint` -- expected: ruff + ty clean for `scripts/docc-transclude.py`.
 - `make fmt` / `make lint` -- expected: no Swift churn; 0-serious (pre-existing Demo findings excluded).
 - `make docc-build` (or `xcodebuild docbuild -scheme BoomBoomBoomKit -destination 'platform=macOS' -derivedDataPath <tmp>`) -- expected: `BUILD DOCUMENTATION SUCCEEDED`; archive at `build/docc/Build/Products/Debug/BoomBoomBoomKit.doccarchive` contains `selectionstrategies` + `ensemblepresets` + per-case pages; `grep '.docc/(Articles|Cases)/' <log>` returns none (operator/local gate, needs full Xcode; VERIFIED Xcode 26.6 via `make docc-build`). `--warnings-as-errors` fails only on pre-existing unrelated doc-comment debt — out of scope, deferred (W86).
@@ -167,12 +185,12 @@ Status: done
 **Summary.** Extended the `BoomBoomBoomKit.docc/` catalog with a parallel DocC surface for the Epic-11 per-case docs: two hand-authored survey articles, a curated landing page, and a develop-only one-way generator that mirrors the 49 canonical per-case docs into DocC symbol-extension pages (a gitignored `Cases/` build artifact), plus make targets to build and drift-check the catalog. No per-case prose is duplicated by hand (NFR-5); no package dependency added (NFR-2).
 
 **Files changed.**
-- `scripts/docc-transclude.py` (NEW, develop-only) — stdlib-only one-way generator: strips YAML front-matter, prepends a signature-aware symbol-extension h1, byte-verbatim body, atomic self-cleaning temp-swap, `--check` on-disk drift mode.
+- `scripts/docc-transclude.py` (NEW, develop-only) — stdlib-only one-way generator: strips YAML front-matter, prepends a signature-aware symbol-extension h1, byte-verbatim body, atomic self-cleaning temp-swap, `--check` verify mode (byte-compares a given `--output-dir` against a fresh build).
 - `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Articles/SelectionStrategies.md` (NEW) — survey of `BPMSelectionPolicy`/`VotingPolicy`/`OctaveEquivalencePolicy` with comparison tables + the octave-inert honesty note.
 - `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Articles/EnsemblePresets.md` (NEW) — survey of `EnsemblePolicy`/`SignalWeights`/`MLExecutionPolicy`/`SignalSource` with all four honesty flags.
 - `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/README.txt` (NEW) — author-facing "Cases/ is generated" note (`.txt` = DocC-inert).
 - `Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/BoomBoomBoomKit.md` — added a `### Guides` topics group linking both articles.
-- `Makefile` — added `docc-transclude` + `docc-build` targets; extended `docc-validate` with the guarded on-disk drift check; added the new script to the `py-lint` ty list.
+- `Makefile` — added `docc-transclude` + `docc-build` targets; extended `docc-validate` with the guarded temp-generation transclude gate (reworked post-PR — see Spec Change Log 2026-07-17 PR #101); added the new script to the `py-lint` ty list.
 - `.gitignore` — ignore the generated `Cases/` + the swap temp/backup prefixes.
 - `_bmad-output/implementation-artifacts/deferred-work.md` — W86 (repo-wide DocC `--warnings-as-errors` debt, out of scope).
 
@@ -182,4 +200,6 @@ Status: done
 
 **Residual risks.** (1) A repo-wide `--warnings-as-errors` docbuild is NOT clean — pre-existing doc-comment symbol-link debt in unrelated Swift source (incl. structurally-unresolvable cross-target `BNNSTechnique` refs, DD #14); out of scope, tracked as W86. (2) FR-50-style drift for a *new* documented type still relies on the operator adding its type-dir + article link (the generator auto-covers any new `<Type>/<case>.md`, but a brand-new type won't appear in the landing page's Guides group without a hand edit). (3) `docc-build`/`docc-validate --check` need full Xcode / the develop-only generator respectively; both fail-loud or self-skip on a main-only checkout by design.
 
-**Pending (operator-owned closeout):** independent `/bmad-code-review` (followup recommended — the review made a high-severity fix to the drift gate) + push `rterhaar/11-5` and open the PR into `rterhaar/epic-11`; update the epic-11 → develop running changelog (PR #97); flip sprint-status `11-5` when landed.
+**Post-PR patch (2026-07-17, PR #101, bot `r3606335389`):** the `docc-validate` transclude gate was reworked to generate into an isolated temp dir instead of reading the gitignored repo `Cases/` (which is absent on a clean checkout) — fixes `make docc-validate` failing on a fresh clone. See Spec Change Log + Review Triage Log (PR #101 pass). Automated generator tests deferred as W87.
+
+**Pending (operator-owned closeout):** independent `/bmad-code-review` (followup recommended — the review made a high-severity fix to the drift gate) + merge PR #101 into `rterhaar/epic-11`; update the epic-11 → develop running changelog (PR #97); flip sprint-status `11-5` when landed.
