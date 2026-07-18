@@ -386,6 +386,19 @@ struct ContentView: View {
               + "alignment. This can refine the grid tempo without changing the headline BPM. "
               + "Best for constant-tempo electronic / DJ music.")
 
+        // Header row (Story 11.6): the visible "Merge strategy" label sits
+        // beside a "?" HelpButton opening the authored `BPMSelectionPolicy`
+        // docs-popover for the selected strategy. The visible Text is decorative
+        // and hidden from accessibility — `.labelsHidden()` hides the Picker's
+        // label VISUALLY but keeps it for VoiceOver, so the Picker itself remains
+        // the single accessible "Merge strategy" element (marking the Text
+        // a11y-hidden avoids a duplicate announcement).
+        HStack {
+          Text("Merge strategy")
+            .accessibilityHidden(true)
+          HelpButton(case: MergeStrategyDoc(viewModel.options.mergeStrategy))
+          Spacer()
+        }
         // `.onChange(of:)` fires for any mutation, including
         // programmatic writes — today only this Picker mutates the
         // value, so a future preset feature could trigger unintended
@@ -400,6 +413,7 @@ struct ContentView: View {
             Text(AnalysisViewModel.humanize(strategy)).tag(strategy)
           }
         }
+        .labelsHidden()
         .pickerStyle(.menu)
         .onChange(of: viewModel.options.mergeStrategy) { _, _ in
           viewModel.persistPreferredMergeStrategy()

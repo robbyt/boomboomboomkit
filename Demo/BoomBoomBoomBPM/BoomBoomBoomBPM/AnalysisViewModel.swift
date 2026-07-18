@@ -730,7 +730,10 @@ final class AnalysisViewModel {
   // Space-separated lowercase rendering of `BPMSelectionPolicy` for
   // the result-row caption. UI-only — the exported JSON keeps the
   // rawValue verbatim.
-  static func humanize(_ strategy: BPMSelectionPolicy) -> String {
+  // `nonisolated` (Story 11.6): a pure switch over the enum with no MainActor
+  // state, so the `nonisolated` `MergeStrategyDoc` adapter can reuse this
+  // single-source copy off-actor for the docs-popover `displayName`.
+  nonisolated static func humanize(_ strategy: BPMSelectionPolicy) -> String {
     switch strategy {
     case .maxConfidence: return "max confidence"
     case .dedup: return "dedup"
@@ -747,7 +750,11 @@ final class AnalysisViewModel {
   // mirroring the ensemble preset's description. Verified against
   // `BPMSelectionPolicy.merge`: these policies aggregate candidate SCORES
   // within 2% BPM clusters, not the BPM values themselves.
-  static func strategyDescription(_ strategy: BPMSelectionPolicy) -> String {
+  // `nonisolated` (Story 11.6): a pure switch, so the `nonisolated`
+  // `MergeStrategyDoc` adapter reuses this single-source copy off-actor for the
+  // docs-popover `shortDescription` (the "?" tooltip stays in lockstep with the
+  // inline caption).
+  nonisolated static func strategyDescription(_ strategy: BPMSelectionPolicy) -> String {
     switch strategy {
     case .maxConfidence: return "Uses the highest-confidence window result."
     case .dedup: return "Clusters near-match BPMs, keeping each cluster's best score."
