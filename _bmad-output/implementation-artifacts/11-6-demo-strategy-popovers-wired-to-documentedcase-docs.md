@@ -3,8 +3,8 @@ title: 'Demo strategy popover wired to DocumentedCase docs'
 type: 'feature'
 created: '2026-07-17'
 baseline_revision: 6525c66db478ac712073de576865dad98caf09d5
-final_revision: c8dbc8a
-status: 'done'
+final_revision: 4db222de3f90e8ae6eebcdaa72d6f5115ca4461a
+status: 'review'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
