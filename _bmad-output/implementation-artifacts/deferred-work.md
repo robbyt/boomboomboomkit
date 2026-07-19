@@ -933,3 +933,37 @@ Story 11-1 close-out review (4 adversarial layers — Blind Hunter + Edge Case H
 Story 11-6 close-out review (demo-only; 4 adversarial layers — Blind Hunter + Edge Case Hunter + Acceptance Auditor + Codex blind-hunter `019f73f0`). Verdict: clean on the demo code — Codex found no defects; the others found no correctness/isolation/URL/KDD-E1 defect; the Acceptance Auditor verified all ACs. One latent low-severity UI residual filed; the a11y items are runtime-verification items folded into the operator GUI smoke (which gates `done` for demo-UI stories); the rest dismissed (documented-dead `repoDocURL` fallback; cached main-thread doc read on first popover open; `.help`+`.accessibilityHint` minor double-announce; per-render `strategyDescription` recompute; the resolution test's deliberate `count > 120` decoupling from the `"What it does"` marker per Review-Triage-Log #5).
 
 - **W91 — an open Merge-strategy help popover live-swaps its heading + body if `options.mergeStrategy` is changed PROGRAMMATICALLY while presented.** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/HelpButton.swift:80-104` + `ContentView.swift` — `HelpButton`'s `@State isPresented` persists across parent re-renders while `MergeStrategyDoc(viewModel.options.mergeStrategy)` is rebuilt every `ContentView.body` pass, so nothing re-anchors the popover to the case it opened for. Latent, not live: today `mergeStrategy` only changes via the user-driven Picker (which does not mutate state while the separate "?" popover is open), so there is no current trigger — but the `ContentView` source comment already warns that a future preset/"Copy Config" feature could mutate it programmatically, which would then update an open popover's content mid-presentation (benign-to-confusing UX, no crash). Fix when a programmatic mutator lands: capture the case at open time, or dismiss the popover `.onChange(of: mergeStrategy)`. **Re-open trigger:** a demo feature that sets `options.mergeStrategy` programmatically (preset apply / Copy Config / deep-link). [source: Story 11-6 code review — Edge Case Hunter, 2026-07-18]
+
+## Deferred from: OA300 doc de-privatization (phase one, 2026-07-19)
+
+Phase one removed the private corpus name `OA300` (and its incidental track
+counts + named private tracks) from the four consumer-facing Markdown surfaces
+(9 per-case DocC docs, README.md, MODEL_CARD.md, tools/coreml-convert/README.md).
+This is **not** complete privacy remediation: `OA300` still appears in public
+Swift source/API. A reader can still correlate "largest observed gain on the
+internal evaluation corpus" with `+2 tracks on OA300` in `DSPTechnique.swift`
+until phase two lands.
+
+**Phase two — remaining main-bound OA300 surface (enumerated):**
+- **Public API identifier** — `public struct OA300Track` (Sources/BoomBoomBoomKitTestSupport/CorpusTracks.swift).
+  Rename is breaking (pre-1.0, acceptable); needs an explicit new name decision
+  (e.g. `EvaluationTrack`). Blast radius: 64 refs.
+- **Core-target `///` doc comments** — DSPTechnique.swift (incl. its named-track
+  line "Charly, Faraday_Bunker, Yin Yang, HEFT_Anagram 6" → same audio-content
+  SHA-256 scheme as MODEL_CARD: b4ede997273b / 4637a3e45499 / 0a725edfccc2 /
+  a81b58e80e71), AudioAnalysisService.swift, BPMSelectionPolicy.swift,
+  BPMAnalyzer.swift (line 1667).
+- **Ordinary `//` implementation comments** — BPMAnalyzer.swift (lines 475, 1734).
+- **TestSupport + ML target** — CorpusTracks.swift, AccuracyForensics.swift,
+  GenreAccuracyReporter.swift, JAMS/JAMSDecoder.swift, BNNSTechnique.swift.
+- **Tests** — 12 files referencing `OA300Track` (call-site churn from the rename).
+
+**Explicitly out of phase two (separate concern):** internal dev references
+(`Story N-M`, "brutal-corpus gate") that also leak into README / MODEL_CARD /
+Swift comments; `OA300_CORPUS_PATH` in the Makefile / ci.yml / .gitignore is
+operator build config and stays.
+
+**Completion gate:** `git grep -i -E 'oa[ _-]?300|onsetaudio300'` over all
+main-bound tracked files (Sources/, Tests/, README, MODEL_CARD, tools/, excluding
+develop-only `_bmad-output`/`docs`/`.claude`/`scripts`/`CLAUDE.md`/`TODO.md` and
+the operator config files) returns zero.
