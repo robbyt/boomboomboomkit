@@ -97,8 +97,15 @@ struct EnsemblePresetPicker: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      // Menu pop-up (matches the Merge strategy Picker it sits beneath). The
-      // visible "Ensemble" label stands in for the removed GroupBox title.
+      // Standalone title on its own line so this column matches the Merge
+      // strategy layout (title / dropdown / subtitle). Decorative + a11y-hidden:
+      // `.labelsHidden()` below keeps the Picker's "Ensemble" label for
+      // VoiceOver, so the Picker stays the single accessible control and this
+      // visible Text does not become a duplicate announcement.
+      Text("Ensemble")
+        .accessibilityHidden(true)
+      // Label-hidden menu pop-up (matches the Merge strategy Picker it sits
+      // beside — the title moved to the standalone Text above).
       Picker("Ensemble", selection: $selection) {
         ForEach(EnsemblePreset.allCases, id: \.self) { preset in
           // Visual menu title stays the terse name; VoiceOver gets the full
@@ -109,13 +116,17 @@ struct EnsemblePresetPicker: View {
             .accessibilityLabel("\(preset.displayName), \(preset.subtitle)")
         }
       }
+      .labelsHidden()
       .pickerStyle(.menu)
       // Dynamic description — the selected preset's authored subtitle, now a
       // single caption that updates with the selection instead of four
-      // always-on radio-row captions.
+      // always-on radio-row captions. `.fixedSize(vertical:)` matches the Merge
+      // strategy description's wrap/compression resistance at narrow widths and
+      // larger Dynamic Type.
       Text(selection.subtitle)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 }

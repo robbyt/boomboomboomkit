@@ -17,8 +17,11 @@ struct BoomBoomBoomBPMApp: App {
     // Explicit window policy: the window's minimum tracks the content's minimum
     // size and it does not couple to the content's ideal size (which `.contentSize`
     // would, and which the default `.automatic` lets balloon when dynamic content
-    // appears). The beat-grid section's own height cap is the root fix; this is a
-    // belt-and-suspenders guard.
+    // appears). Because the window minimum follows content MIN, the content must
+    // keep a small minimum height: the analysis lane fills with `maxHeight:.infinity`
+    // (no min/ideal/layoutPriority) so it never raises that minimum, and `.defaultSize`
+    // above sets the launch height. That combination keeps the window freely
+    // shrinkable regardless of how tall the analysis pane can grow.
     .windowResizability(.contentMinSize)
     .windowStyle(.titleBar)
     // `InspectorCommands` wires Control-Command-I + View menu toggle

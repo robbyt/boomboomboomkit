@@ -50,10 +50,18 @@ struct BeatGridView: View {
   // Captured at the start of a pinch so magnification scales from the zoom level
   // the gesture began at (nil between gestures).
   @State private var pinchBasePPS: Double?
-  // The visible lane's measured size (width drives the fit-to-width zoom-out
-  // floor; height drives the fill-the-box lane height). `.zero` until the first
-  // layout pass measures it.
-  @State private var laneSize: CGSize = .zero
+  // The visible lane's measured WIDTH (drives the fit-to-width zoom-out floor
+  // and the pinch-anchor mapping). Height is deliberately NOT stored: the lane
+  // height is sourced from the parent-allocated slot via the wrapper
+  // `GeometryReader` in `body` (parent -> content, one direction), never from a
+  // self-measurement. Measuring the rendered height and feeding it back as the
+  // scroll content's REQUIRED height (the old `height: laneHeight`) was a layout
+  // feedback loop: under the window's `.windowResizability(.contentMinSize)` +
+  // `.inspector` split-view host, each Update-Constraints probe recorded a
+  // larger height, which the content then required, which grew the window — a
+  // runaway to a ~40000pt window and an NSGenericException crash (fixed 2026-07-19).
+  // `0` until the first layout pass measures it.
+  @State private var laneWidth: CGFloat = 0
 
   // --- Pointer-anchored pinch-zoom ---
   // Drives programmatic horizontal scrolling so the content point under the cursor
@@ -75,115 +83,133 @@ struct BeatGridView: View {
   @State private var pinchAnchorTime: Double?
   @State private var pinchAnchorViewportX: CGFloat?
 
-  /// Measured visible lane height, with a positive fallback so the pre-measure
-  /// layout pass still hands the Canvas a valid height.
-  private var laneHeight: CGFloat { max(laneSize.height, 1) }
-
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      ScrollView(.horizontal, showsIndicators: true) {
-        // ZStack: static grid Canvas below, animated scrubber marker above. Both live
-        // INSIDE the scroll content (same contentWidth frame), so the scrubber pans
-        // and zooms with the lane. KDD-D2: the Canvas never redraws per frame — only
-        // the marker's offset animates.
-        ZStack(alignment: .topLeading) {
-          Canvas { context, size in draw(in: context, size: size) }
-          scrubberLayer
-        }
-        .frame(width: contentWidth, height: laneHeight)
-        .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
-        // `.simultaneousGesture` on the scroll content (not the ScrollView) so
-        // trackpad pinch-to-zoom and click-to-scrub coexist with horizontal pan —
-        // distinct input events, and a drag cancels a tap natively. `.contentShape`
-        // gives both gestures a hit region across the full lane, including the
-        // transparent gaps between waveform peaks.
-        .contentShape(Rectangle())
-        // Click-to-scrub: `.local` on the scroll CONTENT is content space, so
-        // `location.x / pointsPerSecond` is the clicked time — no scroll-offset math.
-        .simultaneousGesture(
-          SpatialTapGesture(coordinateSpace: .local)
-            .onEnded { value in
-              handleTap(atContentX: value.location.x, snapToBeat: !isCommandPressed)
-            }
-        )
-        .simultaneousGesture(
-          MagnifyGesture()
-            .onChanged { value in
-              if pinchBasePPS == nil {
-                // Capture the anchor ONCE. Cursor viewport-x (invariant to panning),
-                // or viewport-center when there's no active hover. The content-x is
-                // derived from the offset NOW (`currentOffsetX + vx`), so a pan before
-                // the pinch can't stale it. The viewport↔content origin coincidence
-                // holds while the ZStack is the sole scroll content with no leading
-                // gutter / contentMargins — revisit this mapping (and the tap gesture's
-                // content-space assumption) if that changes.
-                pinchBasePPS = pointsPerSecond
-                let vx = min(max(hoverViewportX ?? (laneSize.width / 2), 0), laneSize.width)
-                let cx = currentOffsetX + vx
-                pinchAnchorTime = Double(cx) / pointsPerSecond
-                pinchAnchorViewportX = vx
+      // The horizontal beat lane is wrapped in a slot `GeometryReader` so its
+      // Canvas height comes from the parent-allocated analysis slot (exactly as
+      // the Loudness lane fills its slot), forwarded across the horizontal-scroll
+      // boundary. The GeometryReader is sized by its PARENT, never by its child
+      // (it returns a flexible preferred size), so the dataflow is acyclic — this
+      // is what makes the lane resize proportionally with the window WITHOUT
+      // reintroducing the Update-Constraints feedback loop. (An earlier
+      // container-relative-frame approach resolved against the wrong container
+      // under the outer vertical ScrollView and pinned the lane at a fixed
+      // oversized height — fixed 2026-07-19.)
+      GeometryReader { slot in
+        // Guarded slot height: a sizing probe can pass a non-finite proposal.
+        let laneHeight = slot.size.height.isFinite ? max(slot.size.height, 1) : 1
+        ScrollView(.horizontal, showsIndicators: true) {
+          // ZStack: static grid Canvas below, animated scrubber marker above. Both live
+          // INSIDE the scroll content (same contentWidth frame), so the scrubber pans
+          // and zooms with the lane. KDD-D2: the Canvas never redraws per frame — only
+          // the marker's offset animates.
+          ZStack(alignment: .topLeading) {
+            Canvas { context, size in draw(in: context, size: size) }
+            scrubberLayer
+          }
+          // Width is the zoomed content width (drives horizontal scrolling); the
+          // height is the parent-allocated slot height forwarded from the wrapper
+          // `GeometryReader` above, NOT a stored self-measurement (parent ->
+          // content, one direction) — so the lane resizes proportionally like the
+          // Loudness lane and the old measure-then-require crash cannot recur.
+          .frame(width: contentWidth, height: laneHeight)
+          .background(Color(nsColor: .textBackgroundColor).opacity(0.5))
+          // `.simultaneousGesture` on the scroll content (not the ScrollView) so
+          // trackpad pinch-to-zoom and click-to-scrub coexist with horizontal pan —
+          // distinct input events, and a drag cancels a tap natively. `.contentShape`
+          // gives both gestures a hit region across the full lane, including the
+          // transparent gaps between waveform peaks.
+          .contentShape(Rectangle())
+          // Click-to-scrub: `.local` on the scroll CONTENT is content space, so
+          // `location.x / pointsPerSecond` is the clicked time — no scroll-offset math.
+          .simultaneousGesture(
+            SpatialTapGesture(coordinateSpace: .local)
+              .onEnded { value in
+                handleTap(atContentX: value.location.x, snapToBeat: !isCommandPressed)
               }
-              let base = pinchBasePPS ?? pointsPerSecond
-              let lo = minPointsPerSecond
-              let hi = max(80, lo * 4)
-              let newPPS = min(max(base * value.magnification, lo), hi)
-              // Own the offset during the pinch: disable the scroll view's automatic
-              // content-offset adjustment so it doesn't fight our explicit scrollTo
-              // when contentWidth changes in the same layout pass.
-              var txn = Transaction()
-              txn.scrollContentOffsetAdjustmentBehavior = .disabled
-              withTransaction(txn) {
-                pointsPerSecond = newPPS
-                if let t = pinchAnchorTime, let vx = pinchAnchorViewportX {
-                  scrollPosition.scrollTo(x: CGFloat(max(0, t * newPPS - Double(vx))))
+          )
+          .simultaneousGesture(
+            MagnifyGesture()
+              .onChanged { value in
+                if pinchBasePPS == nil {
+                  // Capture the anchor ONCE. Cursor viewport-x (invariant to panning),
+                  // or viewport-center when there's no active hover. The content-x is
+                  // derived from the offset NOW (`currentOffsetX + vx`), so a pan before
+                  // the pinch can't stale it. The viewport↔content origin coincidence
+                  // holds while the ZStack is the sole scroll content with no leading
+                  // gutter / contentMargins — revisit this mapping (and the tap gesture's
+                  // content-space assumption) if that changes.
+                  pinchBasePPS = pointsPerSecond
+                  let vx = min(max(hoverViewportX ?? (laneWidth / 2), 0), laneWidth)
+                  let cx = currentOffsetX + vx
+                  pinchAnchorTime = Double(cx) / pointsPerSecond
+                  pinchAnchorViewportX = vx
+                }
+                let base = pinchBasePPS ?? pointsPerSecond
+                let lo = minPointsPerSecond
+                let hi = max(80, lo * 4)
+                let newPPS = min(max(base * value.magnification, lo), hi)
+                // Own the offset during the pinch: disable the scroll view's automatic
+                // content-offset adjustment so it doesn't fight our explicit scrollTo
+                // when contentWidth changes in the same layout pass.
+                var txn = Transaction()
+                txn.scrollContentOffsetAdjustmentBehavior = .disabled
+                withTransaction(txn) {
+                  pointsPerSecond = newPPS
+                  if let t = pinchAnchorTime, let vx = pinchAnchorViewportX {
+                    scrollPosition.scrollTo(x: CGFloat(max(0, t * newPPS - Double(vx))))
+                  }
                 }
               }
-            }
-            .onEnded { _ in
-              pinchBasePPS = nil
-              pinchAnchorTime = nil
-              pinchAnchorViewportX = nil
-            }
-        )
-      }
-      .scrollPosition($scrollPosition)
-      // Track the live scroll offset for the pinch-anchor mapping. Read only at
-      // pinch start, so this firing during our own scrollTo is not a feedback loop.
-      .onScrollGeometryChange(for: CGFloat.self) { geometry in
-        geometry.contentOffset.x
-      } action: { _, newX in
-        currentOffsetX = newX
-      }
-      // Cursor position in VIEWPORT space (attached to the ScrollView, so `.local`
-      // is the scroll-independent container frame). Feeds the pinch anchor.
-      .onContinuousHover(coordinateSpace: .local) { phase in
-        switch phase {
-        case .active(let location): hoverViewportX = location.x
-        case .ended: hoverViewportX = nil
+              .onEnded { _ in
+                pinchBasePPS = nil
+                pinchAnchorTime = nil
+                pinchAnchorViewportX = nil
+              }
+          )
+        }
+        .scrollPosition($scrollPosition)
+        // Track the live scroll offset for the pinch-anchor mapping. Read only at
+        // pinch start, so this firing during our own scrollTo is not a feedback loop.
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+          geometry.contentOffset.x
+        } action: { _, newX in
+          currentOffsetX = newX
+        }
+        // Cursor position in VIEWPORT space (attached to the ScrollView, so `.local`
+        // is the scroll-independent container frame). Feeds the pinch anchor.
+        .onContinuousHover(coordinateSpace: .local) { phase in
+          switch phase {
+          case .active(let location): hoverViewportX = location.x
+          case .ended: hoverViewportX = nil
+          }
+        }
+        .onModifierKeysChanged(mask: .command, initial: true) { _, modifiers in
+          isCommandPressed = modifiers.contains(.command)
+        }
+        // Measure only the lane WIDTH (layout-neutral). Width feeds the
+        // fit-to-width zoom-out floor and the pinch anchor. The height is never
+        // stored, so a rendered-height measurement can never feed back as the
+        // content's required height (the loop that crashed the window).
+        .onGeometryChange(for: CGFloat.self) { proxy in
+          proxy.size.width
+        } action: { newWidth in
+          laneWidth = newWidth
+          // Re-clamp on resize / first layout so the displayed zoom never sits
+          // below the new fit-to-width floor. Compute the floor from `newWidth`
+          // directly (not the `minPointsPerSecond` computed prop) so it doesn't
+          // read the just-written `laneWidth` @State one layout pass stale.
+          let lo = minPointsPerSecond(for: newWidth)
+          let hi = max(80, lo * 4)
+          let clamped = min(max(pointsPerSecond, lo), hi)
+          if pointsPerSecond != clamped { pointsPerSecond = clamped }
         }
       }
-      .onModifierKeysChanged(mask: .command, initial: true) { _, modifiers in
-        isCommandPressed = modifiers.contains(.command)
-      }
-      // Fill the box vertically (the lane height is then read back from the
-      // measured size below). Safe despite a horizontal ScrollView's unbounded
-      // ideal cross-axis height because the GroupBox's `.frame(maxHeight: 340)`
-      // hard-caps upward propagation — that cap is the resize guard now.
-      .frame(maxHeight: .infinity)
-      // Measure the visible lane. Layout-neutral (unlike a greedy GeometryReader).
-      // Width feeds the fit-to-width zoom-out floor; height feeds `laneHeight`.
-      .onGeometryChange(for: CGSize.self) { proxy in
-        proxy.size
-      } action: { newSize in
-        laneSize = newSize
-        // Re-clamp on resize / first layout so the displayed zoom never sits
-        // below the new fit-to-width floor. Guarded to avoid a redundant write
-        // each layout pass.
-        let lo = minPointsPerSecond
-        let hi = max(80, lo * 4)
-        let clamped = min(max(pointsPerSecond, lo), hi)
-        if pointsPerSecond != clamped { pointsPerSecond = clamped }
-      }
+      // The wrapper GeometryReader is the sole vertically-greedy child of this
+      // VStack (controls / readout stay intrinsic below). An explicit zero
+      // minimum documents why the lane never raises the window's `.contentMinSize`
+      // minimum — the window stays freely shrinkable. No numeric height cap.
+      .frame(minHeight: 0, maxHeight: .infinity)
       controls
       readout
     }
@@ -215,7 +241,12 @@ struct BeatGridView: View {
   private func scrubberMarker(at time: Double) -> some View {
     Rectangle()
       .fill(Color.primary)
-      .frame(width: 1.5, height: laneHeight)
+      // Fill the lane height from the parent: the enclosing ZStack has a definite
+      // height (the slot height forwarded by the wrapper GeometryReader), so
+      // `maxHeight: .infinity` resolves against that finite height — never a
+      // stored self-measurement.
+      .frame(width: 1.5)
+      .frame(maxHeight: .infinity)
       .offset(
         x: Self.scrubberX(time: time, pointsPerSecond: pointsPerSecond, contentWidth: contentWidth)
           - 0.75
@@ -247,9 +278,14 @@ struct BeatGridView: View {
   /// Fit-to-width zoom-out floor: the points-per-second at which the waveform
   /// exactly fills the visible lane. Pinch-out cannot go below this, so the
   /// waveform never shrinks narrower than the lane (no right-side dead space).
-  private var minPointsPerSecond: Double {
-    guard laneSize.width > 0, effectiveDuration > 0 else { return 4 }
-    return Double(laneSize.width) / effectiveDuration
+  private var minPointsPerSecond: Double { minPointsPerSecond(for: laneWidth) }
+
+  /// The fit-to-width floor for an explicit lane width. The width-measurement
+  /// callback passes its fresh `newWidth` here so the re-clamp doesn't read the
+  /// just-written `laneWidth` @State one layout pass stale.
+  private func minPointsPerSecond(for width: CGFloat) -> Double {
+    guard width > 0, effectiveDuration > 0 else { return 4 }
+    return Double(width) / effectiveDuration
   }
 
   /// X-axis span. Prefers the decoded waveform duration; falls back to the last
@@ -292,7 +328,7 @@ struct BeatGridView: View {
       .disabled(!controller.hasAudio)
       .help(
         controller.hasAudio
-          ? "Play / pause — click to jump to the nearest beat, or Command-click for an exact time"
+          ? "Play or pause. Click to jump to the nearest beat, or Command-click for an exact time"
           : "Playback unavailable for this file")
 
       if let error = controller.playbackError {
@@ -554,7 +590,7 @@ struct BeatGridHelpButton: View {
       legendRow(
         .secondary, "Raw beats",
         "Every individual beat the tracker actually detected, at the exact time it landed. These "
-          + "wobble and can occasionally double or drop — useful for spotting where detection "
+          + "wobble and can occasionally double or drop. Useful for spotting where detection "
           + "struggled, but not what you'd sync to. Toggle to hide.")
       legendRow(
         .pink, "Downbeats",

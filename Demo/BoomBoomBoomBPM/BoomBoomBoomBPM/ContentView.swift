@@ -52,11 +52,21 @@ struct ContentView: View {
   // Font.system(size: 96) is fixed-point and does NOT scale.
   @ScaledMetric(relativeTo: .largeTitle) private var heroSize: CGFloat = 96
 
-  // Height cap for the subordinate analysis lane (Beats / Loudness panes).
-  // Load-bearing (F04 / Story 5-6b): an unbounded panel grows the window and
-  // starves `primaryStateView`'s `maxHeight: .infinity` BPM-hero share. One
-  // lane now (Story 10.4 UX rework), so the cap is a single bound.
-  private let panelMaxHeight: CGFloat = 340
+  // Readability width cap for each column of the paired Ensemble | Merge-strategy
+  // row, so a long caption wraps instead of driving the column wide and squeezing
+  // the neighboring Picker. A flexible maximum (not a fixed width), so narrow
+  // windows still compress.
+  //
+  // The analysis lane deliberately has NO height constant. With the result-state
+  // BPM hero intrinsic (`heroFillsPane`), the lane is the sole vertically-greedy
+  // child, so it fills the reclaimed height via `maxHeight: .infinity` and no
+  // hardcoded cap is needed: its own minimum stays small, `.defaultSize` sets the
+  // launch height, and the `.contentMinSize` window minimum tracks the small
+  // content minimum — so the window stays freely shrinkable. (An earlier
+  // `idealHeight` + `layoutPriority(1)` on the lane resisted compression, inflated
+  // the content minimum past the screen, and wedged the window taller than the
+  // display — fixed 2026-07-19.)
+  private let columnWidth: CGFloat = 260
 
   // `nil` until the first run completes — that's the cue for the
   // neutral pre-analysis gradient (KDD #8). Once a snapshot exists,
@@ -84,20 +94,37 @@ struct ContentView: View {
           value: backgroundStrategy
         )
 
-      // F04 (Story 5-6b): `primaryStateView` claims the full pane height
-      // so EmptyStateView (with `.frame(maxHeight: .infinity)` and a
-      // VStack-default center alignment) centers vertically in the area
-      // above controls. The earlier `Spacer()` between bannerView and
-      // controlsSection split the space 50/50 with EmptyStateView and
-      // landed the empty state in the upper half.
-      VStack(spacing: 16) {
-        primaryStateView
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
-        bannerView
-        analysisSection
-        controlsSection
+      // Scrollable content that is at least as tall as the viewport (the
+      // standard macOS "content >= viewport" pattern). The `GeometryReader`
+      // viewport height sets the inner VStack's `minHeight`, so: when everything
+      // fits, the VStack is exactly viewport-tall and the result-state analysis
+      // lane still fills the surplus (controls stay pinned at the bottom); when
+      // the intrinsic content (controls + hero) is taller than a short window it
+      // SCROLLS instead of clipping. Because the ScrollView itself is vertically
+      // compressible, the window's `.contentMinSize` minimum no longer includes
+      // the full non-compressible controls stack — so the window is freely
+      // shrinkable. The gradient and `.dropDestination` stay on the outer ZStack
+      // (they must cover the whole window, not scroll with the controls).
+      //
+      // Per-state vertical greed lives in `heroFillsPane`: the transient
+      // analyzing / error text centers by filling; the empty-state drop prompt
+      // and the result hero are intrinsic (so the prompt is a compact top prompt,
+      // not a full-window-centered block — and the result hero anchors top-right
+      // and hands surplus height to the analysis lane).
+      GeometryReader { viewport in
+        ScrollView(.vertical) {
+          VStack(spacing: 16) {
+            primaryStateView
+              .frame(maxWidth: .infinity, maxHeight: heroFillsPane ? .infinity : nil)
+            bannerView
+            analysisSection
+            controlsSection
+          }
+          .frame(maxWidth: .infinity)
+          .frame(minHeight: viewport.size.height, alignment: .top)
+        }
+        .scrollBounceBehavior(.basedOnSize)
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
       .padding()
     }
     // `.contentShape` AFTER `.frame()` and BEFORE `.dropDestination` so
@@ -282,12 +309,13 @@ struct ContentView: View {
   // Beats view (waveform + grid + scrubber, Story 10.3) or the loudness graph
   // (LUFS over time, Story 10.4 UX rework — replaces the old full-height
   // bottom loudness panel). Shown when either result exists; the segmented
-  // switch appears only when both do. The `panelMaxHeight` cap is
-  // load-bearing: the lane is otherwise an unbounded, incompressible view
-  // that grows the window and starves `primaryStateView`'s
-  // `maxHeight: .infinity` share, hiding the BPM hero. The cap bounds the
-  // block; the lane flexes within it while the transport/readout rows keep
-  // their fixed height.
+  // switch appears only when both do. With the result-state hero now intrinsic
+  // (`heroFillsPane`), this lane is the sole vertically-greedy child, so it fills
+  // the reclaimed vertical space via `maxHeight: .infinity` and grows/shrinks with
+  // the window. Both lanes are compressible (BeatGridView min ~0; LoudnessGraphView
+  // has a small 120 floor), so the lane adds no large minimum — the window stays
+  // shrinkable under `.contentMinSize`, and `.defaultSize` fixes the launch height.
+  // No hardcoded height cap here on purpose (see `columnWidth`'s note).
   @ViewBuilder
   private var analysisSection: some View {
     let grid = viewModel.gridVisualization
@@ -329,7 +357,7 @@ struct ContentView: View {
           Spacer()
         }
       }
-      .frame(maxWidth: .infinity, maxHeight: panelMaxHeight, alignment: .topLeading)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
   }
 
@@ -371,86 +399,107 @@ struct ContentView: View {
             }
           )
           .help(
-            "How many seconds of the track to decode and analyze — BPM, beat grid, AND the "
-              + "waveform. Caps cost on long files (600 ≈ 10 min). The grid + waveform you see "
-              + "cover exactly this span.")
+            "How many seconds of the track to decode and analyze: BPM, beat grid, and the "
+              + "waveform. Caps cost on long files (600 is about 10 min). The grid and waveform "
+              + "you see cover exactly this span.")
         }
 
-        Toggle("Refine grid tempo", isOn: refineGridTempoBinding)
-          .toggleStyle(.checkbox)
-          .onChange(of: viewModel.options.refineBeatGridTempo) { _, _ in
-            triggerReanalyze()
-          }
-          .help(
-            "Fit the blue extrapolated grid to the track's onset evidence for tighter long-track "
-              + "alignment. This can refine the grid tempo without changing the headline BPM. "
-              + "Best for constant-tempo electronic / DJ music.")
-
-        // Header row (Story 11.6): the visible "Merge strategy" label sits
-        // beside a "?" HelpButton opening the authored `BPMSelectionPolicy`
-        // docs-popover for the selected strategy. The visible Text is decorative
-        // and hidden from accessibility — `.labelsHidden()` hides the Picker's
-        // label VISUALLY but keeps it for VoiceOver, so the Picker itself remains
-        // the single accessible "Merge strategy" element (marking the Text
-        // a11y-hidden avoids a duplicate announcement).
-        HStack {
-          Text("Merge strategy")
-            .accessibilityHidden(true)
-          HelpButton(case: MergeStrategyDoc(viewModel.options.mergeStrategy))
+        // "Refine grid tempo" + a "?" popover explaining what it does, then a
+        // full-width rule separating this option from the ensemble/merge
+        // controls below.
+        HStack(spacing: 6) {
+          Toggle("Refine grid tempo", isOn: refineGridTempoBinding)
+            .toggleStyle(.checkbox)
+            .onChange(of: viewModel.options.refineBeatGridTempo) { _, _ in
+              triggerReanalyze()
+            }
+            .help(
+              "Map the beat grid to the onsets detected in the track. Keeps the headline BPM "
+                + "unchanged. Assumes a constant tempo.")
+          RefineGridTempoHelpButton()
           Spacer()
         }
-        // `.onChange(of:)` fires for any mutation, including
-        // programmatic writes — today only this Picker mutates the
-        // value, so a future preset feature could trigger unintended
-        // re-analyzes.
-        Picker("Merge strategy", selection: $viewModel.options.mergeStrategy) {
-          ForEach(BPMSelectionPolicy.allCases, id: \.self) { strategy in
-            // F06 (Story 5-6 review, closes deferred-work W28): humanize
-            // raw camelCase enum names ("maxConfidence", "windowVoting")
-            // into space-separated lowercase ("max confidence", "window
-            // voting") for the end-user Picker labels. The rawValue
-            // string is preserved internally on the @Binding.
-            Text(AnalysisViewModel.humanize(strategy)).tag(strategy)
-          }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .onChange(of: viewModel.options.mergeStrategy) { _, _ in
-          viewModel.persistPreferredMergeStrategy()
-          triggerReanalyze()
-        }
-        // One-line help mirroring the ensemble control — updates with the
-        // selected policy.
-        Text(AnalysisViewModel.strategyDescription(viewModel.options.mergeStrategy))
-          .font(.caption)
-          .foregroundStyle(.secondary)
 
         Divider()
 
-        // Ensemble preset — governs how DSP / ML / metadata votes combine.
-        // Placed directly beneath Merge strategy so the two "how signals
-        // combine" controls read together (demo UX relayout, post-9.1). Preset
-        // changes never touch `options.mergeStrategy`, so the merge-strategy
-        // Picker's `.onChange` cannot cascade — one persist + one re-analyze
-        // per selection (the no-cascade rule from Story 9.1 DD5).
-        EnsemblePresetPicker(selection: $viewModel.selectedEnsemblePreset)
-          .onChange(of: viewModel.selectedEnsemblePreset) { _, _ in
-            viewModel.persistPreferredEnsemblePreset()
-            triggerReanalyze()
+        // Ensemble + Merge strategy share one row: Ensemble on the left, Merge
+        // strategy in a column to its right (demo UX relayout). Both blocks are
+        // width-bounded by `columnWidth` so their caption lines wrap rather than
+        // driving the column wide and squeezing the neighboring Picker; the
+        // trailing Spacer keeps the pair adjacent-left with empty space to the
+        // right. These are the two "how signals combine" controls.
+        HStack(alignment: .top, spacing: 24) {
+          // Ensemble preset — governs how DSP / ML / metadata votes combine.
+          // Preset changes never touch `options.mergeStrategy`, so the
+          // merge-strategy Picker's `.onChange` cannot cascade — one persist +
+          // one re-analyze per selection (the no-cascade rule from Story 9.1 DD5).
+          VStack(alignment: .leading, spacing: 4) {
+            EnsemblePresetPicker(selection: $viewModel.selectedEnsemblePreset)
+              .onChange(of: viewModel.selectedEnsemblePreset) { _, _ in
+                viewModel.persistPreferredEnsemblePreset()
+                triggerReanalyze()
+              }
+            // Honest degradation (Story 9.1 DD7): `ML augmented` / `DSP only`
+            // warn when the loaded-model state makes the ML signal absent.
+            // No reserved space (was 2 lines): the caption is empty on the
+            // default preset, and reserving two blank lines left a too-large gap
+            // above the rule below. A degrading preset simply grows the column by
+            // its 1-2 warning lines when it applies.
+            Text(
+              AnalysisViewModel.ensembleDegradationCaption(
+                preset: viewModel.selectedEnsemblePreset,
+                mlModelName: viewModel.mlModelName,
+                mlEnabled: viewModel.mlEnabled)
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(2)
           }
-        // Honest degradation (Story 9.1 DD7): `ML augmented` / `DSP only` warn
-        // when the loaded-model state makes the ML signal absent. Consolidated
-        // into one pure helper and reserved at two lines so switching presets
-        // never shifts the divider/buttons below.
-        Text(
-          AnalysisViewModel.ensembleDegradationCaption(
-            preset: viewModel.selectedEnsemblePreset,
-            mlModelName: viewModel.mlModelName,
-            mlEnabled: viewModel.mlEnabled)
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .lineLimit(2, reservesSpace: true)
+          .frame(maxWidth: columnWidth, alignment: .topLeading)
+
+          // Merge strategy (Story 11.6): the visible "Merge strategy" label
+          // sits beside a "?" HelpButton opening the authored
+          // `BPMSelectionPolicy` docs-popover for the selected strategy. The
+          // visible Text is decorative and a11y-hidden — `.labelsHidden()`
+          // hides the Picker's label VISUALLY but keeps it for VoiceOver, so
+          // the Picker itself remains the single accessible "Merge strategy"
+          // element (avoiding a duplicate announcement).
+          VStack(alignment: .leading, spacing: 4) {
+            HStack {
+              Text("Merge strategy")
+                .accessibilityHidden(true)
+              HelpButton(case: MergeStrategyDoc(viewModel.options.mergeStrategy))
+            }
+            // `.onChange(of:)` fires for any mutation, including programmatic
+            // writes — today only this Picker mutates the value, so a future
+            // preset feature could trigger unintended re-analyzes.
+            Picker("Merge strategy", selection: $viewModel.options.mergeStrategy) {
+              ForEach(BPMSelectionPolicy.allCases, id: \.self) { strategy in
+                // F06 (Story 5-6 review, closes deferred-work W28): humanize
+                // raw camelCase enum names ("maxConfidence", "windowVoting")
+                // into space-separated lowercase ("max confidence", "window
+                // voting") for the end-user Picker labels. The rawValue string
+                // is preserved internally on the @Binding.
+                Text(AnalysisViewModel.humanize(strategy)).tag(strategy)
+              }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .onChange(of: viewModel.options.mergeStrategy) { _, _ in
+              viewModel.persistPreferredMergeStrategy()
+              triggerReanalyze()
+            }
+            // One-line help mirroring the ensemble control — updates with the
+            // selected policy.
+            Text(AnalysisViewModel.strategyDescription(viewModel.options.mergeStrategy))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+          .frame(maxWidth: columnWidth, alignment: .topLeading)
+
+          Spacer(minLength: 0)
+        }
 
         Divider()
 
@@ -549,7 +598,7 @@ struct ContentView: View {
       // `.nonFinite` covers NaN/Inf AND out-of-range; user-facing
       // copy says "invalid numeric value" to fit both.
       return .errorOnly(
-        "Internal error: analysis returned an invalid numeric value. This is a library bug — please file an issue."
+        "Internal error: analysis returned an invalid numeric value. This is a library bug. Please file an issue."
       )
     case .failure(.missingFields):
       // Partial state during analysis transitions, or never-run
@@ -572,6 +621,21 @@ struct ContentView: View {
       return message
     case .empty, .errorOnly:
       return nil
+    }
+  }
+
+  // Which states let the primary view greedily fill the vertical slot. ONLY the
+  // transient analyzing / error text centers by filling. The empty-state drop
+  // prompt and the result hero are intrinsic: the prompt stays a compact top
+  // affordance (not a full-window-centered block, the "drop area too big"
+  // complaint), and the result hero anchors top-right and hands surplus height
+  // to the analysis lane. The analyzing / error fill and the result-state
+  // analysis lane push controls to the bottom in those states; the empty state
+  // has no greedy view, so its controls follow the compact prompt directly.
+  private var heroFillsPane: Bool {
+    switch displayState {
+    case .analyzing, .errorOnly: return true
+    case .empty, .result: return false
     }
   }
 
@@ -641,16 +705,63 @@ struct ContentView: View {
     }
     // Single-container top-right anchoring (AC #2 — `.frame` with
     // `alignment: .topTrailing` on a single VStack, NOT nested
-    // `HStack { Spacer(); VStack }`). `maxHeight: .infinity` added
-    // (Story 5-6b post-Codex review) because `primaryStateView` now
-    // claims the full pane height; without it the intrinsic-height
-    // result block would center vertically instead of anchoring
-    // top-right.
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    // `HStack { Spacer(); VStack }`). Width-fill + trailing alignment keep the
+    // hero top-right; the vertical greed (`maxHeight: .infinity`) is
+    // deliberately dropped in the result state so the hero is intrinsic-height
+    // and the freed space below flows to the taller analysis lane (no gap under
+    // "Elapsed"). The call site (`heroFillsPane`) fills the pane only in the
+    // analyzing / error states, centering their transient text; the empty
+    // prompt is intrinsic.
+    .frame(maxWidth: .infinity, alignment: .topTrailing)
   }
 
   @ViewBuilder
   private func secondaryMetadataRow(_ value: String) -> some View {
     Text(value).monospacedDigit()
+  }
+}
+
+/// The `(?)` help button shown beside the "Refine grid tempo" toggle. Self-
+/// contained (owns its popover state + plain-language content), mirroring the
+/// chrome of `BeatGridHelpButton` / `LoudnessHelpButton` — this option is a
+/// plain `Options` flag, not a documented library case, so it does not use the
+/// authored-docs `HelpButton`.
+struct RefineGridTempoHelpButton: View {
+  @State private var showHelp = false
+
+  var body: some View {
+    Button {
+      showHelp.toggle()
+    } label: {
+      Image(systemName: "questionmark.circle")
+    }
+    .buttonStyle(.borderless)
+    .controlSize(.small)
+    .help("What does refining the grid tempo do?")
+    .accessibilityLabel("Refine grid tempo help")
+    .accessibilityHint("Explains how the beat grid maps to detected onsets")
+    .popover(isPresented: $showHelp, arrowEdge: .bottom) {
+      helpBody
+        .padding()
+        .frame(width: 360)
+    }
+  }
+
+  @ViewBuilder
+  private var helpBody: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("Refine grid tempo")
+        .font(.headline)
+        .accessibilityAddTraits(.isHeader)
+      Text(
+        "Map the beat grid to the onsets detected in the track. The headline BPM shown above "
+          + "stays unchanged.")
+      Text(
+        "Assumes a constant tempo. Re-runs the current analysis when a file is loaded."
+      )
+      .foregroundStyle(.secondary)
+    }
+    .font(.callout)
+    .fixedSize(horizontal: false, vertical: true)
   }
 }
