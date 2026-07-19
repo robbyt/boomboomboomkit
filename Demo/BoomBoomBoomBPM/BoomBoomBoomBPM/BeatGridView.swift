@@ -206,10 +206,13 @@ struct BeatGridView: View {
         }
       }
       // The wrapper GeometryReader is the sole vertically-greedy child of this
-      // VStack (controls / readout stay intrinsic below). An explicit zero
-      // minimum documents why the lane never raises the window's `.contentMinSize`
-      // minimum — the window stays freely shrinkable. No numeric height cap.
-      .frame(minHeight: 0, maxHeight: .infinity)
+      // VStack (controls / readout stay intrinsic below). A 120pt floor matches
+      // the LoudnessGraphView lane so a short window keeps a usable waveform
+      // height instead of compressing it toward zero. The floor does NOT raise
+      // the window's `.contentMinSize` minimum: the outer vertical ScrollView is
+      // the compressible element (the same reasoning that makes the Loudness
+      // floor safe), so a short window scrolls rather than the lane vanishing.
+      .frame(minHeight: 120, maxHeight: .infinity)
       controls
       readout
     }
