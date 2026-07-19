@@ -967,3 +967,13 @@ operator build config and stays.
 main-bound tracked files (Sources/, Tests/, README, MODEL_CARD, tools/, excluding
 develop-only `_bmad-output`/`docs`/`.claude`/`scripts`/`CLAUDE.md`/`TODO.md` and
 the operator config files) returns zero.
+
+## Deferred from: spec-demo-param-help-popovers (demo parameter help popovers, 2026-07-19)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-param-help-popovers.md`
+  summary: Realign the demo Ensemble control to be 1:1 with the library `EnsemblePolicy` cases (distinct doc per option) instead of the curated demo `EnsemblePreset` set.
+  evidence: `mlAugmented` and `trustFileTags` both map to `EnsemblePolicy.weightedVoting` with different `SignalWeights`, so they share the one `weightedVoting` doc. A true 1:1 match means dropping the curated presets or exposing raw `SignalWeights`, which breaks the `EnsemblePresetPickerTests` name/subtitle/mapping locks and the persisted rawValues — a separable UX + test change beyond the help-popover goal.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-param-help-popovers.md`
+  summary: The demo Intensity `Slider` has no `accessibilityLabel`/`accessibilityValue`, so VoiceOver announces it as a bare percentage with no "Intensity" name.
+  evidence: Pre-existing (the slider was unlabeled before the help-popover work); surfaced by the step-04 edge-case review. Unlike the Merge strategy / Ensemble pickers (which carry a name via their labels-hidden `Picker` label), the Slider relies on a sibling `Text`. A one-line `.accessibilityLabel("Intensity")` + `.accessibilityValue` fixes it, but slider a11y-value phrasing is its own small design decision, kept out of the help-popover scope.

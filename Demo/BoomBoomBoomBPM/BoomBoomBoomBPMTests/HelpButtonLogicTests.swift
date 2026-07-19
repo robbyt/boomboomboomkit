@@ -75,6 +75,77 @@ struct HelpButtonLogicTests {
     }
   }
 
+  // MARK: - IntensityDoc
+
+  private static let allLevels: [AnalysisIntensity] = [
+    .level1, .level2, .level3, .level4, .level5,
+    .level6, .level7, .level8, .level9, .level10,
+  ]
+
+  @Test("Every intensity level adapter has a stable kind/id + non-empty copy")
+  func intensityAdapterCatalogIsStableAndComplete() {
+    var seenIDs = Set<String>()
+    for intensity in Self.allLevels {
+      let doc = IntensityDoc(intensity)
+      #expect(doc.kind == "AnalysisIntensity")
+      // Real drift pin: the literal "level<N>" rawValue the accessor reads
+      // (asserting `== intensity.documentationID` would be tautological, since
+      // the adapter defines `id` as exactly that).
+      #expect(doc.id == "level\(intensity.level)")
+      #expect(!doc.shortDescription.isEmpty)
+      #expect(!doc.displayName.isEmpty)
+      #expect(doc.controlName == "Intensity")
+      seenIDs.insert(doc.id)
+    }
+    // Named-alias suffixes surface on the four aliased levels.
+    #expect(IntensityDoc(.level1).displayName == "Level 1 (fastest)")
+    #expect(IntensityDoc(.level7).displayName == "Level 7 (default)")
+    #expect(IntensityDoc(.level8).displayName == "Level 8 (thorough)")
+    #expect(IntensityDoc(.level10).displayName == "Level 10 (maximum)")
+    #expect(IntensityDoc(.level3).displayName == "Level 3")
+    #expect(seenIDs.count == 10)
+  }
+
+  @Test("Every intensity level resolves to authored docs, not the fallback sentinel")
+  func intensityDocsResolveToAuthoredContent() {
+    for intensity in Self.allLevels {
+      let rendered = String(IntensityDoc(intensity).docs.characters)
+      #expect(!rendered.contains("Documentation unavailable"))
+      #expect(rendered.count > 120)
+    }
+  }
+
+  // MARK: - EnsembleDoc
+
+  @Test("Every ensemble preset adapter carries the resolved policy's doc key")
+  func ensembleAdapterMapsToPolicyDoc() {
+    #expect(EnsembleDoc(.default).kind == "EnsemblePolicy")
+    // Exact preset -> library doc id (the resolved policy's stableKey). The two
+    // weightedVoting presets intentionally share the "weightedVoting" doc.
+    #expect(EnsembleDoc(.default).id == "default")
+    #expect(EnsembleDoc(.dspOnly).id == "dspOnly")
+    #expect(EnsembleDoc(.mlAugmented).id == "weightedVoting")
+    #expect(EnsembleDoc(.trustFileTags).id == "weightedVoting")
+    // The four explicit id assertions above are the drift pins; the loop
+    // checks the remaining derivations (asserting id == preset.policy.documentationID
+    // would be tautological — the adapter defines id as exactly that).
+    for preset in EnsemblePreset.allCases {
+      let doc = EnsembleDoc(preset)
+      #expect(doc.displayName == preset.displayName)
+      #expect(doc.shortDescription == preset.subtitle)
+      #expect(doc.controlName == "Ensemble")
+    }
+  }
+
+  @Test("Every ensemble preset resolves to authored docs, not the fallback sentinel")
+  func ensembleDocsResolveToAuthoredContent() {
+    for preset in EnsemblePreset.allCases {
+      let rendered = String(EnsembleDoc(preset).docs.characters)
+      #expect(!rendered.contains("Documentation unavailable"))
+      #expect(rendered.count > 120)
+    }
+  }
+
   @Test("repoDocURL percent-encodes adversarial id segments without crashing")
   func repoDocURLEncodesAdversarialSegments() {
     let base =

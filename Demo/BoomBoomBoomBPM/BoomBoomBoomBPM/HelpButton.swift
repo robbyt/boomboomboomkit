@@ -154,3 +154,46 @@ nonisolated enum HelpButtonDocs {
   .padding()
   .frame(width: 320)
 }
+
+#Preview("Intensity help") {
+  @Previewable @State var intensity: AnalysisIntensity = .level7
+  VStack(alignment: .leading, spacing: 8) {
+    HStack {
+      Text("Intensity: \(intensity.level)")
+        .font(.callout)
+      HelpButton(case: IntensityDoc(intensity))
+      Spacer()
+    }
+    Slider(
+      value: Binding(
+        get: { Double(intensity.level) },
+        set: { intensity = AnalysisIntensity(level: Int($0.rounded())) ?? .default }),
+      in: 1.0...10.0,
+      step: 1.0)
+  }
+  .padding()
+  .frame(width: 320)
+}
+
+#Preview("Ensemble help") {
+  @Previewable @State var preset: EnsemblePreset = .default
+  VStack(alignment: .leading, spacing: 8) {
+    HStack {
+      Text("Ensemble")
+      HelpButton(case: EnsembleDoc(preset))
+      Spacer()
+    }
+    Picker("Ensemble", selection: $preset) {
+      ForEach(EnsemblePreset.allCases, id: \.self) { preset in
+        Text(preset.displayName).tag(preset)
+      }
+    }
+    .labelsHidden()
+    .pickerStyle(.menu)
+    Text(preset.subtitle)
+      .font(.caption)
+      .foregroundStyle(.secondary)
+  }
+  .padding()
+  .frame(width: 320)
+}

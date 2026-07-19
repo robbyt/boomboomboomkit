@@ -262,16 +262,10 @@ struct ContentView: View {
   }
 
   private var intensityLabelText: String {
-    let raw = viewModel.options.intensity.level
-    let suffix: String
-    switch raw {
-    case 1: suffix = " (fastest)"
-    case 7: suffix = " (default)"
-    case 8: suffix = " (thorough)"
-    case 10: suffix = " (maximum)"
-    default: suffix = ""
-    }
-    return "\(raw)\(suffix)"
+    let intensity = viewModel.options.intensity
+    // Shares the alias-suffix mapping with `IntensityDoc` (the help popover
+    // heading) so the slider label and the popover cannot drift apart.
+    return "\(intensity.level)\(IntensityDoc.aliasSuffix(for: intensity))"
   }
 
   // Edit-end (slider drag-release) + selection-change (picker) — NOT
@@ -369,8 +363,16 @@ struct ContentView: View {
         // natural drag-release debounce — one trigger per completed
         // drag, not 10-30 per drag tick.
         VStack(alignment: .leading, spacing: 4) {
-          Text("Intensity: \(intensityLabelText)")
-            .font(.callout)
+          // Header row (mirrors the Merge strategy control): the "Intensity: N"
+          // label beside a "?" HelpButton opening the authored per-level
+          // `AnalysisIntensity` docs for the selected level, so the help changes
+          // as the slider moves.
+          HStack {
+            Text("Intensity: \(intensityLabelText)")
+              .font(.callout)
+            HelpButton(case: IntensityDoc(viewModel.options.intensity))
+            Spacer()
+          }
           Slider(
             value: intensityBinding,
             in: 1.0...10.0,
