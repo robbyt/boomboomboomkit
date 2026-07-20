@@ -174,14 +174,47 @@ def reject_path_overlap(docs_root: Path, output_dir: Path) -> None:
         fail(f"output-dir {out_res} overlaps docs-root {docs_res}; refusing to run")
 
 
+def reject_non_directory_output(output_dir: Path) -> None:
+    """Refuse an existing `--output-dir` that is not a real directory.
+
+    Uses `os.path.lexists` + `Path.is_symlink` so a symlink is caught on its own
+    terms rather than followed to its target (a symlink-to-directory is rejected
+    too). Called by BOTH `run_generate` and `run_check`, so the two modes agree
+    on what a usable output dir is.
+
+    Without this guard, a REGULAR FILE or a SYMLINK-TO-DIRECTORY at the path was
+    renamed by `atomic_swap` onto a `.cases-bak-*` name while the cleanup
+    `shutil.rmtree(..., ignore_errors=True)` silently no-opped on the
+    non-directory, so the run reported success while the original was displaced
+    and left behind as orphan residue. A BROKEN symlink behaved differently and
+    was never silently displaced: `atomic_swap`'s `output_dir.exists()` follows
+    the link and is False, so no backup was ever minted and the run already
+    failed with a raw `NotADirectoryError`, symlink intact and no residue. For
+    that shape the guard only improves the message.
+    """
+    if not os.path.lexists(output_dir):
+        return
+    if output_dir.is_symlink():
+        fail(f"output-dir {output_dir} is a symlink; refusing to replace it")
+    if not output_dir.is_dir():
+        fail(f"output-dir {output_dir} exists and is not a directory; refusing to replace it")
+
+
 def atomic_swap(output_dir: Path, outputs: dict[str, bytes]) -> None:
     """Write outputs to a sibling temp dir, then swap it into place wholesale.
 
+    Precondition: `output_dir` is absent or a real directory — `run_generate`
+    calls `reject_non_directory_output` first, because the cleanup below cannot
+    sweep a non-directory backup.
+
     Fully self-cleaning: on any failure the sibling temp dir is removed and, if
-    the existing `Cases/` was already moved aside, it is restored — so a crash
+    the existing `Cases/` was already moved aside, it is restored, so a crash
     mid-swap never leaves a partial `Cases/` or an orphan `.cases-tmp-*` /
     `.cases-bak-*` dir behind (those prefixes are also gitignored as a hard-kill
-    backstop).
+    backstop). The ONE case that deliberately leaves residue: if the restore
+    rename itself fails, the moved-aside original is the only copy left, so it
+    is preserved under its `.cases-bak-*` name and the failure message names
+    that path instead of deleting it.
     """
     parent = output_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
@@ -199,20 +232,30 @@ def atomic_swap(output_dir: Path, outputs: dict[str, bytes]) -> None:
         os.rename(tmp_dir, output_dir)
         swapped = True
     finally:
+        restore_error: OSError | None = None
         if not swapped:
             # Roll back a moved-aside original, then drop the temp set.
             if backup is not None and backup.exists() and not output_dir.exists():
                 try:
                     os.rename(backup, output_dir)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    restore_error = exc
             shutil.rmtree(tmp_dir, ignore_errors=True)
-        if backup is not None:
+        # Never sweep a backup that could not be restored: it is the operator's
+        # only remaining copy of the original output dir.
+        if backup is not None and restore_error is None:
             shutil.rmtree(backup, ignore_errors=True)
+        if restore_error is not None:
+            fail(
+                f"could not restore {output_dir} after a failed swap "
+                f"({restore_error}); the original is preserved at {backup} "
+                f"and was NOT deleted, move it back by hand"
+            )
 
 
 def run_generate(docs_root: Path, output_dir: Path) -> int:
     reject_path_overlap(docs_root, output_dir)
+    reject_non_directory_output(output_dir)
     outputs = collect_outputs(docs_root)
     atomic_swap(output_dir, outputs)
     return len(outputs)
@@ -233,10 +276,20 @@ def run_check(docs_root: Path, output_dir: Path) -> int:
     been generated first).
     """
     reject_path_overlap(docs_root, output_dir)
+    # Same guard, same message as `run_generate`: the two modes must not
+    # disagree about what a usable output dir is (a symlink-to-directory used to
+    # pass --check and hard-fail a generate).
+    reject_non_directory_output(output_dir)
     outputs = collect_outputs(docs_root)  # validates + builds the expected page set
     if not outputs:
         fail(f"no eligible source docs under {docs_root} (wrong --docs-root?)")
     if not output_dir.is_dir():
+        # The guard above already rejected an existing non-directory; re-running
+        # it here keeps the message honest if the path appeared in between, so
+        # "missing" is only ever reported for a genuinely absent path (the old
+        # unconditional message sent the operator to `make docc-transclude`,
+        # which now refuses that same path).
+        reject_non_directory_output(output_dir)
         fail(f"generated Cases/ dir missing at {output_dir}; run `make docc-transclude`")
 
     on_disk = {p.name for p in output_dir.glob("*.md")}
