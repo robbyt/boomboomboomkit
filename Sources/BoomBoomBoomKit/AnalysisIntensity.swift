@@ -102,11 +102,11 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
 
   // MARK: - Computed Configuration Properties
 
-  // The three per-level switches below (techniqueSet / windowSizes /
-  // progressiveThreshold) are deliberately EXHAUSTIVE (no `default:` arm): the
-  // point of the Story 11.2 enum reshape is that the compiler forces a per-level
-  // decision, so a hypothetical future case must be placed in each table
-  // explicitly instead of silently inheriting the top-level behavior.
+  // The two per-level switches below (techniqueSet / windowSizes) are
+  // deliberately EXHAUSTIVE (no `default:` arm): the point of the Story 11.2
+  // enum reshape is that the compiler forces a per-level decision, so a
+  // hypothetical future case must be placed in each table explicitly instead
+  // of silently inheriting the top-level behavior.
 
   /// The technique set for this intensity level, based on empirical ablation data.
   ///
@@ -140,18 +140,6 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
     case .level2, .level3, .level4, .level5: return [30]
     case .level6: return [30, 60]
     case .level7, .level8, .level9, .level10: return [30, 60, 90]
-    }
-  }
-
-  /// Controls whether progressive analysis stops after its first successful window
-  /// result. `nil` stops after the first success; non-`nil` attempts every
-  /// configured window (unless cancelled) and merges the successful results. The
-  /// numeric value is NOT consulted at the call site (`AudioAnalysisService` only
-  /// checks `== nil`) — reserved for a future confidence-gated early stop.
-  public var progressiveThreshold: Double? {
-    switch self {
-    case .level1, .level2, .level3, .level4, .level5: return nil
-    case .level6, .level7, .level8, .level9, .level10: return 0.40
     }
   }
 }

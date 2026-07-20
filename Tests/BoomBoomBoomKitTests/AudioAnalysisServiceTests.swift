@@ -390,6 +390,34 @@ struct AudioAnalysisServiceProgressTests {
     _ = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
     #expect(!progressCalled)
   }
+
+  /// W83 regression net: `windowSizes` is the ONLY thing that decides how many
+  /// windows run. `onProgress` fires exactly once immediately before each window
+  /// is attempted, so the callback count is the number of windows the loop
+  /// entered. This test fails if any early-stop gate is reintroduced into the
+  /// window loop (the per-level threshold gate deleted by W83 was such a break,
+  /// inert only because levels 1-5 list a single window).
+  @Test("every configured window runs at every intensity level")
+  func everyConfiguredWindowRuns() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    for level in AnalysisIntensity.allCases {
+      nonisolated(unsafe) var updates: [ProgressUpdate] = []
+      var opts = AudioAnalysisService.Options()
+      opts.intensity = level
+      opts.onProgress = { updates.append($0) }
+      let result = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
+      // The fixture is analyzable, so no window is skipped for lack of audio.
+      #expect(result != nil, "fixture unexpectedly unanalyzable at \(level)")
+      let expected = level.windowSizes.count
+      #expect(
+        updates.count == expected,
+        "\(level) attempted \(updates.count) windows, windowSizes.count is \(expected)")
+      for (index, update) in updates.enumerated() {
+        #expect(update.windowsCompleted == index, "out-of-order progress at \(level)")
+        #expect(update.windowsTotal == expected, "wrong windowsTotal at \(level)")
+      }
+    }
+  }
 }
 
 // MARK: - MLTechnique Slot (Story 3-3a / ADR-11; wired by Story 4.3)
