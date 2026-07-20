@@ -383,4 +383,4 @@ action_items:
   - epic: 11
     action: "AnalysisIntensity.progressiveThreshold Double?->Bool cleanup (W83): the sole consumer only checks == nil, so the 0.40 payload is never compared. At the next breaking-API pass (pre-1.0, break freely) make it a Bool or derive the flag from windowSizes.count > 1 and drop the property"
     owner: "create-story author (next breaking-API pass)"
-    status: open
+    status: done
