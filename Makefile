@@ -108,9 +108,9 @@ demo-lint:
 	fi
 	@bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
 
-## pre-commit: Run all pre-PR gates (library + demo fmt + lint). NOT a git hook — runs on demand
+## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ pytest suite). NOT a git hook — runs on demand
 .PHONY: pre-commit
-pre-commit: fmt demo-fmt lint demo-lint
+pre-commit: fmt demo-fmt lint demo-lint scripts-tests
 
 ## test: Run unit tests only (excludes benchmark target; no corpus env required)
 .PHONY: test
@@ -440,7 +440,7 @@ ifndef CASE
 endif
 	uv run scripts/new-case.py "$(TYPE)" "$(CASE)"
 
-## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob.
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration, because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
 .PHONY: py-lint
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
@@ -704,6 +704,15 @@ ablation-unsupervised-manifest:
 .PHONY: ablation-tests
 ablation-tests:
 	cd $(ML_TRAINING_DIR) && uv run pytest ablation/tests/
+
+## scripts-tests: Run the W87 pytest suite for scripts/ (docc-transclude generator). Develop-only; runs in the ml-training uv env (pytest already lives in its dev group, no second uv project). Every test writes only into a pytest tmp_path. Self-skips with a printed note on a main-only checkout, where scripts/tests/ is absent -- the docc-validate convention, because this target is a `pre-commit` prerequisite and a mid-run hard failure there would abort the whole gate chain after fmt and lint had already run.
+.PHONY: scripts-tests
+scripts-tests:
+	@if [ ! -d "$(CURDIR)/scripts/tests" ]; then \
+		echo "Note: $(CURDIR)/scripts/tests absent (main-only checkout); skipping the develop-only scripts/ pytest suite."; \
+	else \
+		cd $(ML_TRAINING_DIR) && uv run pytest "$(CURDIR)/scripts/tests/"; \
+	fi
 
 ## ablation-supervised: Run the supervisedAugmented arm (smoke: ABLATION_ARGS="--epochs 1 --subset 32"; DD #6 run B: ABLATION_ARGS="--random-split")
 .PHONY: ablation-supervised
