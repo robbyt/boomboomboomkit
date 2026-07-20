@@ -252,7 +252,6 @@ struct AnalysisIntensityTests {
     #expect(i1.techniqueSet.dspTechniques.isEmpty)
     #expect(i1.techniqueSet.candidateCount == 1)
     #expect(i1.windowSizes == [15])
-    #expect(i1.progressiveThreshold == nil)
 
     let i2 = AnalysisIntensity.level2
     #expect(i2.techniqueSet == .baseline)
@@ -268,11 +267,10 @@ struct AnalysisIntensityTests {
     let i5 = AnalysisIntensity.level5
     #expect(i5.techniqueSet == .optimal)
     #expect(i5.techniqueSet.candidateCount == 3)
-    #expect(i5.progressiveThreshold == nil)
+    #expect(i5.windowSizes == [30])
 
     let i7 = AnalysisIntensity.level7
     #expect(i7.techniqueSet == .optimal)
-    #expect(i7.progressiveThreshold == 0.40)
     #expect(i7.windowSizes == [30, 60, 90])
   }
 
@@ -283,23 +281,17 @@ struct AnalysisIntensityTests {
     // here (unit time), not at corpus time.
     for level in AnalysisIntensity.allCases {
       let expectedWindows: [Double]
-      let expectedThreshold: Double?
       switch level.level {
       case 1:
         expectedWindows = [15]
-        expectedThreshold = nil
       case 2...5:
         expectedWindows = [30]
-        expectedThreshold = nil
       case 6:
         expectedWindows = [30, 60]
-        expectedThreshold = 0.40
       default:
         expectedWindows = [30, 60, 90]
-        expectedThreshold = 0.40
       }
       #expect(level.windowSizes == expectedWindows, "windowSizes wrong at \(level)")
-      #expect(level.progressiveThreshold == expectedThreshold, "threshold wrong at \(level)")
       switch level.level {
       case 1: #expect(level.techniqueSet.candidateCount == 1)
       case 2: #expect(level.techniqueSet == .baseline)
@@ -314,7 +306,6 @@ struct AnalysisIntensityTests {
     for level in [AnalysisIntensity.level8, .level9, .level10] {
       #expect(level.techniqueSet == i7.techniqueSet)
       #expect(level.windowSizes == i7.windowSizes)
-      #expect(level.progressiveThreshold == i7.progressiveThreshold)
     }
   }
 

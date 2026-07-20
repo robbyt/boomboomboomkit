@@ -379,8 +379,8 @@ action_items:
   - epic: 11
     action: "Unit-test scripts/docc-transclude.py (W87): the generator has real branching (front-matter strip, atomic temp-build-then-swap with rollback, path-overlap guard, --check byte-compare, empty-corpus floor) and a regression already slipped once (PR #101 --check-vs-clean-checkout P2); needs a pytest home (scripts/tests/ or the ml-training uv env) + a make target"
     owner: "create-story author (follow-up)"
-    status: open
+    status: done
   - epic: 11
     action: "AnalysisIntensity.progressiveThreshold Double?->Bool cleanup (W83): the sole consumer only checks == nil, so the 0.40 payload is never compared. At the next breaking-API pass (pre-1.0, break freely) make it a Bool or derive the flag from windowSizes.count > 1 and drop the property"
     owner: "create-story author (next breaking-API pass)"
-    status: open
+    status: done
