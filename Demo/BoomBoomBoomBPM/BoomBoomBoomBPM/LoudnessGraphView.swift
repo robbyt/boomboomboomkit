@@ -72,21 +72,22 @@ struct LoudnessGraphView: View {
           handleTap(atX: value.location.x)
         }
     )
-    // The tap needs the lane width to invert x → time, and the playhead marker
-    // needs the height; measure once per layout (layout-neutral, the
-    // BeatGridView `laneSize` pattern).
-    .onGeometryChange(for: CGSize.self) { proxy in
-      proxy.size
-    } action: { newSize in
-      laneSize = newSize
+    // The tap needs the lane WIDTH to invert x → time; measure width only
+    // (layout-neutral). The playhead marker fills the parent height instead of
+    // reading a stored height — mirrors the BeatGridView fix so no rendered
+    // height feeds back as a required height (the window-growth crash pattern).
+    .onGeometryChange(for: CGFloat.self) { proxy in
+      proxy.size.width
+    } action: { newWidth in
+      laneWidth = newWidth
     }
   }
 
-  @State private var laneSize: CGSize = .zero
+  @State private var laneWidth: CGFloat = 0
 
   private func handleTap(atX x: CGFloat) {
     guard controller.hasAudio else { return }
-    guard let time = Self.time(forX: x, span: span, width: laneSize.width) else { return }
+    guard let time = Self.time(forX: x, span: span, width: laneWidth) else { return }
     controller.seek(to: time)
     if !controller.isPlaying {
       controller.play()
@@ -114,8 +115,11 @@ struct LoudnessGraphView: View {
   private func scrubberMarker(at time: Double) -> some View {
     Rectangle()
       .fill(Color.primary)
-      .frame(width: 1.5, height: max(laneSize.height, 1))
-      .offset(x: Self.x(forTime: time, span: span, width: laneSize.width) - 0.75)
+      // Fill the parent height (the graphCanvas ZStack's definite height),
+      // never a stored self-measurement.
+      .frame(width: 1.5)
+      .frame(maxHeight: .infinity)
+      .offset(x: Self.x(forTime: time, span: span, width: laneWidth) - 0.75)
       // The playhead must never swallow a click at its own position.
       .allowsHitTesting(false)
   }
@@ -231,7 +235,7 @@ struct LoudnessGraphView: View {
       .disabled(!controller.hasAudio)
       .help(
         controller.hasAudio
-          ? "Play / pause — or click the graph to jump to that time"
+          ? "Play or pause, or click the graph to jump to that time"
           : "Playback unavailable for this file")
 
       if let error = controller.playbackError {
@@ -261,7 +265,7 @@ struct LoudnessGraphView: View {
         AnalysisMetadataChip(
           label: "True peak", value: Self.truePeakValue(report.maxTruePeakDBTP),
           help:
-            "Measured after mono mixdown — may understate per-channel peaks; not a delivery-compliance value."
+            "Measured after mono mixdown; may understate per-channel peaks. Not a delivery-compliance value."
         )
         AnalysisMetadataChip(
           label: "Loudness range", value: Self.loudnessRangeValue(report.loudnessRangeLU))
@@ -410,21 +414,21 @@ struct LoudnessHelpButton: View {
     VStack(alignment: .leading, spacing: 8) {
       legendRow(
         .red.opacity(0.55), "Momentary",
-        "Loudness over a sliding 400 ms window — the fast meter that follows every hit.")
+        "Loudness over a sliding 400 ms window, the fast meter that follows every hit.")
       legendRow(
         Color(red: 0.5, green: 0.55, blue: 1.0), "Short-term",
-        "Loudness over a sliding 3 s window — the musical phrase-level loudness contour.")
+        "Loudness over a sliding 3 s window, the musical phrase-level loudness contour.")
       legendRow(
         .blue, "Integrated",
         "The single programme-loudness number for the whole analyzed span (the horizontal "
-          + "blue line — what normalization targets).")
+          + "blue line, what normalization targets).")
       legendRow(
         .green, "Max true peak",
         "The loudest inter-sample peak, in dBTP on the same axis. Measured after mono "
           + "mixdown, so it can understate per-channel peaks.")
       legendRow(
         .green.opacity(0.25), "Loudness range",
-        "The band between the quietest and loudest short-term loudness (P10–P95) — how "
+        "The band between the quietest and loudest short-term loudness (P10–P95), how "
           + "dynamic the track is. Shown only when at least ~60 s was measurable.")
       legendRow(
         .primary, "Playhead",
