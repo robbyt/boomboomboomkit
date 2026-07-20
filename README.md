@@ -95,8 +95,8 @@ opts.techniqueSet = .clickAugmented   // sharp + vote + fine + click-correlation
 let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: opts)
 ```
 
-`intensity` is still consulted for window sizes and progressive-retry threshold, so
-window behavior remains intensity-driven even when an explicit technique set is set.
+`intensity` is still consulted for the window sizes, so how many windows run and how
+long each one is remains intensity-driven even when an explicit technique set is set.
 
 ## Intensity scale (1-10)
 
@@ -107,8 +107,8 @@ window behavior remains intensity-driven even when an explicit technique set is 
 | `1` | `.fastest` | Interactive previewing | `[15]` | Very fast |
 | `2` | — | Light analysis (baseline technique set, 3 candidates) | `[30]` | Fast |
 | `3`-`5` | — | Standard analysis (optimal technique set, 3 candidates) | `[30]` | Standard |
-| `6` | — | Standard + first progressive retry | `[30, 60]` | Standard |
-| `7` | `.default` | Best DSP accuracy (progressive 30/60/90 s, threshold-gated retry) | `[30, 60, 90]` | Default — mean ~170 ms, p95 ~245 ms (M5 Max, 3-minute track) |
+| `6` | — | Standard, plus a second 60 s window whose result is merged | `[30, 60]` | Standard |
+| `7` | `.default` | Best DSP accuracy (three merged windows at 30/60/90 s) | `[30, 60, 90]` | Default — mean ~170 ms, p95 ~245 ms (M5 Max, 3-minute track) |
 | `8` | `.thorough` | Reserved for ML augmentation. Without `Options.mlTechnique`, falls through to level 7 with `degradationReason` set on the result. | `[30, 60, 90]` | Same as 7 when ML is absent |
 | `9` | — | Reserved for ML quorum (future) | `[30, 60, 90]` | — |
 | `10` | `.maximum` | Reserved for maximum-thoroughness ML (future) | `[30, 60, 90]` | — |
@@ -525,7 +525,7 @@ The DSP spine runs 9 unconditional steps. Two optional rescore stages and three 
 - **Step 10b — Sub-band peak confirmation**: confirms the post-voting winner against its sub-band evidence.
 - **Step 10c — Fine-grid refinement** (gated by `.fineGridRefinement`): high-resolution lag search around the winning candidate.
 
-Progressive analysis (Multi-window at 30s / 60s / 90s with configurable `mergeStrategy`) wraps the whole pipeline at intensity 6+.
+Multi-window analysis wraps the whole pipeline at intensity 6 and above: every window in the level's window list runs (two windows at intensity 6, three at 7-10) and the per-window results are combined with the configured `mergeStrategy`.
 
 ## Using your own tempo model
 

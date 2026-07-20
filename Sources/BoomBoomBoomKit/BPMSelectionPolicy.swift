@@ -3,7 +3,7 @@
 //  BoomBoomBoomKit
 //
 //  Strategy for merging BPM candidates across multiple analysis windows.
-//  Used by AudioAnalysisService during progressive retry (intensity 6+).
+//  Used by AudioAnalysisService when a level lists more than one window (intensity 6+).
 //
 
 import Foundation

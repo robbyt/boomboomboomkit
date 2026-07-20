@@ -175,7 +175,8 @@ public struct AudioAnalysisService {
 
     /// Analysis intensity level (default: `.default`, which is level 7).
     /// Controls pipeline depth: which DSP stages run, how many candidates
-    /// are considered, and whether progressive retry across multiple windows is used.
+    /// are considered, and how many analysis windows the level lists (one below
+    /// level 6, two at level 6, three at levels 7-10 — all of which always run).
     /// See ``techniqueSet`` to override the intensity-derived technique set with a
     /// specific ``TechniqueSet`` (e.g., a public preset like ``TechniqueSet/clickAugmented``).
     public var intensity: AnalysisIntensity = .default
@@ -189,8 +190,8 @@ public struct AudioAnalysisService {
     ///
     /// Use this to opt into public presets that no intensity level maps to —
     /// e.g., ``TechniqueSet/clickAugmented`` for click-track rescoring on top of
-    /// the optimal pipeline. ``intensity`` is still consulted for window sizes and
-    /// progressive-retry threshold, so window behavior remains intensity-driven.
+    /// the optimal pipeline. ``intensity`` is still consulted for the window sizes, so
+    /// how many windows run and how long each one is remains intensity-driven.
     public var techniqueSet: TechniqueSet?
 
     /// Optional ML technique consulted post-pipeline to refine the DSP estimate.
@@ -1173,14 +1174,6 @@ public struct AudioAnalysisService {
 
       windowResults.append(bpmResult)
       completed += 1
-
-      // Non-progressive intensities (1-5, `progressiveThreshold == nil`): stop
-      // after this first successful window. Progressive intensities (6-10, non-nil)
-      // fall through and attempt every remaining window. The threshold's numeric
-      // value is intentionally NOT consulted — only its nil-ness gates the loop.
-      if options.intensity.progressiveThreshold == nil {
-        break
-      }
     }
 
     // Story 6.5b (KDD-A6 Stage 3): build the AUTHORITATIVE UnifiedSignalPool —
