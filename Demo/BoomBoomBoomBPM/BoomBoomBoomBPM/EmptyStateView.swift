@@ -20,7 +20,13 @@ struct EmptyStateView: View {
         .font(.callout)
         .foregroundStyle(.secondary)
     }
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    // Intrinsic height (NOT `maxHeight: .infinity`): a compact drop affordance
+    // sized to its contents + standard vertical padding, so it does not balloon
+    // to fill a tall window. The call site no longer fills the empty state
+    // either (see `heroFillsPane` in ContentView).
+    .padding(.vertical)
+    .frame(maxWidth: .infinity)
+    .fixedSize(horizontal: false, vertical: true)
     .accessibilityElement(children: .combine)
     .accessibilityHint("Drag an audio file here to analyze")
   }

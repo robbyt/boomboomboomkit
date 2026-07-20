@@ -763,10 +763,10 @@ struct EffectiveIntensityTests {
     // Equivalence-class sampling: lower boundary, representative middle, ceiling.
     for raw in [1, 4, 7] {
       var opts = AudioAnalysisService.Options()
-      opts.intensity = AnalysisIntensity(rawValue: raw)
+      opts.intensity = try #require(AnalysisIntensity(level: raw))
       let result = try #require(
         try AudioAnalysisService.analyzeBPM(url: url, options: opts))
-      #expect(result.effectiveIntensity.rawValue == raw)
+      #expect(result.effectiveIntensity.level == raw)
       #expect(result.degradationReason == nil)
     }
   }
@@ -792,7 +792,7 @@ struct EffectiveIntensityTests {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     for raw in [8, 9, 10] {
       var opts = AudioAnalysisService.Options()
-      opts.intensity = AnalysisIntensity(rawValue: raw)
+      opts.intensity = try #require(AnalysisIntensity(level: raw))
       let result = try #require(
         try AudioAnalysisService.analyzeBPM(url: url, options: opts))
       #expect(result.effectiveIntensity == .default)
@@ -800,14 +800,14 @@ struct EffectiveIntensityTests {
     }
   }
 
-  /// AC #3: degradation message exact-string format for `rawValue: 9`.
-  /// Asserts the message uses the integer rawValue, not the named-constant
+  /// AC #3: degradation message exact-string format for level 9.
+  /// Asserts the message uses the ordinal `level`, not the named-constant
   /// identifier.
   @Test("degradationReason exact-string for intensity 9")
   func degradationReasonExactStringForIntensity9() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     var opts = AudioAnalysisService.Options()
-    opts.intensity = AnalysisIntensity(rawValue: 9)
+    opts.intensity = .level9
     let result = try #require(
       try AudioAnalysisService.analyzeBPM(url: url, options: opts))
     #expect(
@@ -838,11 +838,11 @@ struct EffectiveIntensityTests {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     for raw in [8, 9, 10] {
       var opts = AudioAnalysisService.Options()
-      opts.intensity = AnalysisIntensity(rawValue: raw)
+      opts.intensity = try #require(AnalysisIntensity(level: raw))
       opts.mlTechnique = MockMLTechnique()
       let result = try #require(
         try AudioAnalysisService.analyzeBPM(url: url, options: opts))
-      #expect(result.effectiveIntensity.rawValue == raw)
+      #expect(result.effectiveIntensity.level == raw)
       #expect(result.degradationReason == nil)
     }
   }
@@ -865,8 +865,8 @@ struct MaximumSupportedIntensityTests {
     // is ever relocated. `dspOnlyMaxIntensity` (DD #3 single source of truth)
     // is private; this assertion verifies the contract via the public API.
     #expect(
-      AudioAnalysisService.maximumSupportedIntensity(mlTechnique: nil).rawValue == 7,
-      "DSP-only ceiling must remain 7 — guards against silent drift if .default rawValue is relocated"
+      AudioAnalysisService.maximumSupportedIntensity(mlTechnique: nil).level == 7,
+      "DSP-only ceiling must remain 7 — guards against silent drift if .default level is relocated"
     )
   }
 
@@ -882,8 +882,8 @@ struct MaximumSupportedIntensityTests {
     #expect(
       AudioAnalysisService.maximumSupportedIntensity(
         mlTechnique: MockMLTechnique()
-      ).rawValue == 10,
-      ".maximum ceiling must remain 10 — guards against silent drift if .maximum rawValue is relocated"
+      ).level == 10,
+      ".maximum ceiling must remain 10 — guards against silent drift if .maximum level is relocated"
     )
   }
 }

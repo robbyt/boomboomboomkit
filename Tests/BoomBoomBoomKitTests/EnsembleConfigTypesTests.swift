@@ -92,10 +92,16 @@ struct ComputeBudgetTests {
     #expect(set.count == 1)
   }
 
-  @Test("AnalysisIntensity.budget ships inert as the full budget (Story 6.5a)")
+  @Test(
+    "AnalysisIntensity.budget ships inert as the full budget for every level (Story 6.5a; 11.2 AC #8)"
+  )
   func intensityBudgetInert() {
-    #expect(AnalysisIntensity.fastest.budget == .default)
-    #expect(AnalysisIntensity.maximum.budget == .default)
+    // Story 11.2 AC #8 / DD-9: assert over the whole case set, not just two
+    // levels — the enum reshape makes `allCases` exhaustive, so a future
+    // proportional-budget mistake at any level fails here.
+    for intensity in AnalysisIntensity.allCases {
+      #expect(intensity.budget == .default, "level \(intensity.level) budget must ship inert")
+    }
   }
 }
 

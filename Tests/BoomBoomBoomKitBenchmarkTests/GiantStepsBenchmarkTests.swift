@@ -236,7 +236,7 @@ struct GiantStepsBenchmarkTests {
 
     let report = GenreAccuracyReporter.format(
       corpusLabel: "GiantSteps",
-      intensity: AnalysisIntensity.default.rawValue,
+      intensity: AnalysisIntensity.default.level,
       buckets: buckets,
       overallAcc1Percent: metrics.acc1, overallAcc2Percent: metrics.acc2)
     print("\n" + report)

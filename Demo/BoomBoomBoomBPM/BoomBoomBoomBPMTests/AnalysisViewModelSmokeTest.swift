@@ -278,22 +278,22 @@ struct AnalysisViewModelSmokeTest {
 
   // MARK: - generateConfigSnippet (Story 5-3 AC #3 / AC #10 / DD #7)
 
-  // Intensity formatting per DD #7: rawValue 1/7/8/10 emit the named
-  // constants `.fastest` / `.default` / `.thorough` / `.maximum`;
-  // 2/3/4/5/6/9 emit `AnalysisIntensity(rawValue: N)`. Paired-args via
+  // Intensity formatting (Story 11.2 DD-1a): every level emits the canonical
+  // case literal `.level<n>` — one uniform shape, never a mix of named aliases
+  // and the removed `AnalysisIntensity(rawValue:)` constructor. Paired-args via
   // `zip(...)` per Axiom A5 / Story 5-2 precedent.
   @Test(
-    "generateConfigSnippet emits named constants for 1/7/8/10, raw literal otherwise",
+    "generateConfigSnippet emits the canonical .level<n> literal for every level",
     arguments: zip(
       [1, 7, 8, 10, 2, 5, 9],
       [
-        ".fastest",
-        ".default",
-        ".thorough",
-        ".maximum",
-        "AnalysisIntensity(rawValue: 2)",
-        "AnalysisIntensity(rawValue: 5)",
-        "AnalysisIntensity(rawValue: 9)",
+        ".level1",
+        ".level7",
+        ".level8",
+        ".level10",
+        ".level2",
+        ".level5",
+        ".level9",
       ]
     )
   )
@@ -303,7 +303,7 @@ struct AnalysisViewModelSmokeTest {
     // the ML-invoking presets add the mlTechnique attach hint (covered by
     // `generateConfigSnippetShapeMLInvoking`), which is orthogonal here.
     let snippet = AnalysisViewModel.generateConfigSnippet(
-      intensity: AnalysisIntensity(rawValue: raw),
+      intensity: AnalysisIntensity(level: raw) ?? .default,
       mergeStrategy: .maxConfidence,
       ensemblePreset: .dspOnly
     )
@@ -1516,7 +1516,7 @@ struct AnalysisViewModelSmokeTest {
     let snapshot = try #require(viewModel.lastRunSnapshot)
     // All five DD #5 nested fields are populated together.
     #expect(snapshot.fileName == "bpm-120-click.wav")
-    #expect(snapshot.runOptions.intensity.rawValue == AnalysisIntensity.default.rawValue)
+    #expect(snapshot.runOptions.intensity == AnalysisIntensity.default)
     // metadataEvidence is `[MetadataBPMEvidence]` — the array may be
     // empty for the tag-free fixture, but the field's existence proves
     // the production population path ran. (For tagged fixtures, future

@@ -2,7 +2,7 @@
 
 Standalone PyTorch → CoreML conversion CLI for BoomBoomBoomKit's `MLTechnique` plug-in surface. Self-contained `uv`-managed Python project; ships with the Swift package on `main` so consumers can convert their own tempo models without cloning the dev-only training pipeline.
 
-> **Important context before you use this tool:** BoomBoomBoomKit's default analysis path is DSP-first. **No reference model is bundled with the library** — Story 4-6 (2026-05-16, Branch C close-out) removed the previously-bundled `giantsteps_v1.mlmodelc` because it abstained on 100% of the OA300 test corpus at production thresholds. The `BNNSTechnique` infrastructure is unchanged and ready to consume a higher-quality model when one is trained; this tool is the BYOW (bring-your-own-weights) entry point. See [MODEL_CARD.md](../../MODEL_CARD.md) for the Status section + the threshold-sweep evidence behind the bundle pull.
+> **Important context before you use this tool:** BoomBoomBoomKit's default analysis path is DSP-first. **No reference model is bundled with the library** — Story 4-6 (2026-05-16, Branch C close-out) removed the previously-bundled `giantsteps_v1.mlmodelc` because it abstained on 100% of the internal evaluation corpus at production thresholds. The `BNNSTechnique` infrastructure is unchanged and ready to consume a higher-quality model when one is trained; this tool is the BYOW (bring-your-own-weights) entry point. See [MODEL_CARD.md](../../MODEL_CARD.md) for the Status section + the threshold-sweep evidence behind the bundle pull.
 
 ## Licensing (read first)
 

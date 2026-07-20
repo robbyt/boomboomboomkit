@@ -166,7 +166,7 @@ struct OA300BenchmarkTests {
     print("\n=== OA300 Multi-Intensity Comparison ===")
 
     for level in levels {
-      let intensity = AnalysisIntensity(rawValue: level)
+      let intensity = try #require(AnalysisIntensity(level: level))
       let (metrics, _) = try await runBenchmark(intensity: intensity, tolerance: 0.02)
       print(
         "Intensity \(level): Acc1=\(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total)), Acc2=\(String(format: "%.1f", metrics.acc2))%"
@@ -697,7 +697,7 @@ struct OA300BenchmarkTests {
 
     let report = GenreAccuracyReporter.format(
       corpusLabel: "OA300",
-      intensity: AnalysisIntensity.default.rawValue,
+      intensity: AnalysisIntensity.default.level,
       buckets: buckets,
       overallAcc1Percent: metrics.acc1, overallAcc2Percent: metrics.acc2)
     print("\n" + report)

@@ -670,23 +670,23 @@ public struct AudioAnalysisService {
   private static func computeEffectiveIntensity(
     requested: AnalysisIntensity, mlTechnique: (any MLTechnique)?
   ) -> AnalysisIntensity {
-    if requested.rawValue <= dspOnlyMaxIntensity.rawValue { return requested }
+    if requested <= dspOnlyMaxIntensity { return requested }
     if mlTechnique != nil { return requested }
     return dspOnlyMaxIntensity
   }
 
   /// Returns a display-oriented degradation message when ``requested`` was
   /// not honoured (i.e., ``effective`` is the DSP-only cap), or `nil` when
-  /// no degradation occurred. Uses the integer `rawValue` of each intensity
-  /// so the message does NOT leak named-constant identifiers (`.thorough`,
-  /// `.maximum`) into developer-facing text.
+  /// no degradation occurred. Uses the ordinal ``AnalysisIntensity/level`` of
+  /// each intensity so the message does NOT leak named-constant identifiers
+  /// (`.thorough`, `.maximum`) into developer-facing text.
   private static func degradationMessage(
     requested: AnalysisIntensity, effective: AnalysisIntensity
   ) -> String? {
     if requested == effective { return nil }
     return
-      "Requested intensity \(requested.rawValue) requires BoomBoomBoomKitML "
-      + "package. Running at intensity \(effective.rawValue) (DSP-only)."
+      "Requested intensity \(requested.level) requires BoomBoomBoomKitML "
+      + "package. Running at intensity \(effective.level) (DSP-only)."
   }
 
   // MARK: - Story 4.5: Cancellation cooperation helper
@@ -1174,7 +1174,10 @@ public struct AudioAnalysisService {
       windowResults.append(bpmResult)
       completed += 1
 
-      // Non-progressive intensities (1-5): single window, break immediately.
+      // Non-progressive intensities (1-5, `progressiveThreshold == nil`): stop
+      // after this first successful window. Progressive intensities (6-10, non-nil)
+      // fall through and attempt every remaining window. The threshold's numeric
+      // value is intentionally NOT consulted — only its nil-ness gates the loop.
       if options.intensity.progressiveThreshold == nil {
         break
       }
