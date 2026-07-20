@@ -100,7 +100,7 @@ window behavior remains intensity-driven even when an explicit technique set is 
 
 ## Intensity scale (1-10)
 
-`AnalysisIntensity` is an ordinal control over pipeline depth: higher values never produce *less* accurate results at the same `Options`. The "Relative cost" column below sorts by per-track work — not by wall-clock — because measured wall-clock varies materially across hardware classes (the project's M5 Max baseline at intensity 7 is ~170 ms mean / ~245 ms p95 on a 3-min OA300 track; older M-series and Intel Macs will run materially slower). Run `make perf-benchmark` against your own corpus before pinning expectations.
+`AnalysisIntensity` is an ordinal control over pipeline depth: higher values never produce *less* accurate results at the same `Options`. The "Relative cost" column below sorts by per-track work — not by wall-clock — because measured wall-clock varies materially across hardware classes (the project's M5 Max baseline at intensity 7 is ~170 ms mean / ~245 ms p95 on a 3-minute track; older M-series and Intel Macs will run materially slower). Run `make perf-benchmark` against your own corpus before pinning expectations.
 
 | `rawValue` | Constant | Use case | Window sizes | Relative cost |
 |-----------|----------|----------|--------------|---------------|
@@ -108,7 +108,7 @@ window behavior remains intensity-driven even when an explicit technique set is 
 | `2` | — | Light analysis (baseline technique set, 3 candidates) | `[30]` | Fast |
 | `3`-`5` | — | Standard analysis (optimal technique set, 3 candidates) | `[30]` | Standard |
 | `6` | — | Standard + first progressive retry | `[30, 60]` | Standard |
-| `7` | `.default` | Best DSP accuracy (progressive 30/60/90 s, threshold-gated retry) | `[30, 60, 90]` | Default — mean ~170 ms, p95 ~245 ms (M5 Max, 3-min OA300 track) |
+| `7` | `.default` | Best DSP accuracy (progressive 30/60/90 s, threshold-gated retry) | `[30, 60, 90]` | Default — mean ~170 ms, p95 ~245 ms (M5 Max, 3-minute track) |
 | `8` | `.thorough` | Reserved for ML augmentation. Without `Options.mlTechnique`, falls through to level 7 with `degradationReason` set on the result. | `[30, 60, 90]` | Same as 7 when ML is absent |
 | `9` | — | Reserved for ML quorum (future) | `[30, 60, 90]` | — |
 | `10` | `.maximum` | Reserved for maximum-thoroughness ML (future) | `[30, 60, 90]` | — |
@@ -555,7 +555,7 @@ options.ensemblePolicy = .highestConfidence
 let result = try AudioAnalysisService.analyzeBPM(url: trackURL, options: options)
 ```
 
-**No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of OA300 audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
+**No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of the internal evaluation-corpus audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
 
 To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project). It supports the reference architecture (the one the historical `giantsteps_v1` was trained on) as well as fully custom architectures via your own `nn.Module` class.
 

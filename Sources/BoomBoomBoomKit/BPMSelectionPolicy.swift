@@ -16,7 +16,7 @@ import Foundation
 ///
 /// Use `BPMSelectionPolicy.allCases` and the OA300 benchmark to
 /// ablate strategies and find the best fit for a given corpus.
-public enum BPMSelectionPolicy: String, CaseIterable, Sendable, Hashable {
+public enum BPMSelectionPolicy: String, CaseIterable, Sendable, Hashable, DocumentedCase {
   /// Pick the single window with the highest confidence. Current default behavior.
   case maxConfidence
 
@@ -48,6 +48,11 @@ public enum BPMSelectionPolicy: String, CaseIterable, Sendable, Hashable {
   /// If 2+ windows agree within 2%, use the consensus BPM; otherwise
   /// fall back to maxConfidence.
   case windowVoting
+
+  // MARK: - DocumentedCase
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "BPMSelectionPolicy"
 }
 
 // MARK: - Merge Logic

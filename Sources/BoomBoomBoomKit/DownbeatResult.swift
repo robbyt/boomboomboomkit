@@ -31,7 +31,7 @@
 /// anyway. Do not hand-roll `allCases`. `Hashable` is sound because the
 /// `.detected` payload is NaN-free (``DownbeatEstimate`` clamps its `confidence`
 /// and every carried ``BeatTimestamp`` is clamped finite).
-public enum DownbeatResult: Sendable, Hashable, Codable, CustomStringConvertible {
+public enum DownbeatResult: Sendable, Hashable, Codable, CustomStringConvertible, DocumentedCase {
 
   /// Downbeat detection did not run.
   case notAttempted
@@ -44,6 +44,22 @@ public enum DownbeatResult: Sendable, Hashable, Codable, CustomStringConvertible
   /// stable `{"detected":{"estimate":{…}}}` rather than the positional
   /// `{"detected":{"_0":{…}}}` (DD #9 / SE-0295).
   case detected(estimate: DownbeatEstimate)
+
+  // MARK: - DocumentedCase
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "DownbeatResult"
+
+  /// Per-case documentation filename stem — hand-written (associated-value enum);
+  /// payload-ignoring so every `DownbeatEstimate` resolves the single
+  /// `detected.md`.
+  public var documentationID: String {
+    switch self {
+    case .notAttempted: return "notAttempted"
+    case .noneDetected: return "noneDetected"
+    case .detected: return "detected"
+    }
+  }
 
   // MARK: CustomStringConvertible
 

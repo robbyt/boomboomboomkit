@@ -3,6 +3,12 @@
 .swiftpm/
 Package.resolved
 
+# Story 11.5 - generated DocC transclude output (regenerate via `make docc-transclude`)
+Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases/
+# Backstop for a hard-kill mid-swap orphan of the generator's temp/backup dirs
+Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/.cases-tmp-*/
+Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/.cases-bak-*/
+
 # Xcode
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/

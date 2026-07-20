@@ -10,9 +10,10 @@ import Foundation
 /// Per-source compute-budget fractions in `[0.0, 1.0]`.
 ///
 /// `ComputeBudget` expresses how much of each signal family's full work to
-/// perform — the intensity dial, re-expressed per source. In Story 6.5a it ships
-/// as configurable-but-inert config; intensity-proportional budgeting is wired
-/// into the pool-authoritative selection in Story 6.5b.
+/// perform — the intensity dial, re-expressed per source. It ships as
+/// configurable-but-inert config: no production code reads any fraction, and
+/// intensity-proportional budgeting remains reserved for future work (the
+/// pool-authoritative selection does not consume it).
 ///
 /// ## NaN safety
 /// Fields are immutable (`let`) and finite-clamped at construction: a non-finite
@@ -54,8 +55,9 @@ extension AnalysisIntensity {
 
   /// The compute budget implied by this intensity level.
   ///
-  /// Story 6.5a ships this mapping inert (every level maps to the full
-  /// ``ComputeBudget/default``); intensity-proportional budgeting is wired into
-  /// the pool-authoritative selection in Story 6.5b.
+  /// This mapping ships inert: every level maps to the full
+  /// ``ComputeBudget/default`` (all fractions `1.0`), and no production code
+  /// reads a fraction. Intensity-proportional budgeting remains reserved for
+  /// future work.
   public var budget: ComputeBudget { .default }
 }

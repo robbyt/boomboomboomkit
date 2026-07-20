@@ -5,11 +5,28 @@
 //  Reason a signal source declined to participate in the unified pool.
 //
 
-public enum AbstainReason: Sendable, Equatable, Codable {
+public enum AbstainReason: Sendable, Equatable, Codable, DocumentedCase {
   case policyDisabled
   case inputBelowMinimum
   case confidenceBelowFloor
   case sourceSpecific(String)
+
+  // MARK: - DocumentedCase
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "AbstainReason"
+
+  /// Per-case documentation filename stem — hand-written (associated-value enum);
+  /// payload-ignoring so every `sourceSpecific` string resolves the single
+  /// `sourceSpecific.md`.
+  public var documentationID: String {
+    switch self {
+    case .policyDisabled: return "policyDisabled"
+    case .inputBelowMinimum: return "inputBelowMinimum"
+    case .confidenceBelowFloor: return "confidenceBelowFloor"
+    case .sourceSpecific: return "sourceSpecific"
+    }
+  }
 }
 
 extension AbstainReason {

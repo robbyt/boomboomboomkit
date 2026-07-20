@@ -45,10 +45,10 @@ struct TraceView: View {
       VStack(alignment: .leading, spacing: 6) {
         LabeledContent("File", value: snapshot.fileName)
         LabeledContent("Intensity (requested)") {
-          Text("\(snapshot.runOptions.intensity.rawValue)")
+          Text("\(snapshot.runOptions.intensity.level)")
         }
         LabeledContent("Intensity (effective)") {
-          Text("\(snapshot.result.effectiveIntensity.rawValue)")
+          Text("\(snapshot.result.effectiveIntensity.level)")
         }
         LabeledContent("Merge strategy", value: snapshot.runOptions.mergeStrategy.rawValue)
         LabeledContent("BPM") {

@@ -2,44 +2,111 @@
 //  AnalysisIntensity.swift
 //  BoomBoomBoomKit
 //
-//  Controls pipeline depth for BPM analysis.
-//  Follows UILayoutPriority pattern: struct wrapping Int, ordinal scale.
+//  Controls pipeline depth for BPM analysis: a finite 10-level ordinal enum.
+//
+//  Story 11.2 reshaped this from a struct wrapping `Int rawValue` into a
+//  `String`-backed enum so consumers can exhaustively `switch` on levels and
+//  Xcode surfaces per-level documentation via `DocumentedCase`. The `String`
+//  raw value (`"level7"`) is the documentation filename stem; the ordinal 1...10
+//  number is exposed separately as `level`.
 //
 
 import Foundation
 
 /// Controls the depth and thoroughness of BPM analysis.
 ///
-/// Higher values produce more accurate results at the cost of more computation.
-/// The scale is ordinal: higher numbers never decrease accuracy.
+/// Higher levels produce more accurate results at the cost of more computation.
+/// The scale is ordinal (`Comparable`): `level1 < level2 < … < level10`, and
+/// higher numbers never decrease accuracy.
 ///
 /// Levels 1-7 are DSP-only. Levels 8-10 are reserved for future ML integration
 /// and currently behave identically to level 7.
-public struct AnalysisIntensity: Sendable, Hashable, Comparable {
+///
+/// The `String` raw value (`"level1"`…`"level10"`) is the ``documentationID``
+/// used to resolve per-level Markdown; the ordinal number is ``level``.
+public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Comparable, DocumentedCase
+{
+  case level1, level2, level3, level4, level5, level6, level7, level8, level9, level10
 
-  /// The raw intensity level (1-10).
-  public let rawValue: Int
+  // MARK: - DocumentedCase
 
-  /// Creates an intensity level, clamping to the valid range 1-10.
-  public init(rawValue: Int) {
-    self.rawValue = min(max(rawValue, 1), 10)
-  }
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "AnalysisIntensity"
 
   // MARK: - Named Constants
 
   /// Minimal pipeline: 15s window, single candidate, no disambiguation. (~50ms)
-  public static let fastest = AnalysisIntensity(rawValue: 1)
+  ///
+  /// - Note: A convenience alias for ``level1``. Because it is a `static let`
+  ///   (not a case), it matches in a `switch` via `case .fastest:` only as an
+  ///   `Equatable` expression pattern; such a pattern does not establish enum
+  ///   exhaustivity, so the remaining cases (or a `default:`) are still required.
+  public static let fastest: AnalysisIntensity = .level1
 
-  /// Full DSP pipeline with all improvements and progressive retry. (~400ms)
-  public static let `default` = AnalysisIntensity(rawValue: 7)
+  /// Full DSP pipeline with all improvements and progressive multi-window analysis. (~400ms)
+  ///
+  /// - Note: A convenience alias for ``level7`` (see ``fastest`` for the
+  ///   expression-pattern note).
+  public static let `default`: AnalysisIntensity = .level7
 
-  /// Reserved for future ML integration. Currently identical to `.default`.
-  public static let thorough = AnalysisIntensity(rawValue: 8)
+  /// Reserved for future ML integration. Currently identical to ``default``.
+  public static let thorough: AnalysisIntensity = .level8
 
-  /// Reserved for maximum accuracy with ML quorum. Currently identical to `.default`.
-  public static let maximum = AnalysisIntensity(rawValue: 10)
+  /// Reserved for maximum accuracy with ML quorum. Currently identical to ``default``.
+  public static let maximum: AnalysisIntensity = .level10
+
+  // MARK: - Ordinal Bridge
+
+  /// The ordinal intensity number (`1`…`10`) for this level.
+  ///
+  /// Use this wherever the numeric level is needed (display, comparison,
+  /// serialization); the ``RawRepresentable`` `rawValue` is the `String`
+  /// documentation stem, not the number.
+  public var level: Int {
+    switch self {
+    case .level1: return 1
+    case .level2: return 2
+    case .level3: return 3
+    case .level4: return 4
+    case .level5: return 5
+    case .level6: return 6
+    case .level7: return 7
+    case .level8: return 8
+    case .level9: return 9
+    case .level10: return 10
+    }
+  }
+
+  /// Creates an intensity from an ordinal level number, or `nil` when `level` is
+  /// outside `1...10`.
+  ///
+  /// Callers that derive `level` from a bounded source (a `1...10` slider, a
+  /// pre-clamped CLI argument) should clamp before calling so `nil` is
+  /// unreachable — this initializer deliberately does NOT clamp, so an
+  /// out-of-range value surfaces as `nil` rather than being silently coerced.
+  ///
+  /// - Parameter level: The ordinal level in `1...10`.
+  public init?(level: Int) {
+    guard let match = Self.allCases.first(where: { $0.level == level }) else {
+      return nil
+    }
+    self = match
+  }
+
+  // MARK: - Comparable
+
+  /// Orders intensities by ordinal ``level`` (`level1 < … < level10`).
+  public static func < (lhs: AnalysisIntensity, rhs: AnalysisIntensity) -> Bool {
+    lhs.level < rhs.level
+  }
 
   // MARK: - Computed Configuration Properties
+
+  // The three per-level switches below (techniqueSet / windowSizes /
+  // progressiveThreshold) are deliberately EXHAUSTIVE (no `default:` arm): the
+  // point of the Story 11.2 enum reshape is that the compiler forces a per-level
+  // decision, so a hypothetical future case must be placed in each table
+  // explicitly instead of silently inheriting the top-level behavior.
 
   /// The technique set for this intensity level, based on empirical ablation data.
   ///
@@ -53,15 +120,14 @@ public struct AnalysisIntensity: Sendable, Hashable, Comparable {
   /// Story 3-3 ablation showed it ties `.optimal` Acc1 at α=0.7 (no margin to insert).
   /// Users who want the technique can opt in by setting
   /// `AudioAnalysisService.Options.techniqueSet = .clickAugmented`, which overrides the
-  /// intensity-derived default. (Story 3-3a will broaden this override pattern across
-  /// the rest of the public API.)
+  /// intensity-derived default.
   public var techniqueSet: TechniqueSet {
-    switch rawValue {
-    case 1:
+    switch self {
+    case .level1:
       return TechniqueSet(candidateCount: 1)
-    case 2:
+    case .level2:
       return .baseline
-    default:  // 3+
+    case .level3, .level4, .level5, .level6, .level7, .level8, .level9, .level10:
       return .optimal
     }
   }
@@ -69,37 +135,23 @@ public struct AnalysisIntensity: Sendable, Hashable, Comparable {
   /// Analysis window sizes for progressive analysis.
   /// `AudioAnalysisService` iterates over these, passing each to `BPMAnalyzer`.
   public var windowSizes: [Double] {
-    switch rawValue {
-    case 1: return [15]
-    case 2...5: return [30]
-    case 6: return [30, 60]
-    default: return [30, 60, 90]  // 7+
+    switch self {
+    case .level1: return [15]
+    case .level2, .level3, .level4, .level5: return [30]
+    case .level6: return [30, 60]
+    case .level7, .level8, .level9, .level10: return [30, 60, 90]
     }
   }
 
-  /// Confidence threshold below which progressive analysis retries with longer windows.
-  /// Returns `nil` when progressive retry is disabled (intensity 1-5).
+  /// Controls whether progressive analysis stops after its first successful window
+  /// result. `nil` stops after the first success; non-`nil` attempts every
+  /// configured window (unless cancelled) and merges the successful results. The
+  /// numeric value is NOT consulted at the call site (`AudioAnalysisService` only
+  /// checks `== nil`) — reserved for a future confidence-gated early stop.
   public var progressiveThreshold: Double? {
-    rawValue >= 6 ? 0.40 : nil
-  }
-
-  // MARK: - Comparable
-
-  /// Returns `true` when `lhs` represents a shallower analysis than `rhs`.
-  /// Compares ``rawValue`` integers; intensities sort `1 < 2 < … < 10`.
-  public static func < (lhs: AnalysisIntensity, rhs: AnalysisIntensity) -> Bool {
-    lhs.rawValue < rhs.rawValue
-  }
-}
-
-// MARK: - ExpressibleByIntegerLiteral
-
-extension AnalysisIntensity: ExpressibleByIntegerLiteral {
-  /// Creates an intensity from an integer literal such as `let opts: AnalysisIntensity = 7`.
-  /// The literal is clamped to the valid `1...10` range by ``init(rawValue:)``.
-  ///
-  /// - Parameter value: Integer literal in the range `1...10`. Values outside the range are clamped.
-  public init(integerLiteral value: Int) {
-    self.init(rawValue: value)
+    switch self {
+    case .level1, .level2, .level3, .level4, .level5: return nil
+    case .level6, .level7, .level8, .level9, .level10: return 0.40
+    }
   }
 }

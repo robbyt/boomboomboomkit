@@ -10,7 +10,14 @@ import SwiftUI
 // `EnsemblePolicy` is not RawRepresentable (`.weightedVoting` carries an
 // associated value) and its `stableKey` collapses both weight-bearing
 // presets to the same "weightedVoting" string.
-enum EnsemblePreset: String, CaseIterable, Sendable {
+//
+// `nonisolated` (all cases are pure derivations, no stored mutable state) so the
+// `EnsembleDoc` docs adapter and the off-actor logic tests read it under the
+// demo target's `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` default — the same
+// precedent as `nonisolated struct MergeStrategyDoc` / `nonisolated enum
+// SignalPoolDiagnostics`. Does not change the case set, rawValues, names,
+// subtitles, or policy mapping (all still test-locked).
+nonisolated enum EnsemblePreset: String, CaseIterable, Sendable {
   case `default` = "default"
   case dspOnly = "dspOnly"
   case mlAugmented = "mlAugmented"
@@ -97,8 +104,21 @@ struct EnsemblePresetPicker: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      // Menu pop-up (matches the Merge strategy Picker it sits beneath). The
-      // visible "Ensemble" label stands in for the removed GroupBox title.
+      // Header row mirroring the Merge strategy control: the standalone title
+      // keeps this column matching that layout (title / dropdown / subtitle), and
+      // beside it a "?" HelpButton opens the authored `EnsemblePolicy` docs for
+      // the selected preset. The Text is decorative + a11y-hidden because
+      // `.labelsHidden()` below keeps the Picker's "Ensemble" label for VoiceOver,
+      // so the Picker stays the single accessible control and the visible title
+      // does not become a duplicate announcement.
+      HStack {
+        Text("Ensemble")
+          .accessibilityHidden(true)
+        HelpButton(case: EnsembleDoc(selection))
+        Spacer()
+      }
+      // Label-hidden menu pop-up (matches the Merge strategy Picker it sits
+      // beside — the title moved to the header row above).
       Picker("Ensemble", selection: $selection) {
         ForEach(EnsemblePreset.allCases, id: \.self) { preset in
           // Visual menu title stays the terse name; VoiceOver gets the full
@@ -109,13 +129,17 @@ struct EnsemblePresetPicker: View {
             .accessibilityLabel("\(preset.displayName), \(preset.subtitle)")
         }
       }
+      .labelsHidden()
       .pickerStyle(.menu)
       // Dynamic description — the selected preset's authored subtitle, now a
       // single caption that updates with the selection instead of four
-      // always-on radio-row captions.
+      // always-on radio-row captions. `.fixedSize(vertical:)` matches the Merge
+      // strategy description's wrap/compression resistance at narrow widths and
+      // larger Dynamic Type.
       Text(selection.subtitle)
         .font(.caption)
         .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 }

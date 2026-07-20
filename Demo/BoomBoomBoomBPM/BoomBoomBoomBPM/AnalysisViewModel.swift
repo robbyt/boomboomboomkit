@@ -730,7 +730,10 @@ final class AnalysisViewModel {
   // Space-separated lowercase rendering of `BPMSelectionPolicy` for
   // the result-row caption. UI-only — the exported JSON keeps the
   // rawValue verbatim.
-  static func humanize(_ strategy: BPMSelectionPolicy) -> String {
+  // `nonisolated` (Story 11.6): a pure switch over the enum with no MainActor
+  // state, so the `nonisolated` `MergeStrategyDoc` adapter can reuse this
+  // single-source copy off-actor for the docs-popover `displayName`.
+  nonisolated static func humanize(_ strategy: BPMSelectionPolicy) -> String {
     switch strategy {
     case .maxConfidence: return "max confidence"
     case .dedup: return "dedup"
@@ -747,7 +750,11 @@ final class AnalysisViewModel {
   // mirroring the ensemble preset's description. Verified against
   // `BPMSelectionPolicy.merge`: these policies aggregate candidate SCORES
   // within 2% BPM clusters, not the BPM values themselves.
-  static func strategyDescription(_ strategy: BPMSelectionPolicy) -> String {
+  // `nonisolated` (Story 11.6): a pure switch, so the `nonisolated`
+  // `MergeStrategyDoc` adapter reuses this single-source copy off-actor for the
+  // docs-popover `shortDescription` (the "?" tooltip stays in lockstep with the
+  // inline caption).
+  nonisolated static func strategyDescription(_ strategy: BPMSelectionPolicy) -> String {
     switch strategy {
     case .maxConfidence: return "Uses the highest-confidence window result."
     case .dedup: return "Clusters near-match BPMs, keeping each cluster's best score."
@@ -806,14 +813,10 @@ final class AnalysisViewModel {
     mergeStrategy: BPMSelectionPolicy,
     ensemblePreset: EnsemblePreset
   ) -> String {
-    let intensityLiteral: String
-    switch intensity.rawValue {
-    case 1: intensityLiteral = ".fastest"
-    case 7: intensityLiteral = ".default"
-    case 8: intensityLiteral = ".thorough"
-    case 10: intensityLiteral = ".maximum"
-    default: intensityLiteral = "AnalysisIntensity(rawValue: \(intensity.rawValue))"
-    }
+    // Canonical case literal for every level (Story 11.2 DD-1a): one uniform
+    // shape (`.level7`), never a mix of named aliases + the removed
+    // `AnalysisIntensity(rawValue:)` constructor.
+    let intensityLiteral = ".level\(intensity.level)"
     var lines = [
       "var opts = AudioAnalysisService.Options()",
       "opts.intensity = \(intensityLiteral)",
@@ -969,7 +972,7 @@ final class AnalysisViewModel {
       fileName: fileName ?? "—",
       bpm: String(format: "%.1f BPM", bpm),
       confidence: String(format: "%.0f%%", confidence * 100),
-      intensity: "\(effectiveIntensity.rawValue)",
+      intensity: "\(effectiveIntensity.level)",
       elapsed: String(format: "%.2fs", elapsedSeconds)
     )
     return .success(row)

@@ -63,7 +63,7 @@ import Foundation
 /// parallel scalar field on ``AudioAnalysisService/Options``) are explicitly
 /// allowed and expected. Downstream consumers should NOT assume the case
 /// list is 1.0-stable.
-public enum EnsemblePolicy: Sendable, Hashable {
+public enum EnsemblePolicy: Sendable, Hashable, DocumentedCase {
 
   /// The library's default ensemble resolution: the **balanced peer ensemble**
   /// (Story 6.5b KDD-A5). Equivalent to ``weightedVoting(_:)`` with
@@ -152,4 +152,16 @@ public enum EnsemblePolicy: Sendable, Hashable {
   public static let allPolicies: [EnsemblePolicy] = [
     .default, .dspOnly, .mlOnly, .highestConfidence, .weightedVoting(.default),
   ]
+
+  // MARK: - DocumentedCase
+
+  /// The documentation catalog subdirectory for this type.
+  public static let documentedKind = "EnsemblePolicy"
+
+  /// The per-case documentation filename stem. Hand-written because the
+  /// associated-value case (``weightedVoting(_:)``) makes this enum non-
+  /// `RawRepresentable`, so the free `String`-raw ``documentationID`` default
+  /// does not apply. Reuses ``stableKey`` — payload-agnostic, so every
+  /// `SignalWeights` value resolves the single `weightedVoting.md` file.
+  public var documentationID: String { stableKey }
 }

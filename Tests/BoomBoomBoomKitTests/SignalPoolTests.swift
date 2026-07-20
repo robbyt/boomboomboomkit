@@ -195,12 +195,12 @@ struct SignalPoolTests {
       let trace = try #require(result.trace)
 
       let dspEntries = trace.signalParticipationTrace.filter { $0.source == .dsp }
-      #expect(!dspEntries.isEmpty, "intensity=\(intensity.rawValue)")
+      #expect(!dspEntries.isEmpty, "intensity=\(intensity.level)")
       for entry in dspEntries {
         switch entry.participation {
         case .absent:
           Issue.record(
-            "DSP source recorded .absent for non-nil result at intensity=\(intensity.rawValue)")
+            "DSP source recorded .absent for non-nil result at intensity=\(intensity.level)")
         case .abstained, .demoted, .present:
           break
         }
