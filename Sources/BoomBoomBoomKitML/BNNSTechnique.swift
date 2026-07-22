@@ -615,14 +615,36 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     // — replaces a manual for-loop that violated the project's vDSP
     // rule; matches the Story 3-2 phase-ramp precedent in
     // tempogramMagnitude / computeFourierTempogram). The last control
-    // entry is clamped one ULP below F-1 so vDSP_vlint's
-    // `A[floor(B[i])+1]` read at the exact F-1 boundary stays in-bounds
-    // (Codex 4-5-chunk2 boundary analysis).
+    // entry is clamped in two steps — `min` to F-1, then one ULP down —
+    // so `floor <= F-2` and vDSP_vlint's unconditional `A[floor(B[i])+1]`
+    // read stays in-bounds for every reachable F (>= 32 per the
+    // short-clip guard above; GH-140: the prior single-step
+    // `.nextDown` under-clamped whenever vDSP_vramp's float32 rounding
+    // overshot F-1 — reachable for both upsampling and downsampling F —
+    // so vDSP_vlint read `A[F]`: cross-band contamination of the last
+    // output column for mel bands 0-126, and a one-float heap over-read
+    // for band 127). Interior entries need no clamp: entry W-2 sits a
+    // full step (F-1)/511 below F-1, so flooring to F-1 there would need
+    // a relative rounding error above 1/511 — many orders beyond
+    // float32's ~6e-8. The two-step form mirrors the Python training
+    // pipeline's clamp (`min(control[W-1], F-1)` then `nextafter` toward
+    // -inf) for last-column parity; do NOT "simplify" to an unconditional
+    // `Float(F - 1).nextDown`, which would diverge from the computed
+    // control value on the majority undershoot case and reopen the gap.
     var controlVector = [Float](repeating: 0, count: W)
     var rampStart: Float = 0
     var rampStep = Float(F - 1) / Float(W - 1)
     vDSP_vramp(&rampStart, &rampStep, &controlVector, 1, vDSP_Length(W))
-    controlVector[W - 1] = controlVector[W - 1].nextDown
+    controlVector[W - 1] = min(controlVector[W - 1], Float(F - 1)).nextDown
+    // Debug tripwire (GH-140): a 1-ULP regression of the clamp above is
+    // value-invisible (frac == 0 erases the contaminant in the output),
+    // and Address Sanitizer cannot observe the over-read either — it
+    // executes inside uninstrumented Accelerate code. This assert is the
+    // biting guard for that class; it compiles out of release builds.
+    assert(
+      controlVector[W - 1] < Float(F - 1),
+      "GH-140 resample clamp invariant violated: last control entry "
+        + "\(controlVector[W - 1]) >= F-1 (\(F - 1)); vDSP_vlint would read A[F]")
 
     // Per-mel-band linear interpolation via vDSP_vlint directly. The
     // prior implementation built a fresh `Array(melMajor[range])` plus a

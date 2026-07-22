@@ -117,6 +117,11 @@ pre-commit: fmt demo-fmt lint demo-lint scripts-tests
 test:
 	swift test --parallel --filter BoomBoomBoomKitTests
 
+## test-asan: Run the GH-140 BNNS resample clamp suite under Address Sanitizer. Defense-in-depth only: ASan CANNOT observe the band-127 over-read itself (it executes inside uninstrumented Accelerate code — verified empirically during GH-140: zero sanitizer reports on the pre-fix clamp); the biting guard for that class is the debug assert after the clamp in BNNSTechnique.modelInputTensor. Not wired into `test` or `pre-commit`; ASan uses the shared .build, so alternating with plain `test` forces full rebuilds both ways.
+.PHONY: test-asan
+test-asan:
+	swift test --sanitize=address --filter BoomBoomBoomKitTests.BNNSResampleClampTests
+
 ## test-verbose: Run unit tests with full streaming output
 .PHONY: test-verbose
 test-verbose:
