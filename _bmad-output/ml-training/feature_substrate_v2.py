@@ -90,8 +90,8 @@ def resample_to_width_vlint(mel_major: np.ndarray, width: int = TARGET_WIDTH) ->
     vectorized and NOT bit-reproducible in portable numpy; ``i*step`` is the
     correct, unbiased approximation. The F<=496 parity fixtures cannot see the
     difference (sub-ULP there); only a real multi-minute track surfaces it.
-    Clamps the last entry one ULP below ``min(control[W-1], F-1)`` (mirroring
-    Swift ``controlVector[W-1].nextDown`` + the in-bounds floor), then linear
+    Clamps the last entry one ULP below ``min(control[W-1], F-1)`` (matching
+    Swift's ``min(controlVector[W-1], Float(F-1)).nextDown`` since GH-140), then linear
     interpolates ``A[floor(c)] + frac * (A[floor(c)+1] - A[floor(c)])`` per band
     (matching ``vDSP_vlint``).
     """
@@ -102,10 +102,10 @@ def resample_to_width_vlint(mel_major: np.ndarray, width: int = TARGET_WIDTH) ->
     # better than scalar accumulation (Phase 1.5 empirical dump).
     control = (np.arange(width, dtype=np.float32) * step).astype(np.float32)
     # Clamp the last entry one ULP below min(control[W-1], F-1): mirrors Swift
-    # `controlVector[W-1].nextDown` while the min(., F-1) floor keeps vDSP_vlint's
-    # `A[floor(c)+1]` read in-bounds when i*step rounding nudges the last index
-    # to/above F-1 (Swift over-reads one float there — deferred 7-5-D1 — but
-    # numpy would hard-crash).
+    # `min(controlVector[W-1], Float(F-1)).nextDown` — the min(., F-1) floor keeps
+    # vDSP_vlint's `A[floor(c)+1]` read in-bounds when i*step rounding nudges the
+    # last index to/above F-1 (Swift previously over-read one float there —
+    # deferred 7-5-D1, fixed by GH-140; numpy would hard-crash).
     last = min(float(control[width - 1]), float(frames - 1))
     control[width - 1] = np.nextafter(np.float32(last), np.float32(-np.inf))
     floor_c = np.floor(control).astype(np.int64)
