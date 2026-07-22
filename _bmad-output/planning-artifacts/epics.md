@@ -1135,6 +1135,8 @@ A quick follow-up to Story 8.5 (depends on it: consumes `BeatGrid.gridOrigin`/`B
 
 ### Story 8.7: Beat-grid acceptance corpus + benchmarks — F-measure floor + beat-position tolerance
 
+> **Reconciled 2026-07-21 (issue #113; outcome recorded 2026-06-23 in the follow-up note after Story 8.8).** The numeric targets in the ACs below were NOT met and are retained as the pre-execution plan only: measured mean F 0.37 vs the ≥ 0.75 AC, P95 last-beat drift 1652 ms vs the ≤ 30 ms AC. The committed regression floors are F ≥ 0.33 and the drift harness of Story 8.10; Epic 8 closed accept-as-shipped 2026-07-01 with the accuracy-improvement work pivoted to manual hand-correction levers (8.11/8.12) after auto-refinement (8.9/8.10) did not close the gap. `MODEL_CARD.md` carries the honest disclosure; PRD FR-29/FR-34 amendment is tracked as issue #111.
+
 **As a** library maintainer,
 **I want** beat-grid accuracy validated against the OA300 corpus (DAW-oracle ground truth) + a stratified DnB subset, with F-measure floor and beat-position tolerance committed as numeric AC in this story,
 **So that** Epic 8 cannot close without committed accuracy gates equivalent to the FR-10 BPM accuracy floors, and future regressions surface immediately.
@@ -1211,6 +1213,10 @@ A quick follow-up to Story 8.5 (depends on it: consumes `BeatGrid.gridOrigin`/`B
 
 > **Beat-grid accuracy follow-up (operator decision 2026-06-23).** Story 8.7 measured beat-grid accuracy far below the aspirational targets (F 0.37 vs 0.75; drift P95 1652 ms vs 30 ms) and its pressure-release doc recommended reopening the tracker. 8.7 is now `done` (its job — the measurement harness + regression floors — shipped). The accuracy-improvement work is scoped, via party-mode + two Codex consults (thread `019ef269`), into three focused stories below. Shared framing: keep the Rekordbox-style one-anchor + one-tempo contract; the dominant failure is **tempo precision** (a sub-BPM rate error accumulating as a lever arm across the track), not phase placement. The manual *BPM*-lock primitive already ships (`BeatGridTempoLock.bpm(Double)`, Story 8.9).
 
+### Story 8.9: Beat-grid tempo precision refinement + manual BPM lock
+
+> **Section added retroactively 2026-07-21 (issue #113)** — the story shipped (`done`, spec: `_bmad-output/implementation-artifacts/8-9-beat-grid-tempo-precision-refinement.md`) but never received an epics.md section. Shipped surface: the manual tempo-lock primitive `BeatGridTempoLock.bpm(Double)`. Its automatic integer-DP inter-beat-interval refinement was benchmarked net-negative and reverted (the "reverted Story 8.4/8.9 trap" cited by 8.10 below and by the Epic 13 charter's revert precedent); Story 8.10's continuous-comb approach superseded it.
+
 ### Story 8.10: Continuous beat-grid tempo refinement (sub-0.1-BPM) + drift-rate acceptance harness
 
 **As a** Rekordbox-style beat-grid consumer,
@@ -1225,7 +1231,7 @@ Replace `BeatGridAnalyzer`'s `estimatedTempo = tempoBPM` (verbatim, coarse) with
 **I want** the grid's downbeat / top-of-measure anchored to the track's main structural drop (typically 8/16/24/32 bars in),
 **So that** bar-snap lands on the musically-correct downbeat instead of an arbitrary beat-phase guess.
 
-Detect the main energy impact/drop and use its bar-quantized position to place the downbeat / `gridOrigin` (`BeatGridAnchorSource.downbeat`). Builds on and reconsiders the conservative Story 8.5a `DownbeatAnalyzer` (4.4% fire rate, 0.14 correctness). Scored against the Rekordbox `Battito` downbeat oracle. Status: backlog (planned; not yet specced).
+Detect the main energy impact/drop and use its bar-quantized position to place the downbeat / `gridOrigin` (`BeatGridAnchorSource.downbeat`). Builds on and reconsiders the conservative Story 8.5a `DownbeatAnalyzer` (4.4% fire rate, 0.14 correctness). Scored against the Rekordbox `Battito` downbeat oracle. Status: done (reconciled 2026-07-21, issue #113 — was stale "backlog"; spec: `_bmad-output/implementation-artifacts/8-11-drop-anchored-downbeat-and-measure-top.md`).
 
 ### Story 8.12: Manual anchor reposition
 
@@ -1233,7 +1239,7 @@ Detect the main energy impact/drop and use its bar-quantized position to place t
 **I want** to set a new grid start position (anchor) by hand, complementing the existing manual BPM lock,
 **So that** I can lock the grid in Rekordbox-style (click a new downbeat, adjust BPM) when auto-detection is off.
 
-Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-supplied time (deterministic, no re-decode, `source == .manual`), pairing with the already-shipping `BeatGridTempoLock.bpm(Double)`. Status: backlog (planned; not yet specced).
+Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-supplied time (deterministic, no re-decode, `source == .manual`), pairing with the already-shipping `BeatGridTempoLock.bpm(Double)`. Status: done (reconciled 2026-07-21, issue #113 — was stale "backlog"; spec: `_bmad-output/implementation-artifacts/8-12-manual-anchor-reposition.md`).
 
 ## Epic 9: Demo shell + ensemble picker (stories)
 
