@@ -243,10 +243,13 @@ struct EnsemblePolicyDspOnlyInertnessTests {
 @Suite("EnsemblePolicy — trace.ensembleDecision population (AC #13, Task 6.5)")
 struct EnsemblePolicyTracePopulationTests {
 
-  /// AC #13: validates the 9-cell matrix `3 policies × {nil mlTechnique,
-  /// evaluate returned nil, evaluate returned non-nil}`. Single rule:
-  /// `ensembleDecision != nil` iff `MLTechnique.evaluate(trace:)` returned
-  /// a non-nil `MLEvaluation`. Plus the `selectedBPM == result.bpm`
+  /// AC #13 (reshaped by GH-167 item 3): validates the 9-cell matrix
+  /// `3 policies × {nil mlTechnique, evaluate returned nil, evaluate
+  /// returned non-nil}`. Rule: when a trace exists, `.mlOnly` /
+  /// `.highestConfidence` record EVERY ML invocation outcome — including
+  /// the model's nil abstain (`abstainKind == .modelAbstained`); a decision
+  /// is absent only when ML was never invoked (nil technique, or
+  /// `.dspOnly`'s short-circuit). Plus the `selectedBPM == result.bpm`
   /// invariant for every non-nil decision.
   @Test("9-cell trace.ensembleDecision matrix")
   func traceEnsembleDecisionPopulated() throws {
@@ -254,7 +257,8 @@ struct EnsemblePolicyTracePopulationTests {
     let policies: [EnsemblePolicy] = [.dspOnly, .mlOnly, .highestConfidence]
 
     for policy in policies {
-      // Cell A: nil mlTechnique → decision == nil regardless of policy.
+      // Cell A: nil mlTechnique → ML never invoked → decision == nil
+      // regardless of policy.
       do {
         var opts = AudioAnalysisService.Options()
         opts.ensemblePolicy = policy
@@ -268,7 +272,10 @@ struct EnsemblePolicyTracePopulationTests {
           "policy=\(policy), mlTechnique=nil should produce nil decision")
       }
 
-      // Cell B: mlTechnique present, evaluate returns nil → decision == nil.
+      // Cell B: mlTechnique present, evaluate returns nil → the model's
+      // abstain. Under `.dspOnly` evaluate is short-circuited (no record);
+      // under the decision-recording policies the abstain IS recorded
+      // (GH-167 item 3 — previously this cell asserted nil everywhere).
       do {
         var opts = AudioAnalysisService.Options()
         opts.ensemblePolicy = policy
@@ -277,9 +284,22 @@ struct EnsemblePolicyTracePopulationTests {
         opts.intensity = .fastest
         let r = try #require(
           try? AudioAnalysisService.analyzeBPM(url: url, options: opts))
-        #expect(
-          r.trace?.ensembleDecision == nil,
-          "policy=\(policy), evaluate=nil should produce nil decision")
+        if policy == .dspOnly {
+          #expect(
+            r.trace?.ensembleDecision == nil,
+            ".dspOnly never invokes ML; decision must be nil")
+        } else {
+          let d = try #require(
+            r.trace?.ensembleDecision,
+            "policy=\(policy), evaluate=nil must record the abstain")
+          #expect(d.policy == policy)
+          #expect(d.winner == .dsp)
+          #expect(d.abstainKind == .modelAbstained)
+          #expect(d.mlConfidence == nil)
+          #expect(
+            d.selectedBPM.bitPattern == r.bpm.bitPattern,
+            "selectedBPM must equal result.bpm on the abstain path")
+        }
       }
 
       // Cell C: mlTechnique present, evaluate returns non-nil →
@@ -330,18 +350,23 @@ private struct EnsembleBlock44: Codable {
 private struct DecisionTableRow44: Encodable {
   let policy: String
   let `case`: String
+  /// GH-167 item 3: the three-state seam outcome as a dedicated field
+  /// (`not_invoked` / `abstained` / `evaluated`). Both nil-ish outcomes
+  /// serialize `ml: null`, so the case name alone cannot distinguish them.
+  let seam: String
   let dsp: DspBlock44
   let ml: MlBlock44?
   let ensemble: EnsembleBlock44
 
   private enum CodingKeys: String, CodingKey {
-    case policy, `case`, dsp, ml, ensemble
+    case policy, `case`, seam, dsp, ml, ensemble
   }
 
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(self.policy, forKey: .policy)
     try container.encode(self.case, forKey: .case)
+    try container.encode(self.seam, forKey: .seam)
     try container.encode(self.dsp, forKey: .dsp)
     try container.encode(self.ml, forKey: .ml)  // emits null when nil
     try container.encode(self.ensemble, forKey: .ensemble)
@@ -351,30 +376,40 @@ private struct DecisionTableRow44: Encodable {
 @Suite("EnsemblePolicy — 4-4 decision-table artifact (AC #10, Task 6.1)")
 struct EnsemblePolicyDecisionTableTests {
 
-  /// Task 6.1: emit `_bmad-output/implementation-artifacts/4-4-ensemble-policy-decision-table.json`
-  /// covering 5 policies × 4 outcome cases (20 rows; Story 6.5a grew the
-  /// `EnsemblePolicy` facade from 3 to 5 cases). JSON is byte-stable
-  /// (`.prettyPrinted` + `.sortedKeys`); the test runs on every `make test`
-  /// so the artifact is always reproducible.
-  @Test("decisionTableArtifactWritesValidJSON — 20 rows, .prettyPrinted + .sortedKeys")
+  /// Task 6.1 (reshaped by GH-167 item 3): emit
+  /// `_bmad-output/implementation-artifacts/4-4-ensemble-policy-decision-table.json`
+  /// covering 5 policies × 5 outcome cases (25 rows; Story 6.5a grew the
+  /// `EnsemblePolicy` facade from 3 to 5 cases; GH-167 item 3 split the old
+  /// `ml_nil` into `ml_not_invoked` / `ml_abstained` — the three-state seam
+  /// distinction the former `MLEvaluation?` input could not express). Rows
+  /// pairing `.dspOnly` with `abstained`/`evaluated` are DEFENSIVE seam
+  /// combinations (production's short-circuit always passes `not_invoked`
+  /// there); they document the HALT-(b) guard, not a reachable service
+  /// state. JSON is byte-stable (`.prettyPrinted` + `.sortedKeys`); the
+  /// test runs on every `make test` so the artifact is always reproducible.
+  @Test("decisionTableArtifactWritesValidJSON — 25 rows, .prettyPrinted + .sortedKeys")
   func decisionTableArtifactWritesValidJSON() throws {
     struct Outcome {
       let name: String
       let dsp: (bpm: Double, conf: Double)
-      let ml: (bpm: Double, conf: Double)?
+      let seam: AudioAnalysisService.MLSeamOutcome
     }
 
     let outcomes: [Outcome] = [
-      Outcome(name: "ml_nil", dsp: (bpm: 120.0, conf: 0.9), ml: nil),
+      Outcome(name: "ml_not_invoked", dsp: (bpm: 120.0, conf: 0.9), seam: .notInvoked),
+      Outcome(name: "ml_abstained", dsp: (bpm: 120.0, conf: 0.9), seam: .abstained),
       Outcome(
         name: "ml_agrees_high_conf",
-        dsp: (bpm: 120.0, conf: 0.7), ml: (bpm: 120.0, conf: 0.95)),
+        dsp: (bpm: 120.0, conf: 0.7),
+        seam: .evaluated(MLEvaluation(bpm: 120.0, confidence: 0.95))),
       Outcome(
         name: "ml_disagrees_low_conf",
-        dsp: (bpm: 120.0, conf: 0.9), ml: (bpm: 60.0, conf: 0.4)),
+        dsp: (bpm: 120.0, conf: 0.9),
+        seam: .evaluated(MLEvaluation(bpm: 60.0, confidence: 0.4))),
       Outcome(
         name: "ml_disagrees_high_conf",
-        dsp: (bpm: 120.0, conf: 0.7), ml: (bpm: 60.0, conf: 0.95)),
+        dsp: (bpm: 120.0, conf: 0.7),
+        seam: .evaluated(MLEvaluation(bpm: 60.0, confidence: 0.95))),
     ]
 
     var rows: [DecisionTableRow44] = []
@@ -384,11 +419,22 @@ struct EnsemblePolicyDecisionTableTests {
           bpm: outcome.dsp.bpm, confidence: outcome.dsp.conf,
           candidates: [(bpm: outcome.dsp.bpm, score: Float(outcome.dsp.conf))],
           trace: BPMDiagnosticTrace())
-        let mlEval = outcome.ml.map {
-          MLEvaluation(bpm: $0.bpm, confidence: $0.conf)
-        }
         let combined = AudioAnalysisService.combineEnsemble(
-          dspWinner: dspResult, mlEvaluation: mlEval, policy: policy)
+          dspWinner: dspResult, ml: outcome.seam, policy: policy)
+
+        let seamLabel: String
+        let mlBlock: MlBlock44?
+        switch outcome.seam {
+        case .notInvoked:
+          seamLabel = "not_invoked"
+          mlBlock = nil
+        case .abstained:
+          seamLabel = "abstained"
+          mlBlock = nil
+        case .evaluated(let evaluation):
+          seamLabel = "evaluated"
+          mlBlock = MlBlock44(bpm: evaluation.bpm, conf: evaluation.confidence)
+        }
 
         let decision = combined.trace?.ensembleDecision
         // Story 6.5b KDD-A5: `.default` / `.weightedVoting` emit
@@ -411,31 +457,35 @@ struct EnsemblePolicyDecisionTableTests {
           return "dsp"
         }()
         let reason: String = {
-          if outcome.ml == nil { return "protocol_abstain" }
+          if case .notInvoked = outcome.seam { return "not_invoked" }
           if let w = weightRes {
             // KDD-A5 weighted resolution (`.default` / `.weightedVoting`).
             return "policy_\(policy.stableKey)_weighted_\(w.winner.rawValue)"
           }
-          if decision == nil {
-            // `.dspOnly` short-circuits before ML and attaches no decision.
-            return !policy.invokesMLInference
-              ? "policy_\(policy.stableKey)_short_circuit" : "no_decision"
+          if let d = decision {
+            if let kind = d.abstainKind {
+              return "policy_\(policy.stableKey)_abstain_\(kind.rawValue)"
+            }
+            return "policy_\(policy.stableKey)_\(d.winner.rawValue)"
           }
-          return "policy_\(policy.stableKey)_\(decision!.winner.rawValue)"
+          // `.dspOnly` short-circuits before ML and attaches no decision.
+          return !policy.invokesMLInference
+            ? "policy_\(policy.stableKey)_short_circuit" : "no_decision"
         }()
 
         rows.append(
           DecisionTableRow44(
             policy: policy.stableKey,
             case: outcome.name,
+            seam: seamLabel,
             dsp: DspBlock44(bpm: outcome.dsp.bpm, conf: outcome.dsp.conf),
-            ml: outcome.ml.map { MlBlock44(bpm: $0.bpm, conf: $0.conf) },
+            ml: mlBlock,
             ensemble: EnsembleBlock44(
               bpm: combined.bpm, source: source, reason: reason)))
       }
     }
 
-    #expect(rows.count == 20, "expected 5 policies × 4 outcomes = 20 rows")
+    #expect(rows.count == 25, "expected 5 policies × 5 outcomes = 25 rows")
 
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -461,7 +511,7 @@ struct EnsemblePolicyDecisionTableTests {
       for policy in EnsemblePolicy.allPolicies {
         let combined = AudioAnalysisService.combineEnsemble(
           dspWinner: dsp,
-          mlEvaluation: MLEvaluation(bpm: 128.0, confidence: 0.92),
+          ml: .evaluated(MLEvaluation(bpm: 128.0, confidence: 0.92)),
           policy: policy)
         // KDD-A5: `.default` / `.weightedVoting` report via
         // `ensembleWeightResolution`; the ML-policies via `ensembleDecision`.
@@ -472,6 +522,7 @@ struct EnsemblePolicyDecisionTableTests {
         rows.append(
           DecisionTableRow44(
             policy: policy.stableKey, case: "fixture",
+            seam: "evaluated",
             dsp: DspBlock44(bpm: 120.0, conf: 0.7),
             ml: MlBlock44(bpm: 128.0, conf: 0.92),
             ensemble: EnsembleBlock44(

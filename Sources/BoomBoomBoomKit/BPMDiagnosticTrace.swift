@@ -163,12 +163,15 @@ public struct BPMDiagnosticTrace: Sendable {
 
   // MARK: - Story 4.4: Ensemble Decision
 
-  /// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)``
-  /// resolved the post-corroboration DSP candidate against an
-  /// ``MLEvaluation``. Populated when ``MLTechnique/evaluate(trace:)``
-  /// returned a non-nil ``MLEvaluation``; otherwise `nil` (including under
-  /// ``EnsemblePolicy/dspOnly``, where the evaluation never runs).
-  /// See ``EnsembleDecision`` for the population matrix.
+  /// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)``
+  /// resolved the post-corroboration DSP candidate against the ML
+  /// invocation outcome. Populated under ``EnsemblePolicy/mlOnly`` /
+  /// ``EnsemblePolicy/highestConfidence`` whenever
+  /// ``MLTechnique/evaluate(trace:)`` was actually invoked — including
+  /// abstains (`nil` return or a non-finite sentinel, discriminated by
+  /// ``EnsembleDecision/abstainKind``). `nil` when ML was never invoked
+  /// (including under ``EnsemblePolicy/dspOnly``, where the evaluation
+  /// never runs). See ``EnsembleDecision`` for the population matrix.
   public var ensembleDecision: EnsembleDecision?
 
   // MARK: - Story 6.5b: Weighted Ensemble Resolution (KDD-A5)

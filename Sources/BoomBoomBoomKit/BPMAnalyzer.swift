@@ -2098,7 +2098,12 @@ struct BPMAnalyzer {
   }
 
   /// Doubles or halves a BPM value until it falls within 60-200 BPM.
-  /// Returns `perceptualMinBPM` for zero, negative, or subnormal inputs.
+  /// Returns `perceptualMinBPM` for zero, negative, or non-finite inputs.
+  /// A positive subnormal passes the `> 0` guard and is doubled into range
+  /// like any other positive value (the loop terminates: doubling strictly
+  /// increases toward `perceptualMinBPM`, halving strictly decreases toward
+  /// `perceptualMaxBPM`). Also the octave-fold authority for the ensemble
+  /// seam (`AudioAnalysisService.foldEnsembleBPM`, GH-167 item 3).
   static func rangeNormalize(_ bpm: Double) -> Double {
     guard bpm > 0, bpm.isFinite else { return perceptualMinBPM }
     var result = bpm

@@ -10,7 +10,7 @@ import Foundation
 /// Resolution policy controlling how the post-pipeline DSP candidate and an
 /// optional ``MLEvaluation`` are combined into the final ``AudioAnalysisResult``.
 ///
-/// `EnsemblePolicy` is consulted by ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)``
+/// `EnsemblePolicy` is consulted by ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)``
 /// at the post-corroboration stage of the analysis pipeline. The selected
 /// policy is configured through ``AudioAnalysisService/Options/ensemblePolicy``,
 /// per ADR-11's Options-first public configuration rule. It is NOT a
@@ -36,13 +36,18 @@ import Foundation
 /// tiebreaker — repeated calls with the same inputs return the same result.
 ///
 /// **Abstention.** ``MLTechnique/evaluate(trace:)`` may return `nil` to
-/// abstain (the protocol-level abstain path); in that case the combiner
-/// returns the DSP winner unchanged regardless of policy. Independently,
-/// the ensemble combiner sanitizes any ``MLEvaluation`` it consumes — non-finite
-/// `bpm` (NaN, ±∞) is treated as a sentinel-NaN abstain (combiner falls back
-/// to DSP). The Apple-platform precedent for "abstain on NaN" is
+/// abstain (the model's voluntary abstain path); in that case the combiner
+/// returns the DSP winner unchanged regardless of policy, and — under
+/// ``mlOnly`` / ``highestConfidence`` — records the outcome on the trace as
+/// ``EnsembleDecision/AbstainKind/modelAbstained`` (GH-167 item 3).
+/// Independently, the combiner sanitizes any ``MLEvaluation`` it consumes —
+/// non-finite `bpm` (NaN, ±∞) abstains
+/// (``EnsembleDecision/AbstainKind/nonFiniteBPM``), and under the
+/// decision-recording policies a non-finite `confidence` abstains too
+/// (``EnsembleDecision/AbstainKind/nonFiniteConfidence``). The
+/// Apple-platform precedent for "abstain on NaN" is
 /// `FloatingPoint.minimum(_:_:)`, which states *"If one of x or y is NaN,
-/// the other is returned."* See ``AudioAnalysisService/combineEnsemble(dspWinner:mlEvaluation:policy:)`` for the full sanitization
+/// the other is returned."* See ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)`` for the full sanitization
 /// rules.
 ///
 /// **Byte-identity invariant under `.dspOnly`.** When the selected policy is
@@ -85,22 +90,28 @@ public enum EnsemblePolicy: Sendable, Hashable, DocumentedCase {
   /// Story 4-3's default-DSP-wins behavior under `mlTechnique == nil`.
   case dspOnly
 
-  /// When `mlEvaluation != nil`, returns ML's `bpm` (clamped to `60.0...200.0`;
+  /// When the model produced a usable evaluation, returns ML's `bpm`
+  /// (octave-folded into `60.0...200.0` — 240 → 120, never boundary-clamped;
   /// non-finite abstains to DSP) and `confidence` (clamped to `0.0...1.0`;
-  /// non-finite collapses to `0.0`); preserves `dspWinner.candidates`.
+  /// non-finite abstains to DSP); preserves `dspWinner.candidates`.
   /// **Invariant break:** under this policy, the returned `result.bpm` may
   /// NOT be present in `result.candidates` (which only contains DSP
-  /// candidates). Downstream consumers must handle this case. When
-  /// `mlEvaluation == nil`, DSP carries unchanged.
+  /// candidates). Downstream consumers must handle this case. On any
+  /// abstain — the model returning `nil` or either non-finite sentinel —
+  /// DSP carries unchanged and the trace records the
+  /// ``EnsembleDecision/AbstainKind``.
   case mlOnly
 
-  /// Picks the candidate with the higher `confidence` when `mlEvaluation != nil`;
-  /// ties break to DSP. **Tag-bias caveat:** ``MetadataPolicy`` corroboration
+  /// Picks the candidate with the higher `confidence` when the model
+  /// produced a usable evaluation; ties break to DSP. **Tag-bias caveat:**
+  /// ``MetadataPolicy`` corroboration
   /// may have boosted `dspWinner.confidence` to the 0.95 ceiling
   /// (``MetadataPolicy/maxBoostedConfidence``) before this comparison,
   /// biasing toward DSP on tag-corroborated tracks (Story 4-4 DD #6;
-  /// revisit after Story 4-5 BNNS ablation per the re-open trigger). When
-  /// `mlEvaluation == nil`, DSP wins unconditionally.
+  /// revisit after Story 4-5 BNNS ablation per the re-open trigger). On any
+  /// abstain — the model returning `nil` or either non-finite sentinel —
+  /// DSP wins unconditionally and the trace records the
+  /// ``EnsembleDecision/AbstainKind``.
   case highestConfidence
 
   /// Per-source weighted resolution over the unified signal pool, parameterized
