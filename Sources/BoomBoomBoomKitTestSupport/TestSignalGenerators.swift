@@ -1,12 +1,53 @@
 import Foundation
 
 /// Generate a synthetic click track with exponential-decay impulses at the given BPM.
+///
+/// Preconditions (GH #125; `precondition()` is the project's idiom for
+/// "programmer error in test infrastructure" — matches
+/// `synthesizeBoundaryBurstFixture` below):
+/// 1. `sampleRate` finite and > 0
+/// 2. `bpm` finite and > 0
+/// 3. `durationSeconds` finite and >= 0
+/// 4. `bpm <= sampleRate * 60` — one beat must span at least one sample;
+///    below that `samplesPerBeat` truncates to 0 and `stride(by: 0)` traps
+///    (and a pre-guard negative bpm silently emitted all-zero output)
+/// 5. derived `sampleRate * durationSeconds` finite and within `Int` range
+/// 6. derived `sampleRate * 60 / bpm` finite and within `Int` range
+///    (per-argument finiteness alone does not make the `Int(...)` conversions
+///    safe — two individually finite Doubles can multiply past `Int.max`).
+///    Preconditions 5 and 6 guarantee REPRESENTABILITY of the `Int(...)`
+///    conversions only; allocation feasibility of a huge-but-representable
+///    sample count (e.g. hours of audio at an extreme rate) remains the
+///    caller's responsibility.
 public func generateClickTrack(
   bpm: Double, sampleRate: Double = 44100, durationSeconds: Double = 10
 ) -> [Float] {
-  let sampleCount = Int(sampleRate * durationSeconds)
+  precondition(
+    sampleRate.isFinite && sampleRate > 0,
+    "generateClickTrack: sampleRate must be finite and > 0 (got \(sampleRate))")
+  precondition(
+    bpm.isFinite && bpm > 0,
+    "generateClickTrack: bpm must be finite and > 0 (got \(bpm))")
+  precondition(
+    durationSeconds.isFinite && durationSeconds >= 0,
+    "generateClickTrack: durationSeconds must be finite and >= 0 (got \(durationSeconds))")
+  precondition(
+    bpm <= sampleRate * 60,
+    "generateClickTrack: bpm must be <= sampleRate * 60 (got bpm \(bpm) at sampleRate \(sampleRate)) — samplesPerBeat would truncate to 0 and stride(by: 0) traps"
+  )
+  let sampleProduct = sampleRate * durationSeconds
+  precondition(
+    sampleProduct.isFinite && sampleProduct < Double(Int.max),
+    "generateClickTrack: derived sampleRate * durationSeconds must be finite and within Int range (got \(sampleProduct))"
+  )
+  let beatProduct = sampleRate * 60.0 / bpm
+  precondition(
+    beatProduct.isFinite && beatProduct < Double(Int.max),
+    "generateClickTrack: derived sampleRate * 60 / bpm must be finite and within Int range (got \(beatProduct))"
+  )
+  let sampleCount = Int(sampleProduct)
   var samples = [Float](repeating: 0, count: sampleCount)
-  let samplesPerBeat = Int(sampleRate * 60.0 / bpm)
+  let samplesPerBeat = Int(beatProduct)
   for beatStart in stride(from: 0, to: sampleCount, by: samplesPerBeat) {
     let impulseEnd = min(beatStart + 64, sampleCount)
     for i in beatStart..<impulseEnd {

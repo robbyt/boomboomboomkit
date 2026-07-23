@@ -28,6 +28,20 @@ extension FeatureSubstrate {
         break
       }
 
+      // Sample-rate ceiling (GH #119): shares `BPMAnalyzer.maxOnsetSampleRate`
+      // so the two guards cannot drift. Without it, the `Int(decoded.sampleRate
+      // / 100)` derivation below traps on a huge-but-finite rate —
+      // `DecodedAudio.init` enforces only the 8 kHz floor, exactly the gap
+      // BPMAnalyzer's own ceiling comment warns about.
+      guard decoded.sampleRate <= BPMAnalyzer.maxOnsetSampleRate else {
+        throw FeatureSubstrateError.featurizationFailed(
+          reason:
+            "sampleRate \(decoded.sampleRate) exceeds the "
+            + "\(BPMAnalyzer.maxOnsetSampleRate) Hz onset-framing ceiling "
+            + "(policy bound shared with BPMAnalyzer; the ceiling also keeps "
+            + "Int(sampleRate / 100) safe at extreme rates)")
+      }
+
       let hopSize = Int(decoded.sampleRate / 100)
       let envelopes = BPMAnalyzer.computeMelOnsetEnvelopeWithSubBands(
         samples: decoded.samples,
