@@ -570,5 +570,17 @@ struct PCMIngressGuardTests {
         Self.stderrContains(
           result, "generateClickTrack: derived sampleRate * durationSeconds"))
     }
+
+    @Test("finite args whose derived beat period overflows Int trap in the beat-period guard")
+    func derivedBeatPeriodOverflow() async {
+      let result = await #expect(processExitsWith: .failure, observing: [\.standardErrorContent]) {
+        // Zero duration keeps the sample-count product at 0 (passes guard 5);
+        // 1e15 * 60 / 1e-6 = 6e22 > Int.max fails the beat-period guard 6.
+        _ = generateClickTrack(bpm: 1.0e-6, sampleRate: 1.0e15, durationSeconds: 0)
+      }
+      #expect(
+        Self.stderrContains(
+          result, "generateClickTrack: derived sampleRate * 60 / bpm"))
+    }
   }
 #endif

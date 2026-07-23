@@ -322,27 +322,23 @@ public struct PCMBufferReader {
     // PCM ingress sanitize (GH #122): decoded Float32 payloads can legally
     // carry NaN/Inf bit patterns (AVFoundation passes them through verbatim
     // for float WAVs), and a single NaN makes `isSilent`'s `rms < threshold`
-    // compare false, poisoning the whole pipeline. Detect with one `vDSP_sve`
-    // pass: any non-finite element forces a non-finite sum regardless of
-    // accumulation order (mixed +Inf/-Inf cancels to NaN), so the all-finite
-    // hot path stays a single vDSP call and the samples stay bit-identical. A
-    // false positive from finite overflow merely triggers a harmless
-    // corrective pass that finds nothing to zero. The corrective
-    // replace-with-0 loop is scalar by explicit spec exemption from the
-    // vDSP-for-bulk-numerics rule (spec-gh-167-item2-pcm-ingress-guards):
-    // vDSP has no replace-non-finite primitive, and the loop only runs on
-    // corrupt input. ANY count of non-finite samples is zeroed silently — a
-    // fully poisoned file reads as silence and takes the existing `isSilent`
-    // path (bounded blast radius, no new error surface).
-    // Detection is a deterministic early-exit scan, NOT a vDSP_sve sum
+    // compare false, poisoning the whole pipeline. Policy: ANY count of
+    // non-finite samples is zeroed silently — a fully poisoned file reads as
+    // silence and takes the existing `isSilent` path (bounded blast radius,
+    // no new error surface); clean audio stays bit-identical. Detection is a
+    // deterministic scalar early-exit `isFinite` scan, NOT a `vDSP_sve` sum
     // check: sum propagation is mathematically airtight (any non-finite
     // element forces a non-finite IEEE 754 sum in any accumulation order),
     // but adversarial review observed the sum branch fail to fire once on a
     // fresh build (1 of 11 runs, Apple silicon) while the identical probe
-    // passed standalone -- and deferred-work W4 already calls vDSP
-    // non-finite behavior platform-defined. The clean-path cost is one
-    // early-exit isFinite scan; correctness of the W4 / 8-1-D4 ledger
+    // passed standalone — and deferred-work W4 already calls vDSP non-finite
+    // behavior platform-defined. Correctness of the W4 / 8-1-D4 ledger
     // closures rests on this detect being reliable, so determinism wins.
+    // Both the scan and the corrective replace-with-0 loop are scalar by
+    // explicit spec exemption from the vDSP-for-bulk-numerics rule
+    // (spec-gh-167-item2-pcm-ingress-guards): vDSP has no
+    // replace-non-finite primitive, and the corrective loop only runs on
+    // corrupt input.
     if mono.contains(where: { !$0.isFinite }) {
       for i in 0..<mono.count where !mono[i].isFinite {
         mono[i] = 0
