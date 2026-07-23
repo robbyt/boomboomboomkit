@@ -89,7 +89,9 @@ struct BPMAnalyzer {
   /// Upper sample-rate bound (8× 96 kHz — covers every real / high-res audio rate). A
   /// rate above this is rejected so `Int(sampleRate / 100)` and `Int(sampleRate)` cannot
   /// overflow on a huge-but-finite carrier; the range check also excludes `NaN`/`±Inf`.
-  private static let maxOnsetSampleRate: Double = 768_000
+  /// `internal` (not `private`) so `OnsetFeaturesBuilder` shares this constant for its
+  /// own `Int(sampleRate / 100)` ceiling guard (GH #119 — no drifting copies).
+  static let maxOnsetSampleRate: Double = 768_000
 
   /// Converts a seconds span to a sample count, clamped to `[0, cap]`, so a hostile
   /// `Options.analysisWindowSeconds` can never trap `Int(...)` overflow: a non-positive or
@@ -2257,7 +2259,11 @@ struct BPMAnalyzer {
   /// This handles the common DnB failure mode where the full-band pipeline
   /// locks onto a swing/triplet periodicity (~106 BPM) while the true
   /// breakbeat tempo (160 BPM) is visible in the hi-hat band.
-  private static func confirmWithSubBandPeaks(
+  ///
+  /// **Visibility is `internal static`** (GH #120): tests use `@testable import`
+  /// to call this directly with crafted sub-band ACFs — the `clickRescore`
+  /// precedent (DD#5).
+  internal static func confirmWithSubBandPeaks(
     winner: (bpm: Double, score: Float),
     subBandACFs: [[Float]],
     onsetRate: Double
@@ -2266,6 +2272,14 @@ struct BPMAnalyzer {
 
     // Only try promotion when winner is in 80-130 range (suspect half/two-thirds time)
     guard winner.bpm >= 80 && winner.bpm <= 130 else { return winner }
+
+    // Now that this function is internal (GH #120 test seam), it can no
+    // longer assume the production caller's validated onset rate: a
+    // non-finite onsetRate makes every scan lag non-finite and `Int(lag)`
+    // traps in `interpolateACF` before the dead-band guard below. The
+    // `clickRescore` sibling clamps its internal-caller-exposed `alpha` for
+    // the same reason.
+    guard onsetRate.isFinite, onsetRate > 0 else { return winner }
 
     // Find the peak BPM in the hi-hat sub-band ACF within the fast range (140-200)
     let fastRangeMinBPM = 140
@@ -2284,6 +2298,13 @@ struct BPMAnalyzer {
       }
     }
 
+    // Dead hi-hat band guard (GH #120): when no fast-range lag showed positive
+    // ACF strength, `hiHatBestBPM` is still 0 and `60.0 * onsetRate / 0` below
+    // yields an infinite lag whose `Int(lag)` conversion traps inside
+    // `interpolateACF`. A hi-hat band with no positive fast-range peak cannot
+    // confirm a faster tempo — keep the winner.
+    guard hiHatBestBPM > 0 else { return winner }
+
     // Compare hi-hat band's fast-range peak against its value at the winner BPM
     let hiHatAtWinner = interpolateACF(hiHatACF, at: 60.0 * onsetRate / winner.bpm)
 
@@ -2295,7 +2316,10 @@ struct BPMAnalyzer {
     let snareCrackAtFast = interpolateACF(snareCrackACF, at: 60.0 * onsetRate / hiHatBestBPM)
     let snareCrackAtWinner = interpolateACF(snareCrackACF, at: 60.0 * onsetRate / winner.bpm)
 
-    // Use all 4 bands for the full vote between the hi-hat candidate and the winner
+    // Use all 4 bands for the full vote between the hi-hat candidate and the winner.
+    // Invariants the divisions in `subBandVote` (and the treble checks above) rely
+    // on: `winner.bpm >= 80` (entry guard) and `hiHatBestBPM > 0` (dead-band guard
+    // after the scan), so every `60.0 * onsetRate / candidate` lag stays finite.
     let voteResult = subBandVote(
       subBandACFs: subBandACFs,
       candidateFast: hiHatBestBPM,
@@ -2678,11 +2702,22 @@ struct BPMAnalyzer {
     }
 
     // Sort with explicit index tiebreaker for determinism (Swift Array.sort is not stable).
+    // Non-finite-score handling (GH #121 — comparator copied verbatim from the
+    // duration-hint sibling below, code-review Patch #2): NaN scores break the comparator
+    // because both `NaN > x` and `NaN < x` are false AND `NaN != x` is true, so the
+    // offset tiebreaker would never fire — non-deterministic. Branch on `isNaN` first so
+    // NaN scores rank below all real scores, then the offset tiebreaker resolves ties
+    // (including NaN-vs-NaN). `+Inf` follows normal IEEE 754 ordering — it ranks
+    // legitimately at the top, not as a defensive demotion.
     let zipped: [(offset: Int, bpm: Double, newScore: Float)] = candidates.enumerated().map {
       (offset: $0.offset, bpm: $0.element.bpm, newScore: newScores[$0.offset])
     }
     let sorted = zipped.sorted { lhs, rhs in
-      lhs.newScore != rhs.newScore ? lhs.newScore > rhs.newScore : lhs.offset < rhs.offset
+      if lhs.newScore.isNaN != rhs.newScore.isNaN { return !lhs.newScore.isNaN }
+      if !lhs.newScore.isNaN && lhs.newScore != rhs.newScore {
+        return lhs.newScore > rhs.newScore
+      }
+      return lhs.offset < rhs.offset
     }
     return sorted.map { (bpm: $0.bpm, score: $0.newScore) }
   }

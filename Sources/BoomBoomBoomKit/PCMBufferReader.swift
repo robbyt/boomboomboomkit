@@ -41,6 +41,9 @@ public struct PCMBufferReader {
 
   /// Reads an audio file and returns mono samples normalized to [-1.0, 1.0].
   ///
+  /// Non-finite (NaN/Inf) decoded samples are silently read as 0.0 (GH #122
+  /// ingress policy), so a fully corrupt float file reads as silence.
+  ///
   /// - Parameters:
   ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
   ///   - maxSeconds: If provided, only read the first N seconds of audio.
@@ -83,6 +86,9 @@ public struct PCMBufferReader {
   /// This method does NOT check cooperative cancellation — it is a plain
   /// throwing reader call, same contract as `readMonoSamples`; cancellation
   /// checkpoints live in `AudioAnalysisService`.
+  ///
+  /// Non-finite (NaN/Inf) decoded samples are silently read as 0.0 (GH #122
+  /// ingress policy), so a fully corrupt float file reads as silence.
   ///
   /// - Parameters:
   ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
@@ -291,7 +297,7 @@ public struct PCMBufferReader {
     let channelCount = Int(format.channelCount)
 
     // Channel mixdown to mono
-    let mono: [Float]
+    var mono: [Float]
     if channelCount == 1 {
       // Mono: copy directly
       mono = Array(UnsafeBufferPointer(start: floatChannelData[0], count: frameCount))
@@ -311,6 +317,32 @@ public struct PCMBufferReader {
       var channelDivisor = Float(channelCount)
       vDSP_vsdiv(result, 1, &channelDivisor, &result, 1, vDSP_Length(frameCount))
       mono = result
+    }
+
+    // PCM ingress sanitize (GH #122): decoded Float32 payloads can legally
+    // carry NaN/Inf bit patterns (AVFoundation passes them through verbatim
+    // for float WAVs), and a single NaN makes `isSilent`'s `rms < threshold`
+    // compare false, poisoning the whole pipeline. Policy: ANY count of
+    // non-finite samples is zeroed silently — a fully poisoned file reads as
+    // silence and takes the existing `isSilent` path (bounded blast radius,
+    // no new error surface); clean audio stays bit-identical. Detection is a
+    // deterministic scalar early-exit `isFinite` scan, NOT a `vDSP_sve` sum
+    // check: sum propagation is mathematically airtight (any non-finite
+    // element forces a non-finite IEEE 754 sum in any accumulation order),
+    // but adversarial review observed the sum branch fail to fire once on a
+    // fresh build (1 of 11 runs, Apple silicon) while the identical probe
+    // passed standalone — and deferred-work W4 already calls vDSP non-finite
+    // behavior platform-defined. Correctness of the W4 / 8-1-D4 ledger
+    // closures rests on this detect being reliable, so determinism wins.
+    // Both the scan and the corrective replace-with-0 loop are scalar by
+    // explicit spec exemption from the vDSP-for-bulk-numerics rule
+    // (spec-gh-167-item2-pcm-ingress-guards): vDSP has no
+    // replace-non-finite primitive, and the corrective loop only runs on
+    // corrupt input.
+    if mono.contains(where: { !$0.isFinite }) {
+      for i in 0..<mono.count where !mono[i].isFinite {
+        mono[i] = 0
+      }
     }
 
     // Downsampling via AVAudioConverter (AC5)
@@ -380,6 +412,29 @@ public struct PCMBufferReader {
 
   // MARK: - Downsampling
 
+  /// Pure output-capacity computation for ``downsample`` (GH #123). Computes
+  /// `ceil(Double(inputFrames) * ratio) + 1` entirely in `Double` (the +1 is
+  /// INSIDE the guarded domain — the pre-fix inline
+  /// `AVAudioFrameCount(ceil(...)) + 1` trapped on the conversion before the
+  /// +1 could even overflow) and converts only when the result is finite and
+  /// `<= Double(UInt32.max)`. Returns nil otherwise; the caller throws
+  /// `conversionFailed` through the existing error path.
+  ///
+  /// Internal (not private) so the overflow boundary is directly testable —
+  /// a huge public-API `targetSampleRate` may be rejected earlier by
+  /// `AVAudioFormat` construction and never reach this computation, so a
+  /// public-API-only test cannot pin the guard.
+  internal static func downsampleOutputCapacity(
+    inputFrames: Int, ratio: Double
+  ) -> AVAudioFrameCount? {
+    let capacity = ceil(Double(inputFrames) * ratio) + 1
+    // >= 0: a negative finite capacity (negative ratio or inputFrames)
+    // passed the upper-bound check and trapped at the UInt32 conversion --
+    // review round 1, confirmed by probe. nil, per this helper's contract.
+    guard capacity.isFinite, capacity >= 0, capacity <= Double(UInt32.max) else { return nil }
+    return AVAudioFrameCount(capacity)
+  }
+
   private static func downsample(
     samples: [Float],
     fromRate: Double,
@@ -416,6 +471,14 @@ public struct PCMBufferReader {
       throw PCMBufferReaderError.conversionFailed(url)
     }
 
+    // GH #123 rider, corrected in review round 1: `clamping:` here paired
+    // with the full-count copy below would turn the (unreachable) pre-fix
+    // trap at `samples.count > UInt32.max` into an out-of-bounds heap write
+    // -- the capacity clamps but the copy would not. Guard-and-throw keeps
+    // the conversion exact and the copy in-bounds, with no trap.
+    guard samples.count <= Int(UInt32.max) else {
+      throw PCMBufferReaderError.conversionFailed(url)
+    }
     let inputFrameCount = AVAudioFrameCount(samples.count)
     guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: inputFrameCount)
     else {
@@ -432,9 +495,16 @@ public struct PCMBufferReader {
     }
     inputBuffer.frameLength = inputFrameCount
 
-    // Calculate output buffer size
+    // Calculate output buffer size (GH #123): the capacity computation lives
+    // in the internal `downsampleOutputCapacity` helper so its Double-domain
+    // overflow guard is directly testable; nil means the requested capacity
+    // cannot be represented — throw through the existing conversion error path.
     let ratio = toRate / fromRate
-    let outputFrameCount = AVAudioFrameCount(ceil(Double(inputFrameCount) * ratio)) + 1
+    guard
+      let outputFrameCount = downsampleOutputCapacity(inputFrames: samples.count, ratio: ratio)
+    else {
+      throw PCMBufferReaderError.conversionFailed(url)
+    }
     guard
       let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputFrameCount)
     else {
