@@ -138,8 +138,8 @@ struct ConsistencyContractCorpusTests {
 
     // GH-167 item 4 / #163: the corpus resolves to 81 files, not 82.
     // `SharedDecodeProbe.filesByFormat` groups by `ProbeFormat`, which has no
-    // `.m4a` case (mp3/flac/wav/aiff only), so the corpus's single .m4a track
-    // ("03 TVR.m4a") is silently dropped from the input. Pinned at 81 here with
+    // `.m4a` case (mp3/flac/wav/aiff only), so the corpus's single .m4a track is
+    // silently dropped from the input. Pinned at 81 here with
     // a re-open trigger in deferred-work; not fixed in this PR because
     // `ProbeFormat` is the grouping key for the SharedDecodeImpactTests
     // wall-clock gates, which this PR does not touch.
