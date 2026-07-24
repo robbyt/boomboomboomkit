@@ -1,17 +1,33 @@
 [
   {
-    "case" : "ml_nil",
+    "case" : "ml_not_invoked",
     "dsp" : {
       "bpm" : 120,
       "conf" : 0.9
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "protocol_abstain",
+      "reason" : "not_invoked",
       "source" : "dsp"
     },
     "ml" : null,
-    "policy" : "default"
+    "policy" : "default",
+    "seam" : "not_invoked"
+  },
+  {
+    "case" : "ml_abstained",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_default_weighted_dsp",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "default",
+    "seam" : "abstained"
   },
   {
     "case" : "ml_agrees_high_conf",
@@ -28,7 +44,8 @@
       "bpm" : 120,
       "conf" : 0.95
     },
-    "policy" : "default"
+    "policy" : "default",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_low_conf",
@@ -45,7 +62,8 @@
       "bpm" : 60,
       "conf" : 0.4
     },
-    "policy" : "default"
+    "policy" : "default",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_high_conf",
@@ -62,21 +80,38 @@
       "bpm" : 60,
       "conf" : 0.95
     },
-    "policy" : "default"
+    "policy" : "default",
+    "seam" : "evaluated"
   },
   {
-    "case" : "ml_nil",
+    "case" : "ml_not_invoked",
     "dsp" : {
       "bpm" : 120,
       "conf" : 0.9
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "protocol_abstain",
+      "reason" : "not_invoked",
       "source" : "dsp"
     },
     "ml" : null,
-    "policy" : "dspOnly"
+    "policy" : "dspOnly",
+    "seam" : "not_invoked"
+  },
+  {
+    "case" : "ml_abstained",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_dspOnly_short_circuit",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "dspOnly",
+    "seam" : "abstained"
   },
   {
     "case" : "ml_agrees_high_conf",
@@ -93,7 +128,8 @@
       "bpm" : 120,
       "conf" : 0.95
     },
-    "policy" : "dspOnly"
+    "policy" : "dspOnly",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_low_conf",
@@ -110,7 +146,8 @@
       "bpm" : 60,
       "conf" : 0.4
     },
-    "policy" : "dspOnly"
+    "policy" : "dspOnly",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_high_conf",
@@ -127,21 +164,38 @@
       "bpm" : 60,
       "conf" : 0.95
     },
-    "policy" : "dspOnly"
+    "policy" : "dspOnly",
+    "seam" : "evaluated"
   },
   {
-    "case" : "ml_nil",
+    "case" : "ml_not_invoked",
     "dsp" : {
       "bpm" : 120,
       "conf" : 0.9
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "protocol_abstain",
+      "reason" : "not_invoked",
       "source" : "dsp"
     },
     "ml" : null,
-    "policy" : "mlOnly"
+    "policy" : "mlOnly",
+    "seam" : "not_invoked"
+  },
+  {
+    "case" : "ml_abstained",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_mlOnly_abstain_modelAbstained",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "mlOnly",
+    "seam" : "abstained"
   },
   {
     "case" : "ml_agrees_high_conf",
@@ -158,7 +212,8 @@
       "bpm" : 120,
       "conf" : 0.95
     },
-    "policy" : "mlOnly"
+    "policy" : "mlOnly",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_low_conf",
@@ -175,7 +230,8 @@
       "bpm" : 60,
       "conf" : 0.4
     },
-    "policy" : "mlOnly"
+    "policy" : "mlOnly",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_high_conf",
@@ -192,21 +248,38 @@
       "bpm" : 60,
       "conf" : 0.95
     },
-    "policy" : "mlOnly"
+    "policy" : "mlOnly",
+    "seam" : "evaluated"
   },
   {
-    "case" : "ml_nil",
+    "case" : "ml_not_invoked",
     "dsp" : {
       "bpm" : 120,
       "conf" : 0.9
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "protocol_abstain",
+      "reason" : "not_invoked",
       "source" : "dsp"
     },
     "ml" : null,
-    "policy" : "highestConfidence"
+    "policy" : "highestConfidence",
+    "seam" : "not_invoked"
+  },
+  {
+    "case" : "ml_abstained",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_highestConfidence_abstain_modelAbstained",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "highestConfidence",
+    "seam" : "abstained"
   },
   {
     "case" : "ml_agrees_high_conf",
@@ -223,7 +296,8 @@
       "bpm" : 120,
       "conf" : 0.95
     },
-    "policy" : "highestConfidence"
+    "policy" : "highestConfidence",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_low_conf",
@@ -240,7 +314,8 @@
       "bpm" : 60,
       "conf" : 0.4
     },
-    "policy" : "highestConfidence"
+    "policy" : "highestConfidence",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_high_conf",
@@ -257,21 +332,38 @@
       "bpm" : 60,
       "conf" : 0.95
     },
-    "policy" : "highestConfidence"
+    "policy" : "highestConfidence",
+    "seam" : "evaluated"
   },
   {
-    "case" : "ml_nil",
+    "case" : "ml_not_invoked",
     "dsp" : {
       "bpm" : 120,
       "conf" : 0.9
     },
     "ensemble" : {
       "bpm" : 120,
-      "reason" : "protocol_abstain",
+      "reason" : "not_invoked",
       "source" : "dsp"
     },
     "ml" : null,
-    "policy" : "weightedVoting"
+    "policy" : "weightedVoting",
+    "seam" : "not_invoked"
+  },
+  {
+    "case" : "ml_abstained",
+    "dsp" : {
+      "bpm" : 120,
+      "conf" : 0.9
+    },
+    "ensemble" : {
+      "bpm" : 120,
+      "reason" : "policy_weightedVoting_weighted_dsp",
+      "source" : "dsp"
+    },
+    "ml" : null,
+    "policy" : "weightedVoting",
+    "seam" : "abstained"
   },
   {
     "case" : "ml_agrees_high_conf",
@@ -288,7 +380,8 @@
       "bpm" : 120,
       "conf" : 0.95
     },
-    "policy" : "weightedVoting"
+    "policy" : "weightedVoting",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_low_conf",
@@ -305,7 +398,8 @@
       "bpm" : 60,
       "conf" : 0.4
     },
-    "policy" : "weightedVoting"
+    "policy" : "weightedVoting",
+    "seam" : "evaluated"
   },
   {
     "case" : "ml_disagrees_high_conf",
@@ -322,6 +416,7 @@
       "bpm" : 60,
       "conf" : 0.95
     },
-    "policy" : "weightedVoting"
+    "policy" : "weightedVoting",
+    "seam" : "evaluated"
   }
 ]

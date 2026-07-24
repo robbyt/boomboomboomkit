@@ -26,9 +26,10 @@
   },
   "ml" : {
     "ensembleDecision" : {
+      "abstainKind" : "modelAbstained",
       "dspConfidence" : 0.85,
       "mlAbstained" : true,
-      "policy" : "dspOnly",
+      "policy" : "mlOnly",
       "selectedBPM" : 120,
       "winner" : "dsp"
     }
@@ -117,7 +118,7 @@
     "elapsedSeconds" : 1.5,
     "enableMLDiagnostics" : false,
     "enableTrace" : true,
-    "ensemblePolicy" : "dspOnly",
+    "ensemblePolicy" : "mlOnly",
     "fileName" : "golden-fixture.wav",
     "intensityEffective" : 7,
     "intensityRequested" : 7,

@@ -537,6 +537,11 @@ struct EnsembleDecisionJSON: Codable, Sendable, Equatable {
   let dspConfidence: Double
   let mlConfidence: Double?
   let mlAbstained: Bool
+  /// GH-167 item 3: the abstain discriminator (`modelAbstained` /
+  /// `nonFiniteBPM` / `nonFiniteConfidence`), nil for a contested decision.
+  /// Exported so the JSON distinguishes the abstain kinds the library now
+  /// records; `mlAbstained` is retained as the derived summary flag.
+  let abstainKind: String?
   let selectedBPM: Double
 
   init(from decision: EnsembleDecision) {
@@ -550,6 +555,7 @@ struct EnsembleDecisionJSON: Codable, Sendable, Equatable {
     self.dspConfidence = decision.dspConfidence.isFinite ? decision.dspConfidence : 0
     self.mlConfidence = decision.mlConfidence.flatMap { $0.isFinite ? $0 : nil }
     self.mlAbstained = decision.mlAbstained
+    self.abstainKind = decision.abstainKind?.rawValue
     self.selectedBPM = decision.selectedBPM.isFinite ? decision.selectedBPM : 0
   }
 }

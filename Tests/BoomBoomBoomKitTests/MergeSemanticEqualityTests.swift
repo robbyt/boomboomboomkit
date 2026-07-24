@@ -365,7 +365,7 @@ struct WeightedResolutionSanitizationTests {
     let dsp = makeResult(bpm: 128.0, confidence: .nan, candidates: [(128.0, 0.6)])
     let ml = MLEvaluation(bpm: 174.0, confidence: 0.5)
     let out = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: ml, policy: .default)
+      dspWinner: dsp, ml: .evaluated(ml), policy: .default)
     // DSP NaN → vote 0; ML vote 0.5 > 0 → ML wins (no NaN-poisoned DSP win).
     #expect(out.bpm == 174.0)
     #expect(out.confidence.isFinite)
@@ -461,25 +461,34 @@ struct WeightedResolutionTests {
 
     // .default (equal weights): DSP vote 0.60 > ML vote 0.50 → DSP wins.
     let balanced = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: ml, policy: .default)
+      dspWinner: dsp, ml: .evaluated(ml), policy: .default)
     #expect(balanced.bpm == 128.0)
 
     // .weightedVoting(ml: 1.5): ML vote 0.50×1.5 = 0.75 > DSP 0.60 → ML wins.
     let weights = SignalWeights(dsp: 1.0, ml: 1.5)
     let mlFavored = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: ml, policy: .weightedVoting(weights))
+      dspWinner: dsp, ml: .evaluated(ml), policy: .weightedVoting(weights))
     #expect(mlFavored.bpm == 174.0)
     #expect(abs(mlFavored.confidence - 0.50) < 1e-9)
   }
 
   /// `.default` with no ML voice resolves to the DSP voice unchanged (the
-  /// balanced peer ensemble degrades to DSP-wins when ML is absent) — output is
-  /// identical bpm/confidence to `.dspOnly`.
-  @Test("KDD-A5: .default with no ML voice == DSP winner unchanged")
-  func defaultWithoutMLEqualsDSP() {
+  /// balanced peer ensemble degrades to DSP-wins when ML contributes nothing)
+  /// — output is identical bpm/confidence to `.dspOnly`. Both no-voice
+  /// outcomes are covered: `.notInvoked` (ML genuinely absent — no technique
+  /// wired up) and `.abstained` (the technique ran and declined). They share
+  /// a guard today; naming only one of them would let a future split change
+  /// the uncovered one silently.
+  @Test(
+    "KDD-A5: .default with no ML voice == DSP winner unchanged",
+    arguments: [
+      AudioAnalysisService.MLSeamOutcome.notInvoked,
+      .abstained,
+    ])
+  func defaultWithoutMLEqualsDSP(outcome: AudioAnalysisService.MLSeamOutcome) {
     let dsp = makeResult(bpm: 128.0, confidence: 0.7, candidates: [(128.0, 0.7)])
     let out = AudioAnalysisService.combineEnsemble(
-      dspWinner: dsp, mlEvaluation: nil, policy: .default)
+      dspWinner: dsp, ml: outcome, policy: .default)
     #expect(out.bpm == 128.0)
     #expect(out.confidence == 0.7)
   }

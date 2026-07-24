@@ -36,10 +36,11 @@ public struct MLEvaluation: Sendable {
   /// Estimated tempo in beats per minute.
   ///
   /// Conformers should clamp predictions to `60.0...200.0` to match the
-  /// DSP pipeline's range-normalized candidate space; out-of-range values
-  /// surface to the ensemble combiner unchanged. A value of `0` (or any
-  /// non-finite) is undefined and is rejected by future ensemble policies
-  /// — return `nil` from ``MLTechnique/evaluate(trace:)`` instead.
+  /// DSP pipeline's range-normalized candidate space; the ensemble combiner
+  /// octave-folds a finite out-of-range value into that window (240 → 120).
+  /// A value of `0` (or any non-finite) is undefined — non-finite values
+  /// are rejected by the combiner as a sentinel abstain; return `nil` from
+  /// ``MLTechnique/evaluate(trace:)`` instead.
   public let bpm: Double
 
   /// Self-reported confidence in `[0.0, 1.0]`.
@@ -66,8 +67,9 @@ public struct MLEvaluation: Sendable {
   ///
   /// - Parameters:
   ///   - bpm: The model's tempo estimate. Conformers should clamp to `60.0...200.0`;
-  ///     non-finite values are rejected by the ensemble combiner and treated as a
-  ///     sentinel-NaN abstain.
+  ///     a finite out-of-range value is octave-folded into that window by the
+  ///     ensemble combiner (240 → 120), and non-finite values are rejected as a
+  ///     sentinel abstain (``EnsembleDecision/AbstainKind/nonFiniteBPM``).
   ///   - confidence: The model's self-reported confidence in `[0.0, 1.0]`.
   ///     Out-of-range and non-finite values are sanitized downstream — see
   ///     ``EnsembleDecision/mlConfidence`` for the contract.
