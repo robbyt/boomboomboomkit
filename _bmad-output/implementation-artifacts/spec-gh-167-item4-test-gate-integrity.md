@@ -2,7 +2,7 @@
 title: 'GH-167 item 4 — Test-gate integrity (#155, #156, #163, #165)'
 type: 'bugfix'
 created: '2026-07-24'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: 'de8a034'
 context: []
