@@ -635,7 +635,21 @@ Story 4-6 picks up the accuracy work with hard AC.
   100%-abstain artifact landed without observable CI failure.
   **Trigger:** Story 4-6. **Blocks 4-6: yes** — 4-6 should either
   promote the impact-report into a CI lane OR add a fast-running
-  abstain-floor unit test.
+  abstain-floor unit test. **RESOLVED (partial) by Story 4-6 as the
+  corpus-anchored `BNNSTechniqueAbstainFloorTests` suite; that suite is
+  now DELETED (GH-167 item 4 / #156, `spec-gh-167-item4-test-gate-integrity.md`,
+  2026-07-24).** The abstain-floor suite it produced was double-gated on
+  `BNNS_IMPACT=1` AND `bundledReferenceURL != nil` (a nil literal since
+  Story 4-6 Branch C), so it never ran even under `make bnns-impact-report`.
+  Its subject — a bundled DEFAULT model's abstain behavior — no longer
+  exists; re-gating it on the committed `CustomBundled.mlmodelc` fixture
+  would fail its own `wrongNonAbstainCeiling` by design (that fixture IS
+  the rejected v1 graph whose confidently-wrong predictions triggered
+  Branch C). The intent it encoded is preserved as the new "abstain-floor
+  intent" entry below; the fast-running CI coverage C4 actually wanted is
+  now the ported real-inference assertions in `BNNSTechniqueInferenceTests`
+  (non-nil `MLEvaluation` under overridden gates + production-threshold
+  gate-1 abstain), which run on every `make test`.
 
 - **C5 — DnB target list lacks DSP-correct control set.**
   `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json`
@@ -1026,3 +1040,23 @@ Two adjacent hazards surfaced during the item-3 plan review (Codex thread `019f8
 - source_spec: `_bmad-output/implementation-artifacts/spec-gh-167-item3-ensemble-seam.md`
   summary: A finite NON-POSITIVE ML `bpm` (`0`, negative) folds to the 60.0 floor and can WIN, so a conformer bug that emits `0` becomes an authoritative 60 BPM result carrying the model's confidence.
   evidence: `BPMAnalyzer.rangeNormalize` returns `perceptualMinBPM` (60.0) for `bpm <= 0`, and the seam treats that like any other folded value — `EnsembleCombinerFoldBoundaryTests.fold_nonPositive_floors` locks `bpm: 0.0 / -5.0` under `.mlOnly` producing `winner == .ml` at 60.0. The behavior is BASELINE-IDENTICAL (the pre-GH-167 boundary clamp also produced 60.0 for non-positive input), which is why the item-3 spec accepted it explicitly rather than changing it — the PR's validated-defects-only discipline. It is nonetheless a live inconsistency: `MLEvaluation`'s own doc comment calls a `bpm` of `0` "undefined" and tells conformers to return `nil` instead, while the pipeline converts it into a confident answer. Unlike the other three accepted residuals from this PR it had no entry, so the acceptance was implicit. Candidate fix when re-opened: a fourth `EnsembleDecision.AbstainKind` case (`.nonPositiveBPM`) guarded before the fold, under its own named spec (`AbstainKind` expansion is an Ask-First boundary in the item-3 spec). **Re-open trigger:** a BYOW conformer reports a spurious 60 BPM result, OR the next `AbstainKind` expansion (fold this in rather than shipping a second sentinel pass), OR `MLEvaluation` gains input validation at construction. [source: PR #170 review (robbyt), 2026-07-23]
+
+## Deferred from: GH-167 item 4 (test-gate integrity, 2026-07-24)
+
+Adjacent findings surfaced while fixing the four validated test-gate defects (#155/#156/#163/#165) and deliberately not fixed there — each sits outside the four issues, and the item-2/item-3 "no scope growth" discipline carried over. The abstain-floor deletion's carried-forward intent is recorded first.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-gh-167-item4-test-gate-integrity.md`
+  summary: The two-sided ML abstain-floor intent — a production BNNS model must neither over-abstain nor replace abstention with confidently-wrong predictions — no longer has an executable home after `BNNSTechniqueAbstainFloorTests` was deleted (#156).
+  evidence: The deleted suite asserted, at forced-accept thresholds `(0.0, 0.0)` over 20 DSP-correct OA300 controls, `abstain_rate <= 0.30` (`abstainFloorOnRealAudio`) AND `wrong_non_abstain_count <= 4` (`wrongNonAbstainCeiling`). Both were written against a BUNDLED DEFAULT model that no longer exists; the historical `giantsteps_v1.mlmodelc` blew the wrong-non-abstain ceiling (54/82 at forced-accept over the full corpus, bimodal at 125/175 BPM), which is what triggered Story 4-6 Branch C. The 20-track control list and both ceilings are preserved here as the calibration target for any future model. Fix when re-opened: recreate BOTH ceilings in `BoomBoomBoomKitBenchmarkTests` (NOT the every-commit unit target — they need the corpus), inject the candidate via `BNNSTechnique(modelURL:)`, and calibrate the abstain-floor and wrong-non-abstain ceilings from the new model's distribution. **Re-open trigger:** a new BNNS model is proposed as the package's blessed reference/default (a Branch-A retrain) with a reproducible OA300 baseline. BYOW support alone does NOT trigger this — the ceilings are meaningless without a specific model to calibrate against.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-gh-167-item4-test-gate-integrity.md`
+  summary: The consistency gate measures 81 of the corpus's 82 tracks — `ProbeFormat` (`SharedDecodeImpactTests.swift:30-42`) has no `.m4a` case, so `SharedDecodeProbe.filesByFormat` silently drops the single `.m4a` track ("03 TVR.m4a") from every suite that groups by `ProbeFormat`.
+  evidence: `ProbeFormat` enumerates `mp3` / `flac` / `wav-class` (wav+aiff); the corpus is 29 mp3 / 25 aiff / 24 wav / 3 flac / 1 m4a. `filesByFormat` does `guard let format = ProbeFormat.allCases.first(where: ...) else { continue }`, so the m4a track is excluded with no signal. Confirmed by the 2026-07-24 baseline run (`tracks resolved = 81`). `ConsistencyContractCorpusTests` now pins `files.count == 81` with a comment, so a further shrink trips loudly, but the true corpus is 82. NOT fixed here because `ProbeFormat` is the grouping key for the four `SharedDecodeImpactTests` wall-clock gates (shared-decode / beat-grid / combined-analyze impact), and adding a case changes their per-format reporting basis — an adjacent surface this PR does not touch. Fix when re-opened: add `case m4a` to `ProbeFormat` and re-baseline the consistency cardinality to 82 and the wall-clock gates' per-format expectations together. **Re-open trigger:** a story touches `SharedDecodeImpactTests` / `ProbeFormat`, OR the consistency contract needs full 82-track coverage, OR the corpus gains more m4a tracks (widening the blind spot).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-gh-167-item4-test-gate-integrity.md`
+  summary: `BNNSTechnique.bundledReferenceURL` is a dead `nil` default argument on the public `init(modelURL:)` — a production-code residue the #156 brief wanted deleted but which is out of a test-only PR's scope.
+  evidence: `Sources/BoomBoomBoomKitML/BNNSTechnique.swift:105` is `public static let bundledReferenceURL: URL? = nil` (a `nil` literal since Story 4-6 Branch C), and `:264` is `public init(modelURL: URL? = Self.bundledReferenceURL) throws`. So the no-arg `BNNSTechnique()` always throws `.modelResourceMissing(nil-derived)` — a public initializer whose default argument can only fail. The item-4 test fixes removed the test-side machinery (`bundledModelMissing()`), but the production symbol and its use as a default argument remain. Deleting them is a public-API removal (allowed pre-1.0, but requires a `Sources/` change this PR forbids). Fix when re-opened: drop `bundledReferenceURL` and make `modelURL` a required argument on `init`, updating `BNNSImpactTests.swift:372`'s `bundledReferenceURL != nil` probe (its last remaining reader). **Re-open trigger:** the next `Sources/BoomBoomBoomKitML` change, OR a Branch-A retrain re-bundling a model (which would make the default meaningful again and is the only reason to keep the symbol), OR a pre-1.0 public-API cleanup pass.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-gh-167-item4-test-gate-integrity.md`
+  summary: `benchmarkMergeStrategies` recomputes the 3-window DSP inside its 8-strategy loop (~8x the corpus DSP cost), where its sibling `benchmarkVotingPolicies` hoists the window computation out of the policy loop (DD#18) and pays ~1x.
+  evidence: `OA300BenchmarkTests.benchmarkMergeStrategies` runs `BPMAnalyzer.estimateBPM` per (strategy, track, window) — 8 strategies × 82 tracks × 3 windows — because the window results are computed inside `for strategy in BPMSelectionPolicy.allCases`. `benchmarkVotingPolicies` precomputes `cachedWindows` ONCE and iterates the 6 (policy, threshold) pairs over the cache (Story 3-5 DD#18). The merge step itself is sub-microsecond, so merge-strategies pays ~8x wall-clock for identical DSP output. Not fixed in item 4 (an optimization, not a gate-integrity defect — the PR's validated-defects-only discipline). Fix when re-opened: hoist the per-track window computation above the strategy loop, mirroring `benchmarkVotingPolicies`' `cachedWindows` pattern. **Re-open trigger:** `make benchmark` wall-clock becomes a cadence problem, OR a story touches `benchmarkMergeStrategies`, OR the corpus grows enough that the 8x redo dominates the benchmark run.

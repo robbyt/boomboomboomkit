@@ -33,7 +33,12 @@ struct BaselineRow: Codable, Sendable {
 
 @Suite(
   "MLPolicySweep",
-  .enabled(if: ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"] != nil)
+  // Exploratory report (`make ml-policy-sweep`), not a gate — stays a skip
+  // suite. GH-167 item 4 / #165: the trait now rejects an empty-string path to
+  // match this suite's own throwing `init` guard (`!path.isEmpty`), which
+  // previously disagreed with the trait's bare `!= nil`.
+  .enabled(
+    if: ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"].map { !$0.isEmpty } ?? false)
 )
 struct MLPolicySweepTests {
 
