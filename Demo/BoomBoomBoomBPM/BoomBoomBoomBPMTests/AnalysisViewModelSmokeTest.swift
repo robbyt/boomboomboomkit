@@ -1025,7 +1025,7 @@ struct AnalysisViewModelSmokeTest {
         winner: .ml,
         dspConfidence: 0.5,
         mlConfidence: 0.9,
-        mlAbstained: false,
+        abstainKind: nil,
         selectedBPM: 128.0
       )
       lastBPM = 128.0
@@ -1090,7 +1090,7 @@ struct AnalysisViewModelSmokeTest {
         winner: .ml,
         dspConfidence: 0.5,
         mlConfidence: 0.9,
-        mlAbstained: false,
+        abstainKind: nil,
         selectedBPM: 128.0
       )
       lastBPM = 128.0
@@ -1234,11 +1234,11 @@ struct AnalysisViewModelSmokeTest {
   @MainActor
   func nanInSanitizedFieldsNullifies() throws {
     let decision = EnsembleDecision(
-      policy: .dspOnly,
+      policy: .highestConfidence,
       winner: .dsp,
       dspConfidence: .nan,
       mlConfidence: .infinity,
-      mlAbstained: false,
+      abstainKind: nil,
       selectedBPM: .nan
     )
     let projected = EnsembleDecisionJSON(from: decision)
@@ -1255,6 +1255,43 @@ struct AnalysisViewModelSmokeTest {
     #expect(decoded.dspConfidence == 0)
     #expect(decoded.mlConfidence == nil)
     #expect(decoded.selectedBPM == 0)
+    // Contested decision: no abstain kind, and mlAbstained is the derived
+    // summary flag (GH-167 item 3 made it computed, not stored).
+    #expect(projected.abstainKind == nil)
+    #expect(projected.mlAbstained == false)
+  }
+
+  /// GH-167 item 3: every `AbstainKind` round-trips through the export
+  /// projection. The golden fixture pins only `modelAbstained`, so without
+  /// this the two sentinel kinds have no projection coverage at all.
+  @Test(
+    "abstainKindProjectsForEveryKind: all three AbstainKinds round-trip through the export",
+    arguments: [
+      EnsembleDecision.AbstainKind.modelAbstained,
+      .nonFiniteBPM,
+      .nonFiniteConfidence,
+    ])
+  @MainActor
+  func abstainKindProjectsForEveryKind(kind: EnsembleDecision.AbstainKind) throws {
+    let decision = EnsembleDecision(
+      policy: .mlOnly,
+      winner: .dsp,
+      dspConfidence: 0.85,
+      mlConfidence: nil,
+      abstainKind: kind,
+      selectedBPM: 120.0
+    )
+    let projected = EnsembleDecisionJSON(from: decision)
+    #expect(projected.abstainKind == kind.rawValue)
+    #expect(projected.mlAbstained == true)
+    #expect(projected.mlConfidence == nil)
+
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let decoded = try JSONDecoder().decode(
+      EnsembleDecisionJSON.self, from: try encoder.encode(projected))
+    #expect(decoded.abstainKind == kind.rawValue)
+    #expect(decoded.mlAbstained == true)
   }
 
   // 5.5 — F09 (Story 5-6 review, 2026-05-23): snapshot is PRESERVED
@@ -1427,7 +1464,7 @@ struct AnalysisViewModelSmokeTest {
         metadataPolicyEnabledSources: ["id3TBPM", "iTunesTmpo", "vorbisBPM"],
         durationHint: true,
         durationHintMinFileSeconds: 180,
-        ensemblePolicy: "dspOnly",
+        ensemblePolicy: "mlOnly",
         enableTrace: true,
         enableMLDiagnostics: false,
         maxSeconds: 120,
@@ -1488,11 +1525,11 @@ struct AnalysisViewModelSmokeTest {
       ml: MLInfo(
         ensembleDecision: EnsembleDecisionJSON(
           from: EnsembleDecision(
-            policy: .dspOnly,
+            policy: .mlOnly,
             winner: .dsp,
             dspConfidence: 0.85,
             mlConfidence: nil,
-            mlAbstained: true,
+            abstainKind: .modelAbstained,
             selectedBPM: 120.0
           )),
         diagnosticSnapshot: nil,
@@ -1633,11 +1670,11 @@ struct AnalysisViewModelSmokeTest {
     // non-nil when only mlDiagnosticSnapshot or mlFeatures is present,
     // but the test specifically asserts the ensembleDecision projection).
     trace.ensembleDecision = EnsembleDecision(
-      policy: .dspOnly,
+      policy: .mlOnly,
       winner: .dsp,
       dspConfidence: snapshot.result.confidence,
       mlConfidence: nil,
-      mlAbstained: true,
+      abstainKind: .modelAbstained,
       selectedBPM: snapshot.result.bpm
     )
 
