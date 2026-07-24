@@ -367,6 +367,29 @@ struct EnsembleCombinerSanitizationTests {
     #expect(d?.mlConfidence == nil)
   }
 
+  /// `.highestConfidence`'s bpm-sentinel arm, symmetric with the three
+  /// `.mlOnly` bpm tests above. The two policies run separate `guard`
+  /// statements, so the `.mlOnly` coverage does not speak for this one.
+  @Test(
+    "highestConfidence + non-finite bpm → DSP wins (abstain), .nonFiniteBPM",
+    arguments: [Double.nan, .infinity, -.infinity])
+  func highestConfidence_nonFiniteBPM_abstains(bpm: Double) {
+    let dsp = makeFixture(bpm: 120.0, confidence: 0.9, trace: BPMDiagnosticTrace())
+    let ml = MLEvaluation(bpm: bpm, confidence: 0.99)
+    let r = AudioAnalysisService.combineEnsemble(
+      dspWinner: dsp, ml: .evaluated(ml), policy: .highestConfidence)
+    // Confidence 0.99 > DSP's 0.9, so ML would WIN if the sentinel were not
+    // caught — this fixture proves the guard fires, not just that DSP happens
+    // to be ahead.
+    #expect(r.bpm.bitPattern == 120.0.bitPattern)
+    #expect(r.confidence.bitPattern == 0.9.bitPattern)
+    let d = r.trace?.ensembleDecision
+    #expect(d?.winner == .dsp)
+    #expect(d?.abstainKind == .nonFiniteBPM)
+    #expect(d?.mlAbstained == true)
+    #expect(d?.mlConfidence == nil)
+  }
+
   /// Same abstain under `.highestConfidence`: a collapsed-to-0 vote would
   /// lose the compare anyway, but the record would then claim ML
   /// participated normally with confidence 0 — the abstain keeps it honest.
@@ -670,6 +693,27 @@ struct EnsembleCombinerWeightedZeroVoteTests {
     let r = AudioAnalysisService.combineEnsemble(
       dspWinner: dsp, ml: .abstained, policy: policy)
     #expect(r.bpm.bitPattern == 128.0.bitPattern)
+    let res = r.trace?.ensembleWeightResolution
+    #expect(res?.winner == .dsp)
+    #expect(res?.mlEffectiveVote == nil)
+  }
+
+  /// The weighted no-voice guard is reachable TWO ways — `.abstained` (above)
+  /// and an `.evaluated` payload carrying a non-finite bpm. Both must land on
+  /// the same record; the second route was previously unlocked, so a future
+  /// split of that compound `guard` could have changed it silently.
+  @Test(
+    "weighted policies + evaluated(non-finite bpm) → same no-voice record as abstained",
+    arguments: weightedPolicies, [Double.nan, .infinity, -.infinity])
+  func weighted_nonFiniteBPM_recordsNilVote(policy: EnsemblePolicy, bpm: Double) {
+    let dsp = makeFixture(bpm: 128.0, confidence: 0.3, trace: BPMDiagnosticTrace())
+    // Confidence 0.99 would beat DSP's 0.3 outright if the bpm sentinel were
+    // not caught first.
+    let ml = MLEvaluation(bpm: bpm, confidence: 0.99)
+    let r = AudioAnalysisService.combineEnsemble(
+      dspWinner: dsp, ml: .evaluated(ml), policy: policy)
+    #expect(r.bpm.bitPattern == 128.0.bitPattern)
+    #expect(r.confidence.bitPattern == 0.3.bitPattern)
     let res = r.trace?.ensembleWeightResolution
     #expect(res?.winner == .dsp)
     #expect(res?.mlEffectiveVote == nil)
