@@ -2,7 +2,7 @@
 title: 'GH-167 item 4 — Test-gate integrity (#155, #156, #163, #165)'
 type: 'bugfix'
 created: '2026-07-24'
-status: 'in-progress'
+status: 'in-review'
 review_loop_iteration: 0
 baseline_commit: 'de8a034'
 context: []
@@ -66,14 +66,14 @@ context: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift` — delete `bundledModelMissing()` and all 8 `.disabled` traits; delete `initSucceedsForBundledModel` (its subject, a bundled default model, does not exist and construction is already covered by `initAcceptsCustomModelURL_constructionOnly`); repoint the other 7 to the `CustomBundled.mlmodelc` fixture via a shared `fixtureURL()` helper.
-- [ ] Same file — strengthen `evaluateProducesPlausibleBPM` and `concurrentEvaluateIsContextLocal`: both currently guard on `if let`/`if !isEmpty` and pass vacuously when every evaluation abstains. Require non-nil.
-- [ ] Same file — add the two missing real-inference assertions (non-nil under zeroed thresholds; production-threshold abstain at gate 1). `.serialized` suite: they mutate `BNNSTechnique.thresholdOverride`.
-- [ ] `Tests/BoomBoomBoomKitTests/BNNSTechniqueAbstainFloorTests.swift` — delete the file.
-- [ ] `Tests/BoomBoomBoomKitBenchmarkTests/ConsistencyContractCorpusTests.swift` — replace the `.enabled(if:)` trait with a throwing `init()`; collect failing filenames with their cause; assert the allowlist equality, `files.count == 81`, and `analyzed + noResult == files.count`. Keep the printed report, `analyzed > 0`, and `notCompared == 0`.
-- [ ] `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift` — delete `benchmarkDefaultIntensity`; add denominator assertions to the other six; replace both `try?` drops with counted-and-asserted reads; remove both empty-corpus green-exits.
-- [ ] `Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift` + `MLPolicySweepTests.swift` — typo fix, trait alignment.
-- [ ] `_bmad-output/implementation-artifacts/deferred-work.md` — append the C4 resolution; add new entries for the abstain-floor intent, the m4a gap, `bundledReferenceURL`'s dead default argument, and the 8x recompute in `benchmarkMergeStrategies`.
+- [x] `Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift` — delete `bundledModelMissing()` and all 8 `.disabled` traits; delete `initSucceedsForBundledModel` (its subject, a bundled default model, does not exist and construction is already covered by `initAcceptsCustomModelURL_constructionOnly`); repoint the other 7 to the `CustomBundled.mlmodelc` fixture via a shared `fixtureURL()` helper.
+- [x] Same file — strengthen `evaluateProducesPlausibleBPM` and `concurrentEvaluateIsContextLocal`: both currently guard on `if let`/`if !isEmpty` and pass vacuously when every evaluation abstains. Require non-nil.
+- [x] Same file — add the two missing real-inference assertions (non-nil under zeroed thresholds; production-threshold abstain at gate 1). `.serialized` suite: they mutate `BNNSTechnique.thresholdOverride`.
+- [x] `Tests/BoomBoomBoomKitTests/BNNSTechniqueAbstainFloorTests.swift` — delete the file.
+- [x] `Tests/BoomBoomBoomKitBenchmarkTests/ConsistencyContractCorpusTests.swift` — replace the `.enabled(if:)` trait with a throwing `init()`; collect failing filenames with their cause; assert the allowlist equality, `files.count == 81`, and `analyzed + noResult == files.count`. Keep the printed report, `analyzed > 0`, and `notCompared == 0`.
+- [x] `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift` — delete `benchmarkDefaultIntensity`; add denominator assertions to the other six; replace both `try?` drops with counted-and-asserted reads; remove both empty-corpus green-exits.
+- [x] `Tests/BoomBoomBoomKitBenchmarkTests/AblationFullMatrixTests.swift` + `MLPolicySweepTests.swift` — typo fix, trait alignment.
+- [x] `_bmad-output/implementation-artifacts/deferred-work.md` — append the C4 resolution; add new entries for the abstain-floor intent, the m4a gap, `bundledReferenceURL`'s dead default argument, and the 8x recompute in `benchmarkMergeStrategies`.
 
 **Acceptance Criteria:**
 - Given no corpus env vars, when `make test` runs, then it is green and no suite in `BoomBoomBoomKitTests` fails to compile or errors on a missing corpus.
@@ -83,6 +83,11 @@ context: []
 - Given every new guard, when the guard is temporarily reverted, then at least one named test fails — recorded in Verification.
 
 ## Spec Change Log
+
+- **2026-07-24 — Codex diff review (thread `019f9293`).** Two merge-blockers, both fixed as patches (no frozen-intent change):
+  1. *`.serialized` overstated as cross-suite-safe.* `.serialized` only orders tests within a suite; the comment claimed general cross-suite safety. Rewrote it to state the real basis: `BNNSImpactTests` (the other `thresholdOverride` mutator) is in the benchmark target, `make test` filters the unit target and never co-invokes it, and the deleted abstain-floor suite was the only other unit-target mutator — so `BNNSTechniqueInferenceTests` is the sole mutator in the `make test` lane, where no sibling asserts a threshold-dependent `evaluate` outcome. A bare unfiltered `swift test` across both targets could race; the make targets do not.
+  2. *`taggedSubsetBreakdown` still measured nothing.* Its `try?` mapped both failed and successful-but-empty analysis to an empty evidence array, so an all-fail corpus printed "0/82" and passed. Added an `analyzed: Bool` to the task result and an `#expect` that all 82 analyses completed before empty evidence is read as "no tag". Verified: 5/82 have metadata, all 82 analyzed.
+  Nits also applied: the consistency no-result set now records the CAUSE per file (absent / decode / no-grid) to make the frozen I/O-matrix "names cause" row true; the production-abstain test references `BNNSTechnique.confidenceThreshold` instead of a literal `0.50`; "resolved on disk" wording corrected to "resolved from the roster". Deferred: the allowlist's `lastPathComponent` key depends on cross-subdir filename uniqueness (holds in the current 82-row fixture; ledgered).
 
 ## Design Notes
 

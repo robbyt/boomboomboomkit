@@ -43,8 +43,10 @@ struct ConsistencyContractCorpusTests {
     corpusPath = path
   }
 
-  /// Files that resolve on disk but do NOT produce a BPM + beat grid, keyed by
-  /// last-path-component. GH-167 item 4 / #163: the >= 90% gate is computed over
+  /// Files from the ground-truth roster that do NOT produce a BPM + beat grid
+  /// (existence is not pre-checked — a missing file surfaces as an analyze
+  /// failure), keyed by last-path-component. GH-167 item 4 / #163: the >= 90%
+  /// gate is computed over
   /// tracks that analyzed, so a regression that nils out half the corpus would
   /// pass if the survivors agree. An exact allowlist (not a `<= N` ceiling) is
   /// used deliberately — a ceiling permits substitution, where one known failure
@@ -67,13 +69,29 @@ struct ConsistencyContractCorpusTests {
     var octaveDown = 0  // factor -2 (grid ≈ ½× bpm)
     var disagree = 0
     var notCompared = 0
-    var noResultFiles: [String] = []  // resolved-on-disk but no BPM + grid
+    // Resolved from the ground-truth roster (existence is not pre-checked — a
+    // missing file surfaces below as an `analyze` failure). Filename → cause, so
+    // the failure message names WHY a track produced no BPM + grid.
+    var noResultCauses: [String: String] = [:]
 
     for fileURL in files {
-      guard let result = try? AudioAnalysisService.analyze(url: fileURL),
-        let grid = result.beatGrid
-      else {
-        noResultFiles.append(fileURL.lastPathComponent)
+      let name = fileURL.lastPathComponent
+      // do/catch (not `try?`) so the RECORDED cause is the real thrown error,
+      // not a guess. `analyze(url:)` throws -> CombinedAnalysisResult?, so all
+      // three failure origins are distinguished: threw, returned nil, no grid.
+      let result: CombinedAnalysisResult?
+      do {
+        result = try AudioAnalysisService.analyze(url: fileURL)
+      } catch {
+        noResultCauses[name] = "analyze threw: \(error)"
+        continue
+      }
+      guard let result else {
+        noResultCauses[name] = "analyze returned nil (no BPM / below silence floor)"
+        continue
+      }
+      guard let grid = result.beatGrid else {
+        noResultCauses[name] = "analyzed but no beat grid"
         continue
       }
       switch grid.tempoAgreement {
@@ -83,6 +101,7 @@ struct ConsistencyContractCorpusTests {
       case .notCompared: notCompared += 1
       }
     }
+    let noResultFiles = Array(noResultCauses.keys)
 
     let noResult = noResultFiles.count
     let analyzed = agree + octaveUp + octaveDown + disagree + notCompared
@@ -103,15 +122,18 @@ struct ConsistencyContractCorpusTests {
       """)
 
     // GH-167 item 4 / #163: bound the denominator. The set of files that
-    // resolved-on-disk but did not analyze must exactly equal the calibrated
-    // allowlist — no silent shrink, no substitution. Surface the diff both ways
-    // so a mismatch names the offending file(s).
+    // resolved from the roster but produced no BPM + grid must exactly equal the
+    // calibrated allowlist — no silent shrink, no substitution. Surface the diff
+    // both ways, and name the CAUSE of each newly-failing file (absent / decode /
+    // no-grid) so a mismatch is actionable, not just a bare filename.
     let observed = Set(noResultFiles)
-    let unexpected = observed.subtracting(Self.knownNoResultFiles).sorted()
+    let unexpectedWithCause = observed.subtracting(Self.knownNoResultFiles).sorted().map {
+      "\($0) [\(noResultCauses[$0] ?? "unknown")]"
+    }
     let recovered = Self.knownNoResultFiles.subtracting(observed).sorted()
     #expect(
       observed == Self.knownNoResultFiles,
-      "#163: no-result set drifted. Newly failing: \(unexpected). Recovered (remove from allowlist): \(recovered)."
+      "#163: no-result set drifted. Newly failing: \(unexpectedWithCause). Recovered (remove from allowlist): \(recovered)."
     )
 
     // GH-167 item 4 / #163: the corpus resolves to 81 files, not 82.

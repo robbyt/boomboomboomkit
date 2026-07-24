@@ -523,21 +523,38 @@ struct OA300BenchmarkTests {
       let evidence: [MetadataBPMEvidence]
     }
 
-    let perTrack = await withTaskGroup(of: (Int, [MetadataBPMEvidence]).self) { group in
+    // GH-167 item 4 (#155): the task returns whether analysis actually completed,
+    // not just its evidence. Without this, a `try?`-swallowed failure is
+    // indistinguishable from "analyzed successfully, genuinely no metadata" —
+    // both yield an empty evidence array — so a corpus where EVERY analysis fails
+    // still prints "0/82 tracks with metadata" and passes. The `analyzed` flag
+    // closes that measure-nothing hole (Codex diff review 2026-07-24).
+    let perTrack = await withTaskGroup(of: (Int, analyzed: Bool, [MetadataBPMEvidence]).self) {
+      group in
       for (index, url) in urls.enumerated() {
         group.addTask {
           var opts = AudioAnalysisService.Options()
           opts.intensity = .default
           // Use default merge to avoid windowVoting interaction with metadata.
           let result = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
-          return (index, result?.metadataEvidence ?? [])
+          return (index, result != nil, result?.metadataEvidence ?? [])
         }
       }
-      var results: [[MetadataBPMEvidence]] =
-        Array(repeating: [], count: availableTracks.count)
-      for await (i, ev) in group { results[i] = ev }
+      var results: [(analyzed: Bool, evidence: [MetadataBPMEvidence])] =
+        Array(repeating: (false, []), count: availableTracks.count)
+      for await (i, analyzed, ev) in group { results[i] = (analyzed, ev) }
       return results
     }
+
+    // Every track must have completed analysis before empty-evidence can be read
+    // as "no metadata" rather than "analysis never ran".
+    let failedAnalyses = zip(availableTracks, perTrack).filter { !$0.1.analyzed }.map {
+      $0.0.filename
+    }
+    #expect(
+      failedAnalyses.isEmpty,
+      "#155: \(failedAnalyses.count) tracks failed to analyze — empty metadata would be miscounted as 'no tag': \(failedAnalyses.prefix(5))"
+    )
 
     var tracksWithMetadata = 0
     var corroboratedSameTempo = 0
@@ -548,7 +565,8 @@ struct OA300BenchmarkTests {
     var uncorroborated = 0
     let total = availableTracks.count
 
-    for evidence in perTrack {
+    for entry in perTrack {
+      let evidence = entry.evidence
       if evidence.isEmpty { continue }
       tracksWithMetadata += 1
 

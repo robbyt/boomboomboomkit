@@ -551,10 +551,24 @@ struct BNNSTechniqueDeinitWitnessTests {
 // `MLEvaluation` is only reachable with the confidence gates overridden. Both
 // facts are locked below.
 //
-// `.serialized`: every test here reads or mutates the process-global
-// `BNNSTechnique.thresholdOverride` Mutex, so they must not run concurrently
-// with each other. No other suite asserts a threshold-dependent `evaluate`
-// outcome, so cross-suite parallelism is safe.
+// `.serialized`: three tests here mutate the process-global
+// `BNNSTechnique.thresholdOverride` Mutex (each restores it to `nil` in a
+// `defer`), and one (`productionThresholdsAbstainAtGate1`) relies on the
+// production thresholds being in effect. They therefore must not run
+// concurrently with each other — `.serialized` guarantees that within this suite.
+//
+// Cross-suite safety is NOT provided by `.serialized` (it only orders tests
+// within a suite). It holds here because of the invocation topology, not the
+// trait: the only other `thresholdOverride` mutator is `BNNSTechniqueAbstain...`
+// — deleted in this change — and `BNNSImpactTests`, which lives in the SEPARATE
+// `BoomBoomBoomKitBenchmarkTests` target. `make test` filters the unit target
+// (`--filter BoomBoomBoomKitTests`) and never co-invokes the benchmark target,
+// so this suite is the sole `thresholdOverride` mutator in the `make test` lane.
+// Within that lane no sibling asserts a threshold-dependent `evaluate` outcome
+// (the other BNNS evaluate-callers — features-absent, version-mismatch,
+// short-clip — all abstain BEFORE the confidence gate is read). A bare,
+// unfiltered `swift test` that runs both targets together could race the two
+// mutators; the make targets do not.
 @Suite("BNNSTechnique real inference (GH-167 item 4)", .serialized)
 struct BNNSTechniqueInferenceTests {
 
@@ -621,11 +635,12 @@ struct BNNSTechniqueInferenceTests {
     #expect(snap.failureStage == .confidenceGateRejected)
     #expect(snap.gateFired == .gate1Softmax)
     // Inference RAN: decode produced a concrete in-range tempo and a finite
-    // softmax below the 0.50 floor.
+    // softmax below the production gate-1 floor. Reference the production
+    // constant, not a literal 0.50, so this stays aligned if it ever moves.
     let decoded = try #require(snap.decodedBPM, "inference should have decoded a BPM")
     #expect(decoded >= 60.0 && decoded <= 200.0)
     let softmax = try #require(snap.softmaxMax)
-    #expect(softmax.isFinite && softmax >= 0.0 && softmax < 0.50)
+    #expect(softmax.isFinite && softmax >= 0.0 && softmax < BNNSTechnique.confidenceThreshold)
   }
 
   /// Relocated from `BNNSTechniqueTests` and de-vacuumed (GH-167 item 4 / #156):
