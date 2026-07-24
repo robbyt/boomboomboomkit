@@ -7,22 +7,19 @@
 //  guards. All new tests live in this NEW file per AC #10 — no edits to
 //  existing test files.
 //
-//  Tests that historically required the bundled `giantsteps_v1.mlmodelc`
-//  artifact use `@Test(.disabled(if: bundledModelMissing, "..."))` for
-//  genuine Swift-Testing skip (post-Story-4-5 review pass M12 — replaces
-//  the prior `Issue.record + return` pattern, which Codex flagged as a
-//  doc-vs-behavior mismatch: `Issue.record` records a failure, it doesn't
-//  skip).
-//
-//  Story 4-6 (Branch C close-out, 2026-05-16) REMOVED the bundled model
-//  from the main-shipping path; `BNNSTechnique.bundledReferenceURL` is
-//  now a `nil` literal. The `bundledModelMissing()` predicate below
-//  therefore resolves to `true` at compile time, and every
-//  `.disabled(if: bundledModelMissing())` test skips cleanly. The skip
-//  path is now the EXPECTED state in main — no BYOW URL is plumbed
-//  through these tests. Future Branch-A retrain stories that re-bundle
-//  a higher-quality model will see `bundledReferenceURL` flip back to
-//  non-nil and these tests will run again automatically.
+//  GH-167 item 4 (#156): these tests formerly gated on
+//  `bundledModelMissing()`, a predicate that reads
+//  `BNNSTechnique.bundledReferenceURL` — a `nil` literal since Story 4-6
+//  pulled the bundled model. The predicate was therefore permanently
+//  true and 8 `@Test`s never ran. They now construct `BNNSTechnique`
+//  from the committed `Fixtures/CustomBundled.mlmodelc` (the same
+//  runnable graph `BNNSTechniqueDiagnosticTests` already exercises on
+//  every `make test`), gated only on `fixtureMissing()` — which is false
+//  under normal `swift test`. The real-inference happy path is asserted
+//  in the `.serialized` `BNNSTechniqueInferenceTests` suite below: the
+//  fixture is the rejected v1 graph, so it abstains at the production
+//  gate-1 softmax floor; a non-nil `MLEvaluation` is only reachable with
+//  the gate thresholds overridden, and both facts are now locked.
 //
 
 import BoomBoomBoomKitTestSupport
@@ -32,17 +29,30 @@ import Testing
 @testable import BoomBoomBoomKit
 @testable import BoomBoomBoomKitML
 
-/// `.disabled(if:)` predicate for tests that historically required the
-/// bundled `giantsteps_v1.mlmodelc`. Under Story 4-6 Branch C this
-/// predicate ALWAYS returns true in main (the static is now a `nil`
-/// literal); the trait-skip path is the expected state. Evaluated when
-/// Swift Testing collects traits; the macOS-15 gate uses an inline
-/// `if #available` because `BNNSTechnique.bundledReferenceURL` is itself
-/// macOS-15-only.
-private func bundledModelMissing() -> Bool {
-  if #available(macOS 15.0, *) {
-    return BNNSTechnique.bundledReferenceURL == nil
-  }
+/// Resolves the committed `CustomBundled.mlmodelc` fixture URL — a runnable
+/// graph captured from the historical giantsteps_v1 checkpoint, retained in
+/// `Tests/BoomBoomBoomKitTests/Fixtures/` after Story 4-6 Branch C pulled the
+/// bundle from `Sources/`. `.mlmodelc` is a directory, so `Bundle.module.url(for…)`
+/// (which targets files) can't be used; build from `Bundle.module.resourceURL`,
+/// the convention `BNNSTechniqueDiagnosticTests` established. Returns nil only
+/// when the resourceURL itself is unreachable (off-build-system path); under
+/// `swift test` / `make test` it is never nil.
+@available(macOS 15.0, *)
+private func fixtureURL() -> URL? {
+  guard let resourceURL = Bundle.module.resourceURL else { return nil }
+  let url =
+    resourceURL
+    .appendingPathComponent("Fixtures")
+    .appendingPathComponent("CustomBundled.mlmodelc")
+  return FileManager.default.fileExists(atPath: url.path) ? url : nil
+}
+
+/// `.disabled(if:)` predicate — true only when the committed fixture is
+/// unreachable. Under normal `swift test` / `make test` it never fires and the
+/// tests run. Replaces the permanently-true `bundledModelMissing()` (GH-167
+/// item 4 / #156).
+private func fixtureMissing() -> Bool {
+  if #available(macOS 15.0, *) { return fixtureURL() == nil }
   return true
 }
 
@@ -75,27 +85,21 @@ struct BNNSTechniqueTests {
     }
   }
 
-  // MARK: - Successful init + evaluate path (requires bundled model)
-
-  @Test(
-    "init() loads the bundled giantsteps_v1.mlmodelc when available",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
-  func initSucceedsForBundledModel() throws {
-    if #available(macOS 15.0, *) {
-      let t = try #require(try? BNNSTechnique())
-      _ = t
-    }
-  }
+  // MARK: - Successful init + evaluate path (committed CustomBundled fixture)
+  //
+  // GH-167 item 4 (#156): these construct `BNNSTechnique(modelURL:)` from the
+  // committed fixture. The no-arg `BNNSTechnique()` construction is NOT retested
+  // here — its default argument is the `nil` `bundledReferenceURL`, so it throws
+  // by design; the construction contract is covered by
+  // `initAcceptsCustomModelURL_constructionOnly` below.
 
   @Test(
     "evaluate(trace:) returns nil when mlFeatures is absent (HALT (g))",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
   func evaluateReturnsNilWhenFeaturesAbsent() throws {
     if #available(macOS 15.0, *) {
-      // Disabled via `.disabled(if: bundledModelMissing())` trait;
-      // unwrap is `try #require` semantics here (the predicate gate
-      // already filtered out missing-artifact runs).
-      let t = try #require(try? BNNSTechnique())
+      let url = try #require(fixtureURL())
+      let t = try BNNSTechnique(modelURL: url)
       let trace = BPMDiagnosticTrace()
       #expect(trace.mlFeatures == nil)
       let result = t.evaluate(trace: trace)
@@ -105,13 +109,14 @@ struct BNNSTechniqueTests {
 
   @Test(
     "evaluate(trace:) abstains on feature-set version mismatch",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
   func evaluateAbstainsOnVersionMismatch() throws {
     if #available(macOS 15.0, *) {
-      // Disabled via `.disabled(if: bundledModelMissing())` trait;
-      // unwrap is `try #require` semantics here (the predicate gate
-      // already filtered out missing-artifact runs).
-      let t = try #require(try? BNNSTechnique())
+      // Abstain fires on the version-check BEFORE the confidence gate, so the
+      // nil result is independent of the threshold-override seam — safe to run
+      // in this parallel suite (unlike the inference tests below).
+      let url = try #require(fixtureURL())
+      let t = try BNNSTechnique(modelURL: url)
       let features = try MLFeatureFrames(
         melBands: 128, frames: 64, tensorLayout: .nchw,
         logMelData: [Float](repeating: 0.5, count: 128 * 64),
@@ -128,63 +133,24 @@ struct BNNSTechniqueTests {
 
   @Test(
     "evaluate(trace:) abstains on degenerate short clips (< 32 frames)",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
   func evaluateAbstainsOnShortClip() throws {
     if #available(macOS 15.0, *) {
-      // Disabled via `.disabled(if: bundledModelMissing())` trait;
-      // unwrap is `try #require` semantics here (the predicate gate
-      // already filtered out missing-artifact runs).
-      let t = try #require(try? BNNSTechnique())
+      // Frame-count abstain also fires before the confidence gate — nil is
+      // threshold-independent, so this stays in the parallel suite.
+      let url = try #require(fixtureURL())
+      let t = try BNNSTechnique(modelURL: url)
       let features = try MLFeatureFrames(
         melBands: 128, frames: 16, tensorLayout: .nchw,
         logMelData: [Float](repeating: 0.5, count: 128 * 16),
         sampleRate: 44_100, fftSize: 2048, hopSize: 441,
         melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v2"
+        featureSetVersion: MLFeatureFrames.currentFeatureSetVersion
       )
       var trace = BPMDiagnosticTrace()
       trace.mlFeatures = features
       let result = t.evaluate(trace: trace)
       #expect(result == nil, "expected abstain on frames < 32 short clip")
-    }
-  }
-
-  @Test(
-    "evaluate(trace:) produces a finite BPM in [60, 200] on synthetic input",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
-  func evaluateProducesPlausibleBPM() throws {
-    if #available(macOS 15.0, *) {
-      // Disabled via `.disabled(if: bundledModelMissing())` trait;
-      // unwrap is `try #require` semantics here (the predicate gate
-      // already filtered out missing-artifact runs).
-      let t = try #require(try? BNNSTechnique())
-      // 256 source frames keeps all code paths active (non-trivial input,
-      // post-z-score is non-zero, resamples cleanly to W=512).
-      let frames = 256
-      let mb = 128
-      var data = [Float](repeating: 0, count: mb * frames)
-      for i in 0..<data.count {
-        // Mildly varied input so per-band stddev > 0 and z-score normalizes
-        // to a non-zero post-normalize row (the model gets a real signal).
-        data[i] = Float((i % 13)) / 13.0 + Float(i % 17) / 20.0
-      }
-      let features = try MLFeatureFrames(
-        melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: data,
-        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
-        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v2"
-      )
-      var trace = BPMDiagnosticTrace()
-      trace.mlFeatures = features
-      let result = t.evaluate(trace: trace)
-      // Result may legitimately be nil on synthetic input (the two-gate
-      // abstain may fire); if non-nil, every emitted field must be sane.
-      if let result {
-        #expect(result.bpm.isFinite)
-        #expect(result.bpm >= 60.0 && result.bpm <= 200.0)
-        #expect(result.confidence >= 0.0 && result.confidence <= 1.0)
-        #expect(result.modelIdentifier == "bnns_tempo_v1")
-      }
     }
   }
 
@@ -346,121 +312,11 @@ struct BNNSTechniqueTests {
     return count
   }
 
-  // MARK: - Concurrency exposure (axiom-concurrency #5)
-
-  @Test(
-    "concurrent evaluate calls produce stable output (no shared state)",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
-  func concurrentEvaluateIsContextLocal() async throws {
-    if #available(macOS 15.0, *) {
-      let t = try #require(try? BNNSTechnique())
-      let frames = 128
-      var data = [Float](repeating: 0, count: 128 * frames)
-      for i in 0..<data.count {
-        data[i] = Float(i % 13) / 13.0 + Float(i % 19) / 25.0
-      }
-      let features = try MLFeatureFrames(
-        melBands: 128, frames: frames, tensorLayout: .nchw, logMelData: data,
-        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
-        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v2"
-      )
-      var trace = BPMDiagnosticTrace()
-      trace.mlFeatures = features
-      let bound = trace
-
-      let bpms = await withTaskGroup(of: Double?.self) { group -> [Double?] in
-        for _ in 0..<16 {
-          group.addTask { t.evaluate(trace: bound)?.bpm }
-        }
-        var out: [Double?] = []
-        for await item in group { out.append(item) }
-        return out
-      }
-      let nonNil = bpms.compactMap { $0 }
-      if !nonNil.isEmpty {
-        #expect(
-          Set(nonNil.map { $0.bitPattern }).count == 1,
-          "concurrent evaluate produced inconsistent BPM values: \(nonNil)")
-      }
-    }
-  }
-
-  // MARK: - .frameMajorLogMel transpose path (production layout, review fix M1)
-
-  @Test(
-    "evaluate(trace:) handles .frameMajorLogMel layout via vDSP_mtrans transpose",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
-  func evaluateAcceptsFrameMajorLogMelLayout() throws {
-    if #available(macOS 15.0, *) {
-      // Production layout: `BPMAnalyzer` emits `.frameMajorLogMel`
-      // (`[frame * M + mel]`). The previous test pass exercised only
-      // `.nchw`, leaving the vDSP_mtrans transpose in `featurize` untested
-      // — Codex 4-5-chunk2 M1 / Acceptance Auditor finding #11. This test
-      // builds two `MLFeatureFrames` payloads with identical underlying
-      // data in the two layouts and asserts both produce the same
-      // evaluation, proving the transpose is correct.
-      let t = try #require(try? BNNSTechnique())
-      let frames = 128
-      let mb = 128
-      // Mel-major source data (`.nchw`): row-major by mel band.
-      var nchwData = [Float](repeating: 0, count: mb * frames)
-      for i in 0..<nchwData.count {
-        nchwData[i] = Float(i % 13) / 13.0 + Float(i % 19) / 25.0
-      }
-      // Frame-major equivalent: transpose nchw → frame-major by hand
-      // (test-side, not exercising the production transpose path).
-      var frameMajorData = [Float](repeating: 0, count: mb * frames)
-      for mel in 0..<mb {
-        for frame in 0..<frames {
-          frameMajorData[frame * mb + mel] = nchwData[mel * frames + frame]
-        }
-      }
-      let nchwFeatures = try MLFeatureFrames(
-        melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: nchwData,
-        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
-        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v2")
-      let frameFeatures = try MLFeatureFrames(
-        melBands: mb, frames: frames, tensorLayout: .frameMajorLogMel,
-        logMelData: frameMajorData,
-        sampleRate: 44_100, fftSize: 2048, hopSize: 441,
-        melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
-        featureSetVersion: "v2")
-      var nchwTrace = BPMDiagnosticTrace()
-      nchwTrace.mlFeatures = nchwFeatures
-      var frameTrace = BPMDiagnosticTrace()
-      frameTrace.mlFeatures = frameFeatures
-      let nchwResult = t.evaluate(trace: nchwTrace)
-      let frameResult = t.evaluate(trace: frameTrace)
-      // Both paths produce the same BPM/confidence when fed equivalent
-      // input. Synthetic input may legitimately abstain (two-gate
-      // threshold); either both abstain together, or both produce equal
-      // non-nil results. A mismatch here is direct evidence that
-      // `vDSP_mtrans` produced different bytes than the by-hand transpose.
-      if let n = nchwResult, let f = frameResult {
-        #expect(
-          n.bpm == f.bpm,
-          ".frameMajorLogMel and .nchw must produce identical BPM after transpose")
-        #expect(
-          n.confidence == f.confidence,
-          ".frameMajorLogMel and .nchw must produce identical confidence")
-      } else {
-        // `Testing.Comment` is `ExpressibleByStringLiteral` only — runtime
-        // string interpolation is rejected at compile time, so surface
-        // the asymmetry diagnostically via Issue.record before the assert.
-        if (nchwResult == nil) != (frameResult == nil) {
-          let nDesc = String(describing: nchwResult)
-          let fDesc = String(describing: frameResult)
-          Issue.record(
-            "transpose mismatch: only one layout abstained (nchw=\(nDesc), frame=\(fDesc))")
-        }
-        #expect(
-          nchwResult == nil && frameResult == nil,
-          "transpose mismatch: only one layout abstained (see Issue.record above)")
-      }
-    }
-  }
+  // Concurrency + transpose real-inference tests moved to the `.serialized`
+  // `BNNSTechniqueInferenceTests` suite below (GH-167 item 4 / #156): they read
+  // the confidence-gate thresholds, so they need the threshold-override seam to
+  // reach a non-nil result (the fixture is the rejected v1 graph and abstains at
+  // production thresholds) and must not race the global override.
 
   // MARK: - Byte-identity sentinel (AC #5)
 
@@ -652,7 +508,7 @@ struct BNNSTechniqueDeinitWitnessTests {
 
   @Test(
     "BNNSGraphHandle deinit fires when last BNNSTechnique reference drops",
-    .disabled(if: bundledModelMissing(), "bundled giantsteps_v1.mlmodelc missing"))
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
   @available(macOS 15.0, *)
   func storageDeinitFreesGraphHandleStorage() throws {
     // `weak var` reads nil iff ARC ran the last release on the wrapped
@@ -662,21 +518,15 @@ struct BNNSTechniqueDeinitWitnessTests {
     // would otherwise keep the handle alive past the `do` block;
     // `.serialized` on the suite prevents concurrent runs from racing.
     //
-    // Review fix M6: replaced the `try?` + `Issue.record` skip pattern with
-    // `.disabled(if: bundledModelMissing())` on the trait. The previous
-    // pattern reported a failure when the bundled model was absent — and
-    // ALSO passed VACUOUSLY because `weakHandle` stayed nil throughout, so
-    // `#expect(weakHandle == nil)` succeeded on the false-positive path.
-    // The `try BNNSTechnique()` form below is now safe because the trait
-    // gate ensures we only reach it when the model is present.
-    // Review fix M6 (codex 019e28bb): use `try BNNSTechnique()` so a real
-    // failure surfaces with its diagnostic, not as a silent `try?` nil. The
-    // outer test fn is `throws`; the `.disabled(if:)` trait already gates
-    // out the missing-bundle path, so any throw here is a genuine compile/
-    // contract failure worth surfacing.
+    // GH-167 item 4 (#156): constructs from the committed CustomBundled fixture
+    // via `BNNSTechnique(modelURL:)` (was the no-arg `BNNSTechnique()`, which now
+    // throws on the nil default). The `.disabled(if: fixtureMissing())` trait
+    // gates out the no-fixture path, so any throw here is a genuine compile/
+    // contract failure worth surfacing — not a silent `try?` nil.
+    let url = try #require(fixtureURL())
     weak var weakHandle: BNNSGraphHandle?
     try autoreleasepool {
-      let t = try BNNSTechnique()
+      let t = try BNNSTechnique(modelURL: url)
       weakHandle = t.__handleForTesting
       #expect(weakHandle != nil, "sanity: handle exists during scope")
       // `t` falls out of scope at the closure end; ARC drops the last
@@ -687,5 +537,193 @@ struct BNNSTechniqueDeinitWitnessTests {
     #expect(
       weakHandle == nil,
       "BNNSGraphHandle should be deallocated after BNNSTechnique drops")
+  }
+}
+
+// MARK: - Real-inference assertions (GH-167 item 4 / #156)
+//
+// These are the coverage #156 was filed for: the featurize → BNNSGraph infer →
+// decode chain of the only shipping `MLTechnique` conformance had ZERO live
+// assertions. The committed `CustomBundled.mlmodelc` fixture is the historical
+// (rejected) giantsteps_v1 graph, so on synthetic input it decodes a concrete
+// in-range tempo (~169 BPM) but its softmax_max (~0.07) is far below the shipped
+// gate-1 floor of 0.50 — production `evaluate` therefore abstains. A non-nil
+// `MLEvaluation` is only reachable with the confidence gates overridden. Both
+// facts are locked below.
+//
+// `.serialized`: three tests here mutate the process-global
+// `BNNSTechnique.thresholdOverride` Mutex (each restores it to `nil` in a
+// `defer`), and one (`productionThresholdsAbstainAtGate1`) relies on the
+// production thresholds being in effect. They therefore must not run
+// concurrently with each other — `.serialized` guarantees that within this suite.
+//
+// Cross-suite safety is NOT provided by `.serialized` (it only orders tests
+// within a suite). It holds here because of the invocation topology, not the
+// trait: the only other `thresholdOverride` mutator is `BNNSTechniqueAbstain...`
+// — deleted in this change — and `BNNSImpactTests`, which lives in the SEPARATE
+// `BoomBoomBoomKitBenchmarkTests` target. `make test` filters the unit target
+// (`--filter BoomBoomBoomKitTests`) and never co-invokes the benchmark target,
+// so this suite is the sole `thresholdOverride` mutator in the `make test` lane.
+// Within that lane no sibling asserts a threshold-dependent `evaluate` outcome
+// (the other BNNS evaluate-callers — features-absent, version-mismatch,
+// short-clip — all abstain BEFORE the confidence gate is read). A bare,
+// unfiltered `swift test` that runs both targets together could race the two
+// mutators; the make targets do not.
+@Suite("BNNSTechnique real inference (GH-167 item 4)", .serialized)
+struct BNNSTechniqueInferenceTests {
+
+  @available(macOS 15.0, *)
+  private static func syntheticFeatures(frames: Int = 256) throws -> MLFeatureFrames {
+    let mb = 128
+    var data = [Float](repeating: 0, count: mb * frames)
+    for i in 0..<data.count {
+      // Mildly varied so per-band stddev > 0 and z-score normalizes to a
+      // non-zero row — the graph receives a real signal.
+      data[i] = Float(i % 13) / 13.0 + Float(i % 17) / 20.0
+    }
+    return try MLFeatureFrames(
+      melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: data,
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: MLFeatureFrames.currentFeatureSetVersion)
+  }
+
+  /// GH-167 item 4 (#156): real BNNSGraph inference through `evaluate(trace:)`
+  /// yields a non-nil `MLEvaluation` with finite, in-contract-range fields. The
+  /// confidence gates are overridden to 0.0/0.0 because the fixture is the
+  /// rejected model and abstains at production thresholds; the point of this
+  /// test is that the featurize → infer → decode chain itself works.
+  @Test("evaluate yields a non-nil in-range MLEvaluation (gates overridden)")
+  @available(macOS 15.0, *)
+  func realInferenceYieldsInRangeEvaluation() throws {
+    let url = try #require(fixtureURL())
+    let t = try BNNSTechnique(modelURL: url)
+    var trace = BPMDiagnosticTrace()
+    trace.mlFeatures = try Self.syntheticFeatures()
+
+    BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
+    defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
+
+    let result = try #require(
+      t.evaluate(trace: trace),
+      "real inference must produce a non-nil MLEvaluation with the gates zeroed")
+    #expect(result.bpm.isFinite)
+    #expect(result.bpm >= 60.0 && result.bpm <= 200.0)
+    #expect(result.confidence.isFinite)
+    #expect(result.confidence >= 0.0 && result.confidence <= 1.0)
+    // Identifier is the fixture basename (`CustomBundled`), NOT the historical
+    // `bnns_tempo_v1` the removed bundle carried.
+    #expect(result.modelIdentifier == "CustomBundled")
+  }
+
+  /// GH-167 item 4 (#156): the complement. At PRODUCTION thresholds the same
+  /// input abstains, and the diagnostic snapshot proves inference actually ran
+  /// (a concrete decoded BPM + finite softmax) and that gate 1 is what rejected
+  /// it — not featurization failing silently upstream.
+  @Test("production thresholds abstain at gate 1, with inference proven to run")
+  @available(macOS 15.0, *)
+  func productionThresholdsAbstainAtGate1() throws {
+    let url = try #require(fixtureURL())
+    let t = try BNNSTechnique(modelURL: url)
+    var trace = BPMDiagnosticTrace()
+    trace.mlFeatures = try Self.syntheticFeatures()
+
+    let (evaluation, snapshot) = t.evaluateWithDiagnostic(trace: trace)
+    #expect(evaluation == nil, "fixture must abstain at the production gate-1 floor")
+
+    let snap = try #require(snapshot, "an abstain past featurize must still emit a snapshot")
+    #expect(snap.failureStage == .confidenceGateRejected)
+    #expect(snap.gateFired == .gate1Softmax)
+    // Inference RAN: decode produced a concrete in-range tempo and a finite
+    // softmax below the production gate-1 floor. Reference the production
+    // constant, not a literal 0.50, so this stays aligned if it ever moves.
+    let decoded = try #require(snap.decodedBPM, "inference should have decoded a BPM")
+    #expect(decoded >= 60.0 && decoded <= 200.0)
+    let softmax = try #require(snap.softmaxMax)
+    #expect(softmax.isFinite && softmax >= 0.0 && softmax < BNNSTechnique.confidenceThreshold)
+  }
+
+  /// Relocated from `BNNSTechniqueTests` and de-vacuumed (GH-167 item 4 / #156):
+  /// concurrent `evaluate` calls share no mutable state. With the gates zeroed
+  /// every call returns a non-nil BPM, so the "all identical" assertion is no
+  /// longer skipped when the input abstains.
+  @Test("concurrent evaluate is context-local (gates overridden)")
+  @available(macOS 15.0, *)
+  func concurrentEvaluateIsContextLocal() async throws {
+    let url = try #require(fixtureURL())
+    let t = try BNNSTechnique(modelURL: url)
+    var trace = BPMDiagnosticTrace()
+    trace.mlFeatures = try Self.syntheticFeatures(frames: 128)
+    let bound = trace
+
+    BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
+    defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
+
+    let bpms = await withTaskGroup(of: Double?.self) { group -> [Double?] in
+      for _ in 0..<16 {
+        group.addTask { t.evaluate(trace: bound)?.bpm }
+      }
+      var out: [Double?] = []
+      for await item in group { out.append(item) }
+      return out
+    }
+    let nonNil = bpms.compactMap { $0 }
+    #expect(nonNil.count == 16, "every concurrent evaluate must produce a BPM with gates zeroed")
+    #expect(
+      Set(nonNil.map { $0.bitPattern }).count == 1,
+      "concurrent evaluate produced inconsistent BPM values: \(nonNil)")
+  }
+
+  /// Relocated from `BNNSTechniqueTests` and de-vacuumed (GH-167 item 4 / #156):
+  /// `.frameMajorLogMel` (the production layout) and an equivalent hand-transposed
+  /// `.nchw` payload must decode identically, proving the `vDSP_mtrans` transpose
+  /// in `featurize`. With the gates zeroed both sides produce non-nil results, so
+  /// "both abstained" can no longer stand in for a real match.
+  @Test("frameMajorLogMel transpose matches nchw (gates overridden)")
+  @available(macOS 15.0, *)
+  func evaluateAcceptsFrameMajorLogMelLayout() throws {
+    let url = try #require(fixtureURL())
+    let t = try BNNSTechnique(modelURL: url)
+    let frames = 128
+    let mb = 128
+    var nchwData = [Float](repeating: 0, count: mb * frames)
+    for i in 0..<nchwData.count {
+      nchwData[i] = Float(i % 13) / 13.0 + Float(i % 19) / 25.0
+    }
+    var frameMajorData = [Float](repeating: 0, count: mb * frames)
+    for mel in 0..<mb {
+      for frame in 0..<frames {
+        frameMajorData[frame * mb + mel] = nchwData[mel * frames + frame]
+      }
+    }
+    let version = MLFeatureFrames.currentFeatureSetVersion
+    let nchwFeatures = try MLFeatureFrames(
+      melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: nchwData,
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: version)
+    let frameFeatures = try MLFeatureFrames(
+      melBands: mb, frames: frames, tensorLayout: .frameMajorLogMel,
+      logMelData: frameMajorData,
+      sampleRate: 44_100, fftSize: 2048, hopSize: 441,
+      melFmin: 30.0, melFmax: 16_000.0, logCompressionScale: 100.0,
+      featureSetVersion: version)
+    var nchwTrace = BPMDiagnosticTrace()
+    nchwTrace.mlFeatures = nchwFeatures
+    var frameTrace = BPMDiagnosticTrace()
+    frameTrace.mlFeatures = frameFeatures
+
+    BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
+    defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
+
+    let n = try #require(t.evaluate(trace: nchwTrace), "nchw must decode with gates zeroed")
+    let f = try #require(
+      t.evaluate(trace: frameTrace), "frameMajorLogMel must decode with gates zeroed")
+    // A mismatch is direct evidence that vDSP_mtrans produced different bytes
+    // than the by-hand transpose.
+    #expect(n.bpm == f.bpm, ".frameMajorLogMel and .nchw must decode to identical BPM")
+    #expect(
+      n.confidence == f.confidence,
+      ".frameMajorLogMel and .nchw must decode to identical confidence")
   }
 }
