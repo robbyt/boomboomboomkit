@@ -29,6 +29,13 @@ private struct AccuracyMetrics: Sendable {
 @Suite("OA300 Benchmark")
 struct OA300BenchmarkTests {
 
+  /// The OA300 corpus resolves to 82 tracks with Rekordbox ground truth. GH-167
+  /// item 4 (#155): default-run benchmarks assert this denominator so a printed
+  /// percentage can never quietly change basis (unresolved tracks, silent nils,
+  /// or `try?`-dropped decodes). This matches the pre-existing
+  /// `windowVotingDefaultPolicyMatchesBaseline` `availableTracks.count == 82`.
+  private static let analyzableTrackCount = 82
+
   private let corpusPath: String
   private let groundTruth: [OA300Track]
 
@@ -52,27 +59,12 @@ struct OA300BenchmarkTests {
     groundTruth = try OA300Track.loadCorpus(from: data)
   }
 
-  @Test("benchmark at default intensity (7)")
-  func benchmarkDefaultIntensity() async throws {
-    let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.02)
-    print("\n=== OA300 Benchmark — Intensity 7 (default) ===")
-    print("Corpus: \(metrics.total) tracks, Rekordbox ground truth")
-    print(
-      "Acc1: \(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total))")
-    print(
-      "Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
-    if !metrics.failures.isEmpty {
-      print("\nAcc1 Failures:")
-      print("| Track | Expected | Got | Delta% |")
-      print("|-------|----------|-----|--------|")
-      for f in metrics.failures {
-        let delta = abs(f.got - f.expected) / f.expected * 100
-        print(
-          "| \(f.track.title.prefix(40)) | \(String(format: "%.1f", f.expected)) | \(String(format: "%.1f", f.got)) | \(String(format: "%.1f", delta))% |"
-        )
-      }
-    }
-  }
+  // GH-167 item 4 (#155): `benchmarkDefaultIntensity` was deleted. It called
+  // `runBenchmark(intensity: .default, tolerance: 0.02)` with inputs byte-identical
+  // to `benchmarkAcc1Strict` below (same intensity, tolerance, merge, durationHint,
+  // metadataPolicy) and asserted nothing — a second full-corpus pass that measured
+  // nothing the strict test does not. Its failure-table formatting already lives in
+  // `benchmarkAcc1Strict`.
 
   @Test("benchmark Acc1 strict (2% tolerance)")
   func benchmarkAcc1Strict() async throws {
@@ -137,7 +129,7 @@ struct OA300BenchmarkTests {
 
   @Test("benchmark Acc1 MIREX (4% tolerance)")
   func benchmarkAcc1MIREX() async throws {
-    let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.04)
+    let (metrics, perTrack) = try await runBenchmark(intensity: .default, tolerance: 0.04)
     print("\n=== OA300 Benchmark — Acc1 MIREX (4% tolerance) ===")
     print("Corpus: \(metrics.total) tracks, Rekordbox ground truth")
     print(
@@ -155,6 +147,17 @@ struct OA300BenchmarkTests {
         )
       }
     }
+
+    // GH-167 item 4 (#155): assert the denominator, not accuracy (item 5 owns the
+    // MIREX floor). A regression that fails to resolve tracks, or one where
+    // analysis silently returns nil, would otherwise print a percentage over a
+    // shrunken basis and still pass.
+    let nilTracks = perTrack.filter { $0.detected == nil }.map { $0.track.filename }
+    #expect(
+      metrics.total == Self.analyzableTrackCount,
+      "#155: expected \(Self.analyzableTrackCount) OA300 tracks resolved; got \(metrics.total)")
+    #expect(
+      nilTracks.isEmpty, "#155: \(nilTracks.count) tracks returned nil: \(nilTracks.prefix(5))")
   }
 
   @Test("multi-intensity comparison (monotonic Acc1)")
@@ -197,37 +200,34 @@ struct OA300BenchmarkTests {
   @Test("Bad BPM subset with trace")
   func benchmarkBadBPMSubset() throws {
     let badBPMTracks = groundTruth.filter { $0.subdir == "Bad BPM" }
-    guard !badBPMTracks.isEmpty else {
-      print("No Bad BPM tracks found in ground truth")
-      return
-    }
+    // GH-167 item 4 (#155): the subset must exist. A ground-truth reshape that
+    // empties it would otherwise green-exit and silently stop exercising the
+    // hardest tracks (the first place to look when debugging accuracy).
+    try #require(!badBPMTracks.isEmpty, "no 'Bad BPM' subdir tracks in ground truth")
 
     print("\n=== Bad BPM Subset (trace-enabled) ===")
     for track in badBPMTracks {
       let url = trackURL(track)
-      guard FileManager.default.fileExists(atPath: url.path) else {
-        print("  SKIP: \(track.filename) not found")
-        continue
-      }
+      // GH-167 item 4 (#155): assert the file resolves and analysis runs, rather
+      // than `try?`-swallowing failures into a silent SKIP/NIL print. This asserts
+      // operational integrity (the diagnostic exercise ran), NOT accuracy — Bad BPM
+      // tracks are deliberately hard and are allowed to miss.
+      #expect(
+        FileManager.default.fileExists(atPath: url.path),
+        "#155: Bad BPM track missing on disk: \(track.filename)")
+      guard FileManager.default.fileExists(atPath: url.path) else { continue }
 
-      let result = try? AudioAnalysisService.analyzeBPM(
-        url: url,
-        options: {
-          var o = AudioAnalysisService.Options()
-          o.enableTrace = true
-          return o
-        }())
-
-      if let r = result {
-        let match = isAcc1Match(r.bpm, track.bpm, tolerance: 0.02) ? "OK" : "MISS"
-        let candidates = r.candidates.prefix(5).map { String(format: "%.1f", $0.bpm) }
-          .joined(separator: ", ")
-        print(
-          "  [\(match)] \(track.title.prefix(40)): expected=\(track.bpm), got=\(String(format: "%.1f", r.bpm)), conf=\(String(format: "%.2f", r.confidence)), candidates=[\(candidates)]"
-        )
-      } else {
-        print("  [NIL] \(track.title.prefix(40)): expected=\(track.bpm), got=nil")
-      }
+      var options = AudioAnalysisService.Options()
+      options.enableTrace = true
+      let analyzed = try AudioAnalysisService.analyzeBPM(url: url, options: options)
+      let r = try #require(
+        analyzed, "#155: analyzeBPM returned nil for Bad BPM track \(track.filename)")
+      let match = isAcc1Match(r.bpm, track.bpm, tolerance: 0.02) ? "OK" : "MISS"
+      let candidates = r.candidates.prefix(5).map { String(format: "%.1f", $0.bpm) }
+        .joined(separator: ", ")
+      print(
+        "  [\(match)] \(track.title.prefix(40)): expected=\(track.bpm), got=\(String(format: "%.1f", r.bpm)), conf=\(String(format: "%.2f", r.confidence)), candidates=[\(candidates)]"
+      )
     }
   }
 
@@ -248,10 +248,11 @@ struct OA300BenchmarkTests {
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
     }
-    guard !availableTracks.isEmpty else {
-      print("No tracks available")
-      return
-    }
+    // GH-167 item 4 (#155): assert the denominator; no empty-corpus green-exit.
+    #expect(
+      availableTracks.count == Self.analyzableTrackCount,
+      "#155: expected \(Self.analyzableTrackCount) OA300 tracks on disk; got \(availableTracks.count)"
+    )
 
     print("\n=== OA300 Merge Strategy Comparison (Intensity 7) ===")
     print(
@@ -274,6 +275,13 @@ struct OA300BenchmarkTests {
         audioData.append(TrackAudio(track: track, samples: samples, sampleRate: sampleRate))
       }
     }
+    // GH-167 item 4 (#155): every resolved track must decode. Without this, a
+    // `try?`-dropped read shrinks the denominator (`audioData.count`) and every
+    // printed percentage silently changes basis between runs.
+    #expect(
+      audioData.count == availableTracks.count,
+      "#155: \(availableTracks.count - audioData.count) tracks failed to decode; denominator would shrink"
+    )
 
     for strategy in BPMSelectionPolicy.allCases {
       var acc1 = 0
@@ -327,10 +335,11 @@ struct OA300BenchmarkTests {
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
     }
-    guard !availableTracks.isEmpty else {
-      print("No tracks available")
-      return
-    }
+    // GH-167 item 4 (#155): assert the denominator; no empty-corpus green-exit.
+    #expect(
+      availableTracks.count == Self.analyzableTrackCount,
+      "#155: expected \(Self.analyzableTrackCount) OA300 tracks on disk; got \(availableTracks.count)"
+    )
 
     print("\n=== OA300 Voting Policy Comparison (Intensity 7, .windowVoting) ===")
     print(
@@ -353,6 +362,12 @@ struct OA300BenchmarkTests {
         audioData.append(TrackAudio(track: track, samples: samples, sampleRate: sampleRate))
       }
     }
+    // GH-167 item 4 (#155): every resolved track must decode — no silent
+    // denominator shrink from a `try?`-dropped read.
+    #expect(
+      audioData.count == availableTracks.count,
+      "#155: \(availableTracks.count - audioData.count) tracks failed to decode; denominator would shrink"
+    )
 
     // Pre-compute per-track [BPMResult] ONCE outside the policy loop (DD#18).
     var cachedWindows: [(track: OA300Track, results: [BPMResult])] = []
@@ -495,6 +510,12 @@ struct OA300BenchmarkTests {
     let availableTracks = groundTruth.filter { track in
       FileManager.default.fileExists(atPath: trackURL(track).path)
     }
+    // GH-167 item 4 (#155): assert the denominator before the report prints, so
+    // the bucket counts are read against the full corpus, not a shrunken basis.
+    #expect(
+      availableTracks.count == Self.analyzableTrackCount,
+      "#155: expected \(Self.analyzableTrackCount) OA300 tracks on disk; got \(availableTracks.count)"
+    )
     let urls = availableTracks.map { trackURL($0) }
 
     struct TrackEvidence: Sendable {
@@ -502,21 +523,38 @@ struct OA300BenchmarkTests {
       let evidence: [MetadataBPMEvidence]
     }
 
-    let perTrack = await withTaskGroup(of: (Int, [MetadataBPMEvidence]).self) { group in
+    // GH-167 item 4 (#155): the task returns whether analysis actually completed,
+    // not just its evidence. Without this, a `try?`-swallowed failure is
+    // indistinguishable from "analyzed successfully, genuinely no metadata" —
+    // both yield an empty evidence array — so a corpus where EVERY analysis fails
+    // still prints "0/82 tracks with metadata" and passes. The `analyzed` flag
+    // closes that measure-nothing hole (Codex diff review 2026-07-24).
+    let perTrack = await withTaskGroup(of: (Int, analyzed: Bool, [MetadataBPMEvidence]).self) {
+      group in
       for (index, url) in urls.enumerated() {
         group.addTask {
           var opts = AudioAnalysisService.Options()
           opts.intensity = .default
           // Use default merge to avoid windowVoting interaction with metadata.
           let result = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
-          return (index, result?.metadataEvidence ?? [])
+          return (index, result != nil, result?.metadataEvidence ?? [])
         }
       }
-      var results: [[MetadataBPMEvidence]] =
-        Array(repeating: [], count: availableTracks.count)
-      for await (i, ev) in group { results[i] = ev }
+      var results: [(analyzed: Bool, evidence: [MetadataBPMEvidence])] =
+        Array(repeating: (false, []), count: availableTracks.count)
+      for await (i, analyzed, ev) in group { results[i] = (analyzed, ev) }
       return results
     }
+
+    // Every track must have completed analysis before empty-evidence can be read
+    // as "no metadata" rather than "analysis never ran".
+    let failedAnalyses = zip(availableTracks, perTrack).filter { !$0.1.analyzed }.map {
+      $0.0.filename
+    }
+    #expect(
+      failedAnalyses.isEmpty,
+      "#155: \(failedAnalyses.count) tracks failed to analyze — empty metadata would be miscounted as 'no tag': \(failedAnalyses.prefix(5))"
+    )
 
     var tracksWithMetadata = 0
     var corroboratedSameTempo = 0
@@ -527,7 +565,8 @@ struct OA300BenchmarkTests {
     var uncorroborated = 0
     let total = availableTracks.count
 
-    for evidence in perTrack {
+    for entry in perTrack {
+      let evidence = entry.evidence
       if evidence.isEmpty { continue }
       tracksWithMetadata += 1
 
@@ -701,6 +740,28 @@ struct OA300BenchmarkTests {
       buckets: buckets,
       overallAcc1Percent: metrics.acc1, overallAcc2Percent: metrics.acc2)
     print("\n" + report)
+
+    // GH-167 item 4 (#155): structural assertions, not accuracy floors. Assert
+    // the denominator, that no track silently returned nil, and that the
+    // per-genre buckets reconcile EXACTLY with the aggregate metrics — so a
+    // genre-stratification bug can't drop tracks between the total and the
+    // buckets while both still print.
+    let nilTracks = perTrack.filter { $0.detected == nil }.map { $0.track.filename }
+    #expect(
+      metrics.total == Self.analyzableTrackCount,
+      "#155: expected \(Self.analyzableTrackCount) OA300 tracks resolved; got \(metrics.total)")
+    #expect(perTrack.count == Self.analyzableTrackCount, "#155: perTrack count != corpus size")
+    #expect(
+      nilTracks.isEmpty, "#155: \(nilTracks.count) tracks returned nil: \(nilTracks.prefix(5))")
+    #expect(
+      buckets.reduce(0) { $0 + $1.total } == metrics.total,
+      "#155: genre bucket totals must sum to the corpus total")
+    #expect(
+      buckets.reduce(0) { $0 + $1.acc1Correct } == metrics.acc1Correct,
+      "#155: genre bucket Acc1 must sum to the aggregate Acc1")
+    #expect(
+      buckets.reduce(0) { $0 + $1.acc2Correct } == metrics.acc2Correct,
+      "#155: genre bucket Acc2 must sum to the aggregate Acc2")
   }
 
   // MARK: - Helpers

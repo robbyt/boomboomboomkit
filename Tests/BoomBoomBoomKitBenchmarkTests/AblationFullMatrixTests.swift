@@ -171,9 +171,7 @@ struct AblationMatrixTests {
     // Top-level regressionGate captures pass/fail status of the existing optimal-≥-55
     // gate plus a list of click-OFF combos whose Acc1 we want a future story to track
     // against the prior baseline.
-    if let baselineDir = ProcessInfo.processInfo.environment["AblATION_RESULTS_DIR"]
-      ?? ProcessInfo.processInfo.environment["ABLATION_RESULTS_DIR"]
-    {
+    if let baselineDir = ProcessInfo.processInfo.environment["ABLATION_RESULTS_DIR"] {
       let url = URL(fileURLWithPath: baselineDir)
         .appendingPathComponent("3-3-ablation-results.json")
       do {
