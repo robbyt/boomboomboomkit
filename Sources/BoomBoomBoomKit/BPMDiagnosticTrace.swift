@@ -192,7 +192,7 @@ public struct BPMDiagnosticTrace: Sendable {
   /// numeric evidence (decoded BPM, top-2 softmax probabilities, input
   /// feature checksum) AND a categorical ``MLDiagnosticSnapshot/FailureStage``
   /// summary that identifies which abstain path fired (or `nil` on the
-  /// win path). See ``MLDiagnosticSnapshot`` for the full population matrix.
+  /// win path). See ``MLDiagnosticSnapshot`` for the outcome shape.
   ///
   /// **Population rules.** Non-nil only when ALL of these hold:
   /// 1. ``AudioAnalysisService/Options/mlTechnique`` is non-nil AND
@@ -217,8 +217,8 @@ public struct BPMDiagnosticTrace: Sendable {
   /// 5. The conformer's ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)``
   ///    actually returned a non-nil snapshot — i.e., the inference reached
   ///    at least the featurize step. The two pre-featurize abstain paths
-  ///    (``MLDiagnosticSnapshot/FailureStage/featuresAbsent`` and
-  ///    ``MLDiagnosticSnapshot/FailureStage/featureVersionMismatch``)
+  ///    (features absent, and feature-set version drift — neither has a
+  ///    payload to checksum, so neither is representable as a snapshot)
   ///    return `(nil, nil)` from the conformance per the tuple invariant,
   ///    so this field stays nil on those paths. The reporting harness
   ///    derives the histogram bucket for those tracks from

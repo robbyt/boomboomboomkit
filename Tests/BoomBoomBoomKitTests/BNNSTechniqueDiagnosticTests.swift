@@ -81,6 +81,70 @@ struct BNNSTechniqueDiagnosticTests {
   /// Story 4-6 Task 4.5 mapping case 3: featurize rejects the input
   /// (frame count < 32 — DD #9 short-clip guard). Snapshot has only
   /// `inputFeatureChecksum` populated; decode fields nil.
+  /// GH-167 item 6 (#124): the population matrix used to be enforced by
+  /// `precondition`s inside the public initializer, which meant a
+  /// consumer's own conformer crashed the host app for disagreeing with
+  /// `BNNSTechnique`'s control flow. The matrix is now documentation of
+  /// what THIS producer emits, so it is asserted against this producer —
+  /// which is the only place the claim was ever true.
+  ///
+  /// Drives the real fixture across three reachable outcomes and checks
+  /// that each carries exactly the evidence its stage should. The
+  /// remaining outcomes (`graphFailed`, the two decode rejections) are
+  /// not reachable with a valid graph and valid features.
+  @Test(
+    "BNNSTechnique emits snapshots matching its documented matrix",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  func producerEmissionMatrix() throws {
+    if #available(macOS 15.0, *) {
+      let url = try #require(fixtureURL())
+      // Valid, supported-version features with enough frames to clear the
+      // DD #9 short-clip guard, mildly varied so per-band stddev > 0.
+      let mb = 128
+      let frames = 256
+      var data = [Float](repeating: 0, count: mb * frames)
+      for i in 0..<data.count {
+        data[i] = Float(i % 13) / 13.0 + Float(i % 17) / 20.0
+      }
+      var trace = BPMDiagnosticTrace()
+      trace.mlFeatures = try MLFeatureFrames(
+        melBands: mb, frames: frames, tensorLayout: .nchw, logMelData: data,
+        sampleRate: 44100.0, fftSize: 2048, hopSize: 441,
+        melFmin: 30.0, melFmax: 16000.0, logCompressionScale: 100.0,
+        featureSetVersion: MLFeatureFrames.currentFeatureSetVersion)
+
+      // Gate rejection: carries decode evidence AND names the gate.
+      let gated = try BNNSTechnique(modelURL: url)
+      let gatedResult = gated.evaluateWithDiagnostic(trace: trace)
+      let gatedSnap = try #require(gatedResult.snapshot)
+      #expect(gatedResult.evaluation == nil)
+      #expect(gatedSnap.failureStage == .confidenceGateRejected)
+      #expect(gatedSnap.gateFired != nil, "a gate rejection must name its gate")
+      #expect(gatedSnap.decode != nil, "a gate rejection must carry what it rejected")
+
+      // Win: carries decode evidence, no stage, no gate.
+      let open = try BNNSTechnique(
+        modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+      let openResult = open.evaluateWithDiagnostic(trace: trace)
+      let openSnap = try #require(openResult.snapshot)
+      #expect(openResult.evaluation != nil)
+      #expect(openSnap.failureStage == nil)
+      #expect(openSnap.gateFired == nil)
+      #expect(openSnap.decode != nil)
+
+      // Both agree on the checksum: the same features were seen.
+      #expect(gatedSnap.inputFeatureChecksum == openSnap.inputFeatureChecksum)
+
+      // Pre-featurize: no snapshot at all, because there is nothing to
+      // checksum. This is what makes the two removed enum cases
+      // unrepresentable rather than merely discouraged.
+      let bare = BPMDiagnosticTrace()
+      let bareResult = open.evaluateWithDiagnostic(trace: bare)
+      #expect(bareResult.evaluation == nil)
+      #expect(bareResult.snapshot == nil)
+    }
+  }
+
   @Test("featurizeRejected populates snapshot with checksum only")
   func featurizeRejected() throws {
     if #available(macOS 15.0, *) {

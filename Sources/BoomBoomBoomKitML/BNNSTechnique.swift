@@ -20,7 +20,6 @@ import Accelerate
 import BoomBoomBoomKit
 import Darwin
 import Foundation
-import Synchronization
 import os.log
 
 // MARK: - BNNSTechnique
@@ -31,7 +30,8 @@ import os.log
 /// `giantsteps_v1.mlmodelc` was removed because it abstained on 100% of
 /// OA300 audio at production thresholds. See `MODEL_CARD.md` for the
 /// full Status section + threshold-sweep evidence. Consumers using ML
-/// today MUST pass a `.mlmodelc` URL explicitly via `init(modelURL:)` —
+/// today MUST pass a `.mlmodelc` URL explicitly via
+/// ``init(modelURL:confidenceThreshold:marginThreshold:)`` —
 /// see `tools/coreml-convert/README.md` for the bring-your-own-model
 /// (BYOW) flow, or implement a fully custom `MLTechnique` conformance.
 ///
@@ -41,10 +41,13 @@ import os.log
 /// BoomBoomBoomKit's value-type-only public surface. The compiled
 /// `bnns_graph_t` is held by a private `final class BNNSGraphHandle`
 /// reference; ARC keeps the graph alive across struct copies, and
-/// `BNNSGraphHandle.deinit` calls `free(graph.data)` when the last
-/// reference drops (Task 1.5b empirical evidence shows the graph data
-/// is allocated from the default malloc zone, so `free` is the correct
-/// destructor primitive — see `4-5-allocator-probe.log`).
+/// `BNNSGraphHandle.deinit` releases `graph.data` when the last
+/// reference drops, via ``releaseGraphData(_:)`` — which frees only
+/// when the pointer is confirmed at runtime to belong to the default
+/// malloc zone, and otherwise logs a fault and leaks deliberately.
+/// Apple documents no ownership contract for `bnns_graph_t.data` and
+/// ships no graph destructor, so the release is guarded rather than
+/// assumed (GH-167 item 6 / #150).
 ///
 /// ## Concurrency
 ///
@@ -72,9 +75,12 @@ import os.log
 ///    raw output is normalized via a host-side softmax with
 ///    subtract-max-for-stability (`vForce.exp` + `vDSP.sum` +
 ///    `vDSP_vsdiv`) before reading argmax + 2nd-max probabilities.
-/// 4. Two-gate abstain per DD #10: `softmax_max >= 0.50` AND
-///    `(softmax_max - softmax_secondMax) >= 0.10`. Failing either gate
-///    returns `nil` (the documented abstain path).
+/// 4. Two-gate abstain per DD #10: `softmax_max >=` this instance's
+///    ``confidenceThreshold`` AND `(softmax_max - softmax_secondMax) >=`
+///    its ``marginThreshold``. Failing either gate returns `nil` (the
+///    documented abstain path). Both default to `0.50` / `0.10` and are
+///    settable per instance — see
+///    ``init(modelURL:confidenceThreshold:marginThreshold:)``.
 ///
 /// ## See also
 ///
@@ -100,78 +106,43 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// Reserved as a `nil` literal so the `init(modelURL:)` default-arg
   /// signature stays stable across a future story that re-bundles a
   /// model. Consumers wanting to use ML today MUST pass a `modelURL:`
-  /// explicitly — see ``init(modelURL:)`` + `tools/coreml-convert/README.md`
+  /// explicitly — see ``init(modelURL:confidenceThreshold:marginThreshold:)`` + `tools/coreml-convert/README.md`
   /// for the bring-your-own-model (BYOW) flow.
   public static let bundledReferenceURL: URL? = nil
 
-  /// Gate 1 abstain threshold — DD #10. Softmax-max must be `≥ 0.50` for
-  /// `evaluate(trace:)` to return non-nil. `0.50` is calibrated for the
-  /// lossy 96 kbps GiantSteps training distribution; consumers retraining
-  /// on a HiFi corpus should sweep this threshold against a held-out set
-  /// (deferred-work entry).
+  /// Shipped default for the Gate 1 abstain threshold. Softmax-max must
+  /// be `>=` the instance's ``confidenceThreshold`` for
+  /// `evaluate(trace:)` to return non-nil.
   ///
-  /// Story 4-6 Task 7: the Story 4-6 threshold-sweep harness can
-  /// temporarily override this value via the
-  /// ``thresholdOverride`` test seam below. Production reads come through
-  /// ``effectiveConfidenceThreshold`` which honors the override.
-  internal static let confidenceThreshold: Double = 0.50
+  /// `0.50` was calibrated against the lossy 96 kbps GiantSteps training
+  /// distribution — that is, for a model this library no longer ships.
+  /// It is a starting point, not a recommendation: a consumer model
+  /// trained on different material can be both accurate and
+  /// conservatively confident, in which case this default abstains on
+  /// nearly everything. Sweep it against a held-out set and pass the
+  /// result to ``init(modelURL:confidenceThreshold:marginThreshold:)``.
+  public static let defaultConfidenceThreshold: Double = 0.50
 
-  /// Gate 2 abstain threshold — DD #10. The margin between softmax-max
-  /// and softmax-second-max must be `≥ 0.10`. Catches Epic 4's motivating
-  /// adjacent-bin half-tempo / triplet confusion that softmax-max alone
-  /// misses.
+  /// Shipped default for the Gate 2 abstain threshold. The margin
+  /// between softmax-max and softmax-second-max must be `>=` the
+  /// instance's ``marginThreshold``. Catches the adjacent-bin
+  /// half-tempo / triplet confusion that softmax-max alone misses.
   ///
-  /// Story 4-6 Task 7: overridable via ``thresholdOverride`` (read through
-  /// ``effectiveMarginThreshold``).
-  internal static let marginConfidenceThreshold: Double = 0.10
+  /// Same calibration caveat as ``defaultConfidenceThreshold``.
+  public static let defaultMarginThreshold: Double = 0.10
 
-  /// Story 4-6 Task 7 threshold-sweep testing seam. INTERNAL access only —
-  /// settable via `@testable import BoomBoomBoomKitML` from the
-  /// impact-report harness; consumer-facing public API is unchanged.
-  /// Mutex-wrapped per Siri's Apple-platform audit: parallel-test safety,
-  /// no `nonisolated(unsafe)` permanent escape hatch.
+  /// Gate 1 threshold for THIS instance, resolved at construction.
   ///
-  /// Production behavior: ``confidenceThreshold`` / ``marginConfidenceThreshold``
-  /// constants remain the source of truth; this override only fires when
-  /// set by a test harness. The override is global — concurrent tests in
-  /// the same process see the same value. Tests sweeping the override
-  /// MUST run under `.serialized` or reset the override in `defer { ... }`.
-  internal static let thresholdOverride =
-    Mutex<(confidence: Double, margin: Double)?>(nil)
+  /// Per-instance rather than global: two techniques configured
+  /// differently can evaluate concurrently without observing each
+  /// other's values, and both gates in a single evaluation read one
+  /// `self`, so the mixed-state window that the former process-global
+  /// override seam had to guard against cannot occur.
+  public let confidenceThreshold: Double
 
-  /// Production read for the Gate 1 threshold. Returns
-  /// ``confidenceThreshold`` unless ``thresholdOverride`` has been set.
-  ///
-  /// Convenience accessor — calls ``effectiveThresholds`` and returns
-  /// just the confidence value. Per-call sites that need BOTH gates
-  /// (e.g., ``evaluateInternal(trace:)``) MUST use ``effectiveThresholds``
-  /// directly so the two values are observed from the same atomic
-  /// snapshot of the override; otherwise a concurrent test that resets
-  /// the override between the two reads will see mixed-state thresholds
-  /// (Story 4-6 code review P13).
-  internal static var effectiveConfidenceThreshold: Double {
-    effectiveThresholds.confidence
-  }
-
-  /// Production read for the Gate 2 threshold. Convenience accessor —
-  /// see ``effectiveConfidenceThreshold`` for the atomicity caveat.
-  internal static var effectiveMarginThreshold: Double {
-    effectiveThresholds.margin
-  }
-
-  /// Single atomic read of BOTH gate thresholds. Story 4-6 code review
-  /// P13: a single `withLock` returns a `(confidence, margin)` tuple so
-  /// the two gate decisions in ``evaluateInternal(trace:)`` cannot
-  /// observe mixed-state thresholds when a concurrent test mutates the
-  /// override between reads.
-  internal static var effectiveThresholds: (confidence: Double, margin: Double) {
-    thresholdOverride.withLock { override in
-      if let o = override {
-        return (o.confidence, o.margin)
-      }
-      return (confidenceThreshold, marginConfidenceThreshold)
-    }
-  }
+  /// Gate 2 threshold for THIS instance, resolved at construction.
+  /// See ``confidenceThreshold``.
+  public let marginThreshold: Double
 
   /// Number of mel bands the bundled model expects on input. Surfaced as
   /// a constant for parity with `BPMAnalyzer.melBands == 128` and for the
@@ -261,7 +232,44 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// var opts = AudioAnalysisService.Options()
   /// opts.mlTechnique = try? BNNSTechnique(modelURL: url)
   /// ```
-  public init(modelURL: URL? = Self.bundledReferenceURL) throws {
+  ///
+  /// - Parameters:
+  ///   - modelURL: A compiled `.mlmodelc` bundle. `nil` throws
+  ///     ``MLTechniqueError/modelResourceMissing(_:)``.
+  ///   - confidenceThreshold: Gate 1 floor — softmax-max below this
+  ///     abstains. Defaults to ``defaultConfidenceThreshold`` (`0.50`),
+  ///     which was calibrated for a model this library no longer ships;
+  ///     sweep it against a held-out set for your own model.
+  ///   - marginThreshold: Gate 2 floor — a top-two softmax margin below
+  ///     this abstains. Defaults to ``defaultMarginThreshold`` (`0.10`).
+  /// - Throws: ``MLTechniqueError/invalidThreshold(reason:)`` when either
+  ///   threshold is NaN or infinite. Finite out-of-range values do NOT
+  ///   throw — they clamp to `[0, 1]`, and the effective value is
+  ///   readable back from ``confidenceThreshold`` / ``marginThreshold``.
+  ///   Also throws ``MLTechniqueError/modelResourceMissing(_:)``,
+  ///   ``MLTechniqueError/modelLoadFailed(underlying:)``,
+  ///   ``MLTechniqueError/invalidTensorContract(missing:)``, or
+  ///   ``MLTechniqueError/binCountMismatch(expected:actual:)``.
+  public init(
+    modelURL: URL? = Self.bundledReferenceURL,
+    confidenceThreshold: Double = Self.defaultConfidenceThreshold,
+    marginThreshold: Double = Self.defaultMarginThreshold
+  ) throws {
+    // isFinite FIRST: a NaN/Inf threshold is unambiguously a caller bug
+    // with no sensible interpretation, and silently substituting a value
+    // would hide it. A finite out-of-range value DOES carry intent, so
+    // that clamps below. The gates compare with `<`, so 0.0 rejects
+    // nothing and 1.0 rejects everything short of a perfect 1.0 score.
+    guard confidenceThreshold.isFinite, marginThreshold.isFinite else {
+      throw MLTechniqueError.invalidThreshold(
+        reason: "thresholds must be finite (confidenceThreshold="
+          + "\(confidenceThreshold), marginThreshold=\(marginThreshold))")
+    }
+    // Softmax probabilities and their margins both live in [0, 1], so a
+    // threshold outside that range is saturating rather than meaningless.
+    self.confidenceThreshold = min(max(confidenceThreshold, 0.0), 1.0)
+    self.marginThreshold = min(max(marginThreshold, 0.0), 1.0)
+
     guard let modelURL else {
       throw MLTechniqueError.modelResourceMissing(
         URL(fileURLWithPath: "<no bundled model in this build; pass modelURL: explicitly>"))
@@ -296,7 +304,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     do {
       validation = try Self.validateContract(graph: graph)
     } catch {
-      if let data = graph.data { free(data) }
+      Self.releaseGraphData(graph.data)
       throw error
     }
 
@@ -349,12 +357,12 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   ///   decode fields populated (the raw out-of-range BPM is reported —
   ///   the snapshot says what the model said, not what the library
   ///   accepted).
-  /// - Gate 1 fail (`confidence < Self.confidenceThreshold`) →
-  ///   `(nil, snapshot)` with `failureStage = .confidenceGateRejected`
-  ///   and `gateFired = .gate1Softmax`.
-  /// - Gate 2 fail (`margin < Self.marginConfidenceThreshold`) →
-  ///   `(nil, snapshot)` with `failureStage = .confidenceGateRejected`
-  ///   and `gateFired = .gate2Margin`.
+  /// - Gate 1 fail (`confidence < self.confidenceThreshold`) →
+  ///   `(nil, snapshot)` carrying `.confidenceGateRejected(decode,
+  ///   gate: .gate1Softmax)`.
+  /// - Gate 2 fail (`margin < self.marginThreshold`) →
+  ///   `(nil, snapshot)` carrying `.confidenceGateRejected(decode,
+  ///   gate: .gate2Margin)`.
   /// - Win → `(MLEvaluation, snapshot)` with `failureStage = nil`.
   private func evaluateInternal(
     trace: BPMDiagnosticTrace
@@ -375,13 +383,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       let cksum = Self.computeInputFeatureChecksum(features.logMelData)
       return (
         nil,
-        MLDiagnosticSnapshot(
-          decodedBPM: nil,
-          softmaxMax: nil,
-          softmaxSecondMax: nil,
-          inputFeatureChecksum: cksum,
-          failureStage: .featurizeRejected,
-          gateFired: nil)
+        MLDiagnosticSnapshot(inputFeatureChecksum: cksum, outcome: .featurizeRejected)
       )
     }
     // From here on the post-featurize tensor is the canonical input —
@@ -392,72 +394,51 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     guard let logits = inferLogits(inputTensor) else {
       return (
         nil,
-        MLDiagnosticSnapshot(
-          decodedBPM: nil,
-          softmaxMax: nil,
-          softmaxSecondMax: nil,
-          inputFeatureChecksum: cksum,
-          failureStage: .graphFailed,
-          gateFired: nil)
+        MLDiagnosticSnapshot(inputFeatureChecksum: cksum, outcome: .graphFailed)
       )
     }
     switch Self.decodeLogitsWithDiagnostic(logits) {
     case .nonFiniteLogits:
       return (
         nil,
-        MLDiagnosticSnapshot(
-          decodedBPM: nil,
-          softmaxMax: nil,
-          softmaxSecondMax: nil,
-          inputFeatureChecksum: cksum,
-          failureStage: .decodeRejected,
-          gateFired: nil)
+        MLDiagnosticSnapshot(inputFeatureChecksum: cksum, outcome: .decodeRejectedNonFinite)
       )
     case .outOfRangeArgmax(let bpm, let confidence, let secondMax):
       return (
         nil,
         MLDiagnosticSnapshot(
-          decodedBPM: bpm,
-          softmaxMax: confidence,
-          softmaxSecondMax: secondMax,
           inputFeatureChecksum: cksum,
-          failureStage: .decodeRejected,
-          gateFired: nil)
+          outcome: .decodeRejectedOutOfRange(
+            .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax)))
       )
     case .success(let bpm, let confidence, let secondMax):
       // Two-gate abstain (DD #10). Each gate populates a snapshot
       // reflecting the path that fired — the threshold-sweep harness
       // reads `gateFired` to distinguish gate-1 (low max) from gate-2
-      // (low margin) on the same configuration. Story 4-6 Task 7:
-      // thresholds read through the `effectiveThresholds` atomic
-      // accessor so the `thresholdOverride` Mutex seam is observed
-      // consistently across both gates in a single evaluation — code
-      // review P13 closed the two-read race where a test resetting the
-      // override between gates could yield mixed-state thresholds.
-      let thresholds = Self.effectiveThresholds
-      if confidence < thresholds.confidence {
+      // (low margin) on the same configuration. Both gates read this
+      // instance's immutable `let`s, so the mixed-state read that the
+      // former process-global override seam needed an atomic accessor
+      // to prevent (Story 4-6 code review P13) is now impossible by
+      // construction rather than by guard.
+      if confidence < confidenceThreshold {
         return (
           nil,
           MLDiagnosticSnapshot(
-            decodedBPM: bpm,
-            softmaxMax: confidence,
-            softmaxSecondMax: secondMax,
             inputFeatureChecksum: cksum,
-            failureStage: .confidenceGateRejected,
-            gateFired: .gate1Softmax)
+            outcome: .confidenceGateRejected(
+              .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax),
+              gate: .gate1Softmax))
         )
       }
       let margin = confidence - secondMax
-      if margin < thresholds.margin {
+      if margin < marginThreshold {
         return (
           nil,
           MLDiagnosticSnapshot(
-            decodedBPM: bpm,
-            softmaxMax: confidence,
-            softmaxSecondMax: secondMax,
             inputFeatureChecksum: cksum,
-            failureStage: .confidenceGateRejected,
-            gateFired: .gate2Margin)
+            outcome: .confidenceGateRejected(
+              .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax),
+              gate: .gate2Margin))
         )
       }
       // Win path. `confidence` is clamped defensively per Story 4-4
@@ -473,12 +454,9 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
           bpm: bpm, confidence: clampedConfidence,
           modelIdentifier: modelIdentifier),
         MLDiagnosticSnapshot(
-          decodedBPM: bpm,
-          softmaxMax: confidence,
-          softmaxSecondMax: secondMax,
           inputFeatureChecksum: cksum,
-          failureStage: nil,
-          gateFired: nil)
+          outcome: .win(
+            .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax)))
       )
     }
   }
@@ -1103,6 +1081,70 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   }
 }
 
+// MARK: - Graph storage release
+
+@available(macOS 15.0, *)
+extension BNNSTechnique {
+
+  /// Releases the compiled graph's backing storage, but ONLY when the
+  /// pointer is confirmed at runtime to belong to the default malloc
+  /// zone. Otherwise it deliberately leaks and logs a fault.
+  ///
+  /// Apple publishes no ownership contract for `bnns_graph_t.data`. The
+  /// SDK ships `BNNSGraphCompileOptionsDestroy` and
+  /// `BNNSGraphContextDestroy` but no graph destructor (re-verified
+  /// against the Xcode 26 SDK headers, 2026-07-25), so `free` is an
+  /// inference, not a documented primitive. It rests on a single probe
+  /// run on one machine on 2026-05-13 against a model that no longer
+  /// ships — recorded at
+  /// `_bmad-output/implementation-artifacts/4-5-allocator-probe.log`.
+  ///
+  /// That evidence cannot cover a future OS, a differently-compiled
+  /// graph, or a consumer's own model. In particular the BNNS header
+  /// notes a graph may be `mmap`-backed when compiled through
+  /// `BNNSGraphCompileOptionsSetOutputPath` / `SetOutputFD`, in which
+  /// case `free` is wrong. So the zone is checked per call rather than
+  /// assumed: `malloc_zone_from_ptr` returns NULL for any pointer the
+  /// malloc subsystem does not own, and a non-default zone means the
+  /// allocation came from somewhere `free` must not touch.
+  ///
+  /// Leaking a graph is bounded (one allocation per constructed
+  /// technique) and survivable. Calling `free` on framework-owned or
+  /// mapped memory is neither.
+  ///
+  /// FUTURE: adopt an official destroy primitive the moment one ships —
+  /// it may release internal structures allocated separately from
+  /// `graph.data`, which this function cannot reach.
+  /// - Returns: `true` when the storage was freed, `false` when the
+  ///   guard declined (nil pointer, or a pointer outside the default
+  ///   zone). Returned so the decision is observable in a test —
+  ///   otherwise a guard that wrongly refuses is indistinguishable from
+  ///   one that correctly frees, and the leak is silent.
+  @discardableResult
+  internal static func releaseGraphData(_ data: UnsafeMutableRawPointer?) -> Bool {
+    guard let data else { return false }
+    let zone = malloc_zone_from_ptr(data)
+    guard zone != nil, zone == malloc_default_zone() else {
+      let zoneName = zone.flatMap { malloc_get_zone_name($0) }.map { String(cString: $0) }
+      // Format must be a single `StaticString` literal — `os_log` takes
+      // no runtime-built format string.
+      os_log(
+        .fault, log: Self.graphStorageLogger,
+        "bnns_graph_t.data is not in the default malloc zone (zone=%{public}s); leaking it deliberately rather than calling free() on storage this process does not own. Platform-behaviour change, not a leak bug — see GH-167 item 6 / #150.",
+        zoneName ?? "unowned-by-malloc")
+      return false
+    }
+    free(data)
+    return true
+  }
+
+  /// Dedicated log handle for the zone-gate refusal. Separate category
+  /// from ``nilFeaturesLogger`` so a consumer filtering for
+  /// allocator-contract events sees only those.
+  private static let graphStorageLogger = OSLog(
+    subsystem: "BoomBoomBoomKitML", category: "BNNSGraphStorage")
+}
+
 // MARK: - BNNSGraphHandle (RAII storage)
 
 /// Final class wrapper around `bnns_graph_t` whose `deinit` frees the
@@ -1128,16 +1170,7 @@ internal final class BNNSGraphHandle: @unchecked Sendable {
   }
 
   deinit {
-    // Task 1.5b verified `graph.data` is from the default malloc zone for
-    // the BoomBoomBoomKit `BNNSGraphCompileFromFile(path, nil, default)`
-    // path — `free` is the correct destructor primitive. See
-    // `_bmad-output/implementation-artifacts/4-5-allocator-probe.log`.
-    //
-    // FUTURE: when Apple documents a `BNNSGraphDestroy` (or equivalent)
-    // primitive on a future macOS SDK, prefer that over raw `free()` —
-    // it may release additional internal structures the framework
-    // allocates separately. Today the probe evidence is the only signal.
-    if let data = graph.data { free(data) }
+    BNNSTechnique.releaseGraphData(graph.data)
   }
 }
 

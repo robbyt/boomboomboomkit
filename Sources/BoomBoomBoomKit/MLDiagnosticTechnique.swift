@@ -56,13 +56,12 @@ import Foundation
 ///   ``MLDiagnosticSnapshot/FailureStage/graphFailed``,
 ///   ``MLDiagnosticSnapshot/FailureStage/decodeRejected``, or
 ///   ``MLDiagnosticSnapshot/FailureStage/confidenceGateRejected``).
-/// - **Abstain (pre-featurize)** — both nil. The conformer signals
-///   ``MLDiagnosticSnapshot/FailureStage/featuresAbsent`` or
-///   ``MLDiagnosticSnapshot/FailureStage/featureVersionMismatch`` by
-///   returning a `(nil, nil)` tuple. The reporting harness derives the
-///   histogram bucket from trace-state inspection (no feature payload
-///   to checksum means the snapshot itself cannot be constructed
-///   meaningfully).
+/// - **Abstain (pre-featurize)** — both nil. Features were absent, or
+///   the feature-set version drifted, so there is no payload to
+///   checksum and ``MLDiagnosticSnapshot`` cannot represent the path at
+///   all. The conformer returns a `(nil, nil)` tuple and a reporting
+///   harness derives the bucket from trace-state inspection, using its
+///   own key type rather than ``MLDiagnosticSnapshot/FailureStage``.
 ///
 /// ## Consumer wrappers and diagnostics (wontfix pre-1.0)
 ///
@@ -101,9 +100,9 @@ public protocol MLDiagnosticTechnique: MLTechnique {
   /// - Returns: Two-element tuple per the protocol's population matrix:
   ///   - `evaluation`: the model's BPM estimate, or `nil` on abstain.
   ///   - `snapshot`: per-call numeric diagnostics, or `nil` ONLY on
-  ///     the two pre-featurize abstain paths
-  ///     (``MLDiagnosticSnapshot/FailureStage/featuresAbsent`` and
-  ///     ``MLDiagnosticSnapshot/FailureStage/featureVersionMismatch``).
+  ///     the two pre-featurize abstain paths (features absent, or
+  ///     feature-set version drift — neither has a payload to
+  ///     checksum, so neither is representable as a snapshot).
   ///     On every other path the snapshot is populated even when the
   ///     evaluation is nil — that is the load-bearing investigation
   ///     evidence the threshold-sweep harness consumes (DD #5

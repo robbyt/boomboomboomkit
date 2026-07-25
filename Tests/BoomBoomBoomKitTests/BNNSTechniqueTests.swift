@@ -16,10 +16,10 @@
 //  runnable graph `BNNSTechniqueDiagnosticTests` already exercises on
 //  every `make test`), gated only on `fixtureMissing()` — which is false
 //  under normal `swift test`. The real-inference happy path is asserted
-//  in the `.serialized` `BNNSTechniqueInferenceTests` suite below: the
+//  in the `BNNSTechniqueInferenceTests` suite below: the
 //  fixture is the rejected v1 graph, so it abstains at the production
 //  gate-1 softmax floor; a non-nil `MLEvaluation` is only reachable with
-//  the gate thresholds overridden, and both facts are now locked.
+//  the gate thresholds lowered at construction, and both facts are locked.
 //
 
 import BoomBoomBoomKitTestSupport
@@ -58,6 +58,83 @@ private func fixtureMissing() -> Bool {
 
 @Suite("Story 4-5 BNNSTechnique")
 struct BNNSTechniqueTests {
+
+  // MARK: - Abstain-threshold configuration (GH-167 item 6 / #144)
+
+  @Test(
+    "thresholds default to the shipped values",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  func thresholdsDefaultToShippedValues() throws {
+    if #available(macOS 15.0, *) {
+      let url = try #require(fixtureURL())
+      let t = try BNNSTechnique(modelURL: url)
+      #expect(t.confidenceThreshold == BNNSTechnique.defaultConfidenceThreshold)
+      #expect(t.marginThreshold == BNNSTechnique.defaultMarginThreshold)
+      #expect(BNNSTechnique.defaultConfidenceThreshold == 0.50)
+      #expect(BNNSTechnique.defaultMarginThreshold == 0.10)
+    }
+  }
+
+  @Test(
+    "consumer-supplied thresholds are stored verbatim",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  func consumerThresholdsStoredVerbatim() throws {
+    if #available(macOS 15.0, *) {
+      let url = try #require(fixtureURL())
+      let t = try BNNSTechnique(
+        modelURL: url, confidenceThreshold: 0.2, marginThreshold: 0.05)
+      #expect(t.confidenceThreshold == 0.2)
+      #expect(t.marginThreshold == 0.05)
+    }
+  }
+
+  /// A finite out-of-range threshold carries usable intent, so it
+  /// saturates rather than failing. The gates compare with `<`, so a
+  /// clamped 0.0 rejects nothing and a clamped 1.0 rejects everything
+  /// short of a perfect 1.0 score.
+  @Test(
+    "out-of-range thresholds clamp to [0, 1] rather than throwing",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  func outOfRangeThresholdsClamp() throws {
+    if #available(macOS 15.0, *) {
+      let url = try #require(fixtureURL())
+      let high = try BNNSTechnique(
+        modelURL: url, confidenceThreshold: 1.5, marginThreshold: 42.0)
+      #expect(high.confidenceThreshold == 1.0)
+      #expect(high.marginThreshold == 1.0)
+      let low = try BNNSTechnique(
+        modelURL: url, confidenceThreshold: -0.2, marginThreshold: -99.0)
+      #expect(low.confidenceThreshold == 0.0)
+      #expect(low.marginThreshold == 0.0)
+    }
+  }
+
+  /// NaN/Inf has no sensible interpretation as a probability floor, so
+  /// it is a caller bug and surfaces as one instead of being silently
+  /// replaced. Distinct from `.modelLoadFailed`: the model is fine.
+  @Test(
+    "non-finite thresholds throw .invalidThreshold",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  func nonFiniteThresholdsThrow() throws {
+    if #available(macOS 15.0, *) {
+      let url = try #require(fixtureURL())
+      let bad: [(Double, Double)] = [
+        (.nan, 0.1), (0.5, .nan),
+        (.infinity, 0.1), (0.5, -.infinity),
+      ]
+      for (conf, margin) in bad {
+        do {
+          _ = try BNNSTechnique(
+            modelURL: url, confidenceThreshold: conf, marginThreshold: margin)
+          Issue.record("expected a throw for (\(conf), \(margin))")
+        } catch let MLTechniqueError.invalidThreshold(reason) {
+          #expect(!reason.isEmpty)
+        } catch {
+          Issue.record("expected .invalidThreshold for (\(conf), \(margin)), got \(error)")
+        }
+      }
+    }
+  }
 
   // MARK: - Init failure paths
 
@@ -113,7 +190,7 @@ struct BNNSTechniqueTests {
   func evaluateAbstainsOnVersionMismatch() throws {
     if #available(macOS 15.0, *) {
       // Abstain fires on the version-check BEFORE the confidence gate, so the
-      // nil result is independent of the threshold-override seam — safe to run
+      // nil result is independent of the configured thresholds — safe to run
       // in this parallel suite (unlike the inference tests below).
       let url = try #require(fixtureURL())
       let t = try BNNSTechnique(modelURL: url)
@@ -312,11 +389,11 @@ struct BNNSTechniqueTests {
     return count
   }
 
-  // Concurrency + transpose real-inference tests moved to the `.serialized`
-  // `BNNSTechniqueInferenceTests` suite below (GH-167 item 4 / #156): they read
-  // the confidence-gate thresholds, so they need the threshold-override seam to
-  // reach a non-nil result (the fixture is the rejected v1 graph and abstains at
-  // production thresholds) and must not race the global override.
+  // Concurrency + transpose real-inference tests moved to the
+  // `BNNSTechniqueInferenceTests` suite below (GH-167 item 4 / #156): they need
+  // a non-nil result, and the fixture is the rejected v1 graph which abstains
+  // at production thresholds, so they construct their technique with the gates
+  // open.
 
   // MARK: - Byte-identity sentinel (AC #5)
 
@@ -548,28 +625,94 @@ struct BNNSTechniqueDeinitWitnessTests {
 // (rejected) giantsteps_v1 graph, so on synthetic input it decodes a concrete
 // in-range tempo (~169 BPM) but its softmax_max (~0.07) is far below the shipped
 // gate-1 floor of 0.50 — production `evaluate` therefore abstains. A non-nil
-// `MLEvaluation` is only reachable with the confidence gates overridden. Both
+// `MLEvaluation` is only reachable with the confidence gates lowered. Both
 // facts are locked below.
 //
-// `.serialized`: three tests here mutate the process-global
-// `BNNSTechnique.thresholdOverride` Mutex (each restores it to `nil` in a
-// `defer`), and one (`productionThresholdsAbstainAtGate1`) relies on the
-// production thresholds being in effect. They therefore must not run
-// concurrently with each other — `.serialized` guarantees that within this suite.
+// GH-167 item 6 (#144): thresholds are per-instance constructor arguments, so
+// a test that wants the gates open builds its own technique with them open.
+// The former process-global `thresholdOverride` Mutex is gone, and with it the
+// cross-suite race this comment used to have to reason about — that safety
+// rested on invocation topology (`make test` filtering to the unit target and
+// never co-invoking the benchmark target) rather than on anything enforced.
+// No shared mutable state remains here, so `.serialized` is no longer required
+// for threshold isolation.
+// MARK: - Graph storage zone gate (GH-167 item 6 / #150)
 //
-// Cross-suite safety is NOT provided by `.serialized` (it only orders tests
-// within a suite). It holds here because of the invocation topology, not the
-// trait: the only other `thresholdOverride` mutator is `BNNSTechniqueAbstain...`
-// — deleted in this change — and `BNNSImpactTests`, which lives in the SEPARATE
-// `BoomBoomBoomKitBenchmarkTests` target. `make test` filters the unit target
-// (`--filter BoomBoomBoomKitTests`) and never co-invokes the benchmark target,
-// so this suite is the sole `thresholdOverride` mutator in the `make test` lane.
-// Within that lane no sibling asserts a threshold-dependent `evaluate` outcome
-// (the other BNNS evaluate-callers — features-absent, version-mismatch,
-// short-clip — all abstain BEFORE the confidence gate is read). A bare,
-// unfiltered `swift test` that runs both targets together could race the two
-// mutators; the make targets do not.
-@Suite("BNNSTechnique real inference (GH-167 item 4)", .serialized)
+// `BNNSGraphHandle.deinit` used to call `free(graph.data)` unconditionally,
+// justified by a single allocator probe run on one machine on 2026-05-13
+// against a model that no longer ships. Apple publishes no ownership contract
+// for `bnns_graph_t.data` and the SDK still has no graph destructor, so the
+// zone is now checked at runtime on every release.
+//
+// These tests exercise the helper directly rather than through deinit: the
+// refusal branch cannot be reached with a real compiled graph (that is the
+// point — it only fires if the platform changes), so it is driven with
+// pointers whose provenance is known.
+@Suite("BNNSGraphHandle storage release zone gate (GH-167 item 6)")
+struct BNNSGraphStorageReleaseTests {
+
+  @Test("frees a default-zone allocation")
+  @available(macOS 15.0, *)
+  func freesDefaultZoneAllocation() {
+    // `malloc` puts this in the default zone, the same place the probe
+    // found `graph.data`. Releasing it here is the production path; if
+    // the guard wrongly refused, this allocation would leak instead.
+    let p = malloc(1024)
+    #expect(p != nil)
+    #expect(malloc_zone_from_ptr(p) == malloc_default_zone())
+    // Assert the decision, not just the absence of a crash: a guard that
+    // wrongly refused would leak silently and still "pass" otherwise.
+    #expect(BNNSTechnique.releaseGraphData(p), "default-zone storage must be freed")
+  }
+
+  @Test("refuses a pointer malloc does not own, and does not crash")
+  @available(macOS 15.0, *)
+  func refusesForeignPointer() {
+    // A stack address belongs to no malloc zone, so `malloc_zone_from_ptr`
+    // returns NULL. Passing it to `free` would be undefined behaviour —
+    // the guard must decline. Reaching the next line at all is the
+    // assertion: an unguarded `free` here aborts the process.
+    var onTheStack: UInt64 = 0xDEAD_BEEF
+    withUnsafeMutableBytes(of: &onTheStack) { raw in
+      let p = raw.baseAddress
+      #expect(malloc_zone_from_ptr(p) == nil, "sanity: stack memory is unowned by malloc")
+      #expect(
+        !BNNSTechnique.releaseGraphData(p),
+        "storage malloc does not own must not be freed")
+    }
+    #expect(onTheStack == 0xDEAD_BEEF, "the guard must not have touched the storage")
+  }
+
+  /// The policy is "default zone only", not merely "some zone". Without
+  /// this case, weakening the guard to `zone != nil` — dropping the
+  /// default-zone comparison entirely — passes every other test here,
+  /// because the only refusal case would be a pointer no zone owns.
+  @Test("refuses an allocation owned by a non-default zone")
+  @available(macOS 15.0, *)
+  func refusesNonDefaultZoneAllocation() throws {
+    let custom = try #require(malloc_create_zone(0, 0), "could not create a test zone")
+    defer { malloc_destroy_zone(custom) }
+    let p = try #require(malloc_zone_malloc(custom, 1024))
+    // Genuinely malloc-owned, genuinely not the default zone — the exact
+    // state the guard exists to detect.
+    #expect(malloc_zone_from_ptr(p) != nil, "sanity: the zone owns this pointer")
+    #expect(malloc_zone_from_ptr(p) != malloc_default_zone(), "sanity: not the default zone")
+    #expect(
+      !BNNSTechnique.releaseGraphData(p),
+      "storage owned by another zone must not be freed with free()")
+    // Still ours to release through the owning zone, which proves the
+    // allocation survived the guard intact.
+    malloc_zone_free(custom, p)
+  }
+
+  @Test("nil pointer is a no-op")
+  @available(macOS 15.0, *)
+  func nilPointerIsNoOp() {
+    #expect(!BNNSTechnique.releaseGraphData(nil))
+  }
+}
+
+@Suite("BNNSTechnique real inference (GH-167 item 4)")
 struct BNNSTechniqueInferenceTests {
 
   @available(macOS 15.0, *)
@@ -590,19 +733,19 @@ struct BNNSTechniqueInferenceTests {
 
   /// GH-167 item 4 (#156): real BNNSGraph inference through `evaluate(trace:)`
   /// yields a non-nil `MLEvaluation` with finite, in-contract-range fields. The
-  /// confidence gates are overridden to 0.0/0.0 because the fixture is the
+  /// confidence gates are constructed at 0.0/0.0 because the fixture is the
   /// rejected model and abstains at production thresholds; the point of this
   /// test is that the featurize → infer → decode chain itself works.
-  @Test("evaluate yields a non-nil in-range MLEvaluation (gates overridden)")
+  @Test("evaluate yields a non-nil in-range MLEvaluation (gates open)")
   @available(macOS 15.0, *)
   func realInferenceYieldsInRangeEvaluation() throws {
     let url = try #require(fixtureURL())
-    let t = try BNNSTechnique(modelURL: url)
+    // Gates open at construction: this asserts the inference chain
+    // produces a usable tempo, not that the fixture clears the floor.
+    let t = try BNNSTechnique(
+      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
     var trace = BPMDiagnosticTrace()
     trace.mlFeatures = try Self.syntheticFeatures()
-
-    BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
-    defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
 
     let result = try #require(
       t.evaluate(trace: trace),
@@ -614,6 +757,58 @@ struct BNNSTechniqueInferenceTests {
     // Identifier is the fixture basename (`CustomBundled`), NOT the historical
     // `bnns_tempo_v1` the removed bundle carried.
     #expect(result.modelIdentifier == "CustomBundled")
+  }
+
+  /// GH-167 item 6 (#144): the gates are read off the instance, so two
+  /// differently-configured techniques disagree about the SAME input in
+  /// the SAME process. That is the behaviour #144 asks for, and it is
+  /// exactly what a process-global threshold cannot express.
+  @Test(
+    "two instances with different thresholds disagree on the same input",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  @available(macOS 15.0, *)
+  func perInstanceThresholdsAreIndependent() throws {
+    let url = try #require(fixtureURL())
+    var trace = BPMDiagnosticTrace()
+    trace.mlFeatures = try Self.syntheticFeatures()
+    let open = try BNNSTechnique(
+      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+    let shut = try BNNSTechnique(
+      modelURL: url, confidenceThreshold: 1.0, marginThreshold: 0.0)
+    // Both alive simultaneously: neither can be observing the other's
+    // configuration.
+    #expect(open.evaluate(trace: trace) != nil, "open gates must admit the decode")
+    #expect(shut.evaluate(trace: trace) == nil, "a 1.0 softmax floor must abstain")
+    #expect(open.evaluate(trace: trace) != nil, "still open after the shut instance ran")
+  }
+
+  /// Gate 2 (margin) needs its own coverage: the fixture fails gate 1 at
+  /// production thresholds, so every other test here reaches a verdict
+  /// without gate 2 ever deciding anything. With gate 1 open, gate 2 is
+  /// the only thing separating these two instances — so replacing its
+  /// threshold with a literal would fail here and nowhere else.
+  @Test(
+    "marginThreshold alone decides the outcome when gate 1 is open",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  @available(macOS 15.0, *)
+  func marginThresholdGatesIndependently() throws {
+    let url = try #require(fixtureURL())
+    var trace = BPMDiagnosticTrace()
+    trace.mlFeatures = try Self.syntheticFeatures()
+
+    let marginOpen = try BNNSTechnique(
+      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+    let marginShut = try BNNSTechnique(
+      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 1.0)
+
+    #expect(marginOpen.evaluate(trace: trace) != nil, "a 0.0 margin floor must admit")
+
+    let (evaluation, snapshot) = marginShut.evaluateWithDiagnostic(trace: trace)
+    #expect(evaluation == nil, "a 1.0 margin floor must abstain")
+    let snap = try #require(snapshot)
+    // Gate 2 specifically — not gate 1, which is wide open here.
+    #expect(snap.gateFired == .gate2Margin)
+    #expect(snap.failureStage == .confidenceGateRejected)
   }
 
   /// GH-167 item 4 (#156): the complement. At PRODUCTION thresholds the same
@@ -640,24 +835,22 @@ struct BNNSTechniqueInferenceTests {
     let decoded = try #require(snap.decodedBPM, "inference should have decoded a BPM")
     #expect(decoded >= 60.0 && decoded <= 200.0)
     let softmax = try #require(snap.softmaxMax)
-    #expect(softmax.isFinite && softmax >= 0.0 && softmax < BNNSTechnique.confidenceThreshold)
+    #expect(softmax.isFinite && softmax >= 0.0 && softmax < t.confidenceThreshold)
   }
 
   /// Relocated from `BNNSTechniqueTests` and de-vacuumed (GH-167 item 4 / #156):
   /// concurrent `evaluate` calls share no mutable state. With the gates zeroed
   /// every call returns a non-nil BPM, so the "all identical" assertion is no
   /// longer skipped when the input abstains.
-  @Test("concurrent evaluate is context-local (gates overridden)")
+  @Test("concurrent evaluate is context-local (gates open)")
   @available(macOS 15.0, *)
   func concurrentEvaluateIsContextLocal() async throws {
     let url = try #require(fixtureURL())
-    let t = try BNNSTechnique(modelURL: url)
+    let t = try BNNSTechnique(
+      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
     var trace = BPMDiagnosticTrace()
     trace.mlFeatures = try Self.syntheticFeatures(frames: 128)
     let bound = trace
-
-    BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
-    defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
 
     let bpms = await withTaskGroup(of: Double?.self) { group -> [Double?] in
       for _ in 0..<16 {
@@ -679,11 +872,12 @@ struct BNNSTechniqueInferenceTests {
   /// `.nchw` payload must decode identically, proving the `vDSP_mtrans` transpose
   /// in `featurize`. With the gates zeroed both sides produce non-nil results, so
   /// "both abstained" can no longer stand in for a real match.
-  @Test("frameMajorLogMel transpose matches nchw (gates overridden)")
+  @Test("frameMajorLogMel transpose matches nchw (gates open)")
   @available(macOS 15.0, *)
   func evaluateAcceptsFrameMajorLogMelLayout() throws {
     let url = try #require(fixtureURL())
-    let t = try BNNSTechnique(modelURL: url)
+    let t = try BNNSTechnique(
+      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
     let frames = 128
     let mb = 128
     var nchwData = [Float](repeating: 0, count: mb * frames)
@@ -712,9 +906,6 @@ struct BNNSTechniqueInferenceTests {
     nchwTrace.mlFeatures = nchwFeatures
     var frameTrace = BPMDiagnosticTrace()
     frameTrace.mlFeatures = frameFeatures
-
-    BNNSTechnique.thresholdOverride.withLock { $0 = (0.0, 0.0) }
-    defer { BNNSTechnique.thresholdOverride.withLock { $0 = nil } }
 
     let n = try #require(t.evaluate(trace: nchwTrace), "nchw must decode with gates zeroed")
     let f = try #require(

@@ -58,10 +58,12 @@ struct MLTechniqueProtocolTests {
     Self.assertMLTechnique(TestCustomTechnique.self)
   }
 
-  @Test("MLTechniqueError surface covers the five documented failure modes")
+  @Test("MLTechniqueError surface covers the six documented failure modes")
   func mlTechniqueErrorCases() {
     // Exhaustive switch — if a case is added or renamed, this fails to
     // compile, surfacing the public-surface change to the reader.
+    // `.invalidThreshold` added by GH-167 item 6 (#144): a bad
+    // configuration argument is not a model failure.
     let url = URL(fileURLWithPath: "/tmp/does-not-exist.mlmodelc")
     let cases: [MLTechniqueError] = [
       .modelResourceMissing(url),
@@ -69,6 +71,7 @@ struct MLTechniqueProtocolTests {
       .invalidTensorContract(missing: "input"),
       .binCountMismatch(expected: 256, actual: 128),
       .invalidFeatureShape(reason: "test"),
+      .invalidThreshold(reason: "test"),
     ]
     for err in cases {
       switch err {
@@ -77,8 +80,9 @@ struct MLTechniqueProtocolTests {
       case .invalidTensorContract: break
       case .binCountMismatch: break
       case .invalidFeatureShape: break
+      case .invalidThreshold: break
       }
     }
-    #expect(cases.count == 5)
+    #expect(cases.count == 6)
   }
 }

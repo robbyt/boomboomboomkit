@@ -79,85 +79,64 @@ struct MLDiagnosticSnapshotPathCoverageTests {
         label: "featurizeRejected",
         evaluation: nil,
         snapshot: MLDiagnosticSnapshot(
-          decodedBPM: nil,
-          softmaxMax: nil,
-          softmaxSecondMax: nil,
           inputFeatureChecksum: 0x1111_1111_1111_1111,
-          failureStage: .featurizeRejected,
-          gateFired: nil),
+          outcome: .featurizeRejected),
         expectedFailureStage: .featurizeRejected,
         expectedGate: nil),
       PathCase(
         label: "graphFailed",
         evaluation: nil,
         snapshot: MLDiagnosticSnapshot(
-          decodedBPM: nil,
-          softmaxMax: nil,
-          softmaxSecondMax: nil,
           inputFeatureChecksum: 0x2222_2222_2222_2222,
-          failureStage: .graphFailed,
-          gateFired: nil),
+          outcome: .graphFailed),
         expectedFailureStage: .graphFailed,
         expectedGate: nil),
       PathCase(
-        label: "decodeRejected (non-finite logits, decode fields nil)",
+        label: "decodeRejected (non-finite logits, no decode evidence)",
         evaluation: nil,
         snapshot: MLDiagnosticSnapshot(
-          decodedBPM: nil,
-          softmaxMax: nil,
-          softmaxSecondMax: nil,
           inputFeatureChecksum: 0x3333_3333_3333_3333,
-          failureStage: .decodeRejected,
-          gateFired: nil),
+          outcome: .decodeRejectedNonFinite),
         expectedFailureStage: .decodeRejected,
         expectedGate: nil),
       PathCase(
         label: "decodeRejected (out-of-range argmax, raw BPM carried)",
         evaluation: nil,
         snapshot: MLDiagnosticSnapshot(
-          decodedBPM: 215.0,  // out-of-range — exceeds 200 upper bound
-          softmaxMax: 0.42,
-          softmaxSecondMax: 0.18,
           inputFeatureChecksum: 0x4444_4444_4444_4444,
-          failureStage: .decodeRejected,
-          gateFired: nil),
+          // out-of-range — exceeds the 200 upper bound
+          outcome: .decodeRejectedOutOfRange(
+            .init(bpm: 215.0, softmaxMax: 0.42, softmaxSecondMax: 0.18))),
         expectedFailureStage: .decodeRejected,
         expectedGate: nil),
       PathCase(
         label: "confidenceGateRejected × gate1Softmax (softmax-max below threshold)",
         evaluation: nil,
         snapshot: MLDiagnosticSnapshot(
-          decodedBPM: 128.0,
-          softmaxMax: 0.30,
-          softmaxSecondMax: 0.05,
           inputFeatureChecksum: 0x5555_5555_5555_5555,
-          failureStage: .confidenceGateRejected,
-          gateFired: .gate1Softmax),
+          outcome: .confidenceGateRejected(
+            .init(bpm: 128.0, softmaxMax: 0.30, softmaxSecondMax: 0.05),
+            gate: .gate1Softmax)),
         expectedFailureStage: .confidenceGateRejected,
         expectedGate: .gate1Softmax),
       PathCase(
         label: "confidenceGateRejected × gate2Margin (margin below threshold)",
         evaluation: nil,
         snapshot: MLDiagnosticSnapshot(
-          decodedBPM: 128.0,
-          softmaxMax: 0.55,
-          softmaxSecondMax: 0.50,
           inputFeatureChecksum: 0x6666_6666_6666_6666,
-          failureStage: .confidenceGateRejected,
-          gateFired: .gate2Margin),
+          outcome: .confidenceGateRejected(
+            .init(bpm: 128.0, softmaxMax: 0.55, softmaxSecondMax: 0.50),
+            gate: .gate2Margin)),
         expectedFailureStage: .confidenceGateRejected,
         expectedGate: .gate2Margin),
       PathCase(
-        label: "win (failureStage nil, all decode fields populated)",
+        label: "win (failureStage nil, decode evidence carried)",
         evaluation: MLEvaluation(
           bpm: 128.0, confidence: 0.85, modelIdentifier: "mock"),
         snapshot: MLDiagnosticSnapshot(
-          decodedBPM: 128.0,
-          softmaxMax: 0.85,
-          softmaxSecondMax: 0.08,
           inputFeatureChecksum: 0x7777_7777_7777_7777,
-          failureStage: nil,
-          gateFired: nil),
+          outcome: .win(
+            .init(bpm: 128.0, softmaxMax: 0.85, softmaxSecondMax: 0.08))),
         expectedFailureStage: nil,
         expectedGate: nil),
     ]

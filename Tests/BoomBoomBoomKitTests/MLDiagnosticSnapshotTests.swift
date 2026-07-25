@@ -6,6 +6,14 @@
 //  equality, and description bounding for the public typed-evidence
 //  snapshot introduced by Story 4-6.
 //
+//  GH-167 item 6 (#124): the shape rules are no longer runtime rules.
+//  Each outcome carries exactly the evidence its path produces, so the
+//  combinations the old init trapped on are now rejected by the type
+//  checker and cannot be written here at all. What remains testable is
+//  that the flat projections read the payloads back correctly — those
+//  projections are the compatibility surface every existing reader
+//  (the Demo, the FR-18 harness) goes through.
+//
 
 import BoomBoomBoomKit
 import Foundation
@@ -14,18 +22,13 @@ import Testing
 @Suite("MLDiagnosticSnapshot (Story 4-6 AC #1)")
 struct MLDiagnosticSnapshotTests {
 
-  /// AC #1: win path requires all decode fields populated, failureStage
-  /// nil, gateFired nil. Confirms the init's preconditions for the
-  /// happy path.
-  @Test("initShapeRulesWinPath")
-  func initShapeRulesWinPath() throws {
+  /// Win path: decode evidence projects through, no failure stage, no
+  /// gate.
+  @Test("win outcome projects decode evidence, no stage, no gate")
+  func winOutcomeProjections() throws {
     let snapshot = MLDiagnosticSnapshot(
-      decodedBPM: 128.0,
-      softmaxMax: 0.72,
-      softmaxSecondMax: 0.18,
       inputFeatureChecksum: 0xDEAD_BEEF,
-      failureStage: nil,
-      gateFired: nil)
+      outcome: .win(.init(bpm: 128.0, softmaxMax: 0.72, softmaxSecondMax: 0.18)))
     #expect(snapshot.failureStage == nil)
     #expect(snapshot.decodedBPM == 128.0)
     #expect(snapshot.softmaxMax == 0.72)
@@ -34,25 +37,19 @@ struct MLDiagnosticSnapshotTests {
     #expect(snapshot.gateFired == nil)
   }
 
-  /// AC #1 / DD #2: per-decode-stage snapshot shape. `featurizeRejected`
-  /// has only inputFeatureChecksum populated (decode fields all nil);
-  /// `graphFailed` is identical in shape. `decodeRejected` may have
-  /// decode fields nil (non-finite logits) or populated (out-of-range
-  /// argmax) — covered by the second case below.
-  @Test("initShapeRulesPreDecodeAbstain")
-  func initShapeRulesPreDecodeAbstain() throws {
-    for stage in [
-      MLDiagnosticSnapshot.FailureStage.featurizeRejected,
-      MLDiagnosticSnapshot.FailureStage.graphFailed,
-    ] {
-      let snapshot = MLDiagnosticSnapshot(
-        decodedBPM: nil,
-        softmaxMax: nil,
-        softmaxSecondMax: nil,
-        inputFeatureChecksum: 0x42,
-        failureStage: stage,
-        gateFired: nil)
-      #expect(snapshot.failureStage == stage)
+  /// Pre-decode abstains carry a checksum and nothing else: no logit
+  /// vector was produced, so there is no decode to report.
+  @Test("pre-decode abstains project no decode evidence")
+  func preDecodeAbstainProjections() throws {
+    let cases: [(MLDiagnosticSnapshot.Outcome, MLDiagnosticSnapshot.FailureStage)] = [
+      (.featurizeRejected, .featurizeRejected),
+      (.graphFailed, .graphFailed),
+      (.decodeRejectedNonFinite, .decodeRejected),
+    ]
+    for (outcome, expectedStage) in cases {
+      let snapshot = MLDiagnosticSnapshot(inputFeatureChecksum: 0x42, outcome: outcome)
+      #expect(snapshot.failureStage == expectedStage)
+      #expect(snapshot.decode == nil)
       #expect(snapshot.decodedBPM == nil)
       #expect(snapshot.softmaxMax == nil)
       #expect(snapshot.softmaxSecondMax == nil)
@@ -60,30 +57,49 @@ struct MLDiagnosticSnapshotTests {
     }
   }
 
-  /// AC #1: confidenceGateRejected requires all decode fields populated
-  /// AND non-nil gateFired.
-  @Test("initShapeRulesPostDecodeAbstain")
-  func initShapeRulesPostDecodeAbstain() throws {
+  /// A gate rejection carries the decode it rejected plus which gate
+  /// rejected it. Both are non-optional in the payload, so a gate
+  /// rejection without evidence is unrepresentable.
+  @Test("gate rejection projects decode evidence and the firing gate")
+  func gateRejectionProjections() throws {
     let snapshot = MLDiagnosticSnapshot(
-      decodedBPM: 113.0,
-      softmaxMax: 0.42,
-      softmaxSecondMax: 0.40,
       inputFeatureChecksum: 0x01,
-      failureStage: .confidenceGateRejected,
-      gateFired: .gate1Softmax)
+      outcome: .confidenceGateRejected(
+        .init(bpm: 113.0, softmaxMax: 0.42, softmaxSecondMax: 0.40),
+        gate: .gate1Softmax))
     #expect(snapshot.failureStage == .confidenceGateRejected)
     #expect(snapshot.gateFired == .gate1Softmax)
     #expect(snapshot.decodedBPM == 113.0)
   }
 
-  /// AC #1: FailureStage.allCases.count == 6 (architecture invariant
-  /// per DD #2; `inferenceFailed` split into `graphFailed` + `decodeRejected`).
-  @Test("FailureStage allCases count == 6")
+  /// Both decode rejections report the same stage but differ in the
+  /// evidence they can carry — the out-of-range case preserves the raw
+  /// tempo the model produced, the non-finite case has none to preserve.
+  @Test("both decode rejections share a stage but not their evidence")
+  func decodeRejectionVariants() throws {
+    let nonFinite = MLDiagnosticSnapshot(
+      inputFeatureChecksum: 0x02, outcome: .decodeRejectedNonFinite)
+    let outOfRange = MLDiagnosticSnapshot(
+      inputFeatureChecksum: 0x02,
+      outcome: .decodeRejectedOutOfRange(
+        .init(bpm: 215.0, softmaxMax: 0.42, softmaxSecondMax: 0.18)))
+    #expect(nonFinite.failureStage == .decodeRejected)
+    #expect(outOfRange.failureStage == .decodeRejected)
+    #expect(nonFinite.decodedBPM == nil)
+    // Reports what the model said, not what the library would accept.
+    #expect(outOfRange.decodedBPM == 215.0)
+    #expect(nonFinite != outOfRange)
+  }
+
+  /// GH-167 item 6 (#124): the taxonomy covers exactly the stages a
+  /// snapshot can represent. `featuresAbsent` and `featureVersionMismatch`
+  /// were removed — `inputFeatureChecksum` is non-optional and those
+  /// paths have no features to checksum, so they were public cases no
+  /// snapshot could legally carry.
+  @Test("FailureStage allCases count == 4")
   func failureStageAllCasesCount() throws {
-    #expect(MLDiagnosticSnapshot.FailureStage.allCases.count == 6)
+    #expect(MLDiagnosticSnapshot.FailureStage.allCases.count == 4)
     let expected: Set<String> = [
-      "featuresAbsent",
-      "featureVersionMismatch",
       "featurizeRejected",
       "graphFailed",
       "decodeRejected",
@@ -103,22 +119,21 @@ struct MLDiagnosticSnapshotTests {
     #expect(actual == expected)
   }
 
-  /// AC #1: equatable + hashable conformance (auto-derived). Two
-  /// snapshots with identical field values are equal and hash to the
-  /// same value; a difference in any field breaks equality. The
-  /// description is bounded under 200 chars and includes the stage
-  /// label + decoded BPM.
+  /// AC #1: equatable + hashable conformance (auto-derived, and still
+  /// synthesized across the payload-carrying `Outcome`). The description
+  /// format is unchanged by the restructure — it is built from the flat
+  /// projections.
   @Test("equatableHashableDescription")
   func equatableHashableDescription() throws {
     let a = MLDiagnosticSnapshot(
-      decodedBPM: 128.0, softmaxMax: 0.72, softmaxSecondMax: 0.18,
-      inputFeatureChecksum: 0x42, failureStage: nil, gateFired: nil)
+      inputFeatureChecksum: 0x42,
+      outcome: .win(.init(bpm: 128.0, softmaxMax: 0.72, softmaxSecondMax: 0.18)))
     let b = MLDiagnosticSnapshot(
-      decodedBPM: 128.0, softmaxMax: 0.72, softmaxSecondMax: 0.18,
-      inputFeatureChecksum: 0x42, failureStage: nil, gateFired: nil)
+      inputFeatureChecksum: 0x42,
+      outcome: .win(.init(bpm: 128.0, softmaxMax: 0.72, softmaxSecondMax: 0.18)))
     let c = MLDiagnosticSnapshot(
-      decodedBPM: 129.0, softmaxMax: 0.72, softmaxSecondMax: 0.18,
-      inputFeatureChecksum: 0x42, failureStage: nil, gateFired: nil)
+      inputFeatureChecksum: 0x42,
+      outcome: .win(.init(bpm: 129.0, softmaxMax: 0.72, softmaxSecondMax: 0.18)))
     #expect(a == b)
     #expect(a.hashValue == b.hashValue)
     #expect(a != c)
@@ -128,9 +143,7 @@ struct MLDiagnosticSnapshotTests {
     #expect(a.description.count < 200)
     // Abstain-path description includes the stage rawValue.
     let abstain = MLDiagnosticSnapshot(
-      decodedBPM: nil, softmaxMax: nil, softmaxSecondMax: nil,
-      inputFeatureChecksum: 0x42, failureStage: .featurizeRejected,
-      gateFired: nil)
+      inputFeatureChecksum: 0x42, outcome: .featurizeRejected)
     #expect(abstain.description.contains("featurizeRejected"))
     #expect(abstain.description.count < 200)
   }

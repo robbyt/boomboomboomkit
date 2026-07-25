@@ -106,7 +106,8 @@ public struct MLEvaluation: Sendable {
 /// 1. Convert PyTorch / Core ML weights via `tools/coreml-convert/convert.py`
 ///    targeting the bundled tensor contract (`input` shape `[1,1,128,512]`,
 ///    `output` shape `[1, 256]`).
-/// 2. Pass the resulting `.mlmodelc` to ``BNNSTechnique/init(modelURL:)``:
+/// 2. Pass the resulting `.mlmodelc` to
+///    ``BNNSTechnique/init(modelURL:confidenceThreshold:marginThreshold:)``:
 ///    `Options.mlTechnique = try? BNNSTechnique(modelURL: myURL)`.
 /// 3. Or implement a custom ``MLTechnique`` from scratch and assign it to
 ///    `Options.mlTechnique` directly — any backend works.
@@ -146,10 +147,11 @@ public protocol MLTechnique: Sendable {
 
 /// Failures that an ``MLTechnique`` conformer's initializer may throw.
 ///
-/// The four cases cover the documented failure surface for
-/// ``BNNSTechnique/init(modelURL:)``; custom conformers SHOULD reuse them
-/// for symmetry with the bundled implementation, but are free to define
-/// their own error types if more granular reporting is needed.
+/// These cases cover the documented failure surface for
+/// ``BNNSTechnique/init(modelURL:confidenceThreshold:marginThreshold:)``;
+/// custom conformers SHOULD reuse them for symmetry with the bundled
+/// implementation, but are free to define their own error types if more
+/// granular reporting is needed.
 ///
 /// Per the protocol contract, ``MLTechnique/evaluate(trace:)`` itself does
 /// NOT throw — the abstain path is `nil`. Errors here describe construction
@@ -196,4 +198,18 @@ public enum MLTechniqueError: Error, Sendable {
   /// Consumer-side `MLTechnique` conformances see no special signaling;
   /// `trace.mlFeatures` is simply `nil`.
   case invalidFeatureShape(reason: String)
+
+  /// A configuration value supplied to a conformer's initializer was not
+  /// a finite number. Fires from
+  /// ``BNNSTechnique/init(modelURL:confidenceThreshold:marginThreshold:)``
+  /// when either abstain threshold is NaN or infinite. `reason` names the
+  /// offending values.
+  ///
+  /// Distinct from ``modelLoadFailed(underlying:)`` on purpose: the model
+  /// is fine, the argument is not, and the two have unrelated remedies.
+  /// A finite-but-out-of-range threshold does NOT throw — it carries
+  /// usable intent and is clamped to `[0, 1]` silently. The gates
+  /// compare with `<`, so `0.0` never rejects and `1.0` rejects
+  /// everything below a perfect `1.0` score.
+  case invalidThreshold(reason: String)
 }
