@@ -124,3 +124,9 @@ _bmad-output/implementation-artifacts/review-tmp/
 # (script ref + seed + SHA256 digest) is the reproducibility proof. Bare pattern
 # (no leading slash) so it ignores at any depth.
 giantsteps-holdout-v2.json
+
+# Scratch diffs produced for LLM code review (codex:diff-review skill).
+# Generated at the repo root because the review tool reads from the project root;
+# never a project artifact. Ignored after being committed by accident twice
+# (GH-167 items 4 and 5).
+codex-review.diff

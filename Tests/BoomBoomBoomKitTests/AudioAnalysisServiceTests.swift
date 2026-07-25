@@ -15,15 +15,24 @@ import Testing
 @Suite("AudioAnalysisService — Real Audio")
 struct AudioAnalysisServiceRealAudioTests {
 
+  /// MP3 decode smoke test. GH-167 item 5 (#161) removed the old
+  /// `bpm >= 40 && bpm <= 220` assertion: a 180-wide plausibility band on a
+  /// tempo detector asserts essentially nothing, and real accuracy is now
+  /// asserted against independently-established ground truth in
+  /// `AccuracyFloorTests`, which runs in the same `make test` lane.
+  ///
+  /// This test is deliberately NOT tightened in place — its fixture `Meta_Man` is
+  /// one of the four known octave failures (true 92, detected ~182), so a strict
+  /// assertion here would duplicate a ratchet that already exists in the floor.
+  /// What remains is what this test is actually for: the MP3 path decodes and
+  /// returns a usable result.
   @Test("analyzeBPM with MP3 fixture returns non-nil result")
   func analyzeBPMWithMP3() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let result = try #require(
       try AudioAnalysisService.analyzeBPM(url: url),
       "Expected non-nil BPM result for real MP3")
-    #expect(
-      result.bpm >= 40 && result.bpm <= 220,
-      "Expected musically plausible BPM (40-220), got \(result.bpm)")
+    #expect(result.bpm.isFinite, "Expected a finite BPM, got \(result.bpm)")
     #expect(
       result.confidence > 0 && result.confidence <= 1.0,
       "Expected confidence in (0, 1], got \(result.confidence)")

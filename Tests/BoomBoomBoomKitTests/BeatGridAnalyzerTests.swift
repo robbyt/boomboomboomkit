@@ -36,12 +36,20 @@ struct BeatGridAnalyzerTests {
   }
 
   /// True when `a` is within `tol` BPM of `b` at the unison, half, or double
-  /// octave — DSP octave choice on a click track is not the contract under test.
+  /// octave. Retained for the output-vs-output consistency checks below, which
+  /// compare the grid tempo against a DSP-derived BPM rather than ground truth.
+  /// `recoversClickTrackTempo` no longer uses it — that one compares against the
+  /// click track's TRUE tempo and is octave-strict as of GH-167 item 5 (#161).
   private static func matchesWithinOctave(_ a: Double, _ b: Double, tol: Double = 5)
     -> Bool
   {
     [0.5, 1.0, 2.0].contains { abs(a - b * $0) <= tol }
   }
+
+  /// Relative tolerance for ground-truth tempo comparisons, matching the project's
+  /// Acc1 convention and `AccuracyFloorTests`. No harmonic error survives it:
+  /// 2x = 100% error, 1/2x = 50%, 2/3x = 33 1/3%.
+  private static let tempoTolerance = 0.02
 
   // MARK: - Synthetic click-track recovery (AC9)
 
@@ -58,10 +66,69 @@ struct BeatGridAnalyzerTests {
 
     #expect(grid.beats.count > 0)
     #expect(grid.estimatedTempo > 0)
-    // Octave-tolerant vs the click track's true tempo: octave correctness is the
-    // BPM stage's job (the grid reports the BPM-stage tempo it tracked against,
-    // whose octave is covered by the OA300/GiantSteps benchmarks).
-    #expect(Self.matchesWithinOctave(grid.estimatedTempo, expectedBPM))
+
+    // GH-167 item 5 (#161): OCTAVE-STRICT against the click track's TRUE tempo.
+    //
+    // This was `matchesWithinOctave`, accepting 0.5x/1x/2x within +/-5, with a
+    // comment deferring octave correctness to "the OA300/GiantSteps benchmarks".
+    // Those benchmarks live in the env-gated benchmark target that CI never
+    // builds (#154), so the deferral pointed at nothing and octave correctness on
+    // the grid path had no automated coverage at all. A 2x answer now fails.
+    //
+    // `matchesWithinOctave` deliberately SURVIVES for the two other call sites in
+    // this file, which compare the grid tempo against a DSP-derived BPM rather
+    // than against ground truth — those are output-vs-output consistency checks
+    // and octave tolerance there is a separate question, not this one.
+    let scalarError = abs(grid.estimatedTempo - expectedBPM) / expectedBPM
+    #expect(
+      scalarError <= Self.tempoTolerance,
+      Comment(
+        rawValue: """
+          #161 grid tempo off truth — \(name)
+            truth          : \(expectedBPM)
+            estimatedTempo : \(grid.estimatedTempo)
+            relative err   : \(String(format: "%.2f", scalarError * 100))%
+          """))
+
+    // The scalar field alone is not enough: it could read 120 while the emitted
+    // beats sit at 60 or 240. Derive tempo from the median adjacent beat interval
+    // and check THAT against ground truth too (not against `estimatedTempo` —
+    // comparing the two outputs to each other would add no ground-truth coverage).
+    //
+    // Scope: a clean-fixture consistency assertion, NOT a universal grid contract.
+    // `BeatGrid` permits dropped and doubled beats, so raw spacing is only a valid
+    // tempo proxy on synthetic clicks like these.
+    // REQUIRE >= 2 beats rather than conditionally skipping. A 10-second click
+    // track at 85+ BPM emits many beats, so one-or-zero is a regression, not a
+    // legitimate shape — and an `if count >= 2` guard would let exactly that
+    // regression skip the interval check and still report green. That is the
+    // measure-nothing pattern this whole issue family exists to close.
+    let times = grid.beats.map(\.presentationTime)
+    try #require(times.count >= 2, "#161: expected multiple beats on a click track")
+
+    let intervals = zip(times.dropFirst(), times).map(-)
+    #expect(
+      intervals.allSatisfy { $0.isFinite && $0 > 0 },
+      "#161: beat intervals must be finite and positive")
+
+    let sorted = intervals.sorted()
+    let median =
+      sorted.count % 2 == 1
+      ? sorted[sorted.count / 2]
+      : (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2.0
+    try #require(median.isFinite && median > 0, "#161: median beat interval must be positive")
+
+    let intervalTempo = 60.0 / median
+    let intervalError = abs(intervalTempo - expectedBPM) / expectedBPM
+    #expect(
+      intervalError <= Self.tempoTolerance,
+      Comment(
+        rawValue: """
+          #161 median beat spacing off truth — \(name)
+            truth            : \(expectedBPM)
+            median interval  : \(median)s -> \(intervalTempo) BPM
+            relative err     : \(String(format: "%.2f", intervalError * 100))%
+          """))
 
     // Monotonically increasing presentation times.
     for i in 1..<grid.beats.count {
