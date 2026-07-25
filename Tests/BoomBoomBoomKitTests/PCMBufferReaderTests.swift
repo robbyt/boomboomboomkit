@@ -80,6 +80,19 @@ struct PCMBufferReaderBasicTests {
     #expect(sampleRate > 0)
   }
 
+  /// GH-167 item 5 (#160): CAF is a documented supported container but this suite
+  /// never read one — it was covered only incidentally via the LUFS and
+  /// SharedDecode suites, so a CAF-specific reader regression would have surfaced
+  /// somewhere unrelated, or not at all.
+  @Test("reads CAF")
+  func readCAF() throws {
+    let url = try AudioFixtures.url(for: "test-bwf", extension: "caf")
+    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url)
+    #expect(!samples.isEmpty)
+    #expect(sampleRate == 44100)
+    #expect(samples.allSatisfy { $0 >= -1.0 && $0 <= 1.0 })
+  }
+
   @Test("returns empty array for zero-frame audio file")
   func zeroFrameFile() throws {
     let tempURL = FileManager.default.temporaryDirectory
@@ -238,6 +251,100 @@ struct PCMBufferReaderErrorTests {
     #expect(throws: PCMBufferReaderError.self) {
       _ = try PCMBufferReader.readMonoSamples(from: url)
     }
+  }
+
+  // MARK: - Format + corruption contracts (GH-167 item 5, #160)
+  //
+  // #160: "Documented format non-support and corruption behavior is untested."
+  // Measuring it found the documentation was not merely untested but WRONG —
+  // see `oggDecodesDespiteBeingDocumentedUnsupported` below.
+  //
+  // These assert the SPECIFIC error case, not just `PCMBufferReaderError.self`,
+  // which would pass on any reader error and cannot distinguish `.fileNotReadable`
+  // (open failed) from the documented-and-different `.readFailed` (failed
+  // mid-stream). The localized `underlyingDescription` is deliberately NOT
+  // asserted — it is AVFoundation's text and varies by OS.
+
+  /// Writes `byteCount` leading bytes of a fixture to a unique temp file.
+  /// Unique names (not the fixed names elsewhere in this file, which are #158's
+  /// subject) so parallel runs cannot collide.
+  private static func truncatedCopy(
+    of name: String, ext: String, byteCount: Int
+  ) throws -> URL {
+    let data = try Data(contentsOf: AudioFixtures.url(for: name, extension: ext))
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("bbbk-trunc-\(UUID().uuidString).\(ext)")
+    try data.prefix(byteCount).write(to: url)
+    return url
+  }
+
+  /// GH-167 item 5 (#160). The library documented in four places that OGG/Vorbis
+  /// could not be decoded ("no Core Audio codec on macOS"). Nothing tested it, and
+  /// it is false: AVFoundation decodes Vorbis-in-Ogg on macOS 26. This test pins
+  /// the ACTUAL behaviour so the corrected documentation stays honest.
+  ///
+  /// Scope: verified on macOS 26 only. Earlier macOS versions are untested, and a
+  /// failure here on some future OS is a platform-capability change to document,
+  /// not a library regression. Note the tags are still unread — `FileMetadataReader`
+  /// wires its Vorbis-comment parser to FLAC only.
+  @Test("Vorbis-in-Ogg decodes (the documented non-support claim was false)")
+  func oggDecodesDespiteBeingDocumentedUnsupported() throws {
+    let url = try AudioFixtures.url(for: "vorbis-decodable", extension: "ogg")
+    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url)
+    #expect(!samples.isEmpty, "#160: expected a real decode, got no samples")
+    #expect(sampleRate == 44100)
+    #expect(samples.allSatisfy { $0.isFinite }, "#160: decoded samples must be finite")
+    #expect(samples.allSatisfy { $0 >= -1.0 && $0 <= 1.0 }, "#160: samples must be normalized")
+  }
+
+  /// GH-167 item 5 (#160). A FLAC truncated to 10% fails to open — the one
+  /// measured case where mid-stream corruption is genuinely fatal. Asserts the
+  /// exact case and URL.
+  @Test("severely truncated FLAC throws .fileNotReadable")
+  func truncatedFLACThrowsFileNotReadable() throws {
+    let url = try Self.truncatedCopy(of: "test-audio", ext: "flac", byteCount: 2032)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    do {
+      _ = try PCMBufferReader.readMonoSamples(from: url)
+      Issue.record("#160: expected a throw for a 10%-truncated FLAC, got a successful read")
+    } catch let error as PCMBufferReaderError {
+      guard case .fileNotReadable(let reported) = error else {
+        Issue.record(Comment(rawValue: "#160: expected .fileNotReadable, got \(error)"))
+        return
+      }
+      #expect(reported == url, "#160: error should carry the URL that failed")
+    }
+  }
+
+  /// GH-167 item 5 (#160). Truncation is NOT reliably fatal, which is why this
+  /// asserts safety rather than failure. A truncated MP3 with intact leading
+  /// frames decodes at every fraction measured (10/50/90%), so the contract worth
+  /// pinning is that a partial file never yields unsafe output — no NaN, no
+  /// out-of-range samples, no bogus rate.
+  ///
+  /// Deliberately no assertion on sample COUNT: decoded length from a truncated
+  /// stream is an AVFoundation implementation detail that drifts across OS
+  /// versions. This portion of #160 (a *fatal* mid-stream MP3 failure) has no
+  /// reachable case and stays open — see deferred-work.
+  @Test("truncated MP3 decodes safely rather than failing", arguments: [10, 50, 90])
+  func truncatedMP3DecodesSafely(percent: Int) throws {
+    let full = try Data(contentsOf: AudioFixtures.url(for: "Meta_Man", extension: "mp3"))
+    let url = try Self.truncatedCopy(
+      of: "Meta_Man", ext: "mp3", byteCount: full.count * percent / 100)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url)
+    // Non-empty FIRST. `allSatisfy` is vacuously true on an empty array, so a
+    // zero-sample decode would otherwise sail through a test named "decodes
+    // safely" while measuring nothing at all.
+    #expect(!samples.isEmpty, "#160: truncated decode returned no samples")
+    #expect(sampleRate == 44100, "#160: truncation must not corrupt the reported sample rate")
+    #expect(
+      samples.allSatisfy { $0.isFinite }, "#160: truncated decode produced non-finite samples")
+    #expect(
+      samples.allSatisfy { $0 >= -1.0 && $0 <= 1.0 },
+      "#160: truncated decode produced out-of-range samples")
   }
 }
 
