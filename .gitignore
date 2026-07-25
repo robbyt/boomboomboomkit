@@ -1,0 +1,48 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Generated DocC symbol pages (regenerate with `make docc-transclude`)
+Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/Cases/
+Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/.cases-tmp-*
+Sources/BoomBoomBoomKit/BoomBoomBoomKit.docc/.cases-bak-*
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.moved-aside
+/build/
+
+# Instruments
+*.trace
+*.tracetemplate
+
+# Python (tools/coreml-convert)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
