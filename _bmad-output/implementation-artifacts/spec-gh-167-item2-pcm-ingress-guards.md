@@ -3,7 +3,7 @@ title: 'GH-167 item 2 — PCM ingress sanitize + trap-guard cluster'
 type: 'bugfix'
 created: '2026-07-22'
 status: 'done'
-baseline_commit: '6c52705'
+baseline_commit: '23d7159'
 review_loop_iteration: 0
 context: []
 ---

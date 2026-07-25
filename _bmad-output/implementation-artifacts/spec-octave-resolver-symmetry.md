@@ -3,7 +3,7 @@ title: 'Symmetric, authoritative octave disambiguation (demote-to-fundamental fi
 type: 'bugfix'
 created: '2026-06-27'
 status: 'rejected'
-baseline_commit: 85932b3d9342393729f699a4338e9b5c16f260da
+baseline_commit: 978a81506bf996c55d28c7a20a6626ff9f51dbde
 context: ['{project-root}/_bmad-output/implementation-artifacts/investigations/accuracy-ceiling-sweep-investigation.md']
 ---
 
@@ -81,7 +81,7 @@ context: ['{project-root}/_bmad-output/implementation-artifacts/investigations/a
 - `make accuracy-forensics` -- expected: OA300 `double`+`half` bucket < 16; `true1xRank` populated per track.
 - `make fmt` -- expected: clean. `make lint` -- expected: baseline only (LUFSAnalyzer TODO).
 
-## Result — REJECTED (2026-06-28, reverted to baseline 85932b3)
+## Result — REJECTED (2026-06-28, reverted to baseline 978a815)
 
 All FOUR demote variants regressed both corpora and were reverted; the fix premise was empirically false.
 

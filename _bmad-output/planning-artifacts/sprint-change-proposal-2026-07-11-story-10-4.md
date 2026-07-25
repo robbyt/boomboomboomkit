@@ -43,7 +43,7 @@ Story 10.4 shipped, but via an operator-directed UX rework that diverged from it
 | `10-4-…-breakdown.md` (the story spec) | Entire normative body describes the scalar panel | **Rewrite in place (Option A)** — see Section 3 |
 | `implementation-readiness-report-2026-05-27.md:307` | Lists `LUFSReadoutView.swift (FR-40)` | **Annotate only** (dated historical snapshot) |
 | `8-1-…-promotion.md:38` | "Demo chart follow-up = 10-4 (`LUFSReadoutView`)" | **Annotate only** (dated story record) |
-| `10-4-lufs-chart-probe.swift` (dead seed) | Unwired probe, no build target; matches the shipped graph better than the scalar spec did | **Delete file**, cite provenance `eca19a3` (22 Jun) |
+| `10-4-lufs-chart-probe.swift` (dead seed) | Unwired probe, no build target; matches the shipped graph better than the scalar spec did | **Delete file**, cite provenance `732e59c` (22 Jun) |
 
 ### Technical Impact
 None to shipping code. `Sources/` and `Tests/` are byte-identical to baseline; the rework is entirely under develop-only `Demo/`. Tests were retained + extended (formatter matrix + DD7 truncation regression guard kept; plot-geometry locks added — span / x-map / time-inversion / y sentinel-pinning / tick-step / M:SS). The `analyzeLUFS` wiring test still exists (retargeted to `LoudnessGraphView`).
@@ -90,7 +90,7 @@ Rewrite heading + Story + the ACs to the shipped graph; fix AC4's DD2 factual er
 - **FRs covered:** FR-40.
 
 ### 4.4 — `epics.md:894` (chart-consumption note)
-Amend `Story 10.4 (`LUFSReadoutView`)` → `Story 10.4 (`LoudnessGraphView`)`, and replace the `LUFSChartSchemaProbe.swift`/probe-seed reference with a provenance pointer: "seeded by the chart probe added in `eca19a3` (Land epic 8, 22 Jun); the probe file is removed post-reconciliation, its intent realized in `LoudnessGraphView`."
+Amend `Story 10.4 (`LUFSReadoutView`)` → `Story 10.4 (`LoudnessGraphView`)`, and replace the `LUFSChartSchemaProbe.swift`/probe-seed reference with a provenance pointer: "seeded by the chart probe added in `732e59c` (Land epic 8, 22 Jun); the probe file is removed post-reconciliation, its intent realized in `LoudnessGraphView`."
 
 ### 4.5 — `architecture.md` (`:1098`, `:1237`)
 - `:1098`: `LUFSReadoutView.swift  # NEW (Epic D FR-40)` → `LoudnessGraphView.swift  # NEW (Epic D FR-40 — LUFS-over-time graph)`
@@ -110,7 +110,7 @@ Amend `Story 10.4 (`LUFSReadoutView`)` → `Story 10.4 (`LoudnessGraphView`)`, a
 - **Add a Change Log reconciliation entry** dated 2026-07-11 referencing this Sprint Change Proposal.
 
 ### 4.9 — Delete the dead seed
-Delete `_bmad-output/implementation-artifacts/10-4-lufs-chart-probe.swift` (unwired, in no build target). Provenance preserved: added in `eca19a3` (22 Jun); intent realized in `LoudnessGraphView`.
+Delete `_bmad-output/implementation-artifacts/10-4-lufs-chart-probe.swift` (unwired, in no build target). Provenance preserved: added in `732e59c` (22 Jun); intent realized in `LoudnessGraphView`.
 
 ### 4.10 — Annotate (do NOT rewrite) historical snapshots
 - `implementation-readiness-report-2026-05-27.md:307` — append inline: `(superseded 2026-07-11: shipped as LoudnessGraphView — see sprint-change-proposal-2026-07-11-story-10-4.md)`.

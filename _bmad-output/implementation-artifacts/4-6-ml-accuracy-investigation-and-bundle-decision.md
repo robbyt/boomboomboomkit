@@ -14,7 +14,7 @@ So that Epic 4's ML-augmentation promise either ships with measurable accuracy g
 
 ## Key Design Decisions
 
-The DDs below were authored at story-creation time (2026-05-14) against HEAD `1c8e274` (Story 4-5 review-pass v3 close-out). They capture the binding choices the dev agent inherits BEFORE Task 1 begins. **DDs #2, #5, #7, #8 are the most consequential** — they lock the diagnostic-surface shape, the threshold-sweep methodology, the bundle-pull mechanics, and the AC-binding HALT discipline that distinguishes "fix found and applied" from "investigation closed without a fix".
+The DDs below were authored at story-creation time (2026-05-14) against HEAD `7a6652a` (Story 4-5 review-pass v3 close-out). They capture the binding choices the dev agent inherits BEFORE Task 1 begins. **DDs #2, #5, #7, #8 are the most consequential** — they lock the diagnostic-surface shape, the threshold-sweep methodology, the bundle-pull mechanics, and the AC-binding HALT discipline that distinguishes "fix found and applied" from "investigation closed without a fix".
 
 1. **Scope is re-cast from "CoreML conformance" to "BNNS accuracy investigation + bundle decision".** Per `epics.md:1118-1124`, Story 4-5's 0/4 DnB result triggers Epic 4 planning's Branch C, which formally says "Story 4.6 is moved BACK TO `backlog` in `sprint-status.yaml` with `gated_on: research-spike-X.Y` annotation". The Story 4-5 close-out (sprint-status `last_updated` 2026-05-14 — see preamble: "Investigation deferred to Story 4-6 with hard AC") chose to use the existing 4-6 slot AS the research-spike vehicle rather than spawning a separate 4-5b/4-6b spike. This is a pre-1.0 sequencing choice authorized by the Project Lead; CoreML conformance work moves to a future story IFF the investigation succeeds and the bundle stays. The sprint-status key is renamed from `4-6-coreml-mltechnique-conformance` to `4-6-ml-accuracy-investigation-and-bundle-decision` at story-creation time to reflect actual scope.
 
@@ -278,7 +278,7 @@ The DDs below were authored at story-creation time (2026-05-14) against HEAD `1c
 
     Per project-context.md "Public API Discipline (pre-1.0)", these are explicitly NOT 1.0-stable — a future story may rename `MLDiagnosticSnapshot`, add fields beyond the current 5 (decodedBPM/softmaxMax/softmaxSecondMax/inputFeatureChecksum/failureStage+gateFired), add cases to `FailureStage` (e.g., split `graphFailed` further if a second backend lands), or promote the `MLDiagnosticTechnique` protocol to be the primary entry point if a second conformer surfaces consistent needs. The `BNNSTechnique.evaluateWithDiagnostic(trace:)` method is explicitly pre-1.0 — same caveat.
 
-12. **Test count band — `[416, 424]` (REVISED 2026-05-15 per Amelia + axiom-swift parameterized-test collapse; FURTHER REVISED 2026-05-15 per Critique-and-Refine W1 — tightened from `[416, 433]` to `[416, 424]` after Codex flagged the +17 ceiling as a copy-paste artifact).** Pre-story baseline = 400 (`rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` at HEAD `1c8e274`). Post-review test plan with parameterized collapse:
+12. **Test count band — `[416, 424]` (REVISED 2026-05-15 per Amelia + axiom-swift parameterized-test collapse; FURTHER REVISED 2026-05-15 per Critique-and-Refine W1 — tightened from `[416, 433]` to `[416, 424]` after Codex flagged the +17 ceiling as a copy-paste artifact).** Pre-story baseline = 400 (`rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` at HEAD `7a6652a`). Post-review test plan with parameterized collapse:
     - **`MLDiagnosticSnapshotTests.swift` (~6 tests):** initShapeRulesWinPath (all fields non-nil), initShapeRulesPreFeaturizeAbstain (decodedBPM/softmax fields nil), initShapeRulesPostDecodeAbstain (decodedBPM/softmax non-nil, failureStage = .confidenceGateRejected, gateFired non-nil), FailureStage.allCases.count == 6 (NEW count — graphFailed + decodeRejected split out of inferenceFailed), Gate.allCases.count == 2, equatableAndHashable.
     - **`MLDiagnosticTechniqueTests.swift` (+2):** capability-protocol conformance witness (compile-time `assertMLDiagnosticTechnique<T: MLDiagnosticTechnique>(_:)` against BNNSTechnique.self), the protocol inherits `MLTechnique` (compile-time check via existential).
     - **`BNNSTechniqueDiagnosticTests.swift` parameterized via `@Test(arguments:)` (~3 tests collapsing 12 cases):** `evaluateWithDiagnosticPaths` parameterized over the 6 failure stages + 1 win path, asserting the snapshot shape for each; `traceAttachmentInvariants` parameterized over the 4 trace-context cases (win/abstain × enableTrace true/false); `dspOnlyAndNilMlShortCircuit` covering the policy/mlTechnique combinations.
@@ -578,9 +578,9 @@ These three hypotheses produce DIFFERENT remediations:
 - [ ] **Task 1: Pre-source baseline capture (commit pre-source artifacts BEFORE first source edit) (AC: #5, #6, #11) — ALSO apply epics.md amendment per DD #17 NEW + (Branch-C-prep) verify `Package.swift` `resources:` line is in scope for removal**
   - [ ] 1.1: Confirm working tree is clean and on a Story-4-6 branch (currently `rterhaar/epic-4`).
   - [ ] 1.2: Read `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json` and `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json`. Identify ≥4 DSP-correct control tracks per DD #4 (155-175 BPM range, dsp_correct = true). Stage the schema-3 update (do not commit yet).
-  - [ ] 1.3: Run `make benchmark` AND `make benchmark-giantsteps` against the current SHA (`1c8e274` or later). Capture per-track BPM JSON output to `_bmad-output/implementation-artifacts/4-6-regression-snapshot.json` mirroring the Story 4-5 schema. Capture both paths: `mlTechnique == nil` (default) AND `mlTechnique != nil + ensemblePolicy = .dspOnly` (short-circuit) — both MUST be byte-identical post-Story-4-6.
+  - [ ] 1.3: Run `make benchmark` AND `make benchmark-giantsteps` against the current SHA (`7a6652a` or later). Capture per-track BPM JSON output to `_bmad-output/implementation-artifacts/4-6-regression-snapshot.json` mirroring the Story 4-5 schema. Capture both paths: `mlTechnique == nil` (default) AND `mlTechnique != nil + ensemblePolicy = .dspOnly` (short-circuit) — both MUST be byte-identical post-Story-4-6.
   - [ ] 1.4: Run `make perf-benchmark` to capture pre-source perf baseline JSON (a new entry under `_bmad-output/perf-baselines/`).
-  - [ ] 1.5: Run `make bnns-impact-report` against the current SHA (the artifact at `4-5-bnns-impact-report.json` is from `0b2d8dc-dirty` per Story 4-5 close-out; this Task 1.5 re-run produces a clean baseline at the pre-source SHA so the AC #7 post-fix snapshot is a direct comparison). The artifact lands at `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json` — DO NOT rename or modify until Task 6.x produces the post-fix `4-6-bnns-impact-report.json`. Note the pre-fix histogram counts (all in mode `confidenceGateRejected` per the hypothesis, OR — if some are in other modes, that's a hypothesis-narrowing surprise to document).
+  - [ ] 1.5: Run `make bnns-impact-report` against the current SHA (the artifact at `4-5-bnns-impact-report.json` is from `7383c46-dirty` per Story 4-5 close-out; this Task 1.5 re-run produces a clean baseline at the pre-source SHA so the AC #7 post-fix snapshot is a direct comparison). The artifact lands at `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json` — DO NOT rename or modify until Task 6.x produces the post-fix `4-6-bnns-impact-report.json`. Note the pre-fix histogram counts (all in mode `confidenceGateRejected` per the hypothesis, OR — if some are in other modes, that's a hypothesis-narrowing surprise to document).
   - [ ] 1.6: Commit Task 1 artifacts as a single pre-source commit: `Story 4-6 Task 1: pre-source-change baseline artifacts` (mirrors Story 4-5 Task 1 pattern).
 
 - [ ] **Task 2: Add `MLDiagnosticSnapshot` public type in NEW `MLDiagnosticSnapshot.swift` (AC: #1, #5; DD #2 revised)**
@@ -764,7 +764,7 @@ These three hypotheses produce DIFFERENT remediations:
 - **Post-Pipeline Corroboration Boundary** — project-context.md §"Post-Pipeline Corroboration Boundary". Pipeline ordering is unchanged from Story 4-5: `merge → MetadataCorroborator.apply → MLTechnique.evaluate → EnsembleCombiner.combine → AudioAnalysisResult`. Story 4-6's trace mutation happens at the same call site as Story 4-5's evaluate — between `MetadataCorroborator.apply` and `EnsembleCombiner.combine` — so the boundary is preserved.
 - **Banned trace-field shapes** — project-context.md §"Banned trace-field shapes". The new `MLDiagnosticSnapshot` struct passes the typed-evidence rule (named `Sendable` value type, no `[String: Any]`, no stringified-numeric values, no boolean-pair flags). The four banned shapes audit (recipes A-E) MUST return zero matches before merge.
 
-### Source pointers (verified at story authoring 2026-05-14, HEAD `1c8e274`)
+### Source pointers (verified at story authoring 2026-05-14, HEAD `7a6652a`)
 
 - `Sources/BoomBoomBoomKit/MLTechnique.swift:34-66` — `MLEvaluation` struct.
 - `Sources/BoomBoomBoomKit/MLTechnique.swift:98-126` — `MLTechnique` protocol (frozen per Story 4-5 DD #18).
@@ -847,15 +847,15 @@ Three alternatives were considered:
 
 Recent commits (`git log --oneline -10`):
 
-- `1c8e274` — Story 4-5 review pass v3: vDSP adoption, doc fixes, scope close-out.
-- `4027b34` — Story 4-5 review pass v2: regenerate post-fix artifacts.
-- `0b2d8dc` — Story 4-5 review pass v2: C1-C4 + M1-M7 + N1-N13 fixes.
-- `dedd53b` — Story 4-5 Tasks 12 + 13 + close-out.
-- `2be87bb` — Story 4-5 Task 9: diff-scope proof artifact.
+- `7a6652a` — Story 4-5 review pass v3: vDSP adoption, doc fixes, scope close-out.
+- `b09bff4` — Story 4-5 review pass v2: regenerate post-fix artifacts.
+- `7383c46` — Story 4-5 review pass v2: C1-C4 + M1-M7 + N1-N13 fixes.
+- `63eca4e` — Story 4-5 Tasks 12 + 13 + close-out.
+- `a21fdb4` — Story 4-5 Task 9: diff-scope proof artifact.
 
 Story 4-5 close-out is fresh (today's date 2026-05-14 per sprint-status `last_updated`). Story 4-6 should NOT add scope creep — the spec deliberately scopes tightly to diagnostic + investigation + branch decision, with CoreML conformance moved to a future story regardless of branch.
 
-The most recent commit (`1c8e274`) is the Story 4-5 review-pass-v3 close-out — the source baseline this story's Task 1 captures against. Confirm by `git log -1 --pretty=format:%H` at story-start.
+The most recent commit (`7a6652a`) is the Story 4-5 review-pass-v3 close-out — the source baseline this story's Task 1 captures against. Confirm by `git log -1 --pretty=format:%H` at story-start.
 
 ### Project Structure Notes
 
@@ -989,7 +989,7 @@ The most recent commit (`1c8e274`) is the Story 4-5 review-pass-v3 close-out —
   - Test count band: `[416, 433]` → `[416, 424]` per W1.
   - Status: remains `ready-for-dev` post-Critique-and-Refine. Codex thread `019e29dc-23ef-7b92-8f72-dbc74658aa5d` open for further dev-time consultation.
 
-- **2026-05-14 (Story 4-6 story-creation).** Created from the Story 4-5 close-out handoff in `deferred-work.md:401-467` (review-pass v3 C1-C5 findings) + Story 4-5 dev-agent deferred-work entries #2 + #3 (post-close-out commit notes). Scope re-cast from the original epic.md "CoreML MLTechnique Conformance (Production)" framing to "BNNS ML Accuracy Investigation and Bundle Decision" per the Project Lead's explicit choice in sprint-status `last_updated` 2026-05-14: "Investigation deferred to Story 4-6 with hard AC; see deferred-work.md 'Story 4-5 review-pass v3 — Chunk 3 impact-report findings' for full triage. Story 4-5 closes as 'BNNS infrastructure delivered'; ML accuracy validation moves to Story 4-6." The story-key in sprint-status.yaml is renamed from `4-6-coreml-mltechnique-conformance` to `4-6-ml-accuracy-investigation-and-bundle-decision` to reflect actual scope; CoreML conformance work moves to a future story slug (suggested `4-8-coreml-mltechnique-conformance`) IFF Branch A fires. 13 design decisions authored against HEAD `1c8e274`. Status: `ready-for-dev`.
+- **2026-05-14 (Story 4-6 story-creation).** Created from the Story 4-5 close-out handoff in `deferred-work.md:401-467` (review-pass v3 C1-C5 findings) + Story 4-5 dev-agent deferred-work entries #2 + #3 (post-close-out commit notes). Scope re-cast from the original epic.md "CoreML MLTechnique Conformance (Production)" framing to "BNNS ML Accuracy Investigation and Bundle Decision" per the Project Lead's explicit choice in sprint-status `last_updated` 2026-05-14: "Investigation deferred to Story 4-6 with hard AC; see deferred-work.md 'Story 4-5 review-pass v3 — Chunk 3 impact-report findings' for full triage. Story 4-5 closes as 'BNNS infrastructure delivered'; ML accuracy validation moves to Story 4-6." The story-key in sprint-status.yaml is renamed from `4-6-coreml-mltechnique-conformance` to `4-6-ml-accuracy-investigation-and-bundle-decision` to reflect actual scope; CoreML conformance work moves to a future story slug (suggested `4-8-coreml-mltechnique-conformance`) IFF Branch A fires. 13 design decisions authored against HEAD `7a6652a`. Status: `ready-for-dev`.
 
 - **2026-05-15 (Story 4-6 pre-implementation 5-reviewer party-mode + Codex review pass).** Comprehensive review BEFORE any source change, applied 17 patches across 5 independent reviewers — see `## Review Findings v1` below for full detail. Process:
 
@@ -1187,7 +1187,7 @@ Codex thread `019e29dc-23ef-7b92-8f72-dbc74658aa5d` remains open if the dev need
 
 ### Evidence (AC #11 — exact integers)
 
-Captured at HEAD `8d932da` + this close-out commit's source state:
+Captured at HEAD `fcaddf4` + this close-out commit's source state:
 
 - **Pre-fix histogram** (Story 4-5 era, before diagnostic instrumentation landed): `ml_acc1 = 0/82`, `named_dnb_resolved = 0/4`, every track collapsed to a single undifferentiated `nil` from `BNNSTechnique.evaluate(trace:)` — see `_bmad-output/implementation-artifacts/4-5-bnns-mltechnique-conformance.md` close-out section for the original five-way ambiguity.
 - **Post-fix histogram** (Story 4-6 threshold sweep at `0.00 / 0.00`): `failure_stage_histogram = { noAbstain: 82, featuresAbsent: 0, featureVersionMismatch: 0, featurizeRejected: 0, graphFailed: 0, decodeRejected: 0, confidenceGateRejected: 0 }`. Disambiguation complete: every track reached decode; the bundled model produced finite predictions for all 82, but only `ml_acc1 = 2/82` correct, with `wrong_non_abstain_count = 54/82` (66% wrong-confident). At production thresholds (`0.50 / 0.10`), `confidenceGateRejected = 82` instead — the gate was correctly suppressing low-confidence garbage. There was no wiring bug; the model itself doesn't generalize.
@@ -1245,7 +1245,7 @@ See `_bmad-output/implementation-artifacts/4-6-diff-scope-proof.txt` for the ful
 ### Out-of-scope side effects this close-out did NOT make
 
 - No `BNNSTechnique` logic changes. Init / featurize / evaluate / decodeLogits / validateContract / extension surfaces all byte-identical (only DocC strings changed, one sentinel-URL message, the `bundledReferenceURL` static literal flip).
-- No `MLTechnique` / `MLDiagnosticTechnique` / `MLDiagnosticSnapshot` / `BPMDiagnosticTrace.mlDiagnosticSnapshot` API changes — all already landed in commit `8d932da`.
+- No `MLTechnique` / `MLDiagnosticTechnique` / `MLDiagnosticSnapshot` / `BPMDiagnosticTrace.mlDiagnosticSnapshot` API changes — all already landed in commit `fcaddf4`.
 - No test logic changes. Comments only.
 - No CoreMLTechnique work — that placeholder is unaffected; the product decision to drop CoreML from Epic 4 is recorded above + in DD #10/#11.
 

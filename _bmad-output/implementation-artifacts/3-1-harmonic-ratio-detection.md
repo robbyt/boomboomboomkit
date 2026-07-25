@@ -177,8 +177,8 @@ Story 2-6 (`2-6-perf-baselines-file-per-run-redesign.md`) was the last completed
 Branch: `rterhaar/epic-3` (forked from main after Epic 2 landed).
 
 Recent commits:
-- `739e7c1` land epic 2
-- `44a79f8` land epic-1
+- `49fc97e` land epic 2
+- `6bffa6f` land epic-1
 
 Epic 2 landed to main. Epic 3 work starts from current HEAD on this branch.
 

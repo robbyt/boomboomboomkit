@@ -4,7 +4,7 @@ type: 'chore'
 created: '2026-07-25'
 status: 'done'
 review_loop_iteration: 0
-baseline_commit: '8a9b761'
+baseline_commit: '997982b'
 context: []
 ---
 
@@ -39,8 +39,8 @@ context: []
 
 Both were verified false and must be retracted, not implemented:
 
-1. **#167 row 8 claims the squash "literally cannot run without `--allow-unrelated-histories`".** `git merge-base origin/main origin/develop` returns `468a7b3` — `main`'s init commit is a shared ancestor. The documented squash runs as written.
-2. **#109 claims `git merge --squash develop` "will not remove already-tracked files, so the v1 release inherits them".** Develop's commit `aa0455b` deleted `.build/` relative to that shared base, and a `git merge-tree` simulation of `main`+`develop` yields a tree with **zero** `.build/`/`.swiftpm/` entries. The squash removes them automatically. The real and remaining problem is the clone-today cost, not release inheritance.
+1. **#167 row 8 claims the squash "literally cannot run without `--allow-unrelated-histories`".** `git merge-base origin/main origin/develop` returns `e31872e` — `main`'s init commit is a shared ancestor. The documented squash runs as written.
+2. **#109 claims `git merge --squash develop` "will not remove already-tracked files, so the v1 release inherits them".** Develop's commit `bc77755` deleted `.build/` relative to that shared base, and a `git merge-tree` simulation of `main`+`develop` yields a tree with **zero** `.build/`/`.swiftpm/` entries. The squash removes them automatically. The real and remaining problem is the clone-today cost, not release inheritance.
 
 ## I/O & Edge-Case Matrix
 
@@ -92,7 +92,7 @@ The frozen approach was "one ordinary commit on `main` removing the artifacts",
 chosen to avoid rewriting a public branch. Two operator directives changed it:
 first "rewrite main git history is fine", then "rewrite the history of develop as
 well, we shouldn't be including compiled binaries in git". The decisive fact,
-surfaced before execution: `468a7b3` is **develop's root commit too**, so the
+surfaced before execution: `e31872e` is **develop's root commit too**, so the
 blobs were reachable from every branch and rewriting `main` alone would have
 reclaimed nothing on a normal clone. Executed with `git filter-repo` over a
 mirror of the published state, verified, then force-pushed.

@@ -13,7 +13,7 @@
 - Mock: `MockMLTechnique(returning: nil)` — abstain path
 - `enableTrace`: forced `true` because `options.mlTechnique != nil` (`AudioAnalysisService.swift:256` — Story 4.3 plumbing). The profile therefore captures the trace-build hot path.
 - Build config: `swift build -c release --build-tests -Xswiftc -enable-testing`
-- Commit: `c1ba272` (Story 4.3 final)
+- Commit: `c629f60` (Story 4.3 final)
 - Reproducibility recipe: `_bmad-output/scripts/profile-trace-build-cost.sh` (Task 1.2)
 - Time-profile XML extracted with: `xctrace export --input <trace> --xpath '/trace-toc/run/data/table[@schema="time-profile"]'`
 - Aggregated via: `_bmad-output/scripts/analyze-time-profile.py /tmp/4-3b-time-profile.xml`

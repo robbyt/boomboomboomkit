@@ -3,7 +3,7 @@ title: 'Phase 0 — Forensic accuracy instrumentation'
 type: 'feature'
 created: '2026-06-27'
 status: 'in-review'
-baseline_commit: bee7ee80b630e38c7f2a5132a4e559a21d6ba6af
+baseline_commit: e79f5f6dc2a0c2d3492d249cba45486b6aac0454
 context: []
 ---
 

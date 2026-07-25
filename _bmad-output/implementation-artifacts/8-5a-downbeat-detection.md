@@ -1,5 +1,5 @@
 ---
-baseline_commit: 81f6616b885d8ab8d664664a9b3e569ac52e87d0
+baseline_commit: e2dea6098b4e199b287c13eda7038eb0529df170
 ---
 <!-- Story 8.5a — downbeat detection (fixed-meter downbeat-phase estimation). Quick follow-up to 8.5.
      Closes the "no story populates DownbeatResult" gap; unblocks the DJ consumer's bar/half-bar snap.

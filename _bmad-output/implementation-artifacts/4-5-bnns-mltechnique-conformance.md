@@ -13,9 +13,9 @@ So that the ML integration architecture is validated end-to-end on the four name
 
 ## Key Design Decisions
 
-The 17 design decisions below were authored at story-creation time (2026-05-08) against HEAD `757d57c` and revised on 2026-05-08 after a 4-layer pre-implementation review (Codex initial pass, axiom-ai, axiom-concurrency, axiom-apple-docs) plus Codex meta-synthesis and a `/bmad-party-mode` roundtable (Winston, Amelia, Mary, Siri). The Project Lead reviews this block BEFORE the dev agent begins Task 1. **DDs #2, #7, #15, #16, #17 are the most consequential decisions** — they lock the trace-shape, BNNSGraph C-API surface, struct-with-RAII-storage lifecycle, argument-by-name lookup, and multi-window feature ownership that Story 4.6 (CoreML) inherits.
+The 17 design decisions below were authored at story-creation time (2026-05-08) against HEAD `91affe6` and revised on 2026-05-08 after a 4-layer pre-implementation review (Codex initial pass, axiom-ai, axiom-concurrency, axiom-apple-docs) plus Codex meta-synthesis and a `/bmad-party-mode` roundtable (Winston, Amelia, Mary, Siri). The Project Lead reviews this block BEFORE the dev agent begins Task 1. **DDs #2, #7, #15, #16, #17 are the most consequential decisions** — they lock the trace-shape, BNNSGraph C-API surface, struct-with-RAII-storage lifecycle, argument-by-name lookup, and multi-window feature ownership that Story 4.6 (CoreML) inherits.
 
-1. **Pre-promotion gate is satisfied; the named-track baseline is FROZEN.** `_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json` (`schema_version: 2`) is committed at SHA `9185698` (verified by `git log --diff-filter=A -- _bmad-output/implementation-artifacts/4-dnb-triplet-targets.json`). All 4 named tracks resolve to existing files in `OA300_CORPUS_PATH`; all 4 entries have non-null `source` (2× `dawproject`, 2× `daw_oracle`); `current_predicted_bpm` is populated for each (Charly: 106.246; Faraday_Bunker: 113.471; Yin Yang: 113.240; HEFT_Anagram 6: 113.366) with absolute errors of 53–57 BPM (the canonical half-tempo failure mode). **Per the epic AC (`epics.md:1039`), these `current_predicted_bpm` values are NOT re-frozen at Story 4.5 PR time** — they are the named-track baseline against which the T2 non-regression assertion compares. Re-running would risk per-track drift via NTP-style benchmark wall-clock noise even though per-track BPM is deterministic. Story 4.5 reads the artifact, asserts each `track_id` resolves to a corpus file, and asserts the 4 absolute errors against this frozen baseline (NOT against a fresh Task-1 measurement).
+1. **Pre-promotion gate is satisfied; the named-track baseline is FROZEN.** `_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json` (`schema_version: 2`) is committed at SHA `8c4e28f` (verified by `git log --diff-filter=A -- _bmad-output/implementation-artifacts/4-dnb-triplet-targets.json`). All 4 named tracks resolve to existing files in `OA300_CORPUS_PATH`; all 4 entries have non-null `source` (2× `dawproject`, 2× `daw_oracle`); `current_predicted_bpm` is populated for each (Charly: 106.246; Faraday_Bunker: 113.471; Yin Yang: 113.240; HEFT_Anagram 6: 113.366) with absolute errors of 53–57 BPM (the canonical half-tempo failure mode). **Per the epic AC (`epics.md:1039`), these `current_predicted_bpm` values are NOT re-frozen at Story 4.5 PR time** — they are the named-track baseline against which the T2 non-regression assertion compares. Re-running would risk per-track drift via NTP-style benchmark wall-clock noise even though per-track BPM is deterministic. Story 4.5 reads the artifact, asserts each `track_id` resolves to a corpus file, and asserts the 4 absolute errors against this frozen baseline (NOT against a fresh Task-1 measurement).
 
 2. **The `BPMDiagnosticTrace` does NOT carry per-frame log-mel features today; Story 4.5 adds a typed-evidence trace field WITH SEMANTIC METADATA to surface them to `MLTechnique.evaluate(trace:)`.** Per Story 4.3 protocol shape (`MLTechnique.evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation?`), the conformance receives ONLY the trace — no raw audio, no per-window samples. The current trace exposes `onsetEnvelopeLength: Int`, `subBandEnergies: SubBandEnergies` (4 max-pooled values), and downstream BPM candidates — none of which are sufficient input for a tempo CNN. Schreiber & Muller (2018) requires a log-mel-spectrogram time-series as input. **Story 4.5 introduces a new typed-evidence struct** (`MLFeatureFrames: Sendable, CustomStringConvertible, Equatable`) following the project-context.md "Banned trace-field shapes" pattern: row-major `[Float]` payload + shape metadata + **semantic metadata** (Codex MAJOR #4 — without it, the trace cannot prove what the tensor means and Story 4.6 inherits ambiguity):
 
@@ -88,7 +88,7 @@ The 17 design decisions below were authored at story-creation time (2026-05-08) 
     - **4-5-HALT-(h) — Element-wise byte-identity test fails (Codex MAJOR #5 / patch P7).** A new test (Task 8.x) captures `logOutput` immediately post-`vvlogf` and asserts `MLFeatureFrames.logMelData` is element-identical to the flattened retained log-mel frames when `captureMLFeatures == true`. If the retention path mutates intermediate state, this fires — HALT and trace the mutation.
     - **4-5-HALT-(i) NEW per DD #20 (codex Item 5):** `BNNSTechnique.init` does NOT raise `MLTechniqueError.invalidTensorContract` when handed an artifact whose tensor names mismatch. The runtime invariant from DD #20 must fire on contract violation; if the test for it passes silently on a mismatched-name fixture, the validateContract step is broken — HALT and fix.
 
-13. **Test count band. Pre-story baseline = 355** (`rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` at HEAD `7e6f31e` — re-verified 2026-05-13 post-Story-4-4b complete commit; the earlier "357" measurement at HEAD `757d57c` was inaccurate by 2). Net additions per Amelia's line-by-line recalc (originally calibrated on 357, +15 additions):
+13. **Test count band. Pre-story baseline = 355** (`rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` at HEAD `02f7b9a` — re-verified 2026-05-13 post-Story-4-4b complete commit; the earlier "357" measurement at HEAD `91affe6` was inaccurate by 2). Net additions per Amelia's line-by-line recalc (originally calibrated on 357, +15 additions):
     - +4 `MLFeatureFramesTests` init preconditions (count == melBands*frames, melBands>0, frames>0, layout==.nchw)
     - +1 element-wise byte-identity test (Codex P7 / HALT (h))
     - +1 multi-window ownership invariant (single ML eval per `analyzeBPM` call — DD #17)
@@ -365,7 +365,7 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
 
 6. **Pre-promotion ground-truth verification gate (per Epic 4 retro, also gates Story 4.5 promotion to `ready-for-dev`).**
 
-   **Given** the artifact `_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json` (`schema_version: 2`, committed at SHA `9185698`)
+   **Given** the artifact `_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json` (`schema_version: 2`, committed at SHA `8c4e28f`)
    **When** the dev verifies at Task 1 (BEFORE first source edit)
    **Then** the artifact exists with all 4 expected `track_id` values populated (Charly, Faraday_Bunker, Yin Yang Audio, HEFT_Anagram 6)
    **And** all 4 `current_predicted_bpm` and `current_abs_error` values are populated (the named-track baseline; DD #1 — frozen at Story 4.1 / 4.2 / 4.3 / 4.4 baseline, NOT re-run at Story 4.5 PR time)
@@ -396,7 +396,7 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
 
    **HALT trigger (per Epic 4 retro action item T2):** if BNNS resolves < 2 of 4 named DnB triplets WITH a real model, HALT (b) fires; Completion Notes document per-track failure modes; Story 4.6 enters Branch C. (Plumbing-only / placeholder-model path is REJECTED per DD #12 — see HALT (a').)
 
-   **DnB baseline coherence (Mary's "two baselines, two purposes"):** the frozen `4-dnb-triplet-targets.json` (SHA `9185698`) is the ACCURACY oracle (compare absolute BPM errors). The element-wise byte-identity test (AC #5 / HALT (h)) is the COMPUTATIONAL oracle (compare retained spectrogram element-by-element). These baselines are NEVER cross-validated — re-running the impact report at HEAD will produce numerically different absolute errors than the JSON records (because retention is new code), and that's expected drift, NOT regression. Completion Notes must document this distinction.
+   **DnB baseline coherence (Mary's "two baselines, two purposes"):** the frozen `4-dnb-triplet-targets.json` (SHA `8c4e28f`) is the ACCURACY oracle (compare absolute BPM errors). The element-wise byte-identity test (AC #5 / HALT (h)) is the COMPUTATIONAL oracle (compare retained spectrogram element-by-element). These baselines are NEVER cross-validated — re-running the impact report at HEAD will produce numerically different absolute errors than the JSON records (because retention is new code), and that's expected drift, NOT regression. Completion Notes must document this distinction.
 
 8. **`make bnns-impact-report` Makefile target produces deterministic per-track JSON; env override `BNNS_IMPACT_OUT_DIR` works correctly (Amelia's correction to Codex P10/P11).**
 
@@ -624,11 +624,11 @@ Story 4.5 closes three correctness gaps in addition to landing the conformance:
 
     **1.5d — Logit-vs-probability verification (C2 audit).** With the bundled `giantsteps_v1.mlmodelc` loaded via the placeholder `BNNSTechnique` from Story 4.1 (no deallocator yet — that's Task 2), feed a single deterministic input (`Array(repeating: Float(0.5), count: 1*1*128*512)`) through `BNNSGraphContextExecute` and capture the 256-element output. Append to `_bmad-output/implementation-artifacts/4-5-allocator-probe.log`: `output.reduce(0, +)` (sum) and `output.max()` / `output.min()`. If sum ≈ 1.0 ± 1e-5 AND all values ∈ [0, 1], the model outputs probabilities directly (Schreiber & Müller reference architecture's softmax layer survived the CoreML conversion). If sum is unconstrained / values can be negative, the model outputs logits and `BNNSTechnique.evaluate(trace:)` must insert a host-side softmax via `vForce.exp` + `vDSP.sum` + `vDSP.divide` (subtract-max-for-stability trick). Document the choice in Task 2 commit message. Silent-correctness bug risk per axiom-ai 2026-05-13.
 
-    **1.5e — Model availability path decision (original 1.5 scope).** Verify model availability with the Project Lead. Two paths: (A) real `giantsteps_v1.mlmodelc` artifact available (Story 4-4b ships it; the chunk-4 commit `7e6f31e` includes `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/`) — Task 2 proceeds with real inference; (B) artifact unavailable → Task 2 still proceeds (the conformance + plumbing land), but HALT (b) is anticipated at Task 7 (impact report) and Story 4.6 → Branch C is the planned outcome. Document the chosen path in Task 1 commit message.
+    **1.5e — Model availability path decision (original 1.5 scope).** Verify model availability with the Project Lead. Two paths: (A) real `giantsteps_v1.mlmodelc` artifact available (Story 4-4b ships it; the chunk-4 commit `02f7b9a` includes `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/`) — Task 2 proceeds with real inference; (B) artifact unavailable → Task 2 still proceeds (the conformance + plumbing land), but HALT (b) is anticipated at Task 7 (impact report) and Story 4.6 → Branch C is the planned outcome. Document the chosen path in Task 1 commit message.
 
     **Task 4 acceptance hook (per Codex tiebreaker 2026-05-13):** once Task 1.5a-e produce evidence and Task 4 implements the chosen destructor (corrected 2026-05-13), add `swift test --sanitize=address --filter BNNSTechniqueDeinitWitnessTests` to AC #11's gating-checklist — ASan-as-runtime-validation complements 1.5's header-evidence gate. Amelia's red-test instinct lands HERE (Task 2 acceptance), not at Task 1.5 (the unknown can't be falsified by a test before the deallocator exists; Codex framing: "ASan can catch 'free of non-malloc memory' and use-after-free, but it cannot tell you the correct owner for an undocumented C pointer without an operation to observe").
   - [x] 1.5: All four sub-artifacts produced (1.5a header grep + apple-docs cross-check, 1.5b allocator probe, 1.5c symmetry paragraph in Completion Notes below, 1.5d logit-vs-probability verification, 1.5e Branch A confirmed).
-  - [ ] 1.6: Commit Task 1 artifacts as a single pre-source commit: `Story 4-5 Task 1: pre-source-change baseline artifacts` (mirrors Story 4-4 Task 1 pattern, commit `757d57c`).
+  - [ ] 1.6: Commit Task 1 artifacts as a single pre-source commit: `Story 4-5 Task 1: pre-source-change baseline artifacts` (mirrors Story 4-4 Task 1 pattern, commit `91affe6`).
 
 - [x] **Task 2: Add `MLFeatureFrames` typed-evidence struct + `BPMDiagnosticTrace.mlFeatures` field (AC: #3)**
   - [x] 2.1: In `Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift`, add `MLFeatureFrames` struct definition at the bottom of the file (alongside `BarCandidate`, `SubBandEnergies`, etc.). Use the standard 6-line evidence-type doc pattern (rationale + replacement note for any prior shape).
@@ -966,21 +966,21 @@ Two reasons:
 
 ### Previous Story Intelligence
 
-From Story 4.4 (commits `757d57c` Task 1 baseline + the in-tree close-out source at HEAD; logical status `done`):
-- **Test count baseline:** Story 4.4 closed at **355** tests in `Tests/BoomBoomBoomKitTests` (re-verified 2026-05-13 via `rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` at HEAD `7e6f31e` post-Story-4-4b-complete commit; the earlier "357" measurement at HEAD `757d57c` was inaccurate by 2 — corrected here and in DD #13 / AC #11). Story 4.5 band: **`[370, 378]`** per DD #13 (single canonical band — prior drafts at `[365, 375]` and `[368, 376]` superseded 2026-05-13).
+From Story 4.4 (commits `91affe6` Task 1 baseline + the in-tree close-out source at HEAD; logical status `done`):
+- **Test count baseline:** Story 4.4 closed at **355** tests in `Tests/BoomBoomBoomKitTests` (re-verified 2026-05-13 via `rg '@Test\(' Tests/BoomBoomBoomKitTests | wc -l` at HEAD `02f7b9a` post-Story-4-4b-complete commit; the earlier "357" measurement at HEAD `91affe6` was inaccurate by 2 — corrected here and in DD #13 / AC #11). Story 4.5 band: **`[370, 378]`** per DD #13 (single canonical band — prior drafts at `[365, 375]` and `[368, 376]` superseded 2026-05-13).
 - **Pattern REPLACED — IIFE-`guard` → private throws helper.** Story 4-4 Task 4.5 settled the IIFE shape after Codex D1 caught a `?.flatMap` Swift bug. Story 4.5 REPLACES the IIFE with a `private static func evaluateMLIfActive(options:trace:) throws -> MLEvaluation?` helper (Codex MAJOR #8 / Amelia: IIFE-with-cancellation forces a control-flow smell because the IIFE returns `MLEvaluation?` and can't throw cleanly). The Story 4-4 A1 short-circuit invariant (`RecordingMockMLTechnique.callCount == 0` on `.dspOnly`) is preserved by the helper's first `guard` clause.
 - **Pattern reuse — `JSONEncoder` byte-stable output.** Story 4-4 Task 6.5 used `outputFormatting = [.prettyPrinted, .sortedKeys]` for the `ml-policy-sweep` artifact; Story 4.5 Task 7.2 uses the identical pattern for the impact report.
 - **Pattern reuse — env-gated `@Test` + `make X-impact-report` Makefile target.** Story 3-3 (click-impact-report), Story 3-4 (duration-impact-report), Story 4-4 (ml-policy-sweep). Story 4.5 follows the same template for `bnns-impact-report`.
 - **Architecture invariant test venue.** `Tests/BoomBoomBoomKitTests/MetadataCorroborationTests.swift` is the standing venue for `*.allCases.count == N` invariants. Story 4.5 adds the `TensorLayout.allCases.count == 1` invariant here per DD #13.
 - **Cancellation-test pattern.** `RecordingMockMLTechnique.callCount == 0` per Story 4-4 AC #14 — the canonical "MockMLTechnique was NOT invoked" assertion. Story 4.5 Task 6.4 reuses for the cancellation test.
 - **Trace-field audit recipes.** `.claude/skills/bpm-diagnostic-trace/SKILL.md` recipes A-E. Story 3-3b is the canonical migration; Story 4-3b's `subBandEnergies` was the most recent typed-evidence migration. Story 4.5 Task 2.4 runs the same audit before merge.
-- **Pre-source baseline commit pattern.** Story 4-3 Task 1 (`9fd7c44`) and Story 4-4 Task 1 (`757d57c`) both committed pre-source artifacts as a separate commit BEFORE source edits. Story 4.5 Task 1.6 follows the same convention.
+- **Pre-source baseline commit pattern.** Story 4-3 Task 1 (`944f57c`) and Story 4-4 Task 1 (`91affe6`) both committed pre-source artifacts as a separate commit BEFORE source edits. Story 4.5 Task 1.6 follows the same convention.
 
-From Story 4.3 (commit `c1ba272`, completed 2026-05-05):
+From Story 4.3 (commit `c629f60`, completed 2026-05-05):
 - **`MLEvaluation` struct shape is frozen.** Three fields (`bpm`, `confidence`, `modelIdentifier`); pre-1.0 allows extension but Story 4.5 does NOT extend.
 - **Cancellation deferred-work entry filed at this story's review.** Story 4.5 resolves it per Task 6.5.
 
-From Story 4.1 (commit `29ced70`, completed 2026-05-04):
+From Story 4.1 (commit `c7ed7da`, completed 2026-05-04):
 - **`giantsteps_v1.mlmodelc` resource convention.** Story 4.5 reads `Bundle.module.url(forResource: "giantsteps_v1", withExtension: "mlmodelc")`. The Makefile `compile-model` target compiles `_bmad-output/ml-models/giantsteps_v1.mlmodel` → `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/`.
 - **`.copy("Resources")` in `Package.swift`.** `.mlmodelc` is a directory tree; `.process` would flatten it. Story 4.1's `Package.swift` is correct. Story 4.5 does NOT modify `Package.swift`.
 - **`Bundle.module` discipline.** `BoomBoomBoomKitML` ships its own `Bundle.module`; `BNNSTechnique` MUST use that target's `Bundle.module`, NEVER `BoomBoomBoomKit`'s. Verified at compile time — the core target has no `resources:` declaration so `BoomBoomBoomKit.Bundle.module` would be a compile error.
@@ -998,19 +998,19 @@ Added per Mary's Pyramid Principle stakeholder analysis. The user story speaks a
 ### DnB baseline coherence (Mary's "two baselines, two purposes")
 
 Two baselines, two purposes, NEVER cross-validated:
-1. **`_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json`** (frozen at SHA `9185698`) is the ACCURACY ORACLE. Compare absolute BPM errors (the named-track baseline DD #1). Re-running impact-report on HEAD will produce numerically different absolute errors than this JSON's `current_predicted_bpm` field — that's expected drift (spectrogram retention is new code), NOT regression.
-2. **Element-wise byte-identity test** (Codex P7 / AC #5 / HALT (h)) is the COMPUTATIONAL ORACLE. Compare retained spectrogram element-by-element against post-`vvlogf` `logOutput`. Its baseline is captured at the retention-introduction commit (Story 4.5 Task 3), NOT at SHA `9185698`.
+1. **`_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json`** (frozen at SHA `8c4e28f`) is the ACCURACY ORACLE. Compare absolute BPM errors (the named-track baseline DD #1). Re-running impact-report on HEAD will produce numerically different absolute errors than this JSON's `current_predicted_bpm` field — that's expected drift (spectrogram retention is new code), NOT regression.
+2. **Element-wise byte-identity test** (Codex P7 / AC #5 / HALT (h)) is the COMPUTATIONAL ORACLE. Compare retained spectrogram element-by-element against post-`vvlogf` `logOutput`. Its baseline is captured at the retention-introduction commit (Story 4.5 Task 3), NOT at SHA `8c4e28f`.
 
 Completion Notes MUST document this distinction explicitly so future authors don't accidentally cross-validate.
 
 ### Git intelligence
 
 Recent commits inform this story:
-- `757d57c` Story 4-4 Task 1: pre-source-change baseline artifacts. **Pattern reuse:** Story 4.5 Task 1 follows the same convention.
-- `aa786e3` Story 4-3b: perf-gate threshold tightening to 1.20x + `subBandEnergies` typed migration. Story 4.5 inherits the 1.20x perf threshold AND the typed-evidence migration discipline.
-- `c1ba272` Story 4-3: ML technique slot wiring + tuple-to-struct migration. Story 4.5 ships the first real `MLTechnique` against the post-4.3 protocol.
-- `9185698` Story 4.2: report effective intensity and graceful ML degradation. Story 4.5 does not touch `effectiveIntensity` or `degradationReason` (orthogonal).
-- `29ced70` Story 4.1: scaffold `BoomBoomBoomKitML` SPM target. Story 4.5 promotes the `BNNSTechnique` placeholder to a real conformance.
+- `91affe6` Story 4-4 Task 1: pre-source-change baseline artifacts. **Pattern reuse:** Story 4.5 Task 1 follows the same convention.
+- `161748e` Story 4-3b: perf-gate threshold tightening to 1.20x + `subBandEnergies` typed migration. Story 4.5 inherits the 1.20x perf threshold AND the typed-evidence migration discipline.
+- `c629f60` Story 4-3: ML technique slot wiring + tuple-to-struct migration. Story 4.5 ships the first real `MLTechnique` against the post-4.3 protocol.
+- `8c4e28f` Story 4.2: report effective intensity and graceful ML degradation. Story 4.5 does not touch `effectiveIntensity` or `degradationReason` (orthogonal).
+- `c7ed7da` Story 4.1: scaffold `BoomBoomBoomKitML` SPM target. Story 4.5 promotes the `BNNSTechnique` placeholder to a real conformance.
 
 ### Project Structure Notes
 
@@ -1034,7 +1034,7 @@ After Story 4.5 source changes:
 - [Source: _bmad-output/implementation-artifacts/4-4-configurable-ml-ensemble-voting-policy.md] — Story 4.4 spec (immediate predecessor; A1 short-circuit + IIFE-`guard` shape + `EnsembleDecision` typed-evidence precedent).
 - [Source: _bmad-output/implementation-artifacts/4-3-ml-technique-slot-wiring-and-tuple-to-struct-migration.md] — Story 4.3 spec (`MLTechnique` protocol shape + `MLEvaluation` struct + cancellation deferred-work entry).
 - [Source: _bmad-output/implementation-artifacts/4-1-boomboomboomkitml-package-structure.md] — Story 4.1 spec (`BNNSTechnique.swift` placeholder + `giantsteps_v1.mlmodelc` resource convention + Makefile `compile-model` target + `Bundle.module` discipline).
-- [Source: _bmad-output/implementation-artifacts/4-dnb-triplet-targets.json] — Pre-promotion gate artifact (`schema_version: 2`; committed at SHA `9185698`).
+- [Source: _bmad-output/implementation-artifacts/4-dnb-triplet-targets.json] — Pre-promotion gate artifact (`schema_version: 2`; committed at SHA `8c4e28f`).
 - [Source: _bmad-output/implementation-artifacts/deferred-work.md:244] — Story 4.5/4.6 cancellation cooperation entry (Story 4.5 resolves per Task 6.5).
 - [Source: .claude/skills/bpm-diagnostic-trace/SKILL.md] — Typed-evidence pattern + four banned anti-patterns + five audit grep recipes (A-E) — required reading before adding `MLFeatureFrames`.
 - [Reference: Schreiber & Muller (2018) "A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network"] — `https://archives.ismir.net/ismir2018/paper/000068.pdf` — shallow CNN architecture (log-mel-spectrogram → multi-filter conv → temporal pooling → dense → softmax over BPM bins). The reference implementation `https://github.com/hendriks73/tempo-cnn` provides a model the dev can convert via `coremltools` → `make compile-model` → `giantsteps_v1.mlmodelc`.
@@ -1064,7 +1064,7 @@ Claude Opus 4.7 (`claude-opus-4-7`) via the `/bmad-dev-story` workflow, session 
 
 **Branch decision for Story 4.6 inheritance: Branch C (per DD #12 BYOW reframing).**
 
-The bundled `giantsteps_v1.mlmodelc` does NOT improve on DSP accuracy at the pinned impact-report config. Empirical evidence from `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json` (captured at HEAD `739feea` via `make bnns-impact-report`):
+The bundled `giantsteps_v1.mlmodelc` does NOT improve on DSP accuracy at the pinned impact-report config. Empirical evidence from `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json` (captured at HEAD `a0a81aa` via `make bnns-impact-report`):
 
 | Metric | Result | Notes |
 |---|---|---|
@@ -1085,7 +1085,7 @@ Story 4.6 (CoreML conformance) stays in `backlog` per DD #12 — promoted only w
 | `make fmt` | clean (zero diff) | run 2026-05-13 |
 | `make lint` (scoped to `Sources/`+`Tests/`) | 1 violation, 0 serious | matches pre-existing `LUFSAnalyzer.swift:94` TODO baseline. Note: `make lint` raw output reports 157 violations from `tools/coreml-convert/.venv/` Python-bundled Swift sources — pre-existing Story 4-4b artifact, NOT Story 4-5 scope. |
 | `make test` | 378 tests pass | inside DD #13 `[370, 378]` band. Baseline at pre-Story-4-5 was 359; +19 net additions (4 MLTechniqueProtocolTests + 13 BNNSTechniqueTests + 8 MLFeatureFramesTests collapsed against 6 same-suite migrations). |
-| `make benchmark` (OA300 default config) | Acc1=58/82 (70.7%), Acc2=74/82 (90.2%) | Task 1 baseline at SHA `9c48629`; held by AC #5 byte-identity contract (DSP path is bit-exact across Story 4-5 source changes). |
+| `make benchmark` (OA300 default config) | Acc1=58/82 (70.7%), Acc2=74/82 (90.2%) | Task 1 baseline at SHA `80d1a60`; held by AC #5 byte-identity contract (DSP path is bit-exact across Story 4-5 source changes). |
 | `make benchmark-giantsteps` | Acc1=537/661 (81.2%), Acc2=546/661 (82.6%) | Task 1 baseline; same byte-identity contract. |
 | `make perf-benchmark` | mean 0.170s, mock-on-abstain ratio 0.988x | Task 1 baseline; perf gate held at 1.20x ceiling. |
 | `make bnns-impact-report` | HALT (b) fires; JSON artifact at `4-5-bnns-impact-report.json`; Branch C confirmed | See Branch decision table above. The HALT firing is the intended Story 4-5 outcome per DD #12 — the bundled-model accuracy was authorized as acceptable-but-mediocre by Story 4-4b. |
@@ -1107,7 +1107,7 @@ Story 4.6 (CoreML conformance) stays in `backlog` per DD #12 — promoted only w
 - Path B scratch verification: `swift build` succeeds post-fix. The CoreML import emits a stock Sendable-import warning (`add '@preconcurrency' to treat 'Sendable'-related errors from module 'CoreML' as warnings`) which is the canonical Apple SDK migration signal for any consumer using Core ML on Swift 6; not a project bug.
 
 **Post-review-pass Completion-Notes integers (AC #11 — added 2026-05-14, Unit 7 of review-pass implementation):**
-- **BNNS inference wall-clock per-track** (review-pass impact-report run at HEAD `dedd53b` + uncommitted Unit 1-6 patches): p50 = 228.2 ms, p95 = 319.7 ms, n = 82 tracks. Extracted via `jq '[.all_tracks[].latency_ms] | sort | .[(length/2|floor)]' 4-5-bnns-impact-report.json` (and `length * 0.95 | floor` for p95).
+- **BNNS inference wall-clock per-track** (review-pass impact-report run at HEAD `63eca4e` + uncommitted Unit 1-6 patches): p50 = 228.2 ms, p95 = 319.7 ms, n = 82 tracks. Extracted via `jq '[.all_tracks[].latency_ms] | sort | .[(length/2|floor)]' 4-5-bnns-impact-report.json` (and `length * 0.95 | floor` for p95).
 - **Two-run determinism diff exit code**: 0 (verified Unit 5 close — `make bnns-impact-report BNNS_IMPACT_OUT_DIR=/tmp/bbk-r1 && /tmp/bbk-r2 && diff <(jq 'del(.all_tracks[].latency_ms)' /tmp/bbk-r1/4-5-bnns-impact-report.json) <(jq ... /tmp/bbk-r2/...)` produced empty diff).
 - **BNNS-on Acc1/Acc2 at pinned config**: ML-only Acc1=0/82, Ensemble Acc1=58/82 (Branch C: model abstains 82/82, DSP fallback wins ensemble). BNNS-on Acc2 not separately tracked (Acc2 in current shape only sums to OA300's `bpm`/`bpmAlt` field; the impact-report harness does not run Acc2 — would require a sibling counter).
 - **Ablation `.optimal` Acc1**: NOT re-run per defer rationale above; the `>= 55/82` floor is unit-test-asserted at `AblationMatrixTests.optimalFloorHolds` and tripped on every `make test` run regardless of impact-report state.
@@ -1121,16 +1121,16 @@ Story 4.6 (CoreML conformance) stays in `backlog` per DD #12 — promoted only w
 4. **`tools/coreml-convert/.venv/` lint exclusion** — `.swiftlint.yml` should add `tools/coreml-convert/.venv` to `excluded` so `make lint` doesn't surface 157 venv-bundled Swift warnings. Story 4-4b cleanup, not Story 4-5 scope.
 
 **Deferred-work entries resolved by Story 4-5:**
-- `_bmad-output/implementation-artifacts/deferred-work.md:244` — "Story 4.5/4.6 — Cancellation cooperation across `MLTechnique.evaluate` boundary" — RESOLVED by Task 6 (`evaluateMLIfActive` helper at `AudioAnalysisService.evaluateMLIfActive`, commit `c62a40d`). Story 4.6 inherits the fix; no separate entry needed.
+- `_bmad-output/implementation-artifacts/deferred-work.md:244` — "Story 4.5/4.6 — Cancellation cooperation across `MLTechnique.evaluate` boundary" — RESOLVED by Task 6 (`evaluateMLIfActive` helper at `AudioAnalysisService.evaluateMLIfActive`, commit `2b080a3`). Story 4.6 inherits the fix; no separate entry needed.
 
 **Commit graph (this story):**
 ```
-c446069  Story 4-5 Task 1: pre-source-change baseline artifacts
-ede4cda  Story 4-5 Task 0 + 2 + 3: MLTechnique protocol freeze + MLFeatureFrames trace plumbing
-c62a40d  Story 4-5 Tasks 4 + 5 + 6 + 11: BNNS Shape A-prime conformance + cancellation helper + validateContract
-c4e3252  Story 4-5 Task 8: new BNNSTechnique + MLFeatureFrames test suites
-739feea  Story 4-5 Task 7: bnns-impact-report Makefile target + benchmark test
-2be87bb  Story 4-5 Task 9: diff-scope proof artifact
+61fefe4  Story 4-5 Task 1: pre-source-change baseline artifacts
+671f69f  Story 4-5 Task 0 + 2 + 3: MLTechnique protocol freeze + MLFeatureFrames trace plumbing
+2b080a3  Story 4-5 Tasks 4 + 5 + 6 + 11: BNNS Shape A-prime conformance + cancellation helper + validateContract
+69e458a  Story 4-5 Task 8: new BNNSTechnique + MLFeatureFrames test suites
+a0a81aa  Story 4-5 Task 7: bnns-impact-report Makefile target + benchmark test
+a21fdb4  Story 4-5 Task 9: diff-scope proof artifact
 <this>   Story 4-5 Task 12 + 13 + close-out: DocC + consumer-doc back-prop + Branch C decision
 ```
 
@@ -1172,7 +1172,7 @@ c4e3252  Story 4-5 Task 8: new BNNSTechnique + MLFeatureFrames test suites
 - `_bmad-output/implementation-artifacts/4-5-baseline-logs/{benchmark-oa300, benchmark-giantsteps, perf-benchmark}.log`
 - `_bmad-output/implementation-artifacts/4-5-bnns-impact-report.json`
 - `_bmad-output/implementation-artifacts/4-5-diff-scope-proof.txt`
-- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260513T212552Z--9c48629--9de4446f.json`
+- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260513T212552Z--80d1a60--9de4446f.json`
 
 **New develop-only tooling:**
 - `_bmad-output/ml-training/swift_feature_extractor/Sources/bnns-probe/main.swift` (Task 1.5b + 1.5d probe CLI)
@@ -1250,14 +1250,14 @@ c4e3252  Story 4-5 Task 8: new BNNSTechnique + MLFeatureFrames test suites
   - Task count: 10 → 14 (added Tasks 0, 11, 12, 13).
   - Status remains `ready-for-dev`. Sprint status unchanged.
 
-- **2026-05-14 (Story 4-5 post-merge review-pass implementation).** Eight work units applied against the four-layer adversarial code review of `9c48629..dedd53b` (3 Claude layers + Codex Blind Hunter + Codex meta-review). See `### Review Findings (post-merge code review 2026-05-13)` section for the full triage. Notable AMENDMENTS recorded here for the audit trail:
+- **2026-05-14 (Story 4-5 post-merge review-pass implementation).** Eight work units applied against the four-layer adversarial code review of `80d1a60..63eca4e` (3 Claude layers + Codex Blind Hunter + Codex meta-review). See `### Review Findings (post-merge code review 2026-05-13)` section for the full triage. Notable AMENDMENTS recorded here for the audit trail:
 
-  **AC #10 amendment (DN1).** The original AC #10 prohibited `Package.swift` modifications. The Story 4-5 close-out at `dedd53b` shipped a `Package.swift` change adding `BoomBoomBoomKitML` to both test-target deps (sibling target, not external; zero-external-deps posture preserved). The review pass's Codex meta-review thread `019e23e6-93f1-72f1-af6e-63d8f4d0e12f` recommended amending AC #10 retroactively rather than reverting, on the basis that (a) the dep is internal-only, (b) reverting would force awkward target shapes (e.g., a synthetic `BoomBoomBoomKitMLTests` target), and (c) pre-1.0 framing per project-context.md "Public API Discipline" permits the amendment. AC #10 is amended here: `Package.swift` modification IS authorized when scoped to sibling-target deps with zero new external dependencies.
+  **AC #10 amendment (DN1).** The original AC #10 prohibited `Package.swift` modifications. The Story 4-5 close-out at `63eca4e` shipped a `Package.swift` change adding `BoomBoomBoomKitML` to both test-target deps (sibling target, not external; zero-external-deps posture preserved). The review pass's Codex meta-review thread `019e23e6-93f1-72f1-af6e-63d8f4d0e12f` recommended amending AC #10 retroactively rather than reverting, on the basis that (a) the dep is internal-only, (b) reverting would force awkward target shapes (e.g., a synthetic `BoomBoomBoomKitMLTests` target), and (c) pre-1.0 framing per project-context.md "Public API Discipline" permits the amendment. AC #10 is amended here: `Package.swift` modification IS authorized when scoped to sibling-target deps with zero new external dependencies.
 
   **DN2 dismissal as stale false positive.** Codex Blind Hunter's first-pass finding ("`enableTrace` silently gates ML inference") was based on the diff hunks of `runPreCorroborationPipeline` read in isolation. The full `analyzeBPM` body at `AudioAnalysisService.swift:304-306` already computes `shouldBuildTrace = options.enableTrace || (mlTechnique != nil && policy != .dspOnly)` and passes that as the `enableTrace` parameter into `runPreCorroborationPipeline` — so the inner `captureMLFeatures = enableTrace && options.mlTechnique != nil && options.ensemblePolicy != .dspOnly` predicate is always satisfied when ML is configured. The auto-trace behavior is intentional and pre-dates this review pass. A regression test (`mlFeaturesPopulatedWithAutoTraceWhenEnableTraceOff` in `MLFeatureFramesTests`) was added to pin the invariant going forward.
 
   **DD #13 / AC #11 test count band update (post-review-pass-v2).** Pre-story
-  baseline was 355; close-out at `dedd53b` reported 379. Post-review-pass-v1
+  baseline was 355; close-out at `63eca4e` reported 379. Post-review-pass-v1
   count was 388 (Unit 1-7 additions). Post-review-pass-v2 count (after
   Codex-019e28bb plan-review cycle and the C1/C2 sweep) lands at **391**
   measured by `rg -c '@Test\(' Tests/BoomBoomBoomKitTests` (390 post-edits
@@ -1283,7 +1283,7 @@ c4e3252  Story 4-5 Task 8: new BNNSTechnique + MLFeatureFrames test suites
 
 ### Review Findings (post-merge code review 2026-05-13)
 
-**Run shape.** Four-layer adversarial code review against diff `9c48629..HEAD` (Story 4-5 close-out `dedd53b`). Layers run in parallel:
+**Run shape.** Four-layer adversarial code review against diff `80d1a60..HEAD` (Story 4-5 close-out `63eca4e`). Layers run in parallel:
 - Blind Hunter (claude, diff-only) — 30 findings.
 - Edge Case Hunter (claude, diff + project) — RATE LIMITED mid-run, no findings returned. **Failed layer; review is partial on the edge-case axis.** Re-run via `bmad-review-edge-case-hunter` before treating this review as complete coverage.
 - Acceptance Auditor (claude, diff + spec + context) — 11 AC-violation findings, 3 HALT-trigger findings, 5 spec-vs-code drifts, 5 Completion-Notes gaps.
@@ -1309,7 +1309,7 @@ Aggregation after dedup: 6 critical, ~22 major, ~16 minor, 9 decision-needed. Ca
 - [ ] [Review][Patch] **`validateContract` resolves `srcIndex/dstIndex` twice — index-drift hazard** — `validateContract` resolves and discards positions; init re-resolves them after. Single-source-of-truth violation: if `BNNSGraphGetArgumentPosition` is ever non-deterministic (cache state, ordering), validation and caching disagree silently. Fix: have `validateContract` return `(src, dst)` and have init store the validated values. [`Sources/BoomBoomBoomKitML/BNNSTechnique.swift:949-963`, `:1198-1210`]
 - [ ] [Review][Patch] **`inputTensorDesc.data` escapes `withUnsafeMutableBytes` lifetime** — pointer fields on a stack `BNNSTensor` retain the closure-scoped `baseAddress` after the closure exits. Works today only because nothing reads the tensor after `BNNSGraphContextExecute` returns. Fix: explicitly null `inputTensorDesc.data = nil` / `outputTensorDesc.data = nil` immediately after the closure body OR move `BNNSTensor` construction inside the closure so its lifetime is bounded. [`Sources/BoomBoomBoomKitML/BNNSTechnique.swift:1110-1117`]
 - [ ] [Review][Patch] **`outputTensor.shape` rebound to `Int` instead of `UInt`** — Apple's `BNNSTensor.shape` imports as `(size_t, size_t, …)`, i.e., `UInt` on 64-bit. The diff rebinds to `Int` which works only because both are 8 bytes today; strict-aliasing violation if Apple ever re-imports the tuple. Fix: rebind to `UInt` (or use the imported tuple type directly). [`Sources/BoomBoomBoomKitML/BNNSTechnique.swift:1237-1241`]
-- [ ] [Review][Patch] **Impact-report named-DnB ground-truth lookup reads OA300 gt (85 BPM) not `4-dnb-triplet-targets.json` (170 BPM) — HALT (b) evaluating wrong number** — `Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift:81-100` joins all tracks against `oa300-ground-truth.json` where Yin Yang and HEFT_Anagram 6 are 85 BPM (Rekordbox half-tempo canonical), while AC #7 / `4-dnb-triplet-targets.json` SHA `9185698` says they are 170. The `resolved_within_05 = abs(ensembleBPM − gt) < 0.5` math evaluates against 85, so any future model emitting BPMs near 85 would falsely register as "resolved." Today's 0/4 outcome happens to be correct (ML abstains 82/82 anyway) — but the gate's numerical logic is wrong and load-bearing for AC #7. Fix: when track is in named-DnB set, look up gt from `4-dnb-triplet-targets.json`'s `expected_bpm`, not the corpus-generic file. [`Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift:81-100`, `:197`]
+- [ ] [Review][Patch] **Impact-report named-DnB ground-truth lookup reads OA300 gt (85 BPM) not `4-dnb-triplet-targets.json` (170 BPM) — HALT (b) evaluating wrong number** — `Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift:81-100` joins all tracks against `oa300-ground-truth.json` where Yin Yang and HEFT_Anagram 6 are 85 BPM (Rekordbox half-tempo canonical), while AC #7 / `4-dnb-triplet-targets.json` SHA `8c4e28f` says they are 170. The `resolved_within_05 = abs(ensembleBPM − gt) < 0.5` math evaluates against 85, so any future model emitting BPMs near 85 would falsely register as "resolved." Today's 0/4 outcome happens to be correct (ML abstains 82/82 anyway) — but the gate's numerical logic is wrong and load-bearing for AC #7. Fix: when track is in named-DnB set, look up gt from `4-dnb-triplet-targets.json`'s `expected_bpm`, not the corpus-generic file. [`Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift:81-100`, `:197`]
 - [ ] [Review][Patch] **Missing `initThrowsOnMismatchedTensorNames` test — HALT (i) gate inoperable** — AC #13 mandates the test exist with a fixture `.mlmodelc` whose tensors are renamed (e.g., `var_42`). `grep -rn "initThrowsOnMismatchedTensorNames" Tests/` returns 0; no fixture exists. `validateContract` is implemented but never exercised against the negative path. The HALT explicitly says "if the test passes silently on a mismatched-name fixture, validateContract is broken — HALT and fix" — there is no test, so the gate can never fire. [`Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift` (missing)]
 
 #### Major patches (should-fix code)
@@ -1338,7 +1338,7 @@ Aggregation after dedup: 6 critical, ~22 major, ~16 minor, 9 decision-needed. Ca
 - [ ] [Review][Patch] **`AudioAnalysisService.OnsetEnvelopes` early-return path returns `nil mlFeatures` regardless of `captureMLFeatures`** — `return OnsetEnvelopes(fullBand: [], subBands: [[],[],[],[]])` takes default `mlFeatures: nil` even when the flag was true. Silent contract violation. Fix: document the contract ("`captureMLFeatures == true` does not guarantee `mlFeatures != nil` if FFT setup fails — caller MUST tolerate nil"). [`Sources/BoomBoomBoomKit/BPMAnalyzer.swift:226`]
 - [ ] [Review][Patch] **HALT (h) test compares envelopes, not post-`vvlogf` `logOutput` directly** — `retainedSpectrogramIsBitExactPostVvlogf` proves the retention path doesn't perturb downstream onset envelopes (related to but not identical with the spec's "element-wise byte-identity between retained `logMelData` and the post-`vvlogf` `logOutput`"). Fix: capture `logOutput` immediately after the `vvlogf` call via a test-only hook (`@testable internal func computeMelOnsetEnvelopeWithSubBandsWithLogProbe(...)` returning the intermediate) and assert `zip(retained.logMelData, captured.flatMap{$0}).allSatisfy { $0.bitPattern == $1.bitPattern }`. [`Tests/BoomBoomBoomKitTests/MLFeatureFramesTests.swift:2114-2165`]
 - [ ] [Review][Patch] **AC #16 README missing "Using your own tempo model" section header** — top-level `README.md` has the single inline sentence but no section header. Fix: wrap the existing sentence in `## Using your own tempo model` + link to `tools/coreml-convert/README.md`. [`README.md`]
-- [ ] [Review][Patch] **Diff-scope-proof artifact captured at `739feea`, pre-dates close-out commits** — `4-5-diff-scope-proof.txt` shows HEAD as `739feea`; commits `c4e3252` (test suites) and `dedd53b` (DocC + Branch C close-out) followed without re-capture. AC #10 demands a frozen proof at PR time. Fix: re-run the proof generation at current HEAD and overwrite the artifact. [`_bmad-output/implementation-artifacts/4-5-diff-scope-proof.txt`]
+- [ ] [Review][Patch] **Diff-scope-proof artifact captured at `a0a81aa`, pre-dates close-out commits** — `4-5-diff-scope-proof.txt` shows HEAD as `a0a81aa`; commits `69e458a` (test suites) and `63eca4e` (DocC + Branch C close-out) followed without re-capture. AC #10 demands a frozen proof at PR time. Fix: re-run the proof generation at current HEAD and overwrite the artifact. [`_bmad-output/implementation-artifacts/4-5-diff-scope-proof.txt`]
 - [ ] [Review][Patch] **AC #15 worked-example compile-verification SHA absent** — AC mandates Completion Notes link to a scratch-app commit SHA proving the four README examples compile with the actual API. No SHA in close-out. Fix: either spin up the scratch app, run each example, record the SHA, OR explicitly document the verification was deferred and re-open trigger.
 
 #### Minor patches (nice-to-have)
@@ -1623,15 +1623,15 @@ Chunk 3 is evidence/process — there are no source patches to apply here. The f
   2. OR explicitly mark Story 4-5 as "BNNS infrastructure ships; impact deferred to Story 4-7+" — accept that this story delivers the wiring without the accuracy win, and defer DnB recovery to a follow-up that fixes the model.
   3. OR (least preferred) accept the no-impact result and re-scope AC #7's success criteria. This is the worst option because it changes the contract after the fact.
 
-- [ ] [Chunk 3][C2] **Impact report git-sha is `-dirty`** `[4-5-bnns-impact-report.json]` — `snapshot_sha: "0b2d8dc-dirty"`. The report was generated against an unreproducible source state. The Makefile's `-dirty` suffix is doing what it's supposed to (correctly flagging the issue), but the dirty marker invalidates the report as audit evidence. **Decision required:** land any regenerated `_bmad-output/` artifact (like the regression-snapshot rewrite in 4027b34) as a standalone commit, then in a follow-up CLEAN-WORKTREE commit run `make bnns-impact-report` and check in the result with a clean 7-char SHA. If the regenerated report still shows `ml_acc1=0`, no amount of provenance cleanup salvages it — see C1.
+- [ ] [Chunk 3][C2] **Impact report git-sha is `-dirty`** `[4-5-bnns-impact-report.json]` — `snapshot_sha: "7383c46-dirty"`. The report was generated against an unreproducible source state. The Makefile's `-dirty` suffix is doing what it's supposed to (correctly flagging the issue), but the dirty marker invalidates the report as audit evidence. **Decision required:** land any regenerated `_bmad-output/` artifact (like the regression-snapshot rewrite in b09bff4) as a standalone commit, then in a follow-up CLEAN-WORKTREE commit run `make bnns-impact-report` and check in the result with a clean 7-char SHA. If the regenerated report still shows `ml_acc1=0`, no amount of provenance cleanup salvages it — see C1.
 
 - [ ] [Chunk 3][C3] **Frozen Task-1 regression snapshot was rewritten post-Task-1** `[4-5-regression-snapshot.json]` — `git log` shows two commits:
   ```
-  4027b34 Story 4-5 review pass v2: regenerate post-fix artifacts    ← REWROTE the snapshot
-  c446069 Story 4-5 Task 1: pre-source-change baseline artifacts     ← original frozen baseline
+  b09bff4 Story 4-5 review pass v2: regenerate post-fix artifacts    ← REWROTE the snapshot
+  61fefe4 Story 4-5 Task 1: pre-source-change baseline artifacts     ← original frozen baseline
   ```
   The whole point of a Task-1 pre-source-change baseline is that it gets captured BEFORE source touches and is frozen thereafter. The schema rewrite happened AFTER Story 4-5 source changes landed. **Decision required:**
-  1. Restore the original `c446069` content and acknowledge the rewrite was a mistake. The Task-1 baseline IS the byte-identity gate.
+  1. Restore the original `61fefe4` content and acknowledge the rewrite was a mistake. The Task-1 baseline IS the byte-identity gate.
   2. OR delete `4-5-regression-snapshot.json` outright and rely solely on `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-3-baseline-bpms.json` for the byte-identity gate (which IS frozen on disk and consumed by `MLPolicySweepTests::dspOnlyMatchesStory4_3Baseline`). The current `_bmad-output/` snapshot is then decorative; remove it to avoid confusion.
 
 ### Major findings (4)

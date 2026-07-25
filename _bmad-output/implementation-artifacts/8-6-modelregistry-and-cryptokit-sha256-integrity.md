@@ -1,5 +1,5 @@
 ---
-baseline_commit: ceb153d1e01c2aa0448e1dd27880396b941ff55d
+baseline_commit: 159f707e980210e5d6d910bd5411d32c0d5fb1e3
 ---
 
 # Story 8.6: ModelRegistry + ModelRegistryEntry + ModelRegistryError + CryptoKit SHA-256 integrity
@@ -145,7 +145,7 @@ Opus 4.8 (claude-opus-4-8), bmad-dev-story workflow.
 
 ### Debug Log References
 
-- Branch hygiene: the prior `rterhaar/8-6` branch was the (merged) dev branch for Story 8-5a (PR #39); its stale remote had diverged. Confirmed no 8-6 implementation existed anywhere (no `ModelRegistry*` files on `origin/rterhaar/8-6`, in the working tree, or in any PR). Started fresh on `rterhaar/8-6-modelregistry` off the epic-8 tip (`ceb153d`) per operator decision.
+- Branch hygiene: the prior `rterhaar/8-6` branch was the (merged) dev branch for Story 8-5a (PR #39); its stale remote had diverged. Confirmed no 8-6 implementation existed anywhere (no `ModelRegistry*` files on `origin/rterhaar/8-6`, in the working tree, or in any PR). Started fresh on `rterhaar/8-6-modelregistry` off the epic-8 tip (`159f707`) per operator decision.
 - Lint: initial run flagged 2 new `optional_data_string_conversion` violations from `String(decoding:as:)` (hexString builder + a Codable test). Switched `hexString` to `bytes.map { String(format: "%02x", $0) }.joined()` and the test to the failable `String(data:encoding:)` + `#require`. Final lint clean except the documented `LUFSAnalyzer.swift:135` TODO baseline.
 
 ### Completion Notes List

@@ -17,7 +17,7 @@ So that Story 4-5's HALT (a') gate clears with a real (non-random-weight) refere
 
 ## Key Design Decisions
 
-The 13 design decisions below were authored at story-creation time (2026-05-09) against HEAD `757d57c` plus the staged Story 4-5 spec, then revised same-day after Project Lead pivoted to the bring-your-own-weights adapter pattern. The Project Lead reviews this block BEFORE the dev agent begins Task 1. **DDs #0, #5, #7, #11, #13 are the most consequential decisions** — they lock the adapter pattern (DD #0), feature-pipeline parity contract (DD #5), BPM bin schema (DD #7), reference-model sanity targets (DD #11, reframed from HALT-only to soft), and consumer-facing convert-tool contract (DD #13).
+The 13 design decisions below were authored at story-creation time (2026-05-09) against HEAD `91affe6` plus the staged Story 4-5 spec, then revised same-day after Project Lead pivoted to the bring-your-own-weights adapter pattern. The Project Lead reviews this block BEFORE the dev agent begins Task 1. **DDs #0, #5, #7, #11, #13 are the most consequential decisions** — they lock the adapter pattern (DD #0), feature-pipeline parity contract (DD #5), BPM bin schema (DD #7), reference-model sanity targets (DD #11, reframed from HALT-only to soft), and consumer-facing convert-tool contract (DD #13).
 
 0. **Reference + bring-your-own-weights adapter pattern (foundational, added 2026-05-09 pivot).** BoomBoomBoomKit's ML augmentation is a pluggable surface: consumers can ship the bundled reference model (default, works out of the box) OR override with their own `.mlmodelc` produced from any PyTorch model. Three contracts make this concrete:
     - **Public protocol = `MLTechnique`** (already declared per CLAUDE.md as "Definition only, no conformances yet"). Story 4-5 ships the first conformance (`BNNSTempoTechnique` or similar) and the override API; this story produces the reference weights that the default conformance loads. Power users implement their own `MLTechnique` conformance (CoreML, BNNSGraph, MPSGraph, MLX, even pure-Swift inference) — feature pipeline, inference, and scoring are all consumer-controlled at that level.
@@ -418,7 +418,7 @@ The story is **explicitly out-of-scope** of Epic 4's planning posture — Epic 4
   - [x] 1.3: Create `_bmad-output/ml-training/` directory. Initialize Python project: `cd _bmad-output/ml-training && uv init --bare && uv add torch torchaudio librosa numpy coremltools tqdm`. Verify `uv.lock` is generated.
   - [x] 1.4: Verify `coremltools` Python compat at the current PyPI release. If `requires-python` excludes 3.13 (or whatever's current), pin `requires-python = ">=3.11,<3.13"` in `pyproject.toml`. Re-run `uv sync` to verify. **Pinned `>=3.11,<3.14` because coremltools 9.0 supports up to 3.13 (no 3.14 classifier yet); user-approved spec deviation 2026-05-09.**
   - [x] 1.5: Verify MPS availability: `uv run python -c "import torch; print(torch.backends.mps.is_available())"` prints `True`.
-  - [x] 1.6: Commit Task 1 artifacts: `Story 4-4b Task 1: pre-source baseline + Python env scaffolding` (mirrors Story 4-4 Task 1 / Story 4-5 Task 1 pattern). **Committed at 73f8188.**
+  - [x] 1.6: Commit Task 1 artifacts: `Story 4-4b Task 1: pre-source baseline + Python env scaffolding` (mirrors Story 4-4 Task 1 / Story 4-5 Task 1 pattern). **Committed at 79e9dc2.**
 
 - [x] **Task 2: Corpus split + ground-truth verification (AC: #4)**
   - [x] 2.1: Write `_bmad-output/ml-training/dataset.py` skeleton. Function `build_splits()` reads `OA300_CORPUS_PATH/Tests/.../oa300-ground-truth.json` (path TBD — actual file is at `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json` in the repo) and `GIANTSTEPS_CORPUS_PATH/giantsteps-tempo-ground-truth.json`. Builds three lists: `train`, `val`, `test`.
@@ -592,10 +592,10 @@ From Story 4-5 (`ready-for-dev`, blocks on this story):
 - **HALT (a') gate.** Story 4-5 DD #12 / HALT (a') REQUIRES a real (non-random-weight) `.mlmodelc` artifact. Story 4-4b is the response to that gate.
 - **Tensor name contract.** Story 4-5 DD #16 + AC #1 specify `BNNSGraphGetArgumentPosition(graph, nil, "input")` and `BNNSGraphGetArgumentPosition(graph, nil, "output")`. The trained model MUST honor these names (AC #9).
 - **Feature pipeline parity.** Story 4-5 DD #2 + DD #5 lock the `MLFeatureFrames` shape; Story 4-4b's training must produce the same feature pipeline (AC #3).
-- **DnB triplet baseline.** Story 4-5 DD #1 freezes the named-track baseline at SHA `9185698`. Story 4-4b's eval reads the same `4-dnb-triplet-targets.json` (AC #11).
+- **DnB triplet baseline.** Story 4-5 DD #1 freezes the named-track baseline at SHA `8c4e28f`. Story 4-4b's eval reads the same `4-dnb-triplet-targets.json` (AC #11).
 - **HALT (b) downstream.** Story 4-5's HALT (b) tests resolution of ≥ 2/4 named DnB triplets at runtime. Story 4-4b's AC #11 named-track gate ensures the trained model has a real chance of clearing it.
 
-From Story 4.1 (`done`, commit `29ced70`):
+From Story 4.1 (`done`, commit `c7ed7da`):
 - **`compile-model` Makefile target.** Story 4.1 ships `make compile-model` reading `ML_MODEL_INPUT ?= _bmad-output/ml-models/giantsteps_v1.mlmodel`. Story 4-4b consumes this target at Task 8 (no modification needed).
 - **`.copy("Resources")` discipline.** Story 4.1 DD #2 — `.mlmodelc` is a directory tree. The `compile-model` target produces this tree under `Sources/BoomBoomBoomKitML/Resources/`; it bundles correctly via `.copy`.
 - **Tempo classifier resource convention.** Story 4.1 + Story 4-5 settled `giantsteps_v1.mlmodelc` as the model file name. Story 4-4b honors this convention; do NOT rename.
@@ -742,7 +742,7 @@ All Change Log entries written under "2026-05-09 (dev-time spec amendments autho
 
 ### Review Findings — Chunk 3 of 4 (main-bound non-tool surface — `MODEL_CARD.md`, `Makefile`, `README.md`, `.gitignore`, bundled `.mlmodelc`)
 
-Code review run 2026-05-09 against staged tree at branch `rterhaar/epic-4` vs Task-1-pre-source-SHA `73f8188`. Three parallel reviewers: Blind Hunter (diff-only), Edge Case Hunter (diff + project), Acceptance Auditor (diff + spec). Findings dedup'd and triaged. **Chunks 1, 2, 4 not yet reviewed in this pass.**
+Code review run 2026-05-09 against staged tree at branch `rterhaar/epic-4` vs Task-1-pre-source-SHA `79e9dc2`. Three parallel reviewers: Blind Hunter (diff-only), Edge Case Hunter (diff + project), Acceptance Auditor (diff + spec). Findings dedup'd and triaged. **Chunks 1, 2, 4 not yet reviewed in this pass.**
 
 - [x] [Review][Decision] README references `BNNSTechnique` / `BNNSTechnique(modelURL:)` before Story 4-5 has shipped — **RESOLVED 2026-05-09 (option a, accept the gap)**. Story 4-5 (`4-5-bnns-mltechnique-conformance`) is `ready-for-dev`; consumers cloning between 4-4b ship and 4-5 ship will hit "Cannot find type 'BNNSTechnique' in scope" on the `README.md:152` / `MODEL_CARD.md:117` BYOM example. Project Lead chose to accept the gap, on the bet that 4-5 lands close behind 4-4b and pre-1.0 consumers tolerate the short window. **Re-open trigger:** if 4-5 slips materially, revisit and switch to option (b) (preview framing) before the next squash to main.
 

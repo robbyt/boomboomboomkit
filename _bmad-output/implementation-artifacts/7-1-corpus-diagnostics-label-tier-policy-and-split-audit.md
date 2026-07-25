@@ -1,5 +1,5 @@
 ---
-baseline_commit: effb1d54106acfd83acb34cdd154dd024c30c788
+baseline_commit: 07a235375a0eba32bcdb789c8742debd34db13f0
 ---
 
 # Story 7.1: Corpus diagnostics + label-tier policy + split-contamination audit

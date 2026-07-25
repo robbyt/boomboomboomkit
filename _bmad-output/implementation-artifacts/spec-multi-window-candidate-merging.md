@@ -3,7 +3,7 @@ title: 'Multi-window candidate merging for progressive BPM analysis'
 type: 'feature'
 created: '2026-03-26'
 status: 'done'
-baseline_commit: '512c2cd'
+baseline_commit: '3236b89'
 context: [CLAUDE.md, TODO.md]
 ---
 

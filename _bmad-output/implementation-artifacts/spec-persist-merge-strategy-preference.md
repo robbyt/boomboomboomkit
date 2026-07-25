@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-05-25'
 status: 'done'
 context: ['{project-root}/CLAUDE.md']
-baseline_commit: 'b2a4122'
+baseline_commit: '840dd60'
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">

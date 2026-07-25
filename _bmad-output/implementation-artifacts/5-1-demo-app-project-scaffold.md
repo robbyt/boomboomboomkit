@@ -812,7 +812,7 @@ Findings section. A2 trigger satisfied.
 
 ### File List
 
-Final set as of 2026-05-19 pass-2 close-out (`git diff --stat f8ddbbe`: 16 files changed, +1789 / −5):
+Final set as of 2026-05-19 pass-2 close-out (`git diff --stat c120bc2`: 16 files changed, +1789 / −5):
 
 ```
 Demo/BoomBoomBoomKitDemo/BoomBoomBoomKitDemo.xcodeproj/project.pbxproj                                (new, 511 lines)

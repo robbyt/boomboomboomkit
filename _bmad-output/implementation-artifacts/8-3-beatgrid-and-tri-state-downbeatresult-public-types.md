@@ -1,5 +1,5 @@
 ---
-baseline_commit: 9b3c6e3230e5eb54324d0eebf1db9e0827236afa
+baseline_commit: 7399ff2374f4fa73269828d29c57591772bd8cc2
 ---
 
 # Story 8.3: `BeatGrid` + `BeatTimestamp` + tri-state `DownbeatResult` public types
@@ -180,7 +180,7 @@ Code review 2026-06-13 (3 layers: Blind Hunter via Codex, Edge Case Hunter, Acce
 - Test file: `Tests/BoomBoomBoomKitTests/BeatGridTypesTests.swift` (the `BoomBoomBoomKitTests` target; `make test` filters to it).
 - `BoomBoomBoomKitTestSupport` is already a test dependency (`Package.swift:36`) — import it for `NumericTestHelpers`.
 
-### Previous-story intelligence (Story 8-2, `done` @ `9b3c6e3`/`b91e588`)
+### Previous-story intelligence (Story 8-2, `done` @ `7399ff2`/`d68daf3`)
 
 - 8-2 created the `BeatGridAnalyzer` stub specifically so 8.3+8.4 have a landing seam; it is exercised by `FeatureSubstrateTests`. Leave both alone.
 - 8-2's review cycle repeatedly caught **under-clamped numeric inits trapping/propagating on non-finite inputs** (the `cappedSampleCount` Int64 overflow MAJOR; the `DecodedAudio.init` ≥8kHz-but-otherwise-unbounded admission). The lesson directly informs DD #2/#3: clamp at the boundary, test the hostile input, never assume the producer is well-behaved.

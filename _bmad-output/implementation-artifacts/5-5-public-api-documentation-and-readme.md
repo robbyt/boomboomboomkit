@@ -470,7 +470,7 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
     - **Commit 3** — `Story 5-5: README extension + pre-1.0 framing` — README.md content additions.
     - Final commit (or amend to Commit 3) — story spec + sprint-status.yaml.
   - [ ] 8.2 Verify diff scope per AC #14 against the AGGREGATE diff (not per-commit) — the three-commit split is for review readability, the gating gauntlet runs against the merged state.
-  - [ ] 8.3 Commit message style: `Story 5-5: <subject>` (imperative mood, follows the `Story X-Y: <subject>` precedent from b6b5dd3 — see `feedback_no_business_jargon_in_commits` memory). NO "close out" / "ship" / "deliver" framing.
+  - [ ] 8.3 Commit message style: `Story 5-5: <subject>` (imperative mood, follows the `Story X-Y: <subject>` precedent from 4bb2594 — see `feedback_no_business_jargon_in_commits` memory). NO "close out" / "ship" / "deliver" framing.
   - [ ] 8.4 Commit signing: 1Password GPG signer per Story 5-1 / 5-2 / 5-3 / 5-4 close-out precedent. If signer is locked, stage but defer commit.
   - [ ] 8.5 Update sprint-status.yaml: `5-5-public-api-documentation-and-readme: review`. (User flips to `done` after Task 7 code-review pass per Story 5-3 + 5-4 cadence.)
 

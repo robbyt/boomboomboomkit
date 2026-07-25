@@ -1,5 +1,5 @@
 ---
-baseline_commit: ac490347b7098a664e30530298becbd135a96015
+baseline_commit: 17d7e236bec1868897a0886ff1302671171e03d4
 ---
 
 # Story 8.10: Continuous beat-grid tempo refinement (sub-0.1-BPM) + drift-rate acceptance harness
@@ -130,8 +130,8 @@ The technique's failure modes (reject-guard fired? octave-snapped? refined the w
 
 ### Previous Story Intelligence (PSI)
 
-- **Story 8-9** (`f8f2600`, beat-grid tempo-precision refinement) — NEGATIVE result: a DP-beat tempo+phase refit regressed F 0.3718→0.3254 with no reject-guard and was reverted; `BeatGridAnalyzer.swift` is byte-identical to HEAD. **This story's DD #2/#4 are the direct corrective** (continuous onset-comb fit, not DP beats; mandatory reject-guard). Kept from 8-9: `decompose_beatgrid.py` + stratified drift reporting confirming failures are tempo-precision, not phase.
-- **Story 8-9 / 53313c0** shipped `BeatGridTempoLock` (`.off`/`.bpmStage`/`.bpm(Double)`) fully wired via `Options.beatGridTempoLock` + `applyTempoLock` — the manual BPM-lock primitive 8-12 builds on; this story feeds the auto path beneath it.
+- **Story 8-9** (`0d4fb35`, beat-grid tempo-precision refinement) — NEGATIVE result: a DP-beat tempo+phase refit regressed F 0.3718→0.3254 with no reject-guard and was reverted; `BeatGridAnalyzer.swift` is byte-identical to HEAD. **This story's DD #2/#4 are the direct corrective** (continuous onset-comb fit, not DP beats; mandatory reject-guard). Kept from 8-9: `decompose_beatgrid.py` + stratified drift reporting confirming failures are tempo-precision, not phase.
+- **Story 8-9 / 2ab78c0** shipped `BeatGridTempoLock` (`.off`/`.bpmStage`/`.bpm(Double)`) fully wired via `Options.beatGridTempoLock` + `applyTempoLock` — the manual BPM-lock primitive 8-12 builds on; this story feeds the auto path beneath it.
 - **Story 8-7** — measurement harness + floors (0.33 F / 2.0 s drift); its pressure-release doc is this story's mandate. Floors are regression nets, not quality claims.
 - Test/gating pattern: env-gated benchmark + per-track impact JSON + `make` target (mirror `make beat-grid-impact-report`); byte-identity opt-out via `Double.bitPattern`.
 
