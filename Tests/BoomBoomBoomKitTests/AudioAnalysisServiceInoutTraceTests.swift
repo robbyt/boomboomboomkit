@@ -49,12 +49,8 @@ private struct CannedMLDiagnosticTechnique: MLDiagnosticTechnique {
 /// Builds a representative win-path snapshot for use in mocks.
 private func makeWinSnapshot() -> MLDiagnosticSnapshot {
   MLDiagnosticSnapshot(
-    decodedBPM: 128.0,
-    softmaxMax: 0.75,
-    softmaxSecondMax: 0.10,
     inputFeatureChecksum: 0xDEAD_BEEF_CAFE_BABE,
-    failureStage: nil,
-    gateFired: nil)
+    outcome: .win(.init(bpm: 128.0, softmaxMax: 0.75, softmaxSecondMax: 0.10)))
 }
 
 /// Resolves a bundled click-track fixture that produces a real

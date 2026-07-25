@@ -20,7 +20,7 @@ import BoomBoomBoomKitTestSupport
 import Foundation
 import Testing
 
-@testable import BoomBoomBoomKitML  // Story 4-6 Task 7: access `thresholdOverride` seam.
+@testable import BoomBoomBoomKitML  // `supportedFeatureSetVersion` is internal.
 
 // MARK: - JSON schema
 
@@ -63,10 +63,11 @@ private struct BNNSImpactReport: Codable, Sendable {
   /// preservation oracle (DD #4).
   let dsp_correct_control_results: [DnBControlResult]
   let all_tracks: [TrackRow]
-  /// Story 4-6 AC #7: 7-bucket histogram (6 failure stages + `noAbstain`
-  /// for the win path). Empirical proof of which hypothesis was correct
-  /// across the corpus — diff before/after a remediation to see what
-  /// changed.
+  /// Story 4-6 AC #7: bucket histogram keyed by `OutcomeKey` — the four
+  /// snapshot-representable failure stages, `noAbstain` for the win path,
+  /// and the four whole-evaluation outcomes that produce no snapshot.
+  /// Empirical proof of which hypothesis was correct across the corpus —
+  /// diff before/after a remediation to see what changed.
   let failure_stage_histogram: [String: Int]
   /// Story 4-6 DD #5: corpus-wide distribution stats. Populated only
   /// when the impact run actually reached the decode stage on at least
@@ -139,6 +140,43 @@ private struct DnBControlResult: Codable, Sendable {
   let ml_diagnostic_snapshot: DiagnosticSnapshotJSON?
 }
 
+/// The harness's own outcome taxonomy — GH-167 item 6 (#124).
+///
+/// Deliberately BROADER than ``MLDiagnosticSnapshot/FailureStage``: it must
+/// also name whole-evaluation outcomes that produce no snapshot at all
+/// (features absent, feature-set drift, ML never ran, conformer opted out of
+/// diagnostics). Those are not snapshot-representable — `inputFeatureChecksum`
+/// is non-optional and there is nothing to checksum — which is why the two
+/// pre-featurize cases were removed from the public enum rather than
+/// legalized there.
+///
+/// Previously these nine keys were bare string literals repeated across the
+/// histogram seed, the bucket assignment and the print loop, with nothing
+/// tying the three lists together. Now `allCases` drives all three.
+private enum OutcomeKey: String, CaseIterable, Sendable {
+  case noAbstain
+  case featuresAbsent
+  case featureVersionMismatch
+  case featurizeRejected
+  case graphFailed
+  case decodeRejected
+  case confidenceGateRejected
+  case mlNotRun
+  case diagnosticSnapshotMissing
+
+  /// Projects a snapshot's stage into the harness taxonomy. A nil stage
+  /// is the win path.
+  init(failureStage: MLDiagnosticSnapshot.FailureStage?) {
+    switch failureStage {
+    case nil: self = .noAbstain
+    case .featurizeRejected: self = .featurizeRejected
+    case .graphFailed: self = .graphFailed
+    case .decodeRejected: self = .decodeRejected
+    case .confidenceGateRejected: self = .confidenceGateRejected
+    }
+  }
+}
+
 /// Story 4-6 AC #12: private mirror struct for JSON encoding the public
 /// `MLDiagnosticSnapshot`. The public type is NOT `Codable` per DD #11
 /// + W4 — `BPMDiagnosticTrace` is not `Codable` so there's no synthesis
@@ -168,8 +206,8 @@ private struct DiagnosticSnapshotJSON: Codable, Sendable {
   /// harness inspects the trace's `mlFeatures` to decide
   /// `featuresAbsent` vs `featureVersionMismatch`; all numeric fields
   /// are nil because no feature payload was checksummed.
-  init(preFeaturizeAbstain stage: String) {
-    self.failure_stage = stage
+  init(preFeaturizeAbstain key: OutcomeKey) {
+    self.failure_stage = key.rawValue
     self.decoded_bpm = nil
     self.softmax_max = nil
     self.softmax_second_max = nil
@@ -384,16 +422,22 @@ struct BNNSImpactTests {
       // the Makefile sweep loop can drive 7 runs at different thresholds
       // without re-compiling. Both vars MUST be set together; partial
       // override is rejected to avoid mixing default + override states.
+      //
+      // GH-167 item 6 (#144): the thresholds are now constructor
+      // arguments rather than a process-global override, so the sweep
+      // configures the instance it builds below and there is no global
+      // state to reset afterwards.
       let envConf =
         ProcessInfo.processInfo.environment["BNNS_THRESHOLD_OVERRIDE_CONFIDENCE"]
       let envMargin =
         ProcessInfo.processInfo.environment["BNNS_THRESHOLD_OVERRIDE_MARGIN"]
-      let appliedThresholds: (confidence: Double, margin: Double)
+      // The REQUESTED values. What the technique actually applies after
+      // clamping is read back off the instance for the report.
+      let requestedThresholds: (confidence: Double, margin: Double)
       if let confStr = envConf, let marginStr = envMargin,
         let confVal = Double(confStr), let marginVal = Double(marginStr)
       {
-        BNNSTechnique.thresholdOverride.withLock { $0 = (confVal, marginVal) }
-        appliedThresholds = (confVal, marginVal)
+        requestedThresholds = (confVal, marginVal)
       } else if envConf != nil || envMargin != nil {
         Issue.record(
           Comment(
@@ -403,13 +447,10 @@ struct BNNSImpactTests {
               + "margin=\(envMargin ?? "nil"))"))
         return
       } else {
-        appliedThresholds = (
-          BNNSTechnique.confidenceThreshold,
-          BNNSTechnique.marginConfidenceThreshold
+        requestedThresholds = (
+          BNNSTechnique.defaultConfidenceThreshold,
+          BNNSTechnique.defaultMarginThreshold
         )
-      }
-      defer {
-        BNNSTechnique.thresholdOverride.withLock { $0 = nil }
       }
       // Hoist `BNNSTechnique()` out of the per-track loop so the graph
       // compiles ONCE per benchmark run, not 82× (review fix M7).
@@ -425,9 +466,14 @@ struct BNNSImpactTests {
           ProcessInfo.processInfo.environment["BNNS_MODEL_URL"]
           .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
         if let envURL = envModelURL {
-          bnnsTechnique = try BNNSTechnique(modelURL: envURL)
+          bnnsTechnique = try BNNSTechnique(
+            modelURL: envURL,
+            confidenceThreshold: requestedThresholds.confidence,
+            marginThreshold: requestedThresholds.margin)
         } else {
-          bnnsTechnique = try BNNSTechnique()
+          bnnsTechnique = try BNNSTechnique(
+            confidenceThreshold: requestedThresholds.confidence,
+            marginThreshold: requestedThresholds.margin)
         }
       } catch {
         let msg =
@@ -471,17 +517,8 @@ struct BNNSImpactTests {
       // are real-world outcomes the v3 schema must surface honestly so
       // the conservation invariant `histogramSum == allRows.count`
       // holds without an out-of-band skip counter.
-      var failureStageHistogram: [String: Int] = [
-        "featuresAbsent": 0,
-        "featureVersionMismatch": 0,
-        "featurizeRejected": 0,
-        "graphFailed": 0,
-        "decodeRejected": 0,
-        "confidenceGateRejected": 0,
-        "noAbstain": 0,
-        "mlNotRun": 0,
-        "diagnosticSnapshotMissing": 0,
-      ]
+      var failureStageHistogram: [String: Int] = Dictionary(
+        uniqueKeysWithValues: OutcomeKey.allCases.map { ($0.rawValue, 0) })
       // Story 4-6 AC #7: per-control results accumulated alongside the
       // named-DnB results. Different metric: PRESERVATION (DSP was
       // right; did ML break it?) rather than RESOLUTION.
@@ -639,7 +676,7 @@ struct BNNSImpactTests {
         let bucketKey: String
         if let snapshot = trace?.mlDiagnosticSnapshot {
           snapshotJSON = DiagnosticSnapshotJSON(from: snapshot)
-          bucketKey = snapshot.failureStage?.rawValue ?? "noAbstain"
+          bucketKey = OutcomeKey(failureStage: snapshot.failureStage).rawValue
         } else if trace == nil {
           // ML did not run for this track at all — `bnnsResult` is nil
           // (analyzer threw / returned no result) or trace was never
@@ -648,22 +685,22 @@ struct BNNSImpactTests {
           // silent skip — bucket it explicitly so the conservation
           // invariant holds.
           snapshotJSON = DiagnosticSnapshotJSON(
-            preFeaturizeAbstain: "mlNotRun")
-          bucketKey = "mlNotRun"
+            preFeaturizeAbstain: .mlNotRun)
+          bucketKey = OutcomeKey.mlNotRun.rawValue
         } else if trace?.mlFeatures == nil {
           // Pre-featurize abstain: featuresAbsent. No snapshot was
           // constructed; harness emits a synthetic JSON record so the
           // report row still names the bucket.
           snapshotJSON = DiagnosticSnapshotJSON(
-            preFeaturizeAbstain: "featuresAbsent")
-          bucketKey = "featuresAbsent"
+            preFeaturizeAbstain: .featuresAbsent)
+          bucketKey = OutcomeKey.featuresAbsent.rawValue
         } else if trace?.mlFeatures?.featureSetVersion
           != BNNSTechnique.supportedFeatureSetVersion
         {
           // Pre-featurize abstain: featureVersionMismatch.
           snapshotJSON = DiagnosticSnapshotJSON(
-            preFeaturizeAbstain: "featureVersionMismatch")
-          bucketKey = "featureVersionMismatch"
+            preFeaturizeAbstain: .featureVersionMismatch)
+          bucketKey = OutcomeKey.featureVersionMismatch.rawValue
         } else {
           // Trace exists, mlFeatures present and supported version,
           // but no snapshot — implies the conformer did NOT adopt
@@ -675,8 +712,8 @@ struct BNNSImpactTests {
           // distinct from `mlNotRun` (which is "ML attempted, failed
           // upstream") — this is "ML ran, diagnostics opted out".
           snapshotJSON = DiagnosticSnapshotJSON(
-            preFeaturizeAbstain: "diagnosticSnapshotMissing")
-          bucketKey = "diagnosticSnapshotMissing"
+            preFeaturizeAbstain: .diagnosticSnapshotMissing)
+          bucketKey = OutcomeKey.diagnosticSnapshotMissing.rawValue
         }
         // Conservation invariant: every track lands in exactly one
         // bucket. No silent-skip branches remain (Story 4-6 code review
@@ -857,9 +894,14 @@ struct BNNSImpactTests {
         all_tracks: allRows,
         failure_stage_histogram: failureStageHistogram,
         corpus_distribution: corpusDistribution,
+        // Record what the technique ACTUALLY applied, not what was
+        // requested: the initializer clamps to [0, 1], so an env override
+        // of 1.5 runs inference at 1.0. Reporting the request would make
+        // the sweep artifact misdescribe the configuration that produced
+        // its own measurements (GH-167 item 6 review).
         applied_thresholds: AppliedThresholds(
-          confidence: appliedThresholds.confidence,
-          margin: appliedThresholds.margin),
+          confidence: bnnsTechnique.confidenceThreshold,
+          margin: bnnsTechnique.marginThreshold),
         summary: Summary(
           total_tracks: allRows.count,
           dsp_acc1: dspAcc1,
@@ -923,11 +965,7 @@ struct BNNSImpactTests {
         print(line)
       }
       print("Failure-stage histogram:")
-      for key in [
-        "noAbstain", "featuresAbsent", "featureVersionMismatch",
-        "featurizeRejected", "graphFailed", "decodeRejected",
-        "confidenceGateRejected", "mlNotRun", "diagnosticSnapshotMissing",
-      ] {
+      for key in OutcomeKey.allCases.map(\.rawValue) {
         let count = failureStageHistogram[key] ?? 0
         print("  \(key.padding(toLength: 26, withPad: " ", startingAt: 0)) \(count)")
       }

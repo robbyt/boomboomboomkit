@@ -9,10 +9,11 @@
 //  thresholds 0.0/0.0 — the most useful numeric evidence disappeared
 //  precisely when investigation needed it most.
 //
-//  This file holds the public typed-evidence struct + nested `FailureStage`
-//  and `Gate` enums. The capability protocol that produces this snapshot
-//  lives in the sibling `MLDiagnosticTechnique.swift`; the trace field that
-//  carries it lives on `BPMDiagnosticTrace`.
+//  This file holds the public typed-evidence struct + its nested `Decode`
+//  payload and `Outcome` / `FailureStage` / `Gate` enums. The capability
+//  protocol that produces this snapshot lives in the sibling
+//  `MLDiagnosticTechnique.swift`; the trace field that carries it lives on
+//  `BPMDiagnosticTrace`.
 //
 
 import Foundation
@@ -25,40 +26,53 @@ import Foundation
 ///
 /// Populated on the trace via ``BPMDiagnosticTrace/mlDiagnosticSnapshot``
 /// when ML is active AND the inference reached at least the featurize step.
-/// On the two pre-featurize abstain paths (``FailureStage/featuresAbsent``
-/// and ``FailureStage/featureVersionMismatch``), no snapshot is constructed
-/// because there is no feature payload to checksum — the conformance
-/// returns `(nil, nil)` from ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)``
-/// and the harness derives the histogram bucket from
-/// `MLEvaluation == nil && mlDiagnosticSnapshot == nil` plus trace-state
-/// inspection (`mlFeatures == nil` → ``FailureStage/featuresAbsent``;
-/// `featureSetVersion != "v2"` → ``FailureStage/featureVersionMismatch``).
+/// The two pre-featurize abstains — features absent, or feature-set version
+/// drift — construct no snapshot at all: ``inputFeatureChecksum`` is
+/// non-optional and those paths have no feature payload to checksum. The
+/// conformance returns `(nil, nil)` from
+/// ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)`` and a reporting
+/// harness that needs those buckets derives them from trace-state
+/// inspection, in its own taxonomy rather than this one.
 ///
-/// ## Population matrix
+/// ## Shape
 ///
-/// | Path | `decodedBPM` | `softmaxMax` | `softmaxSecondMax` | `inputFeatureChecksum` | `failureStage` | `gateFired` |
-/// |------|--------------|--------------|--------------------|------------------------|----------------|-------------|
-/// | win (`evaluate(trace:)` returned non-nil) | non-nil | non-nil | non-nil | non-nil | nil | nil |
-/// | `.featurizeRejected` | nil | nil | nil | non-nil (over input features) | `.featurizeRejected` | nil |
-/// | `.graphFailed` | nil | nil | nil | non-nil | `.graphFailed` | nil |
-/// | `.decodeRejected` (non-finite logits) | nil | nil | nil | non-nil | `.decodeRejected` | nil |
-/// | `.decodeRejected` (out-of-range argmax) | non-nil (raw out-of-range value) | non-nil | non-nil | non-nil | `.decodeRejected` | nil |
-/// | `.confidenceGateRejected` | non-nil | non-nil | non-nil | non-nil | `.confidenceGateRejected` | non-nil |
+/// A snapshot is a checksum plus exactly one ``Outcome``. Every
+/// field-population rule is carried by the outcome's associated values, so
+/// a contradictory snapshot — a gate that fired with no decoded tempo, a
+/// win with no probabilities — does not compile. There is nothing to
+/// validate at construction and nothing that can trap.
 ///
-/// The numeric fields are the load-bearing evidence; ``failureStage`` is a
-/// categorical summary on top. At investigation-time threshold 0.0/0.0 (DD
-/// #5), ``decodedBPM`` + ``softmaxMax`` populate even on what would
-/// otherwise be abstain-paths — that is the point: snapshot evidence
-/// survives gate disablement so threshold sweeps can answer "is the model
-/// producing useful predictions or not?".
+/// ``decodedBPM``, ``softmaxMax``, ``softmaxSecondMax``, ``failureStage``
+/// and ``gateFired`` remain available as computed projections for readers
+/// that want the flat view.
+///
+/// ## What BNNSTechnique emits
+///
+/// This describes the reference conformer's control flow. It is
+/// documentation of one producer, NOT a contract imposed on consumer
+/// conformers — a different backend with different stages is free to emit
+/// any outcome it likes.
+///
+/// | Path | Outcome |
+/// |------|---------|
+/// | `evaluate(trace:)` returned non-nil | ``Outcome/win(_:)`` |
+/// | featurize returned nil | ``Outcome/featurizeRejected`` |
+/// | graph context build / execute error | ``Outcome/graphFailed`` |
+/// | logits non-finite | ``Outcome/decodeRejectedNonFinite`` |
+/// | argmax mapped outside `60...200` | ``Outcome/decodeRejectedOutOfRange(_:)`` carrying the raw out-of-range tempo |
+/// | two-gate abstain | ``Outcome/confidenceGateRejected(_:gate:)`` |
+///
+/// At investigation-time thresholds `0.0`/`0.0`, decode evidence populates
+/// even on paths that would otherwise abstain — that is the point:
+/// snapshot evidence survives gate disablement, so a threshold sweep can
+/// answer "is the model producing useful predictions or not?".
 ///
 /// ## Pre-1.0 framing
 ///
 /// Per project-context.md "Public API Discipline (pre-1.0)", this struct
-/// is NOT 1.0-stable. Future stories may add fields (e.g., per-bin top-K
-/// probabilities), add ``FailureStage`` cases (e.g., split ``graphFailed``
-/// further if a second backend lands), or rename fields entirely. No
-/// backwards compatibility is promised in pre-release.
+/// is NOT 1.0-stable. Future stories may add outcomes, add fields to
+/// ``Decode``, or rename members entirely. No backwards compatibility is
+/// promised in pre-release.
 ///
 /// ## See also
 ///
@@ -67,204 +81,215 @@ import Foundation
 /// - ``BNNSTechnique`` — Story 4-6's reference conformer.
 public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible {
 
-  /// Decoded argmax-derived BPM. `nil` only when the inference path failed
-  /// BEFORE producing a logit vector (graph compile/execute/workspace
-  /// error) or when the logit vector contained non-finite values (so no
-  /// argmax could be computed).
+  /// Cheap drift-detector: stable hash of the payload the conformer
+  /// actually fed its model on this call. FNV-1a over the `Float` byte
+  /// representation; cost ~50µs per evaluate, dwarfed by inference, and
+  /// deterministic given the same audio. The Python reference pipeline
+  /// at `_bmad-output/ml-training/` can emit the same checksum for the
+  /// same fixture WAV; if they diverge, that IS the featurize bug (DD #6
+  /// cheap-first methodology).
   ///
-  /// Out-of-range argmax (BPM ∉ 60.0...200.0) DOES populate this field
-  /// with the raw out-of-range value — the snapshot reports what the model
-  /// said, not what the library would have accepted (DD #2 doc-comment
-  /// invariant).
-  public let decodedBPM: Double?
-
-  /// Softmax-max probability after host-side softmax. `nil` iff
-  /// ``decodedBPM`` is nil (same root: no logit vector or non-finite
-  /// logits). Range `[0.0, 1.0]` when present (clamped by the
-  /// ``BNNSTechnique`` host-side softmax decode for public-API stability;
-  /// see Story 4-4 DD #4 precedent).
-  public let softmaxMax: Double?
-
-  /// Softmax-second-max probability after host-side softmax. `nil` iff
-  /// ``decodedBPM`` is nil. Range `[0.0, 1.0]` when present.
-  public let softmaxSecondMax: Double?
-
-  /// Cheap drift-detector: stable hash of the input feature payload Swift
-  /// produced for this call. Amelia's framing: per-evaluation `UInt64`
-  /// checksum of the post-`vvlogf` log-mel byte stream Swift fed into the
-  /// model. The Python reference pipeline at `_bmad-output/ml-training/`
-  /// can emit the same checksum for the same fixture WAV; if they diverge,
-  /// that IS the featurize bug (DD #6 cheap-first methodology).
+  /// **Which bytes** depends on how far the call got, so compare like
+  /// with like. ``BNNSTechnique`` hashes its post-featurize tensor — the
+  /// transposed, z-scored, resampled `[1, 1, 128, 512]` input — on every
+  /// path that reaches inference. Only on ``Outcome/featurizeRejected``,
+  /// where no tensor exists, does it fall back to hashing the source
+  /// log-mel payload. A parity harness reproducing the normal-inference
+  /// checksum must therefore replicate featurize, not just the log-mel
+  /// stage.
   ///
-  /// Implementation: FNV-1a over the `Float` byte representation of the
-  /// input features the conformer received. Cost ~50µs per evaluate,
-  /// dwarfed by the BNNS inference path. Hash is deterministic given the
-  /// same audio.
+  /// Non-optional by design: a snapshot exists only once there are
+  /// features to checksum. That is what makes the two pre-featurize
+  /// abstains unrepresentable here rather than merely discouraged.
   public let inputFeatureChecksum: UInt64
 
-  /// Categorical view derived from the inference path. `nil` on the win
-  /// path (``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)`` returned
-  /// a non-nil ``MLEvaluation``); on abstain, identifies which stage's
-  /// early-return fired. Use this for histogram reporting (Story 4-6
-  /// impact-report). The numeric fields above are the load-bearing
-  /// evidence; ``failureStage`` is a categorical summary on top.
-  public let failureStage: FailureStage?
+  /// Which path this evaluation took, carrying whatever numeric evidence
+  /// that path produces.
+  public let outcome: Outcome
 
-  /// Sub-discriminator populated only when
-  /// ``failureStage`` equals ``FailureStage/confidenceGateRejected``.
-  /// Identifies which of the two abstain gates fired:
-  /// ``Gate/gate1Softmax`` (softmax-max below threshold) or
-  /// ``Gate/gate2Margin`` (margin between top-2 below threshold).
-  public let gateFired: Gate?
+  /// Constructs a snapshot. Total — every combination of arguments is a
+  /// legal snapshot, so this can neither trap nor throw.
+  ///
+  /// Contrast ``MLFeatureFrames``, whose throwing init guards invariants
+  /// that are load-bearing: its dimensions size buffers handed to
+  /// Accelerate as raw pointers, so a mismatched count reads out of
+  /// bounds. Nothing indexes a snapshot — it is descriptive telemetry,
+  /// and the library is not the arbiter of a foreign conformer's
+  /// diagnostic shape.
+  ///
+  /// - Parameters:
+  ///   - inputFeatureChecksum: FNV-1a hash over the payload the conformer
+  ///     fed its model — see ``inputFeatureChecksum`` for which bytes.
+  ///   - outcome: The path taken, with its numeric evidence.
+  public init(inputFeatureChecksum: UInt64, outcome: Outcome) {
+    self.inputFeatureChecksum = inputFeatureChecksum
+    self.outcome = outcome
+  }
 
-  /// Abstain-path taxonomy. Six cases cover the full early-return surface
-  /// of ``BNNSTechnique/evaluate(trace:)``.
+  // MARK: - Decode
+
+  /// The three decode values that are only ever produced together: a
+  /// host-side softmax pass yields both probabilities, and the argmax
+  /// over the same logit vector yields the tempo.
+  ///
+  /// Grouping them is what makes a partially-populated decode
+  /// unrepresentable. Previously these were three sibling `Double?`
+  /// fields whose all-nil-or-all-non-nil rule had to be enforced at
+  /// runtime.
+  public struct Decode: Sendable, Hashable {
+
+    /// Argmax-derived BPM. On ``Outcome/decodeRejectedOutOfRange(_:)``
+    /// this is the raw out-of-range value — the snapshot reports what the
+    /// model said, not what the library would have accepted (DD #2).
+    public let bpm: Double
+
+    /// Softmax-max probability after host-side softmax. Range
+    /// `[0.0, 1.0]` as emitted by ``BNNSTechnique``, which clamps for
+    /// public-API stability (Story 4-4 DD #4 precedent). Not enforced
+    /// here — a foreign conformer reports its own values.
+    public let softmaxMax: Double
+
+    /// Softmax-second-max probability after host-side softmax.
+    public let softmaxSecondMax: Double
+
+    public init(bpm: Double, softmaxMax: Double, softmaxSecondMax: Double) {
+      self.bpm = bpm
+      self.softmaxMax = softmaxMax
+      self.softmaxSecondMax = softmaxSecondMax
+    }
+  }
+
+  // MARK: - Outcome
+
+  /// The path an evaluation took. Payload-carrying, so each case admits
+  /// exactly the evidence that path can produce.
+  ///
+  /// Not `CaseIterable` — associated values make synthesis impossible.
+  /// ``FailureStage`` is the flat, `CaseIterable`, raw-value-bearing
+  /// projection for histogram and export use.
+  public enum Outcome: Sendable, Hashable {
+
+    /// `evaluate(trace:)` returned a non-nil ``MLEvaluation``.
+    case win(Decode)
+
+    /// The conformer's featurize step returned nil (short clip, mel-band
+    /// mismatch, unhandled layout). No logit vector was produced.
+    case featurizeRejected
+
+    /// Graph context build / execute / workspace error. No logit vector
+    /// was produced.
+    case graphFailed
+
+    /// The logit vector contained non-finite values, so no argmax could
+    /// be computed.
+    case decodeRejectedNonFinite
+
+    /// Argmax mapped to a BPM outside `60.0...200.0`. Carries the raw
+    /// out-of-range decode.
+    case decodeRejectedOutOfRange(Decode)
+
+    /// Two-gate abstain fired. Carries the decode that was rejected and
+    /// identifies which gate rejected it.
+    case confidenceGateRejected(Decode, gate: Gate)
+  }
+
+  // MARK: - Flat projections
+
+  /// Decode evidence, when the path produced any.
+  public var decode: Decode? {
+    switch outcome {
+    case .win(let d), .decodeRejectedOutOfRange(let d), .confidenceGateRejected(let d, _):
+      return d
+    case .featurizeRejected, .graphFailed, .decodeRejectedNonFinite:
+      return nil
+    }
+  }
+
+  /// Argmax-derived BPM, or nil when no logit vector was decoded.
+  public var decodedBPM: Double? { decode?.bpm }
+
+  /// Softmax-max probability, or nil when no logit vector was decoded.
+  public var softmaxMax: Double? { decode?.softmaxMax }
+
+  /// Softmax-second-max probability, or nil when no logit vector was decoded.
+  public var softmaxSecondMax: Double? { decode?.softmaxSecondMax }
+
+  /// Categorical view of ``outcome``, `nil` on the win path. Use this for
+  /// histogram reporting and stable string export; the numeric evidence in
+  /// ``decode`` is what actually diagnoses a failure.
+  ///
+  /// Both decode-rejection outcomes collapse to
+  /// ``FailureStage/decodeRejected`` — they differ in the evidence they
+  /// carry, not in the stage that rejected them.
+  public var failureStage: FailureStage? {
+    switch outcome {
+    case .win: return nil
+    case .featurizeRejected: return .featurizeRejected
+    case .graphFailed: return .graphFailed
+    case .decodeRejectedNonFinite, .decodeRejectedOutOfRange: return .decodeRejected
+    case .confidenceGateRejected: return .confidenceGateRejected
+    }
+  }
+
+  /// Which abstain gate fired, or nil when the outcome was not a gate
+  /// rejection.
+  public var gateFired: Gate? {
+    switch outcome {
+    case .confidenceGateRejected(_, let gate): return gate
+    case .win, .featurizeRejected, .graphFailed, .decodeRejectedNonFinite,
+      .decodeRejectedOutOfRange:
+      return nil
+    }
+  }
+
+  // MARK: - FailureStage
+
+  /// Flat abstain-path taxonomy: the stages a snapshot can represent.
+  ///
+  /// Four cases, one per stage that can reject an evaluation once
+  /// features exist. `featuresAbsent` and `featureVersionMismatch` are
+  /// deliberately absent — those are whole-evaluation outcomes that
+  /// produce no snapshot at all, so a taxonomy of snapshot-representable
+  /// stages cannot include them. A reporting harness that needs those
+  /// buckets owns its own key type.
   ///
   /// `inferenceFailed` was split into ``graphFailed`` + ``decodeRejected``
   /// per Codex finding #2: "graph failed", "softmax became non-finite",
   /// and "decoded argmax mapped outside 60…200" point to different
   /// remediation paths — folding them into one bucket loses diagnostic
   /// information.
-  ///
-  /// `featuresAbsent` and `featureVersionMismatch` are the two
-  /// pre-featurize abstains. For those cases no ``MLDiagnosticSnapshot``
-  /// is constructed at all (no feature payload to checksum); the
-  /// trace's ``BPMDiagnosticTrace/mlDiagnosticSnapshot`` stays nil and the
-  /// reporting harness infers the bucket from trace-state inspection.
   public enum FailureStage: String, Sendable, Hashable, CaseIterable {
-    /// `trace.mlFeatures == nil` — featurize never received features.
-    /// No snapshot is constructed on this path; the case exists in the
-    /// taxonomy for histogram completeness in the impact-report harness.
-    case featuresAbsent
-    /// `trace.mlFeatures.featureSetVersion != supportedFeatureSetVersion`
-    /// — feature-set drift detected. No snapshot is constructed on this
-    /// path; the case exists for histogram completeness.
-    case featureVersionMismatch
-    /// ``BNNSTechnique`` internal `featurize(_:)` returned nil (short
-    /// clip, mel-band mismatch, layout case unhandled). Snapshot
-    /// constructed with ``inputFeatureChecksum`` only.
+
+    /// The conformer's featurize step returned nil.
     case featurizeRejected
-    /// BNNSGraph context build / execute / workspace error. Snapshot
-    /// constructed with ``inputFeatureChecksum`` only (decode fields nil).
+
+    /// BNNSGraph context build / execute / workspace error.
     case graphFailed
-    /// Logit decode produced non-finite values OR argmax mapped to a BPM
-    /// outside `60.0...200.0`. Snapshot may have decode fields populated
-    /// (out-of-range case carries the raw out-of-range BPM) or nil
-    /// (non-finite logit case).
+
+    /// Logit decode produced non-finite values, or argmax mapped to a BPM
+    /// outside `60.0...200.0`. Inspect ``MLDiagnosticSnapshot/decode`` to
+    /// tell the two apart: the out-of-range case carries evidence, the
+    /// non-finite case cannot.
     case decodeRejected
-    /// Two-gate abstain fired: ``Gate/gate1Softmax`` (softmax-max <
-    /// confidence threshold) or ``Gate/gate2Margin`` (margin < margin
-    /// threshold). Snapshot has all decode fields + ``gateFired``
-    /// populated.
+
+    /// Two-gate abstain fired; see ``MLDiagnosticSnapshot/gateFired``.
     case confidenceGateRejected
   }
 
-  /// Two-gate sub-discriminator for ``FailureStage/confidenceGateRejected``.
+  // MARK: - Gate
+
+  /// Two-gate sub-discriminator for
+  /// ``Outcome/confidenceGateRejected(_:gate:)``.
   public enum Gate: String, Sendable, Hashable, CaseIterable {
-    /// Softmax-max below ``BNNSTechnique``'s `confidenceThreshold`.
+    /// Softmax-max below the technique's `confidenceThreshold`.
     case gate1Softmax
-    /// Margin between top-2 softmax probabilities below
-    /// ``BNNSTechnique``'s `marginConfidenceThreshold`.
+    /// Margin between the top-2 softmax probabilities below the
+    /// technique's `marginThreshold`.
     case gate2Margin
   }
 
-  /// Constructs a snapshot. Preconditions enforce the population matrix
-  /// per the doc-comment above. Pre-featurize abstain paths
-  /// (``FailureStage/featuresAbsent`` / ``FailureStage/featureVersionMismatch``)
-  /// do NOT call this initializer — the conformance short-circuits before
-  /// the feature payload is checksummed.
-  ///
-  /// - Parameters:
-  ///   - decodedBPM: Argmax-derived BPM (may be out-of-range on
-  ///     `.decodeRejected`); nil when no logit vector was produced or
-  ///     when logits were non-finite.
-  ///   - softmaxMax: Softmax-max probability; nil iff `decodedBPM` is nil.
-  ///   - softmaxSecondMax: Softmax-second-max probability; nil iff
-  ///     `decodedBPM` is nil.
-  ///   - inputFeatureChecksum: FNV-1a hash over the post-`vvlogf` feature
-  ///     byte stream Swift fed into the conformer (DD #6 cheap-first).
-  ///   - failureStage: Categorical abstain-path summary; `nil` on the
-  ///     win path. The two pre-featurize stages never construct a
-  ///     snapshot (no checksum possible).
-  ///   - gateFired: Sub-discriminator for
-  ///     ``FailureStage/confidenceGateRejected`` only.
-  public init(
-    decodedBPM: Double?,
-    softmaxMax: Double?,
-    softmaxSecondMax: Double?,
-    inputFeatureChecksum: UInt64,
-    failureStage: FailureStage?,
-    gateFired: Gate?
-  ) {
-    // Pre-featurize abstain paths must NOT construct a snapshot — they
-    // have no feature payload to checksum. The conformance returns
-    // `(nil, nil)` instead.
-    precondition(
-      failureStage != .featuresAbsent && failureStage != .featureVersionMismatch,
-      "Pre-featurize abstain paths must not construct an MLDiagnosticSnapshot "
-        + "(failureStage=\(String(describing: failureStage)))")
-    // Decode-field nil/non-nil invariant: softmaxMax and softmaxSecondMax
-    // are populated together (both reflect the host-side softmax pass) and
-    // are nil together (no logit vector or non-finite logits).
-    let decodeFieldsAllNil =
-      decodedBPM == nil && softmaxMax == nil && softmaxSecondMax == nil
-    let decodeFieldsAllNonNil =
-      decodedBPM != nil && softmaxMax != nil && softmaxSecondMax != nil
-    precondition(
-      decodeFieldsAllNil || decodeFieldsAllNonNil,
-      "Decode fields must be all-nil or all-non-nil "
-        + "(decodedBPM=\(String(describing: decodedBPM)), "
-        + "softmaxMax=\(String(describing: softmaxMax)), "
-        + "softmaxSecondMax=\(String(describing: softmaxSecondMax)))")
-    switch failureStage {
-    case nil:
-      // Win path: all decode fields populated, no gate fired.
-      precondition(
-        decodeFieldsAllNonNil,
-        "Win path requires all decode fields populated "
-          + "(decodedBPM=\(String(describing: decodedBPM)))")
-      precondition(
-        gateFired == nil, "Win path must have gateFired == nil")
-    case .featurizeRejected, .graphFailed:
-      // Pre-decode abstains: decode fields nil, no gate fired.
-      precondition(
-        decodeFieldsAllNil,
-        "\(failureStage!.rawValue) requires all decode fields nil")
-      precondition(
-        gateFired == nil,
-        "\(failureStage!.rawValue) must have gateFired == nil")
-    case .decodeRejected:
-      // Decode failure: either non-finite logits (all decode fields nil)
-      // or out-of-range argmax (all decode fields populated). Both are
-      // permitted; gateFired must be nil because the gates have not run.
-      precondition(
-        gateFired == nil, ".decodeRejected must have gateFired == nil")
-    case .confidenceGateRejected:
-      // Two-gate abstain: all decode fields populated; gateFired
-      // identifies which gate.
-      precondition(
-        decodeFieldsAllNonNil,
-        ".confidenceGateRejected requires all decode fields populated")
-      precondition(
-        gateFired != nil,
-        ".confidenceGateRejected must have non-nil gateFired")
-    case .featuresAbsent, .featureVersionMismatch:
-      // Handled by the leading precondition. `case` here keeps the switch
-      // exhaustive without `@unknown` (closed set per CaseIterable).
-      preconditionFailure(
-        "unreachable — pre-featurize abstain paths construct no snapshot")
-    }
-    self.decodedBPM = decodedBPM
-    self.softmaxMax = softmaxMax
-    self.softmaxSecondMax = softmaxSecondMax
-    self.inputFeatureChecksum = inputFeatureChecksum
-    self.failureStage = failureStage
-    self.gateFired = gateFired
-  }
+  // MARK: - CustomStringConvertible
 
-  /// Bounded-length diagnostic representation. Includes
-  /// `failureStage?.rawValue ?? "win"` and `decodedBPM` when populated.
-  /// Length capped under 200 chars for benchmark-log scanability.
   public var description: String {
     let stageLabel = failureStage?.rawValue ?? "win"
     let bpmField = decodedBPM.map { String(format: "%.2f", $0) } ?? "nil"
