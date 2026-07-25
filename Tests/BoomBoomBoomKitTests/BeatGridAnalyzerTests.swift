@@ -98,31 +98,37 @@ struct BeatGridAnalyzerTests {
     // Scope: a clean-fixture consistency assertion, NOT a universal grid contract.
     // `BeatGrid` permits dropped and doubled beats, so raw spacing is only a valid
     // tempo proxy on synthetic clicks like these.
+    // REQUIRE >= 2 beats rather than conditionally skipping. A 10-second click
+    // track at 85+ BPM emits many beats, so one-or-zero is a regression, not a
+    // legitimate shape — and an `if count >= 2` guard would let exactly that
+    // regression skip the interval check and still report green. That is the
+    // measure-nothing pattern this whole issue family exists to close.
     let times = grid.beats.map(\.presentationTime)
-    if times.count >= 2 {
-      let intervals = zip(times.dropFirst(), times).map(-)
-      #expect(
-        intervals.allSatisfy { $0.isFinite && $0 > 0 },
-        "#161: beat intervals must be finite and positive")
-      let sorted = intervals.sorted()
-      let median =
-        sorted.count % 2 == 1
-        ? sorted[sorted.count / 2]
-        : (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2.0
-      if median > 0, median.isFinite {
-        let intervalTempo = 60.0 / median
-        let intervalError = abs(intervalTempo - expectedBPM) / expectedBPM
-        #expect(
-          intervalError <= Self.tempoTolerance,
-          Comment(
-            rawValue: """
-              #161 median beat spacing off truth — \(name)
-                truth            : \(expectedBPM)
-                median interval  : \(median)s -> \(intervalTempo) BPM
-                relative err     : \(String(format: "%.2f", intervalError * 100))%
-              """))
-      }
-    }
+    try #require(times.count >= 2, "#161: expected multiple beats on a click track")
+
+    let intervals = zip(times.dropFirst(), times).map(-)
+    #expect(
+      intervals.allSatisfy { $0.isFinite && $0 > 0 },
+      "#161: beat intervals must be finite and positive")
+
+    let sorted = intervals.sorted()
+    let median =
+      sorted.count % 2 == 1
+      ? sorted[sorted.count / 2]
+      : (sorted[sorted.count / 2 - 1] + sorted[sorted.count / 2]) / 2.0
+    try #require(median.isFinite && median > 0, "#161: median beat interval must be positive")
+
+    let intervalTempo = 60.0 / median
+    let intervalError = abs(intervalTempo - expectedBPM) / expectedBPM
+    #expect(
+      intervalError <= Self.tempoTolerance,
+      Comment(
+        rawValue: """
+          #161 median beat spacing off truth — \(name)
+            truth            : \(expectedBPM)
+            median interval  : \(median)s -> \(intervalTempo) BPM
+            relative err     : \(String(format: "%.2f", intervalError * 100))%
+          """))
 
     // Monotonically increasing presentation times.
     for i in 1..<grid.beats.count {

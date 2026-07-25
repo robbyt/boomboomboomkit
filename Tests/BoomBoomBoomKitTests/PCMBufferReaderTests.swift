@@ -335,6 +335,10 @@ struct PCMBufferReaderErrorTests {
     defer { try? FileManager.default.removeItem(at: url) }
 
     let (samples, sampleRate) = try PCMBufferReader.readMonoSamples(from: url)
+    // Non-empty FIRST. `allSatisfy` is vacuously true on an empty array, so a
+    // zero-sample decode would otherwise sail through a test named "decodes
+    // safely" while measuring nothing at all.
+    #expect(!samples.isEmpty, "#160: truncated decode returned no samples")
     #expect(sampleRate == 44100, "#160: truncation must not corrupt the reported sample rate")
     #expect(
       samples.allSatisfy { $0.isFinite }, "#160: truncated decode produced non-finite samples")

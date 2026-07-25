@@ -28,11 +28,11 @@ context: []
 
 **Ask First:**
 - Any change to an existing accuracy floor value or corpus gate.
-- Adding a fixture beyond the OGG negative case, or exceeding the current fixture size footprint.
+- Adding a fixture beyond the OGG case, or exceeding the current fixture size footprint.
 - Promoting anything new to public API.
 
 **Never:**
-- Behavioural `Sources/` changes. One documentation-only exception: narrowing the OGG claim.
+- Behavioural `Sources/` changes. Documentation-only exception: correcting the false OGG-unsupported claim in `PCMBufferReader.swift` and `MetadataPolicy.swift` (amended 2026-07-25 — the original wording said "narrowing the claim" in one file, before measurement showed the claim was wrong rather than imprecise, and present in four places).
 - Pinning the four wrong values (182 / 192 / 140 / 115.6) as expectations.
 - Restoring octave tolerance to make an assertion pass.
 - Claiming #159's licensing half or a non-fatal-truncation portion of #160 is closed when it isn't.
@@ -45,7 +45,7 @@ context: []
 | Known octave failure | `Meta_Man` (92), `La_Noche` (96), `Submerged_Lament` (70) | Assertion fails, absorbed by `withKnownIssue`; run stays green | Diagnostic names the harmonic relation |
 | Known failure gets fixed | Any wrapped case starts passing | `knownIssueNotRecorded` → **run fails**, nonzero exit | Message directs removal of the wrapper |
 | Degenerate result | BPM `NaN`/∞/out of 60–200, or confidence outside [0,1] | Fails **outside** the wrapper — never absorbed | Unconditional invariant |
-| OGG input | Valid Vorbis fixture | Throws `PCMBufferReaderError.fileNotReadable(url)` | Specific case + URL asserted, not error type |
+| OGG input | Valid Vorbis fixture | **Decodes successfully** — non-empty, finite, normalized samples at 44.1 kHz | N/A. Amended 2026-07-25 after measurement disproved the original "throws" premise; operator confirmed OGG support is wanted |
 | Truncated MP3/FLAC | First N bytes of an existing fixture | Observed behaviour, measured then pinned | If non-fatal, assert that and leave the gap open |
 | CAF input | `test-bwf.caf` | Non-empty normalized mono samples | N/A |
 
@@ -122,8 +122,8 @@ context: []
 - Force a non-finite/out-of-range BPM -- expected: fails **outside** the wrapper
 - Feed `recoversClickTrackTempo` a 2× expected tempo -- expected: fails
 - Perturb beat spacing leaving `estimatedTempo` correct -- expected: median-interval check fails
-- Point the OGG test at a valid WAV -- expected: fails to throw
-- Use the untruncated file -- expected: fails to throw
+- Point the OGG test at a non-audio file -- expected: the decode assertion fails
+- Use the untruncated file for the FLAC case -- expected: the expected-throw assertion fails
 
 **Manual checks:**
 - `git status --short` clean of stray artifacts after every mutation/revert cycle.

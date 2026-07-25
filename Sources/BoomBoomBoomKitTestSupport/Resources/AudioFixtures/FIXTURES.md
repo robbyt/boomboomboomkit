@@ -53,7 +53,7 @@ Most are one-second or five-second format-coverage assets where tempo is meaning
 
 | Fixture | Detail |
 |---|---|
-| `robbyt_x-ray-30s.mp3`, `robbyt_x-ray-120s.mp3` | "robbyt - x-ray", composed and owned by the repository owner; master by Fanu. Encoded from the owner's source WAV to 224 kbps MP3, first 30 s and first 120 s respectively, with source metadata stripped via `-map_metadata -1`. **Redistribution authority: authorship** (category 2 + 3). Note the encoder still writes its own `TSSE` / `Lavf` tag — "stripped" means source metadata and BPM tags, not a byte-level absence of all frames. |
+| `robbyt_x-ray-30s.mp3`, `robbyt_x-ray-120s.mp3` | "robbyt - x-ray", composed and owned by the repository owner; master by Fanu. Encoded from the owner's source WAV to 224 kbps MP3, first 30 s and first 120 s respectively, with source metadata stripped via `-map_metadata -1`. **Redistribution authority: composition authorship — with one unresolved aspect.** The track was mastered by a third party (Fanu). Authorship of the composition does not by itself document authority over someone else's master recording; that permission is not recorded here. Treated as owner-controlled on the owner's judgement, same posture as the generated MP3s below. Note the encoder still writes its own `TSSE` / `Lavf` tag — "stripped" means source metadata and BPM tags, not a byte-level absence of all frames. |
 
 Metadata is stripped deliberately. An embedded `TBPM` tag would feed
 `MetadataCorroborator` on the default analysis path, and the accuracy floor would then
@@ -89,9 +89,10 @@ be measuring the tag rather than the DSP.
 
 The following predate the provenance requirement and were added in the initial commit
 (`468a7b3`, 2026-03-21) with no recorded origin. All are short (1–5 s), low-complexity
-format-coverage assets — sample-rate, container, cover-art, and codec paths — and none
-is plausibly a commercial recording. Their origin is nevertheless **unconfirmed** and
-should be established or the files regenerated:
+format-coverage assets exercising sample-rate, container, cover-art and codec paths.
+Their origin is **unconfirmed** — no claim is made here about what they are or are not,
+since the policy of this section is to list rather than guess. Establish provenance or
+regenerate them:
 
 - `sample.wav` (1 s, 8 kHz — the unsupported-sample-rate throw case)
 - `sample-with-cover.aiff`, `sample-with-cover.flac`, `sample-with-cover.m4a`, `sample-with-cover.mp3`
@@ -115,8 +116,8 @@ closed by GH-167 item 5.
   issue #159. If it cannot be established, the alternative is replacing them — which
   would cut the accuracy floor's real-music coverage from 5 tracks to 2.
 - **Nine fixtures have unrecorded provenance** (listed above). They predate the
-  provenance requirement, are all short container/codec assets, and are almost certainly
-  synthetic — but "almost certainly" is a judgement, not a record.
+  provenance requirement and are all short container/codec assets. Any statement about
+  what they are would be a judgement, not a record, so none is made.
 
 ## Rules for adding a fixture
 

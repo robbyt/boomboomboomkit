@@ -2,22 +2,28 @@
 //  AccuracyFloorTests.swift
 //  BoomBoomBoomKitTests
 //
-//  GH-167 item 5 (#154, #161): the first accuracy floor that runs in CI.
+//  GH-167 item 5 (#154, #161): the first REAL-MUSIC accuracy floor in CI.
 //
-//  Before this file, every accuracy floor in the repo (OA300 Acc1 >= 57,
-//  GiantSteps >= 537, beat-grid F, consistency rate) lived in the env-gated
-//  benchmark target, which CI never builds — CI runs `swift build`, `make test`,
-//  a format check, and SwiftLint. A change dropping Acc1 from 58/82 to 40/82
-//  merged green. This suite runs in the unit target on every `make test`, over
-//  bundled fixtures, with no corpus required.
+//  Be precise about the novelty here. CI was NOT previously accuracy-blind:
+//  `BPMAnalyzerTests.defaultIntensityRegression` already asserted a synthetic
+//  120 BPM click track within +/-2 BPM at default intensity, which is
+//  octave-strict and does run on every `make test`. What CI lacked was any
+//  accuracy assertion over REAL MUSIC, over MULTIPLE fixtures, against ground
+//  truth established outside this library.
 //
-//  Two properties distinguish it from what already existed:
+//  What was genuinely unguarded: every corpus floor (OA300 Acc1 >= 57,
+//  GiantSteps >= 537, beat-grid F, consistency rate) lives in the env-gated
+//  benchmark target CI never builds, so an Acc1 collapse from 58/82 to 40/82
+//  merged green. This suite runs in the unit target with no corpus required.
 //
-//  1. OCTAVE-STRICT. `BeatGridAnalyzerTests.recoversClickTrackTempo` checks the
-//     click tracks octave-TOLERANTLY (0.5x/1x/2x within +/-5) and its own comment
-//     delegates octave correctness to "the OA300/GiantSteps benchmarks" — the
-//     benchmarks CI never runs. Octave correctness therefore had no automated
-//     coverage anywhere. Here a 2x answer is a failure.
+//  Two properties distinguish it from the pre-existing synthetic checks:
+//
+//  1. REAL MUSIC, OCTAVE-STRICT. The pre-existing assertions cover synthetic
+//     click tracks generated at runtime — the easy case. These 12 fixtures
+//     include five real tracks, and a 2x answer is a failure. (Separately,
+//     `BeatGridAnalyzerTests.recoversClickTrackTempo` was octave-TOLERANT and
+//     deferred octave correctness to the benchmarks CI never runs; item 5 made
+//     it strict, so the beat-grid path now has octave coverage too.)
 //
 //  2. GROUND TRUTH IS INDEPENDENT. Every expected BPM comes from construction
 //     (synthesized clicks), the author (`robbyt_x-ray-*`), or human verification
@@ -27,8 +33,8 @@
 //
 //  MEASURED HEADROOM (2026-07-25, metadataPolicy = .disabled). Relative error of
 //  every fixture, so the 2% bound can be judged against evidence rather than
-//  asserted. Worst passing case is 0.31%, roughly 6x margin; the nearest failure
-//  is 33.54%, two orders of magnitude away. There is no fixture sitting near the
+//  asserted. Worst passing case is 0.31% (a ~6x margin under the bound); the
+//  nearest failure is 33.54%, about 17x ABOVE it. No fixture sits near the
 //  boundary, which is what makes 2% a credible bound rather than a lucky one.
 //
 //      bpm-120-click        0.00%      robbyt_x-ray-30s      0.16%
@@ -96,9 +102,11 @@ struct AccuracyFloorTests {
     // --- Known failures (GH-167 item 5 baseline, 2026-07-24) ---
     //
     // Three clean octave doublings, all on SLOW tracks: the pipeline prefers the
-    // faster octave. In at least one case the correct answer was already in the
-    // candidate list and lost on score (Submerged_Lament: 70 scored 0.97 against
-    // 140 at 1.01), making these selection failures, not generation failures.
+    // faster octave. For ONE of them the mechanism is known — Submerged_Lament
+    // had the correct 70 in its own candidate list, losing on score (0.97 against
+    // 140 at 1.01), so that case is a selection failure rather than a generation
+    // failure. Candidate evidence was not captured for the other two; do not
+    // assume they share the mechanism.
     FloorCase(
       name: "Meta_Man", ext: "mp3", trueBPM: 92,
       knownFailure: "octave-doubled: reports ~182 for a 92 BPM track (2x)"),
@@ -109,9 +117,10 @@ struct AccuracyFloorTests {
       name: "Submerged_Lament", ext: "mp3", trueBPM: 70,
       knownFailure: "octave-doubled: reports ~140 for a 70 BPM track (2x)"),
     // Not an octave error: ~115.6 is two-thirds of 174, the 3:2 harmonic relation
-    // `HarmonicRatio.twoThird` already models. The 30 s cut of this same track
-    // resolves correctly at 174.3 (conf 0.92), so the failure is introduced by
-    // musical content between 0:30 and 2:00, not by the track's tempo.
+    // `HarmonicRatio.twoThird` already models. The 30 s cut of the same source
+    // track (identical first-30s prefix) resolves correctly at 174.3 (conf 0.92).
+    // That IMPLICATES content after 0:30; it does not prove causation, since the
+    // two cuts also differ in window count and aggregation.
     FloorCase(
       name: "robbyt_x-ray-120s", ext: "mp3", trueBPM: 174,
       knownFailure: "triplet-related: reports ~115.6, two-thirds of 174 (3:2)"),
@@ -126,8 +135,8 @@ struct AccuracyFloorTests {
   /// `Resources/AudioFixtures/FIXTURES.md`; the manifest and this list are kept in
   /// sync by hand, and a Codex review of the first draft caught
   /// `bpm-120-downbeat` present in the manifest but missing here.
-  @Test("floor covers every ground-truth fixture (denominator guard)")
-  func floorCoversEveryGroundTruthFixture() {
+  @Test("floor case list has the expected cardinality (denominator guard)")
+  func floorCaseListCardinality() {
     #expect(
       Self.cases.count == 12,
       "#154: expected 12 ground-truth fixtures in the floor; got \(Self.cases.count). If you added or removed one, update FIXTURES.md's ground-truth table to match."
