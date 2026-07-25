@@ -2,7 +2,7 @@
 title: 'GH-167 item 5 — Fixture provenance + first real-audio CI floor (#154, #161, #160, #159)'
 type: 'bugfix'
 created: '2026-07-24'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '281fb00'
 context: []
@@ -128,3 +128,65 @@ context: []
 **Manual checks:**
 - `git status --short` clean of stray artifacts after every mutation/revert cycle.
 - CI runs macOS 26 only while the package supports macOS 15; state in the PR that negative codec assertions are verified on the CI platform only.
+
+## Suggested Review Order
+
+**The floor's design contract**
+
+- Start here: why ground truth may never come from this library.
+  [`AccuracyFloorTests.swift:28`](../../Tests/BoomBoomBoomKitTests/AccuracyFloorTests.swift#L28)
+
+- The 12 cases; four carry a `knownFailure` reason string.
+  [`AccuracyFloorTests.swift:88`](../../Tests/BoomBoomBoomKitTests/AccuracyFloorTests.swift#L88)
+
+- Invariants deliberately OUTSIDE the wrapper — the NaN-concealment fix.
+  [`AccuracyFloorTests.swift:170`](../../Tests/BoomBoomBoomKitTests/AccuracyFloorTests.swift#L170)
+
+- One expectation per wrapper; the default matcher accepts any issue.
+  [`AccuracyFloorTests.swift:205`](../../Tests/BoomBoomBoomKitTests/AccuracyFloorTests.swift#L205)
+
+- Cardinality guard: an emptied `arguments` array would otherwise run zero cases.
+  [`AccuracyFloorTests.swift:138`](../../Tests/BoomBoomBoomKitTests/AccuracyFloorTests.swift#L138)
+
+**Octave coverage on the beat-grid path**
+
+- Was octave-tolerant, deferring to benchmarks CI never runs; now strict.
+  [`BeatGridAnalyzerTests.swift:64`](../../Tests/BoomBoomBoomKitTests/BeatGridAnalyzerTests.swift#L64)
+
+- Median beat spacing vs truth — a scalar can read 120 while beats sit at 60.
+  [`BeatGridAnalyzerTests.swift:101`](../../Tests/BoomBoomBoomKitTests/BeatGridAnalyzerTests.swift#L101)
+
+**The corrected OGG claim (measurement disproved the documentation)**
+
+- The claim that shipped to `main`, now stating what was verified.
+  [`PCMBufferReader.swift:17`](../../Sources/BoomBoomBoomKit/PCMBufferReader.swift#L17)
+
+- The test that pins the real behaviour.
+  [`PCMBufferReaderTests.swift:290`](../../Tests/BoomBoomBoomKitTests/PCMBufferReaderTests.swift#L290)
+
+- Second shipping site, scoped to tag-reading rather than decode support.
+  [`MetadataPolicy.swift:16`](../../Sources/BoomBoomBoomKit/MetadataPolicy.swift#L16)
+
+**Corruption behaviour, measured rather than assumed**
+
+- The one genuinely fatal case; asserts the specific enum case and URL.
+  [`PCMBufferReaderTests.swift:303`](../../Tests/BoomBoomBoomKitTests/PCMBufferReaderTests.swift#L303)
+
+- Non-fatal: safety properties, non-empty checked first to avoid vacuous pass.
+  [`PCMBufferReaderTests.swift:330`](../../Tests/BoomBoomBoomKitTests/PCMBufferReaderTests.swift#L330)
+
+**Provenance and what stays open**
+
+- Four separated categories; C2PA attests provenance, not licence.
+  [`FIXTURES.md:7`](../../Sources/BoomBoomBoomKitTestSupport/Resources/AudioFixtures/FIXTURES.md#L7)
+
+- Open items: the unestablished redistribution basis.
+  [`FIXTURES.md:106`](../../Sources/BoomBoomBoomKitTestSupport/Resources/AudioFixtures/FIXTURES.md#L106)
+
+**Peripherals**
+
+- Superseded 40–220 plausibility band retired.
+  [`AudioAnalysisServiceTests.swift:18`](../../Tests/BoomBoomBoomKitTests/AudioAnalysisServiceTests.swift#L18)
+
+- Seven ledger entries with re-open triggers.
+  [`deferred-work.md`](./deferred-work.md)
