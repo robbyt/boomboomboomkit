@@ -14,8 +14,11 @@ import Foundation
 /// Closed enum — three formats cover the bulk of tagged music: iTunes-family
 /// containers (`tmpo` atom in MP4/M4A), ID3v2-tagged files (`TBPM` text frame
 /// in MP3, embedded in AIFF's `ID3 ` chunk), and Vorbis-comment-tagged files
-/// (`BPM=` entry in FLAC). OGG/Vorbis is not supported (no Core Audio codec
-/// on macOS).
+/// (`BPM=` entry in FLAC). Ogg containers are not a metadata source here: the
+/// Vorbis-comment parser is wired to FLAC only. That is a scope choice, not a
+/// platform limit — AVFoundation does decode Vorbis-in-Ogg audio on macOS 26
+/// (measured, GH-167 item 5), so an Ogg file will analyze even though its tags
+/// are not read.
 public enum MetadataSource: String, CaseIterable, Sendable, Hashable {
   /// MP4/M4A `moov/udta/meta/ilst/tmpo` 16-bit big-endian integer atom.
   case iTunesTmpo

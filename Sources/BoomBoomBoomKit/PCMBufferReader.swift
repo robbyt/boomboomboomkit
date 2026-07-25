@@ -14,8 +14,12 @@ public enum PCMBufferReaderError: Error, Sendable {
   /// The file at the supplied URL could not be opened. Covers the union of
   /// `AVAudioFile(forReading:)` failure modes — file does not exist, lacks
   /// read permission, is empty or corrupt, or carries a format AVFoundation
-  /// cannot decode (e.g., OGG/Vorbis on macOS). The case payload does not
-  /// distinguish among these causes.
+  /// cannot decode (e.g., a severely truncated FLAC — measured, GH-167 item 5).
+  /// The case payload does not distinguish among these causes.
+  ///
+  /// This example used to cite OGG/Vorbis. That was wrong: AVFoundation decodes
+  /// Vorbis-in-Ogg on macOS 26, verified against a committed fixture. Behaviour
+  /// on earlier macOS versions is untested.
   case fileNotReadable(URL)
   /// AVFoundation refused to allocate a PCM buffer of the requested size.
   /// Typically signals exhausted memory or a degenerate audio format.
