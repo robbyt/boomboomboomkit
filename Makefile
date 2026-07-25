@@ -450,7 +450,7 @@ endif
 py-lint:
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
 	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py
+	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -709,6 +709,16 @@ ablation-unsupervised-manifest:
 .PHONY: ablation-tests
 ablation-tests:
 	cd $(ML_TRAINING_DIR) && uv run pytest ablation/tests/
+
+## release-preview: Show exactly what a `develop` -> `main` promotion would ship, and what it would strip. Dry run -- stages nothing, safe to run any day. The allowlist in scripts/promote-to-main.py is the source of truth and FAILS CLOSED: a develop-only path nobody enumerated is stripped anyway. Run it periodically, not only at release time, to catch drift early. Develop-only.
+.PHONY: release-preview
+release-preview:
+	uv run scripts/promote-to-main.py --from-ref origin/develop
+
+## release-stage: Perform the promotion staging (unstage everything off the allowlist, restore main's own .gitignore). Requires `git checkout main && git merge --squash develop` first; refuses otherwise. Does NOT commit -- a human writes the public release message. Develop-only.
+.PHONY: release-stage
+release-stage:
+	uv run scripts/promote-to-main.py --execute
 
 ## scripts-tests: Run the W87 pytest suite for scripts/ (docc-transclude generator). Develop-only; runs in the ml-training uv env (pytest already lives in its dev group, no second uv project). Every test writes only into a pytest tmp_path. Self-skips with a printed note on a main-only checkout, where scripts/tests/ is absent -- the docc-validate convention, because this target is a `pre-commit` prerequisite and a mid-run hard failure there would abort the whole gate chain after fmt and lint had already run.
 .PHONY: scripts-tests
