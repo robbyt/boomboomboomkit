@@ -175,3 +175,69 @@ the guard is dangerous, not merely different.
 **Manual checks:**
 - `grep -rn 'thresholdOverride' Sources/ Tests/` — zero matches.
 - `Sources/BoomBoomBoomKit/` diff outside `MLDiagnosticSnapshot.swift` / `MLTechnique.swift` is doc-comment-only.
+
+## Suggested Review Order
+
+**#124 — the shape that makes traps unnecessary (start here)**
+
+- The design intent in one declaration: each case admits only its own evidence.
+  [`MLDiagnosticSnapshot.swift:170`](../../Sources/BoomBoomBoomKit/MLDiagnosticSnapshot.swift#L170)
+
+- Total init — nothing to validate, so nothing can trap or throw.
+  [`MLDiagnosticSnapshot.swift:124`](../../Sources/BoomBoomBoomKit/MLDiagnosticSnapshot.swift#L124)
+
+- The compatibility surface: every existing reader goes through here unchanged.
+  [`MLDiagnosticSnapshot.swift:199`](../../Sources/BoomBoomBoomKit/MLDiagnosticSnapshot.swift#L199)
+
+- Grouping the three co-produced values is what kills the all-nil-or-none rule.
+  [`MLDiagnosticSnapshot.swift:139`](../../Sources/BoomBoomBoomKit/MLDiagnosticSnapshot.swift#L139)
+
+- Four cases, not six: the two removed had no checksum to carry.
+  [`MLDiagnosticSnapshot.swift:261`](../../Sources/BoomBoomBoomKit/MLDiagnosticSnapshot.swift#L261)
+
+**#144 — thresholds move to the instance**
+
+- Per-instance `let`s; the mixed-state race becomes impossible, not guarded.
+  [`BNNSTechnique.swift:141`](../../Sources/BoomBoomBoomKitML/BNNSTechnique.swift#L141)
+
+- isFinite-first, then clamp — a caller bug throws, saturating intent does not.
+  [`BNNSTechnique.swift:254`](../../Sources/BoomBoomBoomKitML/BNNSTechnique.swift#L254)
+
+- Both gates read one `self`; no accessor, no lock, no snapshot window.
+  [`BNNSTechnique.swift:423`](../../Sources/BoomBoomBoomKitML/BNNSTechnique.swift#L423)
+
+- Shipped defaults, now public and documented as a starting point, not advice.
+  [`BNNSTechnique.swift:124`](../../Sources/BoomBoomBoomKitML/BNNSTechnique.swift#L124)
+
+- A bad argument is not a bad model — the two have unrelated remedies.
+  [`MLTechnique.swift:214`](../../Sources/BoomBoomBoomKit/MLTechnique.swift#L214)
+
+**#150 — the graph release is checked, not assumed**
+
+- Frees only default-zone storage; returns the decision so refusal is observable.
+  [`BNNSTechnique.swift:1124`](../../Sources/BoomBoomBoomKitML/BNNSTechnique.swift#L1124)
+
+- The deinit site — one of two; the other is the init's validation-failure path.
+  [`BNNSTechnique.swift:1172`](../../Sources/BoomBoomBoomKitML/BNNSTechnique.swift#L1172)
+
+**Tests that would fail if the guards were weakened**
+
+- Foreign-zone allocation: without this, `zone != nil` would pass everything.
+  [`BNNSTechniqueTests.swift:692`](../../Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift#L692)
+
+- Gate 2 in isolation; the fixture otherwise never lets it decide anything.
+  [`BNNSTechniqueTests.swift:794`](../../Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift#L794)
+
+- Two instances disagreeing on one input — unexpressible with a global.
+  [`BNNSTechniqueTests.swift:770`](../../Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift#L770)
+
+- The matrix asserted against the producer that actually claims it.
+  [`BNNSTechniqueDiagnosticTests.swift:98`](../../Tests/BoomBoomBoomKitTests/BNNSTechniqueDiagnosticTests.swift#L98)
+
+- Non-finite rejection across all four NaN/Inf argument positions.
+  [`BNNSTechniqueTests.swift:118`](../../Tests/BoomBoomBoomKitTests/BNNSTechniqueTests.swift#L118)
+
+**Peripheral**
+
+- Harness taxonomy replacing nine bare strings across three parallel lists.
+  [`BNNSImpactTests.swift:156`](../../Tests/BoomBoomBoomKitBenchmarkTests/BNNSImpactTests.swift#L156)
