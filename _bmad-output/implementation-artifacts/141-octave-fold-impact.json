@@ -1,6 +1,6 @@
 {
   "corpus" : "giantsteps",
-  "gitSHA" : "2d533cb-dirty",
+  "gitSHA" : "58e3dcd",
   "modelDigest" : "5dc5873bef88e0ab73ce6107411696715a2459b1fc80727cb871b16fa845dd37",
   "modelPath" : "\/Users\/rterhaar\/Dropbox\/research\/swift\/BoomBoomBoomKit\/_bmad-output\/ml-models\/giantsteps_v2_seed_42.mlmodelc",
   "perTrack" : [
