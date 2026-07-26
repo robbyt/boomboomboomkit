@@ -15,6 +15,11 @@ Run a single test: `swift test --filter BPMAnalyzer120BPMTests/detect120BPM`
 
 ### Ships to `main` (the public open-source library)
 
+**This table is drift-tested.** `scripts/promote-to-main.py` holds the same list
+as `SHIPS_TO_MAIN` and is what actually runs; `scripts/tests/test_promote_to_main.py`
+asserts the two are set-equal, so editing one without the other fails the test
+rather than surfacing on release day. Add a row here AND an entry there.
+
 | Path | Why |
 |---|---|
 | `Package.swift` | SPM manifest |
@@ -25,12 +30,21 @@ Run a single test: `swift test --filter BPMAnalyzer120BPMTests/detect120BPM`
 | `MODEL_CARD.md` | Authoritative bundled-model accuracy disclosure (per Story 4-4b party-mode follow-up) |
 | `LICENSE` | License text |
 | `.swiftlint.yml` | Lint config |
-| `.gitignore` | Ignored-path rules (must include the develop-only patterns so they don't accidentally land on main) |
+| `.gitignore` | Ignored-path rules. **`main` keeps its OWN copy** — the promotion preserves it rather than taking develop's. develop's 132-line file is mostly patterns for paths that don't exist on `main` (ml-training checkpoints, per-seed model exports, BMAD subtrees); `main` carries a 48-line file covering what a main-only checkout actually produces. The former instruction here — that the shipped file "must include the develop-only patterns" — was wrong: those patterns are dead config on `main` |
 | `Makefile` | Build/test targets. `ml-*` shortcut targets remain in the file even though their underlying scripts live in `_bmad-output/`; they fail loudly on a main-only checkout, which is intentional — consumers shouldn't run them |
 
 ### Stays on `develop` ONLY — NEVER shipped to `main`
 
-These are the LLM-aided-development scaffolding directories. They MUST be excluded from the squash-merge to main.
+These are the LLM-aided-development scaffolding directories.
+
+**This list is now documentation, not the mechanism.** It used to be the
+mechanism — step 3 of the protocol said "remove every path in this list" — which
+made it a denylist that FAILED OPEN: anything not enumerated shipped by default.
+When that was measured (2026-07-25), `develop` had 21 top-level entries and this
+list named 6, so `.gemini/`, `Demo/`, `docs/`, `TODO.md`, `hilbert-request.md`
+and `.github/` would all have shipped. `docs/` alone holds three named LLM audit
+files. The promotion is now allowlist-driven and fails closed; a develop-only
+path added tomorrow is stripped whether or not it appears below.
 
 - **`CLAUDE.md`** — this file. Public consumers do not need it; shipping it advertises the AI-agent workflow inappropriately and exposes internal conventions
 - **`.claude/`** — Claude Code configuration: settings, skills, projects, scheduled tasks, worktrees
@@ -43,17 +57,52 @@ These are the LLM-aided-development scaffolding directories. They MUST be exclud
   - `_bmad-output/perf-baselines/` — performance benchmark history
   - `_bmad-output/planning-artifacts/` — epics + architecture docs
   - `_bmad-output/project-context.md` — internal AI-agent context
-- **`scripts/`** — non-shipping Python utilities (e.g., `scripts/dawproject-bpm.py` for DAW oracle ground-truth generation)
+- **`scripts/`** — non-shipping Python utilities (e.g., `scripts/dawproject-bpm.py` for DAW oracle ground-truth generation, `scripts/promote-to-main.py` for the promotion itself, which strips itself)
+- **`Demo/`** — the App Store demo app. Reaches users only as a compiled archive via `make demo-archive`, never via git
+- **`docs/`** — internal design notes and LLM audit documents (`chatgpt-audit.md`, `gemini-audit.md`, `glm-audit.md`, `project-scan-report.json`, …)
+- **`.gemini/`** — Gemini CLI configuration, the same class as `.claude/`
+- **`.github/`** — CI workflow. Its comments reference develop-only tooling, and a dormant `main` receives no pushes to gate. Authoring a `main`-appropriate workflow is a v1 item
+- **`TODO.md`, `hilbert-request.md`** — loose internal working notes
 
 ### Squash-merge protocol (`develop` → `main`)
 
-Manual; the release operator does this by hand. There is no automation.
+**`main` is dormant until v1** (operator confirmation, recorded 2026-07-25). It
+is the public default branch and carries a released-looking tree, but no release
+has been cut. Nothing below implies one is imminent.
+
+The staging is scripted so it cannot silently ship a develop-only path. The
+operator still writes the commit — the script never commits.
 
 1. `git checkout main`
 2. `git merge --squash develop`
-3. **Before committing, `git rm --cached -r` every path in the "Stays on `develop` ONLY" list above**, plus any other develop-only artifact that landed (`*.trace`, etc. — see `.gitignore`)
-4. Verify with `git status` that the staged tree contains only paths from the "Ships to `main`" table
-5. Commit with a clean public release message — no references to BMAD, Claude Code, party mode, story specs, AI agents, or any LLM-aided-development concept
+   The squash **conflicts on `.gitignore` every time**, because `main` keeps its
+   own public copy. That is expected and the script resolves it.
+3. `make release-preview` — dry run. Prints what would ship, what would be
+   stripped, and any conflict. Stages nothing, so it is safe to run any day;
+   **run it periodically, not only at release time**, to catch drift early.
+4. `make release-stage` — unstages everything off the allowlist and restores
+   `main`'s own `.gitignore`. Refuses if you are not on `main`, if nothing is
+   staged, or if a conflict outside the preserve set is unresolved.
+5. `git status` to review, then commit with a clean public release message — no
+   references to BMAD, Claude Code, party mode, story specs, AI agents, or any
+   LLM-aided-development concept.
+
+**Why allowlist rather than denylist.** A denylist ships anything nobody
+remembered to list; an allowlist ships only what was deliberately cleared. The
+failure mode changes from "internal audit documents leak to a public branch" to
+"a legitimately public file is missing from the first release" — visible and
+cheap.
+
+**Scope of the guarantee: whole files, not file contents.** The promotion
+governs which paths ship. Source and test files retain their in-code provenance
+comments — story references, design-decision numbers, why a particular guard
+exists — deliberately, because that context is useful to anyone reading the
+code. As of 2026-07-25 that is 113 of the 265 shipping files. This is an
+accepted, measured position, not an oversight.
+
+**Ancestry note.** `main` and `develop` share the root commit, so the squash
+needs no `--allow-unrelated-histories`. Verified 2026-07-25 via `git merge-base`.
+(A history rewrite that re-roots either branch would change this.)
 
 **`main`'s history must never reflect the LLM-aided development workflow.** No story-spec commit messages. No `Story 4-4b: ...` subjects. The release commit on main is one squash with a public-facing message; the audit trail of *how* the work happened lives on develop.
 

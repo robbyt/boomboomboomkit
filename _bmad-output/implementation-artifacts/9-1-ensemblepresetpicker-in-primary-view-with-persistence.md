@@ -1,5 +1,5 @@
 ---
-baseline_commit: eca19a32a541eab2b26c4258651909a76215ab8b
+baseline_commit: 732e59ccc1900f7661aa978ed739075e499b7ec3
 ---
 
 # Story 9.1: EnsemblePresetPicker in primary view with persistence
@@ -14,7 +14,7 @@ so that I can drop an audio file, pick a named preset, and see the unified-signa
 
 ## Context & why this story exists
 
-First story of Epic 9 (demo shell + ensemble picker — FR-36, KDD-D1). Epic 9 depends only on Epic 6, which closed 2026-05-30; the epics.md gate ("Story 6.5 closed on develop before this story's first PR") is satisfied. Epic 8 landed on develop as `eca19a3`, so the demo already carries the beat-grid overlay and the Epic 7 BYOW ML controls — this story must integrate with both, and one integration point (the BYOW `.mlOnly` override) is a genuine design decision, resolved in DD3 below.
+First story of Epic 9 (demo shell + ensemble picker — FR-36, KDD-D1). Epic 9 depends only on Epic 6, which closed 2026-05-30; the epics.md gate ("Story 6.5 closed on develop before this story's first PR") is satisfied. Epic 8 landed on develop as `732e59c`, so the demo already carries the beat-grid overlay and the Epic 7 BYOW ML controls — this story must integrate with both, and one integration point (the BYOW `.mlOnly` override) is a genuine design decision, resolved in DD3 below.
 
 This is a **demo-only story**: `git diff --stat Sources/ Tests/` must be empty at close-out. The library's `EnsemblePolicy` surface is consumed, never modified.
 
@@ -108,7 +108,7 @@ This is a **demo-only story**: `git diff --stat Sources/ Tests/` must be empty a
 
 ## Dev Notes
 
-### Architecture & source tree (touch points, verified 2026-07-02 against the post-`eca19a3` develop tree)
+### Architecture & source tree (touch points, verified 2026-07-02 against the post-`732e59c` develop tree)
 
 - **NEW** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/EnsemblePresetPicker.swift` — view + `EnsemblePreset` enum (DD1/DD6).
 - **UPDATE** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/AnalysisViewModel.swift` (904 lines) — `Configuration` (`:20-28`), key (`:30`), `init` hydrate (`:51-69`), persist (`:75-80`), BYOW state comments (`:213`, `:224`), `analyze()` prologue (`:348`) + BYOW block (`:364-368`), `copyConfigToPasteboard` (`:644` region), `pickAndLoadMLModel` seam split (`:696-721`).
@@ -237,7 +237,7 @@ Claude Fable 5 (claude-fable-5), 2026-07-02 session, auto-mode single-shot imple
 
 ## Change Log
 
-- 2026-07-02: Story spec created (bmad-create-story). Grounded by a 4-agent parallel forensic pass (demo app current state, library ensemble surface, prior-story intelligence, architecture/PRD) with every cited path/type/line re-verified against the post-`eca19a3` develop tree.
+- 2026-07-02: Story spec created (bmad-create-story). Grounded by a 4-agent parallel forensic pass (demo app current state, library ensemble surface, prior-story intelligence, architecture/PRD) with every cited path/type/line re-verified against the post-`732e59c` develop tree.
 - 2026-07-02: Pre-implementation Codex review round 1 (thread `019f2530-04e9-7d23-aaf4-0078e13a509f`) — 4 MUST-FIX + 5 SHOULD-FIX + 3 CONSIDER applied: per-run propagation asserts full `EnsemblePolicy ==` (stableKey collapses the weightedVoting presets); DD7 caption re-keyed to the public `mlModelName`/`mlEnabled` observables (`mlTechnique` is private) with a loaded-but-disabled variant; DD3 gains explicit toggle-off semantics + an internal `attachMLTechnique` testability seam (the NSOpenPanel-only loader was untestable); stale `.mlOnly` comment sweep added to T3; DD6 fallback contract pinned (selection binding, stable identity, visible indicator, keyboard, a11y label) + verbatim-content test; dual-preference isolation and no-cascade tests added to T5; Copy Config gains the preset line; first-launch-fallback assertion + stale-`.dspOnly` grep added; AC3 "byte-equals" clarified to value-equality via `==`. API availability validated (radioGroup macOS 10.15+/2-5-option guidance; inspector macOS 14+; removePersistentDomain constraints).
 - 2026-07-02: Code review complete (3-layer: Codex Blind Hunter thread `019f2550-64a6-7bb3-bdf6-807b5cd2d635`, Edge Case Hunter, Acceptance Auditor). 21 raw → 6 patches (seam-comment single-line, enableMLDiagnostics assertions, policyLiteral drift-lock ×4, DSP-only-ignores-model caption, absent-key pre-clean, independent name/subtitle assertions) + 1 recorded decision (subtitle-fragment rendering, D1) + 4 defers + 10 dismissals with evidence. Post-patch: demo-test 124/124, pre-commit clean. Status review → done.
 - 2026-07-02: Implementation complete (bmad-dev-story, auto-mode single-shot; status ready-for-dev → in-progress → review). 2 NEW + 3 MODIFIED Swift files in Demo/; +20 test invocations (demo-test 120 total, 0 failures); library untouched (`git diff Sources/ Tests/` empty; 842 library tests green). Three implementation reds hit and resolved — MainActor default isolation on the enum, a fourth snippet call site, and the weighted-policy trace record being `EnsembleWeightResolution` (not `EnsembleDecision`) — details in Debug Log References.

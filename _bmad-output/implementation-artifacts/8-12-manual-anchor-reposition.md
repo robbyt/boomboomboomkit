@@ -1,5 +1,5 @@
 ---
-baseline_commit: 97ff86ff3b974ae9bad67c53f641facfbb7ac331
+baseline_commit: a286475e96b2e14679ce2f5da32134a08ca62df3
 ---
 
 # Story 8.12: Manual anchor reposition (snap-toggleable)
@@ -16,7 +16,7 @@ so that **I can lock the grid Rekordbox-style (click a new downbeat, optionally 
 
 ## Context & why this story exists
 
-This is **pillar 3 of 3** in the beat-grid accuracy follow-up (operator decision 2026-06-23, `epics.md:1208`): **8-10** continuous tempo refinement (`done`), **8-11** drop-anchored downbeat / measure-top (`done`, PR #54 / commit `97ff86f`), **8-12** = this story. The manual *BPM*-lock half already ships — `BeatGridTempoLock.bpm(Double)` (Story 8.9, `BeatGridTempoLock.swift:62`). The missing complementary primitive is a manual *anchor* (bar-origin) override: when the auto downbeat / phase-consistency anchor lands on the wrong beat — or auto-detection abstained entirely (the common case: 8.5a `.metricalAccent` fires ~4.4 %; 8.11 `.structuralDrop` is also abstain-heavy by design) — the human asserts the bar origin. Together the two are the hand-correction levers of a Rekordbox-style grid editor: **set the BPM** (shipped) + **set the downbeat** (this story).
+This is **pillar 3 of 3** in the beat-grid accuracy follow-up (operator decision 2026-06-23, `epics.md:1208`): **8-10** continuous tempo refinement (`done`), **8-11** drop-anchored downbeat / measure-top (`done`, PR #54 / commit `a286475`), **8-12** = this story. The manual *BPM*-lock half already ships — `BeatGridTempoLock.bpm(Double)` (Story 8.9, `BeatGridTempoLock.swift:62`). The missing complementary primitive is a manual *anchor* (bar-origin) override: when the auto downbeat / phase-consistency anchor lands on the wrong beat — or auto-detection abstained entirely (the common case: 8.5a `.metricalAccent` fires ~4.4 %; 8.11 `.structuralDrop` is also abstain-heavy by design) — the human asserts the bar origin. Together the two are the hand-correction levers of a Rekordbox-style grid editor: **set the BPM** (shipped) + **set the downbeat** (this story).
 
 **Operator directive (2026-06-28): the snap must be toggleable.** The first draft of this story scoped snap-to-nearest-detected-beat *only*. The operator clarified — twice — that being able to **turn the snap off and reposition to an arbitrary time** is a required feature ("being able to turn off the snap-to is a useful feature"; "I do want to be able to snap to the beat, but also turn it off for repositioning"). That is the truer Rekordbox model: Rekordbox's own grid-marker edit places the bar line at the waveform/playhead position, not constrained to an internal detected-beat list (Codex consult thread `019f1079`). Honoring it is **not** a mode flag bolted onto a type that cannot express an off-beat anchor — it requires a deliberate, honest **anchor-model evolution** so a free-standing manual origin is a first-class representable state (Codex consult thread `019f1095`). That evolution is the bulk of this story; the transform itself is small.
 
@@ -102,7 +102,7 @@ This is **pillar 3 of 3** in the beat-grid accuracy follow-up (operator decision
 
 ## Dev Notes
 
-### Architecture & source tree (touch points, verified against `97ff86f` via blast-radius sweep)
+### Architecture & source tree (touch points, verified against `a286475` via blast-radius sweep)
 
 - **`Sources/BoomBoomBoomKit/BeatGridAnchor.swift`** (UPDATE) — property `:45` (`Int`→`Int?`); memberwise init `:73-85` (clamp `:80`); `Codable` init `:93-106` (`decode`→`decodeIfPresent` `:95`); `description` `:110-114` (`:112`); add `.manual` to `BeatGridAnchorSource` `:124-141`.
 - **`Sources/BoomBoomBoomKit/BeatGrid.swift`** (UPDATE) — `currentSchemaVersion` `:78` (→2); the three-rule invariant in the memberwise init `:239-248` (guard `:240`, subscript `:241`, rebuild `:242-247`); `description` `:355` (optional-aware `beatIndex` render); `offset(by:)` `:387-437` (guard `:388`, min/max `:392-393`, pass-origin `:434`, comment `:426-427`); add `repositioningAnchor(to:mode:)` + `BeatGridAnchorRepositionMode` in the `extension` `:362-438`; source-gate DocC `:204-207`, `:236-238`; gridOrigin doc `:127-128` ("nil when no beats" — reword: *unless* a free-standing `.manual` origin was placed) + `:131-135`.
@@ -186,7 +186,7 @@ claude-opus-4-8 (Claude Opus 4.8) via `/bmad-dev-story`.
 - **Schema bump (DD #5).** `currentSchemaVersion 1 → 2` (the `beatIndex: Int?` persisted-contract change). Re-captured the 8-11 `defaultPathBeatGridMatchesPreStorySnapshot` SHA + flipped the four `BeatGridTypesTests` `== 1` stamp assertions; added a v1-downgrade assertion that reproduces the pre-story digest, proving the grid is byte-identical apart from the version stamp.
 - **`BeatGridAnchorSource.manual` (DD #6).** Coupling-orthogonal provenance; `String`-backed bare-string wire shape; non-`CaseIterable`. The source-gate DocC now states the decoded-trust asymmetry: `.manual` is the one provenance honored on `source` alone (no second field to corroborate; it coexists with `.notAttempted`), acceptable only because it is inherited from whoever wrote the payload (the consumer's own cache).
 - **Byte-identity story (DD #7 / AC #10) — stated explicitly.** There is **no `Options`-gated default-on path**, so there is **no byte-identity opt-out test** — the transform is consumer-API-only (grep-confirmed: not called from `AudioAnalysisService`/`BPMAnalyzer`/`BeatGridAnalyzer`). The only byte-identity obligations are (1) auto-anchor VALUES unchanged (the `Int → Int?` widening passes literal non-nil indices at every `selectGridOrigin`/downbeat-repoint site) and (2) the one intended `schemaVersion` stamp delta. Both are locked: the snapshot's v1-downgrade assertion proves auto grids are byte-identical apart from the stamp. No DSP / BPM-selection / re-decode path touched → OA300 (Acc1 ≥ 57/82, Acc2 ≥ 73/82) and GiantSteps (Acc1 ≥ 537/661, Acc2 ≥ 546/661) hold **by construction** (no corpus re-run required).
-- **Gauntlet:** `make fmt` clean (only the 7 touched files); `make lint` 1 violation 0 serious (LUFSAnalyzer:135 TODO baseline), py-lint clean; `make test` 776 unit tests pass (+27 from the 749 baseline at 97ff86f), 0 fail.
+- **Gauntlet:** `make fmt` clean (only the 7 touched files); `make lint` 1 violation 0 serious (LUFSAnalyzer:135 TODO baseline), py-lint clean; `make test` 776 unit tests pass (+27 from the 749 baseline at a286475), 0 fail.
 
 ### Pending user action (operator-owned)
 
@@ -230,7 +230,7 @@ Adversarial multi-layer review, 4 reviewers: Blind Hunter ×2 (`agy` + Claude So
 ### Dismissed (recorded, no action)
 
 - [Edge, Medium] Standalone `BeatGridAnchor` decode admits a `nil`-index non-`.manual` anchor — **by design**: DD #3 keeps `BeatGridAnchor.init` permissive and makes `BeatGrid.init` rule (c) the sole coherence gate (which drops it). `BeatGridAnchor` is never persisted independently in production. A possible future hardening only if standalone-anchor persistence ever ships.
-- [Auditor, Low] Snapshot comment cites baseline `0a8c18a` vs the story's `baseline_commit 97ff86f` — **not a defect**: `0a8c18a` is the *byte-stability* baseline (default-path values unchanged since that commit, carried from Story 8-11), a distinct concept from the 8-12 *diff* baseline. The comment is correct.
+- [Auditor, Low] Snapshot comment cites baseline `db6fea4` vs the story's `baseline_commit a286475` — **not a defect**: `db6fea4` is the *byte-stability* baseline (default-path values unchanged since that commit, carried from Story 8-11), a distinct concept from the 8-12 *diff* baseline. The comment is correct.
 - [Blind/Sonnet, Medium] Two decoded tests omit `tempoAgreement`/`coverage` → "decode throws and masks the assertion" — **false positive**: `BeatGrid.init(from:)` decodes both via `decodeIfPresent` with defaults (`:365-371`); the tests reach their `gridOrigin == nil` assertions and pass (Sonnet hedged this, being blind to the source).
 - [Blind/Sonnet, Low] `offset(by:)` `maxTime` is dead weight — **false positive**: `maxTime` is the positive-overflow guard at `:476` (`(maxTime + effective).isFinite` prevents the latest timestamp going non-finite on a large `+` shift).
 - [Blind/Sonnet, Low] `nearestBeatIndex` has no internal NaN guard — **handled at the call site**: the sole caller pre-checks `time.isFinite`; the method is `private`. Defensive-depth note only.

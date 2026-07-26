@@ -349,7 +349,7 @@ Recent commits:
 - `e1e880b` Story 3-2 - perf baseline at 1380089
 - `1380089` Story 3-2 - fine-grid precision fix and code-review patches
 - `f10ca6c` Story 3-1 - harmonic ratio detection
-- `739e7c1` land epic 2
+- `49fc97e` land epic 2
 
 Story 3-2 just landed. Tree is clean. Story 3-3 starts here.
 

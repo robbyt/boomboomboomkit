@@ -1,5 +1,5 @@
 ---
-baseline_commit: ae04011
+baseline_commit: a973fd6
 ---
 
 # Story 8.1: LUFS public API — `analyzeLUFS(url:options:)` + `LUFSReport`
@@ -107,7 +107,7 @@ PR #32 Copilot triage 2026-06-10 (layer 5; 4 comments, all verified against code
 
 **Previous-story intelligence (Epic 7 retro, 2026-06-05).** A1 fail-closed discipline re-arms here: the LRA <60s rule and the unsupported-rate throw must fail CLOSED (nil/throw), never fall through to a wrong number. A3 byte-inert ÷ semantic split: applied via T0-first ordering. Epic 7's recurring failure modes (fail-open guards, weak fixtures) are the named countermeasures behind AC6/AC9.
 
-**Git intelligence.** Recent commits are ML-harness Python (`ae04011` land epic 7); the last Sources-heavy work is Epic 6 (`988a4f5`) — its review history is the live precedent for public-type conformance debates (`Hashable`+NaN) and additive-field byte-inertness.
+**Git intelligence.** Recent commits are ML-harness Python (`a973fd6` land epic 7); the last Sources-heavy work is Epic 6 (`c0a4b17`) — its review history is the live precedent for public-type conformance debates (`Hashable`+NaN) and additive-field byte-inertness.
 
 **Standards references for doc comments:** ITU-R BS.1770-5 (Annex 1 gating, Annex 2 true-peak), EBU R 128 (−23 LUFS target, −1 dBTP ceiling, LRA ≥1 min note), EBU Tech 3341 §2.2 (M/S windows + ≥10 Hz), EBU Tech 3342 §3.1 (LRA gates + percentiles). Cite section numbers in `///` per project rule.
 
@@ -133,7 +133,7 @@ Claude Opus 4.x (claude-fable-5[1m]) via bmad-dev-story, 2026-06-10, on `rterhaa
 
 ### Debug Log References
 
-- **T0 dump harness** ran twice against the pre-story analyzer (develop @ `ae04011`); the second run measured `sample-with-cover.m4a` integrated differing at the 1e-7 LU level from the first (−21.822245236816986 vs −21.822245067974563) — empirical same-machine confirmation of DD #11's "AAC decode is not byte-stable". MP3 was stable across runs but stays tier-2 by rule.
+- **T0 dump harness** ran twice against the pre-story analyzer (develop @ `a973fd6`); the second run measured `sample-with-cover.m4a` integrated differing at the 1e-7 LU level from the first (−21.822245236816986 vs −21.822245067974563) — empirical same-machine confirmation of DD #11's "AAC decode is not byte-stable". MP3 was stable across runs but stays tier-2 by rule.
 - **`sample.wav` is 8 kHz** (1.0s, Int16 mono) — pre-story analyzer returns nil for it; under the new contract it throws. Two consequences: (a) the DD #13 CAF fixture is generated from `test-bwf.wav` (44.1k, 5s) instead of the spec-named `sample.wav` (an 8 kHz CAF would throw and fail AC4); (b) `sample.wav` became the real-file asset for the AC9 `unsupportedSampleRate` throw test.
 - **ITU tap table verified online** against the published BS.1770-3 text (unchanged through -5) before embedding — all 48 values are dyadic multiples of 2⁻¹³, per-phase DC gain ≈ 1.0016.
 - **Correlation-direction note for review:** taps are stored published-form and pre-reversed once into `truePeakPhases4xReversed` so `vDSP_conv` (correlation) computes true convolution. For the ITU table specifically, phase3 = reverse(phase0) and phase2 = reverse(phase1), so correlating with the un-reversed set would produce the same VALUE SET at shifted positions — the asymmetric-transient test therefore locks total interpolation correctness against a direct-form Double oracle (tap entry, padding, chunk seams) rather than direction alone; direction is locked by construction.
@@ -155,7 +155,7 @@ Claude Opus 4.x (claude-fable-5[1m]) via bmad-dev-story, 2026-06-10, on `rterhaa
 - **Gates (exact counts):** `make build` clean; `make test` 524 tests / 115 suites passed (pre-story baseline 483/105 → +41 tests, +10 suites); `make fmt` run before `make lint`; `swiftlint` 1 violation = the pre-existing canonical `LUFSAnalyzer` TODO (now line 127, was 94 — same TODO, moved by additive code above it); `make py-lint` green (within `make lint`); AC2 grep zero matches.
 - **Internal→public promotions in this story (PR-description list per AC11):** `LUFSReport`, `LoudnessSample`, `LoudnessSeries`, `LUFSAnalysisError`, `LUFSOptions` — all net-new declared in AC1/DD #2/#3/#8/#9. NO existing internal type was promoted (`LUFSAnalyzer`, `LUFSResult` stay internal).
 - **Red-green honesty note:** T0's byte-identity oracle was authored and verified green BEFORE any analyzer edit (the spec's red-green requirement for the regression contract). The new-feature tests (T1–T4/T9 suites) were authored alongside their implementation in one build cycle, not strictly test-first; their failure modes are locked analytically (rectangle discriminator, Double oracle, measured offsets) rather than by observed-red.
-- **Pending user action (operator-owned closeout):** (1) separate-LLM `/bmad-code-review`; (2) 1Password-signed commit + PR `rterhaar/8-1` → `rterhaar/epic-8` (include the staged epics.md amendment; do NOT commit `Demo/BoomBoomBoomBPM/LUFSChartSchemaProbe.swift` or its pbxproj membership edit — they seed Story 10-4); (3) optional perf-baseline follow-up commit convention applies (two new baseline JSONs generated at `ae04011`); (4) Story 10-4 (demo LUFS chart) is pull-forwardable immediately after this story closes.
+- **Pending user action (operator-owned closeout):** (1) separate-LLM `/bmad-code-review`; (2) 1Password-signed commit + PR `rterhaar/8-1` → `rterhaar/epic-8` (include the staged epics.md amendment; do NOT commit `Demo/BoomBoomBoomBPM/LUFSChartSchemaProbe.swift` or its pbxproj membership edit — they seed Story 10-4); (3) optional perf-baseline follow-up commit convention applies (two new baseline JSONs generated at `a973fd6`); (4) Story 10-4 (demo LUFS chart) is pull-forwardable immediately after this story closes.
 
 ### File List
 
@@ -164,8 +164,8 @@ New:
 - `Sources/BoomBoomBoomKitTestSupport/Resources/AudioFixtures/test-bwf.caf`
 - `Tests/BoomBoomBoomKitTests/LUFSByteIdentityTests.swift`
 - `Tests/BoomBoomBoomKitTests/LUFSReportTests.swift`
-- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260610T185422Z--ae04011--8e0ca3dd.json`
-- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260610T185546Z--ae04011--a9c6f08e.json`
+- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260610T185422Z--a973fd6--8e0ca3dd.json`
+- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260610T185546Z--a973fd6--a9c6f08e.json`
 
 Modified:
 - `Sources/BoomBoomBoomKit/LUFSAnalyzer.swift`

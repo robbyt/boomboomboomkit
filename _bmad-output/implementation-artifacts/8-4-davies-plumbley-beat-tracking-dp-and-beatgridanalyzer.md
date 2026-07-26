@@ -1,5 +1,5 @@
 ---
-baseline_commit: ca8885613424a6954af92151a45280db7f497d4d
+baseline_commit: da5d9d62f0df754936ed09670b5ff89fa8876c01
 ---
 
 # Story 8.4: Davies & Plumbley beat-tracking DP — `BeatGridAnalyzer` + step 11 insertion

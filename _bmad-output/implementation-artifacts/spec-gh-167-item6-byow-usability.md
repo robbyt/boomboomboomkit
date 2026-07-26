@@ -4,7 +4,7 @@ type: 'bugfix'
 created: '2026-07-25'
 status: 'done'
 review_loop_iteration: 0
-baseline_commit: 'e92445d'
+baseline_commit: 'e5c0971'
 context: []
 ---
 
@@ -143,7 +143,7 @@ observability, not for callers — `deinit` discards it.
 
 ## Verification
 
-**Results (2026-07-25, baseline `e92445d`):**
+**Results (2026-07-25, baseline `e5c0971`):**
 
 | Check | Result |
 |---|---|
@@ -151,7 +151,7 @@ observability, not for callers — `deinit` discards it.
 | `make fmt && make lint` | 6 violations, 0 serious — all pre-existing, in build artifacts |
 | `make test` (no corpus env) | **941 tests / 161 suites, 4 known issues, green** (baseline 929/160/4; +12 tests, +1 suite) |
 | `make demo-build` | `** BUILD SUCCEEDED **`, 0 errors — confirms the computed projections hold every Demo read site unchanged |
-| `make benchmark` | 11/11 pass. **Acc1 58/82 (70.7%), Acc2 74/82 (90.2%)** — floors 57/73 hold, and the values match those documented in CLAUDE.md. Not asserted as a before/after delta (no measured `e92445d` run exists to compare against); the basis for expecting no change is that no DSP production behaviour was touched |
+| `make benchmark` | 11/11 pass. **Acc1 58/82 (70.7%), Acc2 74/82 (90.2%)** — floors 57/73 hold, and the values match those documented in CLAUDE.md. Not asserted as a before/after delta (no measured `e5c0971` run exists to compare against); the basis for expecting no change is that no DSP production behaviour was touched |
 
 The 4 known issues are the untouched `AccuracyFloorTests` octave ratchets from
 item 5. No accuracy floor moved.

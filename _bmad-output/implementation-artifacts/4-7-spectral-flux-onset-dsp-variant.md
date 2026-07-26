@@ -61,7 +61,7 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
 
    Everything after the `vDSP_vsub` step (HWR, full-band sum, sub-band sums, sub-band normalization) is **byte-for-byte identical** to the baseline.
 
-4. **Numeric delta gate — ≥1 named DnB track resolved OR honest inertness.** Per epics.md AC #4 + Codex 2026-05-04 brutal-corpus-gate framing. Resolution criterion: at least one of the 4 frozen named DnB triplet entries in `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json` (Charly @ 160, Faraday_Bunker @ 170, Yin Yang @ 170, HEFT_Anagram 6 @ 170) moves from its frozen `current_predicted_bpm` to within ±2% of `ground_truth_bpm`. The frozen values were captured at SHA `1c8e274` (Story 4-5 close-out) and are NOT re-frozen at Story 4-7 PR time — they're the baseline this story tries to beat. Currently all 4 sit at ~107-113 BPM against ground truth ~160-170 (abs_error ~53-57 BPM).
+4. **Numeric delta gate — ≥1 named DnB track resolved OR honest inertness.** Per epics.md AC #4 + Codex 2026-05-04 brutal-corpus-gate framing. Resolution criterion: at least one of the 4 frozen named DnB triplet entries in `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json` (Charly @ 160, Faraday_Bunker @ 170, Yin Yang @ 170, HEFT_Anagram 6 @ 170) moves from its frozen `current_predicted_bpm` to within ±2% of `ground_truth_bpm`. The frozen values were captured at SHA `7a6652a` (Story 4-5 close-out) and are NOT re-frozen at Story 4-7 PR time — they're the baseline this story tries to beat. Currently all 4 sit at ~107-113 BPM against ground truth ~160-170 (abs_error ~53-57 BPM).
 
    **AND DSP-correct controls preserved (4/4).** Per Story 4-6 DD #4 + the symmetric gate established in Story 4-6 review pass: the 4 `dsp_correct_controls` entries in the same fixture MUST remain correctly detected within ±0.5 BPM of ground truth after enabling `.superFluxOnset`. The control set is the regression-protection backbone — a variant that resolves a named failure at the cost of breaking a previously-correct DnB track is NOT acceptable.
 
@@ -264,7 +264,7 @@ The DDs below are the binding choices the dev agent inherits BEFORE Task 1 begin
   - [x] 1.2: Run `make benchmark` (OA300) — capture per-track BPM JSON snapshot + aggregate Acc1/Acc2 to `_bmad-output/implementation-artifacts/4-7-regression-snapshot.json` (byte-equality anchor for AC #3)
   - [x] 1.3: Run `make benchmark-giantsteps` — capture per-track JSON + aggregate Acc1/Acc2 to the same snapshot file (suffix `giantsteps` section)
   - [x] 1.4: Run `make perf-benchmark` — capture per-run perf baseline JSON under `_bmad-output/perf-baselines/`
-  - [x] 1.5: Confirm 4-dnb-triplet-targets.json fixture is at `schema_version: 3` (Story 4-6 v3 with controls partition); confirm SHA `1c8e274` `current_predicted_bpm` values for the 4 named tracks (Charly, Faraday_Bunker, Yin Yang, HEFT_Anagram 6) — these are the brutal-gate baseline values
+  - [x] 1.5: Confirm 4-dnb-triplet-targets.json fixture is at `schema_version: 3` (Story 4-6 v3 with controls partition); confirm SHA `7a6652a` `current_predicted_bpm` values for the 4 named tracks (Charly, Faraday_Bunker, Yin Yang, HEFT_Anagram 6) — these are the brutal-gate baseline values
   - [x] 1.6: Commit baselines + snapshot artifacts + initial story spec touch: `Story 4-7 Task 1: pre-source-change baseline artifacts`
 
 - [x] **Task 2 — DSPTechnique enum extension + 10 invariant updates (AC #1)** [single commit; HALT-(a) fires if any site missed]
@@ -535,7 +535,7 @@ R1 `frameCount == 0` short-circuited via `>= 2` helper guard (CBH#1 + ECH#2) —
 - **DSPTechnique enum:** `Sources/BoomBoomBoomKit/DSPTechnique.swift:19-76` (7 cases), `:131-160` (5 presets), `:164-181` (`allDSPCombinations()` 2^N expansion).
 - **ADRs touching the DSP spine:** ADR-3 (buffer reuse, project-context.md ADR table), ADR-7 (harmonic-ratio inside step 10), ADR-8 (click-track as new DSPTechnique case — Story 3-3 precedent for the same architectural shape as Story 4-7), ADR-11 (Options-first — does NOT apply to Story 4-7 per DD #1 because the variant is a DSP-spine technique, not orthogonal signal axis).
 - **Floor assertions:** `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift:104,108` (Acc1 ≥ 57, Acc2 ≥ 73), `GiantStepsBenchmarkTests.swift:82,86` (Acc1 ≥ 537, Acc2 ≥ 546). These are unconditional `#expect` per project-context.md:98.
-- **Frozen named-DnB + control fixture:** `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json` schema_version 3, captured at SHA `1c8e274`. The `current_predicted_bpm` values for the 4 named tracks are the brutal-gate baseline. The `dsp_correct_controls` array is the regression-protection backbone.
+- **Frozen named-DnB + control fixture:** `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/4-dnb-triplet-targets.json` schema_version 3, captured at SHA `7a6652a`. The `current_predicted_bpm` values for the 4 named tracks are the brutal-gate baseline. The `dsp_correct_controls` array is the regression-protection backbone.
 
 ### Project Structure Notes
 
@@ -608,7 +608,7 @@ All claims below validated against `axiom:axiom-apple-docs` MCP (Apple Developer
 
 ### Previous Story Intelligence
 
-**From Story 4-6 (immediately-prior story, ML diagnostic instrumentation + Branch C bundle pull, commits `5e08319` → `8d932da` → `d9521fc` + review-pass commits `372032a` + `61d6161`):**
+**From Story 4-6 (immediately-prior story, ML diagnostic instrumentation + Branch C bundle pull, commits `360ae5c` → `fcaddf4` → `0447e63` + review-pass commits `a535111` + `16d1dc1`):**
 
 - **Test count band discipline** — Story 4-6 set a band of `[416, 424]` after parameterized-test collapse + new file additions. Story 4-7's projected band `[432, 438]` adds 12-18 tests across 3 new files (`SuperFluxByteIdentityTests.swift`, `SuperFluxOnsetEnvelopeTests.swift`, `SuperFluxImpactTests.swift`). HALT-(d) enforces.
 - **Pre-implementation Codex multi-pass review remains mandatory** — Story 4-6 ran 4 layers (Claude Blind Hunter, Edge Case Hunter, Acceptance Auditor, Codex Blind Hunter) and surfaced 24 findings. For Story 4-7's DSP-only scope, expect 30-45 raw findings concentrated on algorithm correctness, gate composition, and ablation matrix bookkeeping.
@@ -642,7 +642,7 @@ All claims below validated against `axiom:axiom-apple-docs` MCP (Apple Developer
 - Codex consultation thread `019e36de-1440-7b71-b4aa-f68b0a9b6708` (2026-05-17, rescope) — duplicate-algorithm finding; SuperFlux redirect parameter consultation (frequency-axis, r=1, µ=1, replicate-pad, brutal gate unchanged).
 - Epic 4 epics.md sections referenced: Story 4.7 spec lines 1177-1249; Epic 4 preamble lines 229-235; planning decisions line 760; gate type line 762-769; reference line 771; sequencing notes lines 1183, 1244.
 - Project context references: project-context.md:41 (architecture invariants), :69 (pipeline step stability), :88 (Post-Pipeline Corroboration Boundary), :98 (floor assertions), :101 (ablation matrix), :149 (DSP ceiling rule), :160 (Critical Don't-Miss Rules), :173 (onset-envelope quality footnote).
-- Story 4-6 close-out commit `d9521fc` and review-pass commits `372032a` + `61d6161` — most-recent reference points for spec structure, HALT discipline, and Branch C inert-ship pattern.
+- Story 4-6 close-out commit `0447e63` and review-pass commits `a535111` + `16d1dc1` — most-recent reference points for spec structure, HALT discipline, and Branch C inert-ship pattern.
 - Story 3-3 spec at `_bmad-output/implementation-artifacts/3-3-click-track-cross-correlation.md` — closest architectural precedent for new DSPTechnique case addition.
 - Story 3-4 spec at `_bmad-output/implementation-artifacts/3-4-duration-derived-bpm-hint.md` — canonical inert-ship precedent.
 - `4-dnb-triplet-targets.json` schema_version 3 — frozen named-DnB + DSP-correct controls fixture.
@@ -655,17 +655,17 @@ Claude Opus 4.7 (`claude-opus-4-7[1m]`), via bmad-dev-story workflow.
 
 ### Debug Log References
 
-- Capture of pre-source baselines: SHA `61d6161` (= HEAD at story dispatch).
+- Capture of pre-source baselines: SHA `16d1dc1` (= HEAD at story dispatch).
 - Task 3 helper-extraction byte-identity proof: ran
   `OA300_CORPUS_PATH=... swift test --filter
   BoomBoomBoomKitBenchmarkTests.MLPolicySweepTests/dspOnlyMatchesStory4_3Baseline`
   at post-Task-3 SHA — PASSED.
 - Per-fixture byte-identity baseline capture used a one-shot env-gated
   `SuperFluxBaselineCaptureHelper` suite (`BBBK_CAPTURE_SUPERFLUX_BASELINE=1`)
-  — captured at SHA `48483af`; helper removed from the file once values were
+  — captured at SHA `9bee3cc`; helper removed from the file once values were
   frozen into `Fixtures/4-7-byte-identity-baseline.json`.
 - Brutal-corpus-gate run: `make super-flux-impact-report` against full OA300
-  (82 tracks, 0 missing) at SHA `4d178a1`; artifact at
+  (82 tracks, 0 missing) at SHA `6096ab1`; artifact at
   `_bmad-output/implementation-artifacts/4-7-super-flux-impact-report.json`.
 
 ### Completion Notes List
@@ -680,7 +680,7 @@ change per AC #4 Branch B-acknowledged).
 | Metric | Value | Source |
 |---|---|---|
 | Unit test count (`rg '@Test\(' Tests/BoomBoomBoomKitTests \| wc -l`) | 432 | HALT-(d) band `[432, 438]` low edge |
-| Pre-source unit test count | 420 | SHA 61d6161 |
+| Pre-source unit test count | 420 | SHA 16d1dc1 |
 | Net new unit @Tests | +12 | 9 SuperFluxOnsetEnvelopeTests + 3 SuperFluxByteIdentityTests |
 | Benchmark-target new @Tests | +2 | SmokeAblationInvariantTests (parameterized + smokeLaneSize) |
 | OA300 Acc1 at default Options (post-source) | 58/82 (70.7%) | `make benchmark` |
@@ -764,7 +764,7 @@ is the evidence trail.
   pre-Story-4-7 baseline 418/420).
 - `make benchmark` — Acc1 58/82, Acc2 74/82 at default Options ≥ floors.
 - `make benchmark-giantsteps` — Acc1 537/661, Acc2 546/661 ≥ floors.
-- `make perf-benchmark` — captured at Task 1 SHA 61d6161; wall-clock mean
+- `make perf-benchmark` — captured at Task 1 SHA 16d1dc1; wall-clock mean
   0.173s, p95 0.241s on M5 Max (no perf regression expected from Story 4-7
   since the variant is inactive at default Options).
 - `make super-flux-impact-report` — JSON produced at

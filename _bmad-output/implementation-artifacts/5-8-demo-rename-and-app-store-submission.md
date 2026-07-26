@@ -3,7 +3,7 @@
 Story ID: 5.8
 Story Key: 5-8-demo-rename-and-app-store-submission
 Epic: 5 — Developer Experience (Demo App + Documentation)
-Status: done (landed on `develop` via PR #13 `50be70f` — "story 5-8 - finalize the xcode build config and rename")
+Status: done (landed on `develop` via PR #13 `38013c3` — "story 5-8 - finalize the xcode build config and rename")
 Created: 2026-05-24 (via `/bmad-party-mode` rename-scoping discussion: Amelia + Winston + John + Siri)
 Reviewed: 2026-05-24 (via `/bmad-party-mode` review-validate-update pass: Amelia + Winston + John + Siri + mediadiff/MetaMan cross-reference; 18 findings consolidated; operator pre-execution answers recorded — see Change Log)
 Source: `/bmad-party-mode` 2026-05-24 transcripts; supersedes Story 5-7 KDD #4 + #5; closes W33 in `_bmad-output/implementation-artifacts/deferred-work.md`
@@ -226,7 +226,7 @@ Scope (c) is a 50-100 LOC mechanical edit. Pre-edit: dev agent produces a comple
 
 - **R4 — Story 5-7 historical references become stale.** Story 5-7 spec mentions `BoomBoomBoomKitDemo` extensively (paths, ACs, KDDs). Per the §Why this matters discipline in CLAUDE.md, spec history is preserved verbatim. Story 5-8 explicitly does NOT rewrite Story 5-7 — it adds supersession-header blockquotes above KDD #4 + #5 (per AC #5) and lets the rest of Story 5-7's spec history remain accurate as the historical state at Story 5-7's close-out date.
 
-- **R5 — REMOVED (was Story 5-6b a11y polish overlap).** Story 5-6b shipped 2026-05-24 (`f5469bd`) — risk is no longer live.
+- **R5 — REMOVED (was Story 5-6b a11y polish overlap).** Story 5-6b shipped 2026-05-24 (`cc7d35d`) — risk is no longer live.
 
 - **R6 — App Review rejection 1-72h post-upload (NEW).** AC #8 covers ASC validation only. App Review (separate, human + automated) can reject on icon, copy, encryption disclosure, privacy nutrition label accuracy, App Review Guideline 4.1 (Copycats) if the name collides with an existing app, or anything else. Mitigation: AC #8 failure-class routing routes rename-related rejections back into 5-8, unrelated rejections to a follow-up story. AC #1.1 search audit reduces Guideline 4.1 risk pre-emptively.
 

@@ -1,5 +1,5 @@
 ---
-baseline_commit: 53313c062ba91d3dd0843a4c8961efa0cb67a946
+baseline_commit: 2ab78c0e5957ca481a9840270ab89386c1b1dccb
 ---
 
 # Story 8-9: Beat-Grid Tempo-Precision Refinement
@@ -134,7 +134,7 @@ without drift" are different bars; this story closes the second one.
 
 ### Review Findings
 
-_Adversarial code-review 2026-06-22 (Blind Hunter via Codex + Edge Case Hunter + Acceptance Auditor over the staged change set vs baseline `53313c0`). Negative-result story: `Sources/` byte-identical, so all findings land in the develop-only test/spike code. No HIGH-severity issues._
+_Adversarial code-review 2026-06-22 (Blind Hunter via Codex + Edge Case Hunter + Acceptance Auditor over the staged change set vs baseline `2ab78c0`). Negative-result story: `Sources/` byte-identical, so all findings land in the develop-only test/spike code. No HIGH-severity issues._
 
 - [x] [Review][Decision→Patch] AC #6 "new per-track P95 assertion" reads as new but is the retained 8-7 net — `BeatGridBenchmarkTests.swift:461-464` asserts `p95 <= driftP95GateSeconds (2.0 s)`, which is the pre-existing Story-8-7 gate; what this diff actually *added* is the stratified REPORTING + 50 ms aspirational share. **Resolved (operator): patched the AC #6 wording** to state the P95 gate is the retained 8-7 net and the stratified reporting + 50 ms share are what this story adds.
 - [x] [Review][Patch] Guard the two `np.corrcoef` calls against zero-variance NaN [decompose_beatgrid.py:209-210] — identical F / clipped-P95 / duration vectors yield `nan` + RuntimeWarning, silently printed as the correlation the report's conclusions rest on; the spec retains this spike for future re-runs, so a degenerate subset can hit it. **Fixed:** added the `corr_or_nan` helper and routed both call sites through it.

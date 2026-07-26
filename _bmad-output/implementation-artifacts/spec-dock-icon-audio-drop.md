@@ -4,7 +4,7 @@ type: 'bugfix'
 created: '2026-05-25'
 status: 'done'
 context: ['{project-root}/CLAUDE.md']
-baseline_commit: '13e9628'
+baseline_commit: 'fc505e3'
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
@@ -23,7 +23,7 @@ baseline_commit: '13e9628'
 - `CFBundleTypeRole = Viewer` (not `Editor`) — the app reads-only.
 - All UTIs declared must be system-declared on macOS 15+ (no `UTImportedTypeDeclarations` block).
 - Info.plist edits only; no pbxproj edits (the existing config already has `GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = BoomBoomBoomBPM/Info.plist` for both Debug and Release of the app target).
-- No marketing-version or build-number changes (those were just bumped in commit `13e9628 Demo: pin to v0.0.1 build 4`).
+- No marketing-version or build-number changes (those were just bumped in commit `fc505e3 Demo: pin to v0.0.1 build 4`).
 
 **Ask First:**
 - If macOS LaunchServices cache (`lsregister`) refuses to recognize the new UTIs after `make demo-build` and a clean install, before assuming the plist is wrong, check whether the build is being installed at a path other than `~/Library/Developer/Xcode/DerivedData/.../BoomBoomBoom.app` — a stale LSRegister entry pointing at an older `.app` bundle can mask the new declarations.

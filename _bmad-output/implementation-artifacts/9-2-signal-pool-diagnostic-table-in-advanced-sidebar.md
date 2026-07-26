@@ -1,5 +1,5 @@
 ---
-baseline_commit: 5dcae9fe6edfe1a3014740b55a8561c941fb5a13
+baseline_commit: 93f28c97f343ea69bd1f38a5082a39e3c0fd7c43
 ---
 
 # Story 9.2: Signal-pool diagnostic table in advanced sidebar
@@ -16,7 +16,7 @@ so that I can audit the ensemble's decision post-analysis without re-running wit
 
 Second story of Epic 9 (demo shell + ensemble picker — FR-41, KDD-D5). Epic 9 depends only on Epic 6, which closed 2026-05-30; both AC7 gates (Story 6.1 shipped `BPMDiagnosticTrace.signalParticipationTrace`; Story 6.5 shipped the `EnsemblePolicy` facade) are closed on develop.
 
-**Landing note:** Story 9.1 was accidentally squash-landed to develop as `5dcae9f "Land epic 9 (#87)"` (operator mistook it for epic-8), and the operator chose to leave it landed rather than roll develop back. This story therefore branches off the post-9.1 develop on a fresh `rterhaar/epic-9`, and epic-9 will land a **second** squash (9.2 + 9.3). 9.1's demo-side machinery — `EnsemblePresetPicker`, the `selectedEnsemblePreset` single-writer of `Options.ensemblePolicy`, the always-on `opts.enableTrace = true` — is already on develop and this story builds directly on it.
+**Landing note:** Story 9.1 was accidentally squash-landed to develop as `93f28c9 "Land epic 9 (#87)"` (operator mistook it for epic-8), and the operator chose to leave it landed rather than roll develop back. This story therefore branches off the post-9.1 develop on a fresh `rterhaar/epic-9`, and epic-9 will land a **second** squash (9.2 + 9.3). 9.1's demo-side machinery — `EnsemblePresetPicker`, the `selectedEnsemblePreset` single-writer of `Options.ensemblePolicy`, the always-on `opts.enableTrace = true` — is already on develop and this story builds directly on it.
 
 This is a **demo-only story**: `git diff --stat Sources/ Tests/` must be empty at close-out. Every type the table reads (`BPMDiagnosticTrace.signalParticipationTrace`, `SignalParticipationTraceEntry`, `SignalParticipation`, `WeightedSignal`, `SignalSource`, `EnsembleWeightResolution`) is already public library surface (Story 6.1 / 6.5b) — consumed, never modified. **No library change, no live/incremental updates** (FR-41 explicitly defers per-window emission to a future epic).
 
@@ -113,7 +113,7 @@ This is a **demo-only story**: `git diff --stat Sources/ Tests/` must be empty a
 
 ## Dev Notes
 
-### Architecture & source tree (touch points, verified 2026-07-03 against the post-`5dcae9f` develop tree)
+### Architecture & source tree (touch points, verified 2026-07-03 against the post-`93f28c9` develop tree)
 
 - **NEW** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/SignalPoolDiagnosticTable.swift` — `SignalPoolDiagnosticRow` + pure `rows(from:selectedBPM:winner:)` + `SignalPoolDiagnosticTable` view (DD1).
 - **UPDATE** `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/TraceView.swift` (365 lines) — add `signalPoolSection` to `body` (`:20-37`); remove the `ensembleDecision` block from `mlSection` (`:252-266`); reuse `monoFloat` (`:321-324`) or a finite-guarded sibling (DD6/DD9).
@@ -149,8 +149,8 @@ This is a **demo-only story**: `git diff --stat Sources/ Tests/` must be empty a
 
 ### Previous Story Intelligence (PSI)
 
-- **Story 9.1 (this epic, just landed `5dcae9f`)**: the demo builds with **MainActor default isolation** — demo enums / computed props / view models are implicitly `@MainActor`; pure-value tests still need `@MainActor` unless the tested API is genuinely non-isolated (9.1 Debug Log red #1). The pure `rows(from:)` static should be non-isolated if possible; if the compiler forces isolation, annotate the tests. **Weighted presets emit `EnsembleWeightResolution`, NOT `EnsembleDecision`** (9.1 Debug Log red #3) — the entire basis for DD2/DD8; do not assert `ensembleDecision` for demo presets.
-- **Epic 8 retro / factual-claims grep**: every path/line cited here was re-verified on 2026-07-03 against the post-`5dcae9f` tree.
+- **Story 9.1 (this epic, just landed `93f28c9`)**: the demo builds with **MainActor default isolation** — demo enums / computed props / view models are implicitly `@MainActor`; pure-value tests still need `@MainActor` unless the tested API is genuinely non-isolated (9.1 Debug Log red #1). The pure `rows(from:)` static should be non-isolated if possible; if the compiler forces isolation, annotate the tests. **Weighted presets emit `EnsembleWeightResolution`, NOT `EnsembleDecision`** (9.1 Debug Log red #3) — the entire basis for DD2/DD8; do not assert `ensembleDecision` for demo presets.
+- **Epic 8 retro / factual-claims grep**: every path/line cited here was re-verified on 2026-07-03 against the post-`93f28c9` tree.
 - **9.1 commit hygiene**: the untracked `14-1-daw-warp-anchors.generated.json` (its `.gitignore` fence lives only on epic-14) and `_bmad-output/party-mode/` must be kept out — explicit-path staging only.
 
 ### Testing standards
@@ -225,7 +225,7 @@ Claude Opus 4.8 (claude-opus-4-8), 2026-07-03 session, bmad-dev-story single-sho
 
 ## Change Log
 
-- 2026-07-03: Story spec created (bmad-create-story). Grounded by a 3-agent parallel forensic pass (epic/PRD/architecture planning; demo app current structure; library signal-pool trace surface); every cited path/type/line re-verified against the post-`5dcae9f` develop tree. Branches off the post-9.1 develop (9.1 accidentally landed as `5dcae9f`; operator chose to leave it landed — see Context).
+- 2026-07-03: Story spec created (bmad-create-story). Grounded by a 3-agent parallel forensic pass (epic/PRD/architecture planning; demo app current structure; library signal-pool trace surface); every cited path/type/line re-verified against the post-`93f28c9` develop tree. Branches off the post-9.1 develop (9.1 accidentally landed as `93f28c9`; operator chose to leave it landed — see Context).
 - 2026-07-03: Pre-implementation Codex review (thread `019f2645-84d9-71c3-bf57-5dcc4198cfaa`). CONFIRMED DD2 (AC5's literal whole-tree grep is unsatisfiable without breaking the golden fixture `5-4-trace-export-golden.json:28` + the `EnsembleDecisionJSON` export + NaN tests; FR-41 scopes removal to the on-screen view — reinterpretation is correct), DD6 (bounded Table-in-ScrollView is the right placement), the ±0.5 BPM cluster heuristic, and the sort-vs-Sections reconciliation. Folded 3 HIGH + 3 MEDIUM fixes: DD4 winner rule tightened to a total order (`.tie`→DSP, contribution→BPM-delta→index, guaranteed single badge, handles multiple merged `.dsp` rows); DD5a — `Table` does NOT auto-sort, rows must be explicitly `.sorted(using: sortOrder)`; DD5b — winning-cluster tint is per-CELL, not a nonexistent row `.background`; DD3/DD9 — `TableColumn(value:)` binds finite-safe stored sort keys, not raw `Double?`/`NaN`; DD1 — the pure derivation namespace must be explicitly `nonisolated` (`nonisolated enum Waveform` precedent, demo is MainActor-default-isolated); DD6 — added `idealHeight: 240` + six-column width/truncation caution for the 240–480 pt inspector.
 - 2026-07-03: Implementation complete (bmad-dev-story, single-shot; status ready-for-dev → in-progress → review). 2 NEW + 1 MODIFIED Swift file in Demo/; +12 test invocations (demo-test 136 total, 0 failures); library untouched (`git diff Sources/ Tests/` empty; 842 library tests green). Three implementation reds hit and resolved — a non-Sendable `KeyPathComparator` in a `@State` default (empty-init + manual default grouping), `static` test helpers called from instance `@Test`s, and the MainActor-isolated row model blocking off-actor tests + `TableColumn` keypaths (`nonisolated struct`) — details in Debug Log References. DD2 verified live: `ensembleDecision` gone from `TraceView.swift` (grep 0), `EnsembleDecisionJSON` export + golden fixture preserved.
 - 2026-07-03: Code review complete (3-layer: Codex Blind Hunter thread `019f2699-1a74-7633-9f11-2088f43550f7`, Edge Case Hunter, Acceptance Auditor). All three converged on the winner-badge bug (P1): the pre-ML trace's `.ml` row is always abstained, so an `.ml` winner mis-badged a DSP row via the old full-cluster fallback. Triage: 2 code patches (P1 source-restricted badge / no cross-source fallback; P2 total-order default sort) + 1 test patch (P3, +2 winner-rule tests, suite 12→14) + 2 honesty corrections (P4, over-claimed empty-state-view + a11y subtasks → GUI-smoke) + 1 recorded decision (D1, `Table(sortedRows,…)` vs literal `Table(of:…)`) + accepted/dismissed with evidence. Post-patch: 14 signal-pool tests green, demo-test 0 failures, `Sources/ Tests/` diff empty, AC5 grep 0. Status review → done.

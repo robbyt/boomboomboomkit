@@ -4,7 +4,7 @@ type: 'bugfix'
 created: '2026-07-24'
 status: 'done'
 review_loop_iteration: 0
-baseline_commit: '281fb00'
+baseline_commit: 'b8255a1'
 context: []
 ---
 
@@ -83,7 +83,7 @@ context: []
 - Given a known-failing fixture whose defect is repaired, when the suite runs, then the process exits nonzero via `knownIssueNotRecorded`.
 - Given any fixture returning a non-finite or out-of-range BPM, when the suite runs, then it fails outside the wrapper regardless of known-failure status.
 - Given a clean `swift package clean` build, when the suite runs, then every new resource resolves through `AudioFixtures.url`.
-- Given `make benchmark` on the local corpus, when compared to `281fb00`, then denominators and floor values are unchanged.
+- Given `make benchmark` on the local corpus, when compared to `b8255a1`, then denominators and floor values are unchanged.
 
 ## Spec Change Log
 
@@ -113,7 +113,7 @@ context: []
 **Commands:**
 - `swift package clean && make test` -- expected: passes with no corpus env; floor executes; 4 known issues from this suite; record total tests/suites against 924/160
 - `make fmt && make lint` -- expected: clean, 6 pre-existing violations, 0 serious
-- `make benchmark` -- expected: denominators and floor values unchanged vs `281fb00`
+- `make benchmark` -- expected: denominators and floor values unchanged vs `b8255a1`
 - `swift test --filter AccuracyFloorTests` (repeat ×3 under `--parallel`) -- expected: deterministic; record peak runtime
 
 **Bite proofs** (mutate, observe failure, revert from scratchpad copy, re-verify SHA-256):

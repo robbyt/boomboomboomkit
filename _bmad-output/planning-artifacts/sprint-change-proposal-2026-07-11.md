@@ -15,7 +15,7 @@ An operator-directed UX rework of the Story 10-3 demo surface landed via commit 
 **Issue category:** New requirement emerged from the stakeholder (operator UX decision) — a mid/post-implementation UX pivot.
 
 **What actually shipped (evidence — commit body + working tree):**
-- The separate waveform-free `BeatGridTimelineView.swift` was **deleted**; its scrubber, transport, and FR-44 readout were **merged into the Epic-8 `BeatGridView`** (which already rendered a waveform since `eca19a3`).
+- The separate waveform-free `BeatGridTimelineView.swift` was **deleted**; its scrubber, transport, and FR-44 readout were **merged into the Epic-8 `BeatGridView`** (which already rendered a waveform since `732e59c`).
 - The Timeline/Waveform **view-mode switch was deleted** (`BeatGridViewMode`, `fallbackViewMode`, the `preferredBeatGridViewMode` hydrate/persist, the segmented `Picker`).
 - **New feature: click-to-scrub with forced beat-snapping** — a `SpatialTapGesture` maps content-x → time and snaps every click to the nearest raw detected beat (`clickSeekTime`, midpoint tie → earlier beat); a click while stopped/paused starts playback.
 - `PlaybackController.seek(to:)` — deleted in `6eea321` as dead code — was **reintroduced** (the tap handler is now its caller).
@@ -28,7 +28,7 @@ An operator-directed UX rework of the Story 10-3 demo surface landed via commit 
 - An orphaned `preferredBeatGridViewMode` UserDefaults key is left behind (BC not a goal — acceptable, but unrecorded).
 - **Verification owed:** `cac4fe6` was authored on Linux; only `demo-lint` was run. `demo-build` / `demo-test` are operator-Mac-pending — so `done` is not yet trustworthy on its own gauntlet.
 
-**Key distinction that bounds the blast radius:** the rework built **no new waveform engine**. The Epic-8 `BeatGridView` waveform pre-existed 10-3 (`eca19a3`, story DD3). So FR-39's *intent* — "don't build a mini DJ waveform engine" — is **intact**; only FR-39's *presentation letter* ("beats as ticks, no waveform") was overridden by the operator. This is a presentation-scope amendment, not an MVP breach.
+**Key distinction that bounds the blast radius:** the rework built **no new waveform engine**. The Epic-8 `BeatGridView` waveform pre-existed 10-3 (`732e59c`, story DD3). So FR-39's *intent* — "don't build a mini DJ waveform engine" — is **intact**; only FR-39's *presentation letter* ("beats as ticks, no waveform") was overridden by the operator. This is a presentation-scope amendment, not an MVP breach.
 
 ---
 

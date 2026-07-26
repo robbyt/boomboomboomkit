@@ -171,8 +171,8 @@ The package-boundary proof artifact (AC #6) is the primary regression-protection
 ## Tasks / Subtasks
 
 - [x] Task 1: Capture pre-Story-4.1 regression snapshot BEFORE first dev commit (AC: #7) **[user-authorized post-HALT amendment 2026-05-04: lossy snapshot at `%.1f` precision; byte-identical claim rests on construction-level proof — see Change Log]**
-  - [x] 1.1: Ran both benchmarks (`make benchmark`, `make benchmark-giantsteps`) at SHA `d63ca7d` (BEFORE first Story 4.1 dev commit). Captured per-track failure subset from existing benchmark stdout. Schema deviates from the original spec because existing benchmarks emit only Acc1 failure tables at `%.1f` precision (no JSON, no `confidence`, no `candidates` array, no full Double precision) — the original "pipe through jq" recommendation is non-viable. Snapshot saved to `_bmad-output/implementation-artifacts/4-1-regression-snapshot.json` with `snapshot_metadata.amendment_note` documenting the lossy-precision contract.
-  - [x] 1.2: Saved snapshot with mandatory `snapshot_metadata` header (captured_at=2026-05-04T06:49:29Z, captured_by=Robert Terhaar, git_sha=d63ca7d, macos_version=26.5, xcode_version=Xcode 26.4.1, swift_version=Apple Swift version 6.3.1). Schema: `corpus_runs[]` with `corpus`, `total`, `acc1Correct`, `acc2Correct`, `tracks_failure_subset[]`, `tracks_failure_subset_truncated_count`. GiantSteps subset captures only the visible 30 of 124 failures (existing benchmark logger truncation; documented in `tracks_failure_subset_note`). JSON validated via `python3 -m json.tool`.
+  - [x] 1.1: Ran both benchmarks (`make benchmark`, `make benchmark-giantsteps`) at SHA `39fcefd` (BEFORE first Story 4.1 dev commit). Captured per-track failure subset from existing benchmark stdout. Schema deviates from the original spec because existing benchmarks emit only Acc1 failure tables at `%.1f` precision (no JSON, no `confidence`, no `candidates` array, no full Double precision) — the original "pipe through jq" recommendation is non-viable. Snapshot saved to `_bmad-output/implementation-artifacts/4-1-regression-snapshot.json` with `snapshot_metadata.amendment_note` documenting the lossy-precision contract.
+  - [x] 1.2: Saved snapshot with mandatory `snapshot_metadata` header (captured_at=2026-05-04T06:49:29Z, captured_by=Robert Terhaar, git_sha=39fcefd, macos_version=26.5, xcode_version=Xcode 26.4.1, swift_version=Apple Swift version 6.3.1). Schema: `corpus_runs[]` with `corpus`, `total`, `acc1Correct`, `acc2Correct`, `tracks_failure_subset[]`, `tracks_failure_subset_truncated_count`. GiantSteps subset captures only the visible 30 of 124 failures (existing benchmark logger truncation; documented in `tracks_failure_subset_note`). JSON validated via `python3 -m json.tool`.
   - [x] 1.3: Snapshot headline: OA300 total=82, Acc1=58 (70.7%), Acc2=74 (90.2%); GiantSteps total=661, Acc1=537 (81.2%), Acc2=546 (82.6%). All four floors held strict-equality with the asserted unit-test floors (≥57/82, ≥73/82, ≥537/661, ≥546/661). Recorded in Completion Notes.
 
 - [x] Task 2: Update `Package.swift` (AC: #1)
@@ -206,7 +206,7 @@ The package-boundary proof artifact (AC #6) is the primary regression-protection
 - [x] Task 6: Validate (AC: #7, #8, #9)
   - [x] 6.1: `make fmt` — clean, zero diff against `Sources/BoomBoomBoomKitML/` after run (formatter idempotent on the new files).
   - [x] 6.2: `make lint` — `Found 1 violation, 0 serious in 41 files.` Single violation is the pre-existing `LUFSAnalyzer.swift:94` TODO baseline. **Zero new violations** from `BNNSTechnique.swift` / `CoreMLTechnique.swift` — DD #8's per-file `unused_import` suppression-vs-stub decision was not needed (SwiftLint did not flag the imports).
-  - [x] 6.3: `make test` — `Test run with 307 tests in 68 suites passed`. **Baseline correction** (vs. story spec's "304 declarations"): `grep -rE '@Test\(' Tests/BoomBoomBoomKitTests/ | wc -l` returns 307 at HEAD `d63ca7d` (the pre-Story-4.1 SHA). The 304-vs-307 drift is from commits between Story 3-6b close-out and `d63ca7d` (Epic 4 pre-planning), NOT from Story 4.1. Story 4.1 added ZERO new `@Test(` declarations — verified by `git diff --stat Tests/` returning empty. AC #8's binding constraint ("Story 4.1 adds ZERO new `@Test(` declarations") is satisfied; the literal "304 baseline" text in AC #8 is corrected to "307" as the pre-Story-4.1 baseline.
+  - [x] 6.3: `make test` — `Test run with 307 tests in 68 suites passed`. **Baseline correction** (vs. story spec's "304 declarations"): `grep -rE '@Test\(' Tests/BoomBoomBoomKitTests/ | wc -l` returns 307 at HEAD `39fcefd` (the pre-Story-4.1 SHA). The 304-vs-307 drift is from commits between Story 3-6b close-out and `39fcefd` (Epic 4 pre-planning), NOT from Story 4.1. Story 4.1 added ZERO new `@Test(` declarations — verified by `git diff --stat Tests/` returning empty. AC #8's binding constraint ("Story 4.1 adds ZERO new `@Test(` declarations") is satisfied; the literal "304 baseline" text in AC #8 is corrected to "307" as the pre-Story-4.1 baseline.
   - [x] 6.4: `make benchmark` post-changes — OA300 Acc1=58/82 (70.7%), Acc2=74/82 (90.2%). Floors 57/73 held strict-equality. Acc1 failures spot-checked against snapshot (first row `4. Yin Yang... 85.0/113.2/33.2%`, last 3 rows `Chakra / Echtoo / Everything Changes Subotica` all `80.0`) — match snapshot at %.1f precision.
   - [x] 6.5: `make benchmark-giantsteps` post-changes — GiantSteps Acc1=537/661 (81.2%), Acc2=546/661 (82.6%). Floors held strict-equality. First failure (`1030011 / electronica / 127.0/167.8/32.1%`) and last visible failure (`3169408 / indie-dance-nu- / 112.0/151.6/35.4%`) match snapshot.
   - [x] 6.6: `swift build --target BoomBoomBoomKit` — `Build of target: 'BoomBoomBoomKit' complete!` (independent build succeeds; no CoreML availability needed). Captured in boundary-proof artifact.
@@ -338,7 +338,7 @@ Claude Opus 4.7 (1M context). Executed via `/bmad-dev-story` workflow.
 
 ### Debug Log References
 
-- **2026-05-04 dev start:** sprint-status `ready-for-dev → in-progress`. Pre-Story-4.1 SHA = `d63ca7d`.
+- **2026-05-04 dev start:** sprint-status `ready-for-dev → in-progress`. Pre-Story-4.1 SHA = `39fcefd`.
 - **HALT during Task 1.1:** Surfaced spec contradiction (AC #7 demands `Double.bitPattern` precision, AC #8 forbids `Tests/` modifications, Task 1.1's "pipe through jq" recommendation is non-viable because benchmark stdout emits markdown tables at `%.1f` precision, not JSON). Consulted Codex via `codex:consult` agent — Codex recommended Option 2 (one env-gated `@Test`); Project Lead chose Option 1 (lossy snapshot + construction-level proof). Spec amendment recorded in Change Log entry `2026-05-04 (Dev-time HALT — user-authorized spec amendment, post-HALT discipline)`. Story 3-4 Task 7 reference precedent invoked.
 - **No other HALTs.** Build, fmt, lint, test, and both benchmarks all green on first run.
 
@@ -347,11 +347,11 @@ Claude Opus 4.7 (1M context). Executed via `/bmad-dev-story` workflow.
 **Spec amendment summary** (user-authorized post-HALT):
 
 - AC #7 / Task 1: Snapshot precision relaxed from `Double.bitPattern` to `%.1f` (matching existing benchmark stdout). Byte-identical claim now rests on **construction-level proof** — `git diff main..HEAD -- Sources/BoomBoomBoomKit/` returns empty, therefore per-track output is byte-identical by construction. Snapshot is defense-in-depth at lossy precision. See Change Log entry `2026-05-04 (Dev-time HALT — ...)`.
-- AC #8 baseline: Story spec said "304 declarations as of Story 3-6b close-out". Actual pre-Story-4.1 baseline at SHA `d63ca7d` is **307** (drift caused by commits between Story 3-6b close-out and `d63ca7d`, NOT by Story 4.1). Story 4.1 added ZERO new `@Test(` declarations — `git diff --stat Tests/` empty.
+- AC #8 baseline: Story spec said "304 declarations as of Story 3-6b close-out". Actual pre-Story-4.1 baseline at SHA `39fcefd` is **307** (drift caused by commits between Story 3-6b close-out and `39fcefd`, NOT by Story 4.1). Story 4.1 added ZERO new `@Test(` declarations — `git diff --stat Tests/` empty.
 
 **Headline outcomes:**
 
-- Final test count: **307** grep-visible `@Test(` declarations (unchanged from pre-Story-4.1 baseline at SHA `d63ca7d`). AC #8 binding constraint (zero new `@Test(`) satisfied.
+- Final test count: **307** grep-visible `@Test(` declarations (unchanged from pre-Story-4.1 baseline at SHA `39fcefd`). AC #8 binding constraint (zero new `@Test(`) satisfied.
 - OA300 default-policy: Acc1=**58/82** (70.7%), Acc2=**74/82** (90.2%) — failures match pre-Story-4.1 snapshot at `_bmad-output/implementation-artifacts/4-1-regression-snapshot.json` (lossy %.1f precision). Floors 57/73 held strict-equality.
 - GiantSteps default-policy: Acc1=**537/661** (81.2%), Acc2=**546/661** (82.6%) — failures match snapshot. Floors held strict-equality.
 - Both `swift build --target BoomBoomBoomKit` and `swift build --target BoomBoomBoomKitML` succeed independently. Captured in `_bmad-output/implementation-artifacts/4-1-package-boundary-proof.txt`. Note: per-target builds emit `Build of target: 'X' complete!` rather than the AC #6 literal `Build complete!` — same semantics, different SwiftPM wording for the per-target subcommand.
@@ -369,7 +369,7 @@ Claude Opus 4.7 (1M context). Executed via `/bmad-dev-story` workflow.
 - `Sources/BoomBoomBoomKitML/Resources/.gitkeep` — created (Task 3.4; zero-byte directory placeholder).
 - `Makefile` — modified (Task 4: added `ML_MODEL_INPUT` and `ML_MODEL_OUT_DIR` variables at top; added `compile-model` target after `duration-impact-report`).
 - `_bmad-output/implementation-artifacts/4-1-boomboomboomkitml-package-structure.md` — modified (this file: Tasks/Subtasks checkboxes, Change Log spec-amendment entry, Dev Agent Record).
-- `_bmad-output/implementation-artifacts/4-1-regression-snapshot.json` — created (Task 1, BEFORE first source-change commit at SHA `d63ca7d`).
+- `_bmad-output/implementation-artifacts/4-1-regression-snapshot.json` — created (Task 1, BEFORE first source-change commit at SHA `39fcefd`).
 - `_bmad-output/implementation-artifacts/4-1-package-boundary-proof.txt` — created (Task 5, AT PR time).
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` — modified (status: `ready-for-dev` → `in-progress` at dev start; → `review` at workflow Step 9 close-out).
 
@@ -388,7 +388,7 @@ Claude Opus 4.7 (1M context). Executed via `/bmad-dev-story` workflow.
 
 Code review run on 2026-05-04 via `/bmad-code-review 4.1` against three parallel adversarial reviewers (Blind Hunter, Edge Case Hunter, Acceptance Auditor). Triage summary: 0 patches required, 2 decision-needed, 3 deferred, ~22 dismissed (handled by AC/DD or speculative).
 
-**Auditor verdict (substantive):** All nine ACs satisfied. Construction-level proof holds (`git diff d63ca7d -- Sources/BoomBoomBoomKit/` empty). `Tests/` untouched. Boundary grep clean. Per-target builds green. Both spec amendments (AC #7 lossy precision, AC #8 307→304 baseline) properly recorded in Change Log.
+**Auditor verdict (substantive):** All nine ACs satisfied. Construction-level proof holds (`git diff 39fcefd -- Sources/BoomBoomBoomKit/` empty). `Tests/` untouched. Boundary grep clean. Per-target builds green. Both spec amendments (AC #7 lossy precision, AC #8 307→304 baseline) properly recorded in Change Log.
 
 ### Decisions needed
 

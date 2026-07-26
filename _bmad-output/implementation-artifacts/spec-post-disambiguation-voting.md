@@ -3,7 +3,7 @@ title: 'Post-Disambiguation Window Voting Merge Strategy'
 type: 'feature'
 created: '2026-03-28'
 status: 'done'
-baseline_commit: 'eee261d'
+baseline_commit: '0ffcde7'
 context: []
 ---
 

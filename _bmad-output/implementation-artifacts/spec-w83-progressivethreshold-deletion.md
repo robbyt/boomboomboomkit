@@ -3,7 +3,7 @@ title: 'W83 — delete AnalysisIntensity.progressiveThreshold and its dead gate'
 type: 'refactor'
 created: '2026-07-20'
 status: 'done'
-baseline_commit: '0af2b10'
+baseline_commit: 'e0cca21'
 review_loop_iteration: 0
 context: []
 ---

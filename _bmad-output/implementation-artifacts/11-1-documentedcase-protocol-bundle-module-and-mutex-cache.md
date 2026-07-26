@@ -3,10 +3,10 @@
 Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
-<!-- dev-auto baseline_revision: 07dfddfb95d2e7a5663adea164efbf5582032189 (HEAD at implementation start) -->
+<!-- dev-auto baseline_revision: b7ca77ddc093d44aa05bd2ba68ccaf1aeb7a9e81 (HEAD at implementation start) -->
 <!-- dev-auto review_loop_iteration: 1 (one bad_spec loopback; iteration-2 review was patch-only) -->
 <!-- dev-auto followup_review_recommended: false -->
-<!-- dev-auto final_revision: 07dfddfb95d2e7a5663adea164efbf5582032189 (UNCHANGED — no commit made; the operator owns the 1Password-signed commit per project convention, which overrides the skill's auto-commit step) -->
+<!-- dev-auto final_revision: b7ca77ddc093d44aa05bd2ba68ccaf1aeb7a9e81 (UNCHANGED — no commit made; the operator owns the 1Password-signed commit per project convention, which overrides the skill's auto-commit step) -->
 
 ## Key Design Decisions (review BEFORE dev begins)
 
@@ -279,7 +279,7 @@ Story 11.1 lands the Epic 11 documentation foundation: a `public protocol Docume
 
 ## Code Review Findings — close-out (2026-07-18)
 
-Separate-LLM `/bmad-code-review` over the shipped 11-1 surface (`07dfddf..9a9fa73`), 4 adversarial layers: Blind Hunter + Edge Case Hunter + Acceptance Auditor + Codex blind-hunter (`019f73e3`, gpt-5.6-sol/medium). **Verdict: clean.** All four independently confirmed the `Mutex` double-checked-locking is correct (I/O + parse outside the lock, only `Sendable` `AttributedString` values escape, no reentrancy/deadlock); the Acceptance Auditor verified all 7 ACs satisfied. No blocking, high, or medium finding requires a code change. Triage: 0 decision-needed, 0 shippable-code patches, 3 defer, 4 dismiss, 1 develop-only doc-note patch (applied).
+Separate-LLM `/bmad-code-review` over the shipped 11-1 surface (`b7ca77d..9a9fa73`), 4 adversarial layers: Blind Hunter + Edge Case Hunter + Acceptance Auditor + Codex blind-hunter (`019f73e3`, gpt-5.6-sol/medium). **Verdict: clean.** All four independently confirmed the `Mutex` double-checked-locking is correct (I/O + parse outside the lock, only `Sendable` `AttributedString` values escape, no reentrancy/deadlock); the Acceptance Auditor verified all 7 ACs satisfied. No blocking, high, or medium finding requires a code change. Triage: 0 decision-needed, 0 shippable-code patches, 3 defer, 4 dismiss, 1 develop-only doc-note patch (applied).
 
 - [x] **[Review][Defer] Unbounded negative cache** [`BoomBoomBoomKitDocs.swift:45`] — deferred as **W88**. Pre-existing/by-design; already noted in Residual Risks. Bounded in-library (49-key surface); footgun only via direct `attributedString(for:id:)` with high-cardinality strings.
 - [x] **[Review][Defer] Transient read-failure permanently negative-cached (first-writer-wins)** [`BoomBoomBoomKitDocs.swift:82-88,113`] — deferred as **W89**. Codex finding; already acknowledged verbatim in the cache `- Note:` (lines 42-44). Graceful, bounded (one doc → fallback until restart under rare fd pressure).

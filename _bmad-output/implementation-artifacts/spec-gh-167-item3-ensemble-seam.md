@@ -3,7 +3,7 @@ title: 'GH-167 item 3 — Ensemble seam correctness (octave fold, NaN-confidence
 type: 'bugfix'
 created: '2026-07-23'
 status: 'in-progress'
-baseline_commit: '0da557d'
+baseline_commit: '7977f40'
 review_loop_iteration: 0
 context: []
 ---

@@ -1,7 +1,7 @@
 # Story 4.3: ML Technique Slot Wiring + Tuple→Struct Migration
 
 Status: done
-**Depends on:** Story 4.2 (`done` 2026-05-04, SHA `9185698`) — `effectiveIntensity` / `degradationReason` reporting fields and `maximumSupportedIntensity(mlTechnique:)` query already shipped against the labeled-tuple `MLTechnique` shape; this story rewrites the protocol body and wires the evaluation path against it.
+**Depends on:** Story 4.2 (`done` 2026-05-04, SHA `8c4e28f`) — `effectiveIntensity` / `degradationReason` reporting fields and `maximumSupportedIntensity(mlTechnique:)` query already shipped against the labeled-tuple `MLTechnique` shape; this story rewrites the protocol body and wires the evaluation path against it.
 **Promotion gate:** **Pre-promotion ground-truth verification gate** (`epics.md:1012-1040`, applies to 4.3/4.5/4.6) — `_bmad-output/implementation-artifacts/4-dnb-triplet-targets.json` MUST be populated with all 4 named DnB triplets resolved to existing OA300 files AND non-null `source` per the schema, AND the `current_predicted_bpm` / `current_abs_error` values frozen at gate-creation time. Today the artifact does NOT exist; Task 1 of this story is its creation. The dev agent SHALL halt before any source change if the artifact cannot be populated (e.g. `make oracle-generate` fails or any of the 4 named tracks resolve to a missing file).
 **Promotion gate (numeric delta + perf):** Story 4.3 has TWO operational gates per `epics.md:906-919`. The default-disabled path (`options.mlTechnique == nil`) is non-regression — byte-identical to a pre-Story-4.3 snapshot, no escape hatch. The mock-on-but-abstaining path is perf-non-regression — `make perf-benchmark` wall-clock ≤ 10% vs the pre-Story-4.3 baseline at the same intensity (because the trace is now built unconditionally when `mlTechnique != nil`, per ADR-6).
 
@@ -554,7 +554,7 @@ The mock ignores its `trace` parameter (returns the constructor's stored value r
 
 ### Previous Story Intelligence
 
-**Story 4.2 (SHA `9185698` — closed 2026-05-04)** — six load-bearing learnings:
+**Story 4.2 (SHA `8c4e28f` — closed 2026-05-04)** — six load-bearing learnings:
 
 1. **Snapshot precedent fully formed** (Story 4.1 → 4.2 inheritance). Lossy `%.1f` precision + mandatory `snapshot_metadata` header (`captured_at`, `captured_by`, `git_sha`, `macos_version`, `xcode_version`, `swift_version`); diff comparison excludes the metadata block; new toolchain → new file (`-rev2.json`), never silent overwrite. Story 4.3 reuses verbatim (Task 1.6).
 
@@ -570,7 +570,7 @@ The mock ignores its `trace` parameter (returns the constructor's stored value r
 
 7. **Forward-compat reminder for Stories 4.5/4.6** (Story 4.2 review-deferred entry, `deferred-work.md:5`). Story 4.2 introduced the reporting-only architecture for `effectiveIntensity` that rests on switch-default coincidence. Story 4.3 does NOT change this architecture (Story 4.2 owns it); Story 4.3 only wires the ML evaluation post-corroboration, which is orthogonal. Stories 4.5/4.6 will trigger the forward-compat HALT condition (when level 8-10 DSP semantics actually diverge from level 7).
 
-**Story 4.1 (SHA `29ced70` — closed 2026-05-04)** — three load-bearing learnings:
+**Story 4.1 (SHA `c7ed7da` — closed 2026-05-04)** — three load-bearing learnings:
 
 1. **Package boundary preserved**. `BoomBoomBoomKit` core has zero imports of `BoomBoomBoomKitML`; `BoomBoomBoomKitML` depends on `BoomBoomBoomKit`. Story 4.3 preserves: zero new imports between core and ML; the new `BoomBoomBoomKitTestSupport → BoomBoomBoomKit` dependency is a separate edge (test-support is its own target, not in the runtime package boundary).
 2. **`BNNSTechnique` / `CoreMLTechnique` are non-conforming placeholders** (Story 4.1 DD #1). Stories 4.5/4.6 add conformance against the POST-Story-4.3 protocol shape; today they're empty `public struct`s. `swift build --target BoomBoomBoomKitML` continues to succeed post-Story-4.3 because the placeholders never tried to conform.
@@ -612,7 +612,7 @@ claude-opus-4-7 (Claude Opus 4.7, 1M context)
 
 ### Debug Log References
 
-- 2026-05-04: Pre-source baseline captured (SHA `9185698` → Task 1 commit `9fd7c44`).
+- 2026-05-04: Pre-source baseline captured (SHA `8c4e28f` → Task 1 commit `944f57c`).
 - 2026-05-04: Source changes for Tasks 2-5 landed without regression — `swift build` clean, all unit tests pass, byte-identity contract holds for `mlTechnique=nil`.
 - 2026-05-05: Codex consultation (party-mode) finalized AC #7 second-gate as C-modified (corpus-grain venue, 1.30x threshold). Story 4-3b filed for trace-build-cost investigation deferred from this story.
 - 2026-05-05: Final corpus-grain mock-injected ratio = **1.054x** (well within 1.30x threshold and even within original 1.10x intent). Pre-code-review value; superseded post-review by **1.092x** after the symmetric paired-pass warmup-boundary fix landed (cold-cache asymmetry removed, more honest A/B comparison).
@@ -696,8 +696,8 @@ The 1-track regression suspected from the merge-strategy comparison output was a
 - `_bmad-output/implementation-artifacts/4-3-diff-scope-proof.txt` — diff-scope verification (AC #10).
 - `_bmad-output/implementation-artifacts/4-3b-trace-build-cost-budget.md` — follow-up story spec.
 - `_bmad-output/scripts/dnb-triplet-baseline.swift` — reproducibility recipe for `current_predicted_bpm` refresh.
-- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260505T032015Z--9185698--787c809c.json` — pre-Story-4.3 perf baseline.
-- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260505T033024Z--9fd7c44--7ab286ff.json` — post-source perf baseline (mlTechnique=nil run).
+- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260505T032015Z--8c4e28f--787c809c.json` — pre-Story-4.3 perf baseline.
+- `_bmad-output/perf-baselines/Apple_M5_Max-26--Debug--20260505T033024Z--944f57c--7ab286ff.json` — post-source perf baseline (mlTechnique=nil run).
 
 **Modified (artifacts):**
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` — Story 4.3 → review; Story 4-3b → ready-for-dev.

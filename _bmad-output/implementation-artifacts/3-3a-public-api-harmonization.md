@@ -52,7 +52,7 @@ User directive: **backwards compatibility is NOT a goal; consistency IS the goal
    **When** updated
    **Then**
    - The quick-start sample uses the current public API: `AudioAnalysisService.analyzeBPM(url:)` and `AudioAnalysisService.analyzeBPM(url:options:)` with `var opts = AudioAnalysisService.Options(); opts.intensity = .fastest`. No reference to `analyzeBPM(url:intensity:mergeStrategy:)`.
-   - The supported-formats list does NOT include OGG/Vorbis (PCMBufferReader does not support it; the existing CLAUDE.md correction from `ed9cc0b` is honored).
+   - The supported-formats list does NOT include OGG/Vorbis (PCMBufferReader does not support it; the existing CLAUDE.md correction from `2458cb3` is honored).
    - The `DSPTechnique` count is documented as 7 cases (or written without a hard count, which is sustainable as more cases are added).
    - A new short section "Customizing techniques" shows the `Options.techniqueSet` override pattern with `.clickAugmented` as the example. (This is the section Story 5.5 will later expand.)
    - All code samples in the README compile against the current `AudioAnalysisService` API. (No tests required for README samples; visual review against `Sources/BoomBoomBoomKit/AudioAnalysisService.swift` is sufficient.)

@@ -226,7 +226,7 @@ Branch: `rterhaar/epic-3`.
 Recent commits:
 - `f10ca6c` Story 3-1 - harmonic ratio detection
 - `fe0e6b3` update bmad to v6.3.0
-- `739e7c1` land epic 2
+- `49fc97e` land epic 2
 
 ### Project Structure Notes
 

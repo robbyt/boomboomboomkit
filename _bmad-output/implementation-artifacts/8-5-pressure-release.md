@@ -1,6 +1,6 @@
 # Story 8-5 pressure-release / post-merge reconciliation
 
-Develop-only audit record. Story 8-5 (PR #38, squash `81f6616`) was merged into
+Develop-only audit record. Story 8-5 (PR #38, squash `e2dea60`) was merged into
 `rterhaar/epic-8` **without** a `bmad-code-review`; the review ran post-merge and its
 fixes land as the `rterhaar/8-5b` follow-up. Two epic-AC reconciliations came out of that
 review and are recorded here (the epic's own escape hatch, `epics.md` Story 8.5 lines

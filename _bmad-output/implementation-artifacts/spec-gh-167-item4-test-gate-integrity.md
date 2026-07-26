@@ -4,7 +4,7 @@ type: 'bugfix'
 created: '2026-07-24'
 status: 'done'
 review_loop_iteration: 0
-baseline_commit: 'de8a034'
+baseline_commit: '2e5b458'
 context: []
 ---
 
