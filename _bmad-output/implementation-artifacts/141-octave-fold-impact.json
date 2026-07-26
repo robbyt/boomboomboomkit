@@ -1,6 +1,6 @@
 {
   "corpus" : "giantsteps",
-  "gitSHA" : "58e3dcd",
+  "gitSHA" : "288c015",
   "modelDigest" : "5dc5873bef88e0ab73ce6107411696715a2459b1fc80727cb871b16fa845dd37",
   "modelPath" : "\/Users\/rterhaar\/Dropbox\/research\/swift\/BoomBoomBoomKit\/_bmad-output\/ml-models\/giantsteps_v2_seed_42.mlmodelc",
   "perTrack" : [
@@ -4524,6 +4524,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 38,
           "acc1Folded" : 39,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4532,6 +4533,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4540,6 +4542,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -177,
           "acc1Folded" : 0,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4548,6 +4551,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -40,
           "acc1Folded" : 0,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4556,6 +4560,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -129,
           "acc1Folded" : 0,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4564,6 +4569,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4573,6 +4579,7 @@
         }
       ],
       "foldsFired" : 604,
+      "netAcc1Delta" : -308,
       "threshold" : 0
     },
     {
@@ -4580,6 +4587,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 28,
           "acc1Folded" : 29,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4588,6 +4596,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4596,6 +4605,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -143,
           "acc1Folded" : 34,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4604,6 +4614,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -32,
           "acc1Folded" : 8,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4612,6 +4623,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -113,
           "acc1Folded" : 16,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4620,6 +4632,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4629,6 +4642,7 @@
         }
       ],
       "foldsFired" : 505,
+      "netAcc1Delta" : -260,
       "threshold" : 0.1
     },
     {
@@ -4636,6 +4650,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 19,
           "acc1Folded" : 20,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4644,6 +4659,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4652,6 +4668,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -68,
           "acc1Folded" : 109,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4660,6 +4677,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -19,
           "acc1Folded" : 21,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4668,6 +4686,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -82,
           "acc1Folded" : 47,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4676,6 +4695,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4685,6 +4705,7 @@
         }
       ],
       "foldsFired" : 306,
+      "netAcc1Delta" : -150,
       "threshold" : 0.2
     },
     {
@@ -4692,6 +4713,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 14,
           "acc1Folded" : 15,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4700,6 +4722,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4708,6 +4731,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -30,
           "acc1Folded" : 147,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4716,6 +4740,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -11,
           "acc1Folded" : 29,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4724,6 +4749,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -58,
           "acc1Folded" : 71,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4732,6 +4758,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4741,6 +4768,7 @@
         }
       ],
       "foldsFired" : 176,
+      "netAcc1Delta" : -85,
       "threshold" : 0.3
     },
     {
@@ -4748,6 +4776,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 10,
           "acc1Folded" : 11,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4756,6 +4785,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4764,6 +4794,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -18,
           "acc1Folded" : 159,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4772,6 +4803,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -8,
           "acc1Folded" : 32,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4780,6 +4812,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -32,
           "acc1Folded" : 97,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4788,6 +4821,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4797,6 +4831,7 @@
         }
       ],
       "foldsFired" : 111,
+      "netAcc1Delta" : -48,
       "threshold" : 0.4
     },
     {
@@ -4804,6 +4839,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 4,
           "acc1Folded" : 5,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4812,6 +4848,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4820,6 +4857,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -14,
           "acc1Folded" : 163,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4828,6 +4866,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -4,
           "acc1Folded" : 36,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4836,6 +4875,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -12,
           "acc1Folded" : 117,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4844,6 +4884,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4853,6 +4894,7 @@
         }
       ],
       "foldsFired" : 57,
+      "netAcc1Delta" : -26,
       "threshold" : 0.5
     },
     {
@@ -4860,6 +4902,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 2,
           "acc1Folded" : 3,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4868,6 +4911,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4876,6 +4920,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -11,
           "acc1Folded" : 166,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4884,6 +4929,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -3,
           "acc1Folded" : 37,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4892,6 +4938,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -5,
           "acc1Folded" : 124,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4900,6 +4947,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4909,6 +4957,7 @@
         }
       ],
       "foldsFired" : 32,
+      "netAcc1Delta" : -17,
       "threshold" : 0.6
     },
     {
@@ -4916,6 +4965,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 2,
           "acc1Folded" : 3,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4924,6 +4974,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4932,6 +4983,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -9,
           "acc1Folded" : 168,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4940,6 +4992,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -1,
           "acc1Folded" : 39,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -4948,6 +5001,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -2,
           "acc1Folded" : 127,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -4956,6 +5010,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -4965,6 +5020,7 @@
         }
       ],
       "foldsFired" : 21,
+      "netAcc1Delta" : -10,
       "threshold" : 0.7
     },
     {
@@ -4972,6 +5028,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -4980,6 +5037,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -4988,6 +5046,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -4,
           "acc1Folded" : 173,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -4996,6 +5055,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -1,
           "acc1Folded" : 39,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -5004,6 +5064,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -2,
           "acc1Folded" : 127,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -5012,6 +5073,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -5021,6 +5083,7 @@
         }
       ],
       "foldsFired" : 11,
+      "netAcc1Delta" : -7,
       "threshold" : 0.8
     },
     {
@@ -5028,6 +5091,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -5036,6 +5100,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -5044,6 +5109,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -2,
           "acc1Folded" : 175,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -5052,6 +5118,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : -1,
           "acc1Folded" : 39,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -5060,6 +5127,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -2,
           "acc1Folded" : 127,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -5068,6 +5136,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -5077,6 +5146,7 @@
         }
       ],
       "foldsFired" : 6,
+      "netAcc1Delta" : -5,
       "threshold" : 0.9
     },
     {
@@ -5084,6 +5154,7 @@
       "acc1Unfolded" : 348,
       "bands" : [
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 39,
@@ -5092,6 +5163,7 @@
           "n" : 60
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 1,
           "acc1Unfolded" : 1,
           "acc2Folded" : 1,
@@ -5100,6 +5172,7 @@
           "n" : 35
         },
         {
+          "acc1Delta" : -1,
           "acc1Folded" : 176,
           "acc1Unfolded" : 177,
           "acc2Folded" : 180,
@@ -5108,6 +5181,7 @@
           "n" : 309
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 40,
           "acc1Unfolded" : 40,
           "acc2Folded" : 47,
@@ -5116,6 +5190,7 @@
           "n" : 88
         },
         {
+          "acc1Delta" : -1,
           "acc1Folded" : 128,
           "acc1Unfolded" : 129,
           "acc2Folded" : 133,
@@ -5124,6 +5199,7 @@
           "n" : 153
         },
         {
+          "acc1Delta" : 0,
           "acc1Folded" : 0,
           "acc1Unfolded" : 0,
           "acc2Folded" : 1,
@@ -5133,10 +5209,12 @@
         }
       ],
       "foldsFired" : 2,
+      "netAcc1Delta" : -2,
       "threshold" : 1
     }
   ],
   "tracksAbstained" : 0,
+  "tracksAnalysisFailed" : 0,
   "tracksEvaluated" : 661,
   "tracksInGroundTruth" : 661,
   "tracksMissingAudio" : 0
