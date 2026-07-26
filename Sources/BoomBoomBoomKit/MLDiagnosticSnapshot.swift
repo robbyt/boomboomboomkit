@@ -152,10 +152,64 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
     /// Softmax-second-max probability after host-side softmax.
     public let softmaxSecondMax: Double
 
-    public init(bpm: Double, softmaxMax: Double, softmaxSecondMax: Double) {
+    /// Set when a decode-time octave fold rewrote ``bpm``; `nil` when the
+    /// tempo is the bare argmax (GH-141).
+    ///
+    /// A fold changes the reported tempo, so it must be visible. Silently
+    /// rewriting the tempo on a diagnostic path whose whole purpose is
+    /// explaining what the model did would defeat the type.
+    public let octaveFold: OctaveFold?
+
+    public init(
+      bpm: Double,
+      softmaxMax: Double,
+      softmaxSecondMax: Double,
+      octaveFold: OctaveFold? = nil
+    ) {
       self.bpm = bpm
       self.softmaxMax = softmaxMax
       self.softmaxSecondMax = softmaxSecondMax
+      self.octaveFold = octaveFold
+    }
+  }
+
+  // MARK: - OctaveFold
+
+  /// Record of a decode-time octave fold (GH-141). Present on
+  /// ``Decode/octaveFold`` exactly when the decoded tempo is not the bare
+  /// argmax.
+  ///
+  /// `Hashable` is sound here only because the initializer REFUSES
+  /// non-finite values. The bundled decoder never produces them, but this
+  /// type is public and any ``MLDiagnosticTechnique`` conformer can
+  /// construct one, so "finite by construction" has to be enforced rather
+  /// than asserted in prose. A `.nan` field would break the `Hashable`
+  /// invariant for ``Decode``, ``Outcome`` and the whole snapshot — the
+  /// same hazard that keeps `EnsembleDecision` off `Hashable`.
+  ///
+  /// The initializer is failable rather than throwing or trapping:
+  /// `MLDiagnosticTechnique.evaluateWithDiagnostic` is frozen non-throwing,
+  /// so a throwing init would force `try?` at every producer and turn a
+  /// shape violation into a vanished snapshot; and GH-167 item 6 removed
+  /// the trapping initializers from this file deliberately.
+  public struct OctaveFold: Sendable, Hashable {
+
+    /// The BPM the bare argmax would have produced, before folding.
+    /// ``Decode/bpm`` carries the folded value.
+    public let fromBPM: Double
+
+    /// Posterior mass at the half tempo divided by the argmax bin's mass.
+    /// The value that cleared the policy threshold.
+    public let massRatio: Double
+
+    /// - Returns: `nil` when either value is non-finite. A fold whose
+    ///   record cannot be built must not be reported as a fold at all;
+    ///   producers drop the fold rather than emit a folded tempo with no
+    ///   provenance.
+    public init?(fromBPM: Double, massRatio: Double) {
+      guard fromBPM.isFinite, massRatio.isFinite else { return nil }
+      self.fromBPM = fromBPM
+      self.massRatio = massRatio
     }
   }
 
@@ -213,6 +267,15 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
 
   /// Softmax-second-max probability, or nil when no logit vector was decoded.
   public var softmaxSecondMax: Double? { decode?.softmaxSecondMax }
+
+  /// Fold provenance, or nil when the tempo is the bare argmax (GH-141).
+  ///
+  /// Non-nil on any decoded outcome whose tempo was rewritten, which
+  /// includes the two ``Outcome/confidenceGateRejected(_:gate:)`` paths: a
+  /// fold can fire and the result still fail a gate, and the provenance
+  /// matters most there. ``Outcome/decodeRejectedOutOfRange(_:)`` never
+  /// carries one, because the range check runs before folding.
+  public var octaveFold: OctaveFold? { decode?.octaveFold }
 
   /// Categorical view of ``outcome``, `nil` on the win path. Use this for
   /// histogram reporting and stable string export; the numeric evidence in
@@ -295,9 +358,17 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
     let bpmField = decodedBPM.map { String(format: "%.2f", $0) } ?? "nil"
     let confField = softmaxMax.map { String(format: "%.3f", $0) } ?? "nil"
     let gateLabel = gateFired?.rawValue ?? "-"
+    // GH-141: a folded tempo must not be indistinguishable from a bare
+    // argmax here. Emitted only when a fold happened, so the far more
+    // common no-fold string stays byte-identical to pre-GH-141.
+    let foldField =
+      octaveFold.map {
+        String(
+          format: ", foldFromBPM: %.2f, foldMassRatio: %.3f", $0.fromBPM, $0.massRatio)
+      } ?? ""
     return
       "MLDiagnosticSnapshot(stage: \(stageLabel), bpm: \(bpmField), "
       + "softmaxMax: \(confField), gate: \(gateLabel), "
-      + "checksum: 0x\(String(inputFeatureChecksum, radix: 16)))"
+      + "checksum: 0x\(String(inputFeatureChecksum, radix: 16))\(foldField))"
   }
 }

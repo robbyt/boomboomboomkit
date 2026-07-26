@@ -182,6 +182,14 @@ private enum OutcomeKey: String, CaseIterable, Sendable {
 /// + W4 — `BPMDiagnosticTrace` is not `Codable` so there's no synthesis
 /// to migrate, and the impact-report harness handles its own
 /// serialization here.
+/// Nested fold record for ``DiagnosticSnapshotJSON`` (GH-141). A separate
+/// object rather than two sibling optionals so a decoder cannot reconstruct
+/// half a fold.
+private struct OctaveFoldJSON: Codable, Sendable {
+  let from_bpm: Double
+  let mass_ratio: Double
+}
+
 private struct DiagnosticSnapshotJSON: Codable, Sendable {
   let failure_stage: String?
   let decoded_bpm: Double?
@@ -189,6 +197,12 @@ private struct DiagnosticSnapshotJSON: Codable, Sendable {
   let softmax_second_max: Double?
   let input_feature_checksum: UInt64?
   let gate_fired: String?
+  /// GH-141 fold provenance. Nested so the library type's both-or-neither
+  /// invariant survives a JSON round-trip. Always nil under this harness's
+  /// pinned config, which decodes bare argmax; carried so a future
+  /// fold-enabled run is not silently indistinguishable from one that
+  /// decoded the tempo directly.
+  let octave_fold: OctaveFoldJSON?
 
   /// Construct from a public ``MLDiagnosticSnapshot``. The five abstain
   /// cases plus the win path all flow through this single converter.
@@ -199,6 +213,9 @@ private struct DiagnosticSnapshotJSON: Codable, Sendable {
     self.softmax_second_max = snapshot.softmaxSecondMax
     self.input_feature_checksum = snapshot.inputFeatureChecksum
     self.gate_fired = snapshot.gateFired?.rawValue
+    self.octave_fold = snapshot.octaveFold.map {
+      OctaveFoldJSON(from_bpm: $0.fromBPM, mass_ratio: $0.massRatio)
+    }
   }
 
   /// Construct a synthetic snapshot for the two pre-featurize abstain
@@ -213,6 +230,8 @@ private struct DiagnosticSnapshotJSON: Codable, Sendable {
     self.softmax_second_max = nil
     self.input_feature_checksum = nil
     self.gate_fired = nil
+    // No decode happened, so there is nothing to fold.
+    self.octave_fold = nil
   }
 }
 
@@ -465,15 +484,13 @@ struct BNNSImpactTests {
         let envModelURL =
           ProcessInfo.processInfo.environment["BNNS_MODEL_URL"]
           .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        var opts = BNNSTechnique.Options()
+        opts.confidenceThreshold = requestedThresholds.confidence
+        opts.marginThreshold = requestedThresholds.margin
         if let envURL = envModelURL {
-          bnnsTechnique = try BNNSTechnique(
-            modelURL: envURL,
-            confidenceThreshold: requestedThresholds.confidence,
-            marginThreshold: requestedThresholds.margin)
+          bnnsTechnique = try BNNSTechnique(modelURL: envURL, options: opts)
         } else {
-          bnnsTechnique = try BNNSTechnique(
-            confidenceThreshold: requestedThresholds.confidence,
-            marginThreshold: requestedThresholds.margin)
+          bnnsTechnique = try BNNSTechnique(options: opts)
         }
       } catch {
         let msg =

@@ -26,6 +26,20 @@ import Testing
 @testable import BoomBoomBoomKit
 @testable import BoomBoomBoomKitML
 
+/// Build gate-threshold ``BNNSTechnique/Options`` compactly. GH-141 moved
+/// the thresholds off the initializer into an `Options` value; these
+/// suites set them constantly, so a two-argument helper keeps the tests
+/// about behaviour instead of about struct assembly.
+@available(macOS 15.0, *)
+private func gateOptions(
+  confidence: Double, margin: Double
+) -> BNNSTechnique.Options {
+  var o = BNNSTechnique.Options()
+  o.confidenceThreshold = confidence
+  o.marginThreshold = margin
+  return o
+}
+
 /// Resolves the bundled-with-tests `CustomBundled.mlmodelc` fixture URL.
 /// `.mlmodelc` is a directory, not a file, so `Bundle.module.url(for…)`
 /// (which targets files) can't be used; the canonical pattern is the one
@@ -124,7 +138,8 @@ struct BNNSTechniqueDiagnosticTests {
 
       // Win: carries decode evidence, no stage, no gate.
       let open = try BNNSTechnique(
-        modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+        modelURL: url,
+        options: gateOptions(confidence: 0.0, margin: 0.0))
       let openResult = open.evaluateWithDiagnostic(trace: trace)
       let openSnap = try #require(openResult.snapshot)
       #expect(openResult.evaluation != nil)

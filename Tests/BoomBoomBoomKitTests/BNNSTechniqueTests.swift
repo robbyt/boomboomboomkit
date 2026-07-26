@@ -29,6 +29,20 @@ import Testing
 @testable import BoomBoomBoomKit
 @testable import BoomBoomBoomKitML
 
+/// Build gate-threshold ``BNNSTechnique/Options`` compactly. GH-141 moved
+/// the thresholds off the initializer into an `Options` value; these
+/// suites set them constantly, so a two-argument helper keeps the tests
+/// about behaviour instead of about struct assembly.
+@available(macOS 15.0, *)
+private func gateOptions(
+  confidence: Double, margin: Double
+) -> BNNSTechnique.Options {
+  var o = BNNSTechnique.Options()
+  o.confidenceThreshold = confidence
+  o.marginThreshold = margin
+  return o
+}
+
 /// Resolves the committed `CustomBundled.mlmodelc` fixture URL — a runnable
 /// graph captured from the historical giantsteps_v1 checkpoint, retained in
 /// `Tests/BoomBoomBoomKitTests/Fixtures/` after Story 4-6 Branch C pulled the
@@ -81,8 +95,10 @@ struct BNNSTechniqueTests {
   func consumerThresholdsStoredVerbatim() throws {
     if #available(macOS 15.0, *) {
       let url = try #require(fixtureURL())
-      let t = try BNNSTechnique(
-        modelURL: url, confidenceThreshold: 0.2, marginThreshold: 0.05)
+      var opts = BNNSTechnique.Options()
+      opts.confidenceThreshold = 0.2
+      opts.marginThreshold = 0.05
+      let t = try BNNSTechnique(modelURL: url, options: opts)
       #expect(t.confidenceThreshold == 0.2)
       #expect(t.marginThreshold == 0.05)
     }
@@ -98,15 +114,57 @@ struct BNNSTechniqueTests {
   func outOfRangeThresholdsClamp() throws {
     if #available(macOS 15.0, *) {
       let url = try #require(fixtureURL())
-      let high = try BNNSTechnique(
-        modelURL: url, confidenceThreshold: 1.5, marginThreshold: 42.0)
+      var highOpts = BNNSTechnique.Options()
+      highOpts.confidenceThreshold = 1.5
+      highOpts.marginThreshold = 42.0
+      let high = try BNNSTechnique(modelURL: url, options: highOpts)
       #expect(high.confidenceThreshold == 1.0)
       #expect(high.marginThreshold == 1.0)
-      let low = try BNNSTechnique(
-        modelURL: url, confidenceThreshold: -0.2, marginThreshold: -99.0)
+      var lowOpts = BNNSTechnique.Options()
+      lowOpts.confidenceThreshold = -0.2
+      lowOpts.marginThreshold = -99.0
+      let low = try BNNSTechnique(modelURL: url, options: lowOpts)
       #expect(low.confidenceThreshold == 0.0)
       #expect(low.marginThreshold == 0.0)
     }
+  }
+
+  /// GH-141: the fold threshold follows the same rule as the gate
+  /// thresholds — non-finite throws, finite-out-of-range clamps. Both
+  /// halves are asserted, because a validator that only threw would be
+  /// indistinguishable from one that rejected every fold configuration.
+  @Test(
+    "octaveFold threshold: non-finite throws, out-of-range clamps",
+    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
+  @available(macOS 15.0, *)
+  func octaveFoldThresholdValidation() throws {
+    let url = try #require(fixtureURL())
+
+    for bad in [Double.nan, .infinity, -.infinity] {
+      var opts = BNNSTechnique.Options()
+      opts.octaveFold = .massRatio(threshold: bad)
+      do {
+        _ = try BNNSTechnique(modelURL: url, options: opts)
+        Issue.record("expected a throw for octaveFold threshold \(bad)")
+      } catch let MLTechniqueError.invalidThreshold(reason) {
+        #expect(reason.contains("octaveFold"), "the reason must name the offending knob")
+      } catch {
+        Issue.record("expected .invalidThreshold for \(bad), got \(error)")
+      }
+    }
+
+    var high = BNNSTechnique.Options()
+    high.octaveFold = .massRatio(threshold: 4.0)
+    #expect(
+      try BNNSTechnique(modelURL: url, options: high).octaveFold == .massRatio(threshold: 1.0))
+
+    var low = BNNSTechnique.Options()
+    low.octaveFold = .massRatio(threshold: -3.0)
+    #expect(try BNNSTechnique(modelURL: url, options: low).octaveFold == .massRatio(threshold: 0.0))
+
+    // Folding stays off unless asked for, even on a fully-constructed
+    // technique built from the shipped defaults.
+    #expect(try BNNSTechnique(modelURL: url).octaveFold == .disabled)
   }
 
   /// NaN/Inf has no sensible interpretation as a probability floor, so
@@ -124,8 +182,10 @@ struct BNNSTechniqueTests {
       ]
       for (conf, margin) in bad {
         do {
-          _ = try BNNSTechnique(
-            modelURL: url, confidenceThreshold: conf, marginThreshold: margin)
+          var opts = BNNSTechnique.Options()
+          opts.confidenceThreshold = conf
+          opts.marginThreshold = margin
+          _ = try BNNSTechnique(modelURL: url, options: opts)
           Issue.record("expected a throw for (\(conf), \(margin))")
         } catch let MLTechniqueError.invalidThreshold(reason) {
           #expect(!reason.isEmpty)
@@ -743,7 +803,8 @@ struct BNNSTechniqueInferenceTests {
     // Gates open at construction: this asserts the inference chain
     // produces a usable tempo, not that the fixture clears the floor.
     let t = try BNNSTechnique(
-      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+      modelURL: url,
+      options: gateOptions(confidence: 0.0, margin: 0.0))
     var trace = BPMDiagnosticTrace()
     trace.mlFeatures = try Self.syntheticFeatures()
 
@@ -772,9 +833,11 @@ struct BNNSTechniqueInferenceTests {
     var trace = BPMDiagnosticTrace()
     trace.mlFeatures = try Self.syntheticFeatures()
     let open = try BNNSTechnique(
-      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+      modelURL: url,
+      options: gateOptions(confidence: 0.0, margin: 0.0))
     let shut = try BNNSTechnique(
-      modelURL: url, confidenceThreshold: 1.0, marginThreshold: 0.0)
+      modelURL: url,
+      options: gateOptions(confidence: 1.0, margin: 0.0))
     // Both alive simultaneously: neither can be observing the other's
     // configuration.
     #expect(open.evaluate(trace: trace) != nil, "open gates must admit the decode")
@@ -797,9 +860,11 @@ struct BNNSTechniqueInferenceTests {
     trace.mlFeatures = try Self.syntheticFeatures()
 
     let marginOpen = try BNNSTechnique(
-      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+      modelURL: url,
+      options: gateOptions(confidence: 0.0, margin: 0.0))
     let marginShut = try BNNSTechnique(
-      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 1.0)
+      modelURL: url,
+      options: gateOptions(confidence: 0.0, margin: 1.0))
 
     #expect(marginOpen.evaluate(trace: trace) != nil, "a 0.0 margin floor must admit")
 
@@ -847,7 +912,8 @@ struct BNNSTechniqueInferenceTests {
   func concurrentEvaluateIsContextLocal() async throws {
     let url = try #require(fixtureURL())
     let t = try BNNSTechnique(
-      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+      modelURL: url,
+      options: gateOptions(confidence: 0.0, margin: 0.0))
     var trace = BPMDiagnosticTrace()
     trace.mlFeatures = try Self.syntheticFeatures(frames: 128)
     let bound = trace
@@ -877,7 +943,8 @@ struct BNNSTechniqueInferenceTests {
   func evaluateAcceptsFrameMajorLogMelLayout() throws {
     let url = try #require(fixtureURL())
     let t = try BNNSTechnique(
-      modelURL: url, confidenceThreshold: 0.0, marginThreshold: 0.0)
+      modelURL: url,
+      options: gateOptions(confidence: 0.0, margin: 0.0))
     let frames = 128
     let mb = 128
     var nchwData = [Float](repeating: 0, count: mb * frames)

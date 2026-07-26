@@ -560,6 +560,14 @@ struct EnsembleDecisionJSON: Codable, Sendable, Equatable {
   }
 }
 
+/// Nested fold record (GH-141). A separate object rather than two sibling
+/// optionals, so a decoder cannot reconstruct half a fold — the library's
+/// `MLDiagnosticSnapshot.OctaveFold` carries both values or neither.
+struct OctaveFoldJSON: Codable, Sendable, Equatable {
+  let fromBPM: Double
+  let massRatio: Double
+}
+
 struct MLDiagnosticSnapshotJSON: Codable, Sendable, Equatable {
   // Carries the load-bearing numeric fields from MLDiagnosticSnapshot.
   // Future library evolution that adds fields to MLDiagnosticSnapshot
@@ -570,6 +578,10 @@ struct MLDiagnosticSnapshotJSON: Codable, Sendable, Equatable {
   let inputFeatureChecksum: UInt64
   let failureStage: String?
   let gateFired: String?
+  /// Present only when a decode-time octave fold rewrote `decodedBPM`.
+  /// Without it a folded 70 BPM is indistinguishable from a bare 70 BPM
+  /// argmax in an exported trace, which is archival.
+  let octaveFold: OctaveFoldJSON?
 
   init(from snapshot: MLDiagnosticSnapshot) {
     // Each of these Double? fields may legitimately be non-finite when
@@ -583,6 +595,14 @@ struct MLDiagnosticSnapshotJSON: Codable, Sendable, Equatable {
     self.inputFeatureChecksum = snapshot.inputFeatureChecksum
     self.failureStage = snapshot.failureStage?.rawValue
     self.gateFired = snapshot.gateFired?.rawValue
+    // Sanitized like its siblings for symmetry. Technically redundant:
+    // `MLDiagnosticSnapshot.OctaveFold.init?` already refuses non-finite
+    // input, so an instance cannot carry one. Kept so this projection does
+    // not silently depend on an invariant enforced two types away.
+    self.octaveFold = snapshot.octaveFold.flatMap {
+      guard $0.fromBPM.isFinite, $0.massRatio.isFinite else { return nil }
+      return OctaveFoldJSON(fromBPM: $0.fromBPM, massRatio: $0.massRatio)
+    }
   }
 }
 
