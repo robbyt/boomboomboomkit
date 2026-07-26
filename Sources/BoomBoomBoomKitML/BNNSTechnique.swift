@@ -31,7 +31,7 @@ import os.log
 /// OA300 audio at production thresholds. See `MODEL_CARD.md` for the
 /// full Status section + threshold-sweep evidence. Consumers using ML
 /// today MUST pass a `.mlmodelc` URL explicitly via
-/// ``init(modelURL:confidenceThreshold:marginThreshold:)`` —
+/// ``init(modelURL:options:)`` —
 /// see `tools/coreml-convert/README.md` for the bring-your-own-model
 /// (BYOW) flow, or implement a fully custom `MLTechnique` conformance.
 ///
@@ -80,7 +80,7 @@ import os.log
 ///    its ``marginThreshold``. Failing either gate returns `nil` (the
 ///    documented abstain path). Both default to `0.50` / `0.10` and are
 ///    settable per instance — see
-///    ``init(modelURL:confidenceThreshold:marginThreshold:)``.
+///    ``init(modelURL:options:)``.
 ///
 /// ## See also
 ///
@@ -106,7 +106,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// Reserved as a `nil` literal so the `init(modelURL:)` default-arg
   /// signature stays stable across a future story that re-bundles a
   /// model. Consumers wanting to use ML today MUST pass a `modelURL:`
-  /// explicitly — see ``init(modelURL:confidenceThreshold:marginThreshold:)`` + `tools/coreml-convert/README.md`
+  /// explicitly — see ``init(modelURL:options:)`` + `tools/coreml-convert/README.md`
   /// for the bring-your-own-model (BYOW) flow.
   public static let bundledReferenceURL: URL? = nil
 
@@ -120,7 +120,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// trained on different material can be both accurate and
   /// conservatively confident, in which case this default abstains on
   /// nearly everything. Sweep it against a held-out set and pass the
-  /// result to ``init(modelURL:confidenceThreshold:marginThreshold:)``.
+  /// result to ``init(modelURL:options:)``.
   public static let defaultConfidenceThreshold: Double = 0.50
 
   /// Shipped default for the Gate 2 abstain threshold. The margin
@@ -143,6 +143,52 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// Gate 2 threshold for THIS instance, resolved at construction.
   /// See ``confidenceThreshold``.
   public let marginThreshold: Double
+
+  /// Decode-time octave policy for THIS instance, resolved at
+  /// construction. ``OctaveFoldPolicy/disabled`` by default, which
+  /// reproduces the pre-GH-141 decode bit for bit.
+  public let octaveFold: OctaveFoldPolicy
+
+  // MARK: - Options
+
+  /// Construction-time configuration for ``BNNSTechnique``.
+  ///
+  /// Replaces the defaulted-initializer-parameter list that GH-167 item 6
+  /// started. Three knobs was the point at which more positional
+  /// parameters became the wrong shape: every future decode or gate knob
+  /// would widen the initializer again, and callers naming one knob had to
+  /// keep the others in argument order. Per ADR-11 this uses an empty
+  /// `init()` with property-level defaults, customized by mutation.
+  ///
+  /// ```swift
+  /// var opts = BNNSTechnique.Options()
+  /// opts.octaveFold = .massRatio(threshold: 0.4)
+  /// let technique = try BNNSTechnique(modelURL: url, options: opts)
+  /// ```
+  ///
+  /// Not `Hashable` — ``octaveFold`` can carry a `.nan` threshold until
+  /// ``BNNSTechnique/init(modelURL:options:)`` rejects it.
+  public struct Options: Sendable, Equatable {
+
+    /// Gate 1: minimum softmax-max required to emit an evaluation.
+    public var confidenceThreshold: Double = BNNSTechnique.defaultConfidenceThreshold
+
+    /// Gate 2: minimum margin between the top two softmax values.
+    public var marginThreshold: Double = BNNSTechnique.defaultMarginThreshold
+
+    /// Whether the decode reconsiders the tempo octave (GH-141).
+    /// Default `.disabled`, and measured net-negative on the reference
+    /// model at every threshold — see ``OctaveFoldPolicy/massRatio(threshold:)``
+    /// before enabling, and re-measure with
+    /// `make octave-fold-impact-report` against your own model.
+    public var octaveFold: OctaveFoldPolicy = .disabled
+
+    public init() {}
+
+    /// The shipped defaults: both gates at their documented values,
+    /// folding off.
+    public static let `default` = Options()
+  }
 
   /// Number of mel bands the bundled model expects on input. Surfaced as
   /// a constant for parity with `BPMAnalyzer.melBands == 128` and for the
@@ -252,23 +298,34 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   ///   ``MLTechniqueError/binCountMismatch(expected:actual:)``.
   public init(
     modelURL: URL? = Self.bundledReferenceURL,
-    confidenceThreshold: Double = Self.defaultConfidenceThreshold,
-    marginThreshold: Double = Self.defaultMarginThreshold
+    options: Options = .default
   ) throws {
     // isFinite FIRST: a NaN/Inf threshold is unambiguously a caller bug
     // with no sensible interpretation, and silently substituting a value
     // would hide it. A finite out-of-range value DOES carry intent, so
     // that clamps below. The gates compare with `<`, so 0.0 rejects
     // nothing and 1.0 rejects everything short of a perfect 1.0 score.
-    guard confidenceThreshold.isFinite, marginThreshold.isFinite else {
+    guard options.confidenceThreshold.isFinite, options.marginThreshold.isFinite else {
       throw MLTechniqueError.invalidThreshold(
         reason: "thresholds must be finite (confidenceThreshold="
-          + "\(confidenceThreshold), marginThreshold=\(marginThreshold))")
+          + "\(options.confidenceThreshold), marginThreshold=\(options.marginThreshold))")
+    }
+    // Same rule for the fold threshold: non-finite is a caller bug, a
+    // finite out-of-range value carries intent and clamps (GH-141).
+    if let foldThreshold = options.octaveFold.threshold, !foldThreshold.isFinite {
+      throw MLTechniqueError.invalidThreshold(
+        reason: "octaveFold threshold must be finite (got \(foldThreshold))")
     }
     // Softmax probabilities and their margins both live in [0, 1], so a
     // threshold outside that range is saturating rather than meaningless.
-    self.confidenceThreshold = min(max(confidenceThreshold, 0.0), 1.0)
-    self.marginThreshold = min(max(marginThreshold, 0.0), 1.0)
+    self.confidenceThreshold = min(max(options.confidenceThreshold, 0.0), 1.0)
+    self.marginThreshold = min(max(options.marginThreshold, 0.0), 1.0)
+    switch options.octaveFold {
+    case .disabled:
+      self.octaveFold = .disabled
+    case .massRatio(let t):
+      self.octaveFold = .massRatio(threshold: min(max(t, 0.0), 1.0))
+    }
 
     guard let modelURL else {
       throw MLTechniqueError.modelResourceMissing(
@@ -397,7 +454,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
         MLDiagnosticSnapshot(inputFeatureChecksum: cksum, outcome: .graphFailed)
       )
     }
-    switch Self.decodeLogitsWithDiagnostic(logits) {
+    switch Self.decodeLogitsWithDiagnostic(logits, policy: octaveFold) {
     case .nonFiniteLogits:
       return (
         nil,
@@ -411,7 +468,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
           outcome: .decodeRejectedOutOfRange(
             .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax)))
       )
-    case .success(let bpm, let confidence, let secondMax):
+    case .success(let bpm, let confidence, let secondMax, let fold):
       // Two-gate abstain (DD #10). Each gate populates a snapshot
       // reflecting the path that fired — the threshold-sweep harness
       // reads `gateFired` to distinguish gate-1 (low max) from gate-2
@@ -426,7 +483,9 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
           MLDiagnosticSnapshot(
             inputFeatureChecksum: cksum,
             outcome: .confidenceGateRejected(
-              .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax),
+              .init(
+                bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax,
+                octaveFold: fold),
               gate: .gate1Softmax))
         )
       }
@@ -437,7 +496,9 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
           MLDiagnosticSnapshot(
             inputFeatureChecksum: cksum,
             outcome: .confidenceGateRejected(
-              .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax),
+              .init(
+                bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax,
+                octaveFold: fold),
               gate: .gate2Margin))
         )
       }
@@ -456,7 +517,9 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
         MLDiagnosticSnapshot(
           inputFeatureChecksum: cksum,
           outcome: .win(
-            .init(bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax)))
+            .init(
+              bpm: bpm, softmaxMax: confidence, softmaxSecondMax: secondMax,
+              octaveFold: fold)))
       )
     }
   }
@@ -786,8 +849,10 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   internal static func decodeLogits(
     _ logits: [Float]
   ) -> (bpm: Double, confidence: Double, secondMax: Double)? {
+    // Legacy wrapper: no policy argument, so it always decodes bare
+    // argmax. Callers wanting the fold go through the diagnostic form.
     switch decodeLogitsWithDiagnostic(logits) {
-    case .success(let bpm, let confidence, let secondMax):
+    case .success(let bpm, let confidence, let secondMax, _):
       return (bpm, confidence, secondMax)
     case .nonFiniteLogits, .outOfRangeArgmax:
       return nil
@@ -808,8 +873,15 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// accepted. So the ``outOfRangeArgmax`` case carries the raw decoded
   /// BPM (below 60 or above 200) — the consumer of the snapshot sees the
   /// model's actual prediction even though the library abstains.
+  /// - Parameter policy: Decode-time octave policy (GH-141). Defaulted to
+  ///   ``OctaveFoldPolicy/disabled`` so the function stays directly
+  ///   callable from the synthetic-logits fixture tests, which need no
+  ///   model. The default also means every existing caller of this
+  ///   function decodes exactly as before; it is DECODE behaviour that is
+  ///   preserved, not the initializer's source signature, which changed.
   internal static func decodeLogitsWithDiagnostic(
-    _ logits: [Float]
+    _ logits: [Float],
+    policy: OctaveFoldPolicy = .disabled
   ) -> BNNSDecodeOutcome {
     guard !logits.isEmpty else { return .nonFiniteLogits }
     // Reject non-finite logits up front: NaN through `vDSP_maxv` is
@@ -859,9 +931,69 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
         bpm: bpm, confidence: Double(confidence),
         secondMax: Double(secondMax))
     }
+    // GH-141 octave fold, applied only on the in-range path. Deliberate:
+    // folding an out-of-range argmax would rescue predictions the E0
+    // diagnostic never evidenced, and would change what
+    // `.outOfRangeArgmax` means for the existing forensic harnesses.
+    // Because the source BPM is already <= 200, a fold can only produce
+    // <= 100, so the sole range guard needed is the 60 floor.
+    if let fold = octaveFoldCandidate(
+      probs: probs, maxIdx: maxIdx, maxMass: maxVal, policy: policy)
+    {
+      return .success(
+        bpm: fold.foldedBPM, confidence: Double(confidence),
+        secondMax: Double(secondMax),
+        fold: MLDiagnosticSnapshot.OctaveFold(
+          fromBPM: bpm, massRatio: fold.massRatio))
+    }
     return .success(
       bpm: bpm, confidence: Double(confidence),
-      secondMax: Double(secondMax))
+      secondMax: Double(secondMax), fold: nil)
+  }
+
+  /// Decide whether the argmax should fold to its fundamental, and on how
+  /// much evidence (GH-141).
+  ///
+  /// The half of bin *i* sits at fractional index `(i - 30) / 2`, a whole
+  /// bin only when `i` is even. Rather than rounding to a single bin —
+  /// which would discard half the evidence on odd bins and make the rule's
+  /// sensitivity alternate bin to bin — the mass of the two bins
+  /// straddling the exact half tempo is summed. That also matches how a
+  /// trained classifier spreads probability across adjacent tempo bins.
+  ///
+  /// - Returns: `nil` when folding is off, when the fundamental would fall
+  ///   below 60 BPM, or when the half-tempo mass does not reach the
+  ///   policy threshold.
+  private static func octaveFoldCandidate(
+    probs: [Float],
+    maxIdx: Int,
+    maxMass: Float,
+    policy: OctaveFoldPolicy
+  ) -> (foldedBPM: Double, massRatio: Double)? {
+    guard case .massRatio(let threshold) = policy else { return nil }
+    // A zero or non-finite argmax mass would make the ratio meaningless
+    // and would break the finite-by-construction guarantee that lets
+    // `MLDiagnosticSnapshot.OctaveFold` stay `Hashable`.
+    guard maxMass > 0, maxMass.isFinite else { return nil }
+
+    let argmaxBPM = bpmBinOffset + Double(maxIdx)
+    let foldedBPM = argmaxBPM / 2.0
+    guard foldedBPM >= 60.0 else { return nil }
+
+    // Fractional bin index of the exact half tempo.
+    let halfIndex = (Double(maxIdx) - bpmBinOffset) / 2.0
+    let lower = Int(halfIndex.rounded(.down))
+    let upper = Int(halfIndex.rounded(.up))
+
+    var halfMass: Float = 0
+    if probs.indices.contains(lower) { halfMass += probs[lower] }
+    // `upper == lower` on even bins; the guard avoids double-counting.
+    if upper != lower, probs.indices.contains(upper) { halfMass += probs[upper] }
+    guard halfMass > 0 else { return nil }
+
+    let ratio = Double(halfMass) / Double(maxMass)
+    guard ratio.isFinite, ratio >= threshold else { return nil }
+    return (foldedBPM, ratio)
   }
 
   // MARK: - validateContract
@@ -1211,7 +1343,12 @@ private struct BNNSCompileFailure: Error, LocalizedError {
 @available(macOS 15.0, *)
 internal enum BNNSDecodeOutcome: Sendable {
   /// Argmax mapped to a BPM in the library's `60.0...200.0` range.
-  case success(bpm: Double, confidence: Double, secondMax: Double)
+  ///
+  /// `fold` is non-nil when a GH-141 octave fold rewrote `bpm`; `bpm` then
+  /// carries the folded tempo and `fold.fromBPM` the bare argmax.
+  case success(
+    bpm: Double, confidence: Double, secondMax: Double,
+    fold: MLDiagnosticSnapshot.OctaveFold?)
   /// Logits contained non-finite values (NaN / Inf) OR the post-softmax
   /// sum was non-positive / non-finite — no argmax was meaningfully
   /// computable.

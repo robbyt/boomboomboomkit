@@ -465,15 +465,13 @@ struct BNNSImpactTests {
         let envModelURL =
           ProcessInfo.processInfo.environment["BNNS_MODEL_URL"]
           .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        var opts = BNNSTechnique.Options()
+        opts.confidenceThreshold = requestedThresholds.confidence
+        opts.marginThreshold = requestedThresholds.margin
         if let envURL = envModelURL {
-          bnnsTechnique = try BNNSTechnique(
-            modelURL: envURL,
-            confidenceThreshold: requestedThresholds.confidence,
-            marginThreshold: requestedThresholds.margin)
+          bnnsTechnique = try BNNSTechnique(modelURL: envURL, options: opts)
         } else {
-          bnnsTechnique = try BNNSTechnique(
-            confidenceThreshold: requestedThresholds.confidence,
-            marginThreshold: requestedThresholds.margin)
+          bnnsTechnique = try BNNSTechnique(options: opts)
         }
       } catch {
         let msg =

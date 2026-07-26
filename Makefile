@@ -864,3 +864,21 @@ epic7-freeze:
 post-bundle-watchlist:
 	cd $(ML_TRAINING_DIR) && uv run python post_bundle_watchlist.py \
 		--runtime-predictions "$(FR18_PRED_DIR)"
+
+## octave-fold-impact-report: GH-141 — per-band net-impact measurement for the decode-time octave fold. Operator-run: needs GIANTSTEPS_CORPUS_PATH and BNNS_MODEL_URL pointing at a compiled .mlmodelc (e.g. _bmad-output/ml-models/giantsteps_v2_seed_42.mlmodelc). Runs the corpus ONCE at fold threshold 0.0 with the abstain gates open; every other threshold in the sweep is reconstructed offline from the recorded mass ratios. Emits _bmad-output/implementation-artifacts/141-octave-fold-impact.json plus a per-band console table. This measurement is what gates any future change to the shipped default; read the per-band deltas, not the net. Develop-only.
+.PHONY: octave-fold-impact-report
+octave-fold-impact-report:
+ifndef BNNS_MODEL_URL
+	$(error BNNS_MODEL_URL is not set. Usage: BNNS_MODEL_URL=_bmad-output/ml-models/giantsteps_v2_seed_42.mlmodelc make octave-fold-impact-report)
+endif
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	OCTAVE_FOLD_IMPACT=1 \
+	BNNS_MODEL_URL="$(BNNS_MODEL_URL)" \
+	OCTAVE_FOLD_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.OctaveFoldImpactTests

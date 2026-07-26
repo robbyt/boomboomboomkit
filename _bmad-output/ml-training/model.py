@@ -84,7 +84,8 @@ def write_model_artifacts(out_dir: Path) -> None:
         "bpm_bin_max": BPM_BIN_MAX,
         "bpm_bin_count": BPM_BIN_COUNT,
         "bin_centers_bpm": bin_centers,
-        "bin_to_bpm_formula": "bpm = float(argmax + bpm_bin_min)",
+        "bin_to_bpm_formula": "bpm = float(argmax + bpm_bin_min)"
+        " (default; see eval.decode_bpm for the opt-in GH-141 octave fold)",
         "feature_set_version": "v1",
         "tensor_names": {"input": "input", "output": "output"},
     }

@@ -152,10 +152,50 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
     /// Softmax-second-max probability after host-side softmax.
     public let softmaxSecondMax: Double
 
-    public init(bpm: Double, softmaxMax: Double, softmaxSecondMax: Double) {
+    /// Set when a decode-time octave fold rewrote ``bpm``; `nil` when the
+    /// tempo is the bare argmax (GH-141).
+    ///
+    /// A fold changes the reported tempo, so it must be visible. Silently
+    /// rewriting the tempo on a diagnostic path whose whole purpose is
+    /// explaining what the model did would defeat the type.
+    public let octaveFold: OctaveFold?
+
+    public init(
+      bpm: Double,
+      softmaxMax: Double,
+      softmaxSecondMax: Double,
+      octaveFold: OctaveFold? = nil
+    ) {
       self.bpm = bpm
       self.softmaxMax = softmaxMax
       self.softmaxSecondMax = softmaxSecondMax
+      self.octaveFold = octaveFold
+    }
+  }
+
+  // MARK: - OctaveFold
+
+  /// Record of a decode-time octave fold (GH-141). Present on
+  /// ``Decode/octaveFold`` exactly when the decoded tempo is not the bare
+  /// argmax.
+  ///
+  /// `Hashable` is safe here because both fields are finite by
+  /// construction: they are derived from softmax probabilities that the
+  /// decoder has already proven finite and positive-summing, and the fold
+  /// only runs when the argmax mass is greater than zero.
+  public struct OctaveFold: Sendable, Hashable {
+
+    /// The BPM the bare argmax would have produced, before folding.
+    /// ``Decode/bpm`` carries the folded value.
+    public let fromBPM: Double
+
+    /// Posterior mass at the half tempo divided by the argmax bin's mass.
+    /// The value that cleared the policy threshold.
+    public let massRatio: Double
+
+    public init(fromBPM: Double, massRatio: Double) {
+      self.fromBPM = fromBPM
+      self.massRatio = massRatio
     }
   }
 

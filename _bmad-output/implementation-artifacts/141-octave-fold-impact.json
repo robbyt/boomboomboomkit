@@ -1,0 +1,5143 @@
+{
+  "corpus" : "giantsteps",
+  "gitSHA" : "e74ce57-dirty",
+  "modelDigest" : "5dc5873bef88e0ab73ce6107411696715a2459b1fc80727cb871b16fa845dd37",
+  "modelPath" : "\/Users\/rterhaar\/Dropbox\/research\/swift\/BoomBoomBoomKit\/_bmad-output\/ml-models\/giantsteps_v2_seed_42.mlmodelc",
+  "perTrack" : [
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3240076043411993,
+      "trackID" : "1030011",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.2056837736590573,
+      "trackID" : "1068430",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.25367903173300704,
+      "trackID" : "1084996",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.183594295447356,
+      "trackID" : "1092771",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.12114571350592203,
+      "trackID" : "1114156",
+      "truthBPM" : 86,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3875204191735107,
+      "trackID" : "1118326",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.20981858308696977,
+      "trackID" : "1120171",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 67.5,
+      "massRatio" : 0.5387439730389206,
+      "trackID" : "1171800",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 135
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.28119262979996296,
+      "trackID" : "1174239",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 77.5,
+      "massRatio" : 0.47427156350149446,
+      "trackID" : "1177875",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 155
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.22209737217580738,
+      "trackID" : "1183908",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 78,
+      "massRatio" : 0.2465333913402483,
+      "trackID" : "1198571",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 156
+    },
+    {
+      "trackID" : "122772",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.47983093510420977,
+      "trackID" : "1234668",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.1624621295200992,
+      "trackID" : "1234669",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.10524921281023919,
+      "trackID" : "1234745",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 80.5,
+      "massRatio" : 0.18095717611697767,
+      "trackID" : "1234750",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 161
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.17981289143222,
+      "trackID" : "1240669",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.23009056090316546,
+      "trackID" : "1240672",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3001651348322364,
+      "trackID" : "1317507",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.09321969541548702,
+      "trackID" : "1329955",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.27213582725063445,
+      "trackID" : "1380256",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 124
+    },
+    {
+      "trackID" : "1418652",
+      "truthBPM" : 66,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.28062473663003323,
+      "trackID" : "1424458",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.185006034168577,
+      "trackID" : "1461087",
+      "truthBPM" : 90,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 66.5,
+      "massRatio" : 0.2092781310793981,
+      "trackID" : "1469706",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 133
+    },
+    {
+      "trackID" : "1479462",
+      "truthBPM" : 99,
+      "unfoldedBPM" : 73
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.04741586028647664,
+      "trackID" : "1514866",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.20438189473778687,
+      "trackID" : "1548088",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.11530484895620789,
+      "trackID" : "1556416",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.11404013500278411,
+      "trackID" : "1560139",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.15130541042403095,
+      "trackID" : "1560729",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.09177760277201044,
+      "trackID" : "1562235",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.45027820489867665,
+      "trackID" : "1569136",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.23217529164081838,
+      "trackID" : "1623443",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.2832760305633685,
+      "trackID" : "1626348",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.1036425189340038,
+      "trackID" : "1676961",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.7454709418952565,
+      "trackID" : "1698047",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.1836857266233732,
+      "trackID" : "172384",
+      "truthBPM" : 84,
+      "unfoldedBPM" : 125
+    },
+    {
+      "trackID" : "1728723",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 72
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.1149433062624862,
+      "trackID" : "1735621",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.08075834648452684,
+      "trackID" : "1743969",
+      "truthBPM" : 79,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.08661715423786152,
+      "trackID" : "1747518",
+      "truthBPM" : 71,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.03016366758931979,
+      "trackID" : "1753073",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 171
+    },
+    {
+      "trackID" : "1765409",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 99
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.16519751969929833,
+      "trackID" : "1791554",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.15324126376770042,
+      "trackID" : "1816200",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4461240336625014,
+      "trackID" : "1817444",
+      "truthBPM" : 172,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.1632793869581292,
+      "trackID" : "1825982",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.12164098384787149,
+      "trackID" : "1839656",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4894893178978303,
+      "trackID" : "1842615",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.04466718268299181,
+      "trackID" : "1851619",
+      "truthBPM" : 99,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.09382745696396427,
+      "trackID" : "1855660",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.22591621275701307,
+      "trackID" : "1874244",
+      "truthBPM" : 71,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.12213040691549287,
+      "trackID" : "1885798",
+      "truthBPM" : 101,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.4559972690322869,
+      "trackID" : "1889739",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.11014223634707512,
+      "trackID" : "1889844",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.14750293211851767,
+      "trackID" : "1896782",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.20530172855157292,
+      "trackID" : "1905591",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.46814916940254964,
+      "trackID" : "1905592",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.1864805107092087,
+      "trackID" : "1918704",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "trackID" : "1921248",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 94
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.10706233591192801,
+      "trackID" : "1929611",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.2521871264803444,
+      "trackID" : "1943706",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.06310005602673505,
+      "trackID" : "1950701",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.1523491103665554,
+      "trackID" : "1955621",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.08283320375153033,
+      "trackID" : "1960598",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 70.5,
+      "massRatio" : 0.1848024390781767,
+      "trackID" : "1968659",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 141
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.31525659266880474,
+      "trackID" : "1973680",
+      "truthBPM" : 80,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.20150075285255395,
+      "trackID" : "1974485",
+      "truthBPM" : 167,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.23195477863520364,
+      "trackID" : "1982430",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 64.5,
+      "massRatio" : 0.2715151522704051,
+      "trackID" : "1982431",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 129
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.1008256654346125,
+      "trackID" : "2013128",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.11105660462469465,
+      "trackID" : "2022116",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.1301744448928172,
+      "trackID" : "2039114",
+      "truthBPM" : 119,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.07571233637072915,
+      "trackID" : "2048806",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.1499672096143174,
+      "trackID" : "2061919",
+      "truthBPM" : 141,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.213391340532502,
+      "trackID" : "2071203",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.7945869835966985,
+      "trackID" : "2083393",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.2505950515563326,
+      "trackID" : "2083969",
+      "truthBPM" : 69,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.5384459514364912,
+      "trackID" : "2088277",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.07537905014023316,
+      "trackID" : "2088281",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.10779137895266346,
+      "trackID" : "210560",
+      "truthBPM" : 78,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.15881604073165162,
+      "trackID" : "220883",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.09454385220863516,
+      "trackID" : "2422602",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 88,
+      "massRatio" : 0.37314938091455613,
+      "trackID" : "2432724",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 176
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.12449833570079984,
+      "trackID" : "2442269",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 64,
+      "massRatio" : 0.3136522017581312,
+      "trackID" : "2673896",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 128
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.3982624710381257,
+      "trackID" : "2676246",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.26481093187677696,
+      "trackID" : "2676506",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.42709112444802894,
+      "trackID" : "2677224",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.22598552385220302,
+      "trackID" : "2702022",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 74.5,
+      "massRatio" : 0.4175314997520744,
+      "trackID" : "2703359",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 149
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.10742810381612063,
+      "trackID" : "2704868",
+      "truthBPM" : 133,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.1714766946683436,
+      "trackID" : "2706792",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 79.5,
+      "massRatio" : 0.46053041119546995,
+      "trackID" : "2720752",
+      "truthBPM" : 112,
+      "unfoldedBPM" : 159
+    },
+    {
+      "foldedBPM" : 89,
+      "massRatio" : 0.16482662066281933,
+      "trackID" : "2725284",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 178
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.01945064445884794,
+      "trackID" : "2725286",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.2103755178605463,
+      "trackID" : "2725352",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.22470513256884037,
+      "trackID" : "2725358",
+      "truthBPM" : 141,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.27609957243794525,
+      "trackID" : "2725361",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.7525979901294383,
+      "trackID" : "2726350",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.1516662907290994,
+      "trackID" : "2726353",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.1013304119560267,
+      "trackID" : "2726355",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 86,
+      "massRatio" : 0.43532391900084916,
+      "trackID" : "2734649",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 172
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.08012345437620154,
+      "trackID" : "2734862",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.16125632197921783,
+      "trackID" : "2741734",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.8051393563447237,
+      "trackID" : "2745205",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 147
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.21095769113098525,
+      "trackID" : "2751688",
+      "truthBPM" : 120,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.5728990698324523,
+      "trackID" : "2757093",
+      "truthBPM" : 81,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.7261207789218188,
+      "trackID" : "2759853",
+      "truthBPM" : 130,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.583506716096168,
+      "trackID" : "278893",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 147
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.24080032936863785,
+      "trackID" : "28952",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.43101264746028173,
+      "trackID" : "2992360",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.22084898063551972,
+      "trackID" : "3013673",
+      "truthBPM" : 156,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.1392267394877379,
+      "trackID" : "3013772",
+      "truthBPM" : 83,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.09890483176064828,
+      "trackID" : "3016341",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.04776730134342184,
+      "trackID" : "3023605",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.6507119810532954,
+      "trackID" : "3040535",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.46952829009378333,
+      "trackID" : "3058700",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.3406445828837982,
+      "trackID" : "3059880",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.19062494020240878,
+      "trackID" : "3062661",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.11926812475265186,
+      "trackID" : "3069960",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.529994407681666,
+      "trackID" : "3079792",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.04182867132900488,
+      "trackID" : "3088145",
+      "truthBPM" : 64,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.22113161622683947,
+      "trackID" : "3089629",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.12610912924561268,
+      "trackID" : "3091433",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.10235193085511962,
+      "trackID" : "3091814",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 126
+    },
+    {
+      "trackID" : "3097674",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 78
+    },
+    {
+      "foldedBPM" : 86.5,
+      "massRatio" : 0.23706867300877563,
+      "trackID" : "3101046",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 173
+    },
+    {
+      "trackID" : "310291",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 72
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.08668716245360535,
+      "trackID" : "3109241",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.1912551518536624,
+      "trackID" : "3116297",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.6308224658661081,
+      "trackID" : "3124242",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.29951416224440375,
+      "trackID" : "3125254",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.17170141854179183,
+      "trackID" : "3128068",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.48412273179154935,
+      "trackID" : "3128701",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.6126997844510145,
+      "trackID" : "3130573",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 147
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.05486471318870958,
+      "trackID" : "3134837",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4528300021700724,
+      "trackID" : "3151015",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.10943450847288995,
+      "trackID" : "3158774",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.17023263299969751,
+      "trackID" : "3165747",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.22465142799749008,
+      "trackID" : "3167057",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.35491267910210494,
+      "trackID" : "3169408",
+      "truthBPM" : 112,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 81,
+      "massRatio" : 0.18969007171617255,
+      "trackID" : "3173482",
+      "truthBPM" : 83,
+      "unfoldedBPM" : 162
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.21671541229018915,
+      "trackID" : "3173803",
+      "truthBPM" : 188,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.3905586341548597,
+      "trackID" : "3181214",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.5799465442266927,
+      "trackID" : "3188462",
+      "truthBPM" : 115,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.18796971600540063,
+      "trackID" : "3189712",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 174
+    },
+    {
+      "trackID" : "3190021",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 91
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.2395085578372152,
+      "trackID" : "3190084",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.12800917137202467,
+      "trackID" : "3194652",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 79.5,
+      "massRatio" : 0.49940858733758126,
+      "trackID" : "3202338",
+      "truthBPM" : 80,
+      "unfoldedBPM" : 159
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.2729340741878176,
+      "trackID" : "3208076",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 131
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.2836084911429432,
+      "trackID" : "3209004",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.45250511041744684,
+      "trackID" : "3209061",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.29026274669832913,
+      "trackID" : "3211234",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 88,
+      "massRatio" : 0.6076687393108569,
+      "trackID" : "3213176",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 176
+    },
+    {
+      "trackID" : "3218565",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 86
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.10769401555156548,
+      "trackID" : "3218804",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.13932445704559615,
+      "trackID" : "3220340",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 78,
+      "massRatio" : 0.3534037376384496,
+      "trackID" : "3226171",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 156
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.1595538165432675,
+      "trackID" : "3226172",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.08890795862488304,
+      "trackID" : "3226180",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 80.5,
+      "massRatio" : 0.3397700398222788,
+      "trackID" : "3230477",
+      "truthBPM" : 101,
+      "unfoldedBPM" : 161
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.1621600362927339,
+      "trackID" : "3230949",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.02877579925319196,
+      "trackID" : "3241615",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.014412921013751866,
+      "trackID" : "3244386",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 1.699527309320359,
+      "trackID" : "3247762",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.28086203157180556,
+      "trackID" : "3261686",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 127
+    },
+    {
+      "trackID" : "3261883",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 55
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.1329958001470218,
+      "trackID" : "3264338",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.0822418121911885,
+      "trackID" : "3267829",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.07019320951632096,
+      "trackID" : "3269490",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 82.5,
+      "massRatio" : 0.23860570498974298,
+      "trackID" : "3269670",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 165
+    },
+    {
+      "foldedBPM" : 77.5,
+      "massRatio" : 0.30302098914311903,
+      "trackID" : "3281282",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 155
+    },
+    {
+      "trackID" : "3289180",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 78
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3727533384766847,
+      "trackID" : "3291017",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.38233428357091687,
+      "trackID" : "3297802",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.09758179372804068,
+      "trackID" : "3298908",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 67.5,
+      "massRatio" : 0.12274941458670478,
+      "trackID" : "3303241",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 135
+    },
+    {
+      "foldedBPM" : 72,
+      "massRatio" : 0.7931734373809968,
+      "trackID" : "3304445",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 144
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.2532400110558738,
+      "trackID" : "3312045",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.741879835948153,
+      "trackID" : "3313129",
+      "truthBPM" : 85,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.24552480101301508,
+      "trackID" : "3317417",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 81,
+      "massRatio" : 0.15935273083574417,
+      "trackID" : "3333492",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 162
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.1629512289690088,
+      "trackID" : "333579",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.2805031312843207,
+      "trackID" : "3336126",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.5024178760135491,
+      "trackID" : "3336604",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.20997289087541368,
+      "trackID" : "3343760",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.1994405703319829,
+      "trackID" : "3344148",
+      "truthBPM" : 109,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 70.5,
+      "massRatio" : 0.22804938996735613,
+      "trackID" : "3349486",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 141
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.26357832644494794,
+      "trackID" : "3368053",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.21561589370153825,
+      "trackID" : "3368054",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.030905689105972953,
+      "trackID" : "3368055",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.30732044293840266,
+      "trackID" : "3370500",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.11470946087209823,
+      "trackID" : "3372883",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.47297449830781074,
+      "trackID" : "3377892",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.3255568745786401,
+      "trackID" : "3383105",
+      "truthBPM" : 81,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.1504022136062355,
+      "trackID" : "3387888",
+      "truthBPM" : 88,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.0918842154753643,
+      "trackID" : "3391054",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 64,
+      "massRatio" : 0.36052439238790385,
+      "trackID" : "3398611",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 128
+    },
+    {
+      "trackID" : "3403794",
+      "truthBPM" : 192,
+      "unfoldedBPM" : 76
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.11187299084742017,
+      "trackID" : "3405537",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.15799646059674907,
+      "trackID" : "3409480",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 77.5,
+      "massRatio" : 0.4266547065661291,
+      "trackID" : "3412362",
+      "truthBPM" : 119,
+      "unfoldedBPM" : 155
+    },
+    {
+      "foldedBPM" : 78.5,
+      "massRatio" : 0.17743005632349432,
+      "trackID" : "3414605",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 157
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.08316795558677843,
+      "trackID" : "3414746",
+      "truthBPM" : 86,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.12800465511248932,
+      "trackID" : "3419452",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.2000589746253125,
+      "trackID" : "3428474",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.30322781512299557,
+      "trackID" : "3433621",
+      "truthBPM" : 85,
+      "unfoldedBPM" : 169
+    },
+    {
+      "trackID" : "3435022",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 66
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.057064107082012816,
+      "trackID" : "3439626",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 69,
+      "massRatio" : 0.1135812688883875,
+      "trackID" : "3443201",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 138
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.24125008931087497,
+      "trackID" : "344470",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.12802922810964826,
+      "trackID" : "3453642",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.33898448954049204,
+      "trackID" : "3460093",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3543800128825005,
+      "trackID" : "3460094",
+      "truthBPM" : 171,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.09123586930062476,
+      "trackID" : "3467867",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.4401475528839594,
+      "trackID" : "3471827",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.1434682122159339,
+      "trackID" : "3475669",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.13858616300129,
+      "trackID" : "3475672",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 81.5,
+      "massRatio" : 0.18772559605437392,
+      "trackID" : "3480108",
+      "truthBPM" : 130,
+      "unfoldedBPM" : 163
+    },
+    {
+      "foldedBPM" : 86,
+      "massRatio" : 0.17972291484133487,
+      "trackID" : "3482508",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 172
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.046967381503893076,
+      "trackID" : "3482510",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.06304250989099384,
+      "trackID" : "3482733",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.3788178309271766,
+      "trackID" : "3484119",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.19017418495377167,
+      "trackID" : "3485917",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.07663287499450844,
+      "trackID" : "3486206",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.22622435266774366,
+      "trackID" : "3492833",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.2098055957067512,
+      "trackID" : "3493047",
+      "truthBPM" : 141,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.49321701677484364,
+      "trackID" : "3509304",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "trackID" : "3511308",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 92
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.1151307273310237,
+      "trackID" : "3512227",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 81,
+      "massRatio" : 0.1374545485310194,
+      "trackID" : "3519546",
+      "truthBPM" : 167,
+      "unfoldedBPM" : 162
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.11918734501191228,
+      "trackID" : "3520036",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 66.5,
+      "massRatio" : 0.09594004602727435,
+      "trackID" : "3530058",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 133
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.06644929254091829,
+      "trackID" : "3534448",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.032062818258640303,
+      "trackID" : "3535112",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 171
+    },
+    {
+      "trackID" : "3535520",
+      "truthBPM" : 110,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.28199382650541893,
+      "trackID" : "3558940",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.1716797429354064,
+      "trackID" : "3564559",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.224189052651514,
+      "trackID" : "3565815",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.04237283777129209,
+      "trackID" : "3566606",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.16049215679720474,
+      "trackID" : "3574815",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.12133048451934145,
+      "trackID" : "3577628",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 67.5,
+      "massRatio" : 0.5235569760835952,
+      "trackID" : "3577631",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 135
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.18453736696908113,
+      "trackID" : "3593643",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 67,
+      "massRatio" : 0.12226967131532199,
+      "trackID" : "3596904",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 134
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.19831672299659572,
+      "trackID" : "3605780",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "trackID" : "3612407",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 73
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.24008083878408046,
+      "trackID" : "3618176",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.40945317797827363,
+      "trackID" : "3621649",
+      "truthBPM" : 178,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.18296279225201212,
+      "trackID" : "3629920",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.029604477654591902,
+      "trackID" : "3630279",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.1639111987634062,
+      "trackID" : "3630280",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.33374920483414855,
+      "trackID" : "3638589",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83.5,
+      "massRatio" : 0.5998498485559298,
+      "trackID" : "3640677",
+      "truthBPM" : 115,
+      "unfoldedBPM" : 167
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.15140541102536287,
+      "trackID" : "3642438",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.05077188943673476,
+      "trackID" : "3649527",
+      "truthBPM" : 90,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.32015099985410533,
+      "trackID" : "3649559",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.1912184528375339,
+      "trackID" : "3650152",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 76.5,
+      "massRatio" : 0.1753200223501566,
+      "trackID" : "3651620",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 153
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.13376796830327367,
+      "trackID" : "3655121",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.3485630228969709,
+      "trackID" : "3656301",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "trackID" : "3658743",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 98
+    },
+    {
+      "trackID" : "365981",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 69,
+      "massRatio" : 0.10891371879293271,
+      "trackID" : "3660450",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 138
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.32615458393661234,
+      "trackID" : "3661855",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.2117621206871194,
+      "trackID" : "3665864",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.0519933837557834,
+      "trackID" : "3674961",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 64.5,
+      "massRatio" : 0.27118344753259294,
+      "trackID" : "3678548",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 129
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.4031984532975892,
+      "trackID" : "3682931",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 143
+    },
+    {
+      "trackID" : "368533",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.06911617843658462,
+      "trackID" : "3692859",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "trackID" : "3696445",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 72
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.19773407527145018,
+      "trackID" : "3703893",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.12232140120527824,
+      "trackID" : "3706845",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "trackID" : "3711752",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 112
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.3043574798499013,
+      "trackID" : "3721308",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.13851870735043584,
+      "trackID" : "3724279",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3133863913609958,
+      "trackID" : "3725208",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.349869610450913,
+      "trackID" : "3730279",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.07138125469077629,
+      "trackID" : "3733281",
+      "truthBPM" : 70,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.24071237006656068,
+      "trackID" : "3741346",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.34632792956062924,
+      "trackID" : "3742708",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 147
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.14348537746026505,
+      "trackID" : "3743957",
+      "truthBPM" : 85,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3549948306328817,
+      "trackID" : "3746398",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.06304571957012953,
+      "trackID" : "3752371",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.037415667284441664,
+      "trackID" : "3754674",
+      "truthBPM" : 71,
+      "unfoldedBPM" : 142
+    },
+    {
+      "trackID" : "3766995",
+      "truthBPM" : 95,
+      "unfoldedBPM" : 91
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.16098093572779795,
+      "trackID" : "3783220",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.07033713856417784,
+      "trackID" : "3787878",
+      "truthBPM" : 130,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.17274833079089869,
+      "trackID" : "3789981",
+      "truthBPM" : 86,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.15922568412206264,
+      "trackID" : "3790342",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.1714343621384842,
+      "trackID" : "3792954",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.36917369633901875,
+      "trackID" : "3801596",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.13283415041178356,
+      "trackID" : "3807114",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.2520631246873418,
+      "trackID" : "3809763",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.09238470784072157,
+      "trackID" : "3813277",
+      "truthBPM" : 110,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 61,
+      "massRatio" : 0.1267954825901932,
+      "trackID" : "3818797",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 122
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.20872082287978616,
+      "trackID" : "3819089",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.036737833998979515,
+      "trackID" : "3824612",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 75.5,
+      "massRatio" : 0.25690321128180377,
+      "trackID" : "3828895",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 151
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3752022258552769,
+      "trackID" : "3829043",
+      "truthBPM" : 85,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.13677509210662772,
+      "trackID" : "3835017",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.20736824758771477,
+      "trackID" : "3853293",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.810527541688605,
+      "trackID" : "3853477",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.11107539763419919,
+      "trackID" : "3863423",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "trackID" : "3863498",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 72
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.1120154381385409,
+      "trackID" : "3865706",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.09773120773477563,
+      "trackID" : "3871968",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 79.5,
+      "massRatio" : 0.629496265894002,
+      "trackID" : "3873406",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 159
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.05728632833937616,
+      "trackID" : "3873575",
+      "truthBPM" : 88,
+      "unfoldedBPM" : 174
+    },
+    {
+      "trackID" : "3875632",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 91
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.4544881758801071,
+      "trackID" : "3875836",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.5113422421074868,
+      "trackID" : "3877057",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.9577268735820094,
+      "trackID" : "3879813",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.22653570040931906,
+      "trackID" : "3883083",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.28525120289310246,
+      "trackID" : "3883902",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.341749282833879,
+      "trackID" : "3886051",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.3124089331340751,
+      "trackID" : "3886124",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.1447285268491895,
+      "trackID" : "3889689",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.25129968847352024,
+      "trackID" : "3892740",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.08039692583325359,
+      "trackID" : "3902915",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 88,
+      "massRatio" : 0.3082002586840501,
+      "trackID" : "3907042",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 176
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.13656713929207828,
+      "trackID" : "3914630",
+      "truthBPM" : 86,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.1389795870339472,
+      "trackID" : "3920460",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.3537304370515645,
+      "trackID" : "3928924",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.10064470437665017,
+      "trackID" : "3942754",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 70.5,
+      "massRatio" : 0.7622771858240911,
+      "trackID" : "3958395",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 141
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.292384806997192,
+      "trackID" : "3961040",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 60.5,
+      "massRatio" : 0.23002307258863866,
+      "trackID" : "3961797",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 121
+    },
+    {
+      "foldedBPM" : 78,
+      "massRatio" : 0.44134166826101257,
+      "trackID" : "3962200",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 156
+    },
+    {
+      "foldedBPM" : 72,
+      "massRatio" : 0.4419396017759405,
+      "trackID" : "3964688",
+      "truthBPM" : 110,
+      "unfoldedBPM" : 144
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.3770861962017094,
+      "trackID" : "3970827",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 80.5,
+      "massRatio" : 0.47041500606673803,
+      "trackID" : "3980001",
+      "truthBPM" : 167,
+      "unfoldedBPM" : 161
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.3157312130960839,
+      "trackID" : "3981797",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 81.5,
+      "massRatio" : 0.22711248925575903,
+      "trackID" : "3983645",
+      "truthBPM" : 110,
+      "unfoldedBPM" : 163
+    },
+    {
+      "trackID" : "3983646",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 68
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.07092149896810317,
+      "trackID" : "400259",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.44319434151974224,
+      "trackID" : "4004314",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.5344758842343212,
+      "trackID" : "4004668",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.06355120885326628,
+      "trackID" : "4005630",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.0684889268838101,
+      "trackID" : "4006551",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.1725803629669962,
+      "trackID" : "4012083",
+      "truthBPM" : 167,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.10114383507987848,
+      "trackID" : "4014747",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.1538631184448703,
+      "trackID" : "4014749",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.27173854272624887,
+      "trackID" : "4017608",
+      "truthBPM" : 101,
+      "unfoldedBPM" : 131
+    },
+    {
+      "trackID" : "4017611",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 72
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.2102394070062201,
+      "trackID" : "4017781",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 61,
+      "massRatio" : 0.05560405480590798,
+      "trackID" : "4017892",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 122
+    },
+    {
+      "foldedBPM" : 74.5,
+      "massRatio" : 0.641252099780212,
+      "trackID" : "4017909",
+      "truthBPM" : 112,
+      "unfoldedBPM" : 149
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.2884883952407722,
+      "trackID" : "4018082",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 60.5,
+      "massRatio" : 0.33698351910003194,
+      "trackID" : "4018083",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 121
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.18945071007848094,
+      "trackID" : "4018084",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.16671604393976822,
+      "trackID" : "4018085",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.2364120922033105,
+      "trackID" : "4018247",
+      "truthBPM" : 96,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 72,
+      "massRatio" : 0.3612859550313415,
+      "trackID" : "4020698",
+      "truthBPM" : 141,
+      "unfoldedBPM" : 144
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.04285600396556818,
+      "trackID" : "4029289",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 131
+    },
+    {
+      "trackID" : "4029970",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 98
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.33084136680471515,
+      "trackID" : "4031300",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.13834624751644503,
+      "trackID" : "4032006",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 131
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.10304335324962859,
+      "trackID" : "4033240",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "trackID" : "4035020",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 82
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.07273938433150182,
+      "trackID" : "4038987",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 77.5,
+      "massRatio" : 0.310991330552757,
+      "trackID" : "4043892",
+      "truthBPM" : 183,
+      "unfoldedBPM" : 155
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.19004810685365986,
+      "trackID" : "4044590",
+      "truthBPM" : 100,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 70.5,
+      "massRatio" : 0.1946855456931317,
+      "trackID" : "4044591",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 141
+    },
+    {
+      "foldedBPM" : 64,
+      "massRatio" : 0.8816376349906598,
+      "trackID" : "4045981",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 128
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.26627564758704303,
+      "trackID" : "4047428",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.45451943279716506,
+      "trackID" : "4067151",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 136
+    },
+    {
+      "trackID" : "4071447",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 68
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.21816919423581213,
+      "trackID" : "4072499",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.19621364657781917,
+      "trackID" : "4077896",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 131
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4241067981524833,
+      "trackID" : "4086561",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 78,
+      "massRatio" : 0.44145648149434713,
+      "trackID" : "4091609",
+      "truthBPM" : 80,
+      "unfoldedBPM" : 156
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.26774760843236506,
+      "trackID" : "4093057",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 78.5,
+      "massRatio" : 0.029233814783096987,
+      "trackID" : "4093135",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 157
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.13981180108329086,
+      "trackID" : "4093555",
+      "truthBPM" : 92,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.3376265018700456,
+      "trackID" : "4101363",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 147
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.09417315542571804,
+      "trackID" : "4101447",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.15795603999353303,
+      "trackID" : "4106593",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.1615218112283726,
+      "trackID" : "4107957",
+      "truthBPM" : 93,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.17213654154347016,
+      "trackID" : "4117487",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.11472652435821803,
+      "trackID" : "4120277",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 130
+    },
+    {
+      "trackID" : "4122833",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.6401169254239516,
+      "trackID" : "4136911",
+      "truthBPM" : 153,
+      "unfoldedBPM" : 147
+    },
+    {
+      "trackID" : "4140514",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 68
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.5154849014981087,
+      "trackID" : "4140702",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.25041082938102877,
+      "trackID" : "4145229",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 83.5,
+      "massRatio" : 0.5910928521105839,
+      "trackID" : "4149743",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 167
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.020113971622712442,
+      "trackID" : "4149811",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.2547371454210233,
+      "trackID" : "4151958",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.19219181159627893,
+      "trackID" : "4152109",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.0835645216541792,
+      "trackID" : "4153394",
+      "truthBPM" : 80,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.11298707024026876,
+      "trackID" : "4157075",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.5146985803534249,
+      "trackID" : "4161667",
+      "truthBPM" : 106,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.1153962067597301,
+      "trackID" : "4162259",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.35802660676104525,
+      "trackID" : "4162274",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.1534167253300955,
+      "trackID" : "4162405",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.1491889092896972,
+      "trackID" : "4162511",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 81.5,
+      "massRatio" : 0.39840068503463394,
+      "trackID" : "4163571",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 163
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.05994222448484193,
+      "trackID" : "4163572",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.5116045375534448,
+      "trackID" : "4163586",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.17516209567520405,
+      "trackID" : "4163587",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 81.5,
+      "massRatio" : 0.15416707370848423,
+      "trackID" : "4163588",
+      "truthBPM" : 90,
+      "unfoldedBPM" : 163
+    },
+    {
+      "trackID" : "4166222",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 79
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.2194764868703395,
+      "trackID" : "4166612",
+      "truthBPM" : 124,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 89.5,
+      "massRatio" : 0.16280257588274002,
+      "trackID" : "4172572",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 179
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.7336413505580277,
+      "trackID" : "4186191",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.5555662525622146,
+      "trackID" : "4191591",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.05940484682729545,
+      "trackID" : "4192452",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 170
+    },
+    {
+      "trackID" : "4193623",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 86
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.10026162148840635,
+      "trackID" : "4207348",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.18671718642988744,
+      "trackID" : "4214761",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.8486202650272435,
+      "trackID" : "4216184",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.5653037232763075,
+      "trackID" : "4218466",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83.5,
+      "massRatio" : 0.45756073350581494,
+      "trackID" : "4226166",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 167
+    },
+    {
+      "trackID" : "4226227",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 105
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.12031406650804884,
+      "trackID" : "4226434",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.17715568563114417,
+      "trackID" : "4231951",
+      "truthBPM" : 141,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.153600763366693,
+      "trackID" : "4233696",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.42764070814664573,
+      "trackID" : "4235798",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 171
+    },
+    {
+      "trackID" : "4237913",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 78
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.30724755606024173,
+      "trackID" : "4264210",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.26845987896229173,
+      "trackID" : "4264359",
+      "truthBPM" : 85,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.39413174769481035,
+      "trackID" : "4265125",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83.5,
+      "massRatio" : 0.44634929534806295,
+      "trackID" : "426992",
+      "truthBPM" : 167,
+      "unfoldedBPM" : 167
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.29900711331541496,
+      "trackID" : "4275052",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 80.5,
+      "massRatio" : 0.5631958205121396,
+      "trackID" : "4279669",
+      "truthBPM" : 82,
+      "unfoldedBPM" : 161
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.20101555387174289,
+      "trackID" : "4283622",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 166
+    },
+    {
+      "trackID" : "4283854",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 86
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.2472215015967163,
+      "trackID" : "4284345",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 66.5,
+      "massRatio" : 0.1571332294530106,
+      "trackID" : "4288893",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 133
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.1434877774096688,
+      "trackID" : "4297277",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "trackID" : "4300617",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 73
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.21668551366600086,
+      "trackID" : "4300619",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.3979739162660878,
+      "trackID" : "4301518",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.42519322269965376,
+      "trackID" : "4304445",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3039635989490083,
+      "trackID" : "4313859",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.26579605570826514,
+      "trackID" : "4315749",
+      "truthBPM" : 130,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.17648464650480236,
+      "trackID" : "4323506",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.15480516296337837,
+      "trackID" : "4325441",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 175
+    },
+    {
+      "trackID" : "4331667",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 85
+    },
+    {
+      "foldedBPM" : 86.5,
+      "massRatio" : 0.2004992101845039,
+      "trackID" : "4332592",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 173
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.065078095453806,
+      "trackID" : "4346730",
+      "truthBPM" : 86,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 77.5,
+      "massRatio" : 0.47822617771921444,
+      "trackID" : "4353566",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 155
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.20761246556780674,
+      "trackID" : "4358231",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.036401143624937154,
+      "trackID" : "4360483",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.449297228801736,
+      "trackID" : "4360488",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.6167087957439671,
+      "trackID" : "4365752",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 60,
+      "massRatio" : 0.044548729597568115,
+      "trackID" : "4366506",
+      "truthBPM" : 197,
+      "unfoldedBPM" : 120
+    },
+    {
+      "foldedBPM" : 61,
+      "massRatio" : 0.18272950540729607,
+      "trackID" : "4372309",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 122
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.3698012734200677,
+      "trackID" : "4377106",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "trackID" : "4381717",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 103
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.7246035994246066,
+      "trackID" : "4386702",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.17822349880496072,
+      "trackID" : "4397324",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.23499494076347915,
+      "trackID" : "4397469",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 83.5,
+      "massRatio" : 0.35530776708657535,
+      "trackID" : "4398117",
+      "truthBPM" : 179,
+      "unfoldedBPM" : 167
+    },
+    {
+      "foldedBPM" : 86,
+      "massRatio" : 0.15562440549519055,
+      "trackID" : "4399289",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 172
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.10783914154110892,
+      "trackID" : "4403315",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.03742579102836271,
+      "trackID" : "4403519",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.08327744206672176,
+      "trackID" : "4404346",
+      "truthBPM" : 188,
+      "unfoldedBPM" : 130
+    },
+    {
+      "trackID" : "4407745",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 86
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.2574629127874997,
+      "trackID" : "4409752",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.17281035591477553,
+      "trackID" : "4411925",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.20940012181907422,
+      "trackID" : "4416336",
+      "truthBPM" : 188,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.17132456187642087,
+      "trackID" : "4416506",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.11441831581651449,
+      "trackID" : "4416888",
+      "truthBPM" : 89,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.38433303490712817,
+      "trackID" : "4416962",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.09227373995930759,
+      "trackID" : "4418582",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.08784672130734861,
+      "trackID" : "4419049",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 67,
+      "massRatio" : 0.10840116533999201,
+      "trackID" : "4420924",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 134
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.19674541344601915,
+      "trackID" : "4426890",
+      "truthBPM" : 106,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.19223638024473072,
+      "trackID" : "4427618",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.1312705714131549,
+      "trackID" : "4442121",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.09585958541964078,
+      "trackID" : "4446908",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.125751271378178,
+      "trackID" : "4457771",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.2872189888135125,
+      "trackID" : "4459005",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.23095614424024505,
+      "trackID" : "4459187",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.6682630614635312,
+      "trackID" : "4460536",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.4365060498775362,
+      "trackID" : "4468729",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 160
+    },
+    {
+      "trackID" : "4469489",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 85
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.28502136995265337,
+      "trackID" : "4469780",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.17376947524745762,
+      "trackID" : "4471292",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.07526751528968482,
+      "trackID" : "4471702",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 81.5,
+      "massRatio" : 0.2595411904187106,
+      "trackID" : "4473065",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 163
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.24035090249126326,
+      "trackID" : "4474027",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.2324218531839928,
+      "trackID" : "4474029",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "trackID" : "4475855",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 73
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.043299535424529426,
+      "trackID" : "4480118",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 125
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.182411210554541,
+      "trackID" : "4480454",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 71.5,
+      "massRatio" : 0.7393257527019941,
+      "trackID" : "4483708",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 143
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4694693701689995,
+      "trackID" : "4486124",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.07770494198571486,
+      "trackID" : "4486412",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.30276411259994573,
+      "trackID" : "4489017",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.23328298756812002,
+      "trackID" : "4493439",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.3351908904354512,
+      "trackID" : "4494659",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.4042890778253095,
+      "trackID" : "4495270",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 66.5,
+      "massRatio" : 0.22210951035320314,
+      "trackID" : "4497852",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 133
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.2642430987678769,
+      "trackID" : "4508138",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.2829073996751426,
+      "trackID" : "4509910",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.17238533495766328,
+      "trackID" : "4512512",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.1894483995861701,
+      "trackID" : "4514851",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.4631897237401312,
+      "trackID" : "4517258",
+      "truthBPM" : 82,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.16232021832126753,
+      "trackID" : "4532060",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.18219278583773693,
+      "trackID" : "4540818",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.4533836124486206,
+      "trackID" : "4543103",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 131
+    },
+    {
+      "foldedBPM" : 89,
+      "massRatio" : 0.0931479136691744,
+      "trackID" : "4547732",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 178
+    },
+    {
+      "foldedBPM" : 90,
+      "massRatio" : 0.2630476832434338,
+      "trackID" : "4549757",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 180
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.25885230740848647,
+      "trackID" : "4558106",
+      "truthBPM" : 128,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 66.5,
+      "massRatio" : 0.0530944440789488,
+      "trackID" : "4559522",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 133
+    },
+    {
+      "foldedBPM" : 75,
+      "massRatio" : 0.11939764323182189,
+      "trackID" : "4565270",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 150
+    },
+    {
+      "foldedBPM" : 67.5,
+      "massRatio" : 0.07916224159660668,
+      "trackID" : "4566667",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 135
+    },
+    {
+      "foldedBPM" : 66.5,
+      "massRatio" : 0.15194100785184106,
+      "trackID" : "4567978",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 133
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.6535427602920121,
+      "trackID" : "4567979",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 147
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.472233830825894,
+      "trackID" : "4585539",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.622688966777993,
+      "trackID" : "4586220",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.07765195570350432,
+      "trackID" : "4593850",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 131
+    },
+    {
+      "foldedBPM" : 82.5,
+      "massRatio" : 0.3868826697105991,
+      "trackID" : "4596215",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 165
+    },
+    {
+      "foldedBPM" : 64,
+      "massRatio" : 0.8999123718831582,
+      "trackID" : "4604737",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 128
+    },
+    {
+      "foldedBPM" : 62.5,
+      "massRatio" : 0.11766004606453226,
+      "trackID" : "4609093",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 125
+    },
+    {
+      "trackID" : "4609944",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 72
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.11403174131218609,
+      "trackID" : "4610426",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 86,
+      "massRatio" : 0.9218917171425504,
+      "trackID" : "4611640",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 172
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.19490272674376366,
+      "trackID" : "4623143",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 79.5,
+      "massRatio" : 0.5602222825803473,
+      "trackID" : "4624663",
+      "truthBPM" : 167,
+      "unfoldedBPM" : 159
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.1728431099363105,
+      "trackID" : "4625875",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.11415388034904962,
+      "trackID" : "4631727",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.1604440523817807,
+      "trackID" : "4633603",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 79.5,
+      "massRatio" : 0.4448296107634608,
+      "trackID" : "4650113",
+      "truthBPM" : 117,
+      "unfoldedBPM" : 159
+    },
+    {
+      "trackID" : "4653852",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 79
+    },
+    {
+      "foldedBPM" : 82,
+      "massRatio" : 0.552248270952902,
+      "trackID" : "4661735",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 164
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.43891066215715846,
+      "trackID" : "4666231",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 73.5,
+      "massRatio" : 0.23041817874983306,
+      "trackID" : "4667626",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 147
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.425468800704578,
+      "trackID" : "4671406",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.08899592879201505,
+      "trackID" : "4671443",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.22280168631023944,
+      "trackID" : "4677606",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4694004254426008,
+      "trackID" : "4678080",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.10041118716020393,
+      "trackID" : "4693039",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.06363453285359677,
+      "trackID" : "4693198",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.2506867122058002,
+      "trackID" : "4694833",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.13747124830558896,
+      "trackID" : "4696505",
+      "truthBPM" : 160,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.1861288048158264,
+      "trackID" : "4703149",
+      "truthBPM" : 110,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.1754243872203301,
+      "trackID" : "4710576",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.19655522271565481,
+      "trackID" : "4711578",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.15299987839861703,
+      "trackID" : "4714481",
+      "truthBPM" : 112,
+      "unfoldedBPM" : 142
+    },
+    {
+      "trackID" : "4723905",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 72
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.0935053232990332,
+      "trackID" : "4735587",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.2598773270390356,
+      "trackID" : "4735758",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 64,
+      "massRatio" : 0.12466776330489593,
+      "trackID" : "4743012",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 128
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.3665625424815347,
+      "trackID" : "4749611",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 87.5,
+      "massRatio" : 0.16058068620861352,
+      "trackID" : "4767260",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 175
+    },
+    {
+      "foldedBPM" : 77.5,
+      "massRatio" : 0.2239929023718311,
+      "trackID" : "4772658",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 155
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.13842458768042962,
+      "trackID" : "4773857",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.10272261543250297,
+      "trackID" : "4773948",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.3230780395565311,
+      "trackID" : "4800274",
+      "truthBPM" : 141,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.25844512068794395,
+      "trackID" : "4800275",
+      "truthBPM" : 141,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.025130930688720163,
+      "trackID" : "4810810",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.13017887684024362,
+      "trackID" : "4816604",
+      "truthBPM" : 70,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.1076522766563642,
+      "trackID" : "4823439",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 66,
+      "massRatio" : 0.16578641630206986,
+      "trackID" : "4823611",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 132
+    },
+    {
+      "foldedBPM" : 60.5,
+      "massRatio" : 0.2460316678958324,
+      "trackID" : "4826952",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 121
+    },
+    {
+      "foldedBPM" : 72,
+      "massRatio" : 0.10646264169245748,
+      "trackID" : "4826957",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 144
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.08584399792750794,
+      "trackID" : "4827285",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.1132804802821266,
+      "trackID" : "4827287",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 83.5,
+      "massRatio" : 0.2645641470493025,
+      "trackID" : "4845088",
+      "truthBPM" : 90,
+      "unfoldedBPM" : 167
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.08889947657055793,
+      "trackID" : "4850346",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.08431714951153095,
+      "trackID" : "4853692",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.10270260032207992,
+      "trackID" : "4860099",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.247248814969407,
+      "trackID" : "4861484",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4056468586270207,
+      "trackID" : "4863146",
+      "truthBPM" : 110,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 76.5,
+      "massRatio" : 0.5808090506608394,
+      "trackID" : "4875475",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 153
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.5504679568667995,
+      "trackID" : "4884993",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.1590302206609766,
+      "trackID" : "4896659",
+      "truthBPM" : 85,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.15538908939203983,
+      "trackID" : "4899365",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.08263634864128458,
+      "trackID" : "4921810",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "trackID" : "4936740",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 73
+    },
+    {
+      "trackID" : "4937390",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 95
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.01856416814159292,
+      "trackID" : "4947281",
+      "truthBPM" : 136,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.2967960824739807,
+      "trackID" : "4951739",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 67.5,
+      "massRatio" : 0.03421661834851985,
+      "trackID" : "4955051",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 135
+    },
+    {
+      "trackID" : "4955053",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.16934088182034054,
+      "trackID" : "4960424",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 80.5,
+      "massRatio" : 0.24590880145774638,
+      "trackID" : "4969415",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 161
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.20153073592946977,
+      "trackID" : "4984238",
+      "truthBPM" : 116,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 69,
+      "massRatio" : 0.10619686404663395,
+      "trackID" : "4993934",
+      "truthBPM" : 140,
+      "unfoldedBPM" : 138
+    },
+    {
+      "trackID" : "5024644",
+      "truthBPM" : 142,
+      "unfoldedBPM" : 103
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.14123961067550356,
+      "trackID" : "5039329",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 126
+    },
+    {
+      "trackID" : "5051606",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 87
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.2951721486488308,
+      "trackID" : "5068771",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.08055079400942373,
+      "trackID" : "5070846",
+      "truthBPM" : 110,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.432158280481247,
+      "trackID" : "5073839",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.12226614757037078,
+      "trackID" : "5076753",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 84,
+      "massRatio" : 0.23704177979548016,
+      "trackID" : "5076821",
+      "truthBPM" : 169,
+      "unfoldedBPM" : 168
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.28455451420608996,
+      "trackID" : "5078640",
+      "truthBPM" : 172,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.29538303483258477,
+      "trackID" : "5079918",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.4889892236246802,
+      "trackID" : "5081990",
+      "truthBPM" : 85,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.21823777940114147,
+      "trackID" : "5089294",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 62,
+      "massRatio" : 0.2278108904411051,
+      "trackID" : "5102537",
+      "truthBPM" : 123,
+      "unfoldedBPM" : 124
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.09583801215895117,
+      "trackID" : "5117279",
+      "truthBPM" : 119,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 69.5,
+      "massRatio" : 0.2988698087045615,
+      "trackID" : "5118757",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 139
+    },
+    {
+      "foldedBPM" : 67,
+      "massRatio" : 0.09366655152829222,
+      "trackID" : "5135326",
+      "truthBPM" : 130,
+      "unfoldedBPM" : 134
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.521785340443358,
+      "trackID" : "5137153",
+      "truthBPM" : 130,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.12698142654985844,
+      "trackID" : "5137154",
+      "truthBPM" : 134,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.2991429981027387,
+      "trackID" : "5137157",
+      "truthBPM" : 153,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.11458229475038156,
+      "trackID" : "5137158",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "trackID" : "5143186",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 98
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.2688227312130949,
+      "trackID" : "5157605",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 136
+    },
+    {
+      "trackID" : "5160584",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 66
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.19709341225777194,
+      "trackID" : "5162042",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.3351160438369979,
+      "trackID" : "5171396",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.2969749748129438,
+      "trackID" : "5195826",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 68.5,
+      "massRatio" : 0.06325458536312863,
+      "trackID" : "5202182",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 137
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.1810521545737007,
+      "trackID" : "5204781",
+      "truthBPM" : 125,
+      "unfoldedBPM" : 126
+    },
+    {
+      "trackID" : "5213896",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 85
+    },
+    {
+      "foldedBPM" : 76.5,
+      "massRatio" : 0.20464396645704705,
+      "trackID" : "5214265",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 153
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.38381629858617006,
+      "trackID" : "5214755",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 74.5,
+      "massRatio" : 0.42293725109772284,
+      "trackID" : "5214943",
+      "truthBPM" : 74,
+      "unfoldedBPM" : 149
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.16101564873303517,
+      "trackID" : "5237462",
+      "truthBPM" : 121,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 85.5,
+      "massRatio" : 0.09589246633492693,
+      "trackID" : "5248391",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 171
+    },
+    {
+      "foldedBPM" : 66.5,
+      "massRatio" : 0.16367041767859417,
+      "trackID" : "5258365",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 133
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.4416300953883809,
+      "trackID" : "5261461",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 1.0046630243018237,
+      "trackID" : "5268098",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 63,
+      "massRatio" : 0.1816659133520972,
+      "trackID" : "5294335",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 126
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.1682971396712377,
+      "trackID" : "5302339",
+      "truthBPM" : 163,
+      "unfoldedBPM" : 166
+    },
+    {
+      "trackID" : "5314439",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.1522050899531013,
+      "trackID" : "5315510",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.10948565646833704,
+      "trackID" : "5335389",
+      "truthBPM" : 71,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 77,
+      "massRatio" : 0.24182082124977355,
+      "trackID" : "5345058",
+      "truthBPM" : 147,
+      "unfoldedBPM" : 154
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.34707802277176353,
+      "trackID" : "5347155",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.11724616178135368,
+      "trackID" : "5355157",
+      "truthBPM" : 167,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.9783019697823617,
+      "trackID" : "5356489",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.34369449595828533,
+      "trackID" : "5363251",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.26438832894829983,
+      "trackID" : "536656",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.21052447823535567,
+      "trackID" : "5377710",
+      "truthBPM" : 129,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 63.5,
+      "massRatio" : 0.21186756669011417,
+      "trackID" : "5406759",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 127
+    },
+    {
+      "foldedBPM" : 85,
+      "massRatio" : 0.06259883809567754,
+      "trackID" : "5431709",
+      "truthBPM" : 87,
+      "unfoldedBPM" : 170
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.21260299436229158,
+      "trackID" : "547692",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 166
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.13161101950579943,
+      "trackID" : "587794",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 61,
+      "massRatio" : 0.11143750568949341,
+      "trackID" : "633082",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 122
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3766938464431244,
+      "trackID" : "672063",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.975086305209221,
+      "trackID" : "672064",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    },
+    {
+      "trackID" : "691688",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 100
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.48830397814680393,
+      "trackID" : "691694",
+      "truthBPM" : 144,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 79,
+      "massRatio" : 0.0890980639225569,
+      "trackID" : "710469",
+      "truthBPM" : 156,
+      "unfoldedBPM" : 158
+    },
+    {
+      "foldedBPM" : 80,
+      "massRatio" : 0.5865904685153176,
+      "trackID" : "750132",
+      "truthBPM" : 132,
+      "unfoldedBPM" : 160
+    },
+    {
+      "foldedBPM" : 70,
+      "massRatio" : 0.1570650188023227,
+      "trackID" : "825292",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 140
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.3018962594492475,
+      "trackID" : "861484",
+      "truthBPM" : 171,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.5557683603637112,
+      "trackID" : "906680",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 169
+    },
+    {
+      "foldedBPM" : 87,
+      "massRatio" : 0.08607977883602658,
+      "trackID" : "906681",
+      "truthBPM" : 172,
+      "unfoldedBPM" : 174
+    },
+    {
+      "foldedBPM" : 78.5,
+      "massRatio" : 0.46173353105502757,
+      "trackID" : "906760",
+      "truthBPM" : 104,
+      "unfoldedBPM" : 157
+    },
+    {
+      "foldedBPM" : 83,
+      "massRatio" : 0.2056506790183281,
+      "trackID" : "907836",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 166
+    },
+    {
+      "trackID" : "907837",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 106
+    },
+    {
+      "foldedBPM" : 68,
+      "massRatio" : 0.045693260029418224,
+      "trackID" : "925895",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 136
+    },
+    {
+      "foldedBPM" : 65,
+      "massRatio" : 0.1822592193612578,
+      "trackID" : "942357",
+      "truthBPM" : 170,
+      "unfoldedBPM" : 130
+    },
+    {
+      "foldedBPM" : 72.5,
+      "massRatio" : 0.06603856568639496,
+      "trackID" : "94350",
+      "truthBPM" : 150,
+      "unfoldedBPM" : 145
+    },
+    {
+      "foldedBPM" : 65.5,
+      "massRatio" : 0.03056476280936248,
+      "trackID" : "956606",
+      "truthBPM" : 127,
+      "unfoldedBPM" : 131
+    },
+    {
+      "foldedBPM" : 71,
+      "massRatio" : 0.20402513386343882,
+      "trackID" : "986931",
+      "truthBPM" : 139,
+      "unfoldedBPM" : 142
+    },
+    {
+      "foldedBPM" : 84.5,
+      "massRatio" : 0.39636552472732034,
+      "trackID" : "989704",
+      "truthBPM" : 174,
+      "unfoldedBPM" : 169
+    }
+  ],
+  "thresholds" : [
+    {
+      "acc1Folded" : 40,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 39,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 604,
+      "threshold" : 0
+    },
+    {
+      "acc1Folded" : 88,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 29,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 34,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 8,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 16,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 505,
+      "threshold" : 0.1
+    },
+    {
+      "acc1Folded" : 198,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 20,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 109,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 21,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 47,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 306,
+      "threshold" : 0.2
+    },
+    {
+      "acc1Folded" : 263,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 15,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 147,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 29,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 71,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 176,
+      "threshold" : 0.3
+    },
+    {
+      "acc1Folded" : 300,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 11,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 159,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 32,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 97,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 111,
+      "threshold" : 0.4
+    },
+    {
+      "acc1Folded" : 322,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 5,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 163,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 36,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 117,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 57,
+      "threshold" : 0.5
+    },
+    {
+      "acc1Folded" : 331,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 3,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 166,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 37,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 124,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 32,
+      "threshold" : 0.6
+    },
+    {
+      "acc1Folded" : 338,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 3,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 168,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 39,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 127,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 21,
+      "threshold" : 0.7
+    },
+    {
+      "acc1Folded" : 341,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 173,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 39,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 127,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 11,
+      "threshold" : 0.8
+    },
+    {
+      "acc1Folded" : 343,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 175,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 39,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 127,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 6,
+      "threshold" : 0.9
+    },
+    {
+      "acc1Folded" : 346,
+      "acc1Unfolded" : 348,
+      "bands" : [
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 39,
+          "acc2Unfolded" : 39,
+          "band" : "<100",
+          "n" : 60
+        },
+        {
+          "acc1Folded" : 1,
+          "acc1Unfolded" : 1,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "100-120",
+          "n" : 35
+        },
+        {
+          "acc1Folded" : 176,
+          "acc1Unfolded" : 177,
+          "acc2Folded" : 180,
+          "acc2Unfolded" : 180,
+          "band" : "120-140",
+          "n" : 309
+        },
+        {
+          "acc1Folded" : 40,
+          "acc1Unfolded" : 40,
+          "acc2Folded" : 47,
+          "acc2Unfolded" : 47,
+          "band" : "140-160",
+          "n" : 88
+        },
+        {
+          "acc1Folded" : 128,
+          "acc1Unfolded" : 129,
+          "acc2Folded" : 133,
+          "acc2Unfolded" : 133,
+          "band" : "160-175",
+          "n" : 153
+        },
+        {
+          "acc1Folded" : 0,
+          "acc1Unfolded" : 0,
+          "acc2Folded" : 1,
+          "acc2Unfolded" : 1,
+          "band" : "175+",
+          "n" : 16
+        }
+      ],
+      "foldsFired" : 2,
+      "threshold" : 1
+    }
+  ],
+  "tracksAbstained" : 0,
+  "tracksEvaluated" : 661,
+  "tracksInGroundTruth" : 661,
+  "tracksMissingAudio" : 0
+}
