@@ -115,9 +115,33 @@ public struct TechniqueSet: Sendable, Hashable {
   public var dspTechniques: Set<DSPTechnique>
 
   /// Number of top candidates to extract from the periodicity spectrum.
-  /// Default: 5 when `.expandedCandidates` is in the set, otherwise 3.
-  /// Can be overridden (e.g., intensity 1 uses 1 candidate).
-  public var candidateCount: Int
+  ///
+  /// Derived from ``DSPTechnique/expandedCandidates`` membership — 5 when
+  /// present, otherwise 3 — **unless** an explicit count was supplied, in
+  /// which case that value is preserved. An implicit count is computed on
+  /// every read, so it tracks membership however the set changed, including
+  /// direct mutation of ``dspTechniques``.
+  ///
+  /// Setting this pins the value: it then survives ``inserting(_:)`` and
+  /// ``removing(_:)`` (GH-131, which previously clobbered it). Values below 1
+  /// clamp to 1 — `extractTopCandidates(count: 0)` returns an empty candidate
+  /// list, which the pipeline reports as a `nil` result indistinguishable from
+  /// genuine silence.
+  public var candidateCount: Int {
+    get {
+      candidateCountOverride ?? (dspTechniques.contains(.expandedCandidates) ? 5 : 3)
+    }
+    set { candidateCountOverride = max(newValue, 1) }
+  }
+
+  /// `nil` when the count is derived from technique membership; non-nil when a
+  /// caller pinned it.
+  ///
+  /// Participates in ``Equatable``/``Hashable`` deliberately. Two sets with the
+  /// same techniques and the same current count but different provenance
+  /// behave differently under a later ``inserting(_:)``, so treating them as
+  /// equal would let equal values produce unequal results from the same call.
+  private var candidateCountOverride: Int?
 
   /// Creates a technique set with an optional explicit candidate count.
   ///
@@ -128,7 +152,7 @@ public struct TechniqueSet: Sendable, Hashable {
   ///     otherwise `3`.
   public init(dspTechniques: Set<DSPTechnique> = [], candidateCount: Int? = nil) {
     self.dspTechniques = dspTechniques
-    self.candidateCount = candidateCount ?? (dspTechniques.contains(.expandedCandidates) ? 5 : 3)
+    self.candidateCountOverride = candidateCount.map { max($0, 1) }
   }
 
   // MARK: - Queries
@@ -143,27 +167,29 @@ public struct TechniqueSet: Sendable, Hashable {
 
   // MARK: - Builders
 
-  /// Returns a new set with `technique` added; ``candidateCount`` is recomputed
-  /// to reflect ``DSPTechnique/expandedCandidates`` membership.
+  /// Returns a new set with `technique` added.
+  ///
+  /// A derived ``candidateCount`` follows the new membership; an explicitly
+  /// pinned one is preserved (GH-131).
   ///
   /// - Parameter technique: The technique to add.
   /// - Returns: A new ``TechniqueSet`` containing `technique` in addition to the receiver's techniques.
   public func inserting(_ technique: DSPTechnique) -> TechniqueSet {
     var copy = self
     copy.dspTechniques.insert(technique)
-    copy.candidateCount = copy.dspTechniques.contains(.expandedCandidates) ? 5 : 3
     return copy
   }
 
-  /// Returns a new set with `technique` removed; ``candidateCount`` is
-  /// recomputed to reflect ``DSPTechnique/expandedCandidates`` membership.
+  /// Returns a new set with `technique` removed.
+  ///
+  /// A derived ``candidateCount`` follows the new membership; an explicitly
+  /// pinned one is preserved (GH-131).
   ///
   /// - Parameter technique: The technique to remove. A no-op when the receiver does not contain it.
   /// - Returns: A new ``TechniqueSet`` with `technique` removed.
   public func removing(_ technique: DSPTechnique) -> TechniqueSet {
     var copy = self
     copy.dspTechniques.remove(technique)
-    copy.candidateCount = copy.dspTechniques.contains(.expandedCandidates) ? 5 : 3
     return copy
   }
 
