@@ -80,81 +80,8 @@ def featurize_for_inference(audio: np.ndarray, fixture) -> np.ndarray:
     return z[np.newaxis, np.newaxis, :, :].astype(np.float32)  # (1, 1, n_mels, T)
 
 
-# ---------------------------------------------------------------------------
-# GH-141 octave-folded decode (mirror of
-# `BNNSTechnique.octaveFoldCandidate` in Sources/BoomBoomBoomKitML/).
-#
-# The Swift runtime and this offline scorer MUST agree, or a measured
-# improvement here would not be the improvement consumers get. Keep the two
-# in lockstep: same downward-only direction, same straddling-bin sum, same
-# >= comparison, same 60 BPM floor, same in-range precondition.
-#
-# NOT mirrored, deliberately: the Swift side's construction-time threshold
-# validation/clamping (this is a scorer; --octave-fold-threshold is operator
-# input) and its up-front non-finite-logit rejection.
-#
-# KNOWN BOUNDARY DIVERGENCE: Swift sums the two straddling bins in `Float`;
-# NumPy widens to binary64 here. The two therefore round differently in the
-# last bits, so a threshold set exactly at a computed ratio can fall on
-# opposite sides in the two implementations. Immaterial for sweeping (ratios
-# are compared against coarse thresholds) but it means this is not a
-# bit-exact mirror, and a track sitting exactly on a threshold may be scored
-# differently offline than at runtime.
-# ---------------------------------------------------------------------------
-
-OCTAVE_FOLD_DISABLED = None
-
-
-def decode_bpm(probs: np.ndarray, fold_threshold: float | None = OCTAVE_FOLD_DISABLED) -> float:
-    """Decode a BPM from a 256-bin posterior.
-
-    With ``fold_threshold`` None this is the bare argmax the model was
-    trained against, byte-for-byte the pre-GH-141 behaviour. With a float
-    it folds to the fundamental when the posterior mass at half the argmax
-    tempo reaches ``fold_threshold`` times the argmax bin's own mass.
-
-    Folding is downward only: the E0 diagnostic measured 38 doubling
-    errors below 100 BPM and zero halving errors in any band.
-    """
-    # np.argmax raises on an empty array; Swift returns a clean abstain for
-    # empty logits, so refuse explicitly rather than surfacing a numpy error
-    # from the middle of a corpus scoring run.
-    if probs.size == 0:
-        raise ValueError("decode_bpm: empty posterior (Swift decodes this as abstain)")
-    pred_bin = int(np.argmax(probs))
-    bpm = float(pred_bin + BPM_BIN_MIN)
-    if fold_threshold is None:
-        return bpm
-    # Fold only on the in-range path, matching Swift: an out-of-range
-    # argmax keeps reporting raw.
-    if not (60.0 <= bpm <= 200.0):
-        return bpm
-    max_mass = float(probs[pred_bin])
-    if not np.isfinite(max_mass) or max_mass <= 0.0:
-        return bpm
-    folded = bpm / 2.0
-    if folded < 60.0:
-        return bpm
-    half_index = (pred_bin - BPM_BIN_MIN) / 2.0
-    lower, upper = int(np.floor(half_index)), int(np.ceil(half_index))
-    half_mass = 0.0
-    if 0 <= lower < len(probs):
-        half_mass += float(probs[lower])
-    if upper != lower and 0 <= upper < len(probs):
-        half_mass += float(probs[upper])
-    if half_mass <= 0.0:
-        return bpm
-    ratio = half_mass / max_mass
-    if np.isfinite(ratio) and ratio >= fold_threshold:
-        return folded
-    return bpm
-
-
 def predict_pytorch(
-    model: torch.nn.Module,
-    x: np.ndarray,
-    device: torch.device,
-    fold_threshold: float | None = OCTAVE_FOLD_DISABLED,
+    model: torch.nn.Module, x: np.ndarray, device: torch.device
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """Returns (predicted_bpm, softmax_probs, raw_logits)."""
     model.eval()
@@ -163,12 +90,11 @@ def predict_pytorch(
         logits_t = model(t)
         probs = torch.softmax(logits_t, dim=1).cpu().numpy()[0]
         logits = logits_t.cpu().numpy()[0]
-    return decode_bpm(probs, fold_threshold), probs, logits
+    pred_bin = int(np.argmax(probs))
+    return float(pred_bin + BPM_BIN_MIN), probs, logits
 
 
-def predict_coreml(
-    mlmodel, x: np.ndarray, fold_threshold: float | None = OCTAVE_FOLD_DISABLED
-) -> tuple[float, np.ndarray, np.ndarray]:
+def predict_coreml(mlmodel, x: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
     """Returns (predicted_bpm, softmax_probs, raw_logits)."""
     out = mlmodel.predict({"input": x})
     if "output" not in out:
@@ -182,7 +108,8 @@ def predict_coreml(
     # Apply softmax to convert logits → probs (CoreML model returns logits per AC #9)
     exp = np.exp(raw_arr - raw_arr.max())
     probs = exp / exp.sum()
-    return decode_bpm(probs, fold_threshold), probs, raw_arr
+    pred_bin = int(np.argmax(probs))
+    return float(pred_bin + BPM_BIN_MIN), probs, raw_arr
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +160,6 @@ def evaluate_corpus(
     cml_model=None,
     roundtrip_atol: float = 1e-3,
     show_progress: bool = True,
-    fold_threshold: float | None = OCTAVE_FOLD_DISABLED,
 ) -> tuple[list[EvalResult], dict[str, float]]:
     """Run inference on every record. Returns per-track + roundtrip-stats."""
     import librosa
@@ -269,10 +195,10 @@ def evaluate_corpus(
         finite = True
 
         if pt_model is not None:
-            pt_pred, pt_probs, pt_logits = predict_pytorch(pt_model, x, pt_device, fold_threshold)
+            pt_pred, pt_probs, pt_logits = predict_pytorch(pt_model, x, pt_device)
             finite = finite and _is_finite_softmax(pt_probs)
         if cml_model is not None:
-            cml_pred, cml_probs, cml_logits = predict_coreml(cml_model, x, fold_threshold)
+            cml_pred, cml_probs, cml_logits = predict_coreml(cml_model, x)
             finite = finite and _is_finite_softmax(cml_probs)
         if pt_pred is not None and cml_pred is not None:
             bpm_diff = abs(pt_pred - cml_pred)
@@ -379,17 +305,6 @@ def main(argv=None) -> int:
         "from the report when CoreML is not exercised).",
     )
     p.add_argument("--test-corpus", type=str, default="oa300", choices=["oa300"])
-    p.add_argument(
-        "--octave-fold-threshold",
-        type=float,
-        default=None,
-        help=(
-            "Enable the GH-141 octave-folded decode at this posterior mass ratio. "
-            "Omit for the bare argmax the model was trained against, which is the "
-            "runtime default. Measured NET-NEGATIVE at every threshold on the "
-            "reference model; see 141-octave-fold-impact.json before using it."
-        ),
-    )
     args = p.parse_args(argv if argv is not None else sys.argv[1:])
 
     fixture = load_fixture(FIXTURE_PATH)
@@ -439,7 +354,6 @@ def main(argv=None) -> int:
         pt_model=pt_model,
         pt_device=pt_device,
         cml_model=cml_model,
-        fold_threshold=args.octave_fold_threshold,
     )
     eval_seconds = time.time() - start
 

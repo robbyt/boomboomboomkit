@@ -26,21 +26,17 @@
   },
   "ml" : {
     "diagnosticSnapshot" : {
-      "decodedBPM" : 70.5,
+      "decodedBPM" : 141,
       "inputFeatureChecksum" : 2882343476,
-      "octaveFold" : {
-        "fromBPM" : 141,
-        "massRatio" : 0.6125
-      },
-      "softmaxMax" : 0.72,
+      "softmaxMax" : 0.55,
       "softmaxSecondMax" : 0.18
     },
     "ensembleDecision" : {
       "dspConfidence" : 0.85,
       "mlAbstained" : false,
-      "mlConfidence" : 0.72,
+      "mlConfidence" : 0.55,
       "policy" : "mlOnly",
-      "selectedBPM" : 70.5,
+      "selectedBPM" : 141,
       "winner" : "ml"
     }
   },

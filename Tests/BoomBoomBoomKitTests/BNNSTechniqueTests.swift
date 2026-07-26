@@ -129,44 +129,6 @@ struct BNNSTechniqueTests {
     }
   }
 
-  /// GH-141: the fold threshold follows the same rule as the gate
-  /// thresholds — non-finite throws, finite-out-of-range clamps. Both
-  /// halves are asserted, because a validator that only threw would be
-  /// indistinguishable from one that rejected every fold configuration.
-  @Test(
-    "octaveFold threshold: non-finite throws, out-of-range clamps",
-    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
-  @available(macOS 15.0, *)
-  func octaveFoldThresholdValidation() throws {
-    let url = try #require(fixtureURL())
-
-    for bad in [Double.nan, .infinity, -.infinity] {
-      var opts = BNNSTechnique.Options()
-      opts.octaveFold = .massRatio(threshold: bad)
-      do {
-        _ = try BNNSTechnique(modelURL: url, options: opts)
-        Issue.record("expected a throw for octaveFold threshold \(bad)")
-      } catch let MLTechniqueError.invalidThreshold(reason) {
-        #expect(reason.contains("octaveFold"), "the reason must name the offending knob")
-      } catch {
-        Issue.record("expected .invalidThreshold for \(bad), got \(error)")
-      }
-    }
-
-    var high = BNNSTechnique.Options()
-    high.octaveFold = .massRatio(threshold: 4.0)
-    #expect(
-      try BNNSTechnique(modelURL: url, options: high).octaveFold == .massRatio(threshold: 1.0))
-
-    var low = BNNSTechnique.Options()
-    low.octaveFold = .massRatio(threshold: -3.0)
-    #expect(try BNNSTechnique(modelURL: url, options: low).octaveFold == .massRatio(threshold: 0.0))
-
-    // Folding stays off unless asked for, even on a fully-constructed
-    // technique built from the shipped defaults.
-    #expect(try BNNSTechnique(modelURL: url).octaveFold == .disabled)
-  }
-
   /// NaN/Inf has no sensible interpretation as a probability floor, so
   /// it is a caller bug and surfaces as one instead of being silently
   /// replaced. Distinct from `.modelLoadFailed`: the model is fine.
@@ -498,6 +460,62 @@ struct BNNSTechniqueTests {
       "confidence bit-pattern must match between baseline and BNNS-loaded .dspOnly paths")
   }
 
+  // MARK: - Decode payload invariants
+
+  /// The decoded pair must describe one coherent distribution.
+  ///
+  /// This is the guard that replaces GH-141's fold tests. That feature briefly
+  /// made `softmaxMax` carry a non-argmax bin's mass, so the recorded pair had
+  /// max < second-max on 602 of 604 folds and no longer described any
+  /// posterior a consumer could reason about. The feature is gone; this keeps
+  /// the invariant it violated from quietly returning.
+  ///
+  /// Drives the real decoder with synthetic logits, so it needs no model and
+  /// never skips.
+  @Test("a successful decode reports the argmax, and max >= second-max")
+  @available(macOS 15.0, *)
+  func decodePayloadDescribesOneDistribution() {
+    // Sweep argmax positions across the in-range band, each with a distinct
+    // runner-up, so a decoder that reported the wrong bin would land on a
+    // wrong BPM somewhere in the sweep.
+    for argmaxBin in [30, 61, 90, 110, 137, 170] {
+      var v = [Float](repeating: -60.0, count: 256)
+      v[argmaxBin] = 0.0
+      // Runner-up at a bin that is NOT the half tempo, so nothing about this
+      // depends on octave relationships.
+      v[(argmaxBin + 7) % 256] = -1.0
+
+      guard
+        case .success(let bpm, let maxProb, let secondProb) =
+          BNNSTechnique.decodeLogitsWithDiagnostic(v)
+      else {
+        Issue.record("bin \(argmaxBin) should decode in range")
+        return
+      }
+
+      #expect(
+        maxProb >= secondProb,
+        Comment(
+          rawValue:
+            "bin \(argmaxBin): max \(maxProb) < second \(secondProb) — the pair"
+            + " does not describe a distribution"))
+      #expect(
+        bpm == 30.0 + Double(argmaxBin),
+        "bin \(argmaxBin): decoded BPM must be the argmax bin's tempo")
+      // The reported max must be the argmax bin's own probability, not some
+      // other bin's mass substituted in.
+      #expect(maxProb > 0.0 && maxProb <= 1.0)
+      #expect(secondProb >= 0.0 && secondProb <= 1.0)
+      // exp(0) vs exp(-1): the argmax carries e/(e+1) of the two-bin mass.
+      #expect(
+        abs(maxProb / (maxProb + secondProb) - 0.7310) < 1e-3,
+        Comment(
+          rawValue:
+            "bin \(argmaxBin): the reported pair must be the softmax of the two"
+            + " populated logits, got \(maxProb) / \(secondProb)"))
+    }
+  }
+
   // MARK: - decodeLogits hardening (Unit 1)
 
   @Test("decodeLogits rejects non-finite logits (NaN/+Inf/-Inf)")
@@ -774,117 +792,6 @@ struct BNNSGraphStorageReleaseTests {
 
 @Suite("BNNSTechnique real inference (GH-167 item 4)")
 struct BNNSTechniqueInferenceTests {
-
-  /// GH-141 default inertness, proven through the REAL evaluate path.
-  ///
-  /// The synthetic-logits inertness test compares three entry points that
-  /// all share one decoder, so a regression common to all three would pass
-  /// it. This drives a real compiled model through
-  /// `evaluateWithDiagnostic` with default `Options` and compares against
-  /// an explicitly-disabled instance, bit for bit, which is the claim the
-  /// branch actually makes.
-  @Test(
-    "default Options produce bit-identical evaluation to explicit .disabled",
-    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
-  @available(macOS 15.0, *)
-  func defaultOptionsAreBitIdenticalThroughEvaluate() throws {
-    let url = try #require(fixtureURL())
-    var trace = BPMDiagnosticTrace()
-    trace.mlFeatures = try Self.syntheticFeatures()
-
-    // Gates open so the win path is reached and there is a value to compare.
-    var defaults = BNNSTechnique.Options()
-    defaults.confidenceThreshold = 0.0
-    defaults.marginThreshold = 0.0
-    // `octaveFold` deliberately untouched — this is the SHIPPED default.
-    #expect(defaults.octaveFold == .disabled)
-
-    var explicit = defaults
-    explicit.octaveFold = .disabled
-
-    let a = try BNNSTechnique(modelURL: url, options: defaults)
-      .evaluateWithDiagnostic(trace: trace)
-    let b = try BNNSTechnique(modelURL: url, options: explicit)
-      .evaluateWithDiagnostic(trace: trace)
-
-    let ea = try #require(a.evaluation, "open gates must admit a decode")
-    let eb = try #require(b.evaluation)
-    #expect(ea.bpm.bitPattern == eb.bpm.bitPattern)
-    #expect(ea.confidence.bitPattern == eb.confidence.bitPattern)
-    // No fold may appear on either, and the snapshots must agree entirely.
-    #expect(a.snapshot?.octaveFold == nil, "the default must never fold")
-    #expect(b.snapshot?.octaveFold == nil)
-    #expect(a.snapshot == b.snapshot, "snapshots must be equal, not merely similar")
-  }
-
-  /// The counterpart: with folding ON, the same input must produce a
-  /// DIFFERENT result through the same path. Without this the test above
-  /// would pass against an implementation where the policy is ignored
-  /// entirely.
-  @Test(
-    "an enabled fold changes the evaluation through the real path",
-    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
-  @available(macOS 15.0, *)
-  func enabledFoldChangesTheEvaluation() throws {
-    let url = try #require(fixtureURL())
-    var trace = BPMDiagnosticTrace()
-    trace.mlFeatures = try Self.syntheticFeatures()
-
-    var opts = BNNSTechnique.Options()
-    opts.confidenceThreshold = 0.0
-    opts.marginThreshold = 0.0
-    let baseline = try BNNSTechnique(modelURL: url, options: opts)
-      .evaluateWithDiagnostic(trace: trace)
-
-    // Threshold 0.0 folds wherever a fold is possible at all.
-    opts.octaveFold = .massRatio(threshold: 0.0)
-    let folded = try BNNSTechnique(modelURL: url, options: opts)
-      .evaluateWithDiagnostic(trace: trace)
-
-    let base = try #require(baseline.evaluation)
-    let fold = try #require(folded.evaluation)
-
-    // The fixture's decode may or may not be foldable (its argmax must be
-    // >= 120 BPM). Assert the invariant that holds either way.
-    if let record = folded.snapshot?.octaveFold {
-      #expect(fold.bpm == base.bpm / 2.0, "a fold must halve the tempo")
-      #expect(record.fromBPM == base.bpm, "the record must name the pre-fold tempo")
-      #expect(
-        fold.confidence <= base.confidence,
-        "the fundamental cannot carry more mass than the argmax")
-      // Gate 2 must not have fired: the folded tempo is deliberately not
-      // the top bin, so its margin is negative and the gate is exempted.
-      #expect(folded.snapshot?.gateFired == nil, "a fold must not trip gate 2")
-    } else {
-      #expect(
-        fold.bpm.bitPattern == base.bpm.bitPattern,
-        "no fold record means the tempo must be untouched")
-    }
-  }
-
-  /// The exemption is scoped to folds only. An UNFOLDED decode with a thin
-  /// margin must still be rejected by gate 2, or the exemption has quietly
-  /// disabled the gate for everyone.
-  @Test(
-    "gate 2 still rejects an unfolded thin-margin decode",
-    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
-  @available(macOS 15.0, *)
-  func gate2StillAppliesWithoutAFold() throws {
-    let url = try #require(fixtureURL())
-    var trace = BPMDiagnosticTrace()
-    trace.mlFeatures = try Self.syntheticFeatures()
-
-    var opts = BNNSTechnique.Options()
-    opts.confidenceThreshold = 0.0
-    // A margin floor of 1.0 is unreachable for any real posterior.
-    opts.marginThreshold = 1.0
-    // Folding OFF, so the exemption must not apply.
-    let result = try BNNSTechnique(modelURL: url, options: opts)
-      .evaluateWithDiagnostic(trace: trace)
-
-    #expect(result.evaluation == nil, "an unfolded decode must still face gate 2")
-    #expect(result.snapshot?.gateFired == .gate2Margin)
-  }
 
   @available(macOS 15.0, *)
   private static func syntheticFeatures(frames: Int = 256) throws -> MLFeatureFrames {
