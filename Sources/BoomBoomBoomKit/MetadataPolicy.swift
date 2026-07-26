@@ -117,9 +117,10 @@ public struct MetadataPolicy: Sendable, Hashable {
   }
   private var _corroborationBoost: Double
 
-  /// Hard ceiling for boosted confidence (default 0.95). Cannot reach 1.0 by
-  /// construction — the library never claims certainty from tag agreement
-  /// alone.
+  /// Hard ceiling for boosted confidence. The **default policy** caps this at
+  /// 0.95, so corroborated confidence stays below certainty; a caller may
+  /// configure 1.0 and thereby opt out of that. The guarantee belongs to the
+  /// default, not to the type.
   public var maxBoostedConfidence: Double {
     get { _maxBoostedConfidence }
     set {
@@ -199,26 +200,30 @@ public struct MetadataPolicy: Sendable, Hashable {
     value.isFinite ? min(max(value, 0.0), 1.0) : fallback
   }
 
-  /// Replace only **objectively invalid** ranges; leave unusual-but-legal ones
+  /// Repair only **objectively invalid** ranges; leave unusual-but-legal ones
   /// alone.
   ///
-  /// Rejected: a non-finite endpoint (infinite bounds are constructible, so
-  /// this is reachable), a negative lower bound, an upper bound at or below
-  /// zero that nothing could match, and a degenerate `lower == upper`.
+  /// A negative lower bound **clamps to zero** rather than reverting, matching
+  /// the scalar rule that a negative value carries intent. Only a range that
+  /// cannot be repaired — a non-finite endpoint, or one still inverted after
+  /// clamping — falls back to the default.
   ///
-  /// NOT rejected: a merely narrow finite range such as `0...1`. A zero lower
-  /// bound is a legal "no floor" filter, and the library cannot tell a typo
-  /// from a deliberately tight one — silently widening a caller's filter would
-  /// be its own bug.
+  /// NOT repaired, deliberately: `128.0...128.0` is a working exact-match
+  /// filter (``valueRange`` is consumed only via `contains`), and `0.0...0.0`
+  /// is meaningful when ``ParsingOptions/treatZeroAsAbsent`` is `false`.
+  /// Widening either would silently override a caller's filter.
   ///
   /// An **inverted** range never reaches here: `ClosedRange` traps at the
-  /// caller's construction site when `upperBound < lowerBound`.
+  /// caller's construction site when `upperBound < lowerBound`. The clamp
+  /// order below matters for the same reason — clamping `-10.0 ... -1.0`
+  /// before the orderability check would try to form `0.0 ... -1.0` and trap.
   private static func normalizeValueRange(_ range: ClosedRange<Double>) -> ClosedRange<Double> {
-    guard range.lowerBound.isFinite, range.upperBound.isFinite,
-      range.lowerBound >= 0, range.upperBound > 0,
-      range.lowerBound != range.upperBound
-    else { return defaultValueRange }
-    return range
+    guard range.lowerBound.isFinite, range.upperBound.isFinite else {
+      return defaultValueRange
+    }
+    let lowerBound = max(range.lowerBound, 0)
+    guard lowerBound <= range.upperBound else { return defaultValueRange }
+    return lowerBound...range.upperBound
   }
 
   // MARK: - Init
@@ -234,9 +239,10 @@ public struct MetadataPolicy: Sendable, Hashable {
   ///     parsed BPM against a DSP candidate.
   ///   - corroborationBoost: Multiplicative confidence boost (default `1.25`) applied to candidates
   ///     a tag corroborates. Clamped by ``maxBoostedConfidence``.
-  ///   - maxBoostedConfidence: Upper bound (default `0.95`) for any boosted confidence. Never reaches
-  ///     `1.0` by construction — third-party taggers may share failure modes with the DSP, so
-  ///     correlated false positives must not pin confidence at maximum.
+  ///   - maxBoostedConfidence: Upper bound for any boosted confidence. The default of `0.95` keeps
+  ///     it below `1.0` because third-party taggers may share failure modes with the DSP, so
+  ///     correlated false positives should not pin confidence at maximum. A caller may configure
+  ///     `1.0` and accept that.
   ///   - skepticismPenalty: Multiplicative confidence penalty (default `0.85`) applied when the DSP
   ///     candidate disagrees with a unanimous tag consensus.
   ///   - allowOctaveCorroboration: When `true` (default), 2:1 ratios are accepted as corroboration.

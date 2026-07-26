@@ -84,38 +84,52 @@ struct MetadataPolicyHardeningTests {
 
   // MARK: - valueRange
 
-  /// Only objectively invalid ranges are replaced.
-  @Test("objectively invalid ranges fall back to the default")
-  func invalidRangesFallBack() {
-    // Degenerate.
-    #expect(
-      MetadataPolicy(valueRange: 300.0...300.0).valueRange == MetadataPolicy.defaultValueRange)
-    // Infinite-ended — constructible, unlike an inverted range.
-    #expect(
-      MetadataPolicy(valueRange: 30.0...Double.infinity).valueRange
-        == MetadataPolicy.defaultValueRange)
-    #expect(
-      MetadataPolicy(valueRange: -Double.infinity...300.0).valueRange
-        == MetadataPolicy.defaultValueRange)
-    // Negative lower bound.
-    #expect(
-      MetadataPolicy(valueRange: -10.0...300.0).valueRange == MetadataPolicy.defaultValueRange)
-    // Upper bound nothing could match.
-    #expect(
-      MetadataPolicy(valueRange: -5.0 ... -1.0).valueRange == MetadataPolicy.defaultValueRange)
+  /// Only an unrepairable range falls back: a non-finite endpoint, or one
+  /// still inverted after the lower bound is clamped.
+  @Test("unrepairable ranges fall back, on both paths")
+  func unrepairableRangesFallBack() {
+    for bad in [30.0...Double.infinity, -Double.infinity...300.0, -5.0 ... -1.0] {
+      #expect(
+        MetadataPolicy(valueRange: bad).valueRange == MetadataPolicy.defaultValueRange,
+        "init path")
+      var p = MetadataPolicy()
+      p.valueRange = bad
+      #expect(p.valueRange == MetadataPolicy.defaultValueRange, "assignment path")
+    }
   }
 
-  /// The counterpart, and the one that keeps the rule honest: a narrow but
-  /// legal range is a caller's deliberate filter, not a typo the library gets
-  /// to overrule.
-  @Test("a legitimately narrow range is preserved")
-  func narrowRangeSurvives() {
-    #expect(MetadataPolicy(valueRange: 0.0...1.0).valueRange == 0.0...1.0)
-    #expect(MetadataPolicy(valueRange: 120.0...130.0).valueRange == 120.0...130.0)
-
+  /// A negative lower bound is repairable, so it clamps rather than reverting
+  /// — the rule the scalar fields already follow. Reverting would silently
+  /// reject tags in (0, 30) that the caller asked to accept.
+  @Test("a negative lower bound clamps to zero rather than reverting")
+  func negativeLowerBoundClamps() {
+    #expect(MetadataPolicy(valueRange: -10.0...300.0).valueRange == 0.0...300.0)
     var p = MetadataPolicy()
-    p.valueRange = 0.0...1.0
-    #expect(p.valueRange == 0.0...1.0, "assignment must not widen it either")
+    p.valueRange = -10.0...300.0
+    #expect(p.valueRange == 0.0...300.0, "assignment path")
+  }
+
+  /// `-10.0 ... -1.0` is the case the evaluation order exists to protect:
+  /// clamping the lower bound before checking orderability would try to form
+  /// `0.0 ... -1.0`, which traps. Reaching this assertion at all is the proof.
+  @Test("an unrepairable negative range does not trap")
+  func negativeRangeDoesNotTrap() {
+    #expect(
+      MetadataPolicy(valueRange: -10.0 ... -1.0).valueRange == MetadataPolicy.defaultValueRange)
+  }
+
+  /// `valueRange` is consumed only via `contains`, so a single-point range is
+  /// a working exact-match filter and a narrow one is a working narrow filter.
+  /// The library cannot tell either from a typo, and widening a caller's
+  /// filter would be its own bug.
+  @Test("legal narrow and exact-match ranges are preserved, on both paths")
+  func narrowAndExactRangesSurvive() {
+    for good in [0.0...1.0, 120.0...130.0, 128.0...128.0, 0.0...0.0] {
+      #expect(MetadataPolicy(valueRange: good).valueRange == good, "init path")
+      var p = MetadataPolicy()
+      p.valueRange = good
+      #expect(p.valueRange == good, "assignment path")
+    }
   }
 
   // MARK: - Value semantics
@@ -149,13 +163,58 @@ struct MetadataPolicyHardeningTests {
   }
 }
 
+/// End-to-end: the normalized `valueRange` must produce the intended
+/// accept/reject behaviour at the consumer, not merely store the intended
+/// bounds. `FileMetadataReader.parseRawBPM` is the only thing that reads it.
+@Suite("valueRange behaviour at the consumer (#129)")
+struct ValueRangeConsumerTests {
+
+  @Test("an exact-match range accepts its one value and rejects neighbours")
+  func exactMatchRangeFilters() {
+    let p = MetadataPolicy(valueRange: 128.0...128.0)
+    #expect(FileMetadataReader.parseRawBPM("128", policy: p).rejectionReason == nil)
+    #expect(FileMetadataReader.parseRawBPM("127", policy: p).rejectionReason == "out-of-range")
+    #expect(FileMetadataReader.parseRawBPM("129", policy: p).rejectionReason == "out-of-range")
+  }
+
+  /// The clamp is the point: reverting `-10...300` to the default would have
+  /// rejected 20, which the caller's floor of "no floor" asked to accept.
+  @Test("a clamped negative floor accepts values the default would reject")
+  func clampedFloorAcceptsBelowThirty() {
+    let p = MetadataPolicy(valueRange: -10.0...300.0)
+    #expect(p.valueRange == 0.0...300.0)
+    #expect(FileMetadataReader.parseRawBPM("20", policy: p).rejectionReason == nil)
+    #expect(
+      FileMetadataReader.parseRawBPM("20", policy: MetadataPolicy()).rejectionReason
+        == "out-of-range",
+      "the default floor of 30 rejects it, which is what made the clamp matter")
+  }
+
+  /// `0...0` is only reachable as a filter when the zero sentinel is off.
+  /// Without setting it, sentinel handling short-circuits before `contains`
+  /// and this would prove the wrong path.
+  @Test("a zero-only range accepts a parsed zero when the sentinel is disabled")
+  func zeroOnlyRangeNeedsSentinelDisabled() {
+    var parsing = MetadataPolicy.ParsingOptions()
+    parsing.treatZeroAsAbsent = false
+    let p = MetadataPolicy(valueRange: 0.0...0.0, parsing: parsing)
+    #expect(p.valueRange == 0.0...0.0)
+    #expect(FileMetadataReader.parseRawBPM("0", policy: p).rejectionReason == nil)
+
+    // With the sentinel on, the same range never reaches the filter.
+    let sentinelOn = MetadataPolicy(valueRange: 0.0...0.0)
+    #expect(
+      FileMetadataReader.parseRawBPM("0", policy: sentinelOn).rejectionReason == "sentinel-zero")
+  }
+}
+
 @Suite("TechniqueSet candidateCount provenance (#131)")
 struct TechniqueSetCandidateCountTests {
 
   /// The regression the issue reports.
   @Test("an explicit count survives inserting and removing")
   func explicitCountSurvivesBuilders() {
-    let base = TechniqueSet(dspTechniques: [], candidateCount: 1)
+    let base = TechniqueSet(dspTechniques: [], candidateCountOverride: 1)
     #expect(base.candidateCount == 1)
     #expect(base.inserting(.acfSharpening).candidateCount == 1)
     #expect(base.inserting(.expandedCandidates).candidateCount == 1)
@@ -193,10 +252,11 @@ struct TechniqueSetCandidateCountTests {
   /// pipeline surfaces as a nil result indistinguishable from real silence.
   @Test("counts below one clamp, at init and on assignment", arguments: [0, -1, Int.min])
   func belowOneClamps(_ bad: Int) {
-    #expect(TechniqueSet(candidateCount: bad).candidateCount == 1)
+    #expect(TechniqueSet(candidateCountOverride: bad).candidateCount == 1)
     var s = TechniqueSet()
-    s.candidateCount = bad
+    s.candidateCountOverride = bad
     #expect(s.candidateCount == 1)
+    #expect(s.candidateCountOverride == 1, "the clamp lands in storage, not at read")
   }
 
   @Test("a no-op insert or remove changes nothing")
@@ -208,13 +268,31 @@ struct TechniqueSetCandidateCountTests {
 
   @Test("copy-then-mutate does not alias")
   func copyThenMutateDoesNotAlias() {
-    let original = TechniqueSet(dspTechniques: [.acfSharpening], candidateCount: 2)
+    let original = TechniqueSet(dspTechniques: [.acfSharpening], candidateCountOverride: 2)
     var copy = original
-    copy.candidateCount = 4
+    copy.candidateCountOverride = 4
     copy.dspTechniques.insert(.expandedCandidates)
     #expect(original.candidateCount == 2)
     #expect(!original.dspTechniques.contains(.expandedCandidates))
     #expect(copy.candidateCount == 4)
+  }
+
+  /// The round trip the redesign exists to enable: pin, then return to
+  /// automatic. The previous design had no route back — and its builders froze
+  /// a derived count the first time one ran.
+  @Test("unpinning returns the set to membership-derived behaviour")
+  func unpinningRestoresAutomaticDerivation() {
+    var set = TechniqueSet(candidateCountOverride: 2)
+    #expect(set.candidateCount == 2)
+
+    set.candidateCountOverride = nil
+    #expect(set.candidateCount == 3, "back to derived")
+    #expect(
+      set.inserting(.expandedCandidates).candidateCount == 5,
+      "and derivation resumes through the builders, which is where it used to freeze")
+
+    // Round-tripping restores identity with a never-pinned set.
+    #expect(set == TechniqueSet())
   }
 
   // MARK: - Identity
@@ -227,7 +305,7 @@ struct TechniqueSetCandidateCountTests {
   @Test("implicit and explicit counts with the same value are not equal")
   func provenanceParticipatesInIdentity() {
     let implicitThree = TechniqueSet(dspTechniques: [])
-    let explicitThree = TechniqueSet(dspTechniques: [], candidateCount: 3)
+    let explicitThree = TechniqueSet(dspTechniques: [], candidateCountOverride: 3)
     #expect(implicitThree.candidateCount == explicitThree.candidateCount)
     #expect(implicitThree != explicitThree, "they diverge on the next inserting()")
     // And that divergence is real, not hypothetical.
@@ -237,8 +315,8 @@ struct TechniqueSetCandidateCountTests {
 
   @Test("equal values hash equally and behave in a Set")
   func equalValuesHashEqually() {
-    let a = TechniqueSet(dspTechniques: [.acfSharpening], candidateCount: 4)
-    let b = TechniqueSet(dspTechniques: [.acfSharpening], candidateCount: 4)
+    let a = TechniqueSet(dspTechniques: [.acfSharpening], candidateCountOverride: 4)
+    let b = TechniqueSet(dspTechniques: [.acfSharpening], candidateCountOverride: 4)
     #expect(a == b)
     #expect(a.hashValue == b.hashValue)
     #expect(a == a)

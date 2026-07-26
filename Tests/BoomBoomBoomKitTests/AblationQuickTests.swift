@@ -35,7 +35,7 @@ struct AblationQuickTests {
     #expect(TechniqueSet.baseline.candidateCount == 3)
     #expect(TechniqueSet.full.candidateCount == 5)
     #expect(TechniqueSet(dspTechniques: [.expandedCandidates]).candidateCount == 5)
-    #expect(TechniqueSet(candidateCount: 1).candidateCount == 1)
+    #expect(TechniqueSet(candidateCountOverride: 1).candidateCount == 1)
     #expect(TechniqueSet.dnbOptimized.contains(.subBandNormalization))
   }
 

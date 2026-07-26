@@ -258,7 +258,7 @@ struct TechniqueSetOverrideTests {
     #expect(!detail.isEmpty)
   }
 
-  /// Override beats intensity: a `TechniqueSet` with `candidateCount: 1` produces
+  /// Override beats intensity: a `TechniqueSet` with `candidateCountOverride: 1` produces
   /// 1 raw candidate even though `intensity = .default` (intensity 7) would have
   /// resolved to `.optimal` (3 candidates).
   @Test("techniqueSet override candidateCount overrides intensity-derived count")
@@ -267,7 +267,7 @@ struct TechniqueSetOverrideTests {
     var opts = AudioAnalysisService.Options()
     opts.intensity = .default
     opts.techniqueSet = TechniqueSet(
-      dspTechniques: [.subBandVoting, .fineGridRefinement], candidateCount: 1)
+      dspTechniques: [.subBandVoting, .fineGridRefinement], candidateCountOverride: 1)
     opts.enableTrace = true
     let result = try #require(try AudioAnalysisService.analyzeBPM(url: url, options: opts))
     let trace = try #require(result.trace)

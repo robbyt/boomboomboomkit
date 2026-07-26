@@ -114,45 +114,54 @@ public struct TechniqueSet: Sendable, Hashable {
   /// ablation matrix to enumerate every subset of ``DSPTechnique/allCases``.
   public var dspTechniques: Set<DSPTechnique>
 
-  /// Number of top candidates to extract from the periodicity spectrum.
+  /// Number of top candidates the pipeline extracts from the periodicity
+  /// spectrum.
   ///
-  /// Derived from ``DSPTechnique/expandedCandidates`` membership — 5 when
-  /// present, otherwise 3 — **unless** an explicit count was supplied, in
-  /// which case that value is preserved. An implicit count is computed on
-  /// every read, so it tracks membership however the set changed, including
-  /// direct mutation of ``dspTechniques``.
+  /// **An observation, not a setting.** It resolves ``candidateCountOverride``
+  /// when that is set, and otherwise derives from
+  /// ``DSPTechnique/expandedCandidates`` membership — 5 when present, else 3.
+  /// A derived value is computed on every read, so it tracks membership
+  /// however the set changed, including direct mutation of ``dspTechniques``.
   ///
-  /// Setting this pins the value: it then survives ``inserting(_:)`` and
-  /// ``removing(_:)`` (GH-131, which previously clobbered it). Values below 1
-  /// clamp to 1 — `extractTopCandidates(count: 0)` returns an empty candidate
-  /// list, which the pipeline reports as a `nil` result indistinguishable from
-  /// genuine silence.
+  /// To fix the count, set ``candidateCountOverride``.
   public var candidateCount: Int {
-    get {
-      candidateCountOverride ?? (dspTechniques.contains(.expandedCandidates) ? 5 : 3)
-    }
-    set { candidateCountOverride = max(newValue, 1) }
+    candidateCountOverride ?? (dspTechniques.contains(.expandedCandidates) ? 5 : 3)
   }
 
-  /// `nil` when the count is derived from technique membership; non-nil when a
-  /// caller pinned it.
+  /// Candidate-count policy: `nil` is automatic, non-nil is fixed.
   ///
-  /// Participates in ``Equatable``/``Hashable`` deliberately. Two sets with the
-  /// same techniques and the same current count but different provenance
-  /// behave differently under a later ``inserting(_:)``, so treating them as
-  /// equal would let equal values produce unequal results from the same call.
-  private var candidateCountOverride: Int?
+  /// A fixed count survives ``inserting(_:)`` and ``removing(_:)``, which
+  /// previously clobbered it (GH-131). Setting `nil` returns the set to
+  /// automatic — the round trip is symmetric.
+  ///
+  /// Values below 1 clamp to 1 on assignment.
+  /// `extractTopCandidates(count: 0)` returns an empty candidate list, which
+  /// the pipeline reports as a `nil` result indistinguishable from genuine
+  /// silence. Clamping happens here rather than at read so two distinct stored
+  /// values can never produce identical behaviour, which would contaminate
+  /// ``Equatable`` and ``Hashable``.
+  ///
+  /// This participates in equality deliberately. Automatic and fixed are
+  /// different **policies**, not different provenance of the same value: two
+  /// sets showing the same count today diverge on the next
+  /// ``inserting(_:)``, so treating them as equal would let equal values
+  /// produce unequal results from the same call.
+  public var candidateCountOverride: Int? {
+    get { _candidateCountOverride }
+    set { _candidateCountOverride = newValue.map { max($0, 1) } }
+  }
+
+  private var _candidateCountOverride: Int?
 
   /// Creates a technique set with an optional explicit candidate count.
   ///
   /// - Parameters:
   ///   - dspTechniques: The DSP technique cases to enable. Defaults to an empty set.
-  ///   - candidateCount: Optional override for the number of candidates the pipeline extracts.
-  ///     When `nil`, defaults to `5` if `dspTechniques` contains ``DSPTechnique/expandedCandidates``,
-  ///     otherwise `3`.
-  public init(dspTechniques: Set<DSPTechnique> = [], candidateCount: Int? = nil) {
+  ///   - candidateCountOverride: Candidate-count policy. `nil` derives the count from
+  ///     ``DSPTechnique/expandedCandidates`` membership; a value fixes it, clamped to at least 1.
+  public init(dspTechniques: Set<DSPTechnique> = [], candidateCountOverride: Int? = nil) {
     self.dspTechniques = dspTechniques
-    self.candidateCountOverride = candidateCount.map { max($0, 1) }
+    self._candidateCountOverride = candidateCountOverride.map { max($0, 1) }
   }
 
   // MARK: - Queries
