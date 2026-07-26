@@ -38,24 +38,35 @@ Ground-truth files:
 
 | Target | Runs | Wall-clock | Writes to | Reference output |
 |--------|------|------------|-----------|------------------|
-| `make test` | Unit target only (`BoomBoomBoomKitTests`) | <1s | — | 157/157 pass |
-| `make benchmark` | OA300 Acc1/Acc2 @ 2% + 4% tolerance, all merge strategies | ~2 min | stdout | Acc1 57/82 (69.5%), Acc2 73/82 (89.0%), plus per-genre stratified table (see "Genre-stratified output" below) |
-| `make benchmark-giantsteps` | GiantSteps Acc1/Acc2 with `tempo2` fallback, genre breakdown | ~2 min | stdout | Acc1 536/661 (81.1%), Acc2 545/661 (82.5%), plus per-genre stratified table (see "Genre-stratified output" below) |
+| `make test` | Unit target only (`BoomBoomBoomKitTests`) | ~4s | — | 958 tests / 162 suites / 4 known issues (2026-07-26) |
+| `make benchmark` | OA300 Acc1/Acc2 @ 2% + 4% tolerance, all merge strategies | ~25 s | stdout | Acc1 58/82 (70.7%), Acc2 74/82 (90.2%), plus per-genre stratified table (see "Genre-stratified output" below) |
+| `make benchmark-giantsteps` | GiantSteps Acc1/Acc2 with `tempo2` fallback, genre breakdown | ~2.5 min | stdout | Acc1 537/661 (81.2%), Acc2 546/661 (82.6%), plus per-genre stratified table (see "Genre-stratified output" below) |
 | `make oracle` | 3-way diagnostic: ours vs Rekordbox vs DAW | ~3 s | stdout | Disagreement table (small; diagnostic-only) |
-| `make ablation` | 64-combination DSP ablation + per-track impact | ~9 min (parallel) | stdout | Sorted Acc1 by preset |
+| `make ablation` | 256-combination DSP ablation (2^8; Story 4-7 grew it from 128) + per-track impact | ~3.5 min (parallel, M5 Max) | stdout | Sorted Acc1 by preset |
 | `make perf-benchmark` | Wall-clock timing (serial OA300) + OA300 + GiantSteps accuracy snapshot | ~40 s | stdout **and** `_bmad-output/perf-baselines/<Chip>-<OSMajor>--<BuildConfig>--<recordedAt>--<gitSHA>--<uuid>.json` | Mean 0.2-0.25s on M5 Max; same accuracy counts as `make benchmark` + `make benchmark-giantsteps` |
 | `make bnns-impact-report` | Per-track ML-vs-DSP impact snapshot + 7-bucket failure-stage histogram + corpus-distribution stats | ~50 s | stdout **and** `_bmad-output/perf-baselines/bnns-impact/<Chip>-<OSMajor>--<BuildConfig>--<recordedAt>--<gitSHA>--<uuid>.json` (schema v3 — see "bnns-impact-report JSON schema" below) | Bundled-model build: `ml_acc1 = 0/82` at production thresholds (Story 4-6 Branch C: model pulled, infra retained); BYOW builds produce a different distribution |
 
 All four corpus-gated targets fail loudly on unset or empty `OA300_CORPUS_PATH` / `GIANTSTEPS_CORPUS_PATH`. There is no soft-skip — an unset required env var is a test failure.
 
-## Reference counts (commit `6e39893`, `.optimal` preset, `maxConfidence` merge, intensity 7)
+## Reference counts (measured 2026-07-26 at `a67ca3e`, `.optimal` preset, `maxConfidence` merge, intensity 7)
 
-Use as regression sentinels. If the numbers shift after a code change, investigate the change.
+These are the CURRENT measurements. The CI floors are lower and live in
+CLAUDE.md; a run that merely equals a floor is at the gate, not comfortably
+inside it.
 
-- **OA300 @ 2%**: Acc1 = 57/82, Acc2 = 73/82
-- **OA300 @ 4% (MIREX)**: see `make benchmark` output (looser tolerance, higher counts)
-- **GiantSteps @ 2% (MIREX 5-factor, with `tempo2` fallback)**: Acc1 = 536/661, Acc2 = 545/661
-- **Ablation best (`.optimal`)**: Acc1 = 57/82 on OA300 (same; the baseline is tuned to `.optimal`)
+| | measured now | CI floor (`#expect`) |
+|---|---|---|
+| OA300 @ 2% | Acc1 **58/82**, Acc2 **74/82** | Acc1 >= 57/82, Acc2 >= 73/82 |
+| GiantSteps @ 2% (MIREX 5-factor, `tempo2` fallback) | Acc1 **537/661**, Acc2 **546/661** | Acc1 >= 537/661, Acc2 >= 546/661 |
+
+GiantSteps currently sits EXACTLY on its floor. Any regression there fails
+the gate immediately, so treat a GiantSteps drop as a merge blocker rather
+than a trend to watch.
+
+An earlier version of this file quoted 536/545 for GiantSteps, one below the
+floor in each column. Following those numbers, a healthy run reads as a
+regression and a genuinely failing run reads as acceptable. Re-measure and
+update this table rather than trusting a stale one.
 
 ## Genre-stratified output
 
