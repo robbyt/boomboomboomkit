@@ -124,6 +124,10 @@ private func bundleDigest(_ url: URL) -> String {
       paths.append(f)
     }
   }
+  // A regular file or an empty directory enumerates to nothing, and
+  // hashing nothing yields a perfectly valid-looking 64-hex digest that
+  // identifies no weights at all.
+  guard !paths.isEmpty else { return "unavailable" }
   var hasher = SHA256()
   for f in paths.sorted(by: { $0.path < $1.path }) {
     hasher.update(data: Data(f.path.replacingOccurrences(of: url.path, with: "").utf8))
@@ -223,6 +227,17 @@ struct OctaveFoldImpactTests {
       }
     }
 
+    // Bands are half-open and cover [0, inf), so a non-positive or NaN
+    // truth BPM lands in none of them and would be silently absent from
+    // every per-band tally while still counting as evaluated.
+    let banded = rows.filter { r in bands.contains { $0.contains(r.truthBPM) } }
+    try #require(
+      banded.count == rows.count,
+      Comment(
+        rawValue:
+          "\(rows.count - banded.count) rows have a truth BPM outside every band"
+          + " (non-positive or NaN ground truth); per-band totals would not sum"))
+
     try #require(
       !rows.isEmpty,
       Comment(
@@ -269,7 +284,11 @@ struct OctaveFoldImpactTests {
     // Every ground-truth entry must be accounted for in exactly one
     // bucket. Without this a partially-present corpus would produce a
     // confident-looking report over a silent subset.
-    #expect(
+    // `#require`, not `#expect`: both of these gate whether the artifact is
+    // fit to be committed, and `#expect` records a failure but lets
+    // execution continue — so the unusable report would still be written
+    // and could be picked up as evidence. Fail before anything lands.
+    try #require(
       rows.count + abstained + missingAudio == tracks.count,
       Comment(
         rawValue:
@@ -277,7 +296,7 @@ struct OctaveFoldImpactTests {
           + " \(missingAudio) missing != \(tracks.count) ground-truth entries"))
 
     let gitSHA = env["GIT_SHA"] ?? "unknown"
-    #expect(
+    try #require(
       gitSHA != "unknown",
       Comment(
         rawValue:

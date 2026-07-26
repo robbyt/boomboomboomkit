@@ -938,13 +938,11 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     // Because the source BPM is already <= 200, a fold can only produce
     // <= 100, so the sole range guard needed is the 60 floor.
     if let fold = octaveFoldCandidate(
-      probs: probs, maxIdx: maxIdx, maxMass: maxVal, policy: policy)
+      probs: probs, maxIdx: maxIdx, maxMass: maxVal, fromBPM: bpm, policy: policy)
     {
       return .success(
         bpm: fold.foldedBPM, confidence: Double(confidence),
-        secondMax: Double(secondMax),
-        fold: MLDiagnosticSnapshot.OctaveFold(
-          fromBPM: bpm, massRatio: fold.massRatio))
+        secondMax: Double(secondMax), fold: fold.record)
     }
     return .success(
       bpm: bpm, confidence: Double(confidence),
@@ -968,9 +966,15 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     probs: [Float],
     maxIdx: Int,
     maxMass: Float,
+    fromBPM: Double,
     policy: OctaveFoldPolicy
-  ) -> (foldedBPM: Double, massRatio: Double)? {
-    guard case .massRatio(let threshold) = policy else { return nil }
+  ) -> (foldedBPM: Double, record: MLDiagnosticSnapshot.OctaveFold)? {
+    // Clamp here as well as in the initializer: this function is
+    // `internal` and directly callable, so it cannot assume its policy
+    // came through `init(modelURL:options:)`. A negative threshold
+    // would otherwise make every non-zero ratio fold.
+    guard case .massRatio(let rawThreshold) = policy else { return nil }
+    let threshold = min(max(rawThreshold, 0.0), 1.0)
     // A zero or non-finite argmax mass would make the ratio meaningless
     // and would break the finite-by-construction guarantee that lets
     // `MLDiagnosticSnapshot.OctaveFold` stay `Hashable`.
@@ -993,7 +997,22 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
 
     let ratio = Double(halfMass) / Double(maxMass)
     guard ratio.isFinite, ratio >= threshold else { return nil }
-    return (foldedBPM, ratio)
+    // The record is built HERE, not at the call site, so a folded tempo
+    // and its provenance are produced by the same expression and cannot
+    // drift apart.
+    //
+    // The `else` is UNREACHABLE as written: `fromBPM` is
+    // `30.0 + Double(maxIdx)` and `ratio` was just guarded finite, so the
+    // initializer cannot refuse. It is kept as structure, not as a live
+    // path — if a later change makes either value derived rather than
+    // computed, this fails closed to "no fold" instead of emitting a
+    // rewritten BPM with no record. Deliberately NOT counted among this
+    // change's bite proofs, because a mutation here changes dead code.
+    guard
+      let record = MLDiagnosticSnapshot.OctaveFold(
+        fromBPM: fromBPM, massRatio: ratio)
+    else { return nil }
+    return (foldedBPM, record)
   }
 
   // MARK: - validateContract

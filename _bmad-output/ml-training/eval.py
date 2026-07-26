@@ -110,6 +110,11 @@ def decode_bpm(probs: np.ndarray, fold_threshold: float | None = OCTAVE_FOLD_DIS
     Folding is downward only: the E0 diagnostic measured 38 doubling
     errors below 100 BPM and zero halving errors in any band.
     """
+    # np.argmax raises on an empty array; Swift returns a clean abstain for
+    # empty logits, so refuse explicitly rather than surfacing a numpy error
+    # from the middle of a corpus scoring run.
+    if probs.size == 0:
+        raise ValueError("decode_bpm: empty posterior (Swift decodes this as abstain)")
     pred_bin = int(np.argmax(probs))
     bpm = float(pred_bin + BPM_BIN_MIN)
     if fold_threshold is None:

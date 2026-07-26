@@ -353,6 +353,98 @@ struct BNNSOctaveFoldTests {
     #expect(bpm == 270.0, "the raw out-of-range value is still what gets reported")
   }
 
+  // MARK: - Fold-record construction
+
+  /// `OctaveFold` is `Hashable`, and `Decode`/`Outcome`/`MLDiagnosticSnapshot`
+  /// are `Hashable` through it. A non-finite field would break that
+  /// invariant, and the type is public so a foreign `MLDiagnosticTechnique`
+  /// can construct one. The initializer refuses rather than relying on the
+  /// bundled decoder's good behaviour.
+  @Test("OctaveFold refuses non-finite fields")
+  @available(macOS 15.0, *)
+  func octaveFoldRejectsNonFinite() {
+    #expect(MLDiagnosticSnapshot.OctaveFold(fromBPM: 140.0, massRatio: 0.5) != nil)
+    for bad in [Double.nan, .infinity, -.infinity] {
+      #expect(
+        MLDiagnosticSnapshot.OctaveFold(fromBPM: bad, massRatio: 0.5) == nil,
+        "non-finite fromBPM (\(bad)) must not construct")
+      #expect(
+        MLDiagnosticSnapshot.OctaveFold(fromBPM: 140.0, massRatio: bad) == nil,
+        "non-finite massRatio (\(bad)) must not construct")
+    }
+  }
+
+  /// A folded tempo without its record would be a silent rewrite.
+  ///
+  /// Honest scope: this cannot currently fail, because the record's inputs
+  /// are always finite and the initializer never refuses. It is a
+  /// regression net for the coupling, not a proof of it — the value is in
+  /// catching a future change that decouples the tempo rewrite from its
+  /// provenance, and it sweeps both sides of the fold boundary so such a
+  /// change would be caught wherever it landed.
+  @Test("a folded BPM always carries its fold record")
+  @available(macOS 15.0, *)
+  func foldedBPMAlwaysCarriesItsRecord() {
+    // Sweep thresholds across the fold/no-fold boundary and assert the
+    // invariant holds on both sides at every step.
+    for step in 0...20 {
+      let threshold = Double(step) / 20.0
+      let v = logits(argmaxBin: 110, companions: [(bin: 40, ratio: 0.5)])
+      guard
+        case .success(let bpm, _, _, let fold) = BNNSTechnique.decodeLogitsWithDiagnostic(
+          v, policy: .massRatio(threshold: threshold))
+      else {
+        Issue.record("expected .success at threshold \(threshold)")
+        return
+      }
+      if bpm == 70.0 {
+        #expect(fold != nil, "folded to 70 at \(threshold) with no record")
+        #expect(fold?.fromBPM == 140.0)
+      } else {
+        #expect(bpm == 140.0, "unfolded must be the bare argmax at \(threshold)")
+        #expect(fold == nil, "unfolded but carried a record at \(threshold)")
+      }
+    }
+  }
+
+  /// The static decode is `internal` and directly callable, so it cannot
+  /// assume its policy came through the clamping initializer.
+  ///
+  /// Probed on the HIGH side, which is the only side where the clamp is
+  /// observable. Below zero it is not: `ratio >= -1.0` and `ratio >= 0.0`
+  /// both accept every reachable ratio, since `halfMass` and `maxMass` are
+  /// each guarded positive. Above one it is: a mass ratio can exceed 1.0
+  /// when the half tempo straddles two bins whose combined mass beats the
+  /// argmax bin (the corpus run recorded ratios up to 1.70), so an
+  /// unclamped 4.0 would reject a fold that the clamped 1.0 accepts.
+  @Test("an out-of-range threshold on the static path is clamped")
+  @available(macOS 15.0, *)
+  func outOfRangeThresholdIsClampedOnStaticPath() {
+    // Bin 111 is 141 BPM; bins 40 and 41 straddle its half tempo. 0.6 + 0.6
+    // gives a ratio of 1.2, above 1.0 and far below 4.0.
+    let v = logits(
+      argmaxBin: 111, companions: [(bin: 40, ratio: 0.6), (bin: 41, ratio: 0.6)])
+
+    guard
+      case .success(let high, _, _, let highFold) =
+        BNNSTechnique.decodeLogitsWithDiagnostic(v, policy: .massRatio(threshold: 4.0))
+    else {
+      Issue.record("expected .success")
+      return
+    }
+    #expect(high == 70.5, "4.0 must clamp to 1.0, which a 1.2 ratio clears")
+    #expect((highFold?.massRatio ?? 0) > 1.0, "the ratio must actually exceed 1.0")
+
+    guard
+      case .success(let low, _, _, _) =
+        BNNSTechnique.decodeLogitsWithDiagnostic(v, policy: .massRatio(threshold: -1.0))
+    else {
+      Issue.record("expected .success")
+      return
+    }
+    #expect(low == 70.5, "a negative threshold must behave as the clamped 0.0")
+  }
+
   // MARK: - Policy value semantics
 
   @Test("threshold accessor reports the policy's configured value")

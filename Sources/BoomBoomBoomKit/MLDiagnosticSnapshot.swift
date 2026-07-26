@@ -179,10 +179,19 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
   /// ``Decode/octaveFold`` exactly when the decoded tempo is not the bare
   /// argmax.
   ///
-  /// `Hashable` is safe here because both fields are finite by
-  /// construction: they are derived from softmax probabilities that the
-  /// decoder has already proven finite and positive-summing, and the fold
-  /// only runs when the argmax mass is greater than zero.
+  /// `Hashable` is sound here only because the initializer REFUSES
+  /// non-finite values. The bundled decoder never produces them, but this
+  /// type is public and any ``MLDiagnosticTechnique`` conformer can
+  /// construct one, so "finite by construction" has to be enforced rather
+  /// than asserted in prose. A `.nan` field would break the `Hashable`
+  /// invariant for ``Decode``, ``Outcome`` and the whole snapshot — the
+  /// same hazard that keeps `EnsembleDecision` off `Hashable`.
+  ///
+  /// The initializer is failable rather than throwing or trapping:
+  /// `MLDiagnosticTechnique.evaluateWithDiagnostic` is frozen non-throwing,
+  /// so a throwing init would force `try?` at every producer and turn a
+  /// shape violation into a vanished snapshot; and GH-167 item 6 removed
+  /// the trapping initializers from this file deliberately.
   public struct OctaveFold: Sendable, Hashable {
 
     /// The BPM the bare argmax would have produced, before folding.
@@ -193,7 +202,12 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
     /// The value that cleared the policy threshold.
     public let massRatio: Double
 
-    public init(fromBPM: Double, massRatio: Double) {
+    /// - Returns: `nil` when either value is non-finite. A fold whose
+    ///   record cannot be built must not be reported as a fold at all;
+    ///   producers drop the fold rather than emit a folded tempo with no
+    ///   provenance.
+    public init?(fromBPM: Double, massRatio: Double) {
+      guard fromBPM.isFinite, massRatio.isFinite else { return nil }
       self.fromBPM = fromBPM
       self.massRatio = massRatio
     }

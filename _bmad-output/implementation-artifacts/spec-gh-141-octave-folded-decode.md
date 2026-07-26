@@ -170,6 +170,45 @@ mirror's "lockstep" comment now names what it deliberately does not mirror.
 offline reconstruction, and every cited number against the artifact. The
 value was entirely in the tests and the provenance, not the algorithm.
 
+**2026-07-26 (edge-case review) — five gaps, and my clamp test could not fail.**
+An exhaustive path trace over the staged diff found seven boundaries; five
+were fixed, two deferred as documented-and-out-of-scope.
+Fixed: (1) `MLDiagnosticSnapshot.OctaveFold` was `Hashable` with an
+unchecked public initializer, so any foreign `MLDiagnosticTechnique` could
+construct a `.nan` field and break the hash invariant for `Decode`,
+`Outcome` and the whole snapshot — the exact hazard that keeps
+`EnsembleDecision` off `Hashable`. My doc comment asserted "finite by
+construction" when only the internal producer was constrained. Now a
+failable init that refuses, with the record built inside
+`octaveFoldCandidate` so a folded tempo and its provenance come from one
+expression. (2) The harness used `#expect` for its `gitSHA` and
+track-accounting checks; `#expect` does not halt, so a run failing its own
+provenance gate still wrote a committable artifact — the very thing the gate
+existed to prevent. Now `try #require`. (3) Rows with non-positive or NaN
+truth BPM fell into no band and vanished from every per-band tally while
+still counting as evaluated; now `require`d to sum. (4) `bundleDigest` of a
+regular file or empty directory returned SHA-256 of nothing, a valid-looking
+digest identifying no weights; now "unavailable". (5) Python `decode_bpm`
+raised `ValueError` from `np.argmax` on an empty posterior where Swift
+returns a clean abstain; now an explicit guard on both paths.
+Deferred: the Python NaN-posterior divergence (already documented as
+deliberately not mirrored) and nothing else.
+**The bite proofs caught my own bad test.** The first clamp test asserted
+threshold `-1.0` behaves like `0.0` — but `ratio >= -1.0` and `ratio >= 0.0`
+accept every reachable ratio, since `halfMass` and `maxMass` are both
+guarded positive, so it could not fail. Rewritten against the HIGH side,
+where a ratio above 1.0 is reachable (two straddling bins; the corpus
+recorded up to 1.70) and an unclamped 4.0 measurably differs from a clamped
+1.0. Now bites: 5 failures.
+**One guard is explicitly NOT bite-proven.** The `guard let record` else
+branch is unreachable today — `fromBPM` is `30.0 + Double(maxIdx)` and
+`ratio` was just guarded finite — so a mutation there changes dead code.
+Kept as structure, labelled as such in both the code and the test, rather
+than counted as a proof.
+**KEEP:** run bite proofs on every new guard, including the ones that look
+obviously correct. This is the fourth measure-nothing test in this issue
+series, and each time only the mutation caught it.
+
 ## Design Notes
 
 **Why mass-ratio rather than prefer-lower.** Unconditional preference for the fundamental is the plan's literal wording, and it is the rule most likely to do net harm: bands 120-175 hold 550 of 661 tracks and the model is already right on most of them, so halving a correct 140 to 70 costs more than the sub-100 band can repay. A ratio test only fires where the posterior is genuinely bimodal, which is the signature the E0 data describes — the pulse is found, the octave is picked wrong. The threshold is the knob the operator's measurement calibrates.
