@@ -162,9 +162,12 @@ The beat grid is a pure-DSP feature (no model involved), but its accuracy is dis
 - **Metric:** standard MIR beat **F-measure** at a **±70 ms** tolerance, with tempo-octave equivalence allowed (a correct half- or double-time grid is not penalized).
 - **Reference:** a beat grid exported from DJ software, over a real-world, constant-tempo drum & bass corpus.
 - **Measured mean F-measure:** **≈ 0.37**, with a committed regression floor of **0.33** enforced by the test suite.
-- **Opt-in downbeat detector:** deliberately conservative — it abstains on the large majority of tracks; when it does commit to a bar phase, agreement with the reference is moderate. Treat a detected downbeat as a hint, not a guarantee.
+- **Opt-in downbeat detector:** deliberately conservative. It abstained on about 96% of the corpus, firing on 54 of 1,264 tracks. Across the 42 constant-tempo tracks where it did fire, mean octave-tolerant downbeat F-measure was **0.14**. Treat a detected downbeat as a hint, not a guarantee.
+- **Long-file grid divergence:** across constant-tempo tracks of 5 minutes or longer, the last entry in `beats` and the anchor-plus-tempo extrapolation of that same beat index differ by a median of about **0.18 s** and a 95th percentile of about **1.65 s**. The test suite holds that 95th percentile under a 2.0 s ceiling. This is a divergence between two views of the same grid, not a measured error against a reference, and it does not establish which view is closer to the audio: `beats` carries per-beat onset quantization and the occasional dropped or doubled beat, while the extrapolation applies a single tempo across the whole track. **For sync, use the anchor plus tempo extrapolation, not the raw `beats` array.**
 
-This is moderate agreement with an auto-analyzed reference on heavily-produced material, dominated by fine tempo/phase disagreement that accumulates across a track rather than gross errors. For sync-critical work, prefer the anchor + tempo extrapolation, gate on `confidence`, and validate against your own material.
+That F-measure is roughly half the 0.75 the project targeted. The disagreement with the reference is dominated by fine tempo and phase error that accumulates across a track rather than by gross mistakes, on heavily-produced material scored against an auto-analyzed reference. For sync-critical work, prefer the anchor + tempo extrapolation over the raw `beats` array. The divergence figure above shows the two views are not interchangeable late in a long track; the reason to pick the extrapolation is that it is the library's canonical playable grid, not that the measurement proves it sits closer to the audio. Gate on `confidence`, and validate against your own material.
+
+The tracker assumes a constant tempo throughout. It does not detect or adapt to accelerando, rubato, or tempo-change sections, and on variable-tempo material the beats drift out of phase.
 
 ## License
 
