@@ -398,7 +398,7 @@ action_items:
     status: open
     note: "2026-07-21 reconciliation: 11-1 closed done 2026-07-18; both reviews ran CLEAN 2026-07-18; the epic-11 squash landed 2026-07-19 as PR #97 (8678498). Sole remainder: the 11-6 operator GUI smoke (popovers + the two VoiceOver checks), which flips 11-6 review -> done. (Issue #114)"
   - epic: 11
-    action: "Triage GitHub issues #109-#166 (2026-07-21 adversarial review of library, ML pipeline, tests, planning artifacts). P1 set: #111 PRD beat-grid amendment, #140 BNNS one-float OOB read (T3), #141 octave-folded decode, #154 CI accuracy floor, #159 fixture provenance, #166 ML roadmap decision feeding the Epic 12 PRD"
+    action: "Triage GitHub issues #109-#166 (2026-07-21 adversarial review of library, ML pipeline, tests, planning artifacts). P1 set: #111 PRD beat-grid amendment, #140 BNNS one-float OOB read (T3), #141 octave-folded decode (CLOSED 2026-07-26: implemented, measured net-negative at every threshold, removed; see 141-octave-fold-impact.json), #154 CI accuracy floor, #159 fixture provenance, #166 ML roadmap decision feeding the Epic 12 PRD"
     owner: "operator"
     status: open
   - epic: 11

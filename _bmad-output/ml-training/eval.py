@@ -80,70 +80,6 @@ def featurize_for_inference(audio: np.ndarray, fixture) -> np.ndarray:
     return z[np.newaxis, np.newaxis, :, :].astype(np.float32)  # (1, 1, n_mels, T)
 
 
-# ---------------------------------------------------------------------------
-# GH-141 octave-folded decode (mirror of
-# `BNNSTechnique.octaveFoldCandidate` in Sources/BoomBoomBoomKitML/).
-#
-# The Swift runtime and this offline scorer MUST agree, or a measured
-# improvement here would not be the improvement consumers get. Keep the two
-# in lockstep: same downward-only direction, same straddling-bin sum, same
-# >= comparison, same 60 BPM floor, same in-range precondition.
-#
-# NOT mirrored, deliberately: the Swift side's construction-time threshold
-# validation/clamping (this is a scorer; its caller passes a literal) and its
-# up-front non-finite-logit rejection. Those diverge only for thresholds
-# outside [0, 1] or a non-finite posterior, neither of which a normal model
-# output produces.
-# ---------------------------------------------------------------------------
-
-OCTAVE_FOLD_DISABLED = None
-
-
-def decode_bpm(probs: np.ndarray, fold_threshold: float | None = OCTAVE_FOLD_DISABLED) -> float:
-    """Decode a BPM from a 256-bin posterior.
-
-    With ``fold_threshold`` None this is the bare argmax the model was
-    trained against, byte-for-byte the pre-GH-141 behaviour. With a float
-    it folds to the fundamental when the posterior mass at half the argmax
-    tempo reaches ``fold_threshold`` times the argmax bin's own mass.
-
-    Folding is downward only: the E0 diagnostic measured 38 doubling
-    errors below 100 BPM and zero halving errors in any band.
-    """
-    # np.argmax raises on an empty array; Swift returns a clean abstain for
-    # empty logits, so refuse explicitly rather than surfacing a numpy error
-    # from the middle of a corpus scoring run.
-    if probs.size == 0:
-        raise ValueError("decode_bpm: empty posterior (Swift decodes this as abstain)")
-    pred_bin = int(np.argmax(probs))
-    bpm = float(pred_bin + BPM_BIN_MIN)
-    if fold_threshold is None:
-        return bpm
-    # Fold only on the in-range path, matching Swift: an out-of-range
-    # argmax keeps reporting raw.
-    if not (60.0 <= bpm <= 200.0):
-        return bpm
-    max_mass = float(probs[pred_bin])
-    if not np.isfinite(max_mass) or max_mass <= 0.0:
-        return bpm
-    folded = bpm / 2.0
-    if folded < 60.0:
-        return bpm
-    half_index = (pred_bin - BPM_BIN_MIN) / 2.0
-    lower, upper = int(np.floor(half_index)), int(np.ceil(half_index))
-    half_mass = 0.0
-    if 0 <= lower < len(probs):
-        half_mass += float(probs[lower])
-    if upper != lower and 0 <= upper < len(probs):
-        half_mass += float(probs[upper])
-    if half_mass <= 0.0:
-        return bpm
-    ratio = half_mass / max_mass
-    if np.isfinite(ratio) and ratio >= fold_threshold:
-        return folded
-    return bpm
-
-
 def predict_pytorch(
     model: torch.nn.Module, x: np.ndarray, device: torch.device
 ) -> tuple[float, np.ndarray, np.ndarray]:
@@ -154,7 +90,8 @@ def predict_pytorch(
         logits_t = model(t)
         probs = torch.softmax(logits_t, dim=1).cpu().numpy()[0]
         logits = logits_t.cpu().numpy()[0]
-    return decode_bpm(probs), probs, logits
+    pred_bin = int(np.argmax(probs))
+    return float(pred_bin + BPM_BIN_MIN), probs, logits
 
 
 def predict_coreml(mlmodel, x: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
@@ -171,7 +108,8 @@ def predict_coreml(mlmodel, x: np.ndarray) -> tuple[float, np.ndarray, np.ndarra
     # Apply softmax to convert logits → probs (CoreML model returns logits per AC #9)
     exp = np.exp(raw_arr - raw_arr.max())
     probs = exp / exp.sum()
-    return decode_bpm(probs), probs, raw_arr
+    pred_bin = int(np.argmax(probs))
+    return float(pred_bin + BPM_BIN_MIN), probs, raw_arr
 
 
 # ---------------------------------------------------------------------------

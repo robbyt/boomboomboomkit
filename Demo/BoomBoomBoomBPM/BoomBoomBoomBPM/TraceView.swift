@@ -301,17 +301,6 @@ struct TraceView: View {
         monoFloat(softmaxSecondMax, digits: 4)
       }
     }
-    // GH-141: surface fold provenance so a rewritten tempo is never shown
-    // as though the model decoded it directly. Reachable on the gate-reject
-    // paths too, not only on a win.
-    if let fold = diag.octaveFold {
-      LabeledContent("Octave fold from") {
-        monoFloat(fold.fromBPM, digits: 2)
-      }
-      LabeledContent("Fold mass ratio") {
-        monoFloat(fold.massRatio, digits: 4)
-      }
-    }
     if let failure = diag.failureStage {
       LabeledContent("Failure stage", value: failure.rawValue)
     }

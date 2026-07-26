@@ -1,8 +1,8 @@
 ---
-title: 'GH-141 — Octave-folded posterior decode in BNNSTechnique (opt-in) + per-band impact harness'
+title: 'GH-141 — Octave-folded posterior decode: measured, disproved, REMOVED'
 type: 'feature'
 created: '2026-07-26'
-status: 'done'
+status: 'removed'
 review_loop_iteration: 0
 baseline_commit: 'e74ce57'
 context: []
@@ -95,6 +95,34 @@ Verified against the plan document and the code before drafting:
 - Given the harness, when run without `BNNS_MODEL_URL`, then it skips with a printed reason and does not report a passing measurement.
 
 ## Spec Change Log
+
+**2026-07-26 (removal) — the feature is gone; the measurement is the deliverable.**
+A full-branch review found eight defects, all verified. Five existed only
+because the fold existed, and they cascaded: fixing the borrowed confidence
+forced a gate-2 exemption, which corrupted `Decode.softmaxMax` (its documented
+"max" fell below `softmaxSecondMax` on 602 of 604 folds), which made the golden
+fixture's posterior arithmetically impossible. Each repair spawned the next.
+Weighed against evidence that the fold is net-negative at EVERY threshold on the
+only model that exists, and that the mass ratio does not discriminate at all,
+the operator chose removal over further repair — matching the project's own rule
+that a headline deliverable which does not work gets Branch-C deletion rather
+than a deprecation cycle (Story 4-6 bundle pull; Story 8.9 revert).
+Removed: `OctaveFoldPolicy`, `Options.octaveFold`,
+`MLDiagnosticSnapshot.OctaveFold` and its projections, `octaveFoldCandidate` and
+the decode fold branch, the gate-2 exemption, three JSON/UI mirrors, the Python
+fold and its CLI flag, the impact harness, and `make octave-fold-impact-report`.
+These are **intentional public API removals** relative to `develop`, allowed
+pre-1.0. Fold-bearing JSON exports were never released and are intentionally
+unsupported.
+Kept: `BNNSTechnique.Options` (an API-design decision independent of the fold),
+the golden fixture's populated `diagnosticSnapshot` (with a coherent non-fold
+posterior — it was nil, so that schema had no coverage at all), and
+`141-octave-fold-impact.json` byte-for-byte with a provenance note.
+**KEEP on re-derivation:** one guard survives the deletion by design, in
+`BNNSTechniqueTests` — every successful decode must report
+`softmaxMax >= softmaxSecondMax` with the confidence and BPM both belonging to
+the argmax. That is the invariant the fold broke, and without it the corrupted
+behaviour could return unnoticed.
 
 **2026-07-26 (measurement) — the fold works exactly as designed and is still net-negative. E1 is closed as measured-and-failed.**
 The spec deliberately asserted no recovery number, and that restraint was
@@ -219,8 +247,8 @@ series, and each time only the mutation caught it.
 
 ## Verification
 
-**Commands (run 2026-07-26 at `e74ce57`):**
-- `make test` — **953 tests / 162 suites / 4 known issues, 0 failures.** Baseline was 941/161/4; the 12 new tests are the 11 fold fixtures plus the threshold-validation case. No corpus, no model required.
+**Commands (final figures; see the Change Log for the intermediate rounds):**
+- `make test` — **966 tests / 162 suites / 4 known issues, 0 failures.** Baseline before this branch was 941/161/4. No corpus, no model required for the fold fixtures.
 - `make lint` — **6 violations, 0 serious in 186 files.** Unchanged.
 - `uv run ruff check eval.py model.py` + `ruff format --check` — clean.
 - The five `bpm-diagnostic-trace` audit recipes — **0 matches each** against `Sources/` and `Tests/`.

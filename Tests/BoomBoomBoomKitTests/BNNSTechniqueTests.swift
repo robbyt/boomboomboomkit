@@ -129,44 +129,6 @@ struct BNNSTechniqueTests {
     }
   }
 
-  /// GH-141: the fold threshold follows the same rule as the gate
-  /// thresholds — non-finite throws, finite-out-of-range clamps. Both
-  /// halves are asserted, because a validator that only threw would be
-  /// indistinguishable from one that rejected every fold configuration.
-  @Test(
-    "octaveFold threshold: non-finite throws, out-of-range clamps",
-    .disabled(if: fixtureMissing(), "CustomBundled.mlmodelc fixture missing"))
-  @available(macOS 15.0, *)
-  func octaveFoldThresholdValidation() throws {
-    let url = try #require(fixtureURL())
-
-    for bad in [Double.nan, .infinity, -.infinity] {
-      var opts = BNNSTechnique.Options()
-      opts.octaveFold = .massRatio(threshold: bad)
-      do {
-        _ = try BNNSTechnique(modelURL: url, options: opts)
-        Issue.record("expected a throw for octaveFold threshold \(bad)")
-      } catch let MLTechniqueError.invalidThreshold(reason) {
-        #expect(reason.contains("octaveFold"), "the reason must name the offending knob")
-      } catch {
-        Issue.record("expected .invalidThreshold for \(bad), got \(error)")
-      }
-    }
-
-    var high = BNNSTechnique.Options()
-    high.octaveFold = .massRatio(threshold: 4.0)
-    #expect(
-      try BNNSTechnique(modelURL: url, options: high).octaveFold == .massRatio(threshold: 1.0))
-
-    var low = BNNSTechnique.Options()
-    low.octaveFold = .massRatio(threshold: -3.0)
-    #expect(try BNNSTechnique(modelURL: url, options: low).octaveFold == .massRatio(threshold: 0.0))
-
-    // Folding stays off unless asked for, even on a fully-constructed
-    // technique built from the shipped defaults.
-    #expect(try BNNSTechnique(modelURL: url).octaveFold == .disabled)
-  }
-
   /// NaN/Inf has no sensible interpretation as a probability floor, so
   /// it is a caller bug and surfaces as one instead of being silently
   /// replaced. Distinct from `.modelLoadFailed`: the model is fine.
@@ -496,6 +458,62 @@ struct BNNSTechniqueTests {
     #expect(
       baseline.confidence.bitPattern == withBNNS.confidence.bitPattern,
       "confidence bit-pattern must match between baseline and BNNS-loaded .dspOnly paths")
+  }
+
+  // MARK: - Decode payload invariants
+
+  /// The decoded pair must describe one coherent distribution.
+  ///
+  /// This is the guard that replaces GH-141's fold tests. That feature briefly
+  /// made `softmaxMax` carry a non-argmax bin's mass, so the recorded pair had
+  /// max < second-max on 602 of 604 folds and no longer described any
+  /// posterior a consumer could reason about. The feature is gone; this keeps
+  /// the invariant it violated from quietly returning.
+  ///
+  /// Drives the real decoder with synthetic logits, so it needs no model and
+  /// never skips.
+  @Test("a successful decode reports the argmax, and max >= second-max")
+  @available(macOS 15.0, *)
+  func decodePayloadDescribesOneDistribution() {
+    // Sweep argmax positions across the in-range band, each with a distinct
+    // runner-up, so a decoder that reported the wrong bin would land on a
+    // wrong BPM somewhere in the sweep.
+    for argmaxBin in [30, 61, 90, 110, 137, 170] {
+      var v = [Float](repeating: -60.0, count: 256)
+      v[argmaxBin] = 0.0
+      // Runner-up at a bin that is NOT the half tempo, so nothing about this
+      // depends on octave relationships.
+      v[(argmaxBin + 7) % 256] = -1.0
+
+      guard
+        case .success(let bpm, let maxProb, let secondProb) =
+          BNNSTechnique.decodeLogitsWithDiagnostic(v)
+      else {
+        Issue.record("bin \(argmaxBin) should decode in range")
+        return
+      }
+
+      #expect(
+        maxProb >= secondProb,
+        Comment(
+          rawValue:
+            "bin \(argmaxBin): max \(maxProb) < second \(secondProb) — the pair"
+            + " does not describe a distribution"))
+      #expect(
+        bpm == 30.0 + Double(argmaxBin),
+        "bin \(argmaxBin): decoded BPM must be the argmax bin's tempo")
+      // The reported max must be the argmax bin's own probability, not some
+      // other bin's mass substituted in.
+      #expect(maxProb > 0.0 && maxProb <= 1.0)
+      #expect(secondProb >= 0.0 && secondProb <= 1.0)
+      // exp(0) vs exp(-1): the argmax carries e/(e+1) of the two-bin mass.
+      #expect(
+        abs(maxProb / (maxProb + secondProb) - 0.7310) < 1e-3,
+        Comment(
+          rawValue:
+            "bin \(argmaxBin): the reported pair must be the softmax of the two"
+            + " populated logits, got \(maxProb) / \(secondProb)"))
+    }
   }
 
   // MARK: - decodeLogits hardening (Unit 1)

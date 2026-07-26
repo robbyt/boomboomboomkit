@@ -26,22 +26,18 @@
   },
   "ml" : {
     "diagnosticSnapshot" : {
-      "decodedBPM" : 70.5,
+      "decodedBPM" : 141,
       "inputFeatureChecksum" : 2882343476,
-      "octaveFold" : {
-        "fromBPM" : 141,
-        "massRatio" : 0.6125
-      },
-      "softmaxMax" : 0.72,
+      "softmaxMax" : 0.55,
       "softmaxSecondMax" : 0.18
     },
     "ensembleDecision" : {
-      "abstainKind" : "modelAbstained",
       "dspConfidence" : 0.85,
-      "mlAbstained" : true,
+      "mlAbstained" : false,
+      "mlConfidence" : 0.55,
       "policy" : "mlOnly",
-      "selectedBPM" : 120,
-      "winner" : "dsp"
+      "selectedBPM" : 141,
+      "winner" : "ml"
     }
   },
   "pipeline" : {

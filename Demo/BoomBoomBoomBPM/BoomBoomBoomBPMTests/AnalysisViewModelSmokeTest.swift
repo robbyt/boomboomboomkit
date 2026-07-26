@@ -1528,26 +1528,28 @@ struct AnalysisViewModelSmokeTest {
         ensembleDecision: EnsembleDecisionJSON(
           from: EnsembleDecision(
             policy: .mlOnly,
-            winner: .dsp,
+            winner: .ml,
             dspConfidence: 0.85,
-            mlConfidence: nil,
-            abstainKind: .modelAbstained,
-            selectedBPM: 120.0
+            // Consistent with the win-path diagnosticSnapshot below: the
+            // model produced an evaluation, so it cannot also be recorded
+            // as having abstained. A `.win` snapshot beside
+            // `abstainKind: .modelAbstained` is an impossible runtime state
+            // and would make the fixture a poor schema reference.
+            mlConfidence: 0.55,
+            abstainKind: nil,
+            selectedBPM: 141.0
           )),
-        // SCHEMA-COVERAGE fixture, not a recommended configuration. The
-        // octave fold ships default-OFF and measured net-negative on the
-        // reference model (GH-141); it is populated here solely so the
-        // golden actually exercises `MLDiagnosticSnapshotJSON` and its
-        // nested fold object. Previously nil, which meant no instance of
-        // that type was ever encoded and the schema went uncovered.
+        // SCHEMA-COVERAGE fixture. Populated because it was previously nil,
+        // which meant no instance of `MLDiagnosticSnapshotJSON` was ever
+        // encoded and its schema went entirely uncovered by this golden.
+        //
+        // The numbers are a coherent posterior: 0.55 argmax with a 0.18
+        // runner-up, so `softmaxMax >= softmaxSecondMax` holds as it must.
         diagnosticSnapshot: MLDiagnosticSnapshotJSON(
           from: MLDiagnosticSnapshot(
             inputFeatureChecksum: 0xABCD_1234,
             outcome: .win(
-              .init(
-                bpm: 70.5, softmaxMax: 0.72, softmaxSecondMax: 0.18,
-                octaveFold: MLDiagnosticSnapshot.OctaveFold(
-                  fromBPM: 141.0, massRatio: 0.6125))))),
+              .init(bpm: 141.0, softmaxMax: 0.55, softmaxSecondMax: 0.18)))),
         featureFramesShape: nil
       )
     )
