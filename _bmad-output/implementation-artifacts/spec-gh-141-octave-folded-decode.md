@@ -219,8 +219,8 @@ series, and each time only the mutation caught it.
 
 ## Verification
 
-**Commands (run 2026-07-26 at `e74ce57`):**
-- `make test` — **953 tests / 162 suites / 4 known issues, 0 failures.** Baseline was 941/161/4; the 12 new tests are the 11 fold fixtures plus the threshold-validation case. No corpus, no model required.
+**Commands (final figures; see the Change Log for the intermediate rounds):**
+- `make test` — **966 tests / 162 suites / 4 known issues, 0 failures.** Baseline before this branch was 941/161/4. No corpus, no model required for the fold fixtures.
 - `make lint` — **6 violations, 0 serious in 186 files.** Unchanged.
 - `uv run ruff check eval.py model.py` + `ruff format --check` — clean.
 - The five `bpm-diagnostic-trace` audit recipes — **0 matches each** against `Sources/` and `Tests/`.

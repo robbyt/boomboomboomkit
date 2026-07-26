@@ -1528,11 +1528,16 @@ struct AnalysisViewModelSmokeTest {
         ensembleDecision: EnsembleDecisionJSON(
           from: EnsembleDecision(
             policy: .mlOnly,
-            winner: .dsp,
+            winner: .ml,
             dspConfidence: 0.85,
-            mlConfidence: nil,
-            abstainKind: .modelAbstained,
-            selectedBPM: 120.0
+            // Consistent with the win-path diagnosticSnapshot below: the
+            // model produced an evaluation, so it cannot also be recorded
+            // as having abstained. A `.win` snapshot beside
+            // `abstainKind: .modelAbstained` is an impossible runtime state
+            // and would make the fixture a poor schema reference.
+            mlConfidence: 0.72,
+            abstainKind: nil,
+            selectedBPM: 70.5
           )),
         // SCHEMA-COVERAGE fixture, not a recommended configuration. The
         // octave fold ships default-OFF and measured net-negative on the

@@ -55,9 +55,11 @@ public enum OctaveFoldPolicy: Sendable, Equatable {
   /// The reason is that the ratio does not discriminate. Folds that helped
   /// had a median ratio of 0.199; folds that hurt had a median of 0.192,
   /// and 336 of the 346 harmful folds sat above the smallest helpful one.
-  /// No threshold separates the two populations, because the model is
-  /// *confidently* wrong on the tracks that need folding: it puts its mass
-  /// at the doubled tempo and essentially none at the fundamental.
+  /// No threshold separates the two populations. The fundamental is not
+  /// starved of mass — it typically carries about a fifth of the argmax's,
+  /// median ratio 0.199 where folding helps. The problem is that it carries
+  /// the same fifth where folding hurts, median 0.192. The quantity simply
+  /// does not correlate with whether the fold is right.
   ///
   /// Scope of that claim: the experiment disproves *this scalar mass-ratio
   /// threshold*, not every posterior-derived rule. What is measured is that

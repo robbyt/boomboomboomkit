@@ -36,12 +36,12 @@
       "softmaxSecondMax" : 0.18
     },
     "ensembleDecision" : {
-      "abstainKind" : "modelAbstained",
       "dspConfidence" : 0.85,
-      "mlAbstained" : true,
+      "mlAbstained" : false,
+      "mlConfidence" : 0.72,
       "policy" : "mlOnly",
-      "selectedBPM" : 120,
-      "winner" : "dsp"
+      "selectedBPM" : 70.5,
+      "winner" : "ml"
     }
   },
   "pipeline" : {

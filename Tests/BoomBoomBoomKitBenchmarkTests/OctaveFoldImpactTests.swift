@@ -49,7 +49,12 @@ private struct BandResult: Codable {
   let acc2Unfolded: Int
   let acc2Folded: Int
   /// Positive means the fold helped this band; negative means it hurt.
-  var acc1Delta: Int { acc1Folded - acc1Unfolded }
+  ///
+  /// STORED, not computed. Synthesized `Codable` does not encode computed
+  /// properties, so a `var acc1Delta: Int { ... }` would read correctly in
+  /// Swift and be silently absent from the emitted JSON — which is the one
+  /// place the acceptance criteria asks for it.
+  let acc1Delta: Int
 }
 
 private struct ThresholdResult: Codable {
@@ -58,7 +63,8 @@ private struct ThresholdResult: Codable {
   let bands: [BandResult]
   let acc1Unfolded: Int
   let acc1Folded: Int
-  var netAcc1Delta: Int { acc1Folded - acc1Unfolded }
+  /// Stored for the same reason as ``BandResult/acc1Delta``.
+  let netAcc1Delta: Int
 }
 
 private struct FoldImpactReport: Codable {
@@ -74,6 +80,9 @@ private struct FoldImpactReport: Codable {
   /// Ground-truth entries whose audio was not on disk. Reported separately
   /// from abstains so a partial corpus can never read as a full one.
   let tracksMissingAudio: Int
+  /// Ground-truth entries whose analysis threw. Distinct from an abstain:
+  /// the model never got to decline, the pipeline failed first.
+  let tracksAnalysisFailed: Int
   let thresholds: [ThresholdResult]
   let perTrack: [FoldTrackRow]
 }
@@ -183,6 +192,7 @@ struct OctaveFoldImpactTests {
     var rows: [FoldTrackRow] = []
     var abstained = 0
     var missingAudio = 0
+    var analysisFailed = 0
 
     for track in tracks {
       let url = URL(fileURLWithPath: corpusPath)
@@ -205,7 +215,16 @@ struct OctaveFoldImpactTests {
       options.mlTechnique = technique
       options.ensemblePolicy = .mlOnly
 
-      let analysis = try? AudioAnalysisService.analyzeBPM(url: url, options: options)
+      // A thrown pipeline or audio error is NOT a model abstain, and
+      // conflating the two would let a corpus of unreadable files report as
+      // a corpus the model declined to decode.
+      let analysis: AudioAnalysisResult?
+      do {
+        analysis = try AudioAnalysisService.analyzeBPM(url: url, options: options)
+      } catch {
+        analysisFailed += 1
+        continue
+      }
       // Read the snapshot the service already produced rather than
       // re-invoking the technique: one inference per track, and the decode
       // measured is the one the real runtime path produced.
@@ -272,13 +291,14 @@ struct OctaveFoldImpactTests {
         bandResults.append(
           BandResult(
             band: band.name, n: inBandRows.count, acc1Unfolded: a1u, acc1Folded: a1f,
-            acc2Unfolded: a2u, acc2Folded: a2f))
+            acc2Unfolded: a2u, acc2Folded: a2f, acc1Delta: a1f - a1u))
       }
       thresholdResults.append(
         ThresholdResult(
           threshold: t, foldsFired: fired, bands: bandResults,
           acc1Unfolded: bandResults.reduce(0) { $0 + $1.acc1Unfolded },
-          acc1Folded: bandResults.reduce(0) { $0 + $1.acc1Folded }))
+          acc1Folded: bandResults.reduce(0) { $0 + $1.acc1Folded },
+          netAcc1Delta: bandResults.reduce(0) { $0 + $1.acc1Delta }))
     }
 
     // Every ground-truth entry must be accounted for in exactly one
@@ -289,27 +309,44 @@ struct OctaveFoldImpactTests {
     // execution continue — so the unusable report would still be written
     // and could be picked up as evidence. Fail before anything lands.
     try #require(
-      rows.count + abstained + missingAudio == tracks.count,
+      rows.count + abstained + missingAudio + analysisFailed == tracks.count,
       Comment(
         rawValue:
           "accounting mismatch: \(rows.count) decoded + \(abstained) abstained +"
-          + " \(missingAudio) missing != \(tracks.count) ground-truth entries"))
+          + " \(missingAudio) missing + \(analysisFailed) errored"
+          + " != \(tracks.count) ground-truth entries"))
 
+    // Provenance has to be usable, not merely present. "unknown" was the
+    // only value rejected before, which let a `-dirty` tree through — and a
+    // dirty tree is precisely the case where the SHA does NOT identify the
+    // source that produced the numbers.
     let gitSHA = env["GIT_SHA"] ?? "unknown"
     try #require(
-      gitSHA != "unknown",
+      gitSHA != "unknown" && !gitSHA.hasSuffix("-dirty")
+        && gitSHA.count >= 7 && gitSHA.allSatisfy(\.isHexDigit),
       Comment(
         rawValue:
-          "GIT_SHA is unset, so this artifact cannot be attributed to a commit."
-          + " Run via `make octave-fold-impact-report`, which sets it."))
+          "GIT_SHA must be a clean commit id, got '\(gitSHA)'. A dirty tree or"
+          + " an unset variable means this artifact cannot be attributed to the"
+          + " source that produced it. Commit first, then run"
+          + " `make octave-fold-impact-report`."))
+
+    let digest = bundleDigest(URL(fileURLWithPath: modelPath))
+    try #require(
+      digest != "unavailable",
+      Comment(
+        rawValue:
+          "could not digest the model bundle at \(modelPath); without it the"
+          + " report names a mutable path and nothing else."))
 
     let report = FoldImpactReport(
       corpus: "giantsteps", modelPath: modelPath,
-      modelDigest: bundleDigest(URL(fileURLWithPath: modelPath)),
+      modelDigest: digest,
       gitSHA: gitSHA,
       tracksInGroundTruth: tracks.count,
       tracksEvaluated: rows.count, tracksAbstained: abstained,
       tracksMissingAudio: missingAudio,
+      tracksAnalysisFailed: analysisFailed,
       thresholds: thresholdResults, perTrack: rows)
 
     let encoder = JSONEncoder()

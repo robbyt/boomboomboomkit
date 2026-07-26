@@ -489,8 +489,21 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
               gate: .gate1Softmax))
         )
       }
+      // Gate 2 is skipped for a folded decode (GH-141). The margin asks
+      // "is my pick clearly better than the runner-up?", which is not a
+      // question that applies once the caller has deliberately opted into
+      // overriding the argmax: the folded tempo is by construction NOT the
+      // top bin, so its margin against the pre-fold runner-up is negative
+      // for 602 of the 604 folds the reference corpus produces. Leaving
+      // gate 2 in force would make `.massRatio` emit nothing at any
+      // threshold >= 0, which is a silently inert knob rather than a
+      // conservative one.
+      //
+      // Gate 1 still applies and is what keeps this honest: the fold has
+      // already replaced `confidence` with the FUNDAMENTAL's own mass, so a
+      // weakly-supported fold fails the absolute floor on its own merits.
       let margin = confidence - secondMax
-      if margin < marginThreshold {
+      if fold == nil, margin < marginThreshold {
         return (
           nil,
           MLDiagnosticSnapshot(
@@ -940,8 +953,21 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     if let fold = octaveFoldCandidate(
       probs: probs, maxIdx: maxIdx, maxMass: maxVal, fromBPM: bpm, policy: policy)
     {
+      // Confidence must describe the tempo actually returned. Reporting the
+      // argmax bin's mass here would claim high confidence in a tempo the
+      // model gave little mass to — a 0.09-mass fundamental emitted at 0.90
+      // would clear a 0.50 gate and reach ensemble arbitration as a
+      // confident ML vote. Carrying the fundamental's own mass instead makes
+      // the fold self-limiting: it survives the gates only where the
+      // fundamental has real support.
+      //
+      // `secondMax` deliberately keeps the pre-fold runner-up. It exists to
+      // measure how peaked the posterior was, which is a property of the
+      // distribution rather than of whichever bin was selected, and the
+      // gate-2 margin is only meaningful against that same distribution.
+      let foldedConfidence = min(max(Double(fold.foldedMass), 0.0), 1.0)
       return .success(
-        bpm: fold.foldedBPM, confidence: Double(confidence),
+        bpm: fold.foldedBPM, confidence: foldedConfidence,
         secondMax: Double(secondMax), fold: fold.record)
     }
     return .success(
@@ -968,7 +994,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     maxMass: Float,
     fromBPM: Double,
     policy: OctaveFoldPolicy
-  ) -> (foldedBPM: Double, record: MLDiagnosticSnapshot.OctaveFold)? {
+  ) -> (foldedBPM: Double, foldedMass: Float, record: MLDiagnosticSnapshot.OctaveFold)? {
     // Clamp here as well as in the initializer: this function is
     // `internal` and directly callable, so it cannot assume its policy
     // came through `init(modelURL:options:)`. A negative threshold
@@ -1012,7 +1038,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       let record = MLDiagnosticSnapshot.OctaveFold(
         fromBPM: fromBPM, massRatio: ratio)
     else { return nil }
-    return (foldedBPM, record)
+    return (foldedBPM, halfMass, record)
   }
 
   // MARK: - validateContract

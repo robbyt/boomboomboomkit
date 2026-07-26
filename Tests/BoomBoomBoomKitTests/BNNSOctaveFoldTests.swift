@@ -353,6 +353,76 @@ struct BNNSOctaveFoldTests {
     #expect(bpm == 270.0, "the raw out-of-range value is still what gets reported")
   }
 
+  // MARK: - Confidence semantics
+
+  /// A folded result must report the FUNDAMENTAL's posterior mass, not the
+  /// rejected octave's. Reporting the argmax mass would let a low-support
+  /// tempo clear a high confidence gate and reach ensemble arbitration as a
+  /// confident vote.
+  @Test("a folded result carries the fundamental's mass as its confidence")
+  @available(macOS 15.0, *)
+  func foldedConfidenceIsTheFundamentalsMass() throws {
+    // Argmax at 140 BPM, fundamental at 70 carrying 20% of its mass.
+    let v = logits(argmaxBin: 110, companions: [(bin: 40, ratio: 0.2)])
+
+    guard
+      case .success(let unfoldedBPM, let argmaxConf, _, _) =
+        BNNSTechnique.decodeLogitsWithDiagnostic(v, policy: .disabled)
+    else {
+      Issue.record("expected .success")
+      return
+    }
+    guard
+      case .success(let foldedBPM, let foldedConf, _, let fold) =
+        BNNSTechnique.decodeLogitsWithDiagnostic(v, policy: .massRatio(threshold: 0.1))
+    else {
+      Issue.record("expected .success")
+      return
+    }
+    #expect(unfoldedBPM == 140.0)
+    #expect(foldedBPM == 70.0)
+    #expect(try #require(fold).massRatio > 0.19)
+
+    // The whole point: the folded confidence is markedly LOWER, because the
+    // model gave the fundamental far less mass.
+    #expect(
+      foldedConf < argmaxConf,
+      "folded confidence \(foldedConf) must not inherit the argmax's \(argmaxConf)")
+    // And it is the fundamental's actual mass, within float tolerance.
+    #expect(
+      abs(foldedConf - argmaxConf * 0.2) < 1e-4,
+      "expected ~\(argmaxConf * 0.2), got \(foldedConf)")
+    #expect(foldedConf >= 0.0 && foldedConf <= 1.0)
+  }
+
+  /// The consequence that makes this load-bearing: a fold whose fundamental
+  /// has weak support must now FAIL a confidence gate it would previously
+  /// have passed on the argmax's strength.
+  @Test("a weakly-supported fold no longer passes a gate on borrowed confidence")
+  @available(macOS 15.0, *)
+  func weaklySupportedFoldFailsTheGate() throws {
+    let v = logits(argmaxBin: 110, companions: [(bin: 40, ratio: 0.15)])
+    guard
+      case .success(_, let argmaxConf, _, _) =
+        BNNSTechnique.decodeLogitsWithDiagnostic(v, policy: .disabled)
+    else {
+      Issue.record("expected .success")
+      return
+    }
+    guard
+      case .success(_, let foldedConf, _, _) =
+        BNNSTechnique.decodeLogitsWithDiagnostic(v, policy: .massRatio(threshold: 0.1))
+    else {
+      Issue.record("expected .success")
+      return
+    }
+    // Pick a gate the argmax clears and the fundamental does not, proving
+    // the two are not interchangeable at the abstain boundary.
+    let gate = (argmaxConf + foldedConf) / 2.0
+    #expect(argmaxConf >= gate, "precondition: argmax clears this gate")
+    #expect(foldedConf < gate, "the folded tempo must NOT clear it")
+  }
+
   // MARK: - Fold-record construction
 
   /// `OctaveFold` is `Hashable`, and `Decode`/`Outcome`/`MLDiagnosticSnapshot`
