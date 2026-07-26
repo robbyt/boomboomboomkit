@@ -25,6 +25,16 @@
     ]
   },
   "ml" : {
+    "diagnosticSnapshot" : {
+      "decodedBPM" : 70.5,
+      "inputFeatureChecksum" : 2882343476,
+      "octaveFold" : {
+        "fromBPM" : 141,
+        "massRatio" : 0.6125
+      },
+      "softmaxMax" : 0.72,
+      "softmaxSecondMax" : 0.18
+    },
     "ensembleDecision" : {
       "abstainKind" : "modelAbstained",
       "dspConfidence" : 0.85,
@@ -116,7 +126,7 @@
     "durationHint" : true,
     "durationHintMinFileSeconds" : 180,
     "elapsedSeconds" : 1.5,
-    "enableMLDiagnostics" : false,
+    "enableMLDiagnostics" : true,
     "enableTrace" : true,
     "ensemblePolicy" : "mlOnly",
     "fileName" : "golden-fixture.wav",

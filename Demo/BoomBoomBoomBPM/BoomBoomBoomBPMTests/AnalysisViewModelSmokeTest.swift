@@ -1466,7 +1466,9 @@ struct AnalysisViewModelSmokeTest {
         durationHintMinFileSeconds: 180,
         ensemblePolicy: "mlOnly",
         enableTrace: true,
-        enableMLDiagnostics: false,
+        // True because this fixture carries a diagnosticSnapshot below.
+        // A snapshot under a false flag would be internally inconsistent.
+        enableMLDiagnostics: true,
         maxSeconds: 120,
         elapsedSeconds: 1.5,
         bpm: 120.0,
@@ -1532,7 +1534,20 @@ struct AnalysisViewModelSmokeTest {
             abstainKind: .modelAbstained,
             selectedBPM: 120.0
           )),
-        diagnosticSnapshot: nil,
+        // SCHEMA-COVERAGE fixture, not a recommended configuration. The
+        // octave fold ships default-OFF and measured net-negative on the
+        // reference model (GH-141); it is populated here solely so the
+        // golden actually exercises `MLDiagnosticSnapshotJSON` and its
+        // nested fold object. Previously nil, which meant no instance of
+        // that type was ever encoded and the schema went uncovered.
+        diagnosticSnapshot: MLDiagnosticSnapshotJSON(
+          from: MLDiagnosticSnapshot(
+            inputFeatureChecksum: 0xABCD_1234,
+            outcome: .win(
+              .init(
+                bpm: 70.5, softmaxMax: 0.72, softmaxSecondMax: 0.18,
+                octaveFold: MLDiagnosticSnapshot.OctaveFold(
+                  fromBPM: 141.0, massRatio: 0.6125))))),
         featureFramesShape: nil
       )
     )

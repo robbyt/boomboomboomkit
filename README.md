@@ -458,7 +458,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `SignalWeights` | Per-source weights for `EnsemblePolicy.weightedVoting` (`dsp` / `ml` / `fileMetadata` / `beatGrid`; `.default` = equal weighting) |
 | `EnsembleDecision` | Diagnostic record of the combiner outcome (`Winner` is `.dsp` / `.ml` / `.tie`) |
 | `MLDiagnosticTechnique` | Opt-in capability protocol producing per-evaluation snapshots |
-| `MLDiagnosticSnapshot` | Per-evaluation diagnostic carrier (decoded BPM, softmax top-2, checksum, failure stage) |
+| `MLDiagnosticSnapshot` | Per-evaluation diagnostic carrier (decoded BPM, softmax top-2, checksum, failure stage, octave-fold provenance) |
 | `MLFeatureFrames` | Typed log-mel feature payload carried on the trace |
 | `TensorLayout` | Tensor layout tag for `MLFeatureFrames` (`.frameMajorLogMel`, `.nchw`) |
 | `MLTechniqueError` | Construction-time errors for ML conformers |

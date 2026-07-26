@@ -268,6 +268,15 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
   /// Softmax-second-max probability, or nil when no logit vector was decoded.
   public var softmaxSecondMax: Double? { decode?.softmaxSecondMax }
 
+  /// Fold provenance, or nil when the tempo is the bare argmax (GH-141).
+  ///
+  /// Non-nil on any decoded outcome whose tempo was rewritten, which
+  /// includes the two ``Outcome/confidenceGateRejected(_:gate:)`` paths: a
+  /// fold can fire and the result still fail a gate, and the provenance
+  /// matters most there. ``Outcome/decodeRejectedOutOfRange(_:)`` never
+  /// carries one, because the range check runs before folding.
+  public var octaveFold: OctaveFold? { decode?.octaveFold }
+
   /// Categorical view of ``outcome``, `nil` on the win path. Use this for
   /// histogram reporting and stable string export; the numeric evidence in
   /// ``decode`` is what actually diagnoses a failure.
@@ -349,9 +358,17 @@ public struct MLDiagnosticSnapshot: Sendable, Hashable, CustomStringConvertible 
     let bpmField = decodedBPM.map { String(format: "%.2f", $0) } ?? "nil"
     let confField = softmaxMax.map { String(format: "%.3f", $0) } ?? "nil"
     let gateLabel = gateFired?.rawValue ?? "-"
+    // GH-141: a folded tempo must not be indistinguishable from a bare
+    // argmax here. Emitted only when a fold happened, so the far more
+    // common no-fold string stays byte-identical to pre-GH-141.
+    let foldField =
+      octaveFold.map {
+        String(
+          format: ", foldFromBPM: %.2f, foldMassRatio: %.3f", $0.fromBPM, $0.massRatio)
+      } ?? ""
     return
       "MLDiagnosticSnapshot(stage: \(stageLabel), bpm: \(bpmField), "
       + "softmaxMax: \(confField), gate: \(gateLabel), "
-      + "checksum: 0x\(String(inputFeatureChecksum, radix: 16)))"
+      + "checksum: 0x\(String(inputFeatureChecksum, radix: 16))\(foldField))"
   }
 }

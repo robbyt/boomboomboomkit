@@ -167,6 +167,13 @@ The legacy story-tagged filenames (`4-5-bnns-impact-report.json`, `4-6-bnns-impa
   "dsp_correct_control_results": [/* 4 rows: same shape, "did ML break what DSP got right?" preservation oracle */],
   "all_tracks": [/* 82 rows: per-track dsp_winner, ml_winner, ensemble_winner, ml_diagnostic_snapshot */],
   "failure_stage_histogram": { /* 7-bucket: noAbstain, featuresAbsent, featureVersionMismatch, featurizeRejected, graphFailed, decodeRejected, confidenceGateRejected */ },
+  /* Each row in `all_tracks[].ml_diagnostic_snapshot` may carry an optional
+     `octave_fold: { from_bpm, mass_ratio }` (GH-141). Additive and optional, so
+     the schema stays at 3 — v3 marked a breaking envelope/filename change, and
+     bumping for an optional field would make every report differ only in its
+     version string. NOTE this harness pins the octave fold OFF, so the field is
+     always absent today; it exists so a future fold-enabled run is not silently
+     indistinguishable from one that decoded bare argmax. */
   "corpus_distribution": {
     "wrong_non_abstain_count": 54, "decoded_bpm_total_count": 82,
     "decoded_bpm_histogram_5bpm_bins": [/* 28 bins */],

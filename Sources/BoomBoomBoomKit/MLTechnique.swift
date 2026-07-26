@@ -107,7 +107,7 @@ public struct MLEvaluation: Sendable {
 ///    targeting the bundled tensor contract (`input` shape `[1,1,128,512]`,
 ///    `output` shape `[1, 256]`).
 /// 2. Pass the resulting `.mlmodelc` to
-///    ``BNNSTechnique/init(modelURL:confidenceThreshold:marginThreshold:)``:
+///    ``BNNSTechnique/init(modelURL:options:)``:
 ///    `Options.mlTechnique = try? BNNSTechnique(modelURL: myURL)`.
 /// 3. Or implement a custom ``MLTechnique`` from scratch and assign it to
 ///    `Options.mlTechnique` directly — any backend works.
@@ -148,7 +148,7 @@ public protocol MLTechnique: Sendable {
 /// Failures that an ``MLTechnique`` conformer's initializer may throw.
 ///
 /// These cases cover the documented failure surface for
-/// ``BNNSTechnique/init(modelURL:confidenceThreshold:marginThreshold:)``;
+/// ``BNNSTechnique/init(modelURL:options:)``;
 /// custom conformers SHOULD reuse them for symmetry with the bundled
 /// implementation, but are free to define their own error types if more
 /// granular reporting is needed.
@@ -201,7 +201,7 @@ public enum MLTechniqueError: Error, Sendable {
 
   /// A configuration value supplied to a conformer's initializer was not
   /// a finite number. Fires from
-  /// ``BNNSTechnique/init(modelURL:confidenceThreshold:marginThreshold:)``
+  /// ``BNNSTechnique/init(modelURL:options:)``
   /// when either abstain threshold is NaN or infinite. `reason` names the
   /// offending values.
   ///
