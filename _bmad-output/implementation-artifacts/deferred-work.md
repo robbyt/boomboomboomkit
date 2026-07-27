@@ -1212,3 +1212,9 @@ Added by the item-6 adversarial review pass (two lenses, 2026-07-25):
 - source_spec: `_bmad-output/implementation-artifacts/spec-gh-141-octave-folded-decode.md`
   summary: `octave-bias-finding-and-plan.md` still presents E1 (octave-folded decode) as "free, this is the immediate win" and projects "348 -> ~401 GiantSteps". Both are now measured false and the document is unamended.
   evidence: Carried over from the pre-removal ledger and still open. The plan doc is the artifact that sequences E1 through E4; leaving E1 described as the immediate win will mislead whoever picks up Epic 12. Deliberately not amended in a code PR — the corrected ranking belongs in the Epic 12 PRD seed (#166 / row 10), so the record lives in one place rather than two. **Re-open trigger:** the Epic 12 PRD is drafted, OR anyone cites the "~401" projection as live.
+
+## Deferred from: PR #180 review (2026-07-26)
+
+- source_spec: none (GH-167 item 7, #129/#131)
+  summary: `.expandedCandidates` and `TechniqueSet.candidateCount` encode the same configuration dimension twice, which is why an override mechanism was needed at all.
+  evidence: `candidateCount` derives from `.expandedCandidates` membership (5 vs 3) unless pinned, so the same intent is expressible two ways and the type has to reconcile them. The cleaner model removes `.expandedCandidates` from `DSPTechnique` and models candidate selection as its own axis. Not done here: `DSPTechnique.allCases.count == 8` and `TechniqueSet.allDSPCombinations().count == 256` are unit-test-locked invariants, and the 256-combination ablation matrix's *meaning* changes if one of its dimensions stops being a technique. That is an ablation-model redesign with its own corpus re-measurement, not a patch riding on an input-hardening fix. **Re-open trigger:** an ablation-matrix redesign story, OR a third way to express candidate count appearing.

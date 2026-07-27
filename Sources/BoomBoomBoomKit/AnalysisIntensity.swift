@@ -124,7 +124,7 @@ public enum AnalysisIntensity: String, CaseIterable, Sendable, Hashable, Compara
   public var techniqueSet: TechniqueSet {
     switch self {
     case .level1:
-      return TechniqueSet(candidateCount: 1)
+      return TechniqueSet(candidateCountOverride: 1)
     case .level2:
       return .baseline
     case .level3, .level4, .level5, .level6, .level7, .level8, .level9, .level10:

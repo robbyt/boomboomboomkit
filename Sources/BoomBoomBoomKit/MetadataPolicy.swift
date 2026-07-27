@@ -83,27 +83,63 @@ public struct MetadataPolicy: Sendable, Hashable {
   /// Absolute BPM difference under which two enabled-source tags are treated
   /// as "unanimous consensus" (default 0.5). At 128 BPM, this means tags at
   /// `(128.0, 128.3)` agree but `(128.0, 129.0)` disagree.
-  public var consensusTolerance: Double
+  public var consensusTolerance: Double {
+    get { _consensusTolerance }
+    set {
+      _consensusTolerance = Self.normalizeNonNegative(
+        newValue, default: Self.defaultConsensusTolerance)
+    }
+  }
+  private var _consensusTolerance: Double
 
   /// Relative tolerance for declaring a DSP candidate corroborated by a tag at
   /// the same tempo (default 0.03 = 3%). Match condition: `abs(C - T) / T <= tol`.
-  public var corroborationTolerance: Double
+  public var corroborationTolerance: Double {
+    get { _corroborationTolerance }
+    set {
+      _corroborationTolerance = Self.normalizeNonNegative(
+        newValue, default: Self.defaultCorroborationTolerance)
+    }
+  }
+  private var _corroborationTolerance: Double
 
   // MARK: - Boost / Penalty
 
   /// Multiplicative boost applied to a corroborated candidate's score and to
   /// the resulting confidence (default 1.25). Confidence is clamped at
   /// ``maxBoostedConfidence``.
-  public var corroborationBoost: Double
+  public var corroborationBoost: Double {
+    get { _corroborationBoost }
+    set {
+      _corroborationBoost = Self.normalizeNonNegative(
+        newValue, default: Self.defaultCorroborationBoost)
+    }
+  }
+  private var _corroborationBoost: Double
 
-  /// Hard ceiling for boosted confidence (default 0.95). Cannot reach 1.0 by
-  /// construction — the library never claims certainty from tag agreement
-  /// alone.
-  public var maxBoostedConfidence: Double
+  /// Hard ceiling for boosted confidence. The **default policy** caps this at
+  /// 0.95, so corroborated confidence stays below certainty; a caller may
+  /// configure 1.0 and thereby opt out of that. The guarantee belongs to the
+  /// default, not to the type.
+  public var maxBoostedConfidence: Double {
+    get { _maxBoostedConfidence }
+    set {
+      _maxBoostedConfidence = Self.normalizeUnitInterval(
+        newValue, default: Self.defaultMaxBoostedConfidence)
+    }
+  }
+  private var _maxBoostedConfidence: Double
 
   /// Multiplicative penalty applied to the winning candidate's confidence
   /// when a unanimous tag set disagrees with all DSP candidates (default 0.85).
-  public var skepticismPenalty: Double
+  public var skepticismPenalty: Double {
+    get { _skepticismPenalty }
+    set {
+      _skepticismPenalty = Self.normalizeUnitInterval(
+        newValue, default: Self.defaultSkepticismPenalty)
+    }
+  }
+  private var _skepticismPenalty: Double
 
   // MARK: - Ratio Gates
 
@@ -123,11 +159,72 @@ public struct MetadataPolicy: Sendable, Hashable {
 
   /// Acceptable BPM range after parsing (default `30.0...300.0`). Values
   /// outside this range are rejected with `rejectionReason == "out-of-range"`.
-  public var valueRange: ClosedRange<Double>
+  public var valueRange: ClosedRange<Double> {
+    get { _valueRange }
+    set { _valueRange = Self.normalizeValueRange(newValue) }
+  }
+  private var _valueRange: ClosedRange<Double>
 
   /// Per-tag string-parsing hygiene rules (whitespace/BOM stripping, locale
   /// decimal comma, range midpoint, sentinel-zero, non-numeric).
   public var parsing: ParsingOptions
+
+  // MARK: - Defaults and normalization (GH-129)
+
+  /// Shipped defaults, named so the declaration, the initializer, the
+  /// non-finite fallback, the doc comments and the tests cannot drift apart.
+  public static let defaultConsensusTolerance: Double = 0.5
+  /// See ``defaultConsensusTolerance``.
+  public static let defaultCorroborationTolerance: Double = 0.03
+  /// See ``defaultConsensusTolerance``.
+  public static let defaultCorroborationBoost: Double = 1.25
+  /// See ``defaultConsensusTolerance``.
+  public static let defaultMaxBoostedConfidence: Double = 0.95
+  /// See ``defaultConsensusTolerance``.
+  public static let defaultSkepticismPenalty: Double = 0.85
+  /// See ``defaultConsensusTolerance``.
+  public static let defaultValueRange: ClosedRange<Double> = 30.0...300.0
+
+  /// `isFinite`-first, then clamp to non-negative. A non-finite value is a
+  /// caller bug with no sensible reading, so it is **replaced by the
+  /// documented default** rather than clamped — the `SignalWeights` and
+  /// `ComputeBudget` convention. A negative one carries intent (it just makes
+  /// every comparison fail) and clamps to zero.
+  private static func normalizeNonNegative(_ value: Double, default fallback: Double) -> Double {
+    value.isFinite ? max(value, 0.0) : fallback
+  }
+
+  /// As ``normalizeNonNegative(_:default:)`` but clamped to `0.0...1.0`, for
+  /// the two fields that are probabilities.
+  private static func normalizeUnitInterval(_ value: Double, default fallback: Double) -> Double {
+    value.isFinite ? min(max(value, 0.0), 1.0) : fallback
+  }
+
+  /// Repair only **objectively invalid** ranges; leave unusual-but-legal ones
+  /// alone.
+  ///
+  /// A negative lower bound **clamps to zero** rather than reverting, matching
+  /// the scalar rule that a negative value carries intent. Only a range that
+  /// cannot be repaired — a non-finite endpoint, or one still inverted after
+  /// clamping — falls back to the default.
+  ///
+  /// NOT repaired, deliberately: `128.0...128.0` is a working exact-match
+  /// filter (``valueRange`` is consumed only via `contains`), and `0.0...0.0`
+  /// is meaningful when ``ParsingOptions/treatZeroAsAbsent`` is `false`.
+  /// Widening either would silently override a caller's filter.
+  ///
+  /// An **inverted** range never reaches here: `ClosedRange` traps at the
+  /// caller's construction site when `upperBound < lowerBound`. The clamp
+  /// order below matters for the same reason — clamping `-10.0 ... -1.0`
+  /// before the orderability check would try to form `0.0 ... -1.0` and trap.
+  private static func normalizeValueRange(_ range: ClosedRange<Double>) -> ClosedRange<Double> {
+    guard range.lowerBound.isFinite, range.upperBound.isFinite else {
+      return defaultValueRange
+    }
+    let lowerBound = max(range.lowerBound, 0)
+    guard lowerBound <= range.upperBound else { return defaultValueRange }
+    return lowerBound...range.upperBound
+  }
 
   // MARK: - Init
 
@@ -142,9 +239,10 @@ public struct MetadataPolicy: Sendable, Hashable {
   ///     parsed BPM against a DSP candidate.
   ///   - corroborationBoost: Multiplicative confidence boost (default `1.25`) applied to candidates
   ///     a tag corroborates. Clamped by ``maxBoostedConfidence``.
-  ///   - maxBoostedConfidence: Upper bound (default `0.95`) for any boosted confidence. Never reaches
-  ///     `1.0` by construction — third-party taggers may share failure modes with the DSP, so
-  ///     correlated false positives must not pin confidence at maximum.
+  ///   - maxBoostedConfidence: Upper bound for any boosted confidence. The default of `0.95` keeps
+  ///     it below `1.0` because third-party taggers may share failure modes with the DSP, so
+  ///     correlated false positives should not pin confidence at maximum. A caller may configure
+  ///     `1.0` and accept that.
   ///   - skepticismPenalty: Multiplicative confidence penalty (default `0.85`) applied when the DSP
   ///     candidate disagrees with a unanimous tag consensus.
   ///   - allowOctaveCorroboration: When `true` (default), 2:1 ratios are accepted as corroboration.
@@ -155,25 +253,33 @@ public struct MetadataPolicy: Sendable, Hashable {
   ///   - parsing: Per-tag string-parsing hygiene flags.
   public init(
     enabledSources: Set<MetadataSource> = Set(MetadataSource.allCases),
-    consensusTolerance: Double = 0.5,
-    corroborationTolerance: Double = 0.03,
-    corroborationBoost: Double = 1.25,
-    maxBoostedConfidence: Double = 0.95,
-    skepticismPenalty: Double = 0.85,
+    consensusTolerance: Double = MetadataPolicy.defaultConsensusTolerance,
+    corroborationTolerance: Double = MetadataPolicy.defaultCorroborationTolerance,
+    corroborationBoost: Double = MetadataPolicy.defaultCorroborationBoost,
+    maxBoostedConfidence: Double = MetadataPolicy.defaultMaxBoostedConfidence,
+    skepticismPenalty: Double = MetadataPolicy.defaultSkepticismPenalty,
     allowOctaveCorroboration: Bool = true,
     allowTripletCorroboration: Bool = false,
-    valueRange: ClosedRange<Double> = 30.0...300.0,
+    valueRange: ClosedRange<Double> = MetadataPolicy.defaultValueRange,
     parsing: ParsingOptions = ParsingOptions()
   ) {
+    // Observers do not run during initialization, so the backing storage is
+    // assigned the already-normalized values here; every later mutation goes
+    // through the normalizing setters above.
     self.enabledSources = enabledSources
-    self.consensusTolerance = consensusTolerance
-    self.corroborationTolerance = corroborationTolerance
-    self.corroborationBoost = corroborationBoost
-    self.maxBoostedConfidence = maxBoostedConfidence
-    self.skepticismPenalty = skepticismPenalty
+    self._consensusTolerance = Self.normalizeNonNegative(
+      consensusTolerance, default: Self.defaultConsensusTolerance)
+    self._corroborationTolerance = Self.normalizeNonNegative(
+      corroborationTolerance, default: Self.defaultCorroborationTolerance)
+    self._corroborationBoost = Self.normalizeNonNegative(
+      corroborationBoost, default: Self.defaultCorroborationBoost)
+    self._maxBoostedConfidence = Self.normalizeUnitInterval(
+      maxBoostedConfidence, default: Self.defaultMaxBoostedConfidence)
+    self._skepticismPenalty = Self.normalizeUnitInterval(
+      skepticismPenalty, default: Self.defaultSkepticismPenalty)
     self.allowOctaveCorroboration = allowOctaveCorroboration
     self.allowTripletCorroboration = allowTripletCorroboration
-    self.valueRange = valueRange
+    self._valueRange = Self.normalizeValueRange(valueRange)
     self.parsing = parsing
   }
 
