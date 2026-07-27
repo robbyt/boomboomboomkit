@@ -28,9 +28,9 @@ context: []
 
 ## Code Map
 
-- `_bmad-output/planning-artifacts/epics.md` — charter `:1796-1813`; stale step-1 projection `:1803`; landed-forensics note `:1813`; Epic 13's overlapping octave levers `:1815-1828` (coordinate, do not duplicate).
-- `_bmad-output/ml-training/v2-runs/octave-bias-finding-and-plan.md` — E0 table `:25-38`; oracle-ceiling caveat `:44-50`; E1 "immediate win" + "Expected: 348 -> ~401" `:75-83`; the false "256-bin hard cross-entropy" claim `:63-64` that #146 corrects.
-- `_bmad-output/implementation-artifacts/deferred-work.md` — entries to resolve at `:1184`, `:1212`, `:1224`; the DSP octave-sweep rejection `:901`; forensic substrate `:899`; `:914` shows the inline `**RESOLVED (...)**` form.
+- `_bmad-output/planning-artifacts/epics.md` — charter `:1796-1872`; corrected lever ranking `:1832`; the retained-and-marked step-1 projection `:1862`; landed-forensics note `:1872`; Epic 13's overlapping octave levers `:1874+` (coordinate, do not duplicate). *(Post-rewrite coordinates, refreshed 2026-07-27; the pre-rewrite values this spec was drafted against were `:1796-1813` / `:1803` / `:1813` / `:1815-1828`.)*
+- `_bmad-output/ml-training/v2-runs/octave-bias-finding-and-plan.md` — E0 table `:25-33`; oracle-ceiling caveat `:51`; E1 "immediate win" + "Expected: 348 -> ~401" `:132`; the false "256-bin hard cross-entropy" claim `:70` that #146 corrects.
+- `_bmad-output/implementation-artifacts/deferred-work.md` — entries to resolve at `:1184`, `:1212`, `:1242`; the DSP octave-sweep rejection `:901`; forensic substrate `:899`; `:914` shows the inline `**RESOLVED (...)**` form.
 - `_bmad-output/implementation-artifacts/141-octave-fold-impact.json` — per-band fold measurement (read-only evidence).
 - `Sources/BoomBoomBoomKitML/BNNSTechnique.swift` — read-only facts: `:190` 256 bins, `:193` offset 30.0, `:884` bare-argmax decode, `:889` abstain outside `60.0...200.0`.
 
@@ -94,7 +94,7 @@ What survives from #166's item (1) is its untested half — Gaussian label smoot
   [`epics.md:1804`](../planning-artifacts/epics.md#L1804)
 
 - The outside-evidence hypothesis, deliberately scoped to n=1 model rather than stated as law.
-  [`epics.md:1812`](../planning-artifacts/epics.md#L1812)
+  [`epics.md:1811`](../planning-artifacts/epics.md#L1811)
 
 **The corrected ranking**
 
@@ -102,10 +102,10 @@ What survives from #166's item (1) is its untested half — Gaussian label smoot
   [`epics.md:1832`](../planning-artifacts/epics.md#L1832)
 
 - Item 1 carries the octave-mass correction: the 0.15 goes wholly to the half above ~142 BPM.
-  [`epics.md:1836`](../planning-artifacts/epics.md#L1836)
+  [`epics.md:1838`](../planning-artifacts/epics.md#L1838)
 
 - Item 2 is where the review found the worst error; now scoped as a public-contract change.
-  [`epics.md:1837`](../planning-artifacts/epics.md#L1837)
+  [`epics.md:1839`](../planning-artifacts/epics.md#L1839)
 
 **Why the problem is wider than the model**
 
