@@ -21,7 +21,26 @@ This document is the authoritative source for accuracy, training-corpus, and lim
 - `try? BNNSTechnique()` → returns `nil` because the no-arg form throws `.modelResourceMissing` (the static `bundledReferenceURL` is now `nil`).
 - `try? BNNSTechnique(modelURL: yourURL)` → BYOW (bring-your-own-weights). Train against the same NCHW `(1, 1, 128, 512)` tensor contract or implement a custom `MLTechnique` conformance from scratch. See `tools/coreml-convert/README.md`.
 
-**Re-open trigger.** A future Branch-A retrain story re-bundles a higher-quality model (≥ 2/4 named DnB triplets resolved AND 4/4 DSP-correct controls preserved at production thresholds, per Story 4-6 Task 15). At that point `BNNSTechnique.bundledReferenceURL` flips back to a non-nil `Bundle.module.url(...)` lookup and this Status section gets a new entry below the historical one.
+**Re-open trigger.** (Attempted and not met. See the 2026-07-26 status update below.) A future Branch-A retrain story re-bundles a higher-quality model (≥ 2/4 named DnB triplets resolved AND 4/4 DSP-correct controls preserved at production thresholds, per Story 4-6 Task 15). At that point `BNNSTechnique.bundledReferenceURL` flips back to a non-nil `Bundle.module.url(...)` lookup and this Status section gets a new entry below the historical one.
+
+## Status update (2026-07-26): retrain completed, evaluated, still no bundled model
+
+**No bundled model ships.** A full retrain against a 1,534-track labeled corpus was completed and evaluated in June 2026. It did not reach bundling quality, so the position above is unchanged. This section records the outcome so the "ready to consume a higher-quality model when one is trained" framing above is not read as untested optimism.
+
+Measured on the retrained model (`maskedMelPretrain`, seed 42, `featureSetVersion` v2, tempo-band rebalanced), run through the production Swift inference path with `EnsemblePolicy.mlOnly`:
+
+- OA300 Acc1 **43/82 (52.4%)** against a bundling bar of more than 55/82
+- GiantSteps Acc1 **348/661 (52.6%)** against a bundling bar of at least 537/661
+
+Both model figures were scored at 4% tolerance, while the two bars are DSP results at 2% tolerance. The looser standard was applied to the model and it still finished 13 tracks below the OA300 bar and 189 below the GiantSteps bar.
+
+Three successive retrains, each adding labels, produced OA300 50/82, 48/82, 43/82 and GiantSteps 296/661, 330/661, 348/661. Tracks below 120 BPM stayed at 2 of 95 correct across all three runs. The third batch, weighted toward 120-140 BPM, gained 32 tracks in that band and lost 16 in 140-160 and 2 above 175 BPM.
+
+The reading the project takes from this is that the limit is structural rather than a shortage of labels. Below 100 BPM the model predicts exactly twice the true tempo on 38 of 60 tracks, so the band is octave-shifted rather than random. Between 100 and 120 BPM it is mis-pulsed instead, and octave tolerance recovers nothing (1 of 35 either way). An octave-aware training loss was already in place throughout, so the defect is not in the loss function. Where it does sit has not been isolated: the input representation and the argmax decode are both candidates, and an octave-folded decode was later measured on this model and made accuracy worse rather than better.
+
+Confidence calibration was not measured on this model. The decision was reached on accuracy alone, so the calibration question is open rather than answered.
+
+**What this means for consumers.** Nothing changes in the API surface. `Options.mlTechnique = nil` remains the default and remains the recommendation for production. `BNNSTechnique(modelURL:)` remains the bring-your-own-weights path and the NCHW `(1, 1, 128, 512)` tensor contract below is unchanged. The retrained model is published as a BYOW reference at `_bmad-output/ml-models/giantsteps_v2_seed_42.mlmodel` on the development branch, for reproduction and as a baseline to beat. It is not recommended for production use: on the numbers above, DSP alone is more accurate on both corpora.
 
 The pre-Story-4-6 model-card content is preserved below for historical accuracy and as the architectural reference for BYOW consumers targeting the same `TempoCNN` shape.
 

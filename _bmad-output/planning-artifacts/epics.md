@@ -260,7 +260,16 @@ Every FR maps to exactly one epic. NFRs are cross-cutting (apply across all epic
 | ~~FR-48~~ | (NFR-5) | Moved to NFR — no prose duplication |
 | ~~FR-51~~ | (dropped) | `BNNSTechnique` is a struct, not `CaseIterable` |
 
-**Coverage totals:** Epic 6 = 12 FRs · Epic 7 = 14 FRs · Epic 8 = 10 FRs · Epic 9 = 4 FRs (demo shell) · Epic 10 = 5 FRs (demo integration) · Epic 11 = 6 FRs (per-case docs) · Total = 51 FRs · Cross-cutting NFRs = 10 · Architecture KDDs = 27 (resolved in `architecture.md`).
+**Coverage totals:** Epic 6 = 12 FRs · Epic 7 = 14 FRs (harnesses shipped, not outcomes achieved — see the caveat below) · Epic 8 = 10 FRs · Epic 9 = 4 FRs (demo shell) · Epic 10 = 5 FRs (demo integration) · Epic 11 = 6 FRs (per-case docs) · Total = 51 FRs · Cross-cutting NFRs = 10 · Architecture KDDs = 27 (resolved in `architecture.md`).
+
+> **Epic 7 coverage caveat (added 2026-07-26).** The 14 above counts FRs a story shipped a *harness* for, not FRs whose *outcome* was achieved. Four did not land their outcome:
+>
+> - **FR-16** — the octave-aware loss was delivered and the model still octave-doubles, so the defect lives below the loss function.
+> - **FR-18** — gates (b) and (c) were evaluated and both failed: OA300 43/82 against `> 55/82`, GiantSteps 348/661 against `≥ 537/661`. Gates (a) (DnB sentinels) and (d) (calibration) were never evaluated.
+> - **FR-24** — structurally un-runnable; no matched two-arm pair existed at the close.
+> - **FR-25** — metric and numeric floor never committed, verification never run.
+>
+> Epic 7 closed **BYOW** on 2026-06-09; no model bundles. Follow-up is the Epic 12 charter below, which is charter-only. Detail lives in the dated FR-18 / FR-24 / FR-25 amendments in `prds/prd-BoomBoomBoomKit-2026-05-25/prd.md` and in the `epic-7-retro-2026-06-05.md` close-out addendum.
 
 ## Epic List
 
