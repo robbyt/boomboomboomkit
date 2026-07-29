@@ -144,7 +144,7 @@ Two earlier results already said the rulers were suspect: the ~6-point annotatio
 - **FR-59a.** Source the scarce bands (100-120 and 175+) from the non-Rekordbox pool (§14 Q3), subject to two conditions that are not optional:
   1. **Labels must be established independently of our DSP.** The 7.2 survey was deliberately BPM-tag-blind and its tiering leaned on our own detector. Promoting a DSP-derived value to ground truth would turn the gate into a change detector for the thing it tests — the trap `FIXTURES.md` already guards against for the accuracy floor.
   2. **Contamination boundary.** No track, remix, or artist may appear in both the evaluation corpus and any training set. `scripts/audit-corpus-splits.py` already enforces this class of check and must cover the new material.
-- **FR-59b.** Declare **one metrical-level convention** for the corpus and label every track to it (this is what §14 Q4's re-labelling decision becomes). A corpus with a single declared convention cannot encode both halves of the octave ambiguity as ground truth, which makes AS-5 a property of the *old* corpora rather than an open question about the new one. Retain the 80-85 / 160-175 pairs as a tagged sentinel subset so the old ambiguity stays measurable.
+- **FR-59b.** Declare **one metrical-level convention** for the corpus and label every track to it (this is what §14 Q4's re-labelling decision becomes). **Elevated 2026-07-29 from a hygiene step to the load-bearing decision of F3**: the pool survey showed the band distribution follows from the convention, so this choice determines which bands are scarce and how large a balanced corpus can be. The collection's own convention is half-tempo (71% of tagged tracks); adopting it and adopting full-tempo produce different corpora from identical files. A corpus with a single declared convention cannot encode both halves of the octave ambiguity as ground truth, which makes AS-5 a property of the *old* corpora rather than an open question about the new one. Retain the 80-85 / 160-175 pairs as a tagged sentinel subset so the old ambiguity stays measurable.
 - **FR-59c.** **Per-band claims on this corpus are descriptive, not inferential.** At 27 tracks per band, exact McNemar cannot reach `p <= 0.05` at 10% or 20% band discordance — a band needs at least 6 discordant tracks all falling the same way. FR-71's per-band reporting therefore stands as a *regression tripwire and a description*, never as a per-band significance claim. Stating this is what keeps FR-71 from promising something arithmetically unavailable.
 
 **Training corpus (does not block the gate):**
@@ -159,7 +159,26 @@ Two earlier results already said the rulers were suspect: the ~6-point annotatio
 - **FR-62.** Record the metrical-level labelling convention the project trains toward, and audit the training corpus against it. Subsumed into FR-59b for the new corpus; retained for auditing the legacy corpora that historical figures rest on.
 - **FR-62a.** ~~If FR-59 confirms AS-5, re-label the affected OA300 tracks to that single convention.~~ **Superseded 2026-07-28 by FR-59b.** Rather than re-label OA300 in place — irreversible, and it invalidates every historical figure on those labels — the single convention is declared for the *new* corpus and OA300 is left intact as a tagged historical artifact. This keeps the old figures interpretable instead of stranding them.
 
-**Feasibility risk, unresolved.** FR-59 assumes the non-Rekordbox pool can supply ~27 tracks each in 100-120 and 175+ at acceptable label quality. The pool is ~4,700 files from the same collection, so it may carry the same skew. If it cannot supply them, the corpus cannot be balanced from owner-held material and the choice narrows to sourcing outside the collection or accepting a smaller uniform n. **Measure the pool's band distribution before committing to the 27-per-band target.**
+**Feasibility: RESOLVED 2026-07-29.** Measured against the existing 4,766-track pool survey; full analysis in `_bmad-output/ml-training/non-rekordbox-band-feasibility-2026-07-29.md`.
+
+The 27-per-band target **is buildable from owner-held material**, with no sourcing outside the collection. On the highest-confidence subset — an independent tag present, and the DSP agreeing after octave normalization — every band clears 27:
+
+| Band | available | margin vs 27 |
+|---|---|---|
+| <100 | 1,873 | ample |
+| **100-120** | **28** | **+1** |
+| 120-140 | 36 | +9 |
+| 140-160 | 32 | +5 |
+| 160-175 | 97 | ample |
+| 175+ | 106 | ample |
+
+Three findings that change requirements rather than merely satisfying them:
+
+1. **100-120 is the binding constraint and has effectively no margin.** One rejected label drops the band below target and forces uniform n down for every other band with it. It is also the least corroborated band — 262 tagged tracks but only 28 where tag and DSP agree, versus far higher agreement everywhere else — which is unfortunate given it is the band the model genuinely mis-pulses. **Plan a review margin; do not treat 28-for-27 as satisfied.** Unlike the <100 / 160-175 pair, this scarcity is not a convention artifact: the band is thin under both bandings (262 by tag, 217 by DSP).
+
+2. **The pool is tagged at half tempo for 71% of tagged tracks** — the DSP estimate is ~2x the tag for 1,822 of 2,568, against only 357 agreeing at ~1x, with 1,529 tracks tagged below 100 and detected at 160-175. Consequently **the pool's band distribution is a property of the convention, not of the music**: by tag it is 78% sub-100, by DSP 65% at 160-175, describing identical files. This makes **FR-59b's convention choice load-bearing rather than a formality** — declaring half-tempo and declaring full-tempo produce different corpora from the same source.
+
+3. **A ~1.5x cluster of 222 tracks is unexamined.** Triplet relationships are a distinct phenomenon from octave errors, and §4's evidence base does not currently account for them.
 
 ### 5.4 F4 — Training-target repair
 
@@ -335,7 +354,7 @@ F4 and F5 are gated on F2's findings. F7 cannot start until there is a model wor
 | **AS-2** | Capacity is not the constraint | Non-Goals wrongly excludes the larger-backbone levers |
 | **AS-3** | The ~33k parameter figure for the Böck TCN is accurate | Weakens but does not overturn AS-2; the Schreiber 82.1 comparison stands independently |
 | **AS-4** | Ensemble lift is achievable where standalone parity was not | The bundle gate is unreachable and the epic ends at Gate 2 |
-| **AS-5** | OA300's 80-85 and 160-175 clusters are the same material at different metrical levels | FR-59's sentinel group measures something other than what it claims |
+| **AS-5** | ~~OA300's 80-85 and 160-175 clusters are the same material at different metrical levels~~ **LARGELY CONFIRMED 2026-07-29 on independent evidence.** The non-Rekordbox pool shows the same pattern on **1,822 tracks** using a tag signal the DSP never saw: half-tempo tagging is the collection's dominant convention, not an error. Two qualifications — it is a different corpus from OA300, and octave *agreement* is not label *correctness*, so which metrical level to train toward remains open | Largely retired. FR-59's job narrows from "confirm or refute" to "confirm it holds for OA300 specifically, and record which level OA300 used" |
 | **AS-6** | ~~Gaussian smearing is standard for tempo and helps~~ **REFUTED during Discovery.** TempoCNN uses one-hot; no tempo paper ablates smearing. Replaced by: ordinal targets help in the general literature and are worth testing here, unvalidated for tempo | FR-63 is exploratory rather than established — which is why it ships with its own ablation |
 | **AS-7** | The SMC 2015 style-prior result transfers to our corpus and pipeline | F1 loses its evidence base and drops down the ranking |
 | **AS-8** | The demo app can carry weights without App Store review complications | Delivery needs rethinking; no fallback identified |
