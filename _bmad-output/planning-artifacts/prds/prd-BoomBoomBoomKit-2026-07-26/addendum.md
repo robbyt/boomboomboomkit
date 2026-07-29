@@ -27,11 +27,31 @@ Its held-out output is the useful part, because it independently reproduces the 
 
 MAE 20.2 BPM. Scored at the project's 4% Acc1 tolerance: **4 of 10**.
 
-**Reading.** Tracks near the corpus central tempo are accurate to a few BPM; tracks far from it collapse toward ~125-135. This is regression to the conditional mean on a multimodal target. The 71 BPM case is decisive — the prediction is 133.5, which is neither 71 nor its octave 142. An octave error would at least be musically meaningful and Acc2-recoverable; this value corresponds to nothing.
+**CORRECTION 2026-07-29, after reconciling against the notebook itself.** Everything above this line is a **ten-track eyeball subsample** and was mistakenly reported as the result. The notebook's own stored output for the full validation set reads:
+
+```
+Final validation metrics: eval_mae: 13.498, eval_accuracy: 0.4090909
+```
+
+**MAE 13.50, Acc1 40.9% (27/66)** — not MAE 20.2 and 4-of-10. The subsample over-draws the tails roughly threefold: it takes half of all sub-100 validation tracks and none from 160-175.
+
+**The "mean collapse" reading does not survive.** A constant-mean predictor on the same 66 tracks scores MAE 17.74 / Acc1 25.8%; the model beats it by 4.24 BPM and ten tracks (R² 0.27). The table above refutes it directly — rows `117 → 93.5` and `121 → 161.8` both move *away* from the 138.9 mean, and they are the only two rows left without an annotation while every row fitting the narrative was labelled "collapsed to mean" or "pulled toward mean". That is selective annotation, and it is the error here.
+
+**"The failure is the scalar head, not the AST backbone" is unsupported.** One run, zero ablations, and no classification head was ever built. The loss curve — train 7.34 → 0.0067 with held-out flat from epoch 1 — points at 595 training examples, not at head shape.
+
+**The example called decisive was wrong.** `71 → 133.5` was described as corresponding to nothing; 133.5 is within **6.0%** of the octave (142). `89 → 129.2` is within **3.2%** of 1.5×, which is an instance of the triplet cluster now tracked as Q9. Both are musically meaningful misses.
+
+**What survives.** The rejection of AST-as-regression stands: 40.9% is far below the DSP path's 81.2% on the same corpus, and the notebook shows no route from one to the other. But it stands on the measured gap, not on mean collapse or on a head-versus-backbone claim.
+
+**What was missed.** 87M parameters reaching 40.9% is *measured* corroboration for **AS-2** (capacity is not the constraint) — the PRD otherwise supports AS-2 only with published figures, and this is our own evidence for it.
+
+**Also unrecorded:** AST truncates to exactly 10.24 s per track (`max_length=1024`); the split is 595/66 over 661 tracks; 7 of 66 validation tracks have same-release siblings in training; the validation set doubled as the checkpoint-selection set; no Acc2 was computed.
+
+**~~Reading.~~ SUPERSEDED by the CORRECTION above.** ~~Tracks near the corpus central tempo are accurate to a few BPM; tracks far from it collapse toward ~125-135. This is regression to the conditional mean on a multimodal target. The 71 BPM case is decisive — the prediction is 133.5, which is neither 71 nor its octave 142. An octave error would at least be musically meaningful and Acc2-recoverable; this value corresponds to nothing.~~ Retained verbatim as the record of what was claimed. Every sentence of it is refuted above: the model beats a constant-mean predictor, two table rows move away from the mean, and 133.5 is within 6.0% of the octave.
 
 **Caveats before blaming AST itself.** The AST feature extractor's default input window is short relative to a two-minute clip, so the model may only see the head of each track; 20 epochs over 664 tracks is thin; and the evaluation is a random 10% split of the same corpus, i.e. the most favourable protocol available. None of these rescues a scalar head, but all would matter if the head were swapped for classification.
 
-**Conclusion carried into the PRD:** the failure is the head, not the backbone. Pure scalar regression stays rejected. A hybrid head — classify to select the metrical level, small regression head to refine within the selected bin — remains an open candidate but is out of scope while capacity is not the constraint.
+**~~Conclusion carried into the PRD:~~ SUPERSEDED.** ~~the failure is the head, not the backbone.~~ That conclusion is unsupported — one run, zero ablations, no classification head ever built — and the PRD's Non-Goals entry has been rewritten to reject AST-as-regression on the **measured gap** (Acc1 40.9% against DSP's 81.2%) instead. **Pure scalar regression stays rejected**, on those grounds. A hybrid head — classify to select the metrical level, small regression head to refine within the bin — remains an open candidate and is out of scope while capacity is not the constraint; note that this document offers no evidence for or against it either way.
 
 ---
 

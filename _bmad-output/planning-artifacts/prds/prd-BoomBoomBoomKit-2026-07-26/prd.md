@@ -2,10 +2,30 @@
 title: 'Epic 12: Model-quality redesign — octave-aware BPM model'
 status: draft
 created: 2026-07-26
-updated: 2026-07-27
+updated: 2026-07-29
 ---
 
 # PRD: Epic 12 — Octave-Aware BPM Model
+
+## Status at close (2026-07-29)
+
+**This document is `draft`, deliberately.** Every question it can answer is answered — ten of eleven resolved, all five reviewer criticals closed. What remains is work, not specification. Flipping to `final` is a one-line change once the two items below land.
+
+**Gate list — what must happen before this drives implementation:**
+
+| Gate | Owner | Blocks |
+|---|---|---|
+| **FR-59f** — hand-verify all 258 corpus tracks | operator | corpus construction, therefore F3 and F6 |
+| **Q9** — characterize the 222-track 1.5× cluster | FR-59b executor | the metrical convention choice only |
+
+**Numbers that were retracted during authoring.** A reader who encounters a struck-through figure should trust the correction, not the original. Four were wrong and are corrected in place with the originals retained:
+
+- **AST evidence** — MAE 20.2 / 4-of-10 was a ten-track subsample. The measured result is **MAE 13.50, Acc1 40.9% (27/66)**. The "mean collapse" and "head not backbone" readings are both withdrawn (addendum §A).
+- **Corpus feasibility** — "100-120 binding at 28-for-27" came from a selection filter FR-59a.1 forbids. The real constraint is **140-160 at 43**, and the corpus is **258** tracks, not 162.
+- **Per-band significance** — an earlier FR-59c claim was computed at n=27 and became false at n=43. Q11 supersedes the framing entirely: per-band is a **tripwire, never a significance claim**.
+- **Octave dominance** — octave error is dominant on OA300 (16/24) and **not** on GiantSteps (7/124). The unqualified claim in the glossary was wrong.
+
+**Authoring cost, recorded so the next epic can price it.** Four rounds of self-review across two days. It caught nine real defects, four of them in the load-bearing evidence, and **seven of the corrections stranded their own dependents** — an amendment moved and the requirements referencing it did not. That last number is why the corpus constants now live in one table. The reviews are in `review-rubric-walk.md`, `review-rubric-walk-2.md`, and three `reconcile-*.md` files; roughly 35 medium and low findings in them remain unaddressed and are known, not hidden.
 
 ## 0. Document Purpose
 
@@ -43,7 +63,7 @@ Epic 12 exploits that lever first, closes the reference gap second, and ships a 
 |---|---|
 | **Acc1** | Prediction within 4% of ground truth. Primary accuracy metric. |
 | **Acc2** | Acc1 with octave-equivalent predictions counted correct. `Acc2 − Acc1` is the standard octave-error proxy. |
-| **Octave error** | Predicting 2× or ½ the true tempo. The dominant measured failure. |
+| **Octave error** | Predicting 2× or ½ the true tempo. **Dominant on OA300, not on GiantSteps** — the forensic harness records OA300's 24 misses as 16 octave + 2 triplet + 6 other, but GiantSteps' 124 misses as 98 other + 19 triplet + **7 octave**. Calling it "the dominant measured failure" without qualification was wrong and is corrected here; §4.1 carries the consequence. |
 | **Metrical level** | Which pulse a listener counts. A 160 BPM track felt in half-time is 80. Both can be defensible ground truth. |
 | **Tempo prior** | A constraint on the plausible tempo range, optionally conditioned on style. |
 | **Ensemble lift** | Accuracy of DSP+ML combined minus DSP alone. The bundle bar (FR-68). |
@@ -78,7 +98,7 @@ Claims are tagged **MEASURED** (we ran it), **PUBLISHED** (cited), or **UNTESTED
 
 **On training targets — three charter/folklore corrections:**
 
-- **PUBLISHED.** **TempoCNN does not use Gaussian smearing.** Schreiber & Müller ISMIR 2018 uses plain categorical cross-entropy on **one-hot** targets over 256 bins — identical to ours. "Add smearing because Schreiber does" is folklore and false.
+- **PUBLISHED.** **TempoCNN does not use Gaussian smearing.** Schreiber & Müller ISMIR 2018 uses plain categorical cross-entropy on **one-hot** targets over 256 bins. "Add smearing because Schreiber does" is folklore and false. **Correction:** an earlier draft added "identical to ours" — that is false. `octave_aware_loss.py` applies `octave_mass = 0.15` split across in-range octave partners plus `label_smoothing = 0.05`, so our targets have never been one-hot. FR-64 states this correctly; the two passages contradicted each other. The live consequence is that **FR-63's ablation cannot be "smearing versus one-hot"**, because we do not have a one-hot baseline to compare against — it must construct one, or compare against the 0.15 + 0.05 target we actually train.
 - **PUBLISHED.** Böck ISMIR 2019 does smear, but **triangular, ±2 BPM, neighbours 0.5 / 0.25** — about two bins, not eight — and never ablates it. **No tempo paper ablates smearing versus one-hot, or ablates sigma.**
 - **PUBLISHED.** Ordinal targets do help in general, measured same-architecture: DLDL (TIP 2017) MAE 2.51 versus one-hot 3.02 **and versus uniform label smoothing 2.96** — so ordinal *structure* is the active ingredient, not smoothing. Imani & White (ICML 2018): HL-Gaussian 8.99 versus HL-OneBin 28.00.
 - **PUBLISHED.** **No tempo system places octave-partner mass in the training target.** Our 0.15 split across {2T, T/2} has zero published precedent. Published practice handles octaves at **decode** (Morais 2024: three highest peaks, pick the middle when they form a half/double relation) or via **style-conditioned priors**.
@@ -105,7 +125,9 @@ Highest published evidence in the epic, needs no model, no retrain, and is testa
 
 - **FR-53.** Make the tempo search range consumer-specifiable. All four bounds are currently `private static let` on `BPMAnalyzer` and unreachable from `Options`.
 - **FR-54.** Support a style-conditioned prior that reweights (never hard-filters) candidates by plausibility for a **classified** style (§14 Q5, settled 2026-07-28), defaulting to no prior so the default path stays byte-identical. The classifier is a dependency this FR did not carry when first written. It must abstain rather than guess: an unrecognized style degrades to no prior, never to a wrong one, because a wrong prior actively misleads the detector and is worse than none.
-- **FR-55.** Measure per-band and per-genre against the four `AccuracyFloorTests` known-failure fixtures, all of which are DSP-path octave errors with no model involved.
+- **FR-54a.** **The classifier F1 depends on is an unscoped second model, and this PRD does not build it.** §14 Q5 settled that the style prior derives style from a classifier rather than a caller-declared value or a file tag. Nothing in F1 specifies its training corpus, its style taxonomy, its own accuracy gate, or its size and latency budget — and the epic carries an explicit *small model* constraint that a second model competes against. F1's justification as the highest-evidence lever rests on it needing "no model and no retrain"; with a classifier in the path, **that justification no longer holds as written**. Either scope the classifier as its own feature with its own gates, or revisit Q5 in favour of the caller-declared option, which needs no model. **Blocks F1's MVP claim, not F1 itself.**
+
+- **FR-55.** Measure per-band and per-genre against the four `AccuracyFloorTests` known-failure fixtures — DSP-path errors with no model involved. **Not all four are octave errors.** `robbyt_x-ray-120s` reports ~115.6 against a true 174, a ratio of 1.5047, which is the 3:2 triplet relation; `AccuracyFloorTests.swift:126` labels it `triplet-related` in the fixture's own record. An earlier draft of this FR called all four octave errors, which the file it cites contradicts. Report the octave and triplet cases separately — a lever that fixes one need not touch the other, and Q9 suggests triplets are their own phenomenon.
 
 *This lever is DSP-side and overlaps Epic 13. **Ownership settled 2026-07-28: Epic 12 owns it** (§14 Q6). The overlapping Epic 13 claim is a recorded duplication to settle when that charter is next opened, and no longer gates this work.*
 
@@ -136,20 +158,50 @@ That single fact generated four of the seven §14 questions. Q1 asked which corp
 
 Two earlier results already said the rulers were suspect: the ~6-point annotation-version swing, and a gate whose denominator is half one tempo band.
 
+**Corpus constants — the single source.** These seven values stranded across requirements seven times during authoring; each amendment moved one site and orphaned its dependents. **State them here and reference them elsewhere; do not restate them.** Any change is made here first, then propagated deliberately.
+
+| Constant | Value | Set by |
+|---|---|---|
+| `N_BAND` — tracks per band | **43** | scarcest compliant band (140-160), FR-59 |
+| `N_BANDS` | **6** | <100 / 100-120 / 120-140 / 140-160 / 160-175 / 175+ |
+| `N_EVAL` — evaluation corpus | **258** | `N_BAND × N_BANDS` |
+| `ALPHA` — operative significance level | **0.05** | Q10 retired FR-69a's 0.025 with the multi-corpus gate |
+| `T_MIN` — gate lift at 10% discordance | **12 net tracks** (4.7%) | exact two-sided McNemar, `d` = 26, at `ALPHA` |
+| `HANDLED_MIN` — DSP-handled band threshold | **30 of 43** correct | policy choice, Q11 |
+| `GATE_CORPUS` | the 258-track balanced corpus **alone** | Q10; OA300 and GiantSteps report only |
+
 **Evaluation corpus (blocks the bundle gate):**
 
-- **FR-59.** Build a **band-balanced evaluation corpus** drawn across OA300, Tony's Rekordbox collection, and the Story 7.2 non-Rekordbox pool. **Balanced to the scarcest band** (§14, settled 2026-07-28): every band carries the same count, roughly 27, for about 162 tracks total. Uniform by construction, so no band can dominate an aggregate the way 160-175 does today.
+- **FR-59.** Build a **band-balanced evaluation corpus** drawn across OA300, Tony's Rekordbox collection, and the Story 7.2 non-Rekordbox pool. **Balanced to the scarcest band** (§14, settled 2026-07-28): every band carries the same count, **43**, for **258 tracks** total. Uniform by construction, so no band can dominate an aggregate the way 160-175 does today. (An earlier draft said 27 and 162; those came from a selection filter FR-59a.1 forbids — see the feasibility resolution below.)
   - Supersedes the former "band-stratified held-out octave test set from OA300". The AS-5 sentinel group survives as a labelled subset (FR-59b), not as the corpus design.
-  - **Statistical consequence, measured not assumed.** At 162 tracks and 10% discordance, exact McNemar needs a net lift of 10 tracks (6.2%) — *better* than OA300's current 82 tracks, which needs 8 (9.8%). Balancing strengthens the aggregate gate.
+  - **Statistical consequence, measured not assumed.** At `N_EVAL` and 10% discordance, exact McNemar at `ALPHA` needs `T_MIN` = **12 net tracks (4.7%)** — better in relative terms than OA300's 82 tracks, which needs 8 (9.8%) at the same α. Balancing strengthens the aggregate gate. (An earlier draft said 14 tracks at α = 0.025; Q10 retired that α along with the multi-corpus gate.)
 - **FR-59a.** Source the scarce bands (100-120 and 175+) from the non-Rekordbox pool (§14 Q3), subject to two conditions that are not optional:
   1. **Labels must be established independently of our DSP.** The 7.2 survey was deliberately BPM-tag-blind and its tiering leaned on our own detector. Promoting a DSP-derived value to ground truth would turn the gate into a change detector for the thing it tests — the trap `FIXTURES.md` already guards against for the accuracy floor.
   2. **Contamination boundary.** No track, remix, or artist may appear in both the evaluation corpus and any training set. `scripts/audit-corpus-splits.py` already enforces this class of check and must cover the new material.
 - **FR-59b.** Declare **one metrical-level convention** for the corpus and label every track to it (this is what §14 Q4's re-labelling decision becomes). **Elevated 2026-07-29 from a hygiene step to the load-bearing decision of F3**: the pool survey showed the band distribution follows from the convention, so this choice determines which bands are scarce and how large a balanced corpus can be. The collection's own convention is half-tempo (71% of tagged tracks); adopting it and adopting full-tempo produce different corpora from identical files. A corpus with a single declared convention cannot encode both halves of the octave ambiguity as ground truth, which makes AS-5 a property of the *old* corpora rather than an open question about the new one. Retain the 80-85 / 160-175 pairs as a tagged sentinel subset so the old ambiguity stays measurable.
-- **FR-59c.** **Per-band claims on this corpus are descriptive, not inferential.** At 27 tracks per band, exact McNemar cannot reach `p <= 0.05` at 10% or 20% band discordance — a band needs at least 6 discordant tracks all falling the same way. FR-71's per-band reporting therefore stands as a *regression tripwire and a description*, never as a per-band significance claim. Stating this is what keeps FR-71 from promising something arithmetically unavailable.
+- **FR-59c.** **Per-band inference is possible but narrow.** Recomputed at the corrected *n* of 43 per band and FR-69a's α of 0.025 — an earlier draft stated this at *n* = 27 and α = 0.05, and its claim that 20% discordance is unreachable became false when the corpus grew:
+
+  | band discordance | `d` | verdict at α = 0.025 *(stale α — see note below)* |
+  |---|---|---|
+  | 10% | 4 | **impossible** — no split reaches significance |
+  | 20% | 9 | possible, but only at **9:0**, every discordant track one way (`p` = 0.0039) |
+  | 30% | 13 | possible at 11:2, net 9 (`p` = 0.0225) |
+
+  **Superseded in part by §14 Q11 (2026-07-29).** The table above stands as arithmetic, but the conclusion drawn from it does not: Q11 settles that per-band results are **a deterministic benchmark tripwire and never a significance or noninferiority claim**, at any split. The α shown is also stale — Q10 retired FR-69a's partial-conjunction correction along with the multi-corpus gate, so 0.05 is operative and 0.025 no longer applies here. Read this FR as evidence for *why* Q11 chose a tripwire, not as a rule of its own. **Report the exact `b:c` split per band, never a bare delta** — that requirement survives and Q11 depends on it.
+
+- **FR-59f.** Define how a tag becomes ground truth, without using our DSP. A file tag is a single unverified assertion; FR-59a.1 rules out corroborating it with the detector under test. At least one of the following must be specified before the corpus is built, and whichever is chosen must be recorded with the corpus:
+  1. **Human verification** of the balanced subset. 258 tracks is tractable by hand and is the only option that is unambiguously independent. The existing DAW-oracle workflow (`scripts/dawproject-bpm.py`) is the precedent.
+  2. **A second automatic estimator that is not ours** — a published implementation, used only as a corroborating vote. Independent of our DSP, but introduces that tool's own biases.
+  3. **Tag-only, declared as such**, with the corpus labelled lower-confidence and the gate's conclusions hedged accordingly.
+  **SETTLED 2026-07-29 (operator): option 1, human verification of the balanced set.** Every track in the 258 is verified by hand before it counts as ground truth. This is the only option that is unambiguously independent of the detector under test.
+
+  **Two risks recorded rather than assumed away.** *Scale is unproven*: the DAW-oracle precedent this leans on produced **23** verified tracks, not 258 — an order of magnitude smaller — so the effort is an estimate, not an extrapolation from experience. Budget it explicitly and re-plan if the rate does not hold. *The scarcest band has no slack*: 140-160 sits at exactly 43, so **any track rejected during verification lowers uniform n for all six bands at once** (see finding 1 below). Verify that band first — it is the one that can shrink the corpus.
+
+  **Until this is done the corpus cannot be built**, because every downstream number inherits the label quality. This is the successor to the "28-for-27 margin" that the earlier draft mistakenly identified as the binding constraint.
 
 **Training corpus (does not block the gate):**
 
-- **FR-59d.** Build the training corpus for **volume with band-aware sampling**, explicitly **not** balanced to the scarcest band. Truncating training data to ~162 tracks would be strictly worse than the 595-1509 tracks already in use, and the three retrains already demonstrated a fixed-capacity band trade that starving the model would deepen. Correct the distribution with oversampling or loss weighting, which costs no data. The scarcest-band rule is an evaluation-side decision and does not transfer.
+- **FR-59d.** Build the training corpus for **volume with band-aware sampling**, explicitly **not** balanced to the scarcest band. Truncating training data to ~258 tracks would be strictly worse than the 595-1509 tracks already in use, and the three retrains already demonstrated a fixed-capacity band trade that starving the model would deepen. Correct the distribution with oversampling or loss weighting, which costs no data. The scarcest-band rule is an evaluation-side decision and does not transfer.
 - **FR-59e.** Training and evaluation corpora share the convention from FR-59b and the partition from FR-59a.2. A model trained against one convention and scored against another measures the convention gap, not the model.
 
 **Measurement integrity (unchanged in intent):**
@@ -161,20 +213,30 @@ Two earlier results already said the rulers were suspect: the ~6-point annotatio
 
 **Feasibility: RESOLVED 2026-07-29.** Measured against the existing 4,766-track pool survey; full analysis in `_bmad-output/ml-training/non-rekordbox-band-feasibility-2026-07-29.md`.
 
-The 27-per-band target **is buildable from owner-held material**, with no sourcing outside the collection. On the highest-confidence subset — an independent tag present, and the DSP agreeing after octave normalization — every band clears 27:
+**Corrected 2026-07-29 after review.** The first pass at this resolution selected tracks on "an independent tag present, **and the DSP agreeing after octave normalization**." That filter is exactly what FR-59a.1 forbids, nineteen lines above. It biases the corpus toward DSP-easy material, which inflates the DSP baseline and suppresses the very lift the gate is built to measure. It also produced the wrong headline: on the compliant basis, 100-120 is not the binding constraint and there is no one-track margin.
 
-| Band | available | margin vs 27 |
+On the **FR-59a.1-compliant basis** — banded by the independent tag alone, with our DSP used nowhere in selection:
+
+| Band | available | vs 27 |
 |---|---|---|
-| <100 | 1,873 | ample |
-| **100-120** | **28** | **+1** |
-| 120-140 | 36 | +9 |
-| 140-160 | 32 | +5 |
-| 160-175 | 97 | ample |
-| 175+ | 106 | ample |
+| <100 | 1,996 | +1,969 |
+| 100-120 | 262 | +235 |
+| 120-140 | 52 | +25 |
+| **140-160** | **43** | **+16** |
+| 160-175 | 102 | +75 |
+| 175+ | 113 | +86 |
 
-Three findings that change requirements rather than merely satisfying them:
+**The scarcest band is 140-160 at 43, not 100-120 at 28.** Uniform *n* can therefore be **43**, for a **258-track** corpus rather than 162 — larger and better powered than the earlier figure claimed. Statistics recomputed at FR-69a's α of 0.025, not 0.05:
 
-1. **100-120 is the binding constraint and has effectively no margin.** One rejected label drops the band below target and forces uniform n down for every other band with it. It is also the least corroborated band — 262 tagged tracks but only 28 where tag and DSP agree, versus far higher agreement everywhere else — which is unfortunate given it is the band the model genuinely mis-pulses. **Plan a review margin; do not treat 28-for-27 as satisfied.** Unlike the <100 / 160-175 pair, this scarcity is not a convention artifact: the band is thin under both bandings (262 by tag, 217 by DSP).
+| discordance | d | min net lift | as % of 258 |
+|---|---|---|---|
+| 5% | 13 | 9 | 3.5% |
+| 10% | 26 | **14** | 5.4% |
+| 20% | 52 | 18 | 7.0% |
+
+**The open item this exposes is label validation, and it is now the real risk.** These 2,568 tag-carrying tracks have *unvalidated* labels: a tag is one unverified assertion by whoever wrote it. The previous draft reached for DSP agreement precisely because it is the only corroborating signal on hand, and that is the one signal FR-59a.1 rules out. **FR-59f** below governs. Three further findings, the first replacing the retracted one:
+
+1. **140-160 is the binding constraint, at 43 tracks — and its margin is zero by construction.** Balancing to the scarcest band means the scarcest band always sits exactly at *n*, so any label rejected on review during FR-59f drops uniform *n* for all six bands together. Plan the review margin here, not at 100-120. ~~An earlier draft named 100-120 the binding constraint at 28-for-27~~ — that followed from the forbidden DSP filter and is retracted; 100-120 has 262 compliant tracks, the second-most of any band.
 
 2. **The pool is tagged at half tempo for 71% of tagged tracks** — the DSP estimate is ~2x the tag for 1,822 of 2,568, against only 357 agreeing at ~1x, with 1,529 tracks tagged below 100 and detected at 160-175. Consequently **the pool's band distribution is a property of the convention, not of the music**: by tag it is 78% sub-100, by DSP 65% at 160-175, describing identical files. This makes **FR-59b's convention choice load-bearing rather than a formality** — declaring half-tempo and declaring full-tempo produce different corpora from the same source.
 
@@ -197,7 +259,15 @@ Retained, but with its rationale corrected. We are **ahead of the published reco
 
 FR-18 required matching DSP standalone (GiantSteps ≥ 537/661 — DSP's own score). That asks the model to replace DSP rather than help it, which is why a model that fixed the sub-100 band would still have failed.
 
-- **FR-68.** Define the bundle gate as **ensemble lift**: DSP+ML beats DSP alone by a stated margin on **at least two of the three evaluation corpora, with no regression on the third** (§14 Q1, settled 2026-07-28), and with **no regression** in any band DSP already handles.
+- **FR-68.** Define the bundle gate as **ensemble lift**: DSP+ML beats DSP alone by a stated margin **on the 258-track balanced evaluation corpus** (§14 Q10, settled 2026-07-29), with **no regression** in any band DSP already handles. OA300 and GiantSteps are **reported alongside as context, and do not gate**.
+
+  ~~at least two of the three evaluation corpora, with no regression on the third (§14 Q1, settled 2026-07-28)~~ — superseded by Q10. With a single gate corpus, **FR-69a's partial-conjunction correction no longer applies**: there is no multi-corpus conjunction. The operative threshold reverts to exact two-sided McNemar at `p <= 0.05` on the gate corpus, which is **12 net tracks at 10% discordance** (`d` = 26), not the 14 stated for α = 0.025. FR-69's table is the reference; read the α = 0.05 column.
+
+  **Two things this FR did not define, flagged at review and still open.**
+
+  *Which corpora.* "The three" dates from before F3 built a purpose-built corpus, and the PRD now contradicts itself: §5.3 excludes GiantSteps from the balanced corpus on the contamination reason in FR-69c.1, while this FR keeps it as a gate arm; §9 refers to "the primary corpus" although Q1 resolved that none exists. The candidates are the new 258-track corpus alone, the three legacy corpora, or the new corpus plus legacy corpora as external validation. **Unresolved — tracked as Q10.**
+
+  *What "no regression" means operationally.* As written it is untestable. "No statistically significant regression" is not evidence of no regression, and at per-band *n* the test has almost no power to detect one (FR-59c). It needs a predeclared **noninferiority margin per band** — a stated number of tracks a band may lose while still passing — not an absence of significance. **Unresolved — tracked as Q11.**
 - **FR-69.** State the margin in tracks, not percentages. **Settled 2026-07-28 (§14 Q2) after a statistical consult. The original wording, struck below, was wrong in both its statistic and the conclusion drawn from it.**
 
   ~~Existing discipline is ≥2 OA300 tracks (1 track ≈ 1.2pp against a ~5pp standard error).~~
@@ -206,7 +276,9 @@ FR-18 required matching DSP standalone (GiantSteps ≥ 537/661 — DSP's own sco
 
   **A 2-track net lift can never be significant.** The most favourable case, `d = 2` split 2:0, gives exact `p = 0.500`. The smallest significant result on any corpus is 6:0 (`p = 0.031`). Computed independently, not taken on report.
 
-  The threshold depends on the discordance `d`, which has not been measured. Planning values at exact two-sided `p <= 0.05`:
+  The threshold depends on the discordance `d`, which has not been measured. **Two α values appear in this PRD and they must not be confused.** The table below is computed at `p <= 0.05`, which is the right reference for a *single* corpus considered alone. **FR-69a's partial-conjunction rule mandates `p <= 0.025`**, and that is the operative threshold for the multi-corpus gate. At 0.025 the requirements rise: `d = 25` needs **13** not 11, `d = 66` needs **20** not 18, and `d = 132` needs **28** not 24. Read the table as a floor, then apply FR-69a.
+
+  Planning values at exact two-sided `p <= 0.05`:
 
   | Corpus | discordance `d` | min net lift `t` | split | exact `p` |
   |---|---|---|---|---|
@@ -231,7 +303,7 @@ FR-18 required matching DSP standalone (GiantSteps ≥ 537/661 — DSP's own sco
   4. **A one-track band cannot support a no-regression claim.** OA300's 100-120 band has exactly 1 track, and FR-71 requires per-band reporting. "No significant regression" is not evidence of no regression: predeclare each band's noninferiority margin and treat one-track bands as unmeasurable rather than as passing.
   5. **McNemar assumes independent tracks.** Duplicates, remixes, or clusters by artist or source need cluster-aware resampling. Annotation error is not in McNemar's uncertainty at all.
 - **FR-70.** Retain the DnB triplet sentinels and a confidence-calibration floor. FR-25's calibration metric was never committed and never ran; here it is a precondition.
-- **FR-71.** Report per-band lift, never only an aggregate. The +190 retrain gained 120-140 and lost 140-160; an aggregate hid that. **Descriptive, not inferential** — see FR-59c: at ~27 tracks per band, no per-band result can reach significance, so this is a regression tripwire rather than a statistical claim.
+- **FR-71.** Report per-band lift, never only an aggregate. The +190 retrain gained 120-140 and lost 140-160; an aggregate hid that. **This is a deterministic benchmark tripwire, not a statistical claim** (§14 Q11): on the locked benchmark, `gains ≥ losses` is required in every predeclared DSP-handled band, and any band failing it blocks approval pending documented review and a recorded waiver. Report the exact `b:c` split per band and the gross `losses` on its own — a net-zero band can still have swapped many previously-correct tracks for different ones.
 
 ### 5.7 F7 — Delivery
 
@@ -240,6 +312,8 @@ FR-18 required matching DSP standalone (GiantSteps ≥ 537/661 — DSP's own sco
   1. **The artifact is develop-only and written for developers.** It now lives at `_bmad-output/ml-models/MODEL_CARD.md`, which never ships to `main`. The demo archive is built from `develop` so bundling is mechanically fine, but `make demo-archive` must copy it in explicitly, and its register is internal — a demo user meets story references and corpus jargon unless an end-user summary fronts it.
   2. **It documents models that are not the shipped one.** It currently covers the withdrawn v1 and the failed v2 retrain. Whatever ships under F6 must be added before the archive is cut, or the bundled card describes something the user does not have.
   3. **A card is not a runtime signal.** It states what the model scored in aggregate; it cannot tell a user whether the model contributed to the number currently on screen. If that matters, it needs a per-result indicator, which this decision explicitly did not adopt.
+- **FR-72b.** Decide, and state, what `Options.ensemblePolicy` defaults to once a model ships. It currently defaults to `.dspOnly`, the one case that is operation-inert — `MLTechnique.evaluate` is never invoked. **A model can therefore clear every gate in F6 and change nothing any user sees.** The charter flagged this and this PRD dropped it. Three positions are available and none is free: leave `.dspOnly` and require callers to opt in, which makes the bundled model inert by default; change the library default, which alters behaviour for every existing consumer and contradicts the byte-identity contract that `.dspOnly` currently guarantees; or set a non-default policy in the demo app only, leaving the library untouched. **The third is the only one consistent with FR-73**, and should be confirmed rather than assumed.
+
 - **FR-73.** The library keeps its BYOW seam unchanged. Absent weights degrade to DSP-only via the existing abstain path — no network, no new dependency, no behavioural change for existing consumers.
 - **FR-74.** Register the bundled model through `ModelRegistry` for SHA-256 identity verification at load. The digest machinery exists and already handles `.mlmodelc` directory bundles.
 
@@ -258,7 +332,7 @@ Descending the remaining lever list after two failures requires an explicit writ
 ## 7. Non-Goals
 
 - **Bigger models.** Capacity is not the constraint (§4.3). AST-as-classifier, EfficientAT fine-tunes and Core AI are out of scope. Core AI is real (WWDC 2026, macOS 27) but solves a problem we do not have.
-- **AST-as-regression.** Rejected on head shape; an external notebook independently reproduced the predicted mean-collapse (71 BPM → 133.5, 89 → 129.2, MAE 20.2).
+- **AST-as-regression.** Rejected on the measured gap: an external notebook finetuning AST for BPM regression scores **Acc1 40.9% (27/66), MAE 13.50** on GiantSteps validation, against the DSP path's 81.2% on the same corpus. **Not rejected on "head shape" or on mean collapse** — an earlier draft claimed both and the addendum's CORRECTION block retracts them: the model beats a constant-mean predictor by 4.24 BPM, and no ablation isolating the head was ever run. Its 87M parameters reaching 40.9% is measured corroboration for AS-2.
 - **Expectation decoding.** Contraindicated for multimodal tempo posteriors.
 - **Weights in the repository.** Non-negotiable (§11).
 - **Re-litigating the two measured failures.** Closed.
@@ -337,6 +411,39 @@ F4 and F5 are gated on F2's findings. F7 cannot start until there is a model wor
 | Cloud training diverges from the Swift runtime substrate | Parity tripwire non-negotiable; the exact Epic 7 mistake |
 
 ## 14. Open Questions
+
+**Q1 through Q7 are resolved and struck through below, kept for the record.** **Four items remain live.** Q8 and Q9 surfaced in the memlog audit; Q10 and Q11 in the reviewer pass. Q10 and Q11 both block F6, and Q8 blocks the first training run:
+
+- ~~**Q8.** Do the operator's OA300 hand-annotations go into **training**?~~ **RESOLVED 2026-07-29 (operator): yes.** Made affordable by Q10 — with the gate moved to the new corpus, training on OA300 no longer costs a gate arm.
+
+  **It does cost something, and the PRD should not pretend otherwise: OA300 can no longer be reported as *external* validation.** Once its tracks are in training it is in-distribution, and a number produced from it measures fit, not generalization. Under Q10, OA300's role therefore collapses from "gate arm" to "training data plus an in-distribution sanity number", leaving **GiantSteps as the only genuine external-validation corpus** — and FR-69c.1 already questions whether GiantSteps is confirmatory at all, since it is the reference family's own training distribution. **Net effect: the epic has one external-validation arm, and it is a compromised one.** Recorded as a live risk in §13 rather than resolved here.
+
+  Original question retained for the record: Raised during Discovery and never settled. It cannot be waved through on FR-59a.2's general partition rule, because OA300 is not only an evaluation corpus — it is one of the three **gate** corpora under FR-68. Training on any part of it makes its contribution to the 2-of-3 gate non-confirmatory, which is FR-69c item 1 applied to a second corpus. Only 23 of 82 tracks carry DAW-verified labels, so the volume on offer is small against a 1,534-track training set. **Blocks the first training run.**
+- ~~**Q10.** Which corpora does the FR-68 gate actually run on?~~ **RESOLVED 2026-07-29 (operator): the new 258-track corpus is the gate; OA300 and GiantSteps are reported as external validation and do not gate.** The balanced corpus is the only arm that is band-uniform, single-convention, hand-verified, and partitioned from training by construction, so the decision rests there and the breadth signal stays visible without carrying decision weight.
+
+  **This supersedes Q1.** Q1 settled a two-of-three rule across OA300, GiantSteps and Tony's split; that rule is now retired, and FR-69a's partial-conjunction correction goes with it since there is no longer a multi-corpus conjunction to correct. FR-68 and FR-69a are amended below. Q1's reasoning was sound for the corpora available at the time — F3 subsequently built a better one.
+- ~~**Q11.** What does FR-68's "no regression" mean operationally?~~ **RESOLVED 2026-07-29 via statistical consult, verified independently. Answer: a deterministic benchmark tripwire — explicitly NOT a noninferiority test.**
+
+  **Why not a noninferiority test.** At 43 tracks per band the data cannot support one. A zero-margin claim needs near-unanimous discordance: `d = 4` cannot pass at any split (one-sided `p` = 0.0625), `d = 7` needs 7:0 (`p` = 0.0078), `d = 9` needs 8:1 (`p` = 0.0195). Even in the best case — **zero** observed losses across all 43 — the exact one-sided 97.5% upper bound on the population loss rate is `1 − 0.025^(1/43)` = **8.2%**, or **3.54 track-equivalents**. So perfect data rules out a four-track regression and cannot rule out three.
+
+  Ruling out a **one**-track margin at that confidence would need roughly **157 tracks per band**; a two-track margin, **78**. Both are far beyond the 43 the corpus supports. Writing a per-band noninferiority margin and calling it evidence that regression is excluded would be theatre.
+
+  **What the gate says instead.** Predeclare which bands count as DSP-handled from the **locked DSP-only baseline, before any ensemble result is examined**, then apply a mechanical preservation rule to those bands only:
+
+  > On the locked 43-track-per-band benchmark, a **DSP-handled** band is one predeclared from the DSP-only baseline with at least **30 of 43** correct. Automatic approval requires `gains ≥ losses` in every such band. Any band where `losses > gains` **blocks approval** pending documented track-level review and an explicit, recorded waiver. This is a descriptive benchmark tripwire, **not** evidence of population noninferiority.
+
+  The 30-of-43 threshold is a policy choice, not a statistical one. What matters statistically is that it is declared before results are seen, that the trigger is mechanical, and that the claim is scoped to this benchmark rather than to future tracks.
+
+  **Three riders.**
+  1. **The review must have teeth.** A tripwire whose review has no owner, no required evidence, and no recorded waiver decision is as much theatre as the fake test it replaces.
+  2. **Add a heterogeneity test as a second tripwire.** A system-by-band interaction test asks whether lift is uniform across bands. It would have caught the +32/−16 case overwhelmingly (`p` well below 10⁻⁶). It is **not** a substitute: it can reject merely because bands improve by differing amounts, and failing to reject does not establish that every band is safe.
+  3. **Report both net and gross.** Net band change (`gains − losses`) can be zero while many previously-correct tracks are swapped for different correct ones. Where preservation matters, report `losses` on its own, and report regression relative to what DSP had solved — one lost track out of 36 correct is not one lost out of 1.
+
+- **Q9 — DEFERRED, not resolved.** What is the **~1.5x cluster of 222 tracks** in the non-Rekordbox pool? Triplet relationships are a distinct phenomenon from the octave errors this epic is built around, and §4's evidence base does not account for them at all. They may be genuine triplet-feel material, a tagging convention, or detector error.
+
+  **Owner:** whoever executes FR-59b. **Revisit condition:** before the metrical convention is declared — not before the PRD closes. **Why deferring is safe:** FR-59f puts a human on every one of the 258 tracks, so a triplet-related file in the balanced set gets caught during verification whether or not its cause is understood in advance. **Why it is not free:** the 222 sit in the *pool*, not the corpus, so they shape which tracks are drawn and could bias selection before verification ever sees them. If FR-59b's convention is declared without characterizing them, record that as a known exposure rather than discovering it downstream.
+
+  Two live instances already exist and cost nothing to check first: `robbyt_x-ray-120s` (174 reported as ~115.6, exactly 3:2) in `AccuracyFloorTests`, and the AST notebook's `89 → 129.2`, within 3.2% of 1.5×.
 
 - ~~**Q1.** Which corpus is primary for the ensemble-lift gate — OA300, GiantSteps, or Tony's held-out split? They disagree in composition and in annotation trustworthiness.~~ **RESOLVED 2026-07-28 (operator): no single primary. Lift must appear on two of the three, with no regression on the third.** Each is compromised as a sole gate: OA300 has the most trustworthy annotations but only 1 track in 100-120 and 41 of 82 in 160-175; GiantSteps has band coverage but crowdsourced labels; Tony's split is DnB-dominant. A lift visible on only one corpus is the failure mode FR-71 exists to catch. **Two caveats raised by the Q2 consult and not yet resolved — see FR-69c.**
 - ~~**Q2.** What lift margin justifies bundling? FR-69 requires a number; none proposed.~~ **RESOLVED 2026-07-28 via statistical consult — see FR-69, FR-69a, FR-69b, FR-69c.** Headline: the original note's statistic was the wrong one, and a 2-track lift can never be statistically significant.
