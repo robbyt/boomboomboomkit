@@ -13,12 +13,17 @@ claims get made:
 2. **Human knowledge about generation** — what the repository owner knows about how a file
    came to exist. Reliable, but not independently verifiable from the file.
 3. **Redistribution authority** — the actual basis on which a file may be shipped. For
-   owner-authored work this is authorship. For generated audio it is the generating
-   service's output terms, which are **not yet recorded** (see Open items).
-4. **Unknown provenance** — files whose origin was never recorded. Listed, not guessed at.
+   owner-authored and owner-synthesized work this is authorship. For the five generated
+   MP3s it is the owner's judgement as the generating account holder, not documented
+   output terms (see Open items).
+4. **Unknown provenance** — files whose origin was never recorded. **This category is
+   currently empty.** It held nine files until 2026-07-28, when the owner recorded that
+   he synthesized them; the category is kept because it is the honest destination for any
+   future file whose origin nobody wrote down.
 
-No blanket claim is made here that every file is free of third-party rights, because for
-the files in category 4 that is not established.
+Every file now has a stated origin. What is *not* claimed is that every file rests on a
+documented licence: the five generated MP3s rest on the owner's judgement, which is
+recorded as such rather than presented as more than it is.
 
 ## Ground-truth tempos
 
@@ -85,14 +90,14 @@ be measuring the tag rather than the DSP.
 | `test-alac.m4a` | `afconvert`-generated ALAC-in-M4A, for the codec mis-tagging case (Story 8-2 AC6) |
 | `test-ulaw.caf` | `afconvert`-generated mu-law, for the unmapped-codec fallback (Story 8-2 AC6) |
 
-### Provenance not recorded
+### Synthesized by the owner (recorded retroactively)
 
-The following predate the provenance requirement and were added in the initial commit
-(`468a7b3`, 2026-03-21) with no recorded origin. All are short (1–5 s), low-complexity
-format-coverage assets exercising sample-rate, container, cover-art and codec paths.
-Their origin is **unconfirmed** — no claim is made here about what they are or are not,
-since the policy of this section is to list rather than guess. Establish provenance or
-regenerate them:
+These were added in the initial commit (`468a7b3`, 2026-03-21) before the provenance
+requirement existed, so nothing was written down at the time. **The repository owner
+states (recorded 2026-07-28) that all of them were synthesized by him, directly or with
+ffmpeg.** That is category 2 knowledge — reliable, but not independently verifiable from
+the files themselves, which carry no attestation. Redistribution authority (category 3)
+follows from it: synthesized content, no third-party material.
 
 - `sample.wav` (1 s, 8 kHz — the unsupported-sample-rate throw case)
 - `sample-with-cover.aiff`, `sample-with-cover.flac`, `sample-with-cover.m4a`, `sample-with-cover.mp3`
@@ -100,24 +105,31 @@ regenerate them:
 - `test-audio.flac`, `test-audio.m4a`
 - `test-bwf.wav`
 
-Regenerating them from synthesized tone or noise would close this cleanly; each exists
-only to exercise a container or codec path, so content is irrelevant to what they test.
+All are short (1–5 s), low-complexity format-coverage assets exercising sample-rate,
+container, cover-art and codec paths; content is irrelevant to what they test. If the
+statement above is ever doubted, regenerating them from synthesized tone would settle it
+without cost — each one's tested property (8 kHz rate, cover-art present or absent, BWF
+chunk) is reproducible.
 
 ## Open items
 
-These are unresolved and are recorded rather than papered over. Neither is claimed as
-closed by GH-167 item 5.
+- **Redistribution basis for the five C2PA/Google-generated MP3s rests on the owner's
+  judgement, not on documented terms.** Decision recorded 2026-07-28: they ship on the
+  repository owner's judgement as the account holder who generated them. This is stated
+  plainly rather than dressed up as a licence, because the two are not the same thing.
 
-- **Redistribution basis for the five C2PA/Google-generated MP3s is not established.**
-  The C2PA manifest proves provenance, not permission. What is missing is the specific
-  generating service and its output terms, or an explicit statement of the rights the
-  owner holds in the output. Until that is recorded, these files are shipped on the
-  owner's judgement, not on a documented basis. Resolving it is the licensing half of
-  issue #159. If it cannot be established, the alternative is replacing them — which
-  would cut the accuracy floor's real-music coverage from 5 tracks to 2.
-- **Nine fixtures have unrecorded provenance** (listed above). They predate the
-  provenance requirement and are all short container/codec assets. Any statement about
-  what they are would be a judgement, not a record, so none is made.
+  What would close it properly is the specific generating product and its output terms.
+  Inspecting the embedded C2PA block does not supply that: the certificate chain
+  identifies the *signer* — `Google LLC`, `Google Media Processing Services`, under
+  `Google C2PA Media Services 1P ICA G3` — and signing attests origin, not permission.
+  No Google product name appears anywhere in the manifest.
+
+  If the basis is ever challenged, the fallback is replacing these five, which would cut
+  the accuracy floor's real-music coverage from 5 tracks to 2. Tracked as the licensing
+  half of issue #159.
+
+- ~~Nine fixtures have unrecorded provenance.~~ **Closed 2026-07-28** by the owner's
+  statement recorded under "Synthesized by the owner" above.
 
 ## Rules for adding a fixture
 

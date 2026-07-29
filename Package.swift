@@ -38,7 +38,7 @@ let package = Package(
       path: "Sources/BoomBoomBoomKitML"
         // Story 4-6 Branch C: `resources: [.copy("Resources")]` removed.
         // The previously-bundled `giantsteps_v1.mlmodelc` was moved to
-        // `_bmad-output/ml-models/` (develop-only); see MODEL_CARD.md
+        // `_bmad-output/ml-models/` (develop-only), alongside its model card
         // Status section for the full rationale. Re-add this line when a
         // higher-quality bundled model returns.
     ),

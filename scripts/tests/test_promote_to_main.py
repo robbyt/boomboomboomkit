@@ -113,7 +113,6 @@ def test_develop_only_paths_are_stripped(path):
         "LICENSE",
         "Makefile",
         "README.md",
-        "MODEL_CARD.md",
         ".gitignore",
         ".swiftlint.yml",
         "Sources/BoomBoomBoomKit/BPMAnalyzer.swift",

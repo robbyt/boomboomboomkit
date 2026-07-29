@@ -227,7 +227,7 @@ public struct AudioAnalysisService {
     /// | Consumer intent | Code |
     /// |---|---|
     /// | Disable ML entirely (default — DSP-only) | `Options.mlTechnique = nil` |
-    /// | Use a bundled reference model | _no bundled model ships as of Story 4-6; see `MODEL_CARD.md` for the Branch C close-out rationale. `try? BNNSTechnique()` returns nil because the no-arg form throws `.modelResourceMissing`_ |
+    /// | Use a bundled reference model | _no bundled model ships as of Story 4-6; see the README's "Using your own tempo model" section. `try? BNNSTechnique()` returns nil because the no-arg form throws `.modelResourceMissing`_ |
     /// | Use your converted weights, same architecture | `Options.mlTechnique = try? BNNSTechnique(modelURL: myURL)` |
     /// | Use a custom architecture or different framework | `Options.mlTechnique = MyCustomMLTechnique()` |
     ///

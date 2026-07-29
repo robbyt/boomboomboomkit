@@ -15,7 +15,7 @@ import CoreML
 ///
 /// The production ML conformer is ``BNNSTechnique`` (same module) — load a
 /// `.mlmodelc` via `BNNSTechnique(modelURL:)` and assign that to
-/// `Options.mlTechnique`. See [MODEL_CARD.md](../../MODEL_CARD.md) and
+/// `Options.mlTechnique`. See the README's "Using your own tempo model" section and
 /// [tools/coreml-convert/](../../tools/coreml-convert/) for the BYOW
 /// (bring-your-own-weights) flow.
 ///

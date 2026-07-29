@@ -27,7 +27,6 @@ rather than surfacing on release day. Add a row here AND an entry there.
 | `Tests/` | Unit tests + the env-gated benchmark target |
 | `tools/coreml-convert/` | Consumer-facing PyTorch → CoreML conversion CLI. This is **the only Python tooling that ships to main** (Story 4-4b DD #13 exception, recorded in `_bmad-output/implementation-artifacts/4-4b-tempo-classifier-training.md`). That claim was false until 2026-07-28 — `Tests/` ships wholesale and carried `Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py` with it, a develop-only utility that reads `$OA300_CORPUS_PATH`. It is now withheld by `EXCLUDED_FROM_MAIN` in the promotion script (see below) |
 | `README.md` | Public-facing readme |
-| `MODEL_CARD.md` | Authoritative bundled-model accuracy disclosure (per Story 4-4b party-mode follow-up) |
 | `LICENSE` | License text |
 | `.swiftlint.yml` | Lint config |
 | `.gitignore` | Ignored-path rules. **`main` keeps its OWN copy** — the promotion preserves it rather than taking develop's. develop's 132-line file is mostly patterns for paths that don't exist on `main` (ml-training checkpoints, per-seed model exports, BMAD subtrees); `main` carries a 48-line file covering what a main-only checkout actually produces. The former instruction here — that the shipped file "must include the develop-only patterns" — was wrong: those patterns are dead config on `main` |
@@ -67,7 +66,7 @@ path added tomorrow is stripped whether or not it appears below.
 - **`_bmad-output/`** — every BMAD output:
   - `_bmad-output/implementation-artifacts/` — story specs, regression snapshots, diff-scope proofs, sprint-status.yaml
   - `_bmad-output/ml-training/` — Python training pipeline + Swift CLI fixture extractor + parity harness + reports + `model.pt`
-  - `_bmad-output/ml-models/` — uncompiled `.mlmodel` source bundle (the input to `make compile-model`) AND, post-Story-4-6 Branch C, the compiled `giantsteps_v1.mlmodelc/` itself (relocated from `Sources/BoomBoomBoomKitML/Resources/`). Pre-squash-merge to main: VERIFY this directory is NOT in the main-bound diff. The compiled bundle returns to `Sources/` only when a future Branch-A retrain story re-bundles a higher-quality model.
+  - `_bmad-output/ml-models/` — uncompiled `.mlmodel` source bundle (the input to `make compile-model`) AND, post-Story-4-6 Branch C, the compiled `giantsteps_v1.mlmodelc/` itself (relocated from `Sources/BoomBoomBoomKitML/Resources/`). **`MODEL_CARD.md` also lives here** as of 2026-07-28, moved off `main` with the weights it documents: a model card at the repo root of a library that bundles no model was misleading, and it carried develop-only paths and the private corpus name into a public artifact. The consumer-facing half — the `(1, 1, 128, 512)` NCHW tensor contract, bin schema, and BYOW instructions — was lifted into README's "Model contract for `BNNSTechnique`" first, so nothing a consumer needs left with it. Pre-squash-merge to main: VERIFY this directory is NOT in the main-bound diff. The compiled bundle returns to `Sources/` only when a future Branch-A retrain story re-bundles a higher-quality model.
   - `_bmad-output/perf-baselines/` — performance benchmark history
   - `_bmad-output/planning-artifacts/` — epics + architecture docs
   - `_bmad-output/project-context.md` — internal AI-agent context
@@ -84,8 +83,8 @@ path added tomorrow is stripped whether or not it appears below.
 is the public default branch, but no release has been cut and **it does not yet
 carry a released tree**. Measured 2026-07-28: `main` is two commits (`init` plus
 `Add .gitignore`) and **37 files**, with a 117-line README against develop's 611,
-and it is missing three allowlisted paths outright — `MODEL_CARD.md`,
-`.swiftlint.yml`, and `tools/`. The first promotion is therefore not an update to
+and it is missing two allowlisted paths outright — `.swiftlint.yml` and
+`tools/`. The first promotion is therefore not an update to
 a published package; it is the **first publication**, 37 files to 265. An earlier
 version of this section called it "a released-looking tree", which is what set
 the expectation behind the develop-into-release-branch PR that had to be closed.
