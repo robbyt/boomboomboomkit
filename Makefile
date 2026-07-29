@@ -748,6 +748,8 @@ release-rehearse:
 	fi; \
 	WT="$(RELEASE_REHEARSE_DIR)"; \
 	BR="release/rehearse-$$$$"; \
+	REF_SHA=$$(git rev-parse --verify "$(RELEASE_REHEARSE_REF)^{commit}") || { \
+		echo "ERROR: RELEASE_REHEARSE_REF='$(RELEASE_REHEARSE_REF)' does not resolve."; exit 1; }; \
 	cleanup() { \
 		git worktree remove --force "$$WT" >/dev/null 2>&1 || true; \
 		git branch -D "$$BR" >/dev/null 2>&1 || true; \
@@ -757,8 +759,12 @@ release-rehearse:
 	rm -rf "$$WT"; git worktree prune; \
 	echo "==> cutting $$BR from origin/main"; \
 	git worktree add -q "$$WT" -b "$$BR" origin/main; \
-	echo "==> squashing $(RELEASE_REHEARSE_REF) (the .gitignore conflict is expected)"; \
-	git -C "$$WT" merge --squash $(RELEASE_REHEARSE_REF) >/dev/null 2>&1 || true; \
+	echo "==> squashing $(RELEASE_REHEARSE_REF) ($$REF_SHA) -- the .gitignore conflict is expected"; \
+	git -C "$$WT" merge --squash "$$REF_SHA" >/dev/null 2>&1 || true; \
+	if [ -z "$$(git -C "$$WT" diff --cached --name-only)" ]; then \
+		echo "ERROR: the squash staged nothing. Is RELEASE_REHEARSE_REF an ancestor of main?"; \
+		exit 1; \
+	fi; \
 	echo "==> applying the allowlist"; \
 	( cd "$$WT" && uv run scripts/promote-to-main.py --execute ); \
 	( cd "$$WT" && git -c user.email=rehearse@local -c user.name=rehearse \
