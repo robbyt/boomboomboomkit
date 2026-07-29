@@ -130,3 +130,7 @@ giantsteps-holdout-v2.json
 # never a project artifact. Ignored after being committed by accident twice
 # (GH-167 items 4 and 5).
 codex-review.diff
+
+# Scratch worktree produced by `make release-rehearse` (removed on exit; ignored
+# so an interrupted run cannot leave the repo looking dirty).
+.release-rehearse/

@@ -28,8 +28,9 @@ import os.log
 /// CPU-only inference path. **No bundled model ships** as of Story 4-6
 /// (Branch C close-out, 2026-05-16) — the previously-bundled
 /// `giantsteps_v1.mlmodelc` was removed because it abstained on 100% of
-/// OA300 audio at production thresholds. See `MODEL_CARD.md` for the
-/// full Status section + threshold-sweep evidence. Consumers using ML
+/// the internal evaluation corpus at production thresholds. The full
+/// status and threshold-sweep evidence are kept with the weights on the
+/// `develop` branch. Consumers using ML
 /// today MUST pass a `.mlmodelc` URL explicitly via
 /// ``init(modelURL:options:)`` —
 /// see `tools/coreml-convert/README.md` for the bring-your-own-model
@@ -95,10 +96,10 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// Default URL for a library-bundled reference model. **Always `nil`
   /// in the current ship.** Story 4-6 (Branch C close-out, 2026-05-16)
   /// removed the previously-bundled `giantsteps_v1.mlmodelc` from the
-  /// main-shipping path because it abstained on 100% of OA300 audio at
-  /// production thresholds (see `MODEL_CARD.md` for the full status +
-  /// the threshold-sweep evidence). The training pipeline at
-  /// `_bmad-output/ml-training/` remains operational; the
+  /// main-shipping path because it abstained on 100% of the internal
+  /// evaluation corpus at production thresholds (the full status and
+  /// threshold-sweep evidence are kept with the weights on the `develop`
+  /// branch). The training pipeline remains operational there; the
   /// `BNNSTechnique` infrastructure (load, featurize, inference,
   /// two-gate, diagnostic capability) is unchanged and ready to consume
   /// a higher-quality model when one is trained.

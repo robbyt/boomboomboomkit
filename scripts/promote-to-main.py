@@ -15,11 +15,16 @@ directory tomorrow requires no edit here.
 
 Usage
 -----
-    git checkout main
+    git checkout -b release/vX.Y.Z main          # or: git checkout main
     git merge --squash develop
     uv run scripts/promote-to-main.py            # dry run, stages nothing
     uv run scripts/promote-to-main.py --execute  # unstage the strip set
     git commit                                   # a human writes the message
+
+The staging pass runs on `main` or on any `release/*` branch. The release
+branch is the reviewable form: cut it from main, stage the promotion, commit,
+then open a PR into main so the release gets CI and review before it lands on
+the public default branch.
 
 Develop-only. Consumers never run this, and it strips itself.
 """
@@ -41,7 +46,6 @@ SHIPS_TO_MAIN: tuple[str, ...] = (
     ".gitignore",
     ".swiftlint.yml",
     "LICENSE",
-    "MODEL_CARD.md",
     "Makefile",
     "Package.swift",
     "README.md",
@@ -64,6 +68,24 @@ SHIPS_TO_MAIN: tuple[str, ...] = (
 # are useful to anyone reading the source. Only whole develop-only FILES are
 # withheld, which is what the allowlist above governs.
 PRESERVE_FROM_MAIN: frozenset[str] = frozenset({".gitignore"})
+
+# Carve-outs: paths that sit UNDER an allowlisted prefix but are still withheld.
+#
+# The allowlist ships `Tests/` wholesale, which is right for the test suite but
+# swept up a develop-only utility with it. `convert-rekordbox-export.py` reads
+# $OA300_CORPUS_PATH and regenerates the ground-truth fixture; it has no
+# consumer use and its docstring walks through a private-corpus workflow.
+# Shipping it also contradicted CLAUDE.md's claim that tools/coreml-convert/ is
+# the only Python that reaches `main`. Found by running a full release
+# rehearsal, not by reading the list.
+#
+# Keep this set SMALL. It is a denylist bolted onto an allowlist, so it carries
+# the same fail-open risk the allowlist was built to remove: a sibling
+# develop-only file added under Tests/ tomorrow ships unless someone remembers
+# to add it here. Prefer relocating such a file out of Tests/ over growing this.
+EXCLUDED_FROM_MAIN: frozenset[str] = frozenset(
+    {"Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py"}
+)
 
 
 def run(*args: str) -> str:
@@ -121,6 +143,8 @@ def unmerged_paths() -> list[str]:
 
 def is_allowed(path: str) -> bool:
     """True when `path` is cleared to appear on `main`."""
+    if path in EXCLUDED_FROM_MAIN:
+        return False
     for entry in SHIPS_TO_MAIN:
         if entry.endswith("/"):
             if path.startswith(entry):
@@ -128,6 +152,19 @@ def is_allowed(path: str) -> bool:
         elif path == entry:
             return True
     return False
+
+
+# Branches the staging pass will run on. `main` is the historical target; a
+# `release/*` branch is the reviewable form — cut from main, squash develop
+# into it, then open a PR so the promotion gets CI and a second pair of eyes
+# before it reaches the public default branch. A first publication of 265
+# files with no review step was the weak point in the main-only protocol.
+RELEASE_BRANCH_PREFIX = "release/"
+
+
+def is_release_branch(branch: str) -> bool:
+    """True when the staging pass is allowed to run on `branch`."""
+    return branch == "main" or branch.startswith(RELEASE_BRANCH_PREFIX)
 
 
 def main() -> int:
@@ -197,10 +234,14 @@ def main() -> int:
             branch = run("symbolic-ref", "--short", "HEAD").strip()
         except RuntimeError:
             branch = "(detached HEAD)"
-        if branch != "main":
+        if not is_release_branch(branch):
             print(
-                f"error: expected to be on 'main', found '{branch}'.\n"
-                "       Run `git checkout main && git merge --squash develop` first.",
+                f"error: expected 'main' or a '{RELEASE_BRANCH_PREFIX}*' branch, "
+                f"found '{branch}'.\n"
+                "       Run `git checkout -b release/vX.Y.Z main && "
+                "git merge --squash develop` first,\n"
+                "       or `git checkout main && git merge --squash develop` to "
+                "commit straight to main.",
                 file=sys.stderr,
             )
             return 2

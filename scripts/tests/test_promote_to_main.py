@@ -113,7 +113,6 @@ def test_develop_only_paths_are_stripped(path):
         "LICENSE",
         "Makefile",
         "README.md",
-        "MODEL_CARD.md",
         ".gitignore",
         ".swiftlint.yml",
         "Sources/BoomBoomBoomKit/BPMAnalyzer.swift",
@@ -204,7 +203,66 @@ def test_refuses_off_main(tmp_path: Path):
     _git(repo, "add", "-A")
     proc = subprocess.run(["python3", str(SCRIPT)], cwd=repo, capture_output=True, text=True)
     assert proc.returncode == 2
-    assert "expected to be on 'main'" in proc.stderr
+    assert "expected 'main' or a 'release/*' branch" in proc.stderr
+
+
+@pytest.mark.parametrize("branch", ["release/v1.0.0", "release/v2.3.4-rc1", "release/anything"])
+def test_accepts_a_release_branch(tmp_path: Path, branch: str):
+    """A `release/*` branch is the reviewable promotion target, so the guard admits it.
+
+    Without this the operator's only options were committing 265 files straight
+    to the public default branch, or reaching for `--allow-any-branch`, which is
+    labelled testing-only and disables the guard entirely rather than widening it.
+    """
+    repo = tmp_path / "rel"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", branch)
+    (repo / "LICENSE").write_text("x\n")
+    (repo / "TODO.md").write_text("x\n")
+    _git(repo, "add", "-A")
+    proc = subprocess.run(
+        ["python3", str(SCRIPT), "--execute"], cwd=repo, capture_output=True, text=True
+    )
+    assert proc.returncode == 0, proc.stderr
+    staged = set(_git(repo, "ls-files", "--cached").split())
+    assert staged == {"LICENSE"}
+
+
+@pytest.mark.parametrize(
+    "branch", ["releases/v1", "release", "myrelease/v1", "develop", "main-release"]
+)
+def test_release_prefix_is_not_a_substring_match(branch: str):
+    """Only the `release/` prefix qualifies — no substring or near-miss admits a branch."""
+    assert not promote.is_release_branch(branch)
+
+
+def test_excluded_path_is_stripped_despite_allowlisted_prefix():
+    """`Tests/` ships wholesale, but the carve-out still withholds the corpus utility.
+
+    The file reads $OA300_CORPUS_PATH and regenerates the ground-truth fixture;
+    it has no consumer use. Caught by a release rehearsal, not by reading lists.
+    """
+    excluded = "Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py"
+    assert excluded in promote.EXCLUDED_FROM_MAIN
+    assert not promote.is_allowed(excluded)
+    # The sibling fixtures around it must be unaffected.
+    assert promote.is_allowed("Tests/BoomBoomBoomKitTests/Fixtures/oa300-ground-truth.json")
+    assert promote.is_allowed("Tests/BoomBoomBoomKitTests/Fixtures/other.swift")
+
+
+def test_every_exclusion_sits_under_an_allowlisted_prefix():
+    """An exclusion that strips nothing is dead config and hides a stale path.
+
+    If a file is moved or deleted, its entry here silently stops matching. This
+    fails instead, so the set cannot rot into a list of paths that no longer
+    exist under any shipping prefix.
+    """
+    for path in promote.EXCLUDED_FROM_MAIN:
+        covered = any(
+            path.startswith(e) if e.endswith("/") else path == e for e in promote.SHIPS_TO_MAIN
+        )
+        assert covered, f"{path} is excluded but no allowlist entry would have shipped it anyway"
+        assert (REPO_ROOT / path).exists(), f"{path} is excluded but does not exist on develop"
 
 
 def test_dry_run_leaves_the_index_untouched(tmp_path: Path):
