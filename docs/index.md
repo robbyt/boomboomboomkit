@@ -30,10 +30,10 @@
 
 ### Planning Artifacts
 
-- [PRD](../_bmad-output/planning-artifacts/prd.md) -- 45 functional requirements, 20 non-functional requirements
+- [PRD](../_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-05-25/prd.md) -- 51 functional requirements, 10 non-functional requirements
 - [Architecture (Planning)](../_bmad-output/planning-artifacts/architecture.md) -- 10 ADRs, implementation patterns, cancellation/progress design
 - [Epics & Stories](../_bmad-output/planning-artifacts/epics.md) -- 5 epics, 22 stories, FR coverage map
-- [Phase 3 Roadmap](../_bmad-output/planning-artifacts/phase3-roadmap.md) -- Phases 3A-3D implementation plan
+- [Phase 3 Roadmap (archived)](../_bmad-output/planning-artifacts/archive/phase3-roadmap-2026-03-29.md) -- Phases 3A-3D plan from 2026-03-29, superseded by epics.md
 
 ### Implementation Artifacts
 
