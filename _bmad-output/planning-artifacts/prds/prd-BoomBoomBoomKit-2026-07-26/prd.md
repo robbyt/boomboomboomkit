@@ -104,10 +104,10 @@ Claims are tagged **MEASURED** (we ran it), **PUBLISHED** (cited), or **UNTESTED
 Highest published evidence in the epic, needs no model, no retrain, and is testable against existing fixtures today. Overlaps #172, already filed.
 
 - **FR-53.** Make the tempo search range consumer-specifiable. All four bounds are currently `private static let` on `BPMAnalyzer` and unreachable from `Options`.
-- **FR-54.** Support a style-conditioned prior that reweights (never hard-filters) candidates by plausibility for a declared style, defaulting to no prior so the default path stays byte-identical.
+- **FR-54.** Support a style-conditioned prior that reweights (never hard-filters) candidates by plausibility for a **classified** style (§14 Q5, settled 2026-07-28), defaulting to no prior so the default path stays byte-identical. The classifier is a dependency this FR did not carry when first written. It must abstain rather than guess: an unrecognized style degrades to no prior, never to a wrong one, because a wrong prior actively misleads the detector and is worse than none.
 - **FR-55.** Measure per-band and per-genre against the four `AccuracyFloorTests` known-failure fixtures, all of which are DSP-path octave errors with no model involved.
 
-*This lever is DSP-side and overlaps Epic 13. §14 Q6 resolves ownership before work starts.*
+*This lever is DSP-side and overlaps Epic 13. **Ownership settled 2026-07-28: Epic 12 owns it** (§14 Q6). The overlapping Epic 13 claim is a recorded duplication to settle when that charter is next opened, and no longer gates this work.*
 
 ### 5.2 F2 — Reference-gap diagnosis
 
@@ -143,8 +143,39 @@ Retained, but with its rationale corrected. We are **ahead of the published reco
 
 FR-18 required matching DSP standalone (GiantSteps ≥ 537/661 — DSP's own score). That asks the model to replace DSP rather than help it, which is why a model that fixed the sub-100 band would still have failed.
 
-- **FR-68.** Define the bundle gate as **ensemble lift**: DSP+ML beats DSP alone by a stated margin, with **no regression** in any band DSP already handles.
-- **FR-69.** State the margin in tracks, not percentages, justified against binomial noise. Existing discipline is ≥2 OA300 tracks (1 track ≈ 1.2pp against a ~5pp standard error).
+- **FR-68.** Define the bundle gate as **ensemble lift**: DSP+ML beats DSP alone by a stated margin on **at least two of the three evaluation corpora, with no regression on the third** (§14 Q1, settled 2026-07-28), and with **no regression** in any band DSP already handles.
+- **FR-69.** State the margin in tracks, not percentages. **Settled 2026-07-28 (§14 Q2) after a statistical consult. The original wording, struck below, was wrong in both its statistic and the conclusion drawn from it.**
+
+  ~~Existing discipline is ≥2 OA300 tracks (1 track ≈ 1.2pp against a ~5pp standard error).~~
+
+  The ~5pp figure is `sqrt(p(1-p)/n)` for a *single* proportion at n=82 — the standard error of one system's accuracy, not of the difference between two systems scored on the same tracks. The correct frame is **exact two-sided McNemar** on discordant pairs. With `b` = tracks the ensemble fixes, `c` = tracks it breaks, `d = b + c`, and net lift `t = b - c`, the equal-accuracy null is `b ~ Binomial(d, 0.5)`. The paired standard error is `sqrt(d)/n`, which beats 5pp only when `d` is small — so "both systems see the same tracks" is not on its own enough.
+
+  **A 2-track net lift can never be significant.** The most favourable case, `d = 2` split 2:0, gives exact `p = 0.500`. The smallest significant result on any corpus is 6:0 (`p = 0.031`). Computed independently, not taken on report.
+
+  The threshold depends on the discordance `d`, which has not been measured. Planning values at exact two-sided `p <= 0.05`:
+
+  | Corpus | discordance `d` | min net lift `t` | split | exact `p` |
+  |---|---|---|---|---|
+  | OA300 (n=82) | 8 (10%) | **8** | 8:0 | 0.008 |
+  | OA300 | 16 (20%) | **10** | 13:3 | 0.021 |
+  | OA300 | 25 (30%) | **11** | 18:7 | 0.043 |
+  | GiantSteps (n=661) | 66 (10%) | **18** | 42:24 | 0.036 |
+  | GiantSteps | 132 (20%) | **24** | 78:54 | 0.045 |
+
+  Large-sample planning approximation: `t >= 1.96 * sqrt(d)`, rounded up to match the parity of `d`.
+
+  **"≥2 tracks" survives only as a product-value floor** — an assertion that 2.4pp is worth shipping — **and must never again be described as justified against noise.**
+
+- **FR-69a.** The 2-of-3 corpus rule needs a multiplicity correction. If one corpus genuinely improves and the other two do not, an uncorrected rule falsely claims two-corpus replication with probability up to ~9.75%. Use a **partial-conjunction rule: sort the three corpus p-values and require the second-smallest to satisfy `p2 <= 0.025`.** This holds without assuming the corpora are independent. At 10% discordance it implies ~8 net tracks on OA300 and ~20 on GiantSteps.
+
+- **FR-69b.** Seed agreement is a robustness guardrail, **not** a substitute for the paired margin. Three seeds share the same tracks, labels, and failure modes, so their results are correlated: do not multiply seed-level p-values, and do not treat 3-seed agreement as `0.05^3`. Freeze the exact weights to be shipped and test that artifact once on untouched data; the other seeds evidence development robustness only.
+
+- **FR-69c.** **Unresolved design risks in the gate itself**, raised by the same consult and not yet answered. These bear on FR-68's 2-of-3 rule and must be settled before the gate is trusted:
+  1. **GiantSteps may not count as confirmatory.** §4 records it as the distribution the reference model family was fit to. If its actual tracks or labels touched training, tuning, model selection, or repeated candidate screening, it is not independent evidence — merely sharing a distribution is weak external validation at best.
+  2. **Two of the three corpora are DnB/high-BPM-heavy.** OA300 is 41 of 82 in 160-175, and Tony's split is DnB-dominant. "Two of three" therefore does not establish broad BPM-domain performance, which is the thing the gate is meant to certify.
+  3. **Repeated screening inflates significance.** Re-using the same corpora to choose among candidates makes nominal p-values optimistic. Predeclare the candidate and the analysis, or hold a corpus back.
+  4. **A one-track band cannot support a no-regression claim.** OA300's 100-120 band has exactly 1 track, and FR-71 requires per-band reporting. "No significant regression" is not evidence of no regression: predeclare each band's noninferiority margin and treat one-track bands as unmeasurable rather than as passing.
+  5. **McNemar assumes independent tracks.** Duplicates, remixes, or clusters by artist or source need cluster-aware resampling. Annotation error is not in McNemar's uncertainty at all.
 - **FR-70.** Retain the DnB triplet sentinels and a confidence-calibration floor. FR-25's calibration metric was never committed and never ran; here it is a precondition.
 - **FR-71.** Report per-band lift, never only an aggregate. The +190 retrain gained 120-140 and lost 140-160; an aggregate hid that.
 
@@ -249,12 +280,12 @@ F4 and F5 are gated on F2's findings. F7 cannot start until there is a model wor
 
 ## 14. Open Questions
 
-- **Q1.** Which corpus is primary for the ensemble-lift gate — OA300, GiantSteps, or Tony's held-out split? They disagree in composition and in annotation trustworthiness.
-- **Q2.** What lift margin justifies bundling? FR-69 requires a number; none proposed.
+- ~~**Q1.** Which corpus is primary for the ensemble-lift gate — OA300, GiantSteps, or Tony's held-out split? They disagree in composition and in annotation trustworthiness.~~ **RESOLVED 2026-07-28 (operator): no single primary. Lift must appear on two of the three, with no regression on the third.** Each is compromised as a sole gate: OA300 has the most trustworthy annotations but only 1 track in 100-120 and 41 of 82 in 160-175; GiantSteps has band coverage but crowdsourced labels; Tony's split is DnB-dominant. A lift visible on only one corpus is the failure mode FR-71 exists to catch. **Two caveats raised by the Q2 consult and not yet resolved — see FR-69c.**
+- ~~**Q2.** What lift margin justifies bundling? FR-69 requires a number; none proposed.~~ **RESOLVED 2026-07-28 via statistical consult — see FR-69, FR-69a, FR-69b, FR-69c.** Headline: the original note's statistic was the wrong one, and a 2-track lift can never be statistically significant.
 - **Q3.** Where does 100-120 BPM material come from? OA300 has one track; Tony's corpus is DnB-dominant.
 - **Q4.** If AS-5 holds, is the fix to re-label, exclude, or model the ambiguity explicitly?
-- **Q5.** How does a style prior get its style? User-declared, metadata-derived, or classified — each has a different failure surface.
-- **Q6.** Does Epic 12 or Epic 13 own F1? Both charters claim the DSP octave levers. **Blocks F1.**
+- ~~**Q5.** How does a style prior get its style? User-declared, metadata-derived, or classified — each has a different failure surface.~~ **RESOLVED 2026-07-28 (operator): classified.** The prior derives style from a classifier rather than a caller-declared value or a file tag. This buys coverage with no caller input and no dependence on absent or wrong genre tags, and accepts a router-error failure surface plus a second model in the deployment path — the exact cost the 2026-06-09 roundtable cited when ranking genre-MoE last. **Consequence: FR-54 now carries a classifier dependency it did not have when written, and that deployment objection now applies to F1.** Recorded rather than smoothed over.
+- ~~**Q6.** Does Epic 12 or Epic 13 own F1? Both charters claim the DSP octave levers. **Blocks F1.**~~ **RESOLVED 2026-07-28 (operator): Epic 12 owns F1.** F1 is the highest-evidence lever Discovery surfaced, needs no model and no retrain, and is testable against existing fixtures today, so keeping it here lets the epic produce value even if every ML lever fails. Epic 13's overlapping claim on the DSP octave levers is now a recorded duplication to settle when that charter is next opened; it no longer blocks F1.
 - **Q7.** Does the demo app expose a model-quality disclosure, and where?
 
 ## 15. Assumptions Index
