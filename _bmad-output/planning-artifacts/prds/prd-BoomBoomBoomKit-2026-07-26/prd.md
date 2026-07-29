@@ -122,9 +122,16 @@ No lever should be funded before we know why a published model in our own family
 Two independent results say our rulers are suspect: the ~6-point annotation-version swing, and a gate whose denominator is half one tempo band.
 
 - **FR-59.** Build a band-stratified held-out octave test set from OA300, with the 80-85 / 160-175 pairs as their own sentinel group, and confirm or refute AS-5.
+- **FR-59a.** Source 100-120 BPM evaluation material from the Story 7.2 non-Rekordbox pool (§14 Q3, settled 2026-07-28), subject to two conditions that are not optional:
+  1. **Labels must be established independently of our DSP.** The 7.2 survey was deliberately BPM-tag-blind and its tiering leaned on our own detector. Promoting a DSP-derived value to ground truth would turn the 100-120 gate into a change detector for the thing it is meant to test — the same trap `FIXTURES.md` already guards against for the accuracy floor.
+  2. **Contamination boundary with the gate corpus.** Tony's held-out split is one of the three gate corpora under FR-68. Material mined from the same collection must be partitioned so no track, remix, or artist appears on both sides; otherwise the 100-120 evidence and the gate stop being independent. `scripts/audit-corpus-splits.py` already enforces this class of check and must cover the new material.
 - **FR-60.** Tag every reported accuracy figure with its ground-truth annotation version. Untagged historical figures are marked untagged, not assumed.
 - **FR-61.** Report `Acc2 − Acc1` as a first-class metric alongside Acc1. It is the standard octave-error proxy and this epic is about octave errors.
 - **FR-62.** Record the metrical-level labelling convention the project trains toward, and audit the training corpus against it.
+- **FR-62a.** If FR-59 confirms AS-5, re-label the affected OA300 tracks to that single convention (§14 Q4, settled 2026-07-28). Three consequences, recorded because the decision was taken before the test reported:
+  1. **Every historical accuracy figure on the old labels becomes incomparable.** FR-60's version tagging is what makes this survivable; it is a precondition of re-labelling, not a parallel task.
+  2. **Re-labelling is irreversible in practice** once downstream artifacts are regenerated. Snapshot the pre-relabel ground truth as its own tagged version first.
+  3. **It changes what the corpus teaches, not just what it scores.** If any re-labelled track has ever been used for training or model selection, the affected runs must be re-measured rather than carried forward.
 
 ### 5.4 F4 — Training-target repair
 
@@ -182,6 +189,10 @@ FR-18 required matching DSP standalone (GiantSteps ≥ 537/661 — DSP's own sco
 ### 5.7 F7 — Delivery
 
 - **FR-72.** Ship weights inside the demo app archive (`make demo-archive`), never in the repository.
+- **FR-72a.** Bundle the model card into the demo archive and link it from the about screen (§14 Q7, settled 2026-07-28). Three gaps this does not close:
+  1. **The artifact is develop-only and written for developers.** It now lives at `_bmad-output/ml-models/MODEL_CARD.md`, which never ships to `main`. The demo archive is built from `develop` so bundling is mechanically fine, but `make demo-archive` must copy it in explicitly, and its register is internal — a demo user meets story references and corpus jargon unless an end-user summary fronts it.
+  2. **It documents models that are not the shipped one.** It currently covers the withdrawn v1 and the failed v2 retrain. Whatever ships under F6 must be added before the archive is cut, or the bundled card describes something the user does not have.
+  3. **A card is not a runtime signal.** It states what the model scored in aggregate; it cannot tell a user whether the model contributed to the number currently on screen. If that matters, it needs a per-result indicator, which this decision explicitly did not adopt.
 - **FR-73.** The library keeps its BYOW seam unchanged. Absent weights degrade to DSP-only via the existing abstain path — no network, no new dependency, no behavioural change for existing consumers.
 - **FR-74.** Register the bundled model through `ModelRegistry` for SHA-256 identity verification at load. The digest machinery exists and already handles `.mlmodelc` directory bundles.
 
@@ -282,11 +293,11 @@ F4 and F5 are gated on F2's findings. F7 cannot start until there is a model wor
 
 - ~~**Q1.** Which corpus is primary for the ensemble-lift gate — OA300, GiantSteps, or Tony's held-out split? They disagree in composition and in annotation trustworthiness.~~ **RESOLVED 2026-07-28 (operator): no single primary. Lift must appear on two of the three, with no regression on the third.** Each is compromised as a sole gate: OA300 has the most trustworthy annotations but only 1 track in 100-120 and 41 of 82 in 160-175; GiantSteps has band coverage but crowdsourced labels; Tony's split is DnB-dominant. A lift visible on only one corpus is the failure mode FR-71 exists to catch. **Two caveats raised by the Q2 consult and not yet resolved — see FR-69c.**
 - ~~**Q2.** What lift margin justifies bundling? FR-69 requires a number; none proposed.~~ **RESOLVED 2026-07-28 via statistical consult — see FR-69, FR-69a, FR-69b, FR-69c.** Headline: the original note's statistic was the wrong one, and a 2-track lift can never be statistically significant.
-- **Q3.** Where does 100-120 BPM material come from? OA300 has one track; Tony's corpus is DnB-dominant.
-- **Q4.** If AS-5 holds, is the fix to re-label, exclude, or model the ambiguity explicitly?
+- ~~**Q3.** Where does 100-120 BPM material come from? OA300 has one track; Tony's corpus is DnB-dominant.~~ **RESOLVED 2026-07-28 (operator): mine the non-Rekordbox pool.** The Story 7.2 survey already covered ~4,700 files outside the Rekordbox collection and tiered them into `secondarySupervised` / `unsupervisedPool` / `reject`. The material is owner-held, so no new licensing question arises. **Two conditions attach — see FR-59a.**
+- ~~**Q4.** If AS-5 holds, is the fix to re-label, exclude, or model the ambiguity explicitly?~~ **RESOLVED 2026-07-28 (operator): re-label to a single convention.** Conditional on AS-5 actually holding — FR-59 still runs first, and a refutation means no re-labelling is needed. Excluding the pairs was rejected because it would drop 59 of OA300's 82 tracks and destroy the corpus as a gate. **See FR-62a for what re-labelling costs.**
 - ~~**Q5.** How does a style prior get its style? User-declared, metadata-derived, or classified — each has a different failure surface.~~ **RESOLVED 2026-07-28 (operator): classified.** The prior derives style from a classifier rather than a caller-declared value or a file tag. This buys coverage with no caller input and no dependence on absent or wrong genre tags, and accepts a router-error failure surface plus a second model in the deployment path — the exact cost the 2026-06-09 roundtable cited when ranking genre-MoE last. **Consequence: FR-54 now carries a classifier dependency it did not have when written, and that deployment objection now applies to F1.** Recorded rather than smoothed over.
 - ~~**Q6.** Does Epic 12 or Epic 13 own F1? Both charters claim the DSP octave levers. **Blocks F1.**~~ **RESOLVED 2026-07-28 (operator): Epic 12 owns F1.** F1 is the highest-evidence lever Discovery surfaced, needs no model and no retrain, and is testable against existing fixtures today, so keeping it here lets the epic produce value even if every ML lever fails. Epic 13's overlapping claim on the DSP octave levers is now a recorded duplication to settle when that charter is next opened; it no longer blocks F1.
-- **Q7.** Does the demo app expose a model-quality disclosure, and where?
+- ~~**Q7.** Does the demo app expose a model-quality disclosure, and where?~~ **RESOLVED 2026-07-28 (operator): bundle the model card into the demo archive and link it from the about screen.** Reuses the relocated artifact rather than authoring a second accuracy claim, keeping one source of truth. **See FR-72a for the three gaps this leaves.**
 
 ## 15. Assumptions Index
 
