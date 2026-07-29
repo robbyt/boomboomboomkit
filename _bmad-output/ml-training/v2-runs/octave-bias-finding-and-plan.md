@@ -41,6 +41,13 @@ GiantSteps per band, Acc1 (exact) vs Acc2 (octave-tolerant), + octave direction:
    representation / training fix, not decode.
 
 ### The ceiling, precisely
+
+> **2026-07-26 (GH-166): the caveat below was right and the measurement is now in.**
+> The 401 oracle ceiling was never approachable by a posterior decode -- #141 measured
+> every threshold as net negative. See the STATUS CORRECTION under "The plan" below.
+> The Acc2 = 401 figure itself remains a correct octave-tolerant re-score of the E0 run;
+> what is false is treating the gap to 348 as recoverable HEADROOM.
+
 - Perfect octave decode caps at **Acc2 = 401/661 (61%)** — i.e. up to **+53 tracks of
   octave-confusion HEADROOM** over 348. CAVEAT (Codex review 2026-06-09): 401 is an
   *oracle* ceiling (truth-aware octave equivalence). It is NOT a guaranteed decode
@@ -65,6 +72,31 @@ GiantSteps per band, Acc1 (exact) vs Acc2 (octave-tolerant), + octave direction:
   a fast-music corpus teaches "when in doubt, fast." Well-documented in MIR
   (Schreiber & Müller TempoCNN papers; Bock RNN+comb-filter; Acc1/Acc2 convention
   exists BECAUSE octave confusion is endemic). (Mary)
+
+  > **CORRECTION 2026-07-26 (GH-166 / #146): the "hard cross-entropy" premise in the
+  > bullet above is FALSE for the authoritative v2 path.**
+  > `ablation/octave_aware_loss.py:42,77` sets `OCTAVE_FACTORS = (2.0, 0.5)` and
+  > `octave_mass = 0.15`, and `train.py` v2 mode routes through it
+  > (`train_v2.run_v2` -> `ablation_train.finetune`); only the legacy v1 supervised
+  > path uses plain `F.cross_entropy`. So the loss DID give octave partial credit.
+  >
+  > **Where that mass lands is tempo-dependent, and the naive reading is wrong.**
+  > `octave_partner_bins` (`:56-71`) DROPS any partner whose BPM falls outside
+  > [30, 285] before splitting (DD #2, to avoid a clamp-to-boundary smear). So the
+  > 0.15 splits ~0.075 / ~0.075 onto {2T, T/2} only for roughly **60 <= T <= 142**.
+  > Above ~142 BPM the 2T partner is out of range and the FULL 0.15 goes to the
+  > HALF -- i.e. in the DnB band (174 BPM) the loss rewards the *fundamental*, not
+  > the doubling. Below ~60 the reverse holds. The "loss rewards the 2x mode"
+  > shorthand is therefore true for the 100-142 band and FALSE for the fast band;
+  > do not carry it as a blanket claim.
+  >
+  > Provenance caveat: `model_metadata.json` for the v2 runs records no loss fields
+  > and no `octave_mass`, so "all three retrains used 0.15" is INFERRED from the
+  > `--octave-mass` default, not read off run artifacts. That gap is itself worth
+  > fixing before the next retrain.
+  >
+  > What IS unambiguously absent is ordinal structure: a 1-bin miss and a 100-bin
+  > miss are penalized identically.
 - **Deployment reality: octave decode is free on-device; MoE is not.** Genre-MoE = a
   new genre classifier (router-error failure mode) + N BNNSGraph loads + re-bundling
   weights (reverses Story 4-6 Branch C) + likely a CoreML/ANE migration off the
@@ -72,7 +104,32 @@ GiantSteps per band, Acc1 (exact) vs Acc2 (octave-tolerant), + octave direction:
   deployment boundary. (Siri)
 
 ## The plan (evidence-ordered, cheapest-first; MoE is the last resort)
-**E1 — octave-aware decode, NO retrain (free, this is the immediate win).**
+
+> **STATUS CORRECTION 2026-07-26 (GH-166, `spec-gh-166-epic12-lever-sequencing.md`).**
+> **E1 below was implemented, measured, and removed. It does not work.** Measured over
+> all 661 GiantSteps tracks against `giantsteps_v2_seed_42` (#141, PRs #177/#179;
+> `_bmad-output/implementation-artifacts/141-octave-fold-impact.json`): **every threshold
+> from 0.0 to 1.0 is net negative on Acc1**, best -2, reached by folding almost nothing.
+> At threshold 0.0 the rule fires on **604 of 661 tracks**: 38 helpful (exactly the
+> sub-100 recoveries predicted below -- the mechanism works), 346 harmful, and 220
+> accuracy-neutral, netting **-308**. No threshold separates helpful from harmful:
+> helpful folds (n=38) median mass ratio 0.199 (range 0.037-0.745), harmful folds
+> (n=346) median 0.192 (range 0.014-1.700) -- the helpful range sits ENTIRELY INSIDE
+> the harmful range, so no single cut on this statistic can isolate the good folds.
+> The model is *confidently* wrong on
+> exactly the tracks needing a fold, so the information the rule needs is **absent from
+> the posterior** -- which is what the Codex caveat above meant by "cannot be replayed
+> offline". The "Expected: 348 -> ~401" line below is therefore **measured false**; 401
+> was an oracle ceiling, never an achievable target.
+>
+> The same conclusion was reached independently on the DSP side: four demote-to-fundamental
+> variants of `resolveOctaveAmbiguity` were measured on 2026-06-28 and all reverted (OA300
+> Acc1 58 -> 40 / 39 / 54 / 56). **Both cheap octave levers are now measured and failed.**
+> Any surviving octave lever must source its evidence from OUTSIDE the signal that produced
+> the candidate. The corrected ranking lives in the Epic 12 charter (`epics.md`); this
+> document is retained as the E0 diagnostic record, which stands unchanged.
+
+**E1 — octave-aware decode, NO retrain (free, this is the immediate win).** [SUPERSEDED -- see the status correction above]
 Replace `bpm = 30 + argmax` with an octave-folded posterior decode (redistribute
 2x/half-bin mass, prefer the fundamental when energy supports it). Lives in
 `BNNSTechnique.decode(_:)` + Python mirror; lock with a frozen-softmax fixture test
@@ -95,7 +152,8 @@ Soft/Gaussian-blurred target around the true bin (adjacent tempi share gradient)
 explicit octave-aware loss penalizing 2x/0.5x less than random; oversample sub-120
 so it isn't a rounding error in the loss. Stack on E2.
 
-**E4 — only if E1-E3 plateau:** widen the model before routing it; a tempo-range
+**E4 — only if E2-E3 plateau** (was "E1-E3"; E1 is removed, see the 2026-07-26 status
+correction above, so it can never plateau)**:** widen the model before routing it; a tempo-range
 ensemble (octave arbiter over the existing model) before a genre-MoE. Genre-MoE is
 last and triggers the CoreML/ANE + re-bundling release decision (CLAUDE.md level).
 
