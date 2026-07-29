@@ -46,7 +46,6 @@ SHIPS_TO_MAIN: tuple[str, ...] = (
     ".gitignore",
     ".swiftlint.yml",
     "LICENSE",
-    "MODEL_CARD.md",
     "Makefile",
     "Package.swift",
     "README.md",

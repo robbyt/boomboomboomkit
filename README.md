@@ -452,7 +452,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `VotingPolicy` | Resolution policy for `mergeStrategy == .windowVoting` (3 cases) |
 | `MetadataPolicy` | File-tag corroboration policy + parsing hygiene flags |
 | `MetadataSource`, `MetadataBPMEvidence`, `HarmonicRatio` | Metadata evidence types |
-| `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Using your own tempo model" + [MODEL_CARD.md](MODEL_CARD.md) |
+| `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Using your own tempo model" + "Model contract for `BNNSTechnique`" |
 | `MLEvaluation` | ML estimate carrier (`bpm`, `confidence`, optional `modelIdentifier`) |
 | `EnsemblePolicy` | DSP + ML combiner policy (5 cases: `.default`, `.dspOnly` default, `.mlOnly`, `.highestConfidence`, `.weightedVoting(SignalWeights)`) |
 | `SignalWeights` | Per-source weights for `EnsemblePolicy.weightedVoting` (`dsp` / `ml` / `fileMetadata` / `beatGrid`; `.default` = equal weighting) |
@@ -480,6 +480,45 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `MeterEstimate` / `MeterSource` | The assumed-or-detected meter on a `DownbeatEstimate` (always `{ beatsPerBar: 4, source: .assumed }` today) |
 | `FeatureSubstrate.DecodedAudio` | Decoded mono PCM carrier for the shared-decode seam (see "Shared decode") |
 | `FeatureSubstrate.PrimingInfo`, `FeatureSubstrate.AudioCodec`, `FeatureSubstrate.TrimState` | Content-true codec + trim-state provenance carried on `DecodedAudio.codecPriming` |
+| `BeatGridTempoLock` | Manual tempo override for the grid stage (`.bpm(_:)` payload). Not `Hashable` — the payload can be `NaN` |
+| `BeatGridAnchorRepositionMode` | Manual anchor override, the positional counterpart to `BeatGridTempoLock` |
+| `DownbeatStrategy` | Which downbeat detector runs when `Options.detectDownbeats` is set. `CaseIterable` for the acceptance benchmark |
+| `ModelRegistryEntry` / `ModelCapability` | Registry describing an available model and what it can do; see "Model registry" |
+| `DocumentedCase` / `BoomBoomBoomKitDocs` | Per-case documentation lookup. `BoomBoomBoomKitDocs` is total: never throws, never returns `nil` or empty |
+
+### Diagnostic trace types
+
+Populated only when `Options.enableTrace` is set (DSP fields) or `Options.enableMLDiagnostics` is set (ML fields). Everything below hangs off `BPMDiagnosticTrace` and exists to explain a result, never to change one. Safe to ignore entirely if you only need a BPM.
+
+| Type | What it records |
+|------|------|
+| `HarmonicRatioEvidence` | The octave/triplet disambiguation that ran: `ratio` (`"2:1"`, `"3:2"`, `"3:1"`), the fast and slow candidates, and the winner |
+| `SubBandVoteEvidence` | Sub-band voting outcome: BPM before, BPM after, and whether it changed |
+| `SubBandEnergies` | Per-band onset energy (`kick`, `snare`, `crack`, `hihat`). `.zero` when the computation was skipped |
+| `ClickCorrelationEntry` | Per-candidate click-track alignment score, at full BPM precision |
+| `DurationHintEvidence` / `BarCandidate` | File-duration-derived tempo hints and the bar counts they came from |
+| `BeatGridTempoRefinementEvidence` | What the grid tempo-refinement pass changed, if it ran |
+| `DownbeatStrategyEvidence` | Which downbeat strategy ran and what it concluded |
+| `SignalParticipation` | Whether a signal was `.present`, `.demoted`, `.abstained`, or `.absent` in the selection pool |
+| `AbstainReason` / `DemotionReason` | Why a signal abstained or was demoted |
+| `WeightedSignal` / `SignalSource` | A participating signal's BPM, confidence, and origin (`.dsp` / `.ml` / `.fileMetadata` / `.beatGrid`) |
+| `SignalParticipationTraceEntry` | Per-signal pool log: source, participation, weight, contribution |
+| `EnsembleWeightResolution` | How a weighted ensemble policy resolved: per-source effective votes and the winner |
+
+### Reserved — declared but not wired
+
+These are public and will compile, but **nothing reads them**. Setting one changes no behaviour. They are published so the shape is stable when a consuming path lands; treat them as documentation of intent, not as configuration.
+
+| Type | Status |
+|------|------|
+| `MLExecutionPolicy` | Not yet wired to `Options`. When it lands it will gate whether ML runs at all |
+| `ComputeBudget` | Not yet wired to `Options`. Surfaced today only via `AnalysisIntensity.budget` |
+| `OctaveEquivalencePolicy` | Accepted but reserved. Octave behaviour is still governed by `MetadataPolicy` |
+| `CoreMLTechnique` | Intentional placeholder — does **not** conform to `MLTechnique` and cannot be assigned to `Options.mlTechnique`. Use `BNNSTechnique` |
+| `FeatureSubstrate.WeightingProfile`, `SubBandWeights`, `SubBandCutoff` | Config types for the feature substrate; `.subBandEmphasis` throws `weightingNotYetImplemented` |
+| `FeatureSubstrate.OnsetFeatures`, `OnsetFeaturesBuilder`, `FeatureSubstrateError` | The shared feature producer. `OnsetFeatures.featureSetVersion` is the train/runtime drift seam |
+
+Intensity levels 8-10 are in the same category: they are reserved for ML and, without an `Options.mlTechnique`, fall through to level 7 and set `degradationReason` on the result.
 
 ## Test Support
 
@@ -529,7 +568,7 @@ Multi-window analysis wraps the whole pipeline at intensity 6 and above: every w
 
 ## Using your own tempo model
 
-BoomBoomBoomKit's production BPM path is **DSP-first**. The default analysis pipeline does not require or enable ML, and on the project's regression corpora the DSP pipeline currently outperforms every model the project has trained (see [MODEL_CARD.md](MODEL_CARD.md) for measured comparisons).
+BoomBoomBoomKit's production BPM path is **DSP-first**. The default analysis pipeline does not require or enable ML, and on the project's regression corpora the DSP pipeline currently outperforms every model the project has trained. Those measurements are kept with the weights on the `develop` branch, since no model ships with the library.
 
 The optional `BoomBoomBoomKitML` target adds an `MLTechnique` plug-in surface for consumers who want to **bring their own weights** (BYOW) and ensemble an on-device model with the DSP results — for example, if you have a domain-specific model trained on your own corpus that beats the DSP on your distribution. See [`tools/coreml-convert/README.md`](tools/coreml-convert/README.md) for the full PyTorch → CoreML conversion flow and the license-matrix for bundling third-party weights.
 
@@ -555,9 +594,29 @@ options.ensemblePolicy = .highestConfidence
 let result = try AudioAnalysisService.analyzeBPM(url: trackURL, options: options)
 ```
 
-**No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of the internal evaluation-corpus audio at production thresholds — see [MODEL_CARD.md](MODEL_CARD.md) for the full Status section + threshold-sweep evidence. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
+**No reference model is bundled.** Story 4-6 (2026-05-16) removed the previously-bundled `giantsteps_v1.mlmodelc` from the main-shipping path because it abstained on 100% of the internal evaluation-corpus audio at production thresholds. A later full retrain was also measured and also fell short, so the position is unchanged; the threshold sweeps and per-corpus figures live with the weights on the `develop` branch. The `BNNSTechnique` infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. Consumers using ML today must train or supply their own checkpoint.
 
 To convert your own PyTorch checkpoint into a `.mlmodelc` consumable by `BNNSTechnique`, see the consumer-facing `tools/coreml-convert/` CLI (self-contained `uv` Python project). It supports the reference architecture (the one the historical `giantsteps_v1` was trained on) as well as fully custom architectures via your own `nn.Module` class.
+
+### Model contract for `BNNSTechnique`
+
+Path A above — supplying your own weights against the built-in `BNNSTechnique` — requires the model to match this contract exactly. A mismatch throws at construction time rather than degrading silently: a wrong bin count raises `MLTechniqueError.binCountMismatch`, and unresolvable input/output arguments raise `.invalidTensorContract`.
+
+| Property | Required value |
+|---|---|
+| Input shape | `(1, 1, 128, 512)` NCHW float32 — 1 channel × 128 mel bands × 512 time frames |
+| Output shape | `(1, 256)` logits over 256 BPM bins |
+| BPM bin schema | bin index `i` → BPM `i + 30`, so 30 to 285 BPM inclusive |
+| Tensor names | `input`, `output` |
+| Compute units | `CPU_ONLY` — consumed through BNNSGraph; the Neural Engine is not used |
+| Compute precision | `FLOAT32` |
+| Min deployment target | macOS 15 |
+
+`BNNSTechnique` featurizes in three stages before inference: transpose the frame-major log-mel to mel-major, z-score normalize per mel band, then resample to a fixed width of 512 frames. Softmax is applied host-side, and decoding is `argmax` over the 256 bins. If your architecture needs different featurization, implement `MLTechnique` directly (Path B) instead of matching this contract.
+
+Only 141 of the 256 bins are reachable in practice, because the library normalizes every result into 60-200 BPM. The remaining bins are decode-dead by construction; training against the full 256 is harmless but wastes capacity.
+
+If you want the measured history of the models this project trained against that contract — including why none of them shipped — it is kept with the weights on the `develop` branch rather than here, since no model ships with the library.
 
 ## Model registry
 
