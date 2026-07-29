@@ -51,8 +51,8 @@ PCMBufferReader --> fan-out --> BPMAnalyzer   (mel-spectrogram onset + autocorre
 - [BPM Detection Pipeline](../_bmad-output/bpm.md) -- Detailed 11-step pipeline description with vDSP function reference
 - [Ablation Results](../_bmad-output/ablation-results.md) -- Full 64-combination technique matrix results
 - [Project Context (AI Rules)](../_bmad-output/project-context.md) -- 60 critical implementation rules for AI agents
-- [PRD](../_bmad-output/planning-artifacts/prd.md) -- Product requirements (45 FRs, 20 NFRs)
+- [PRD](../_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-05-25/prd.md) -- Product requirements (51 FRs, 10 NFRs)
 - [Architecture (Planning)](../_bmad-output/planning-artifacts/architecture.md) -- ADRs and architectural decisions
 - [Epics](../_bmad-output/planning-artifacts/epics.md) -- 5 epics, 22 stories
-- [Phase 3 Roadmap](../_bmad-output/planning-artifacts/phase3-roadmap.md) -- Implementation phases 3A-3D
+- [Phase 3 Roadmap (archived)](../_bmad-output/planning-artifacts/archive/phase3-roadmap-2026-03-29.md) -- Implementation phases 3A-3D from 2026-03-29, superseded by epics.md
 - [Deferred Work](../_bmad-output/implementation-artifacts/deferred-work.md) -- Known issues and future work
