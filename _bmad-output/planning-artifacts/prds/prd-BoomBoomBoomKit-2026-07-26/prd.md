@@ -117,21 +117,49 @@ No lever should be funded before we know why a published model in our own family
 - **FR-57.** Produce a written differential across every axis separating our pipeline from the reference — input representation and window policy, bin schema, loss, augmentation, corpus composition, decode, evaluation protocol — each labelled *suspect*, *neutral*, or *ruled out*, with evidence.
 - **FR-58.** Rank the suspected causes by expected contribution and cost to test. **That ranking, not the charter's, drives everything after F2.**
 
-### 5.3 F3 — Measurement integrity
+### 5.3 F3 — Purpose-built corpus and measurement integrity
 
-Two independent results say our rulers are suspect: the ~6-point annotation-version swing, and a gate whose denominator is half one tempo band.
+**Restructured 2026-07-28.** F3 previously patched the existing corpora one defect at a time. A count across every labeled source showed the defect is common to all of them, so the patches were treating symptoms.
 
-- **FR-59.** Build a band-stratified held-out octave test set from OA300, with the 80-85 / 160-175 pairs as their own sentinel group, and confirm or refute AS-5.
-- **FR-59a.** Source 100-120 BPM evaluation material from the Story 7.2 non-Rekordbox pool (§14 Q3, settled 2026-07-28), subject to two conditions that are not optional:
-  1. **Labels must be established independently of our DSP.** The 7.2 survey was deliberately BPM-tag-blind and its tiering leaned on our own detector. Promoting a DSP-derived value to ground truth would turn the 100-120 gate into a change detector for the thing it is meant to test — the same trap `FIXTURES.md` already guards against for the accuracy floor.
-  2. **Contamination boundary with the gate corpus.** Tony's held-out split is one of the three gate corpora under FR-68. Material mined from the same collection must be partitioned so no track, remix, or artist appears on both sides; otherwise the 100-120 evidence and the gate stop being independent. `scripts/audit-corpus-splits.py` already enforces this class of check and must cover the new material.
-- **FR-60.** Tag every reported accuracy figure with its ground-truth annotation version. Untagged historical figures are marked untagged, not assumed.
+| Band | OA300 | GiantSteps | Tony | Pooled | Excl. GiantSteps |
+|---|---|---|---|---|---|
+| <100 | 18 | 60 | 36 | 114 | 54 |
+| **100-120** | **1** | 35 | 26 | **62** | **27** |
+| 120-140 | 7 | 309 | 253 | 569 | 260 |
+| 140-160 | 15 | 88 | 372 | 475 | 387 |
+| 160-175 | 41 | 153 | 786 | **980** | 827 |
+| **175+** | 0 | 16 | 36 | **52** | **36** |
+
+Every corpus is drawn from the same musical world, so pooling deepens the skew instead of correcting it: 160-175 holds 980 tracks while the two bands the model actually fails on hold 62 and 52. Excluding GiantSteps for the contamination reason in FR-69c, 100-120 falls to 27.
+
+That single fact generated four of the seven §14 questions. Q1 asked which corpus is primary because none is fit alone; Q3 asked where 100-120 material comes from because no corpus has it; Q4 asked how to resolve contradictory metrical levels; and FR-69c items 1-4 are all corpus-composition defects. F3 is therefore rebuilt around producing a corpus rather than around characterising the ones we have.
+
+Two earlier results already said the rulers were suspect: the ~6-point annotation-version swing, and a gate whose denominator is half one tempo band.
+
+**Evaluation corpus (blocks the bundle gate):**
+
+- **FR-59.** Build a **band-balanced evaluation corpus** drawn across OA300, Tony's Rekordbox collection, and the Story 7.2 non-Rekordbox pool. **Balanced to the scarcest band** (§14, settled 2026-07-28): every band carries the same count, roughly 27, for about 162 tracks total. Uniform by construction, so no band can dominate an aggregate the way 160-175 does today.
+  - Supersedes the former "band-stratified held-out octave test set from OA300". The AS-5 sentinel group survives as a labelled subset (FR-59b), not as the corpus design.
+  - **Statistical consequence, measured not assumed.** At 162 tracks and 10% discordance, exact McNemar needs a net lift of 10 tracks (6.2%) — *better* than OA300's current 82 tracks, which needs 8 (9.8%). Balancing strengthens the aggregate gate.
+- **FR-59a.** Source the scarce bands (100-120 and 175+) from the non-Rekordbox pool (§14 Q3), subject to two conditions that are not optional:
+  1. **Labels must be established independently of our DSP.** The 7.2 survey was deliberately BPM-tag-blind and its tiering leaned on our own detector. Promoting a DSP-derived value to ground truth would turn the gate into a change detector for the thing it tests — the trap `FIXTURES.md` already guards against for the accuracy floor.
+  2. **Contamination boundary.** No track, remix, or artist may appear in both the evaluation corpus and any training set. `scripts/audit-corpus-splits.py` already enforces this class of check and must cover the new material.
+- **FR-59b.** Declare **one metrical-level convention** for the corpus and label every track to it (this is what §14 Q4's re-labelling decision becomes). A corpus with a single declared convention cannot encode both halves of the octave ambiguity as ground truth, which makes AS-5 a property of the *old* corpora rather than an open question about the new one. Retain the 80-85 / 160-175 pairs as a tagged sentinel subset so the old ambiguity stays measurable.
+- **FR-59c.** **Per-band claims on this corpus are descriptive, not inferential.** At 27 tracks per band, exact McNemar cannot reach `p <= 0.05` at 10% or 20% band discordance — a band needs at least 6 discordant tracks all falling the same way. FR-71's per-band reporting therefore stands as a *regression tripwire and a description*, never as a per-band significance claim. Stating this is what keeps FR-71 from promising something arithmetically unavailable.
+
+**Training corpus (does not block the gate):**
+
+- **FR-59d.** Build the training corpus for **volume with band-aware sampling**, explicitly **not** balanced to the scarcest band. Truncating training data to ~162 tracks would be strictly worse than the 595-1509 tracks already in use, and the three retrains already demonstrated a fixed-capacity band trade that starving the model would deepen. Correct the distribution with oversampling or loss weighting, which costs no data. The scarcest-band rule is an evaluation-side decision and does not transfer.
+- **FR-59e.** Training and evaluation corpora share the convention from FR-59b and the partition from FR-59a.2. A model trained against one convention and scored against another measures the convention gap, not the model.
+
+**Measurement integrity (unchanged in intent):**
+
+- **FR-60.** Tag every reported accuracy figure with its ground-truth annotation version. Untagged historical figures are marked untagged, not assumed. **Now also a precondition of FR-59b**: adopting a single convention makes every figure on the old labels incomparable, and version tagging is what makes that survivable rather than silently confusing.
 - **FR-61.** Report `Acc2 − Acc1` as a first-class metric alongside Acc1. It is the standard octave-error proxy and this epic is about octave errors.
-- **FR-62.** Record the metrical-level labelling convention the project trains toward, and audit the training corpus against it.
-- **FR-62a.** If FR-59 confirms AS-5, re-label the affected OA300 tracks to that single convention (§14 Q4, settled 2026-07-28). Three consequences, recorded because the decision was taken before the test reported:
-  1. **Every historical accuracy figure on the old labels becomes incomparable.** FR-60's version tagging is what makes this survivable; it is a precondition of re-labelling, not a parallel task.
-  2. **Re-labelling is irreversible in practice** once downstream artifacts are regenerated. Snapshot the pre-relabel ground truth as its own tagged version first.
-  3. **It changes what the corpus teaches, not just what it scores.** If any re-labelled track has ever been used for training or model selection, the affected runs must be re-measured rather than carried forward.
+- **FR-62.** Record the metrical-level labelling convention the project trains toward, and audit the training corpus against it. Subsumed into FR-59b for the new corpus; retained for auditing the legacy corpora that historical figures rest on.
+- **FR-62a.** ~~If FR-59 confirms AS-5, re-label the affected OA300 tracks to that single convention.~~ **Superseded 2026-07-28 by FR-59b.** Rather than re-label OA300 in place — irreversible, and it invalidates every historical figure on those labels — the single convention is declared for the *new* corpus and OA300 is left intact as a tagged historical artifact. This keeps the old figures interpretable instead of stranding them.
+
+**Feasibility risk, unresolved.** FR-59 assumes the non-Rekordbox pool can supply ~27 tracks each in 100-120 and 175+ at acceptable label quality. The pool is ~4,700 files from the same collection, so it may carry the same skew. If it cannot supply them, the corpus cannot be balanced from owner-held material and the choice narrows to sourcing outside the collection or accepting a smaller uniform n. **Measure the pool's band distribution before committing to the 27-per-band target.**
 
 ### 5.4 F4 — Training-target repair
 
@@ -184,7 +212,7 @@ FR-18 required matching DSP standalone (GiantSteps ≥ 537/661 — DSP's own sco
   4. **A one-track band cannot support a no-regression claim.** OA300's 100-120 band has exactly 1 track, and FR-71 requires per-band reporting. "No significant regression" is not evidence of no regression: predeclare each band's noninferiority margin and treat one-track bands as unmeasurable rather than as passing.
   5. **McNemar assumes independent tracks.** Duplicates, remixes, or clusters by artist or source need cluster-aware resampling. Annotation error is not in McNemar's uncertainty at all.
 - **FR-70.** Retain the DnB triplet sentinels and a confidence-calibration floor. FR-25's calibration metric was never committed and never ran; here it is a precondition.
-- **FR-71.** Report per-band lift, never only an aggregate. The +190 retrain gained 120-140 and lost 140-160; an aggregate hid that.
+- **FR-71.** Report per-band lift, never only an aggregate. The +190 retrain gained 120-140 and lost 140-160; an aggregate hid that. **Descriptive, not inferential** — see FR-59c: at ~27 tracks per band, no per-band result can reach significance, so this is a regression tripwire rather than a statistical claim.
 
 ### 5.7 F7 — Delivery
 
