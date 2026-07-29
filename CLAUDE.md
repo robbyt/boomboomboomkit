@@ -25,13 +25,27 @@ rather than surfacing on release day. Add a row here AND an entry there.
 | `Package.swift` | SPM manifest |
 | `Sources/` | All three SPM targets (`BoomBoomBoomKit`, `BoomBoomBoomKitTestSupport`, `BoomBoomBoomKitML`). Story 4-6 (Branch C close-out, 2026-05-16) removed the previously-bundled `Sources/BoomBoomBoomKitML/Resources/giantsteps_v1.mlmodelc/` reference model; it now lives at `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` (develop-only). The `BoomBoomBoomKitML` target ships without `resources: [.copy("Resources")]` until a higher-quality bundled model returns |
 | `Tests/` | Unit tests + the env-gated benchmark target |
-| `tools/coreml-convert/` | Consumer-facing PyTorch → CoreML conversion CLI. This is **the only Python tooling that ships to main** (Story 4-4b DD #13 exception, recorded in `_bmad-output/implementation-artifacts/4-4b-tempo-classifier-training.md`) |
+| `tools/coreml-convert/` | Consumer-facing PyTorch → CoreML conversion CLI. This is **the only Python tooling that ships to main** (Story 4-4b DD #13 exception, recorded in `_bmad-output/implementation-artifacts/4-4b-tempo-classifier-training.md`). That claim was false until 2026-07-28 — `Tests/` ships wholesale and carried `Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py` with it, a develop-only utility that reads `$OA300_CORPUS_PATH`. It is now withheld by `EXCLUDED_FROM_MAIN` in the promotion script (see below) |
 | `README.md` | Public-facing readme |
 | `MODEL_CARD.md` | Authoritative bundled-model accuracy disclosure (per Story 4-4b party-mode follow-up) |
 | `LICENSE` | License text |
 | `.swiftlint.yml` | Lint config |
 | `.gitignore` | Ignored-path rules. **`main` keeps its OWN copy** — the promotion preserves it rather than taking develop's. develop's 132-line file is mostly patterns for paths that don't exist on `main` (ml-training checkpoints, per-seed model exports, BMAD subtrees); `main` carries a 48-line file covering what a main-only checkout actually produces. The former instruction here — that the shipped file "must include the develop-only patterns" — was wrong: those patterns are dead config on `main` |
-| `Makefile` | Build/test targets. `ml-*` shortcut targets remain in the file even though their underlying scripts live in `_bmad-output/`; they fail loudly on a main-only checkout, which is intentional — consumers shouldn't run them |
+| `Makefile` | Build/test targets. `ml-*` shortcut targets remain in the file even though their underlying scripts live in `_bmad-output/`; they fail loudly on a main-only checkout, which is intentional — consumers shouldn't run them. Targets that a consumer WOULD reasonably run must not fail there: `py-lint`, `demo-fmt`, and `demo-lint` self-skip with a printed note when their develop-only inputs are absent, so `make lint` and `make pre-commit` work on a main-only clone |
+
+**Carve-outs (`EXCLUDED_FROM_MAIN`).** A directory row above ships wholesale, so
+a develop-only file living inside one still reaches `main` unless it is named as
+an exception. The promotion script holds that set; today it has one member,
+`Tests/BoomBoomBoomKitTests/Fixtures/convert-rekordbox-export.py`.
+
+Keep the set **small**, and treat every addition as a smell. It is a denylist
+bolted onto an allowlist, so it reintroduces exactly the fail-open behaviour the
+allowlist exists to remove: a sibling develop-only file dropped into `Tests/`
+tomorrow ships unless someone remembers to add it. Prefer moving such a file out
+of a shipping directory over growing the carve-out. Two tests hold the line —
+one asserts the excluded path is stripped while its siblings are kept, the other
+asserts every entry still exists and still sits under a shipping prefix, so the
+set cannot rot into stale paths that silently match nothing.
 
 ### Stays on `develop` ONLY — NEVER shipped to `main`
 
@@ -67,13 +81,23 @@ path added tomorrow is stripped whether or not it appears below.
 ### Squash-merge protocol (`develop` → `main`)
 
 **`main` is dormant until v1** (operator confirmation, recorded 2026-07-25). It
-is the public default branch and carries a released-looking tree, but no release
-has been cut. Nothing below implies one is imminent.
+is the public default branch, but no release has been cut and **it does not yet
+carry a released tree**. Measured 2026-07-28: `main` is two commits (`init` plus
+`Add .gitignore`) and **37 files**, with a 117-line README against develop's 611,
+and it is missing three allowlisted paths outright — `MODEL_CARD.md`,
+`.swiftlint.yml`, and `tools/`. The first promotion is therefore not an update to
+a published package; it is the **first publication**, 37 files to 265. An earlier
+version of this section called it "a released-looking tree", which is what set
+the expectation behind the develop-into-release-branch PR that had to be closed.
 
 The staging is scripted so it cannot silently ship a develop-only path. The
 operator still writes the commit — the script never commits.
 
-1. `git checkout main`
+1. `git checkout -b release/vX.Y.Z main` — **preferred**. The staging pass also
+   accepts plain `main`; a `release/*` branch is the reviewable form, because it
+   can be opened as a PR into `main` and get CI and a second reader before 265
+   files land on the public default branch. Committing straight to `main` gets
+   neither.
 2. `git merge --squash develop`
    The squash **conflicts on `.gitignore` every time**, because `main` keeps its
    own public copy. That is expected and the script resolves it.
@@ -81,11 +105,22 @@ operator still writes the commit — the script never commits.
    stripped, and any conflict. Stages nothing, so it is safe to run any day;
    **run it periodically, not only at release time**, to catch drift early.
 4. `make release-stage` — unstages everything off the allowlist and restores
-   `main`'s own `.gitignore`. Refuses if you are not on `main`, if nothing is
-   staged, or if a conflict outside the preserve set is unresolved.
-5. `git status` to review, then commit with a clean public release message — no
+   `main`'s own `.gitignore`. Refuses unless you are on `main` or a `release/*`
+   branch, if nothing is staged, or if a conflict outside the preserve set is
+   unresolved.
+5. `make release-rehearse` — commits the staged tree to a throwaway worktree,
+   strips every untracked develop-only file, and runs `swift build` + `swift
+   test` against the **real** 265-file tree a consumer would clone. This is the
+   only check that catches breakage which exists solely on a main-only checkout;
+   the first run of it found `make lint` dead there. Discards the worktree after.
+6. `git status` to review, then commit with a clean public release message — no
    references to BMAD, Claude Code, party mode, story specs, AI agents, or any
    LLM-aided-development concept.
+
+   **The release commit takes no `Claude-Session:` trailer.** The session-level
+   convention appends one to every commit; on a `main`-bound commit that trailer
+   is exactly the LLM-workflow trace this section forbids, so it is omitted. This
+   is the one place the trailer convention does not apply.
 
 **Why allowlist rather than denylist.** A denylist ships anything nobody
 remembered to list; an allowlist ships only what was deliberately cleared. The

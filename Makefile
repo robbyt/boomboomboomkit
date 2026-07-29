@@ -97,16 +97,24 @@ demo-bump-build:
 ## demo-fmt: Format Swift source code under Demo/ (sibling of `fmt`, which covers Sources/Tests only)
 .PHONY: demo-fmt
 demo-fmt:
-	swift format --recursive --in-place Demo/
+	@if [ ! -d "$(CURDIR)/Demo" ]; then \
+		echo "Note: Demo/ absent (main-only checkout); skipping the develop-only demo formatter."; \
+	else \
+		swift format --recursive --in-place Demo/; \
+	fi
 
 ## demo-lint: Guard against DEVELOPMENT_TEAM leak across all Demo/.pbxproj files (Story 5-2 W16) + FR-44 confidence-label / FR-43 no-diagnostic-leak audit (Story 9.3)
 .PHONY: demo-lint
 demo-lint:
-	@if grep -rnE 'DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*"?[A-Z0-9]{10}"?[[:space:]]*;' Demo/ --include='project.pbxproj'; then \
+	@if [ ! -d "$(CURDIR)/Demo" ]; then \
+		echo "Note: Demo/ absent (main-only checkout); skipping the develop-only demo audits."; \
+		exit 0; \
+	fi; \
+	if grep -rnE 'DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*"?[A-Z0-9]{10}"?[[:space:]]*;' Demo/ --include='project.pbxproj'; then \
 		echo "ERROR: DEVELOPMENT_TEAM leak detected in Demo/ .pbxproj — must be empty for public release."; \
 		exit 1; \
-	fi
-	@bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
+	fi; \
+	bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
 
 ## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ pytest suite). NOT a git hook — runs on demand
 .PHONY: pre-commit
@@ -448,9 +456,13 @@ endif
 ## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration, because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
 .PHONY: py-lint
 py-lint:
-	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ruff format --check . ../../scripts/
-	cd $(ML_TRAINING_DIR) && uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
+		echo "Note: $(ML_TRAINING_DIR) absent (main-only checkout); skipping the develop-only Python lint."; \
+		exit 0; \
+	fi; \
+	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
+	uv run ruff format --check . ../../scripts/ && \
+	uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -715,10 +727,53 @@ ablation-tests:
 release-preview:
 	uv run scripts/promote-to-main.py --from-ref origin/develop
 
-## release-stage: Perform the promotion staging (unstage everything off the allowlist, restore main's own .gitignore). Requires `git checkout main && git merge --squash develop` first; refuses otherwise. Does NOT commit -- a human writes the public release message. Develop-only.
+## release-stage: Perform the promotion staging (unstage everything off the allowlist, restore main's own .gitignore). Requires `git checkout -b release/vX.Y.Z main` (or `git checkout main`) and `git merge --squash develop` first; refuses off main and off release/*. Does NOT commit -- a human writes the public release message. Develop-only.
 .PHONY: release-stage
 release-stage:
 	uv run scripts/promote-to-main.py --execute
+
+## release-rehearse: Full dry-run publication -- squash develop into a throwaway worktree cut from main, apply the allowlist, then build and test the REAL main-only tree a consumer would clone. This is the only gate that catches breakage existing solely on main (its first run found `make lint` dead there, and a Greek-named audio fixture that git path-quoting would have stripped). Nothing is pushed and no local branch survives. Safe to run any day; run it before any release. Override the scratch location with RELEASE_REHEARSE_DIR. Develop-only.
+RELEASE_REHEARSE_DIR ?= $(CURDIR)/.release-rehearse
+# Which ref gets promoted. Defaults to origin/develop (what a real release
+# promotes), but overridable so a branch can be rehearsed BEFORE it lands --
+# otherwise a change to the promotion tooling itself cannot be tested until
+# after it merges, which is backwards. Use: make release-rehearse RELEASE_REHEARSE_REF=HEAD
+RELEASE_REHEARSE_REF ?= origin/develop
+.PHONY: release-rehearse
+release-rehearse:
+	@set -e; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+		echo "ERROR: working tree is dirty. The rehearsal squashes develop into a worktree; commit or stash first."; \
+		exit 1; \
+	fi; \
+	WT="$(RELEASE_REHEARSE_DIR)"; \
+	BR="release/rehearse-$$$$"; \
+	cleanup() { \
+		git worktree remove --force "$$WT" >/dev/null 2>&1 || true; \
+		git branch -D "$$BR" >/dev/null 2>&1 || true; \
+		git worktree prune >/dev/null 2>&1 || true; \
+	}; \
+	trap cleanup EXIT; \
+	rm -rf "$$WT"; git worktree prune; \
+	echo "==> cutting $$BR from origin/main"; \
+	git worktree add -q "$$WT" -b "$$BR" origin/main; \
+	echo "==> squashing $(RELEASE_REHEARSE_REF) (the .gitignore conflict is expected)"; \
+	git -C "$$WT" merge --squash $(RELEASE_REHEARSE_REF) >/dev/null 2>&1 || true; \
+	echo "==> applying the allowlist"; \
+	( cd "$$WT" && uv run scripts/promote-to-main.py --execute ); \
+	( cd "$$WT" && git -c user.email=rehearse@local -c user.name=rehearse \
+		commit -qm "release rehearsal (throwaway)" ); \
+	echo "==> discarding the stripped files to produce a true main-only tree"; \
+	git -C "$$WT" clean -fdxq; \
+	echo "==> tracked files in the release tree: $$(git -C "$$WT" ls-files | wc -l | tr -d ' ')"; \
+	echo "==> swift build"; \
+	( cd "$$WT" && swift build ); \
+	echo "==> swift test"; \
+	( cd "$$WT" && swift test --parallel --filter BoomBoomBoomKitTests ); \
+	echo "==> make lint (must not die on absent develop-only inputs)"; \
+	( cd "$$WT" && make lint ); \
+	echo; \
+	echo "RELEASE REHEARSAL PASSED -- the main-only tree builds, tests, and lints."
 
 ## scripts-tests: Run the W87 pytest suite for scripts/ (docc-transclude generator). Develop-only; runs in the ml-training uv env (pytest already lives in its dev group, no second uv project). Every test writes only into a pytest tmp_path. Self-skips with a printed note on a main-only checkout, where scripts/tests/ is absent -- the docc-validate convention, because this target is a `pre-commit` prerequisite and a mid-run hard failure there would abort the whole gate chain after fmt and lint had already run.
 .PHONY: scripts-tests

@@ -13,7 +13,7 @@ This document is the authoritative source for accuracy, training-corpus, and lim
 - `make ml-parity` PASSES — Swift/Python featurize agree, so the failure is the model itself, not the featurize step
 - lowering thresholds destroys safe behavior: `dsp_correct_controls_preserved` collapses 4/4 → 0/4
 
-**The framing here matters.** This is not "ML doesn't work for BPM detection" — it is **this reference model (`giantsteps_v1.mlmodelc` trained on lossy 96 kbps GiantSteps MP3) doesn't generalize past its training distribution.** The BNNSTechnique infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. The training pipeline at `_bmad-output/ml-training/` (develop-only) remains operational; the previous checkpoint is preserved at `_bmad-output/ml-models/giantsteps_v1.mlmodelc/` for historical reproduction.
+**The framing here matters.** This is not "ML doesn't work for BPM detection" — it is **this reference model (`giantsteps_v1.mlmodelc` trained on lossy 96 kbps GiantSteps MP3) doesn't generalize past its training distribution.** The BNNSTechnique infrastructure (load, featurize, inference, two-gate, diagnostic capability) is unchanged and ready to consume a higher-quality model when one is trained. The training pipeline remains operational on the development branch, where the previous checkpoint is also preserved for historical reproduction.
 
 **What this means for consumers today:**
 
@@ -29,18 +29,18 @@ This document is the authoritative source for accuracy, training-corpus, and lim
 
 Measured on the retrained model (`maskedMelPretrain`, seed 42, `featureSetVersion` v2, tempo-band rebalanced), run through the production Swift inference path with `EnsemblePolicy.mlOnly`:
 
-- OA300 Acc1 **43/82 (52.4%)** against a bundling bar of more than 55/82
+- Internal evaluation corpus (82 tracks) Acc1 **43/82 (52.4%)** against a bundling bar of more than 55/82
 - GiantSteps Acc1 **348/661 (52.6%)** against a bundling bar of at least 537/661
 
-Both model figures were scored at 4% tolerance, while the two bars are DSP results at 2% tolerance. The looser standard was applied to the model and it still finished 13 tracks below the OA300 bar and 189 below the GiantSteps bar.
+Both model figures were scored at 4% tolerance, while the two bars are DSP results at 2% tolerance. The looser standard was applied to the model and it still finished 13 tracks below the internal-corpus bar and 189 below the GiantSteps bar.
 
-Three successive retrains, each adding labels, produced OA300 50/82, 48/82, 43/82 and GiantSteps 296/661, 330/661, 348/661. Tracks below 120 BPM stayed at 2 of 95 correct across all three runs. The third batch, weighted toward 120-140 BPM, gained 32 tracks in that band and lost 16 in 140-160 and 2 above 175 BPM.
+Three successive retrains, each adding labels, produced 50/82, 48/82, 43/82 on the internal corpus and GiantSteps 296/661, 330/661, 348/661. Tracks below 120 BPM stayed at 2 of 95 correct across all three runs. The third batch, weighted toward 120-140 BPM, gained 32 tracks in that band and lost 16 in 140-160 and 2 above 175 BPM.
 
 The reading the project takes from this is that the limit is structural rather than a shortage of labels. Below 100 BPM the model predicts exactly twice the true tempo on 38 of 60 tracks, so the band is octave-shifted rather than random. Between 100 and 120 BPM it is mis-pulsed instead, and octave tolerance recovers nothing (1 of 35 either way). An octave-aware training loss was already in place throughout, so the defect is not in the loss function. Where it does sit has not been isolated: the input representation and the argmax decode are both candidates, and an octave-folded decode was later measured on this model and made accuracy worse rather than better.
 
 Confidence calibration was not measured on this model. The decision was reached on accuracy alone, so the calibration question is open rather than answered.
 
-**What this means for consumers.** Nothing changes in the API surface. `Options.mlTechnique = nil` remains the default and remains the recommendation for production. `BNNSTechnique(modelURL:)` remains the bring-your-own-weights path and the NCHW `(1, 1, 128, 512)` tensor contract below is unchanged. The retrained model is published as a BYOW reference at `_bmad-output/ml-models/giantsteps_v2_seed_42.mlmodel` on the development branch, for reproduction and as a baseline to beat. It is not recommended for production use: on the numbers above, DSP alone is more accurate on both corpora.
+**What this means for consumers.** Nothing changes in the API surface. `Options.mlTechnique = nil` remains the default and remains the recommendation for production. `BNNSTechnique(modelURL:)` remains the bring-your-own-weights path and the NCHW `(1, 1, 128, 512)` tensor contract below is unchanged. The retrained model is kept on the development branch as a BYOW reference, for reproduction and as a baseline to beat. It is not recommended for production use: on the numbers above, DSP alone is more accurate on both corpora.
 
 The pre-Story-4-6 model-card content is preserved below for historical accuracy and as the architectural reference for BYOW consumers targeting the same `TempoCNN` shape.
 
@@ -119,7 +119,7 @@ Training: 60 epochs, Adam optimizer (lr=1e-3, cosine decay), CE loss with label 
 
 ### Reproducibility
 
-The training pipeline that produced this artifact lives on the `develop` branch at `_bmad-output/ml-training/`. It is **not shipped to `main`** — that directory contains project-internal corpus paths, env-var conventions, and reproducibility scaffolding. To re-train:
+The training pipeline that produced this artifact lives on the `develop` branch. It is **not shipped to `main`**: it hardcodes project-internal corpus paths, env-var conventions, and reproducibility scaffolding that a consumer cannot act on. To re-train:
 
 ```bash
 git checkout develop
@@ -166,8 +166,8 @@ See `tools/coreml-convert/README.md` for the four consumer paths (same-arch over
 ## Adding a new bundled model
 
 1. Train your model. The architecture must honor the contract documented above (input/output shapes + tensor names) OR you ship a custom `MLTechnique` conformance that featurizes appropriately.
-2. Convert: `cd tools/coreml-convert && uv run python convert.py --checkpoint your.pt --arch reference --output ../../_bmad-output/ml-models/<corpus>_v1.mlmodel`
-3. Compile: `make compile-model ML_MODEL_INPUT=_bmad-output/ml-models/<corpus>_v1.mlmodel`
+2. Convert: `cd tools/coreml-convert && uv run python convert.py --checkpoint your.pt --arch reference --output ../../build/models/<corpus>_v1.mlmodel`
+3. Compile: `make compile-model ML_MODEL_INPUT=build/models/<corpus>_v1.mlmodel ML_MODEL_OUT_DIR=build/models`
 4. **Append a model-card entry to this file** with: corpus split, training config, measured accuracy on the internal evaluation corpus, known limitations, reproducibility instructions.
 5. Update `BoomBoomBoomKitML/Sources/...` to load the new artifact (Story 4-5 ships `BNNSTechnique` with `bundledReferenceURL` — point it at the new artifact).
 6. The previous bundled `<corpus>_v(N-1).mlmodelc` may be removed in the same commit OR retained as a co-bundled fixture for migration testing — your call. Pre-1.0, removal is fine; post-1.0, retain at least one prior version for one minor release.
