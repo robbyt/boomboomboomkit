@@ -1,0 +1,331 @@
+{
+  "band_100_120_after_removing_1_5x": 65,
+  "band_140_160_non_1x": 11,
+  "bands": {
+    "100-120": {
+      "1.33x": 4,
+      "1.5x": 197,
+      "1x": 27,
+      "2x": 1,
+      "other": 33,
+      "total": 262
+    },
+    "120-140": {
+      "1.33x": 7,
+      "1.5x": 1,
+      "1x": 36,
+      "2x": 0,
+      "other": 8,
+      "total": 52
+    },
+    "140-160": {
+      "1.33x": 3,
+      "1.5x": 0,
+      "1x": 32,
+      "2x": 0,
+      "other": 8,
+      "total": 43
+    },
+    "160-175": {
+      "1.33x": 0,
+      "1.5x": 0,
+      "1x": 95,
+      "2x": 0,
+      "other": 7,
+      "total": 102
+    },
+    "175+": {
+      "1.33x": 0,
+      "1.5x": 0,
+      "1x": 105,
+      "2x": 0,
+      "other": 8,
+      "total": 113
+    },
+    "<100": {
+      "1.33x": 72,
+      "1.5x": 4,
+      "1x": 57,
+      "2x": 1816,
+      "other": 47,
+      "total": 1996
+    }
+  },
+  "budget_scenario": {
+    "expected_reviews_for_target": 174,
+    "keeper_rate": 0.2481,
+    "note": "Presumes the tagging-convention hypothesis and a naive random draw. A budgeting scenario, not a measured rejection rate.",
+    "target_per_band": 43
+  },
+  "claims": {
+    "q9.band_100_120_clean": "/band_100_120_after_removing_1_5x",
+    "q9.band_140_160_non_1x": "/band_140_160_non_1x",
+    "q9.bands": "/bands",
+    "q9.base_rate": "/largest_directory/base_rate_percent",
+    "q9.budget_reviews": "/budget_scenario/expected_reviews_for_target",
+    "q9.class_1_33x": "/classes/1.33x",
+    "q9.class_1_5x": "/classes/1.5x",
+    "q9.class_1x": "/classes/1x",
+    "q9.class_2x": "/classes/2x",
+    "q9.class_other": "/classes/other",
+    "q9.cluster_band_share": "/cluster_1_5x/share_of_100_120_band",
+    "q9.cluster_concentration": "/cluster_1_5x/top_directory_percent",
+    "q9.cluster_quantized": "/cluster_1_5x/tag_quantized_to_four_integers",
+    "q9.cluster_spread": "/cluster_1_5x/dsp_bpm_spread",
+    "q9.core_density": "/modes/core_1_5x_density_per_octave",
+    "q9.dsp_only": "/reconciliation/dsp_only",
+    "q9.fixture_ratio": "/fixture_reference/reported_over_true",
+    "q9.gap": "/modes/gap_between_1_33x_and_1_5x/count",
+    "q9.gap_density": "/modes/gap_between_1_33x_and_1_5x/density_per_octave",
+    "q9.histogram": "/histogram/bins",
+    "q9.mirror_rows": "/largest_directory/rows_in_mirror_window",
+    "q9.neither": "/reconciliation/neither",
+    "q9.paired": "/reconciliation/paired",
+    "q9.rejected_shoulder": "/modes/rejected_shoulder_1_30_1_45/count",
+    "q9.rejected_shoulder_core": "/modes/rejected_shoulder_1_30_1_45/of_which_1_33x_core",
+    "q9.tag_split": "/largest_directory/tag_split_percent",
+    "q9.tagged_in_window": "/largest_directory/tagged_rows_in_detector_window",
+    "q9.tier_collinearity": "/tier_agreement_crosstab",
+    "q9.tracks_total": "/reconciliation/tracks_total",
+    "q9.two_thirds": "/derived/two_thirds_of_2x_class_dsp_median",
+    "q9.window_spread": "/window_sensitivity/spread_percent"
+  },
+  "classes": {
+    "1.33x": {
+      "count": 86,
+      "dsp_bpm_median": 115.4,
+      "dsp_confidence_median": 0.671,
+      "tag_bpm_median": 87.0,
+      "window": [
+        1.3,
+        1.36
+      ]
+    },
+    "1.5x": {
+      "count": 202,
+      "dsp_bpm_median": 172.0,
+      "dsp_confidence_median": 0.836,
+      "tag_bpm_median": 115.0,
+      "window": [
+        1.48,
+        1.52
+      ]
+    },
+    "1x": {
+      "count": 352,
+      "dsp_bpm_median": 170.1,
+      "dsp_confidence_median": 0.885,
+      "tag_bpm_median": 170.0,
+      "window": [
+        0.97,
+        1.03
+      ]
+    },
+    "2x": {
+      "count": 1817,
+      "dsp_bpm_median": 173.0,
+      "dsp_confidence_median": 0.884,
+      "tag_bpm_median": 87.0,
+      "window": [
+        1.94,
+        2.06
+      ]
+    },
+    "other": {
+      "count": 111,
+      "dsp_bpm_median": 163.8,
+      "dsp_confidence_median": 0.522,
+      "tag_bpm_median": 113.0
+    }
+  },
+  "cluster_1_5x": {
+    "count": 202,
+    "dsp_bpm_spread": {
+      "max": 178.0,
+      "median": 172.0,
+      "min": 158.7,
+      "p05": 167.6,
+      "p95": 175.3
+    },
+    "in_100_120_band": 197,
+    "share_of_100_120_band": 75.2,
+    "tag_integers": [
+      113,
+      115,
+      116,
+      117
+    ],
+    "tag_quantized_to_four_integers": 184,
+    "top_directory_percent": 95.0,
+    "top_directory_share": 192
+  },
+  "derived": {
+    "two_thirds_of_2x_class_dsp_median": 115.3
+  },
+  "epistemic_status": "Counts over two fallible signals. Neither the file tag nor the detector is ground truth; FR-59a.1 forbids treating the detector as such. No track is labelled here.",
+  "fixture_reference": {
+    "note": "AccuracyFloorTests fixture. Metadata stripped, so it carries no tag and no ratio: analogous to the 1.33x class, not a member.",
+    "reported_bpm": 115.6,
+    "reported_over_true": 0.6644,
+    "true_bpm": 174.0
+  },
+  "generator_version": "q9-ratio-cluster/1.0.0",
+  "histogram": {
+    "bin_width_octaves": 0.05,
+    "bins": [
+      {
+        "count": 14,
+        "log2_center": -0.05,
+        "ratio_center": 0.966
+      },
+      {
+        "count": 338,
+        "log2_center": 0.0,
+        "ratio_center": 1.0
+      },
+      {
+        "count": 76,
+        "log2_center": 0.4,
+        "ratio_center": 1.32
+      },
+      {
+        "count": 11,
+        "log2_center": 0.45,
+        "ratio_center": 1.366
+      },
+      {
+        "count": 16,
+        "log2_center": 0.55,
+        "ratio_center": 1.464
+      },
+      {
+        "count": 207,
+        "log2_center": 0.6,
+        "ratio_center": 1.516
+      },
+      {
+        "count": 12,
+        "log2_center": 0.65,
+        "ratio_center": 1.569
+      },
+      {
+        "count": 14,
+        "log2_center": 0.95,
+        "ratio_center": 1.932
+      },
+      {
+        "count": 1784,
+        "log2_center": 1.0,
+        "ratio_center": 2.0
+      },
+      {
+        "count": 24,
+        "log2_center": 1.05,
+        "ratio_center": 2.071
+      }
+    ],
+    "min_published_count": 10,
+    "rounding_rule": "index = floor(log2(ratio) divided by bin_width_octaves, plus 0.5). Deliberately not Python round(), which is ties-to-even.",
+    "suppressed_bin_count": 25,
+    "suppressed_track_total": 72
+  },
+  "largest_directory": {
+    "base_rate_percent": 84.2,
+    "detector_window": [
+      165.0,
+      180.0
+    ],
+    "mirror_window": [
+      108.0,
+      125.0
+    ],
+    "note": "Directory name is deliberately not emitted. Definition: immediate parent basename with the most DSP-bearing rows, ties by name.",
+    "rows_in_detector_window": 2549,
+    "rows_in_mirror_window": 145,
+    "rows_with_dsp": 3028,
+    "tag_split": {
+      "100-120": 197,
+      "120-160": 9,
+      "160-180": 162,
+      "<100": 1456
+    },
+    "tag_split_percent": {
+      "100-120": 10.8,
+      "120-160": 0.5,
+      "160-180": 8.9,
+      "<100": 79.8
+    },
+    "tagged_rows_in_detector_window": 1824
+  },
+  "modes": {
+    "core_1_5x_density_per_octave": 5250.3,
+    "gap_between_1_33x_and_1_5x": {
+      "count": 5,
+      "density_per_octave": 54,
+      "window": [
+        1.36,
+        1.45
+      ]
+    },
+    "rejected_shoulder_1_30_1_45": {
+      "count": 91,
+      "note": "Retained to show why this interval is not a shoulder: it is mostly the 1.33x mode itself.",
+      "of_which_1_33x_core": 86,
+      "window": [
+        1.3,
+        1.45
+      ]
+    }
+  },
+  "reconciliation": {
+    "dsp_only": 2185,
+    "neither": 13,
+    "paired": 2568,
+    "tag_only": 0,
+    "tracks_total": 4766
+  },
+  "schema_version": 1,
+  "survey_sha256": "54b8b1fa432b96b50a1b331716d50eb5f3d7b6ae43724522038305116750f6cf",
+  "tier_agreement_crosstab": {
+    "secondarySupervised|True": 2172,
+    "unsupervisedPool|False": 396
+  },
+  "window_sensitivity": {
+    "note": "No window is privileged. The spread is itself a result.",
+    "spread_percent": 26.7,
+    "windows": [
+      {
+        "count": 240,
+        "density_per_octave": 1246,
+        "window": [
+          1.4,
+          1.6
+        ]
+      },
+      {
+        "count": 222,
+        "density_per_octave": 2307,
+        "window": [
+          1.45,
+          1.55
+        ]
+      },
+      {
+        "count": 202,
+        "density_per_octave": 5250,
+        "window": [
+          1.48,
+          1.52
+        ]
+      },
+      {
+        "count": 176,
+        "density_per_octave": 9149,
+        "window": [
+          1.49,
+          1.51
+        ]
+      }
+    ]
+  }
+}

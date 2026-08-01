@@ -1,7 +1,14 @@
 {
   "audioHash_derivation": "corpus_common.file_sha256 (raw audio bytes) \u2014 pinned join key",
-  "note": "Story 7.3 supervised-augmented loader: use relPath ONLY to fetch bytes (never as a feature); read bpm_truth as the label.",
-  "schema_version": 1,
+  "derivation": {
+    "durationsSha256": "3b85a18c669942cfb8697b5fee3921330fddd2c079bff88db5d859519d87816f",
+    "excludedContinuousMixes": 18,
+    "mixPolicyVersion": "continuous-mix/1",
+    "sourceSurveySha256": "54b8b1fa432b96b50a1b331716d50eb5f3d7b6ae43724522038305116750f6cf",
+    "tieredRowCount": 2172
+  },
+  "note": "Story 7.3 supervised-augmented loader: use relPath ONLY to fetch bytes (never as a feature); read bpm_truth as the label. Continuous DJ mixes are excluded at emission; the survey tier is left honest, so `tieredRowCount` exceeding the row count is expected, not drift.",
+  "schema_version": 2,
   "secondarySupervised": [
     {
       "audioHash": "02d3d1dc1124e1aa9ec5b3e6526bd20be4f6c0c7f8a77601cb1a660548f2a939",
@@ -7948,12 +7955,6 @@
       "relPath": "Drum and Bass/Mefjus_Dope DOD_Godzilla feat Dope DOD_Original Mix.mp3"
     },
     {
-      "audioHash": "68d7c4ae96c4f449f086b6f9bc4ae407d24e649220d3e08e65949209ae32c9c0",
-      "bpm_truth": 171.581,
-      "labelConfidence": 0.3376,
-      "relPath": "Drum and Bass/Mefjus_Emulation Mix_Beatport Exclusive.mp3"
-    },
-    {
       "audioHash": "2254918ebe29155fd0dfe14b68bc8176fdc13c20dc56cea6837ee58d79f54d06",
       "bpm_truth": 172.606,
       "labelConfidence": 0.64,
@@ -8174,84 +8175,6 @@
       "bpm_truth": 171.773,
       "labelConfidence": 0.64,
       "relPath": "Drum and Bass/Mitekiss_Good Need_Original Mix.mp3"
-    },
-    {
-      "audioHash": "88d670d57e24b99df3c9360c218c120d4ccfa838d71d4b7686103cff13785fd0",
-      "bpm_truth": 175.534,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Mixes/81 - Andy C - Nightlife 6 Red Mix (Original Mix).mp3"
-    },
-    {
-      "audioHash": "62475fdc87c8f2be1953605e31f6fc80bb4ba7c5bb5160d9f0d6a55a976334af",
-      "bpm_truth": 176.195,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Mixes/82 - Andy C - Nightlife 6 Green Mix (Original Mix).mp3"
-    },
-    {
-      "audioHash": "c782b88f984e49a9262a1fb60723741017ee0269497b4027c83decdd135af4f4",
-      "bpm_truth": 176.143,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Mixes/83 - Andy C - Nightlife 6 Blue Mix (Original Mix).mp3"
-    },
-    {
-      "audioHash": "d99732f4e774c927eb04e8827869f8a963ec6ab04030487b5a918fb185380fe5",
-      "bpm_truth": 175.459,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Mixes/Bad_Taste_Podcast_011_by_Cod3x.mp3"
-    },
-    {
-      "audioHash": "8e6f098c9c421280bf42c5b3634ea960405ca411625c1033ea9760971eeff9b3",
-      "bpm_truth": 176,
-      "labelConfidence": 0.2311,
-      "relPath": "Drum and Bass/Mixes/Dieselboy- Platinum_One Final Smashdown_4.27.13.mp3"
-    },
-    {
-      "audioHash": "2a261ca6d7a6ae244604b9546895029eb55bb49a6770a17bda2fccd0062121e5",
-      "bpm_truth": 175.134,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Mixes/Forbidden_Society_Recordings_METALCAST_vol_28_feat_DONNY.mp3"
-    },
-    {
-      "audioHash": "0c9cf1007a34715b5b21b13db6833f6145416fc32ae65116f1772ca45dea88e3",
-      "bpm_truth": 139.814,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Mixes/Icicle_BNC_Original Mix.mp3"
-    },
-    {
-      "audioHash": "3bbc9035f76b9ddf2908000284422949c2034d67dc8647295d955e095cc10a18",
-      "bpm_truth": 177.575,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Mixes/Icon- Platinum_One Final Smashdown_4.27.13.mp3"
-    },
-    {
-      "audioHash": "54b6041e0c7dfac76e057180b7af78f1b6851f9f4a95a3a4607b4b9ae30f52ff",
-      "bpm_truth": 183.042,
-      "labelConfidence": 0.359,
-      "relPath": "Drum and Bass/Mixes/Kaos- Platinum_One Final Smashdown_4.27.13.mp3"
-    },
-    {
-      "audioHash": "13e853c9c1ce85d489ca0c4b491f4bdbbd20f6706de05cf0f6f98a596181e610",
-      "bpm_truth": 179.057,
-      "labelConfidence": 0.4871,
-      "relPath": "Drum and Bass/Mixes/Karl K- Platinum_One Final Smashdown_4.27.13.mp3"
-    },
-    {
-      "audioHash": "76807c540107c44113f115596f5905464b84cb186d4b87a409cbaa21f9e39ddc",
-      "bpm_truth": 181,
-      "labelConfidence": 0.2005,
-      "relPath": "Drum and Bass/Mixes/Mason- Platinum_One Final Smashdown_4.27.13.mp3"
-    },
-    {
-      "audioHash": "bdba148f4db6e05bcd60de9d63cb9b950b703d923e85418af514d5eb331293ab",
-      "bpm_truth": 182.878,
-      "labelConfidence": 0.626,
-      "relPath": "Drum and Bass/Mixes/Method One- Platinum_One Final Smashdown_4.27.13.mp3"
-    },
-    {
-      "audioHash": "554080ce7b069091331693a8f6a5d6de6e79ba5075aea999e03790ab3ba8e940",
-      "bpm_truth": 178,
-      "labelConfidence": 0.4201,
-      "relPath": "Drum and Bass/Mixes/Sine- Platinum_One Final Smashdown_4.27.13.mp3"
     },
     {
       "audioHash": "59f335728d90e4add701f460d0dfbfa2fef11c5d1ca6b06e35bf32eb59e1333f",
@@ -9302,12 +9225,6 @@
       "bpm_truth": 171.964,
       "labelConfidence": 0.5995,
       "relPath": "Drum and Bass/Posij - The Panic (Original Mix).mp3"
-    },
-    {
-      "audioHash": "72765a7db0afce929c40bb42288b57cb640028447c386639d216f48be99390aa",
-      "bpm_truth": 171.983,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Posij, Vision - MISSION 01 - Mixed by Posij (Original Mix).mp3"
     },
     {
       "audioHash": "516082a85c8f403a512a62c147f6e56ee760b7fc59d0cd49f3c1fe1f43674139",
@@ -11014,12 +10931,6 @@
       "relPath": "Drum and Bass/State_of_Mind_-_Danse_Macabre_320.mp3"
     },
     {
-      "audioHash": "c4c834cee918471b2016f32c48ea1291d664ac824157fd2761e66b5f00e8d230",
-      "bpm_truth": 175.189,
-      "labelConfidence": 0.4512,
-      "relPath": "Drum and Bass/State_of_Mind_-_Eat_The_Rich_(DJ_mix)_320.mp3"
-    },
-    {
       "audioHash": "2033f512aeedae273144bf38144a7f256bc95f0bcd1ceca640b6e61c12ac09b6",
       "bpm_truth": 171.881,
       "labelConfidence": 0.6266,
@@ -12280,12 +12191,6 @@
       "relPath": "Drum and Bass/Usual_Suspects_-_Lunacy_EP_-_Renegade_Hardware/Usual_Suspects_-_Therapy_320.mp3"
     },
     {
-      "audioHash": "70f1a4484e7baa5d7821880f82dc44ce3092e6d0f0fdc835ad9f18c628eb1eed",
-      "bpm_truth": 177.691,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/Various Artists_Planet VIP DJ Mix by Jumpin Jack Frost_Original Mix.mp3"
-    },
-    {
       "audioHash": "c169f42cd100de509de358d5185122b16825d526598d5e6785c791d8fc76c3b1",
       "bpm_truth": 174.037,
       "labelConfidence": 0.64,
@@ -12968,12 +12873,6 @@
       "bpm_truth": 175.119,
       "labelConfidence": 0.64,
       "relPath": "Drum and Bass/dom & roland/Dom And Roland - The big bang/12-dom_and_roland-capsicum.mp3"
-    },
-    {
-      "audioHash": "7c6ef49e00be811dcc5e6faf56589c3d7c84c25db65ab7f7611b92ebbc18150e",
-      "bpm_truth": 171.267,
-      "labelConfidence": 0.64,
-      "relPath": "Drum and Bass/dom & roland/Dom And Roland - The big bang/13-dom_and_roland-big_bang_lp_mixtape.mp3"
     },
     {
       "audioHash": "a3b01ee0c2987aa9ad17aa598a63d6eee658564f891df3bb799a61e7372aa08a",

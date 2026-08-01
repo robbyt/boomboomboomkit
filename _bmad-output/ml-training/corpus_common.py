@@ -73,6 +73,58 @@ def _is_finite(x) -> bool:
 # OCTAVE: a 2:1 ratio is "octave" within OCTAVE_RATIO_TOL of 2.0 (scaled by 2.0
 # so the absolute window is OCTAVE_RATIO_TOL*2.0 = 0.10 BPM-ratio units).
 # HARMONIC: 3:2 or 3:1 within HARMONIC_RATIO_TOL of 1.5 / 3.0 respectively.
+# --- continuous-mix exclusion ------------------------------------------------
+# A DJ mix is an hour-long continuous recording containing many tracks at
+# different tempos. It has no single ground-truth BPM, so it is invalid as a
+# supervised label AND as self-supervised pretraining material: masked-mel
+# pretraining on it teaches the model that tempo is unstable within a file.
+#
+# Measured 2026-08-01 during the Epic 12 three-source band census: 283 of the
+# 4,766 non-Rekordbox pool rows sit under a `Mixes/` path, and 251 of those were
+# feeding training (238 `unsupervisedPool` + 13 `secondarySupervised`). The
+# committed pretrain manifest carried 238 of them. Operator directive the same
+# day: exclude the entire directory from training and validation.
+#
+# Enforced at consumption rather than by re-running the survey, so the survey
+# stays an honest record of what is on disk. `scripts/audit-corpus-splits.py`
+# asserts no split contains one, which is what makes this fail closed.
+_CONTINUOUS_MIX_DIR = re.compile(r"(^|/)mixes(/|$)", re.IGNORECASE)
+
+# Duration is the second signal, and it catches what the directory name misses.
+# Measured 2026-08-01 over 4,753 pool files: `Mixes/` rows have a median of 27.2
+# minutes against 5.4 for everything else, and real tracks reach only 8.4 at p99.
+# A 15-minute cut is correct on 16 of the 17 pool files above it -- every one an
+# Essential Mix, radio show, podcast, mixtape or explicit DJ set filed outside
+# `Mixes/`.
+CONTINUOUS_MIX_MIN_SECONDS = 15 * 60
+
+# The one exception, named rather than absorbed by moving the threshold.
+# `Goldie - Timeless` is a genuine single composition of ~21 minutes; operator
+# confirmed 2026-08-01. Tuning the cut to 25 minutes to dodge it would silently
+# readmit the 31-minute mixes, so the carve-out is explicit and stays small.
+# Match on the basename stem, case-insensitive, so a re-encode or container
+# change does not quietly drop the exemption.
+_LONG_TRACK_EXEMPTIONS = frozenset({"goldie - timeless"})
+
+
+def is_continuous_mix(path: str | None, seconds: float | None = None) -> bool:
+    """True when a corpus-relative path is a DJ mix rather than a track.
+
+    Two independent signals, deliberately OR-ed: a 6-minute file under `Mixes/`
+    is still mix material (the TCDNB volumes are one continuous set cut into
+    pieces, operator-confirmed), and a 40-minute file outside it is still not a
+    track. Pass `seconds` when a duration is known; omit it for a path-only check.
+    """
+    if not path:
+        return False
+    if _CONTINUOUS_MIX_DIR.search(str(path)):
+        return True
+    if seconds is None or seconds <= CONTINUOUS_MIX_MIN_SECONDS:
+        return False
+    stem = str(path).rsplit("/", 1)[-1].rsplit(".", 1)[0].strip().lower()
+    return stem not in _LONG_TRACK_EXEMPTIONS
+
+
 OCTAVE_RATIO_TOL = 0.05
 HARMONIC_RATIO_TOL = 0.03
 

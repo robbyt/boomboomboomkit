@@ -48,9 +48,18 @@ Ratio of DSP estimate to tag, across all 2,568 tagged tracks:
 |---|---|---|
 | **~2x** | **1,822** | DSP hears full tempo, tag records half |
 | ~1x | 357 | agreement |
-| ~1.5x | 222 | triplet relationship, a separate phenomenon |
-| other | 164 | — |
+| ~1.5x | 222 | ~~triplet relationship, a separate phenomenon~~ **CORRECTED 2026-08-01: best-supported reading is a tagging convention at two-thirds of true, not a triplet. A hypothesis, not a label — the data cannot settle it. See `q9-ratio-cluster-2026-08-01.md`.** |
+| other | 164 | ~~—~~ **CORRECTED 2026-08-01: contains a structured 86-track cluster at ~1.33x, hypothesised as the mirror of the row above. Which signal is displaced is not established — the ratio alone cannot separate detector error, tag error, two valid metrical levels, or both wrong.** |
 | ~0.5x | 3 | negligible |
+
+**Window-width caveat, added 2026-08-01.** The windows above are of unequal width
+(~5.5%, ~6%, ~5%, ~3.3%), so these counts are not density-comparable and the
+"other" bucket hid structure. **The 1.5x count is window-dependent and no window is
+privileged:** 240 at `[1.40, 1.60)`, **222** at `[1.45, 1.55)` as used above, **202**
+at `[1.48, 1.52)`, 176 at `[1.49, 1.51)` — a spread of 26.7%. The Q9 artifact quotes
+202 for internal consistency and says explicitly that this is a choice, not a
+correction. An earlier version of this caveat said the count "is 202, not 222",
+which turned a sensitivity result into a corrected population count.
 
 Cross-tabulated, the effect is concentrated in one cell:
 
@@ -115,10 +124,24 @@ band and the one whose labels are least corroborated, which is unfortunate given
 is the band the model genuinely mis-pulses (E0: Acc2 equals Acc1 at 1/35, so octave
 tolerance recovers nothing there).
 
-**100-120 scarcity is not an artifact of convention.** It is thin under the tag
+~~**100-120 scarcity is not an artifact of convention.** It is thin under the tag
 banding (262) and under the DSP banding (217). Unlike the <100 / 160-175 pair, this
 band does not move when the convention changes. The collection genuinely contains
-little material there.
+little material there.~~
+
+**SUPERSEDED 2026-08-01.** This section treated the band's scarcity as a settled
+property of the collection. It is not settled either way, and the 262 does not mean
+what was claimed. **197 of those 262 sit in the ~1.5x class**, and 27 show a 1:1
+tag/DSP relation — **below the per-band target of 43**. Removing the 1.5x class
+leaves 65.
+
+**What that does and does not establish.** It establishes **greater uncertainty
+about this band, not a smaller true population.** All 262 labels are unverified;
+"only 27 agree" is not "only 27 are valid", and any of the 197 could be genuine
+100-120 material. Under the Q9 tagging-convention hypothesis the band is the most
+likely place the corpus shrinks — but that is a hypothesis-driven planning risk, not
+a measurement. What follows unconditionally is that uniform n = 43 is not yet
+established here. See `q9-ratio-cluster-2026-08-01.md`.
 
 ## What this means for the PRD
 
@@ -128,15 +151,24 @@ little material there.
    formality. The band distribution — and therefore which bands are scarce and how
    large the balanced corpus can be — follows from it. Declaring half-tempo and
    declaring full-tempo produce different corpora from identical files.
-3. **100-120 should be treated as the binding constraint** on uniform n, with a
-   review margin planned in. At 28 available for a 27 target there is none.
+3. ~~**100-120 should be treated as the binding constraint** on uniform n, with a
+   review margin planned in. At 28 available for a 27 target there is none.~~
+   **RETRACTED 2026-08-01.** The 28-for-27 figures came from a selection filter
+   FR-59a.1 forbids and were withdrawn by the PRD; the corrected constants are 43
+   per band and 258 overall. The verdict is also stated too strongly: which band
+   binds is hypothesis-dependent, and no label in any band is verified. Read this as
+   "100-120 carries the largest workload risk and should be drawn and verified
+   early", not as a settled constraint.
 4. **AS-5 should be restated.** It is no longer an untested inference. It is
    confirmed as the collection's convention on independent evidence, and FR-59's job
    narrows from "confirm or refute" to "confirm it holds for OA300 specifically, and
    record which level OA300 used".
-5. **The ~1.5x cluster (222 tracks) is unexamined.** Triplet relationships are a
-   distinct phenomenon from octave errors, and the PRD's evidence base does not
-   currently account for them.
+5. ~~**The ~1.5x cluster (222 tracks) is unexamined.**~~ **EXAMINED 2026-08-01 —
+   `q9-ratio-cluster-2026-08-01.md`.** Best-supported reading is a tagging
+   convention at two-thirds of true rather than a triplet relationship, offered as
+   a hypothesis with a stated falsification test, not as a label. A second mode of
+   86 tracks at ~1.33x, previously hidden in "other", is its mirror. Both sit near
+   115 BPM, two-thirds of the collection's modal 173.
 
 ## Reproducing
 

@@ -180,11 +180,44 @@ def build_random_split_records(seed: int = RANDOM_SPLIT_SEED):
 
 
 def _read_manifest_relpaths(path: Path, key: str) -> list[str]:
+    """Read a training manifest, refusing one that carries continuous DJ mixes.
+
+    This is the consumer-side half of the corpus-policy guard. `make
+    audit-corpus-splits` is the fail-closed check, but nothing makes training run
+    it -- every entry point reaches these manifests through this one function, so
+    an expensive run could otherwise consume a stale manifest with the audit never
+    executing. A mix has no single tempo, so it poisons a supervised label and
+    masked-mel pretraining alike.
+    """
     if not path.exists():
         raise FileNotFoundError(f"{path} not found — run the upstream survey/builder.")
     data = json.loads(path.read_text())
     rows = data[key]
-    return [r["relPath"] for r in rows]
+    rels = [r["relPath"] for r in rows]
+
+    durations_path = ML_TRAINING_DIR / "pool-durations.json"
+    if durations_path.exists():
+        durations = {
+            r["relPath"]: r["seconds"]
+            for r in json.loads(durations_path.read_text()).get("rows", [])
+        }
+        offenders = [rel for rel in rels if cc.is_continuous_mix(rel, durations.get(rel))]
+    else:
+        # Directory rule only. Weaker, but never silently: duration catches mixes
+        # filed outside `Mixes/` and its absence must not read as "all clear".
+        offenders = [rel for rel in rels if cc.is_continuous_mix(rel)]
+        print(
+            f"WARNING: {durations_path.name} absent — {path.name} was checked with "
+            "the directory rule only. Run `make pool-durations`.",
+            file=sys.stderr,
+        )
+    if offenders:
+        raise ValueError(
+            f"{path.name} contains {len(offenders)} continuous DJ mix(es), which have "
+            f"no single ground-truth tempo and must not enter training. Run "
+            f"`make repair-mix-manifests`. First: {offenders[:3]}"
+        )
+    return rels
 
 
 def build_pretrain_audio_paths() -> list[Path]:

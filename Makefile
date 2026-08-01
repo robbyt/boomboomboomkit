@@ -462,7 +462,7 @@ py-lint:
 	fi; \
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
 	uv run ruff format --check . ../../scripts/ && \
-	uv run ty check corpus_common.py corpus_diagnostics.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py
+	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py corpus_manifests.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -544,6 +544,21 @@ ml-splits:
 .PHONY: corpus-diagnostics
 corpus-diagnostics:
 	cd $(ML_TRAINING_DIR) && uv run python corpus_diagnostics.py
+
+## pool-durations: Emit pool-durations.json -- container-header durations for the non-Rekordbox pool, joined to the survey on `path`. Used only to identify continuous DJ mixes (a mix has no single ground-truth BPM and is invalid as training material); never a training feature. Header parse, no decode, so it takes seconds where regenerating the survey takes hours. Develop-only.
+.PHONY: pool-durations
+pool-durations:
+	uv run --project $(ML_TRAINING_DIR) python scripts/pool-durations.py
+
+## repair-mix-manifests: Re-emit both committed training manifests through the shared emitter in corpus_manifests, excluding continuous DJ mixes. Refuses to stamp provenance unless today's survey still projects to the committed rows exactly, so the recorded SHA is an attestation rather than a retroactive guess. Run AFTER pool-durations -- the manifests record that sidecar's SHA. Pass --check for a dry run. Develop-only.
+.PHONY: repair-mix-manifests
+repair-mix-manifests:
+	uv run --project $(ML_TRAINING_DIR) python scripts/repair-mix-manifests.py
+
+## q9-ratio-cluster: Epic 12 Q9 — emit q9-ratio-cluster-v1.json, the tracked evidence artifact behind q9-ratio-cluster-2026-08-01.md. Derived from the gitignored non-rekordbox-survey.json, which cannot be committed (a complete private-collection inventory: absolute roots, per-file BPM signals, audio hashes), so this is the repository-only auditable substitute. Counts only; a recursive privacy allowlist stops the aggregate becoming a row-level dump or carrying an absolute root before the file is written. Run with --check to verify the committed aggregate still matches the survey, or --audit-prose to report any figure in the artifact with no backing value in the aggregate. Develop-only.
+.PHONY: q9-ratio-cluster
+q9-ratio-cluster:
+	cd $(ML_TRAINING_DIR) && uv run python q9_ratio_cluster.py
 
 ## marginal-failure-categorize: Story 7.4 — emit marginal-failure-categorization.json (use-a) + marginal-watchlist.json (use-c) for the 241 Marginal-tier tracks (FR-14/KDD-B4; develop-only, decode-free, no external corpus needed)
 .PHONY: marginal-failure-categorize
