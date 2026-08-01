@@ -473,6 +473,51 @@ def check_marginal_exclusion(tony: dict, tracks: list[dict], res: AuditResult) -
         )
 
 
+def check_no_continuous_mixes(tony: dict, tracks: list[dict], res: AuditResult) -> None:
+    """Assert no DJ mix reached any split or the pretrain manifest.
+
+    A continuous mix spans many tempos and has no single ground-truth BPM, so it
+    is invalid as a supervised label and as self-supervised pretraining material
+    alike. Operator directive 2026-08-01, after the Epic 12 band census found 251
+    of them feeding training and 238 sitting in the committed pretrain manifest.
+
+    This check is the fail-closed half. `build_unsupervised_manifest.py` and the
+    split builder do the filtering; without an assertion here, a future rebuild
+    that forgets the filter would ship them again silently.
+    """
+    by_id = _tony_by_id(tracks)
+    split_ids = (
+        set(tony.get("train", []))
+        | set(tony.get("val", []))
+        | set(tony.get("leaveArtistOut", {}).get("heldOutTrackIds", []))
+    )
+    leaked = sorted(
+        tid for tid in split_ids if cc.is_continuous_mix((by_id.get(tid) or {}).get("local_path"))
+    )
+    if leaked:
+        res.fail(
+            f"continuous-mix exclusion: {len(leaked)} DJ-mix track_id(s) leaked into "
+            f"train/val/leaveArtistOut: {leaked[:5]}"
+        )
+    else:
+        res.note(f"continuous-mix exclusion: 0 of {len(split_ids)} split track_ids.")
+
+    manifest = cc.ML_TRAINING_DIR / "non-rekordbox-unsupervised-pretrain-manifest.json"
+    if not manifest.exists():
+        res.note(f"continuous-mix exclusion: {manifest.name} absent; manifest pass skipped.")
+        return
+    rows = json.loads(manifest.read_text()).get("unsupervisedPool", [])
+    bad = [r.get("relPath") for r in rows if cc.is_continuous_mix(r.get("relPath"))]
+    if bad:
+        res.fail(
+            f"continuous-mix exclusion: {len(bad)} DJ-mix row(s) in "
+            f"{manifest.name} (rebuild with `make ablation-unsupervised-manifest`): "
+            f"{bad[:3]}"
+        )
+    else:
+        res.note(f"continuous-mix exclusion: 0 of {len(rows)} pretrain-manifest rows.")
+
+
 def check_gate(res: AuditResult) -> None:
     if not DIAGNOSTICS_MD.exists():
         res.fail(
@@ -553,6 +598,10 @@ def main(argv: list[str] | None = None) -> int:
     check_artist_disjointness(tony, res)
     check_cross_corpus_residual(tony, tracks, res)
     check_sentinel_holdout(tony, res)
+
+    # Unconditional, deliberately: a DJ mix is never valid corpus material, so
+    # this is not gated behind a flag the way --reject-marginal is.
+    check_no_continuous_mixes(tony, tracks, res)
 
     if args.check_sentinels_against:
         check_sentinels_against(Path(args.check_sentinels_against), tony, res)

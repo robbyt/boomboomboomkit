@@ -21,6 +21,7 @@ Run: `make ablation-unsupervised-manifest` (or
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -47,9 +48,21 @@ def main() -> int:
         print(f"ERROR: {SURVEY} has no tracks list.", file=sys.stderr)
         return 1
 
+    # A DJ mix is a continuous recording spanning many tempos, so it is invalid
+    # even as label-free pretraining material: it teaches the model that tempo is
+    # unstable within a file. Mirrors `corpus_common.is_continuous_mix`, inlined
+    # because this builder is deliberately stdlib-only and import-free (it is the
+    # one ablation script inside the py-lint ty scope). Operator directive
+    # 2026-08-01; 238 such rows were in the previously committed manifest.
+    mix_dir = re.compile(r"(^|/)mixes(/|$)", re.IGNORECASE)
+
     out_rows = []
+    excluded_mixes = 0
     for r in rows:
         if r.get("tier") != "unsupervisedPool":
+            continue
+        if mix_dir.search(str(r.get("path") or "")):
+            excluded_mixes += 1
             continue
         audio_hash = r.get("audioHash")
         rel_path = r.get("path")  # survey field is `path`; rename -> relPath (AC9)
@@ -81,7 +94,10 @@ def main() -> int:
         "unsupervisedPool": out_rows,
     }
     OUT.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n")
-    print(f"Wrote {OUT} ({len(out_rows)} unsupervisedPool rows, FR-15-clean: audioHash + relPath)")
+    print(
+        f"Wrote {OUT} ({len(out_rows)} unsupervisedPool rows, FR-15-clean: "
+        f"audioHash + relPath; excluded {excluded_mixes} continuous-mix rows)"
+    )
     return 0
 
 

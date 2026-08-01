@@ -73,6 +73,29 @@ def _is_finite(x) -> bool:
 # OCTAVE: a 2:1 ratio is "octave" within OCTAVE_RATIO_TOL of 2.0 (scaled by 2.0
 # so the absolute window is OCTAVE_RATIO_TOL*2.0 = 0.10 BPM-ratio units).
 # HARMONIC: 3:2 or 3:1 within HARMONIC_RATIO_TOL of 1.5 / 3.0 respectively.
+# --- continuous-mix exclusion ------------------------------------------------
+# A DJ mix is an hour-long continuous recording containing many tracks at
+# different tempos. It has no single ground-truth BPM, so it is invalid as a
+# supervised label AND as self-supervised pretraining material: masked-mel
+# pretraining on it teaches the model that tempo is unstable within a file.
+#
+# Measured 2026-08-01 during the Epic 12 three-source band census: 283 of the
+# 4,766 non-Rekordbox pool rows sit under a `Mixes/` path, and 251 of those were
+# feeding training (238 `unsupervisedPool` + 13 `secondarySupervised`). The
+# committed pretrain manifest carried 238 of them. Operator directive the same
+# day: exclude the entire directory from training and validation.
+#
+# Enforced at consumption rather than by re-running the survey, so the survey
+# stays an honest record of what is on disk. `scripts/audit-corpus-splits.py`
+# asserts no split contains one, which is what makes this fail closed.
+_CONTINUOUS_MIX_DIR = re.compile(r"(^|/)mixes(/|$)", re.IGNORECASE)
+
+
+def is_continuous_mix(path: str | None) -> bool:
+    """True when a corpus-relative path sits under a `Mixes/` directory."""
+    return bool(path) and bool(_CONTINUOUS_MIX_DIR.search(str(path)))
+
+
 OCTAVE_RATIO_TOL = 0.05
 HARMONIC_RATIO_TOL = 0.03
 
