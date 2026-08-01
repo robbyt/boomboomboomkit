@@ -1,7 +1,14 @@
 {
   "audioHash_derivation": "corpus_common.file_sha256 (raw audio bytes) \u2014 pinned join key",
-  "note": "Story 7.3 masked-mel pretraining corpus (label-free). Built from the tier==unsupervisedPool rows of non-rekordbox-survey.json by renaming `path`->`relPath` and dropping forbidden columns (dspBPM/dspConfidence/fileMetadataBPM). Use relPath ONLY to fetch bytes (never as a feature); NO labels (self-supervised).",
-  "schema_version": 1,
+  "derivation": {
+    "durationsSha256": "3b85a18c669942cfb8697b5fee3921330fddd2c079bff88db5d859519d87816f",
+    "excludedContinuousMixes": 245,
+    "mixPolicyVersion": "continuous-mix/1",
+    "sourceSurveySha256": "54b8b1fa432b96b50a1b331716d50eb5f3d7b6ae43724522038305116750f6cf",
+    "tieredRowCount": 2407
+  },
+  "note": "Story 7.3 masked-mel pretraining corpus (label-free). Use relPath ONLY to fetch bytes (never as a feature); NO labels. Continuous DJ mixes are excluded at emission; the survey tier is left honest, so `tieredRowCount` exceeding the row count is expected, not drift.",
+  "schema_version": 2,
   "unsupervisedPool": [
     {
       "audioHash": "29ff3a11f15c9b459aefe9277c4d12f1d1f91346716ad1e876f61258ec503770",

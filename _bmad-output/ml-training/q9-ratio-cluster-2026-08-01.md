@@ -279,9 +279,14 @@ cheap can, short of generating this prose from the JSON. And it carries an exemp
 list for structural numbers — dates, band edges, window bounds, the per-band target
 — which needs maintenance as this document changes.
 
-**Privacy boundary, stated rather than implied.** The gate is "no filenames and no
-filesystem location", enforced by a recursive allowlist in the generator rather than
-a grep, with `survey_sha256` the single permitted hash. The directory behind the
+**Privacy boundary, stated rather than implied.** The gate on *this aggregate* is
+that it must never become a row-level dump or carry an absolute filesystem root,
+enforced by a recursive allowlist in the generator rather than a grep, with
+`survey_sha256` the single permitted hash. It is not a claim that corpus-relative
+paths are secret: those are an accepted disclosure here and already ship in two
+tracked training manifests. What keeps the survey itself uncommittable is the whole
+of it -- a complete collection inventory, absolute roots, per-file BPM signals,
+audio hashes and skipped/sentinel-review records. The directory behind the
 `largest_directory` figures is not named in the JSON, but that is **not** directory
 anonymity: this prose describes the population, and git history already carries the
 name. The band table and the mode gap also contain small cells; the release rule is

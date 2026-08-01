@@ -1,7 +1,8 @@
 {
   "count": 4753,
   "missing": 0,
-  "note": "Container-header durations for the non-Rekordbox pool, joined to non-rekordbox-survey.json on `path`. Used only to identify continuous DJ mixes; never a training feature.",
+  "mixPolicyVersion": "continuous-mix/1",
+  "note": "Container-header durations for the non-Rekordbox pool, joined to the survey on `path`. Used only to identify continuous DJ mixes; never a training feature.",
   "rows": [
     {
       "relPath": "Bass Music/1. MAERE - IN ITS SKIN.mp3",
@@ -19016,6 +19017,7 @@
       "seconds": 274.45
     }
   ],
-  "schema_version": 1,
+  "schema_version": 2,
+  "sourceSurveySha256": "54b8b1fa432b96b50a1b331716d50eb5f3d7b6ae43724522038305116750f6cf",
   "unreadable": 13
 }

@@ -5,9 +5,11 @@ Reads the gitignored `non-rekordbox-survey.json` and emits
 `q9-ratio-cluster-v1.json`, the tracked evidence artifact behind
 `q9-ratio-cluster-2026-08-01.md`.
 
-Why an aggregate rather than the survey itself: the survey carries track
-filenames and an absolute audio root for a private collection, so it cannot be
-committed. The artifact's original acceptance criterion promised
+Why an aggregate rather than the survey itself: the survey is a complete
+inventory of a private collection -- absolute filesystem roots, per-file BPM
+signals, audio hashes, skipped/sentinel-review records -- so it cannot be
+committed. (Corpus-relative paths alone are a separate matter: those are an
+accepted disclosure here, already present in two tracked training manifests.) The artifact's original acceptance criterion promised
 repository-only reproducibility, which was never achievable. This delivers
 something weaker and states it plainly:
 
@@ -526,9 +528,10 @@ def _validate_claims(doc: dict) -> None:
 
 # --- privacy gate ------------------------------------------------------------
 # An allowlist, not a grep. A grep for ".mp3" misses .wav, .m4a, bare titles,
-# and any future schema addition. Threat model: no filenames and no filesystem
-# location. This is NOT directory anonymity -- the prose describes the
-# population and git history already carries the directory name.
+# and any future schema addition. Threat model: THIS AGGREGATE must never become
+# a row-level dump or carry an absolute filesystem root -- it is a summary, and a
+# summary that leaks rows is not one. It is not a claim that corpus-relative
+# paths are secret; those ship in two tracked manifests by explicit decision.
 _FORBIDDEN_SUBSTRINGS = ("/", "\\", "~", "$HOME", "Users/", "Volumes/")
 # Named exemptions. Kept explicit and tiny: each one is a hole in the gate.
 # `/claims/*` values are JSON pointers, which are slash-shaped by definition.
@@ -719,9 +722,50 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--artifact", default=ARTIFACT)
     args = parser.parse_args(argv)
 
+    if args.check and args.audit_prose:
+        sys.stderr.write(
+            "--check and --audit-prose answer different questions (freshness vs "
+            "coverage) and cannot share one exit code. Run them separately.\n"
+        )
+        return EXIT_INVARIANT
+
+    # A repository-only reader has no survey -- it is gitignored. The coverage
+    # audit must still run for them, or the "repository-only auditability" half
+    # of the renegotiated bargain is unmet. Explicit about which source was used:
+    # a silent fallback would hide survey drift from operators who DO have it.
+    survey_available = os.path.exists(args.survey)
+    audit_from_committed = args.audit_prose and not survey_available
+
     try:
-        doc = build(load_survey(args.survey))
-        privacy_gate(doc)
+        if audit_from_committed:
+            if not os.path.exists(args.output):
+                sys.stderr.write(
+                    f"Error: neither {os.path.basename(args.survey)} nor "
+                    f"{os.path.basename(args.output)} is present; nothing to audit against.\n"
+                )
+                return EXIT_MISSING_INPUT
+            with open(args.output, encoding="utf-8") as handle:
+                doc = json.load(handle)
+            # Not a raw load: the committed aggregate must still satisfy the
+            # invariants build() would have established, or auditing against it
+            # would borrow credibility it has not earned.
+            if doc.get("schema_version") != SCHEMA_VERSION:
+                raise InvariantError(
+                    f"committed aggregate schema_version is "
+                    f"{doc.get('schema_version')!r}, expected {SCHEMA_VERSION}"
+                )
+            if doc.get("generator_version") != GENERATOR_VERSION:
+                raise InvariantError(
+                    f"committed aggregate was written by {doc.get('generator_version')!r}, "
+                    f"this generator is {GENERATOR_VERSION}"
+                )
+            if not isinstance(doc.get("claims"), dict):
+                raise InvariantError("committed aggregate has no claim manifest")
+            _validate_claims(doc)
+            privacy_gate(doc)
+        else:
+            doc = build(load_survey(args.survey))
+            privacy_gate(doc)
     except InvariantError as exc:
         sys.stderr.write(f"Invariant failure: {exc}\n")
         return EXIT_INVARIANT
@@ -739,7 +783,14 @@ def main(argv: list[str] | None = None) -> int:
             for row in uncovered:
                 sys.stderr.write(f"  {row}\n")
             return EXIT_DRIFT
-        print("OK: every prose figure resolves to a value in the aggregate.")
+        if audit_from_committed:
+            print(
+                "OK: every prose figure resolves to a value in the committed "
+                "aggregate. Source-survey freshness was NOT checked (the survey is "
+                "absent); run --check with the survey to establish that."
+            )
+        else:
+            print("OK: every prose figure resolves to a value freshly derived from the survey.")
         return 0
 
     if args.check:

@@ -8,18 +8,24 @@ Emit `pool-durations.json` — track durations for the non-Rekordbox pool
 
 Why a sidecar rather than a survey field: `non-rekordbox-survey.py` decodes the
 whole pool and takes hours; duration is a container-header read and takes
-seconds. Regenerating the survey to add one cheap field would be absurd, so the
-durations live beside it and join on the survey's `path`.
+seconds. It stamps `sourceSurveySha256` so a consumer can refuse a sidecar built
+from a different survey snapshot than the manifests it feeds.
 
-The output carries corpus-relative paths, which the committed pretrain manifest
-already does, so this is no new exposure. It never leaves develop.
+**Disclosure, stated plainly.** This commits 4,753 corpus-relative paths, of
+which several hundred appear in no other tracked artifact. Corpus-relative paths
+are an accepted disclosure in this repository -- two training manifests already
+carry thousands of them. That acceptance is a decision, not a claim that
+filenames are harmless. What keeps the survey itself uncommittable is broader: a
+complete collection inventory plus absolute filesystem roots, per-file BPM
+signals, audio hashes, and skipped/sentinel-review records.
 
 Duration is what separates a DJ mix from a track when the directory name does
 not: measured 2026-08-01 over 4,753 pool files, `Mixes/` rows have a median of
-27.2 min against 5.4 for everything else, and real tracks reach only 8.4 min at
-p99. See `corpus_common.is_continuous_mix`.
+27.2 min against 5.4 for everything else, and real tracks reach only 8.4 at p99.
+See `corpus_common.is_continuous_mix`.
 
-Run: `make pool-durations`
+Run: `make pool-durations`  (then `make repair-mix-manifests` -- order matters,
+the manifests record this file's SHA).
 """
 
 from __future__ import annotations
@@ -28,59 +34,31 @@ import json
 import sys
 from pathlib import Path
 
-from mutagen import File as MutagenFile
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ML_TRAINING_DIR = REPO_ROOT / "_bmad-output" / "ml-training"
-SURVEY = ML_TRAINING_DIR / "non-rekordbox-survey.json"
-OUT = ML_TRAINING_DIR / "pool-durations.json"
+sys.path.insert(0, str(ML_TRAINING_DIR))
+
+import corpus_manifests as cm  # noqa: E402  (runtime sys.path insert above)
 
 
 def main() -> int:
-    if not SURVEY.exists():
+    paths = cm.default_paths(ML_TRAINING_DIR)
+    survey_path = paths["survey"]
+    if not survey_path.exists():
         print(
-            f"ERROR: {SURVEY} not found (gitignored, develop-only). "
+            f"ERROR: {survey_path.name} not found (gitignored, develop-only). "
             "Run `make non-rekordbox-survey` first.",
             file=sys.stderr,
         )
         return 2
-    data = json.loads(SURVEY.read_text())
-    root = Path(data["audio_root"])
-
-    rows, missing, unreadable = [], 0, 0
-    for track in data["tracks"]:
-        rel = track.get("path")
-        if not rel:
-            continue
-        full = root / rel
-        if not full.exists():
-            missing += 1
-            continue
-        try:
-            info = getattr(MutagenFile(str(full)), "info", None)
-            seconds = getattr(info, "length", None)
-        except Exception:  # noqa: BLE001 - any decoder complaint means unusable
-            seconds = None
-        if not isinstance(seconds, (int, float)) or seconds <= 0:
-            unreadable += 1
-            continue
-        rows.append({"relPath": rel, "seconds": round(float(seconds), 2)})
-
-    rows.sort(key=lambda r: r["relPath"])
-    payload = {
-        "schema_version": 1,
-        "note": (
-            "Container-header durations for the non-Rekordbox pool, joined to "
-            "non-rekordbox-survey.json on `path`. Used only to identify "
-            "continuous DJ mixes; never a training feature."
-        ),
-        "count": len(rows),
-        "unreadable": unreadable,
-        "missing": missing,
-        "rows": rows,
-    }
-    OUT.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    print(f"Wrote {OUT} ({len(rows)} rows; {unreadable} unreadable, {missing} missing)")
+    raw = survey_path.read_bytes()
+    survey = json.loads(raw.decode("utf-8"))
+    rows, unreadable, missing = cm.build_duration_rows(survey, Path(survey["audio_root"]))
+    payload = cm.durations_payload(rows, unreadable, missing, cm.sha256_bytes(raw))
+    paths["durations"].write_text(cm.serialize(payload) + "\n", encoding="utf-8")
+    print(
+        f"Wrote {paths['durations']} ({len(rows)} rows; {unreadable} unreadable, {missing} missing)"
+    )
     return 0
 
 

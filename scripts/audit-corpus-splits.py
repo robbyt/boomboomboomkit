@@ -473,17 +473,85 @@ def check_marginal_exclusion(tony: dict, tracks: list[dict], res: AuditResult) -
         )
 
 
+def _check_manifest_mixes(
+    path: Path, key: str, durations: dict[str, float], res: AuditResult
+) -> None:
+    """Fail-closed check of one committed manifest. Extracted so it is testable.
+
+    Every branch here fails rather than warns. An earlier version treated a
+    missing manifest as success, a missing sidecar as a warning, and a missing
+    collection key as an empty clean manifest via `.get(..., [])` -- so the
+    "fails closed" claim was false for exactly the states most likely to occur.
+    """
+    label = path.name
+    if not path.exists():
+        res.fail(f"continuous-mix: {label} is missing. It is a committed, required artifact.")
+        return
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        res.fail(f"continuous-mix: {label} is not valid JSON ({exc}).")
+        return
+    rows = data.get(key)
+    if not isinstance(rows, list):
+        res.fail(
+            f"continuous-mix: {label} has no `{key}` list. A missing collection key "
+            f"must not read as an empty, clean manifest."
+        )
+        return
+
+    seen_paths: set[str] = set()
+    seen_hashes: set[str] = set()
+    bad, malformed, undated, dupes = [], 0, [], 0
+    for row in rows:
+        rel = row.get("relPath") if isinstance(row, dict) else None
+        if not isinstance(rel, str) or not rel:
+            malformed += 1
+            continue
+        if rel in seen_paths:
+            dupes += 1
+        seen_paths.add(rel)
+        h = row.get("audioHash")
+        if isinstance(h, str) and h:
+            if h in seen_hashes:
+                dupes += 1
+            seen_hashes.add(h)
+        if rel not in durations:
+            undated.append(rel)
+            continue
+        if cc.is_continuous_mix(rel, durations[rel]):
+            bad.append(rel)
+
+    if malformed:
+        res.fail(f"continuous-mix: {label} has {malformed} row(s) with no usable relPath.")
+    if dupes:
+        res.fail(f"continuous-mix: {label} has {dupes} duplicate relPath/audioHash entries.")
+    if undated:
+        res.fail(
+            f"continuous-mix: {len(undated)} row(s) in {label} have no duration entry, "
+            f"so the duration half of the predicate could not run on them. An unknown "
+            f"duration must never be read as 'not a mix'. First: {undated[:3]}"
+        )
+    if bad:
+        res.fail(
+            f"continuous-mix: {len(bad)} DJ-mix row(s) in {label} "
+            f"(re-run `make repair-mix-manifests`): {bad[:3]}"
+        )
+    if not (malformed or dupes or undated or bad):
+        res.note(f"continuous-mix: 0 of {len(rows)} rows in {label}.")
+
+
 def check_no_continuous_mixes(tony: dict, tracks: list[dict], res: AuditResult) -> None:
-    """Assert no DJ mix reached any split or the pretrain manifest.
+    """Assert no DJ mix reached any split or either committed training manifest.
 
     A continuous mix spans many tempos and has no single ground-truth BPM, so it
     is invalid as a supervised label and as self-supervised pretraining material
     alike. Operator directive 2026-08-01, after the Epic 12 band census found 251
-    of them feeding training and 238 sitting in the committed pretrain manifest.
+    of them feeding training.
 
-    This check is the fail-closed half. `build_unsupervised_manifest.py` and the
-    split builder do the filtering; without an assertion here, a future rebuild
-    that forgets the filter would ship them again silently.
+    Both manifests are checked, and neither an absent file nor an absent duration
+    sidecar is tolerated: this is the fail-closed half, and the filtering half
+    lives in `corpus_manifests`.
     """
     by_id = _tony_by_id(tracks)
     split_ids = (
@@ -496,44 +564,42 @@ def check_no_continuous_mixes(tony: dict, tracks: list[dict], res: AuditResult) 
     )
     if leaked:
         res.fail(
-            f"continuous-mix exclusion: {len(leaked)} DJ-mix track_id(s) leaked into "
+            f"continuous-mix: {len(leaked)} DJ-mix track_id(s) in "
             f"train/val/leaveArtistOut: {leaked[:5]}"
         )
     else:
-        res.note(f"continuous-mix exclusion: 0 of {len(split_ids)} split track_ids.")
+        res.note(f"continuous-mix: 0 of {len(split_ids)} split track_ids.")
 
-    manifest = cc.ML_TRAINING_DIR / "non-rekordbox-unsupervised-pretrain-manifest.json"
-    if not manifest.exists():
-        res.note(f"continuous-mix exclusion: {manifest.name} absent; manifest pass skipped.")
-        return
     durations_path = cc.ML_TRAINING_DIR / "pool-durations.json"
-    durations: dict[str, float] = {}
-    if durations_path.exists():
+    if not durations_path.exists():
+        res.fail(
+            f"continuous-mix: {durations_path.name} is missing. Duration is half the "
+            f"predicate, so without it a mix filed outside `Mixes/` passes unseen. "
+            f"Run `make pool-durations`."
+        )
+        return
+    try:
         durations = {
             r["relPath"]: r["seconds"]
             for r in json.loads(durations_path.read_text()).get("rows", [])
         }
-    else:
-        res.warn(
-            f"continuous-mix exclusion: {durations_path.name} absent — only the "
-            "directory rule was checked. Mixes filed outside `Mixes/` would not "
-            "be caught. Run `make pool-durations`."
-        )
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        res.fail(f"continuous-mix: {durations_path.name} is malformed ({exc}).")
+        return
 
-    rows = json.loads(manifest.read_text()).get("unsupervisedPool", [])
-    bad = [
-        r.get("relPath")
-        for r in rows
-        if cc.is_continuous_mix(r.get("relPath"), durations.get(r.get("relPath")))
-    ]
-    if bad:
-        res.fail(
-            f"continuous-mix exclusion: {len(bad)} DJ-mix row(s) in "
-            f"{manifest.name} (rebuild with `make ablation-unsupervised-manifest`): "
-            f"{bad[:3]}"
-        )
-    else:
-        res.note(f"continuous-mix exclusion: 0 of {len(rows)} pretrain-manifest rows.")
+    # Both, unconditionally. Checking one must never skip the other.
+    _check_manifest_mixes(
+        cc.ML_TRAINING_DIR / "non-rekordbox-unsupervised-pretrain-manifest.json",
+        "unsupervisedPool",
+        durations,
+        res,
+    )
+    _check_manifest_mixes(
+        cc.ML_TRAINING_DIR / "non-rekordbox-secondary-supervised-manifest.json",
+        "secondarySupervised",
+        durations,
+        res,
+    )
 
 
 def check_gate(res: AuditResult) -> None:
