@@ -27,6 +27,7 @@ from pathlib import Path
 
 ML_TRAINING_DIR = Path(__file__).resolve().parents[1]
 SURVEY = ML_TRAINING_DIR / "non-rekordbox-survey.json"
+DURATIONS = ML_TRAINING_DIR / "pool-durations.json"
 OUT = ML_TRAINING_DIR / "non-rekordbox-unsupervised-pretrain-manifest.json"
 
 # The survey rows carry these; NONE may reach the manifest (FR-15).
@@ -55,13 +56,38 @@ def main() -> int:
     # one ablation script inside the py-lint ty scope). Operator directive
     # 2026-08-01; 238 such rows were in the previously committed manifest.
     mix_dir = re.compile(r"(^|/)mixes(/|$)", re.IGNORECASE)
+    # Duration is the second signal; it catches mixes filed outside `Mixes/`
+    # (Essential Mixes, radio shows, podcasts). 15 min, with `Goldie - Timeless`
+    # exempt as a genuine ~21-minute composition. Mirrors
+    # `corpus_common.CONTINUOUS_MIX_MIN_SECONDS` / `_LONG_TRACK_EXEMPTIONS`.
+    min_mix_seconds = 15 * 60
+    exemptions = {"goldie - timeless"}
+    durations: dict[str, float] = {}
+    if DURATIONS.exists():
+        for row in json.loads(DURATIONS.read_text()).get("rows", []):
+            durations[row["relPath"]] = row["seconds"]
+    else:
+        print(
+            f"WARNING: {DURATIONS.name} absent - duration-based mix exclusion "
+            "SKIPPED. Run `make pool-durations`.",
+            file=sys.stderr,
+        )
+
+    def _is_mix(rel: str) -> bool:
+        if mix_dir.search(rel):
+            return True
+        secs = durations.get(rel)
+        if secs is None or secs <= min_mix_seconds:
+            return False
+        stem = rel.rsplit("/", 1)[-1].rsplit(".", 1)[0].strip().lower()
+        return stem not in exemptions
 
     out_rows = []
     excluded_mixes = 0
     for r in rows:
         if r.get("tier") != "unsupervisedPool":
             continue
-        if mix_dir.search(str(r.get("path") or "")):
+        if _is_mix(str(r.get("path") or "")):
             excluded_mixes += 1
             continue
         audio_hash = r.get("audioHash")

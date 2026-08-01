@@ -462,7 +462,7 @@ py-lint:
 	fi; \
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
 	uv run ruff format --check . ../../scripts/ && \
-	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py
+	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -544,6 +544,11 @@ ml-splits:
 .PHONY: corpus-diagnostics
 corpus-diagnostics:
 	cd $(ML_TRAINING_DIR) && uv run python corpus_diagnostics.py
+
+## pool-durations: Emit pool-durations.json -- container-header durations for the non-Rekordbox pool, joined to the survey on `path`. Used only to identify continuous DJ mixes (a mix has no single ground-truth BPM and is invalid as training material); never a training feature. Header parse, no decode, so it takes seconds where regenerating the survey takes hours. Develop-only.
+.PHONY: pool-durations
+pool-durations:
+	uv run --project $(ML_TRAINING_DIR) python scripts/pool-durations.py
 
 ## q9-ratio-cluster: Epic 12 Q9 — emit q9-ratio-cluster-v1.json, the tracked evidence artifact behind q9-ratio-cluster-2026-08-01.md. Derived from the gitignored non-rekordbox-survey.json, which cannot be committed (private filenames + absolute audio root), so this is the repository-only auditable substitute. Counts only; a recursive privacy allowlist rejects paths, filenames and stray hashes before the file is written. Run with --check to verify the committed aggregate still matches the survey, or --audit-prose to report any figure in the artifact with no backing value in the aggregate. Develop-only.
 .PHONY: q9-ratio-cluster

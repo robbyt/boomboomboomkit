@@ -90,10 +90,39 @@ def _is_finite(x) -> bool:
 # asserts no split contains one, which is what makes this fail closed.
 _CONTINUOUS_MIX_DIR = re.compile(r"(^|/)mixes(/|$)", re.IGNORECASE)
 
+# Duration is the second signal, and it catches what the directory name misses.
+# Measured 2026-08-01 over 4,753 pool files: `Mixes/` rows have a median of 27.2
+# minutes against 5.4 for everything else, and real tracks reach only 8.4 at p99.
+# A 15-minute cut is correct on 16 of the 17 pool files above it -- every one an
+# Essential Mix, radio show, podcast, mixtape or explicit DJ set filed outside
+# `Mixes/`.
+CONTINUOUS_MIX_MIN_SECONDS = 15 * 60
 
-def is_continuous_mix(path: str | None) -> bool:
-    """True when a corpus-relative path sits under a `Mixes/` directory."""
-    return bool(path) and bool(_CONTINUOUS_MIX_DIR.search(str(path)))
+# The one exception, named rather than absorbed by moving the threshold.
+# `Goldie - Timeless` is a genuine single composition of ~21 minutes; operator
+# confirmed 2026-08-01. Tuning the cut to 25 minutes to dodge it would silently
+# readmit the 31-minute mixes, so the carve-out is explicit and stays small.
+# Match on the basename stem, case-insensitive, so a re-encode or container
+# change does not quietly drop the exemption.
+_LONG_TRACK_EXEMPTIONS = frozenset({"goldie - timeless"})
+
+
+def is_continuous_mix(path: str | None, seconds: float | None = None) -> bool:
+    """True when a corpus-relative path is a DJ mix rather than a track.
+
+    Two independent signals, deliberately OR-ed: a 6-minute file under `Mixes/`
+    is still mix material (the TCDNB volumes are one continuous set cut into
+    pieces, operator-confirmed), and a 40-minute file outside it is still not a
+    track. Pass `seconds` when a duration is known; omit it for a path-only check.
+    """
+    if not path:
+        return False
+    if _CONTINUOUS_MIX_DIR.search(str(path)):
+        return True
+    if seconds is None or seconds <= CONTINUOUS_MIX_MIN_SECONDS:
+        return False
+    stem = str(path).rsplit("/", 1)[-1].rsplit(".", 1)[0].strip().lower()
+    return stem not in _LONG_TRACK_EXEMPTIONS
 
 
 OCTAVE_RATIO_TOL = 0.05

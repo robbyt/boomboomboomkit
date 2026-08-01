@@ -506,8 +506,26 @@ def check_no_continuous_mixes(tony: dict, tracks: list[dict], res: AuditResult) 
     if not manifest.exists():
         res.note(f"continuous-mix exclusion: {manifest.name} absent; manifest pass skipped.")
         return
+    durations_path = cc.ML_TRAINING_DIR / "pool-durations.json"
+    durations: dict[str, float] = {}
+    if durations_path.exists():
+        durations = {
+            r["relPath"]: r["seconds"]
+            for r in json.loads(durations_path.read_text()).get("rows", [])
+        }
+    else:
+        res.warn(
+            f"continuous-mix exclusion: {durations_path.name} absent — only the "
+            "directory rule was checked. Mixes filed outside `Mixes/` would not "
+            "be caught. Run `make pool-durations`."
+        )
+
     rows = json.loads(manifest.read_text()).get("unsupervisedPool", [])
-    bad = [r.get("relPath") for r in rows if cc.is_continuous_mix(r.get("relPath"))]
+    bad = [
+        r.get("relPath")
+        for r in rows
+        if cc.is_continuous_mix(r.get("relPath"), durations.get(r.get("relPath")))
+    ]
     if bad:
         res.fail(
             f"continuous-mix exclusion: {len(bad)} DJ-mix row(s) in "
