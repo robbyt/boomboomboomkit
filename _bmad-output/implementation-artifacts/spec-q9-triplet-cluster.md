@@ -4,7 +4,7 @@ type: 'chore'
 created: '2026-08-01'
 status: 'done'
 baseline_commit: '04642db'
-review_loop_iteration: 1
+review_loop_iteration: 2
 context:
   - '{project-root}/_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-07-26/prd.md'
   - '{project-root}/_bmad-output/ml-training/non-rekordbox-band-feasibility-2026-07-29.md'
@@ -16,7 +16,14 @@ context:
 
 **Problem:** Epic 12's PRD defers Q9 — the 222-track ~1.5x cluster in the non-Rekordbox pool is unexamined, and the PRD records the exposure that these tracks "sit in the pool, not the corpus, so they shape which tracks are drawn and could bias selection before verification ever sees them." FR-59b's convention choice is supposed to be made without knowing what they are.
 
-**Approach:** Characterize the cluster from the existing survey JSON — no decoding, no listening, no re-run — establish which side of the tag/DSP pair is wrong, quantify what that does to each band's draw pool, and write the finding into a develop-only analysis artifact plus the PRD's Q9 entry.
+**Approach:** Characterize the cluster from the existing survey JSON — no decoding, no listening, no re-run — form and bound a hypothesis about which side of the tag/DSP pair is erroneous, without claiming to settle it from two BPM scalars, quantify what that does to each band's draw pool, and write the finding into a develop-only analysis artifact plus the PRD's Q9 entry.
+
+<!-- Renegotiated 2026-08-01 with operator approval. This clause read "establish
+which side of the tag/DSP pair is wrong", which the Never list below forbids in the
+same breath: only the tag and the detector under test exist here, and FR-59a.1 bars
+promoting a DSP-derived value to ground truth. The spec was commanding the overreach
+its own constraints prohibit. Logged in the Spec Change Log, iteration 2. -->
+
 
 ## Boundaries & Constraints
 
@@ -40,15 +47,16 @@ context:
 
 ## Code Map
 
-- `_bmad-output/ml-training/non-rekordbox-survey.json` -- the only data source. 4,766 analyzable tracks; 2,568 carry both a tag and a DSP estimate. `dsp_metadata_blind: true`, so the two signals are independent.
+- `_bmad-output/ml-training/non-rekordbox-survey.json` -- the only data source, and **gitignored**. 4,766 analyzable tracks; 2,568 carry both a tag and a DSP estimate. `dsp_metadata_blind: true` proves only that the detector never read the tag; it does **not** make the signals or their errors independent, since both remain conditioned on the same audio and genre mix.
+- `_bmad-output/ml-training/q9_ratio_cluster.py` + `q9-ratio-cluster-v1.json` -- generator and tracked aggregate. The survey cannot be committed (private filenames, absolute audio root), so this is what a repository-only reader audits against.
 - `_bmad-output/ml-training/non-rekordbox-band-feasibility-2026-07-29.md` -- the 2026-07-29 write-up this extends. Its finding 5 names the 222 as unexamined; its finding 4 ("100-120 scarcity is not an artifact of convention") is the claim most at risk from this analysis.
-- `_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-07-26/prd.md` -- Q9 at `:442-446`, the gate row at `:19`, FR-55 at `:130`, finding 3 at `:243`, FR-59/59a/59b/59f in F3.
+- `_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-07-26/prd.md` -- referenced by **stable identifier, not line number**, because the line numbers moved during this very change: the §14 Q9 entry, the gate list at the top, FR-55, evidence-base finding 3, and FR-59 / FR-59a / FR-59b / FR-59f in F3.
 - `Tests/BoomBoomBoomKitTests/AccuracyFloorTests.swift:126` -- the `robbyt_x-ray-120s` fixture, labelled `triplet-related`, ratio 1.5047. A live instance the PRD says costs nothing to check.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `scratchpad analysis script` -- bin all 2,568 paired tracks by `log2(dsp/tag)` and report the histogram, class counts at several window widths, and per-class tag/DSP percentiles, confidence, tier, and directory concentration -- establishes whether 1.5x is a real peak or a slice of a continuum, and which signal is wrong.
+- [x] `scratchpad analysis script` -- bin all 2,568 paired tracks by `log2(dsp/tag)` and report the histogram, class counts at several window widths, and per-class tag/DSP percentiles, confidence, tier, and directory concentration -- establishes whether 1.5x is a real peak or a slice of a continuum, and supports (never settles) a hypothesis about which signal is erroneous.
 - [x] `scratchpad analysis script` -- decompose each tag band by ratio class, and report what each band's draw pool becomes once a class is removed -- quantifies the PRD's stated selection-bias exposure in band counts rather than in the abstract.
 - [x] `Tests/BoomBoomBoomKitTests/AccuracyFloorTests.swift` -- read only; confirm the `robbyt_x-ray-120s` ratio and its `triplet-related` label, and state whether it belongs to the same phenomenon as the pool cluster -- the PRD names it as a live instance, so the artifact must either connect it or say plainly that it does not.
 - [x] `_bmad-output/ml-training/q9-ratio-cluster-2026-08-01.md` -- new develop-only artifact: the finding, the reproduction recipe, and the consequences for FR-59, FR-59b and FR-59f -- the deliverable.
@@ -63,9 +71,52 @@ context:
 - Given a density or peak comparison is made, when a reference window is called a shoulder, then it is verified to contain no other identified peak, and a constant-width histogram is shown rather than hand-picked windows.
 - Given the per-band decomposition, when a band's draw pool is reported, then both the raw tagged count and the count surviving removal of each implicated class are shown, alongside FR-59's target of 43.
 - Given the finding contradicts an existing claim in the 2026-07-29 feasibility artifact or the PRD, then that claim is struck or corrected in place with a date, and no document is left asserting both.
-- Given a reader with only the repository, when they follow the artifact's reproduction section, then they obtain the same counts.
+- Given a reader with only the repository, when they follow the artifact's reproduction section, then they can audit the generator, confirm every prose figure against the committed aggregate, and check its reconciliation identities — and the artifact states plainly that they cannot recompute a count from source observations, detect an altered survey row, or validate either BPM signal. Amended 2026-08-01: the original wording promised repository-only reproducibility, which the gitignored private survey makes impossible. See Spec Change Log.
+- Given the operator has the survey, when they run `--check`, then it byte-compares the committed aggregate against a fresh derivation and exits non-zero on drift.
+- Given the tracked aggregate is written, when the privacy allowlist runs, then no filename, path fragment, audio extension, or hash other than `survey_sha256` appears in it.
 
 ## Spec Change Log
+
+### 2026-08-01, iteration 2 — bad_spec, including a frozen-block renegotiation
+
+**Trigger:** five inline comments on PR #187 plus a plan review. Four were real
+defects. Every claim was verified against the files before acting.
+
+**The finding that mattered most: iteration 1's downgrade was incomplete.** It was
+applied to the artifact and the PRD but left standing in the spec's own frozen
+Intent, in two other spec sites, and in three places in the feasibility document.
+
+1. **Frozen Intent — renegotiated with explicit operator approval.** The Approach
+   said "establish which side of the tag/DSP pair is wrong", which the Never list
+   forbids in the same breath. The spec was commanding the overreach its own
+   constraints prohibit. Now reads "form and bound a hypothesis ... without claiming
+   to settle it from two BPM scalars".
+2. **Code Map** claimed `dsp_metadata_blind: true` makes the signals independent.
+   It proves only that the detector never read the tag; both remain conditioned on
+   the same audio and genre mix, and the delivered artifact says so explicitly.
+3. **Task text** said the analysis establishes "which signal is wrong"; **Design
+   Note 2** said direction "has to be established" from absolute BPM, confidence and
+   siblings. None is an independent label and the confidence is uncalibrated.
+4. **The repository-only reproducibility AC was never achievable.** The survey is
+   gitignored (`.gitignore:71`) and carries private filenames and an absolute audio
+   root. Replaced with a two-tier guarantee, and a tracked derived aggregate
+   (`q9_ratio_cluster.py` → `q9-ratio-cluster-v1.json`) so the figures are at least
+   auditable. **Dispositioned as renegotiated, not fixed.**
+5. **PRD line references** in the Code Map went stale during this change itself.
+   Replaced with stable identifiers rather than repointed.
+
+**Known-bad state avoided:** a spec whose frozen intent instructs a future reader to
+redo the exact overreach two review rounds removed, and an acceptance criterion that
+can never be satisfied being quietly treated as met.
+
+**KEEP:**
+- Everything from iteration 1's KEEP list.
+- The privacy gate is an allowlist, never a grep: it caught two of my own strings
+  (`generator_version`, a `rounding_rule` containing a slash) during implementation.
+- The claim manifest proves **coverage, not correctness**, and no cheap check gives
+  airtight semantic coverage. Say that rather than implying more.
+- The release rule: the tracked JSON publishes only what the prose already shows.
+  Sparse histogram bins stay aggregated.
 
 ### 2026-08-01, iteration 1 — bad_spec
 
@@ -93,7 +144,7 @@ context:
 Two traps this analysis has to avoid, both of which have already produced wrong numbers in this evidence base:
 
 1. **Selecting on our own detector.** The 2026-07-29 feasibility numbers used `agreementAfterOctaveNormalization` as a filter, which FR-59a.1 forbids, and the band counts moved substantially when it was removed. Report from the tag banding and state the filter, or report unfiltered.
-2. **Reading a ratio as a phenomenon.** `dsp/tag = 1.5` is a relation between two numbers. It is only a triplet if the audio has a triplet feel. The same ratio arises when either signal sits at a different metrical layer, and the direction has to be established from evidence outside the ratio itself — absolute BPM, detector confidence, and what sibling tracks in the same directory look like.
+2. **Reading a ratio as a phenomenon.** `dsp/tag = 1.5` is a relation between two numbers. It is only a triplet if the audio has a triplet feel. The same ratio arises when either signal sits at a different metrical layer. Evidence outside the ratio — absolute BPM, detector confidence, sibling tracks in the same directory — can **support** a direction but cannot establish one: none of it is an independent label, the confidence is uncalibrated, and the sibling comparison is conditioned on the detector. Establishment requires independent annotation.
 
 Window widths in the earlier ratio table were unequal (~5.5%, ~6%, ~5%, ~3.3%), so class counts were not density-comparable. Use log-ratio bins of constant width.
 

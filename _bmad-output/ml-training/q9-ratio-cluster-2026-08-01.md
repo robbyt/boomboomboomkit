@@ -241,43 +241,61 @@ anything about 86 unrelated tracks.
    That belongs to Epic 12's lever work, and it needs annotation before it is a
    result.
 
-## Reproducing
+## Reproducing, and what reproduction is worth here
 
-```bash
-uv run --no-project python - <<'PY'
-import collections, json, math, statistics
-d = json.load(open("_bmad-output/ml-training/non-rekordbox-survey.json"))
-paired = []
-for x in d["tracks"]:
-    tag, dsp = x.get("fileMetadataBPM"), x.get("dspBPM")
-    if isinstance(tag, (int, float)) and tag > 0 and isinstance(dsp, (int, float)) and dsp > 0:
-        paired.append((dsp / tag, x))
-print("paired:", len(paired))                                    # 2568
+**Two tiers, and they are not equally strong.** Say which one you have before
+quoting a number from this document.
 
-# Finding 1: constant-width histogram
-h = collections.Counter(round(math.log2(r) / 0.05) for r, _ in paired)
-print(sorted((round(b * 0.05, 2), n) for b, n in h.items() if n >= 10))
-print("gap [1.36,1.45):", sum(1 for r, _ in paired if 1.36 <= r < 1.45))   # 5
+**Operator, with the survey.** `make q9-ratio-cluster` regenerates
+`q9-ratio-cluster-v1.json` from `non-rekordbox-survey.json`.
+`uv run python _bmad-output/ml-training/q9_ratio_cluster.py --check` re-derives and
+byte-compares against the committed file, exiting non-zero on drift. Output is
+canonical and carries no timestamp or git SHA, so re-runs are byte-identical. The
+recorded `survey_sha256` pins which private snapshot produced these numbers.
 
-# Finding 4: the 100-120 band
-BANDS = {"2x": (1.94, 2.06), "1.5x": (1.48, 1.52), "1.33x": (1.30, 1.36), "1x": (0.97, 1.03)}
-c = collections.Counter()
-for r, x in paired:
-    if 100 <= x["fileMetadataBPM"] < 120:
-        c[next((k for k, (lo, hi) in BANDS.items() if lo <= r < hi), "other")] += 1
-print(dict(c), "sum", sum(c.values()))
-# {'other': 33, '1x': 27, '1.33x': 4, '1.5x': 197, '2x': 1} sum 262
+**Repository-only reader.** The survey is gitignored and cannot be committed: it
+carries track filenames and an absolute audio root for a private collection. So you
+**can** read `q9_ratio_cluster.py` and audit its logic, confirm every figure in this
+prose against the committed aggregate, and check the reconciliation identities it
+asserts (class counts to 2,568; band cells to their row totals and to 2,568;
+4,766 overall). You **cannot** recompute any count from the source observations,
+detect an omitted or altered survey row, prove the committed JSON came from the
+committed script, or validate either BPM signal.
 
-# The confound: how concentrated is the detector in the largest directory?
-import os
-rows = [x for x in d["tracks"]
-        if os.path.basename(os.path.dirname(x["path"])) == "Drum and Bass"
-        and isinstance(x.get("dspBPM"), (int, float)) and x["dspBPM"] > 0]
-inside = sum(1 for x in rows if 165 <= x["dspBPM"] < 180)
-print(f"{inside}/{len(rows)} = {inside/len(rows)*100:.1f}%")      # 2549/3028 = 84.2%
-PY
-```
+This artifact's earlier acceptance criterion promised repository-only
+reproducibility. That was never achievable, and the guarantee is renegotiated to
+repository-only **auditability** plus operator-only reproduction rather than quietly
+restated.
 
-Bands are half-open `[lo, hi)` at 100 / 120 / 140 / 160 / 175, so 120.0 lands in
-120-140. Regenerating the survey itself (slow, decodes the whole pool):
-`make non-rekordbox-survey`, or `LIMIT=N` for a subset.
+**Claim manifest and drift guard.** `q9-ratio-cluster-v1.json` carries a `claims`
+object mapping a stable id to a JSON pointer, so each figure here has one canonical
+location. `q9_ratio_cluster.py --audit-prose` then walks this document and reports
+any figure with no backing value in the aggregate, which is what stops a new number
+being added with nothing behind it.
+
+Two limitations, stated rather than implied. It proves **coverage, not
+correctness**: it cannot show a figure is attached to the *right* claim, and nothing
+cheap can, short of generating this prose from the JSON. And it carries an exemption
+list for structural numbers — dates, band edges, window bounds, the per-band target
+— which needs maintenance as this document changes.
+
+**Privacy boundary, stated rather than implied.** The gate is "no filenames and no
+filesystem location", enforced by a recursive allowlist in the generator rather than
+a grep, with `survey_sha256` the single permitted hash. The directory behind the
+`largest_directory` figures is not named in the JSON, but that is **not** directory
+anonymity: this prose describes the population, and git history already carries the
+name. The band table and the mode gap also contain small cells; the release rule is
+that the JSON publishes only what this prose already shows, so sparse histogram bins
+are aggregated rather than enumerated.
+
+**Definitions that would otherwise silently change a result.** Ratio classes are
+half-open and mutually exclusive: `1x` `[0.97, 1.03)`, `1.33x` `[1.30, 1.36)`,
+`1.5x` `[1.48, 1.52)`, `2x` `[1.94, 2.06)`, everything else `other`. Bands are
+half-open at 100 / 120 / 140 / 160 / 175, so 120.0 lands in 120-140. Histogram bins
+use `floor(log2(ratio) / 0.05 + 0.5)`, not Python's `round`, which is ties-to-even.
+Percentiles are index-based with no interpolation. "Largest directory" is the
+immediate parent basename holding the most rows with a DSP estimate, ties broken by
+name; grouping by first path component instead gives a different population.
+
+Regenerating the survey itself (slow, decodes the whole pool, needs the operator's
+Rekordbox XML and audio): `make non-rekordbox-survey`, or `LIMIT=N` for a subset.
