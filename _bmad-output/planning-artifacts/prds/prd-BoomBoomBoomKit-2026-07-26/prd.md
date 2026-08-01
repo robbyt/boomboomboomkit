@@ -162,7 +162,7 @@ Two earlier results already said the rulers were suspect: the ~6-point annotatio
 
 | Constant | Value | Set by |
 |---|---|---|
-| `N_BAND` — tracks per band | **43** | scarcest compliant band (140-160), FR-59. **Target conditional on verification, not an established figure** — Q9 (2026-08-01) found every candidate label in 100-120 and 140-160 unverified, so `N_BAND` and `N_EVAL` below are planning constants that FR-59f can lower. |
+| `N_BAND` — tracks per band | **43** | ~~scarcest compliant band (140-160)~~ **CORRECTED 2026-08-01: this is the scarcest band of ONE source (the non-Rekordbox pool), used as a global constant across three.** The three-source census puts the scarcest band at **175+ with 140** (104 on the strictly independent banding) — roughly 3x. So 43 is a floor set by one source, not a ceiling set by availability, and corpus size becomes a verification-budget choice. Still conditional in the other direction too: Q9 found every candidate label in 100-120 and 140-160 unverified, so FR-59f can lower it. See `_bmad-output/ml-training/three-source-band-census-2026-08-01.md`. |
 | `N_BANDS` | **6** | <100 / 100-120 / 120-140 / 140-160 / 160-175 / 175+ |
 | `N_EVAL` — evaluation corpus | **258** | `N_BAND × N_BANDS` |
 | `ALPHA` — operative significance level | **0.05** | Q10 retired FR-69a's 0.025 with the multi-corpus gate |
@@ -199,7 +199,7 @@ Two earlier results already said the rulers were suspect: the ~6-point annotatio
 
   **Sharpened 2026-08-01 by Q9.** Three amendments to the budget and the protocol. Nothing here reclassifies a track: **all 262 labels in 100-120 and all 43 in 140-160 are unverified**, and the ratio composition below is a workload signal, not a verdict on any file.
 
-  **(a) Both bands are more uncertain than the plan assumed.** 140-160 sits at exactly 43, of which 32 show a 1:1 tag/DSP relation, 3 sit at ~1.33x and 8 in the lowest-confidence class. 100-120 holds 262, of which 197 sit in the ~1.5x class and 27 at 1:1. Neither figure bounds how many tracks are valid — two fallible signals agreeing is not verification, and two disagreeing is not refutation. What follows is only that **uniform n = 43 is not yet established for either band**, and because FR-59 balances to the scarcest, a shortfall anywhere lowers n everywhere.
+  **(a)** ~~Both bands are more uncertain than the plan assumed.~~ **SUPERSEDED 2026-08-01 by the three-source census: 140-160 holds 430 across all three sources, not 43, so the scarcity rationale for verifying it first is void.** Its pool contribution is still thin and weakly corroborated (32 of 42 at a 1:1 tag/DSP ratio, 3 at ~1.33x, the rest lowest-confidence), but a shortfall there no longer shrinks the corpus. **Verify 100-120 first**, for the workload reason in (b) rather than for scarcity. The census also finds the `175+` band is 130-of-140 within 175-179 and non-separable from 160-175 at the ±4% Acc1 tolerance, so the band scheme's top edge needs settling before the draw.
 
   **(b) Budget 100-120 heavily, and treat the ordering claim as conditional.** Under Q9's tagging-convention hypothesis a tag-trusting draw in that band yields roughly one keeper in four, so reaching 43 keepers takes on the order of 170 reviews. That is a **scenario derived from a hypothesis**, offered so the budget is not set at 43 and then blown; it is not a measured rejection rate. Whether 100-120 or 140-160 is the binding band is likewise hypothesis-dependent and must not be written as a finding.
 
