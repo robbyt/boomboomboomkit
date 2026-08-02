@@ -2033,9 +2033,14 @@ So that the detector stops reporting 140 for a 70 BPM track without my having to
 **Then** `Meta_Man` (92 → 182), `Meta_Man_La_Noche_Digital_` (96 → 191.76) and `Submerged_Lament` (70 → 140.12) resolve within tolerance,
 **And** `robbyt_x-ray-120s` is **not** expected to resolve — it is a 1.5047 triplet relation, not an octave error, so the target set is three fixtures, not four (FR-55).
 
-**Given** `AccuracyFloorTests.swift:126` labels that triplet fixture as an octave error,
+**Given** `AccuracyFloorTests.swift:126` **already** records that fixture as `triplet-related: reports ~115.6, two-thirds of 174 (3:2)`,
 **When** the story lands,
-**Then** the label is corrected.
+**Then** that label is left unchanged — **(CORRECTED 2026-08-02, during Story 12.1 creation.** An earlier version of this AC read "the label is corrected", which inverted FR-55. FR-55's point is that an earlier draft of *the requirement* called all four fixtures octave errors and the file contradicts that draft; the file is right. Acting on the original AC would have sent a dev agent to change correct code.**)**
+
+**Given** the four bounds are two pairs with different semantics — `minBPM`/`maxBPM` (40/250, candidate scan) and `perceptualMinBPM`/`perceptualMaxBPM` (60.0/200.0, the octave-normalization target consumed by `BPMAnalyzer.rangeNormalize`),
+**When** they become consumer-specifiable,
+**Then** each pair is exposed and documented separately, because widening the scan range and moving the octave-fold window are different operations with different blast radii,
+**And** the perceptual pair carries the invariant `perceptualMax >= 2 * perceptualMin`, since `rangeNormalize`'s two sequential loops return a value below `perceptualMinBPM` when the window is narrower than one octave.
 
 **Given** this is an accuracy-affecting change,
 **When** the story lands,
