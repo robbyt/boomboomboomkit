@@ -1,11 +1,33 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
+epic12Run:
+  stepsCompleted: [1, 2, 3, 4]
+  completedAt: '2026-08-02'
+  validation: 'PASS with three recorded exceptions. (1) 26 of 35 FRs covered by stories; Epic 14''s 9 are knowingly uncovered per operator decision, re-open trigger Gate 1. (2) Stories 12.4, 12.7 and 12.9 exceed a single dev session and should be split at bmad-create-story time; 12.7 additionally carries operator hand-verification that no agent can complete. (3) Epic 12 delivers one user-facing capability (12.1) and eight measurement/decision deliverables — a deliberate consequence of the learning success condition, not an oversight. Starter template N/A confirmed against architecture.md. Epic 12 / Epic 14 file overlap in _bmad-output/ml-training/ is justified by the Gate-2 risk boundary and the FR-58 feedback loop. Zero forward dependencies.'
+  outstandingAfterWorkflow: 'Two coherence gaps this workflow could not close in epics.md alone. (a) Epic 13''s charter still lists items 1 (resolveOctaveAmbiguity sweep) and 2 (beat-grid rescoring), which the operator struck on 2026-08-01 when Epic 12 took the DSP octave levers — Epic 12''s new entry now contradicts Epic 13''s charter. (b) Charter item 7(a) was re-admitted as an explicit post-MVP feature but exists only in this file: the PRD does not mention it, it is not an FR, no story covers it, and GH-138''s three dead public knobs remain ownerless. Also outside this workflow: sprint-status.yaml holds zero epic-12 story keys (bmad-sprint-planning seeds them), and PRD section 6 still has an evidence bound with no cost bound.'
+  storiesCreated: 'Epic 12: nine stories (12.1 through 12.9), every dependency backward-pointing. Epic 14: none — deliberately unscoped (operator decision 2026-08-02) because Story 12.5''s FR-58 ranking, not the charter''s, drives everything after F2. Re-open trigger: Gate 1 passes. Section order in this file is now 6, 7, 8, 9, 10, 11, 12-stories, 12-charter (superseded 2026-08-02, retained per the supersession-header convention), 13-charter, 14-chartered.'
+  startedAt: '2026-08-01'
+  status: 'in-progress'
+  epicsDesigned: 'Epic 12 (Measurement integrity and the DSP tempo prior, 26 FRs) + Epic 14 (Model retrain and delivery, 9 FRs, CHARTERED NOT SCOPED). Split at the Gate-2 boundary: every Epic 12 deliverable survives the stopping rule firing, so the epic cannot be terminated mid-flight the way a single 35-FR Epic 12 could. Epic 13 keeps its number; numbering stays monotonic.'
+  partyModeAmendments: '2026-08-02 party-mode review (Winston, Grumbal, Dana, Sally, Mary, John, Paige, Gloria) amended the proposed structure with two requirement-level splits, neither of which was in the first proposal. (1) F1 SPLITS: FR-54a says the style classifier is an unscoped second model this PRD does not build, so Story 12.1 = FR-53 (consumer-specifiable tempo range) alone -- no classifier, no model, no corpus, testable today against the four AccuracyFloorTests fixtures -- and FR-54/54a becomes a later story or explicit deferral plus a written decision on whether the project builds a style classifier. Winston caveat carried into the spec: FR-54 mandates reweight-never-hard-filter and a range IS a hard filter, so FR-53 ships opt-in defaulting to current bounds. (2) F5 SPLITS: FR-67 (declare the bin schema a public contract) stays in Epic 12 because reference_arch.py ships to main and a gate-conditional epic would leave GH-147 open indefinitely if Gate 2 fires; FR-66 (align the range) moves to Epic 14 with the retrain. Gloria on the record: the PRD survived four rounds of self-review and its own feature groupings still did not survive contact with sequencing.'
+  writeStrategy: 'append-in-place (operator decision 2026-08-01) — step 07 of the workflow specifies overwriting this file from the blank template, which would destroy Epics 6-11 plus both charters. Overwrite REFUSED. Epic 12 requirements are appended to the existing inventory (FR namespace is continuous: the 2026-05-25 PRD ended at FR-52, this one starts at FR-53); the Epic 12 charter section is replaced in place by the generated epic. Epics 6-11 and the Epic 13 charter are not touched. Pre-replacement charter text is recoverable at commit 7d96cf0.'
+  lineNumberNotice: 'The step-01 inventory insert shifts every line below it. Citations of the form epics.md:18xx in reconcile-epic12-charter.md, in GitHub issue #166, and in the Epic 13 charter references are stale from 2026-08-01 onward.'
 inputDocuments:
   - '_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-05-25/prd.md'
   - '_bmad-output/planning-artifacts/architecture.md'
   - '_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-05-25/.decision-log.md'
   - '_bmad-output/project-context.md'
   - '_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-23.md'
+epic12InputDocuments:
+  - '_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-07-26/prd.md'
+  - '_bmad-output/planning-artifacts/architecture.md'
+  - '_bmad-output/project-context.md'
+  - '_bmad-output/ml-training/q9-ratio-cluster-2026-08-01.md'
+  - '_bmad-output/ml-training/three-source-band-census-2026-08-01.md'
+  - '_bmad-output/planning-artifacts/epics.md (Epic 12 + Epic 13 charters, read as input)'
+epic12InputsExcluded:
+  - 'addendum.md — operator excluded as a formal input; prd.md:23 and :350 cite section A directly, so its conclusions arrive through the PRD regardless'
+  - 'reconcile-epic12-charter.md — operator excluded as a formal input; its unresolved divergences remain open scope'
 workflowType: 'create-epics-and-stories'
 project_name: 'BoomBoomBoomKit'
 user_name: 'robbyt'
@@ -14,7 +36,9 @@ status: 'complete'
 completedAt: '2026-05-27'
 lastStep: 4
 prdReference: 'prd-BoomBoomBoomKit-2026-05-25 (status: final, 51 FRs across 5 epics)'
+epic12PrdReference: 'prd-BoomBoomBoomKit-2026-07-26 (status: draft, 35 FRs FR-53 through FR-74 across features F1-F7; one gate outstanding — FR-59f, operator hand-verification of 258 corpus tracks)'
 architectureReference: 'architecture.md (status: complete, 27 KDDs resolved, 2026-05-26)'
+epic12ArchitectureReference: 'ABSENT — architecture.md is dated 2026-05-25 against the prior PRD and covers epics A-E (Epics 6-11) only. Zero Epic 12 coverage. FR-53 (tempo bounds onto Options, ADR-11 territory) and FR-67/68/69 (bin schema as public contract, bundle gate) have public-API surface with no architecture decision behind them.'
 archivedPredecessor: '_bmad-output/planning-artifacts/archive/epics-2026-03-31.md'
 epicNumbering: 'monotonic — old epics.md used Epic 1-5; new PRD epic A → Epic 6; B → Epic 7; C → Epic 8. PRD epic D (demo) split into Epic 9 (demo shell, dep Epic 6 only) and Epic 10 (demo integration of beat-grid + LUFS + per-case docs, dep Epic 8 + Epic 11). PRD epic E (per-case docs) → Epic 11. Total 6 epics.'
 partyModeAmendmentsApplied:
@@ -119,6 +143,66 @@ Epic numbering continues monotonically from the archived `epics-2026-03-31.md`, 
 
 _(FR-48 moved to NFR-5; FR-51 dropped per PRD — `BNNSTechnique` is a struct, not a `CaseIterable` enum.)_
 
+#### Epic 12 requirements (PRD `prd-BoomBoomBoomKit-2026-07-26`, extracted 2026-08-01)
+
+Numbering continues the inventory above — the 2026-05-25 PRD ended at FR-52, so there is no collision. Feature groupings are the PRD's own (§5, F1-F7).
+
+**F1 — Style-conditioned tempo prior**
+
+- **FR-53** Tempo search range consumer-specifiable. All four bounds are `private static let` on `BPMAnalyzer` and unreachable from `Options` today (public API change; ADR-11 governs).
+- **FR-54** Style-conditioned prior that **reweights, never hard-filters** candidates by plausibility for a classified style. Defaults to no prior so the default path stays byte-identical. Must abstain rather than guess.
+- **FR-54a** **The classifier F1 depends on is an unscoped second model, and this PRD does not build it.** No training corpus, style taxonomy, accuracy gate, or size is specified anywhere. Blocks or rescopes any F1 story.
+- **FR-55** Measure per-band and per-genre against the four `AccuracyFloorTests` fixtures. **Not all four are octave errors** — `robbyt_x-ray-120s` is a 1.5047 triplet relation, mislabelled at `AccuracyFloorTests.swift:126`. Target set is 3 octave fixtures, not 4.
+
+**F2 — Reference-gap diagnosis**
+
+- **FR-56** Reproduce a published TempoCNN-family baseline end to end and score it on our evaluation path **at our annotation version**. Establishes whether the gap is ours or the ruler's. Baseline settled 2026-08-01: Schreiber & Müller TempoCNN.
+- **FR-57** Written differential across every axis separating our pipeline from the reference — input representation, window policy, bin schema, loss, augmentation, corpus composition, decode, evaluation protocol — each labelled *suspect* / *neutral* / *ruled out*, with evidence.
+- **FR-58** Rank suspected causes by expected contribution and cost to test. **That ranking, not the charter's, drives everything after F2.**
+
+**F3 — Purpose-built corpus and measurement integrity**
+
+- **FR-59** Band-balanced evaluation corpus across OA300, Tony's Rekordbox collection, and the Story 7.2 non-Rekordbox pool. Balanced to the scarcest band: 43 per band, 258 tracks, six bands (top edge settled 2026-08-01 — `175+` stays separate).
+- **FR-59a** Source the scarce bands (100-120, 175+) from the non-Rekordbox pool, subject to two non-optional conditions — **FR-59a.1** forbids corroborating a label with the detector under test; **FR-59a.2** governs cross-corpus partitioning.
+- **FR-59b** Declare **one metrical-level convention** and label every track to it. **The load-bearing decision of F3** — the band distribution follows from the convention, not from the music.
+- **FR-59c** Per-band inference is possible but narrow. Superseded in part by Q11: per-band is a deterministic tripwire, never a significance claim.
+- **FR-59d** Training corpus built for **volume with band-aware sampling**, explicitly **not** balanced to the scarcest band.
+- **FR-59e** Training and evaluation corpora share FR-59b's convention and FR-59a.2's partition.
+- **FR-59f** Define how a tag becomes ground truth **without using our DSP**. **The one remaining PRD gate**; operator-owned, 258 tracks, blocks F3 and therefore F6.
+- **FR-60** Tag every reported accuracy figure with its ground-truth annotation version. Untagged historical figures are marked untagged, never assumed. Precondition of FR-59b.
+- **FR-61** Report `Acc2 − Acc1` as a first-class metric alongside Acc1 — the standard octave-error proxy.
+- **FR-62** Record the metrical-level convention the project trains toward and audit the training corpus against it. Subsumed into FR-59b for the new corpus; retained for auditing legacy corpora.
+- **FR-62a** ~~Re-label affected OA300 tracks.~~ **STRUCK — superseded 2026-07-28 by FR-59b. Must not become a story.**
+
+**F4 — Training-target repair**
+
+- **FR-63** Replace one-hot bin targets with ordinal targets. Justified by general ordinal literature, **not** by TempoCNN (which uses one-hot). Ships with a smearing-vs-one-hot ablation and a sigma sweep — no tempo paper has published either.
+- **FR-64** Reconsider octave-partner target mass entirely. The symmetric 0.15 has no published precedent, and `octave_partner_bins` drops out-of-range partners, so above ~142 BPM the full mass lands on the half.
+- **FR-65** Log the complete loss configuration into run metadata. `model_metadata.json` records none, so which `octave_mass` prior the retrains used is unrecoverable.
+
+**F5 — Bin-range alignment**
+
+- **FR-66** Align the training bin range with the decode range, or fold out-of-range mass at decode. Bins 0-29 and 171-255 (**115 of 256**) can never produce a usable result against the runtime's `60.0...200.0` abstain.
+- **FR-67** Treat the bin schema as a **public contract**. Declared in `tools/coreml-convert/reference_arch.py:37-39` (**ships to main**) and `dataset.py:59-62`, enforced by `BNNSTechnique`'s hard-coded 256 via `MLTechniqueError.binCountMismatch`. All three move together; breaking for BYOW consumers.
+
+**F6 — The bundle gate**
+
+- **FR-68** Gate is **ensemble lift**: DSP+ML beats DSP alone by a stated margin on the 258-track balanced corpus, with **no regression** in any band DSP already handles. OA300 and GiantSteps report as context and **do not gate**.
+- **FR-69** State the margin in **tracks, not percentages** (settled after a statistical consult; the original wording was wrong in both its statistic and its conclusion).
+- **FR-69a** Multiplicity correction for the 2-of-3 corpus rule. Retired by Q10 along with the multi-corpus gate; `ALPHA` reverts to 0.05.
+- **FR-69b** Seed agreement is a robustness guardrail, **not** a substitute for the paired margin.
+- **FR-69c** **Unresolved design risks in the gate itself**, raised by the consult and not yet answered. Must be settled before the gate runs.
+- **FR-70** Retain the DnB triplet sentinels and a confidence-calibration floor. FR-25's calibration metric was never committed and never ran; here it is a precondition.
+- **FR-71** Report per-band lift, never only an aggregate. A deterministic benchmark tripwire (Q11): `gains ≥ losses` required in every predeclared DSP-handled band.
+
+**F7 — Delivery**
+
+- **FR-72** Ship weights inside the demo app archive (`make demo-archive`), **never in the repository**.
+- **FR-72a** Bundle the model card into the demo archive and link it from the about screen. Three gaps this does not close.
+- **FR-72b** Decide and state what `Options.ensemblePolicy` defaults to once a model ships. It defaults to `.dspOnly`, the operation-inert case — **a model can clear every gate in F6 and change nothing any user sees.**
+- **FR-73** Library keeps its BYOW seam unchanged. Absent weights degrade to DSP-only via the existing abstain path — no network, no new dependency, no behavioural change for existing consumers.
+- **FR-74** Register the bundled model through `ModelRegistry` for SHA-256 identity verification at load. The digest machinery exists and already handles `.mlmodelc` directory bundles.
+
 ### NonFunctional Requirements
 
 - **NFR-1** Swift 6 strict concurrency. All new public types `Sendable`. All async paths data-race-free. `@unchecked Sendable` requires explicit justification.
@@ -131,6 +215,29 @@ _(FR-48 moved to NFR-5; FR-51 dropped per PRD — `BNNSTechnique` is a struct, n
 - **NFR-8** Test discipline. New analyzer/algorithm work includes paired byte-equality opt-out tests where feasible (no longer default contract per NFR-4, but valuable as architecture-refactor regression scaffolding). Drift-detection (FR-50) gates every CI run.
 - **NFR-9** App Store compliance (demo). Demo sandboxed (`com.apple.security.app-sandbox`), signs with developer identity, ships via `make demo-archive`. Entitlements: `user-selected.read-write` (app-level superset required by the audio-file open path; the model bookmark itself is read-only via `.securityScopeAllowOnlyReadAccess`) + `bookmarks.app-scope`.
 - **NFR-10** No new internet requests. Library and demo make no internet requests from any code in this PRD (per FR-46 + FR-52). Privacy manifest reason codes already covered by Story 5-7.
+
+#### Epic 12 NFRs (PRD `prd-BoomBoomBoomKit-2026-07-26` §10, extracted 2026-08-01)
+
+Two of the PRD's six §10 bullets restate NFR-1 (Swift 6 strict concurrency, `Sendable` on new public types) and NFR-2 (zero third-party dependencies) and are not renumbered. The four that add new obligations:
+
+- **NFR-11** DSP-only output remains **byte-identical**, test-locked by the existing opt-out suite. Stronger than NFR-8, which made byte-equality tests conditional ("where feasible"); for Epic 12 the byte-identity of the DSP-only path is a hard contract, because every lever is additive and the default path must not move.
+- **NFR-12** All bulk numeric work goes through vDSP. Previously a `project-context.md` rule only; elevated to an epic NFR because F1's candidate reweighting operates on score arrays.
+- **NFR-13** Swift↔Python feature parity holds via the FNV-1a checksum tripwire, and **any substrate change bumps `MLFeatureFrames.currentFeatureSetVersion`** (one constant, never hardcoded at a call site).
+- **NFR-14** Every accuracy-affecting change ships a **per-track impact report**. Existing precedent: `make click-impact-report`, `make super-flux-impact-report`, `make bnns-impact-report`.
+
+**Constraints and guardrails (PRD §11), carried as binding context rather than numbered NFRs:**
+
+- Weights are **never committed to the repository**. Git LFS is unusable (SPM support landed on `main` only March 2026, needs a toolchain no macOS 15 consumer has).
+- A library owns none of network policy, entitlements, cache location, or user consent. **This is the structural reason delivery goes through the demo app.**
+- OA300 is private and never published or referenced outward. It stays an evaluation corpus.
+- Cloud training is permitted; reproducibility requirements (FR-65, the parity tripwire) apply identically wherever training runs.
+- **Every literature claim traces to primary text.** During Discovery a PDF summarizer fabricated a sigma value, a decode method, and accuracy figures.
+
+**Public surface and dependency policy (PRD §12):**
+
+- `MLTechnique.evaluate(trace:)` is frozen (Story 4-5 DD #18); changes need a named story.
+- The 256-bin contract (FR-67) is public via `MLTechniqueError.binCountMismatch`.
+- Pre-1.0: breaking changes are permitted and **preferred over compatibility shims**.
 
 ### Additional Requirements
 
@@ -194,11 +301,32 @@ Implementation-level requirements derived from `architecture.md` that shape epic
 - `import Synchronization` — NEW in `BoomBoomBoomKitDocs.swift` (Epic 11) for `Mutex<T>`.
 - All other imports unchanged.
 
+#### Epic 12: architecture coverage is ABSENT (recorded 2026-08-01)
+
+**`architecture.md` does not cover Epic 12.** Its frontmatter reads `date: '2026-05-25'` with `inputDocuments: prd-BoomBoomBoomKit-2026-05-25`, and its epic sections are A-E, which are Epics 6-11. A grep for `Epic 12` / `model-quality` / `octave-aware` returns two hits, both describing Epic 7's retraining — the one that failed and closed BYOW.
+
+So the architecture-derived requirements below are the general ones that still bind, not Epic-12 decisions. There are none of the latter.
+
+**Still binding from `architecture.md`:**
+
+- Brownfield framing; no starter template; initialization command N/A. (Epic 12 adds no scaffolding story.)
+- **SPM target layout is pinned — no new product targets.** Epic 12 work lands in the existing five targets or not at all.
+- Tier-1.5 cross-cutting discipline and the enforcement mechanisms apply unchanged.
+
+**The gap, stated so a story author does not invent decisions to fill it.** Two MVP items carry public-API surface with no architecture decision behind them:
+
+- **FR-53** moves four `private static let` tempo bounds off `BPMAnalyzer` onto `Options` — a public API change governed by ADR-11 (Options-first configuration), with no ADR covering the bounds themselves.
+- **FR-67/FR-68/FR-69** make the bin schema a public contract spanning `reference_arch.py` (**ships to main**), `dataset.py`, and `BNNSTechnique.expectedBinCount`, and define the bundle gate — neither has an architecture record.
+
+Whether Epic 12 gets an architecture pass, and whether it happens before or during story creation, is an open decision as of extraction.
+
 ### UX Design Requirements
 
 No standalone UX design document exists. UX is captured inline in PRD Epic D / Epic 9 (FR-36 through FR-44) and resolved via architecture KDD-D1 through KDD-D5. The demo's UX requirements appear as Epic 9 FRs above, not as separate UX-DRs.
 
 Treat Epic 9 FRs as both functional requirements AND the UX specification — primary-view ensemble presets, advanced-sidebar diagnostics, beat-grid timeline on the shared waveform view (no new waveform engine), strategy popover with graceful degradation, confidence-label discipline.
+
+**Epic 12: none (recorded 2026-08-01).** Epic 12 is model quality and has no UI. The single place a UX-DR could later apply is **FR-72a**, which links the bundled model card from the demo's about screen — a demo-app surface, and one that inherits the Epic 10 discipline: pin the layout before dev, and an operator GUI smoke gates `done`.
 
 ### FR Coverage Map
 
@@ -259,6 +387,46 @@ Every FR maps to exactly one epic. NFRs are cross-cutting (apply across all epic
 | FR-52 | Epic 11 | Documentation bundles with library binary |
 | ~~FR-48~~ | (NFR-5) | Moved to NFR — no prose duplication |
 | ~~FR-51~~ | (dropped) | `BNNSTechnique` is a struct, not `CaseIterable` |
+
+**Epic 12 / Epic 14 coverage (PRD `prd-BoomBoomBoomKit-2026-07-26`, mapped 2026-08-02).** All 35 FRs map to exactly one epic; 26 to Epic 12, 9 to Epic 14.
+
+| FR | Epic | Brief |
+|---|---|---|
+| FR-53 | Epic 12 | Tempo search range consumer-specifiable (**Story 12.1**; no classifier needed) |
+| FR-54 | Epic 12 | Style-conditioned prior, reweight never hard-filter (blocked by FR-54a) |
+| FR-54a | Epic 12 | The style classifier is unscoped and this PRD does not build it — **a decision the epic owes** |
+| FR-55 | Epic 12 | Per-band / per-genre measurement against the four `AccuracyFloorTests` fixtures (3 octave + 1 triplet) |
+| FR-56 | Epic 12 | Reproduce Schreiber & Müller TempoCNN on our evaluation path at our annotation version (Gate 0) |
+| FR-57 | Epic 12 | Written differential vs the reference, every axis labelled suspect / neutral / ruled out |
+| FR-58 | Epic 12 | Rank suspected causes — **this ranking, not the charter's, drives everything after F2** |
+| FR-59 | Epic 12 | Band-balanced 258-track evaluation corpus, 43 per band, six bands |
+| FR-59a | Epic 12 | Source scarce bands from the non-Rekordbox pool; FR-59a.1 forbids DSP corroboration |
+| FR-59b | Epic 12 | Declare one metrical-level convention — the load-bearing decision of F3 |
+| FR-59c | Epic 12 | Per-band inference is a tripwire, never a significance claim (Q11) |
+| FR-59d | Epic 12 | Training corpus built for volume with band-aware sampling, **not** balanced |
+| FR-59e | Epic 12 | Training and evaluation corpora share convention and partition |
+| FR-59f | Epic 12 | How a tag becomes ground truth without our DSP — **the one open PRD gate**, operator-owned |
+| FR-60 | Epic 12 | Tag every accuracy figure with its annotation version |
+| FR-61 | Epic 12 | Report `Acc2 − Acc1` as a first-class octave-error proxy |
+| FR-62 | Epic 12 | Record and audit the metrical-level convention for legacy corpora |
+| ~~FR-62a~~ | (struck) | Superseded 2026-07-28 by FR-59b — **must not become a story** |
+| FR-67 | Epic 12 | Bin schema is a public contract (`reference_arch.py` ships to main) — split from FR-66 |
+| FR-68 | Epic 12 | Bundle gate is ensemble lift on the 258-track corpus; OA300 / GiantSteps report, do not gate |
+| FR-69 | Epic 12 | State the margin in tracks, not percentages |
+| FR-69a | Epic 12 | Multiplicity correction — retired by Q10; `ALPHA` reverts to 0.05 |
+| FR-69b | Epic 12 | Seed agreement is a guardrail, not a substitute for the paired margin |
+| FR-69c | Epic 12 | Unresolved gate design risks — must be settled before the gate runs |
+| FR-70 | Epic 12 | Retain DnB triplet sentinels + a confidence-calibration floor |
+| FR-71 | Epic 12 | Per-band lift always, never only an aggregate |
+| FR-63 | Epic 14 | Ordinal bin targets, with a smearing-vs-one-hot ablation and sigma sweep |
+| FR-64 | Epic 14 | Reconsider octave-partner target mass entirely |
+| FR-65 | Epic 14 | Log the complete loss configuration into run metadata |
+| FR-66 | Epic 14 | Align training bin range with decode range — needs a retrain to evaluate |
+| FR-72 | Epic 14 | Weights ship in the demo archive, never the repository |
+| FR-72a | Epic 14 | Model card bundled into the archive and linked from the about screen |
+| FR-72b | Epic 14 | Decide `Options.ensemblePolicy`'s default once a model ships |
+| FR-73 | Epic 14 | Library BYOW seam unchanged; absent weights degrade to DSP-only |
+| FR-74 | Epic 14 | Register the bundled model through `ModelRegistry` for SHA-256 verification |
 
 **Coverage totals:** Epic 6 = 12 FRs · Epic 7 = 14 FRs (harnesses shipped, not outcomes achieved — see the caveat below) · Epic 8 = 10 FRs · Epic 9 = 4 FRs (demo shell) · Epic 10 = 5 FRs (demo integration) · Epic 11 = 6 FRs (per-case docs) · Total = 51 FRs · Cross-cutting NFRs = 10 · Architecture KDDs = 27 (resolved in `architecture.md`).
 
@@ -352,6 +520,37 @@ Every public mode case (`BPMSelectionPolicy`, `VotingPolicy`, `EnsemblePolicy`, 
 **FRs covered:** FR-45, FR-46, FR-47, FR-49, FR-50, FR-52
 
 **Architecture KDDs landed in this epic:** KDD-E1 (one protocol — `DocumentedCase` — pre-1.0 cap), KDD-E2 (per-instance `var docs` shape), KDD-E3 (raw-value default + exhaustive switch fallback for associated-value enums), KDD-E4 (`AnalysisIntensity` 10-level enum reshape with static-let aliases; bundles two breaking changes per Amelia — paired with KDD-A4a `ComputeBudget`), KDD-E5 (`Mutex<T>` cache + double-checked locking per Axiom Concurrency audit), KDD-E6 (SPM resource bundle for per-case Markdown — **AMENDED BY Story 11.1, 2026-07-15: use `.copy` NOT `.process`**; `.process` flattens `Documentation/<Type>/` to the bundle top level and collides same-basename files like `sourceSpecific.md`, breaking `subdirectory:`-keyed resolution — verified against SwiftPM BundlingResources docs + Codex review), KDD-E7 (minimal 2-field YAML schema + filename-matches-Swift-identifier rule), KDD-E8 (DocC + runtime Markdown as parallel surfaces with one-way transclude).
+
+---
+
+_Epics 12 and 14 below come from a second PRD (`prd-BoomBoomBoomKit-2026-07-26`) and were designed 2026-08-02. Epic 13 keeps its number and stays a charter; numbering remains monotonic._
+
+### Epic 12: Measurement integrity and the DSP tempo prior (PRD `2026-07-26`, features F1 / F2 / F3 / F6-definition / FR-67)
+
+A consumer analyzing drum-and-bass can constrain the tempo search range at the input, so the detector stops reporting 140 for a 70 BPM track without anyone training a model. Alongside that, the project gains the three things it has never had: a reproduced published baseline scored on our own evaluation path, a band-balanced 258-track corpus whose labels were never corroborated by the detector under test, and a bundle gate defined in tracks rather than percentages.
+
+**Every deliverable in this epic survives Gate 2 firing.** That is the point of the boundary. §6's stopping rule can terminate the model programme; it cannot terminate a diagnosis, a corpus, a working prior, or a gate definition. This is the epic that makes the operator's stated MVP success condition — *we know whether a bundleable model is reachable and which lever to fund* — an outcome rather than a consolation.
+
+**FRs covered:** FR-53, FR-54, FR-54a, FR-55, FR-56, FR-57, FR-58, FR-59, FR-59a, FR-59b, FR-59c, FR-59d, FR-59e, FR-59f, FR-60, FR-61, FR-62, FR-62a, FR-67, FR-68, FR-69, FR-69a, FR-69b, FR-69c, FR-70, FR-71 — **26 FRs**
+
+**Two features split at the requirement level (party-mode review, 2026-08-02):**
+
+- **F1 splits.** FR-53 (consumer-specifiable tempo range) needs no classifier, no model, and no corpus — it moves four `private static let` bounds off `BPMAnalyzer` onto `Options` and is testable today against the four `AccuracyFloorTests` fixtures. It is Story 12.1. **FR-54 / FR-54a (the style-conditioned soft prior) do not ship behind it**: FR-54a states plainly that the classifier F1 depends on is an unscoped second model this PRD does not build. FR-54 becomes a later story or an explicit deferral, and the epic owes a written decision on whether this project builds a style classifier at all. Note the two are not interchangeable — FR-54 mandates *reweight, never hard-filter*, and a consumer-specifiable range is a hard filter by construction. FR-53 therefore ships opt-in, defaulting to today's bounds, so the library's default path cannot acquire the failure mode as a feature.
+- **F5 splits.** FR-67 (declare the bin schema a public contract) stays here: it is a statement, it costs nothing to make, and the schema lives in `tools/coreml-convert/reference_arch.py`, which **ships to `main`**. Leaving it in a gate-conditional epic would let a public-contract defect (`#147`, 115 of 256 bins decode-dead) sit in a shipped file indefinitely if Gate 2 fires. FR-66 (align the range, or fold at decode) needs a retrain to evaluate and moves to Epic 14.
+
+**Epic 12 owns the DSP octave levers** (operator decision, 2026-08-01). Epic 13's charter items 1 and 2 are struck, and charter item 7(a) — the `OctaveEquivalencePolicy` + `resolveOctaveAmbiguity` + `SignalPool` arbiter, currently three dead public knobs per `#138` — is re-admitted as an explicit **post-MVP** feature. Taking those levers means inheriting Epic 13's rule that a DSP-path change is not pre-committed before the `resolveOctaveAmbiguity` sweep runs: Story 12.1 either runs that sweep as its first task or the amendment retires the rule with a stated reason.
+
+**Two traps carried into the story specs.** FR-56 must align annotation versions *before* scoring, or Gate 0 measures the ruler and reports it as the model — the exact question it exists to answer. And §6 has an evidence bound (Gate 2 stops after two failed levers) but **no cost bound**, while FR-59f alone is 258 tracks of operator hand-verification.
+
+### Epic 14: Model retrain and delivery (PRD `2026-07-26`, features F4 / FR-66 / F7) — CHARTERED, NOT SCOPED
+
+Consumers get a bundled model that measurably beats DSP alone, delivered inside the demo archive with a verifiable digest. Scoped **only if Gate 0 and Gate 1 pass**; if Gate 2 fires this epic is never written, and nothing in Epic 12 is wasted.
+
+**FRs covered:** FR-63, FR-64, FR-65, FR-66, FR-72, FR-72a, FR-72b, FR-73, FR-74 — **9 FRs**
+
+**Depends on:** Epic 12 in full. FR-58's ranking drives what F4 attempts; FR-68's gate cannot run without FR-59's corpus; FR-72b's ensemble-default decision is meaningless until a model exists. **F7 cannot start until there is a model worth shipping**, which may never be true.
+
+**The live risk this epic carries.** FR-72b: `Options.ensemblePolicy` defaults to `.dspOnly`, the one case that is operation-inert. A model can clear every gate in F6 and change nothing any user sees.
 
 ### Epic dependency graph
 
@@ -1793,7 +1992,357 @@ Add a pure-value `BeatGrid` transform that repositions `gridOrigin` to a caller-
 
 ---
 
+## Epic 12: Measurement integrity and the DSP tempo prior (stories)
+
+Nine stories, designed 2026-08-02 from `prd-BoomBoomBoomKit-2026-07-26`. Every dependency points backward — no story requires a later one. FR coverage: 25 mapped + FR-62a struck = 26.
+
+**Binding NFRs.** NFR-11 (DSP-only output byte-identical) is hard for Story 12.1. NFR-14 (per-track impact report) binds any accuracy-affecting story. NFR-13 (`featureSetVersion` bump on any substrate change) binds 12.4 and 12.7. No UX-DRs.
+
+**Epic-level pressure-release valve.** §6 Gate 0 can stop this epic at Story 12.4. If the reference baseline also scores near 52 on our evaluation path, stories 12.5 onward are re-planned rather than executed, and the finding is the deliverable. Document at `_bmad-output/implementation-artifacts/12-gate0-pressure-release.md`.
+
+### Story 12.1: Consumer-specifiable tempo search range
+
+As a consumer integrating BoomBoomBoomKit into a drum-and-bass application,
+I want to constrain the tempo search range at the input,
+So that the detector stops reporting 140 for a 70 BPM track without my having to train or supply a model.
+
+**Acceptance Criteria:**
+
+**Given** Epic 12 inherited Epic 13's rule that a DSP-path change is not pre-committed before the `resolveOctaveAmbiguity` sweep runs,
+**When** the story begins,
+**Then** that sweep runs as the first task and its per-threshold OA300 + GiantSteps results are recorded,
+**And** if the sweep is skipped instead, the inherited rule is retired in writing with a stated reason — silently dropping it is not permitted.
+
+**Given** the four tempo bounds are `private static let` on `BPMAnalyzer` and unreachable from `Options` (FR-53),
+**When** the range becomes consumer-specifiable,
+**Then** it is exposed through `AudioAnalysisService.Options` per ADR-11 as a non-optional defaulted field, never as an `analyzeBPM` parameter,
+**And** the carrying type is `Sendable`.
+
+**Given** default `Options`,
+**When** `analyzeBPM` runs on any fixture,
+**Then** output is byte-identical to the pre-story pipeline — `Double.bitPattern` equality on `bpm` and `confidence`, element-wise on `candidates` (NFR-11),
+**And** a paired byte-equality opt-out test ships with the story.
+
+**Given** an invalid range — `min >= max`, non-finite, or outside the `30...300` envelope,
+**When** `Options` carries it,
+**Then** the value is normalized following the `votingThreshold` precedent (silently clamped; NaN and infinity normalized) rather than throwing,
+**And** the normalization is documented on the property.
+
+**Given** the four `AccuracyFloorTests` known-failure fixtures,
+**When** a range excluding the erroneous octave is supplied,
+**Then** `Meta_Man` (92 → 182), `Meta_Man_La_Noche_Digital_` (96 → 191.76) and `Submerged_Lament` (70 → 140.12) resolve within tolerance,
+**And** `robbyt_x-ray-120s` is **not** expected to resolve — it is a 1.5047 triplet relation, not an octave error, so the target set is three fixtures, not four (FR-55).
+
+**Given** `AccuracyFloorTests.swift:126` labels that triplet fixture as an octave error,
+**When** the story lands,
+**Then** the label is corrected.
+
+**Given** this is an accuracy-affecting change,
+**When** the story lands,
+**Then** a per-track impact report ships with per-band and per-genre breakdown (FR-55, NFR-14),
+**And** the four unconditional corpus floors hold: OA300 Acc1 ≥ 57/82 and Acc2 ≥ 73/82, GiantSteps Acc1 ≥ 537/661 and Acc2 ≥ 546/661.
+
+### Story 12.2: Style-classifier decision — scope it, defer it, or reject it
+
+As the project lead,
+I want a written decision on whether this project builds a style classifier,
+So that FR-54's style-conditioned prior stops shadowing F1 with a dependency nothing produces.
+
+**Acceptance Criteria:**
+
+**Given** FR-54a states the classifier F1 depends on is an unscoped second model this PRD does not build,
+**When** the decision is recorded,
+**Then** it selects exactly one of: **scope it** — naming training corpus, style taxonomy, its own accuracy gate, and size/latency budget; **defer it** — with a named re-open trigger in `deferred-work.md`; or **reject it** — naming the alternative octave mechanism that replaces it.
+
+**Given** the decision is *scope it*,
+**When** it lands,
+**Then** a follow-on story is created and Epic 12's FR count and MVP scope are amended in `epics.md` and the PRD.
+
+**Given** the decision is *defer* or *reject*,
+**When** it lands,
+**Then** FR-54 is annotated in `epics.md` with the decision and date,
+**And** no remaining Epic 12 story depends on it.
+
+**Given** FR-54 mandates *reweight, never hard-filter* while Story 12.1 ships a range that is a hard filter by construction,
+**When** the decision is recorded,
+**Then** it states explicitly whether the two mechanisms coexist or one supersedes the other.
+
+**Given** this story is a decision and not a build,
+**When** it closes,
+**Then** `Sources/` and `Tests/` are byte-identical.
+
+### Story 12.3: Annotation-version tagging and the octave-error metric
+
+As an engineer comparing an accuracy figure across corpora and dates,
+I want every reported figure tagged with its ground-truth annotation version, and `Acc2 − Acc1` reported alongside Acc1,
+So that a number measured with one ruler is never silently compared against another.
+
+**Acceptance Criteria:**
+
+**Given** a benchmark emits an accuracy figure,
+**When** it is reported,
+**Then** it carries the annotation version of the ground truth it was scored against (FR-60).
+
+**Given** historical figures whose annotation version is unknown,
+**When** they are surfaced,
+**Then** they are marked `untagged` rather than assumed to match current labels.
+
+**Given** any accuracy report,
+**When** it is emitted,
+**Then** `Acc2 − Acc1` appears as a first-class metric alongside Acc1, not as a derived footnote (FR-61).
+
+**Given** GiantSteps has a documented annotation swing (TISMIR 2020),
+**When** its figures are reported,
+**Then** the versions are distinguishable from each other by tag.
+
+**Given** Story 12.6 will declare a single metrical-level convention that makes every old-label figure incomparable,
+**When** this story closes,
+**Then** the tagging scheme is already in place, so that transition is survivable rather than silently confusing.
+
+**Given** this is measurement infrastructure,
+**When** the story lands,
+**Then** `Sources/` is byte-identical; changes are confined to the benchmark and test-support surface.
+
+### Story 12.4: Reproduce the TempoCNN reference baseline (Gate 0)
+
+As the project lead,
+I want a published TempoCNN-family baseline reproduced and scored on our own evaluation path at our own annotation version,
+So that Gate 0 can establish whether the thirty-point gap is our model or our ruler.
+
+**Acceptance Criteria:**
+
+**Given** FR-56 requires reproducing a published TempoCNN-family baseline end to end, and the baseline is Schreiber & Müller TempoCNN (settled 2026-08-01 — same 256-bin family as our design, published weights),
+**When** reproduction begins,
+**Then** the weights are obtained and their provenance and checksum are recorded.
+
+**Given** TempoCNN is a Keras model and our runtime is Swift,
+**When** the harness is built,
+**Then** it lives under `_bmad-output/ml-training/` as develop-only Python — **not** under `tools/coreml-convert/`, which is the only Python that ships to `main` and whose scope is the consumer convert CLI.
+
+**Given** the published figure and ours may rest on different ground-truth annotation versions,
+**When** the baseline is scored,
+**Then** annotation versions are aligned **first** and the alignment is recorded,
+**And** the story states plainly that skipping this step makes Gate 0 measure the ruler and report it as the model — the exact question the gate exists to answer.
+
+**Given** the baseline has been scored on our evaluation path,
+**When** results are reported,
+**Then** they appear alongside our DSP path's 81.2% GiantSteps Acc1 at the same annotation version.
+
+**Given** the reference baseline also scores near 52 on our evaluation path,
+**When** that result lands,
+**Then** **Gate 0 fires**: the report states the problem is measurement rather than modelling, stories 12.5 onward are re-planned rather than executed, and the pressure-release artifact is written.
+
+**Given** PRD §11 requires every literature claim to trace to primary text after a summarizer fabricated a sigma value, a decode method, and accuracy figures during Discovery,
+**When** the baseline's published numbers are cited,
+**Then** each traces to the paper itself, not to a summary.
+
+**Given** this is diagnostic work,
+**When** the story lands,
+**Then** `Sources/` and `Tests/` are byte-identical.
+
+### Story 12.5: Pipeline differential and cause ranking
+
+As the project lead,
+I want a written differential across every axis separating our pipeline from the reference, with suspected causes ranked,
+So that no lever is funded on a guess.
+
+**Acceptance Criteria:**
+
+**Given** Story 12.4 produced a baseline scored on our evaluation path,
+**When** the differential is written,
+**Then** it covers every axis FR-57 names: input representation, window policy, bin schema, loss, augmentation, corpus composition, decode, and evaluation protocol.
+
+**Given** each axis,
+**When** it is assessed,
+**Then** it carries exactly one label — `suspect`, `neutral`, or `ruled out` — with the evidence that earned it.
+
+**Given** the axes are labelled,
+**When** the ranking is produced,
+**Then** suspected causes are ordered by expected contribution and cost to test (FR-58).
+
+**Given** the ranking exists,
+**When** it is recorded,
+**Then** `epics.md` states that it supersedes the charter's corrected lever ranking as the driver of everything after F2, and the charter's ranking is annotated rather than deleted.
+
+**Given** the ranking names a cause outside Epic 12's scope,
+**When** it is recorded,
+**Then** it becomes documented Epic 14 input and is not acted on inside this epic.
+
+**Given** this is analysis work,
+**When** the story lands,
+**Then** `Sources/` and `Tests/` are byte-identical.
+
+### Story 12.6: Metrical-level convention and the ground-truth rule
+
+As the operator who will hand-verify 258 tracks,
+I want the metrical-level convention declared and the tag-to-ground-truth rule written before any labelling starts,
+So that the rule cannot change mid-verification and invalidate work already done.
+
+**Acceptance Criteria:**
+
+**Given** the collection's own convention is half-tempo for 71% of tagged tracks,
+**When** the convention is declared,
+**Then** exactly one metrical level is chosen, recorded with the corpus, and the choice is justified (FR-59b).
+
+**Given** the convention now has measured support from two independent populations — the pool's third-party file tags and Tony's own Rekordbox entries (889 below 100 as entered against 36 octave-corrected),
+**When** the declaration cites them,
+**Then** it also carries the caveat that the octave-corrected column's octave came from a vote our detector participated in, so only the as-entered column is FR-59a.1-clean.
+
+**Given** FR-59a.1 forbids corroborating a label with the detector under test,
+**When** the ground-truth rule is written,
+**Then** at least one qualifying method from FR-59f's list is specified, and the chosen method is recorded with the corpus.
+
+**Given** the old 80-85 / 160-175 octave ambiguity must stay measurable after a single convention is declared,
+**When** the rule lands,
+**Then** those pairs are retained as a tagged sentinel subset rather than being collapsed.
+
+**Given** legacy corpora rest on the old labels,
+**When** FR-62's audit runs,
+**Then** it records which convention each legacy corpus was trained toward.
+
+**Given** FR-62a is struck and superseded by FR-59b,
+**When** the convention is applied,
+**Then** **no OA300 track is re-labelled in place** — OA300 stays intact as a tagged historical artifact so its figures remain interpretable.
+
+**Given** Story 12.3 landed annotation-version tagging,
+**When** the new convention is declared,
+**Then** it receives its own version tag.
+
+**Given** FR-59f is the one outstanding PRD gate and is operator-owned,
+**When** this story closes,
+**Then** it carries the operator's explicit signoff on the rule — it cannot close on agent work alone.
+
+### Story 12.7: Build the 258-track band-balanced corpus
+
+As the project lead,
+I want a band-balanced evaluation corpus whose labels were never corroborated by the detector under test,
+So that the bundle gate measures the model rather than the shape of the corpus.
+
+**Acceptance Criteria:**
+
+**Given** Story 12.6 declared the convention and the ground-truth rule, and FR-59 requires a band-balanced corpus drawn across OA300, Tony's Rekordbox collection and the Story 7.2 non-Rekordbox pool,
+**When** the corpus is drawn,
+**Then** it holds 43 tracks in each of six bands for 258 total, with the `175+` band kept separate per the 2026-08-01 top-edge decision.
+
+**Given** the scarce bands are 100-120 and `175+`,
+**When** they are sourced from the non-Rekordbox pool,
+**Then** both of FR-59a's non-optional conditions are satisfied.
+
+**Given** FR-59a.1,
+**When** the corpus is audited,
+**Then** the audit asserts that no label was selected or corroborated using our DSP, and the assertion fails closed.
+
+**Given** FR-59a.2 requires cross-corpus partitioning,
+**When** the audit runs,
+**Then** it asserts no residual overlap, following the existing `check_cross_corpus_residual` precedent.
+
+**Given** the `175+` band is 130-of-140 within 175-179 and non-separable from 160-175 at the ±4% Acc1 tolerance,
+**When** the corpus is recorded,
+**Then** that degeneracy is recorded with it, so a flat or noisy `175+` result is not later read as a measurement of fast-tempo performance.
+
+**Given** the training corpus is a separate artifact,
+**When** it is built,
+**Then** it is sized for volume with band-aware sampling and is explicitly **not** balanced to 43 — truncating training data to 258 tracks would be strictly worse than the 595-1509 already in use (FR-59d).
+
+**Given** FR-59e,
+**When** both corpora exist,
+**Then** they share Story 12.6's convention and FR-59a.2's partition.
+
+**Given** per-band results will be reported,
+**When** FR-59c is applied,
+**Then** per-band is treated as a deterministic tripwire and never as a significance or noninferiority claim (Q11).
+
+**Given** OA300 is private (PRD §11),
+**When** the corpus is documented,
+**Then** it is never published or referenced outward.
+
+**Given** `train.py` carries a fail-closed signoff gate on the KDD-B4 pattern,
+**When** the corpus is complete,
+**Then** the equivalent signoff is wired for it — or the story records explicitly that no training story may run until it is.
+
+### Story 12.8: Declare the bin schema a public contract
+
+As a BYOW consumer whose model must match the runtime's expectations,
+I want the 256-bin schema declared a public contract with every declaration site named,
+So that a future change moves all sites together instead of breaking my model silently.
+
+**Acceptance Criteria:**
+
+**Given** FR-67 requires the bin schema be treated as a public contract, and it is declared in three places — `tools/coreml-convert/reference_arch.py:37-39` (**ships to `main`**), `_bmad-output/ml-training/dataset.py:59-62`, and `BNNSTechnique`'s hard-coded `expectedBinCount = 256`,
+**When** the contract is declared,
+**Then** all three are named in one authoritative location, and the contract states they move together.
+
+**Given** `MLTechniqueError.binCountMismatch` is public,
+**When** the contract is written,
+**Then** it records that a mismatch surfaces as a consumer-visible error and that any schema change is breaking for BYOW consumers.
+
+**Given** bins 0-29 and 171-255 — 115 of 256 — can never produce a usable result against the runtime's `60.0...200.0` abstain,
+**When** the contract is written,
+**Then** the dead range is recorded and cross-referenced to `#147`.
+
+**Given** FR-66 (aligning the range, or folding out-of-range mass at decode) needs a retrain to evaluate and moved to Epic 14,
+**When** this story lands,
+**Then** it **declares only** — no bin count changes, no decode behaviour changes.
+
+**Given** pre-1.0 permits breaking changes,
+**When** the contract states its change policy,
+**Then** it requires a named story for any schema change rather than promising compatibility.
+
+**Given** this is a declaration,
+**When** the story lands,
+**Then** any `Sources/` edit is doc-comment only and behaviour is unchanged.
+
+### Story 12.9: Define the bundle gate
+
+As the project lead,
+I want the bundle gate defined in tracks on the 258-track corpus with its unresolved design risks settled,
+So that a model is accepted or rejected against a number agreed before it was trained.
+
+**Acceptance Criteria:**
+
+**Given** Story 12.7 built the corpus,
+**When** the gate is defined,
+**Then** it is stated as ensemble lift — DSP+ML beating DSP alone by a stated margin on the 258-track balanced corpus, with no regression in any band DSP already handles (FR-68).
+
+**Given** OA300 and GiantSteps,
+**When** the gate runs,
+**Then** they are reported alongside as context and **do not gate**.
+
+**Given** FR-69,
+**When** the margin is stated,
+**Then** it is expressed in tracks, never in percentages.
+
+**Given** Q10 retired FR-69a's partial-conjunction correction along with the multi-corpus rule,
+**When** the threshold is set,
+**Then** `ALPHA` is 0.05 and `T_MIN` is 12 net tracks at 10% discordance — not the retired 14 at 0.025.
+
+**Given** FR-69b,
+**When** multi-seed results are reported,
+**Then** seed agreement is treated as a robustness guardrail and never as a substitute for the paired margin.
+
+**Given** FR-69c names unresolved design risks in the gate itself, raised by the statistical consult and not yet answered,
+**When** the gate is declared final,
+**Then** each risk has been answered in writing first.
+
+**Given** FR-70,
+**When** preconditions are set,
+**Then** the four DnB triplet sentinels and a confidence-calibration floor both gate,
+**And** FR-25's calibration metric — never committed and never run in Epic 7 — is committed and run here.
+
+**Given** FR-71,
+**When** results are reported,
+**Then** per-band lift is always reported, never only an aggregate, with `gains ≥ losses` required in every predeclared DSP-handled band as a deterministic tripwire rather than a statistical claim.
+
+**Given** a gate that has never rejected anything is not known to work,
+**When** the harness is built,
+**Then** it is exercised against a negative control — the Epic 7 `giantsteps_v2` model that failed the FR-18 gates — and demonstrably rejects it.
+
+---
+
 ## Epic 12 — Model-quality redesign: octave-aware BPM model (CHARTER / UNPLANNED)
+
+> **SUPERSEDED 2026-08-02 by the Epic 12 story breakdown above.** This charter is retained as the historical record of what was known and decided before stories existed — the two measured-and-failed octave levers, the corrected lever ranking, the AST verdicts, and the enabler list. Per the project's supersession-header convention, superseded text is annotated rather than deleted. Where the charter and the story breakdown disagree, **the story breakdown governs**; where the charter's ranking and Story 12.5's FR-58 ranking disagree, FR-58 governs once it exists. Charter item 7(a) is re-admitted as an explicit post-MVP feature and is **not** covered by any Story 12.x.
+
 
 > **Status: CHARTER ONLY (added 2026-06-09 from the Epic-7 BYOW close).** Named so the gap is visible, NOT yet scoped into stories. Needs its own PRD + KDD decision gates before any Story 12.x exists. Do NOT let Epic 8 absorb this — Epic 8 is LUFS/beat-grid/ModelRegistry (plumbing + adjacent surface); it does NOT retrain or improve the BPM model.
 >
@@ -1886,3 +2435,15 @@ Each entry is tagged **MEASURED / UNTESTED / BLOCKED**. Nothing is a commitment;
 6. **Normalized ACF** (LAST, not cheap: octave fusion + sub-band thresholds are tuned against the current biased ACF → a full 256-combo re-tune).
 
 **Discipline (gate, from `3-3-click-track-cross-correlation.md`).** ≥2-track OA300 margin (1 track ≈ 1.2pp, below the ~5pp binomial SE); no GiantSteps regression for a default-path change (flagged experiments may be "OA300 lift, GiantSteps neutral-or-explained" while default-off); freeze OA300-tuned changes before re-measuring GiantSteps (no tuning on both); report per-track deltas + the error-type/recall split. Product surface (split `audio`/`metadata`/`final` confidence + an "ambiguous" result signal) belongs in Epic 10/11, gated on the reliability curve.
+
+---
+
+## Epic 14: Model retrain and delivery — CHARTERED, NO STORIES YET
+
+**Deliberately unscoped as of 2026-08-02 (operator decision).** Epic 14 covers FR-63, FR-64, FR-65, FR-66, FR-72, FR-72a, FR-72b, FR-73 and FR-74 — 9 FRs — and is conditional on §6's Gate 0 and Gate 1 both passing.
+
+Stories are not written because **Story 12.5's FR-58 ranking, not the charter's, drives everything after F2**. Writing acceptance criteria for a retrain whose direction that ranking will set would be inventing scope, and the PRD's own authoring record shows the cost of that mistake: four rounds of self-review, nine defects found, and **seven corrections that stranded their own dependents**.
+
+Re-open trigger: Gate 1 passes — training-target repair produces ensemble lift. If Gate 2 fires instead, this epic is never written, and nothing in Epic 12 is wasted. That is the reason the epic boundary sits where it does.
+
+**The live risk it inherits.** FR-72b: `Options.ensemblePolicy` defaults to `.dspOnly`, the one case that is operation-inert. A model can clear every gate in Story 12.9 and change nothing any user sees.
