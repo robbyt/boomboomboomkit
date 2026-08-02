@@ -1,5 +1,5 @@
 # generated: 2026-03-31
-# last_updated: 2026-07-21
+# last_updated: 2026-08-02
 # project: BoomBoomBoomKit
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: "2026-07-21"
+last_updated: 2026-08-02
 update_history: |
   2026-07-21 -- Tracker reconciliation (issues #113/#114/#115 from the 2026-07-21 adversarial review; 58 issues filed as #109-#166 with P1/P2/P3 labels). Closed the three factually-landed epic-9/epic-10 action items (PR #88 merged 2026-07-04 as d34fe91; epic-10 squash 2026-07-15 as 07dfddf annotated, outcome unrecorded), annotated the epic-11 critical-path item (sole remainder: 11-6 operator GUI smoke), moved this field's narrative history to update_history (W16), stamped epics.md stories 8.9-8.12 + the 8.7 reconciliation banner, and added merge records to the W83/W87 ledger entries. epic-9 stays in-progress pending the 9-1/9-2 GUI smokes; 11-6 stays review pending its smoke.
   2026-07-18 — Story 11-6 close-out /bmad-code-review (separate-LLM, operator-requested; demo-only) -> CODE CLEAN, status held at review. 4 adversarial layers (Blind Hunter + Edge Case Hunter + Acceptance Auditor + Codex blind-hunter 019f73f0) over 6525c66..ec96f9c (PR #102). Codex found no defects; others found no correctness/isolation/URL/KDD-E1 defect (GitHub base path matches the real resource dir, zero docID drift, nonisolated sound, appending(component:) encodes %20/%2F); Acceptance Auditor verified all ACs + Sources//Tests/ byte-identity. Triage: 0 decision-needed, 0 code patches, 1 defer (W91 open help popover live-swaps content on a PROGRAMMATIC mergeStrategy change — latent, no trigger today, tied to a future preset/Copy-Config feature), 5 dismiss (documented-dead repoDocURL fallback; cached first-open doc read; help+hint double-voice; per-render recompute; test count>120 decoupling per Review-Triage-Log #5). Two VoiceOver items folded into the operator GUI smoke (Picker label via .labelsHidden(); help-before-control read order). Per CLAUDE.md demo-UI discipline, 11-6 stays at review (never done on lint/test/code-review alone); the operator GUI smoke gates done. Code already merged (ec96f9c, signed); pending operator: GUI smoke + 1Password-signed commit of the develop-only close-out artifacts.
@@ -342,6 +342,21 @@ development_status:
   11-5-docc-catalog-with-transclude-generator-and-articles: done
   11-6-demo-strategy-popovers-wired-to-documentedcase-docs: review
   epic-11-retrospective: done
+  epic-12: in-progress
+  12-1-consumer-specifiable-tempo-search-range: ready-for-dev
+  12-2-style-classifier-scope-or-defer-decision: backlog
+  12-3-annotation-version-tagging-and-octave-error-metric: backlog
+  12-4-tempocnn-reference-baseline-gate-0: backlog
+  12-5-pipeline-differential-and-cause-ranking: backlog
+  12-6-metrical-level-convention-and-ground-truth-rule: backlog
+  12-7-band-balanced-258-track-corpus: backlog
+  12-8-bin-schema-public-contract: backlog
+  12-9-bundle-gate-definition: backlog
+  epic-12-retrospective: optional
+  epic-13: backlog
+  epic-13-retrospective: optional
+  epic-14: backlog
+  epic-14-retrospective: optional
 
 action_items:
   - epic: 9
