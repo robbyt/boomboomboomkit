@@ -54,6 +54,17 @@ Bundled models are named `<corpus>_v<version>.mlmodelc` where:
 
 Examples of future names: `giantsteps_v2.mlmodelc`, `mixed_v1.mlmodelc`. Never overwrite a `v1` artifact in place once it has shipped to `main` — bump the version.
 
+**The existing `giantsteps_v2_*` artifacts violate this convention and are misnamed
+(recorded 2026-08-01, GH-152).** They are trained on the private Tony corpus;
+GiantSteps is *external evaluation only* and contributes no training data to them.
+Read `giantsteps` in a `v2` filename as an inherited prefix, not a claim about the
+training source. `v1` is correctly named — it was GiantSteps-trained.
+
+Renaming the artifacts is deferred rather than done: the names are load-bearing in
+`export.py`'s default, the `make ml-export-v2` target, and the Story 7.6 FR-18
+prediction dumps, so a rename is a coordinated change rather than a text edit. Until
+then this note is the correction of record.
+
 ---
 
 ## `giantsteps_v1.mlmodelc`
