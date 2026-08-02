@@ -91,16 +91,27 @@ Whether to merge is FR-59's call, not this artifact's. What this artifact
 establishes is that leaving the scheme unexamined spends a sixth of the corpus on
 a distinction the gate cannot resolve.
 
-## Finding 3: 49 tracks appear in both OA300 and Tony's collection
+## Finding 3: RETRACTED — the OA300/Tony overlap is already handled
 
-Matched on basename stem. FR-59a.2 forbids any track appearing in both the
-evaluation corpus and a training set, and OA300 and Tony's collection feed
-different sides. **This dedup has to happen before the draw**, and
-`scripts/audit-corpus-splits.py` is the natural place to assert it.
+**This section originally claimed the overlap was an unasserted FR-59a.2 gap. That
+was wrong, and the claim is withdrawn (2026-08-01, same day).**
 
-The 49 are a lower bound: basename matching misses re-encodes, remixes and
-differently-named copies. The audit's existing fingerprint pass is the tool for
-that, and it is report-only by design (DD #3).
+The overlap is real: 56 Tony tracks share a basename stem with an OA300 track, which
+is unsurprising given one owner and one genre. But **none of them reaches a split.**
+Checked against `corpus_splits.json`: zero of the 56 appear in `tony.train`,
+`tony.val` or `leaveArtistOut.heldOutTrackIds`, and `excludedCrossCorpus.count` is
+54 — the split builder already removes them by normalized title, and
+`check_cross_corpus_residual` in `scripts/audit-corpus-splits.py` already asserts
+that none survived.
+
+So FR-59a.2 is enforced for this class today and needs no new check. The error was
+measuring overlap between the raw *collections* and reporting it as if it were
+overlap in the *corpus*. Two different things; only the second matters.
+
+What remains true, and is the reason the original observation was worth making at
+all: basename matching is a lower bound. Re-encodes, remixes and differently-named
+copies are invisible to it, and to the title matcher the audit uses. The audit'"'"'s
+fingerprint pass is the tool for that class and is report-only by design (DD #3).
 
 ## Finding 4: the half-tempo convention, measured on Tony's own entries
 
