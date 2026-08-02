@@ -364,7 +364,7 @@ Rationale: none needs a retrain, all are cheap relative to training, F1 carries 
 
 ### 8.2 Out of Scope for MVP
 
-F4 and F5 are gated on F2's findings. F7 cannot start until there is a model worth shipping.
+F4 and F5 are gated on F2's findings. F7 cannot start until there is a model worth shipping. **F8 — the SignalPool octave arbiter — is out of scope for MVP and in scope for the epic (added 2026-08-02).** This is the Epic 12 charter's item 7(a): wire the idle `OctaveEquivalencePolicy` and the DSP `resolveOctaveAmbiguity` as an octave arbiter through the `SignalPool`, plus beat-grid-support candidate rescoring transferred from Epic 13's charter on 2026-08-01. An earlier draft of this PRD dropped item 7(a) silently — not deferred, not in §7 Non-Goals, not here, simply unmentioned — while §14 Q6 told the reader Epic 12 had won ownership of the DSP octave levers, which left the lever orphaned and `GH-138`'s three dead public knobs (`MLExecutionPolicy`, `ComputeBudget`, `OctaveEquivalencePolicy`) without an owner. It is the one surviving octave lever that satisfies the charter's outside-evidence constraint, since beat-grid support is an independent signal rather than another scalar derived from the evidence that produced the error. No story covers it; it is post-MVP by construction, because MVP is fixed at F1, F2, F3 and F6's gate definition.
 
 ## 9. Success Metrics
 
