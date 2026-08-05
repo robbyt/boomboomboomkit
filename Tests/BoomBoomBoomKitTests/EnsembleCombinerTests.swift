@@ -2,7 +2,7 @@
 //  EnsembleCombinerTests.swift
 //  BoomBoomBoomKitTests
 //
-//  Unit tests for AudioAnalysisService.combineEnsemble(dspWinner:ml:policy:).
+//  Unit tests for AudioAnalysisService.combineEnsemble(dspWinner:ml:policy:perceptualWindow:).
 //  Story 4.3 shipped the original 4 tests against AudioAnalysisService.combine
 //  (default DSP-wins). Story 4.4 promoted the helper to EnsembleCombiner, added
 //  the 3-case EnsemblePolicy switch, the two-sentinel sanitization, and the

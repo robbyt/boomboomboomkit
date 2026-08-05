@@ -10,7 +10,7 @@ import Foundation
 /// Resolution policy controlling how the post-pipeline DSP candidate and an
 /// optional ``MLEvaluation`` are combined into the final ``AudioAnalysisResult``.
 ///
-/// `EnsemblePolicy` is consulted by ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)``
+/// `EnsemblePolicy` is consulted by ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:perceptualWindow:)``
 /// at the post-corroboration stage of the analysis pipeline. The selected
 /// policy is configured through ``AudioAnalysisService/Options/ensemblePolicy``,
 /// per ADR-11's Options-first public configuration rule. It is NOT a
@@ -47,7 +47,7 @@ import Foundation
 /// (``EnsembleDecision/AbstainKind/nonFiniteConfidence``). The
 /// Apple-platform precedent for "abstain on NaN" is
 /// `FloatingPoint.minimum(_:_:)`, which states *"If one of x or y is NaN,
-/// the other is returned."* See ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)`` for the full sanitization
+/// the other is returned."* See ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:perceptualWindow:)`` for the full sanitization
 /// rules.
 ///
 /// **Byte-identity invariant under `.dspOnly`.** When the selected policy is

@@ -319,6 +319,32 @@ tempo-refine-impact-report:
 	TEMPO_REFINE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.DAWOracleBenchmarkTests/tempoRefinementImpact
 
+## octave-threshold-sweep: Story 12.1 AC #1 -- the inherited Epic-13 charter-item-1 ceiling sweep over the two hand-tuned resolveOctaveAmbiguity thresholds (octaveEnergyThreshold 0.3, octaveScoreThreshold 0.5). Sweeps a 7x7 grid on OA300 (the 6x6 bracket around the shipped pair plus the 1.0 row and column that effectively close the 2:1 fallback), then runs one GiantSteps confirmation pass at the shipped default AND at the best OA300 point (override with OCTAVE_SWEEP_CONFIRM="<energy>,<score>"). Measurement only -- it never changes the defaults. Per-combination JSON to _bmad-output/implementation-artifacts/12-1-octave-threshold-sweep.json. Numbers are single-window BPMAnalyzer.estimateBPM, not the full AudioAnalysisService pipeline, so they are NOT comparable to the corpus floors.
+.PHONY: octave-threshold-sweep
+octave-threshold-sweep:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	OCTAVE_THRESHOLD_SWEEP=1 \
+	OCTAVE_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.OctaveThresholdSweepTests/oa300ThresholdSweep
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	OCTAVE_THRESHOLD_SWEEP=1 \
+	OCTAVE_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	$(if $(OCTAVE_SWEEP_CONFIRM),OCTAVE_SWEEP_CONFIRM="$(OCTAVE_SWEEP_CONFIRM)",) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.OctaveThresholdSweepTests/giantStepsConfirmation
+
+## tempo-range-impact-report: Story 12.1 AC #8 / NFR-14 -- per-track impact of the consumer-specifiable perceptual tempo window (FR-53), with the per-band and per-genre breakdown FR-55 asks for. Compares the full AudioAnalysisService.analyzeBPM pipeline at default options against the same pipeline with only Options.perceptualWindow moved (default comparison window 100...200; override with TEMPO_RANGE_IMPACT_WINDOW="<min>,<max>"). Schema follows the click-impact precedent: {changedRanking, changedDisambiguationWinner, changedFinalBPM, total} plus perBand / perGenre. Changes no default; JSON to _bmad-output/implementation-artifacts/12-1-tempo-range-impact-report.json.
+.PHONY: tempo-range-impact-report
+tempo-range-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	TEMPO_RANGE_IMPACT=1 \
+	TEMPO_RANGE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	$(if $(TEMPO_RANGE_IMPACT_WINDOW),TEMPO_RANGE_IMPACT_WINDOW="$(TEMPO_RANGE_IMPACT_WINDOW)",) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.TempoRangeImpactTests/tempoRangeImpactReport
+
 ## accuracy-forensics: Phase 0 — forensic accuracy attribution over OA300 + GiantSteps (default pipeline). Per-corpus JSON to _bmad-output/implementation-artifacts/accuracy-forensics-<corpus>.json: candidate-recall oracle (true BPM in top-1/3/5/10 + factor + score margin), error-type histogram (octave vs triplet kept separate), recall split (selection-bound vs generation-bound), confidence reliability curve, BPM-error distribution, per-genre error-type composition, label-policy tags. Reporting-only — touches no DSP; corpus floors unaffected.
 .PHONY: accuracy-forensics
 accuracy-forensics:

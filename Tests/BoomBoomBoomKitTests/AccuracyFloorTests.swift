@@ -178,15 +178,26 @@ struct AccuracyFloorTests {
     // wrapper. A known accuracy failure must never be able to conceal a NaN, an
     // infinity, or a wildly out-of-range tempo: each of those would also fail the
     // accuracy expectation below and be absorbed as "known", so the ratchet would
-    // hide a far worse regression than the one it records. Range is 60...200
-    // because every result passes through `BPMAnalyzer.rangeNormalize`, which
-    // folds into `perceptualMinBPM`/`perceptualMaxBPM` (BPMAnalyzer.swift:2107).
-    // Note `minBPM`/`maxBPM` (40/250) are candidate-generation bounds, NOT output
-    // bounds — do not use them here.
+    // hide a far worse regression than the one it records.
+    //
+    // The 60...200 range is scoped to THIS suite's configuration, not to the
+    // pipeline. Story 12.1 made the fold window consumer-specifiable
+    // (`Options.perceptualWindow`, `PerceptualTempoWindow`), so 60...200 is the
+    // DEFAULT window, not an invariant — and this suite runs at the default, which is
+    // why the assertion is still correct here. Every result passes through
+    // `BPMAnalyzer.rangeNormalize`, which folds into that window. Note
+    // `Options.tempoScanRange` (default 40...250) is the candidate-GENERATION bound,
+    // NOT an output bound — do not use it here.
+    //
+    // Asserted WITHOUT the window-edge tolerance that `perceptualWindowFixtureImpact`
+    // below needs: step 10c can report a window-edge winner fractionally outside the
+    // window, but no fixture here sits on an edge of the default 60...200, so the
+    // strict form holds and is kept strict deliberately.
     #expect(detected.isFinite, "#154: BPM must be finite, got \(detected)")
     #expect(
-      detected >= 60.0 && detected <= 200.0,
-      "#154: BPM must be inside the rangeNormalize output range 60...200, got \(detected)")
+      detected >= PerceptualTempoWindow.defaultMinBPM
+        && detected <= PerceptualTempoWindow.defaultMaxBPM,
+      "#154: BPM must be inside the default rangeNormalize window 60...200, got \(detected)")
     #expect(result.confidence.isFinite, "#154: confidence must be finite")
     #expect(
       result.confidence >= 0.0 && result.confidence <= 1.0,
@@ -219,6 +230,95 @@ struct AccuracyFloorTests {
       }
     } else {
       #expect(within, diagnostic)
+    }
+  }
+
+  // MARK: - Story 12.1 / FR-55: what a perceptual window recovers, and what it cannot
+
+  /// The three known failures whose defect IS an octave error. Each currently reports
+  /// the doubled tempo; each is expected to resolve once the erroneous octave is
+  /// excluded from the fold window.
+  ///
+  /// `robbyt_x-ray-120s` is deliberately absent. Its ~115.6 is two-thirds of 174 — a
+  /// 3:2 relation, not a 2:1 one — so no choice of octave window can recover it, and
+  /// its entry above already records that correctly. The target set is three fixtures,
+  /// not four; that is the measurement, not a concession.
+  private static let octaveRecoverable: Set<String> = [
+    "Meta_Man", "Meta_Man_La_Noche_Digital_", "Submerged_Lament",
+  ]
+
+  /// A half-time window: exactly one octave, spanning the tempi the three octave
+  /// failures actually sit at. It EXCLUDES their erroneous 182 / 192 / 140, so the
+  /// fold brings each back to its true tempo. Chosen for that property alone — it is
+  /// a measurement instrument here, not a recommended default.
+  private static let halfTimeWindow = PerceptualTempoWindow(minBPM: 60, maxBPM: 120)
+
+  /// FR-55: a per-fixture measurement of the consumer-specifiable perceptual window
+  /// (Story 12.1), run over the same 12 ground-truth fixtures as the floor above.
+  ///
+  /// This is what makes the story's central claim checkable rather than asserted: an
+  /// input constraint recovers the octave failures and does nothing for the triplet
+  /// failure. It does NOT relax the floor — the default-path expectations above are
+  /// untouched, and every fixture's `knownFailure` label stays as it was.
+  @Test(
+    "perceptual window recovers the octave failures and not the triplet one",
+    arguments: cases)
+  fileprivate func perceptualWindowFixtureImpact(testCase: FloorCase) throws {
+    let url = try AudioFixtures.url(for: testCase.name, extension: testCase.ext)
+    var options = AudioAnalysisService.Options()
+    options.metadataPolicy = .disabled
+    options.perceptualWindow = Self.halfTimeWindow
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(url: url, options: options),
+      "#FR-55: analyzeBPM returned nil under the half-time window")
+
+    // Unconditional: the reported tempo must land inside the SUPPLIED window, for
+    // every fixture — including the ones this window is expected to make worse.
+    //
+    // The edge tolerance is not slack, it is a measured property of the pipeline.
+    // `PerceptualWindowEdge` (TempoSearchRangeTests.swift) is the single place it is
+    // stated and derived; do not restate the number here.
+    let edgeTolerance = PerceptualWindowEdge.toleranceBPM
+    #expect(result.bpm >= Self.halfTimeWindow.minBPM - edgeTolerance)
+    #expect(result.bpm <= Self.halfTimeWindow.maxBPM + edgeTolerance)
+
+    let relativeError = abs(result.bpm - testCase.trueBPM) / testCase.trueBPM
+    let diagnostic = Comment(
+      rawValue: """
+        FR-55 perceptual-window impact — \(testCase)
+          window       : \(Self.halfTimeWindow.minBPM)...\(Self.halfTimeWindow.maxBPM)
+          ground truth : \(testCase.trueBPM)
+          detected     : \(result.bpm) (confidence \(result.confidence))
+          relative err : \(String(format: "%.2f", relativeError * 100))%
+        """)
+
+    if Self.octaveRecoverable.contains(testCase.name) {
+      // AC #7: these three MUST resolve. Measured 2026-08-01 at 0.40% / 0.21% / 0.10%.
+      #expect(relativeError <= Self.tolerance, diagnostic)
+    } else if testCase.name == "robbyt_x-ray-120s" {
+      // AC #7: this one must NOT be expected to resolve. Asserting that it still
+      // fails is what stops a future reader from quietly folding it into the
+      // recoverable set — a 3:2 error is not an octave error.
+      #expect(relativeError > Self.tolerance, diagnostic)
+    }
+    // Every other fixture is out of scope for this measurement: a 128 or 170 BPM
+    // track cannot survive a 60...120 window and is not expected to. Its default-path
+    // accuracy is asserted by `bpmAccuracyFloor` above.
+  }
+
+  /// Denominator guard for the split above, mirroring `floorCaseListCardinality`. If a
+  /// fixture were renamed, `octaveRecoverable` would silently match nothing and the
+  /// FR-55 measurement would assert nothing while still reporting green.
+  @Test("FR-55 recoverable set names real fixtures")
+  func octaveRecoverableSetIsGrounded() {
+    let names = Set(Self.cases.map(\.name))
+    #expect(Self.octaveRecoverable.count == 3)
+    #expect(Self.octaveRecoverable.isSubset(of: names))
+    #expect(names.contains("robbyt_x-ray-120s"))
+    // Every member must be a fixture the default path currently fails, or the
+    // measurement would be recording a recovery that was never needed.
+    for name in Self.octaveRecoverable {
+      #expect(Self.cases.first { $0.name == name }?.knownFailure != nil)
     }
   }
 

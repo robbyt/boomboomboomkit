@@ -67,11 +67,13 @@ struct BPMAnalyzer {
   /// Number of magnitude bins from split-complex FFT output (fftSize / 2)
   private static let magnitudeBins = fftSize / 2
 
-  /// Minimum BPM to detect
-  private static let minBPM: Double = 40
-
-  /// Maximum BPM to detect
-  private static let maxBPM: Double = 250
+  // The candidate SCAN bounds (was `minBPM` / `maxBPM`, 40 / 250) and the octave
+  // NORMALIZATION window (was `perceptualMinBPM` / `perceptualMaxBPM`, 60 / 200) are
+  // no longer constants here. Story 12.1 (FR-53) made both pairs consumer-specifiable
+  // through `AudioAnalysisService.Options`; the shipped values now live on
+  // `TempoScanRange.default` and `PerceptualTempoWindow.default`, reached from this
+  // file via `Options.tempoScanRange` / `Options.perceptualWindow`. The pairs are
+  // deliberately separate types with separate semantics — see `TempoScanRange`.
 
   /// RMS silence threshold: 10^(-60/20) ≈ 0.001
   private static let silenceThreshold: Float = 0.001
@@ -114,23 +116,29 @@ struct BPMAnalyzer {
   /// Tempogram window duration in seconds (8s Hann window over onset envelope)
   private static let tempogramWindowSeconds: Double = 8.0
 
-  /// Perceptual BPM range for octave normalization
-  private static let perceptualMinBPM: Double = 60.0
-  private static let perceptualMaxBPM: Double = 200.0
+  /// Octave disambiguation: minimum sub-beat energy ratio to prefer faster tempo.
+  ///
+  /// Story 12.1 Task 1 made this the DEFAULT rather than the only value: it is the
+  /// property-level default of ``Options/octaveEnergyThreshold`` and of the
+  /// `energyThreshold` parameter on ``resolveOctaveAmbiguity(candidates:fused:bpmMin:subBandACFs:onsetRate:energyThreshold:scoreThreshold:)``.
+  /// The value itself is unchanged (0.3), so the default pipeline is byte-identical;
+  /// the parameterization exists so the inherited Epic-13 charter-item-1 ceiling sweep
+  /// can measure the hand-tuned pair instead of assuming it.
+  static let octaveEnergyThreshold: Float = 0.3
 
-  /// Octave disambiguation: minimum sub-beat energy ratio to prefer faster tempo
-  private static let octaveEnergyThreshold: Float = 0.3
-
-  /// Octave disambiguation: minimum score ratio vs current best to accept faster tempo
-  private static let octaveScoreThreshold: Float = 0.5
+  /// Octave disambiguation: minimum score ratio vs current best to accept faster tempo.
+  ///
+  /// Default of ``Options/octaveScoreThreshold``. See ``octaveEnergyThreshold`` for
+  /// why this is injectable; the value (0.5) is unchanged.
+  static let octaveScoreThreshold: Float = 0.5
 
   // MARK: - Duration-Derived BPM Hint Constants (Story 3-4)
 
   /// Bar counts probed by the duration-derived BPM hint at step 9.7.
   ///
   /// For a file of duration `D`, each bar count `B` yields a structurally plausible BPM
-  /// of `B * 4 * 60 / D`. Only those falling within `perceptualMinBPM ... perceptualMaxBPM`
-  /// participate in the boost.
+  /// of `B * 4 * 60 / D`. Only those falling within the active
+  /// ``PerceptualTempoWindow`` participate in the boost.
   ///
   /// Source: brainstorming-session-2026-03-21-2345.md (#35 — Splice.com duration heuristic);
   /// Story 3.4 epic AC (epics.md:586-612).
@@ -187,6 +195,19 @@ struct BPMAnalyzer {
     /// When `nil` (default), the technique set is derived from `intensity`.
     var techniqueSet: TechniqueSet?
 
+    /// Story 12.1 / FR-53 — candidate SCAN bounds. Sizes the step 5-8 search grid and
+    /// the final range guard after step 10c. Default ``TempoScanRange/default``
+    /// (`40...250`) reproduces the pre-story pipeline byte-for-byte. Surfaced publicly
+    /// as ``AudioAnalysisService/Options/tempoScanRange``.
+    var tempoScanRange: TempoScanRange = .default
+
+    /// Story 12.1 / FR-53 — octave NORMALIZATION window. Consumed by `rangeNormalize`
+    /// (step 9, step 10b) and by the step-9.7 bar-count hint. Default
+    /// ``PerceptualTempoWindow/default`` (`60...200`) reproduces the pre-story pipeline
+    /// byte-for-byte. Surfaced publicly as
+    /// ``AudioAnalysisService/Options/perceptualWindow``.
+    var perceptualWindow: PerceptualTempoWindow = .default
+
     /// When `true`, populates `BPMResult.trace` with per-step diagnostic data.
     var enableTrace: Bool = false
 
@@ -201,6 +222,19 @@ struct BPMAnalyzer {
     /// is more likely a clip/loop where `bars * 4 * 60 / D` is structurally implausible.
     /// Default 180s (3 min) — see `durationHintMinFileSecondsDefault`.
     var durationHintMinFileSeconds: Double = durationHintMinFileSecondsDefault
+
+    /// Story 12.1 Task 1 — step-10 octave-disambiguation energy gate, injectable so
+    /// the inherited Epic-13 charter-item-1 ceiling sweep can measure the hand-tuned
+    /// pair. INTERNAL ONLY: deliberately NOT surfaced on `AudioAnalysisService.Options`,
+    /// because this is a sweep instrument, not a consumer lever. Default
+    /// `BPMAnalyzer.octaveEnergyThreshold` (0.3) reproduces the pre-story pipeline
+    /// byte-for-byte.
+    var octaveEnergyThreshold: Float = BPMAnalyzer.octaveEnergyThreshold
+
+    /// Story 12.1 Task 1 — step-10 octave-disambiguation score gate. Same injectable
+    /// contract and same internal-only scope as ``octaveEnergyThreshold``. Default
+    /// `BPMAnalyzer.octaveScoreThreshold` (0.5).
+    var octaveScoreThreshold: Float = BPMAnalyzer.octaveScoreThreshold
 
     /// Story 4-5 / DD #4 — when `true`, the mel-spectrogram onset pipeline retains
     /// per-frame log-mel frames into an ``MLFeatureFrames`` value and surfaces them
@@ -408,8 +442,21 @@ struct BPMAnalyzer {
       ? onsetResult.subBands.map { computeAutocorrelation($0, acfBuffers: acfBufs) }
       : []
 
-    let bpmMin = Int(minBPM)
-    let bpmMax = Int(maxBPM)
+    // Story 12.1: the scan grid is sized from the consumer-specifiable scan range.
+    // `TempoScanRange`'s init guarantees both bounds are finite and inside `30...300`
+    // with at least a 3 BPM span, so these conversions cannot trap and
+    // `bpmMax - bpmMin + 1` is always at least 3 (the local-maximum peak scan in
+    // `extractTopCandidates` reads `[i - 1]` and `[i + 1]`).
+    //
+    // Rounded INWARD, not truncated. Truncating both bounds would put grid slots
+    // below `scanRange.minBPM`, and the final `Double` range guard after step 10c
+    // would then reject the winner those slots produced — a `120.5...240` scan range
+    // over a 120 BPM track returned nil where `121...240` returned 121. The default
+    // `40...250` is integral, so this is a no-op on the default path.
+    let scanRange = options.tempoScanRange
+    let perceptualWindow = options.perceptualWindow
+    let bpmMin = scanRange.integerLowerBound
+    let bpmMax = scanRange.integerUpperBound
 
     // Allocate shared pipeline buffers (Hann window + windowed onset envelope)
     let windowLength = min(onsetEnvelope.count, Int(tempogramWindowSeconds * onsetRate))
@@ -459,7 +506,8 @@ struct BPMAnalyzer {
 
     // Step 8-9: Multi-peak extraction + range normalization
     let candidates = extractTopCandidates(
-      enhanced: enhanced, bpmMin: bpmMin, count: techniqueSet.candidateCount)
+      enhanced: enhanced, bpmMin: bpmMin, count: techniqueSet.candidateCount,
+      window: perceptualWindow)
     guard !candidates.isEmpty else { return nil }
 
     // Trace's rawCandidates always carries the pre-rescore array (DD#11) — this is
@@ -506,13 +554,16 @@ struct BPMAnalyzer {
           candidates: rescoredCandidates,
           fileDurationSeconds: duration,
           minFileSeconds: options.durationHintMinFileSeconds,
+          window: perceptualWindow,
           trace: &trace)
       } ?? rescoredCandidates
 
     // Step 10: Octave disambiguation with sub-band voting
     let disambiguated = resolveOctaveAmbiguity(
       candidates: hintedCandidates, fused: fused, bpmMin: bpmMin,
-      subBandACFs: subBandACFs, onsetRate: onsetRate)
+      subBandACFs: subBandACFs, onsetRate: onsetRate,
+      energyThreshold: options.octaveEnergyThreshold,
+      scoreThreshold: options.octaveScoreThreshold)
     var winner = disambiguated.best
 
     if let ev = disambiguated.evidence {
@@ -523,7 +574,8 @@ struct BPMAnalyzer {
     if techniqueSet.contains(.subBandVoting) && !subBandACFs.isEmpty {
       let preVoteBPM = winner.bpm
       winner = confirmWithSubBandPeaks(
-        winner: winner, subBandACFs: subBandACFs, onsetRate: onsetRate)
+        winner: winner, subBandACFs: subBandACFs, onsetRate: onsetRate,
+        window: perceptualWindow)
 
       if options.enableTrace {
         let changed = winner.bpm != preVoteBPM
@@ -552,7 +604,7 @@ struct BPMAnalyzer {
     }
 
     let bpm = winner.bpm
-    guard bpm >= minBPM && bpm <= maxBPM else { return nil }
+    guard bpm >= scanRange.minBPM && bpm <= scanRange.maxBPM else { return nil }
 
     // Step 11: Beat-grid extraction (optional fan-out, Story 8.4).
     // Gated by `options.computeBeatGrid` (default `false` → branch not entered →
@@ -2042,11 +2094,12 @@ struct BPMAnalyzer {
   // MARK: - Multi-Peak Extraction + Range Normalization (Story 33-5, Task 5)
 
   /// Extracts the top N peaks from the enhanced periodicity array.
-  /// Each candidate is range-normalized to 60-200 BPM.
+  /// Each candidate is range-normalized into `window` (default `60...200`).
   private static func extractTopCandidates(
     enhanced: [Float],
     bpmMin: Int,
-    count topN: Int
+    count topN: Int,
+    window: PerceptualTempoWindow = .default
   ) -> [(bpm: Double, score: Float)] {
     // Find local maxima (value > both neighbors), track top N in-place
     var top: [(bpm: Double, score: Float)] = []
@@ -2055,7 +2108,7 @@ struct BPMAnalyzer {
       if enhanced[i] > enhanced[i - 1] && enhanced[i] > enhanced[i + 1] {
         let bpm = Double(bpmMin + i)
         let score = enhanced[i]
-        let normalized = rangeNormalize(bpm)
+        let normalized = rangeNormalize(bpm, window: window)
 
         if top.count < topN {
           top.append((bpm: normalized, score: score))
@@ -2071,7 +2124,7 @@ struct BPMAnalyzer {
     if enhanced.count >= 2 {
       if enhanced[0] > enhanced[1] {
         let score = enhanced[0]
-        let normalized = rangeNormalize(Double(bpmMin))
+        let normalized = rangeNormalize(Double(bpmMin), window: window)
         if top.count < topN {
           top.append((bpm: normalized, score: score))
           top.sort { $0.score > $1.score }
@@ -2083,7 +2136,7 @@ struct BPMAnalyzer {
       let last = enhanced.count - 1
       if enhanced[last] > enhanced[last - 1] {
         let score = enhanced[last]
-        let normalized = rangeNormalize(Double(bpmMin + last))
+        let normalized = rangeNormalize(Double(bpmMin + last), window: window)
         if top.count < topN {
           top.append((bpm: normalized, score: score))
           top.sort { $0.score > $1.score }
@@ -2097,18 +2150,33 @@ struct BPMAnalyzer {
     return top
   }
 
-  /// Doubles or halves a BPM value until it falls within 60-200 BPM.
-  /// Returns `perceptualMinBPM` for zero, negative, or non-finite inputs.
-  /// A positive subnormal passes the `> 0` guard and is doubled into range
-  /// like any other positive value (the loop terminates: doubling strictly
-  /// increases toward `perceptualMinBPM`, halving strictly decreases toward
-  /// `perceptualMaxBPM`). Also the octave-fold authority for the ensemble
-  /// seam (`AudioAnalysisService.foldEnsembleBPM`, GH-167 item 3).
-  static func rangeNormalize(_ bpm: Double) -> Double {
-    guard bpm > 0, bpm.isFinite else { return perceptualMinBPM }
+  /// Doubles or halves a BPM value until it falls within `window`.
+  ///
+  /// Returns `window.minBPM` for zero, negative, or non-finite inputs. A positive
+  /// subnormal passes the `> 0` guard and is doubled into range like any other
+  /// positive value (the loop terminates: doubling strictly increases toward
+  /// `window.minBPM`, halving strictly decreases toward `window.maxBPM`). Also the
+  /// octave-fold authority for the ensemble seam
+  /// (`AudioAnalysisService.foldEnsembleBPM`, GH-167 item 3).
+  ///
+  /// The two loops are SEQUENTIAL with no re-check between them, so the result is
+  /// only guaranteed to land inside `window` when the window spans at least one
+  /// octave — with `100...150`, an input of 160 would halve to 80, below the stated
+  /// minimum. ``PerceptualTempoWindow`` makes that unreachable by enforcing
+  /// `maxBPM >= 2 * minBPM` at construction (Story 12.1 DD3); the loops are left as
+  /// they are rather than defended here, because the invariant belongs to the value.
+  ///
+  /// - Parameters:
+  ///   - bpm: Tempo to fold.
+  ///   - window: Target octave. Defaults to ``PerceptualTempoWindow/default``
+  ///     (`60...200`), the pre-Story-12.1 constant pair.
+  static func rangeNormalize(
+    _ bpm: Double, window: PerceptualTempoWindow = .default
+  ) -> Double {
+    guard bpm > 0, bpm.isFinite else { return window.minBPM }
     var result = bpm
-    while result < perceptualMinBPM { result *= 2.0 }
-    while result > perceptualMaxBPM { result /= 2.0 }
+    while result < window.minBPM { result *= 2.0 }
+    while result > window.maxBPM { result /= 2.0 }
     return result
   }
 
@@ -2172,12 +2240,25 @@ struct BPMAnalyzer {
   /// (when available) and fused periodicity heuristic.
   /// Handles 2:1 (octave), 3:2 (triplet), and 3:1 ratios.
   /// Returns typed evidence for the highest-priority detected pair.
+  ///
+  /// - Parameters:
+  ///   - energyThreshold: Minimum ratio of the faster candidate's fused-periodicity
+  ///     energy to the slower candidate's for the 2:1 fallback branch to consider the
+  ///     faster tempo. Defaults to ``octaveEnergyThreshold`` (0.3).
+  ///   - scoreThreshold: Minimum ratio of the faster candidate's score to the current
+  ///     best's for the 2:1 fallback branch to accept it. Defaults to
+  ///     ``octaveScoreThreshold`` (0.5).
+  ///
+  /// Both parameters are Story 12.1 Task 1 sweep instruments. At their defaults the
+  /// branch is bit-identical to the pre-story constant-folded form.
   static func resolveOctaveAmbiguity(
     candidates: [(bpm: Double, score: Float)],
     fused: [Float],
     bpmMin: Int,
     subBandACFs: [[Float]] = [],
-    onsetRate: Double = 0
+    onsetRate: Double = 0,
+    energyThreshold: Float = BPMAnalyzer.octaveEnergyThreshold,
+    scoreThreshold: Float = BPMAnalyzer.octaveScoreThreshold
   ) -> (best: (bpm: Double, score: Float), evidence: HarmonicRatioEvidence?) {
     guard candidates.count >= 2 else {
       return (best: candidates.first ?? (bpm: 0, score: 0), evidence: nil)
@@ -2220,8 +2301,8 @@ struct BPMAnalyzer {
             let fasterEnergy = fused[fasterIdx]
             let slowerEnergy = fused[slowerIdx]
 
-            if fasterEnergy >= octaveEnergyThreshold * slowerEnergy {
-              if faster.score >= best.score * octaveScoreThreshold {
+            if fasterEnergy >= energyThreshold * slowerEnergy {
+              if faster.score >= best.score * scoreThreshold {
                 best = faster
                 evidence = HarmonicRatioEvidence(
                   ratio: "2:1", fastBPM: faster.bpm,
@@ -2268,10 +2349,16 @@ struct BPMAnalyzer {
   /// **Visibility is `internal static`** (GH #120): tests use `@testable import`
   /// to call this directly with crafted sub-band ACFs — the `clickRescore`
   /// precedent (DD#5).
+  ///
+  /// - Parameter window: Octave window used to re-fold a promoted hi-hat tempo.
+  ///   Defaults to ``PerceptualTempoWindow/default`` (`60...200`). The 80-130 entry
+  ///   guard and the 140-200 hi-hat scan band are SEPARATE heuristics calibrated for
+  ///   the DnB half-time failure mode; Story 12.1 deliberately left them fixed.
   internal static func confirmWithSubBandPeaks(
     winner: (bpm: Double, score: Float),
     subBandACFs: [[Float]],
-    onsetRate: Double
+    onsetRate: Double,
+    window: PerceptualTempoWindow = .default
   ) -> (bpm: Double, score: Float) {
     guard subBandACFs.count == 4 else { return winner }
 
@@ -2332,7 +2419,7 @@ struct BPMAnalyzer {
       onsetRate: onsetRate)
 
     if voteResult == hiHatBestBPM {
-      let normalizedBPM = rangeNormalize(hiHatBestBPM)
+      let normalizedBPM = rangeNormalize(hiHatBestBPM, window: window)
       return (bpm: normalizedBPM, score: winner.score)
     }
 
@@ -2341,7 +2428,7 @@ struct BPMAnalyzer {
     // bands independently prefer the faster candidate, promote even when
     // the full weighted vote disagrees (kick+snare body outweigh treble).
     if snareCrackAtFast > snareCrackAtWinner {
-      let normalizedBPM = rangeNormalize(hiHatBestBPM)
+      let normalizedBPM = rangeNormalize(hiHatBestBPM, window: window)
       return (bpm: normalizedBPM, score: winner.score)
     }
 
@@ -2733,7 +2820,7 @@ struct BPMAnalyzer {
   ///
   /// For each bar count `B` in `durationHintBarCounts`, the corresponding BPM is
   /// `B * 4 * 60 / durationSeconds` (assumes 4/4 time, 4 beats per bar). Only BPMs
-  /// falling within the perceptual range (`60...200`) are returned. Out-of-range
+  /// falling within `window` (default `60...200`) are returned. Out-of-range
   /// pairs are silently dropped — the helper degrades gracefully on very short and
   /// very long files (per AC #3c).
   ///
@@ -2753,7 +2840,8 @@ struct BPMAnalyzer {
   /// - Returns: Pairs of `(bars, bpm)` whose `bpm` lies within the perceptual range.
   static func applyDurationHintBarCounts(
     durationSeconds: Double,
-    minFileSeconds: Double = durationHintMinFileSecondsDefault
+    minFileSeconds: Double = durationHintMinFileSecondsDefault,
+    window: PerceptualTempoWindow = .default
   ) -> [(bars: Int, bpm: Double)] {
     guard durationSeconds > 0, durationSeconds.isFinite else { return [] }
     // NaN / Inf threshold falls back to the documented default; negative threshold
@@ -2765,7 +2853,7 @@ struct BPMAnalyzer {
     result.reserveCapacity(durationHintBarCounts.count)
     for bars in durationHintBarCounts {
       let bpm = Double(bars) * 4.0 * 60.0 / durationSeconds
-      if bpm >= perceptualMinBPM && bpm <= perceptualMaxBPM {
+      if bpm >= window.minBPM && bpm <= window.maxBPM {
         result.append((bars: bars, bpm: bpm))
       }
     }
@@ -2802,10 +2890,12 @@ struct BPMAnalyzer {
     candidates: [(bpm: Double, score: Float)],
     fileDurationSeconds: Double,
     minFileSeconds: Double = durationHintMinFileSecondsDefault,
+    window: PerceptualTempoWindow = .default,
     trace: inout BPMDiagnosticTrace?
   ) -> [(bpm: Double, score: Float)] {
     let barCandidates = applyDurationHintBarCounts(
-      durationSeconds: fileDurationSeconds, minFileSeconds: minFileSeconds)
+      durationSeconds: fileDurationSeconds, minFileSeconds: minFileSeconds,
+      window: window)
 
     // Trace: always set fileDurationSeconds and barCandidates when the helper runs.
     let writeTrace = trace != nil

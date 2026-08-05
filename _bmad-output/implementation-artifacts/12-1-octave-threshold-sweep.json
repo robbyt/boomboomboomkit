@@ -1,0 +1,380 @@
+{
+  "defaultEnergyThreshold" : 0.29999999999999999,
+  "defaultScoreThreshold" : 0.5,
+  "giantsteps" : [
+    {
+      "acc1" : 528,
+      "acc2" : 537,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 0.5,
+      "total" : 661
+    },
+    {
+      "acc1" : 532,
+      "acc2" : 541,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 1,
+      "total" : 661
+    }
+  ],
+  "giantstepsCoverage" : {
+    "analyzed" : 661,
+    "failed" : 0,
+    "groundTruthEntries" : 661,
+    "missingFromDisk" : 0,
+    "resolvedOnDisk" : 661
+  },
+  "metric" : "single-window BPMAnalyzer.estimateBPM; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
+  "oa300" : [
+    {
+      "acc1" : 52,
+      "acc2" : 65,
+      "energyThreshold" : 0.10000000000000001,
+      "scoreThreshold" : 0.29999999999999999,
+      "total" : 82
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 66,
+      "energyThreshold" : 0.10000000000000001,
+      "scoreThreshold" : 0.40000000000000002,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.10000000000000001,
+      "scoreThreshold" : 0.5,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.10000000000000001,
+      "scoreThreshold" : 0.59999999999999998,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.10000000000000001,
+      "scoreThreshold" : 0.69999999999999996,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.10000000000000001,
+      "scoreThreshold" : 0.80000000000000004,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 0.10000000000000001,
+      "scoreThreshold" : 1,
+      "total" : 82
+    },
+    {
+      "acc1" : 53,
+      "acc2" : 66,
+      "energyThreshold" : 0.20000000000000001,
+      "scoreThreshold" : 0.29999999999999999,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.20000000000000001,
+      "scoreThreshold" : 0.40000000000000002,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.20000000000000001,
+      "scoreThreshold" : 0.5,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.20000000000000001,
+      "scoreThreshold" : 0.59999999999999998,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.20000000000000001,
+      "scoreThreshold" : 0.69999999999999996,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 67,
+      "energyThreshold" : 0.20000000000000001,
+      "scoreThreshold" : 0.80000000000000004,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 0.20000000000000001,
+      "scoreThreshold" : 1,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 66,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 0.29999999999999999,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 0.40000000000000002,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 0.5,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 0.59999999999999998,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 0.69999999999999996,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 0.80000000000000004,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 0.29999999999999999,
+      "scoreThreshold" : 1,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 66,
+      "energyThreshold" : 0.40000000000000002,
+      "scoreThreshold" : 0.29999999999999999,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.40000000000000002,
+      "scoreThreshold" : 0.40000000000000002,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.40000000000000002,
+      "scoreThreshold" : 0.5,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.40000000000000002,
+      "scoreThreshold" : 0.59999999999999998,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.40000000000000002,
+      "scoreThreshold" : 0.69999999999999996,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.40000000000000002,
+      "scoreThreshold" : 0.80000000000000004,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 0.40000000000000002,
+      "scoreThreshold" : 1,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 66,
+      "energyThreshold" : 0.5,
+      "scoreThreshold" : 0.29999999999999999,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.5,
+      "scoreThreshold" : 0.40000000000000002,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.5,
+      "scoreThreshold" : 0.5,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.5,
+      "scoreThreshold" : 0.59999999999999998,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.5,
+      "scoreThreshold" : 0.69999999999999996,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.5,
+      "scoreThreshold" : 0.80000000000000004,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 0.5,
+      "scoreThreshold" : 1,
+      "total" : 82
+    },
+    {
+      "acc1" : 54,
+      "acc2" : 66,
+      "energyThreshold" : 0.59999999999999998,
+      "scoreThreshold" : 0.29999999999999999,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.59999999999999998,
+      "scoreThreshold" : 0.40000000000000002,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.59999999999999998,
+      "scoreThreshold" : 0.5,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.59999999999999998,
+      "scoreThreshold" : 0.59999999999999998,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.59999999999999998,
+      "scoreThreshold" : 0.69999999999999996,
+      "total" : 82
+    },
+    {
+      "acc1" : 55,
+      "acc2" : 67,
+      "energyThreshold" : 0.59999999999999998,
+      "scoreThreshold" : 0.80000000000000004,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 0.59999999999999998,
+      "scoreThreshold" : 1,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 0.29999999999999999,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 0.40000000000000002,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 0.5,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 0.59999999999999998,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 0.69999999999999996,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 0.80000000000000004,
+      "total" : 82
+    },
+    {
+      "acc1" : 56,
+      "acc2" : 67,
+      "energyThreshold" : 1,
+      "scoreThreshold" : 1,
+      "total" : 82
+    }
+  ],
+  "oa300Coverage" : {
+    "analyzed" : 82,
+    "failed" : 0,
+    "groundTruthEntries" : 82,
+    "missingFromDisk" : 0,
+    "resolvedOnDisk" : 82
+  }
+}

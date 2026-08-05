@@ -98,6 +98,55 @@ let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: opt
 `intensity` is still consulted for the window sizes, so how many windows run and how
 long each one is remains intensity-driven even when an explicit technique set is set.
 
+### Constraining the tempo range
+
+Two `Options` fields bound the tempo search. They are separate concepts with separate
+effects, and picking the wrong one is the common mistake.
+
+| Option | Type | Default | What it bounds |
+|---|---|---|---|
+| `tempoScanRange` | `TempoScanRange` | `40...250` | Which tempi the candidate search generates at all. A periodicity outside this range is never a candidate, and a winner outside it is rejected. |
+| `perceptualWindow` | `PerceptualTempoWindow` | `60...200` | Which octave of a found periodicity is reported. Every result is folded into this window by repeated doubling and halving. |
+
+If your material is genre-constrained and the detector keeps reporting the wrong
+octave, `perceptualWindow` is the field you want:
+
+```swift
+var options = AudioAnalysisService.Options()
+
+// Drum and bass: never report 70 for a 140 BPM track.
+options.perceptualWindow = PerceptualTempoWindow(minBPM: 100, maxBPM: 200)
+
+// Ambient and downtempo: let the search reach below 40 BPM, and report there too.
+options.tempoScanRange = TempoScanRange(minBPM: 30, maxBPM: 160)
+options.perceptualWindow = PerceptualTempoWindow(minBPM: 30, maxBPM: 120)
+
+let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: options)
+```
+
+Four properties to know before you set either one.
+
+1. **Invalid input normalizes, it never throws.** A non-finite bound falls back to its
+   own default. Both bounds clamp into the shared 30-300 envelope. An inverted or
+   degenerate range widens rather than failing. `PerceptualTempoWindow` additionally
+   raises `maxBPM` to at least `2 * minBPM`, because the fold is two sequential loops
+   and a sub-octave window would make the second undo the first.
+2. **A `perceptualWindow` minimum above 150 is lowered to 150.** A higher floor leaves
+   less than one octave below the 300 BPM envelope ceiling. `TempoScanRange` has no
+   such rule; its minimum is honoured up to 297.
+3. **The two are not cross-constrained, and moving only `perceptualWindow` can return
+   `nil` for individual tracks.** The fold pushes a tempo toward the window, then
+   `tempoScanRange` rejects anything outside itself. A `30...60` window against the
+   default `40...250` scan range annihilates any track that folds below 40. Whenever
+   the window reaches outside `40...250`, widen `tempoScanRange` to match.
+4. **The window is not a hard output clamp.** Fine-grid refinement runs after the fold
+   and re-fits the winner against the scan range, so a tempo sitting on a window edge
+   can be reported a fraction of a BPM outside it. The largest excursion measured
+   across the project's fixtures is 0.3 BPM.
+
+Both defaults reproduce the pre-existing pipeline exactly. Leaving them alone changes
+nothing.
+
 ## Intensity scale (1-10)
 
 `AnalysisIntensity` is an ordinal control over pipeline depth: higher values never produce *less* accurate results at the same `Options`. The "Relative cost" column below sorts by per-track work — not by wall-clock — because measured wall-clock varies materially across hardware classes (the project's M5 Max baseline at intensity 7 is ~170 ms mean / ~245 ms p95 on a 3-minute track; older M-series and Intel Macs will run materially slower). Run `make perf-benchmark` against your own corpus before pinning expectations.
@@ -126,6 +175,7 @@ See the inline `///` docs on `AnalysisIntensity` for the authoritative mapping a
 | Unsupported sample rate | `analyzeLUFS` only — K-weighting coefficients ship for 44.1 / 48 / 96 kHz only | `try analyzeLUFS(url:)` **throws** `LUFSAnalysisError.unsupportedSampleRate` | Resample to a supported rate before LUFS analysis. Does NOT affect `analyzeBPM`. |
 | Cancelled analysis | Caller's `Task` was cancelled OR `Options.isCancelled` returned `true` between window iterations | `try analyzeBPM(url:)` **throws** `CancellationError`; `try?` collapses to `nil` | Distinguish explicitly via `do { try analyzeBPM(...) } catch is CancellationError { ... }` if cancellation needs differentiated handling. |
 | No candidates found | Degenerate audio (white noise, sustained pitched material) produced zero surviving candidates after range normalization (step 9) | `try analyzeBPM(url:)` returns `nil` | Inspect with `enableTrace: true` and read `result?.candidates` (and `trace?.rawCandidates`); this is the rarest case. |
+| Winner outside the scan range | The tempo folded into `Options.perceptualWindow` falls outside `Options.tempoScanRange`, so the final range guard rejects it. Only reachable when one of the two has been moved off its default | `try analyzeBPM(url:)` returns `nil` | Widen `tempoScanRange` to cover `perceptualWindow`. See "Constraining the tempo range". |
 
 ## LUFS measurement
 
@@ -450,6 +500,8 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `DSPTechnique` | Individual DSP technique enum (closed set, `CaseIterable`) |
 | `TechniqueSet` | Composable technique set with named presets (`.optimal`, `.clickAugmented`, `.full`, …) |
 | `VotingPolicy` | Resolution policy for `mergeStrategy == .windowVoting` (3 cases) |
+| `TempoScanRange` | Candidate scan bounds on `Options.tempoScanRange` (default `40...250`). See "Constraining the tempo range" |
+| `PerceptualTempoWindow` | Octave-fold window on `Options.perceptualWindow` (default `60...200`). See "Constraining the tempo range" |
 | `MetadataPolicy` | File-tag corroboration policy + parsing hygiene flags |
 | `MetadataSource`, `MetadataBPMEvidence`, `HarmonicRatio` | Metadata evidence types |
 | `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Using your own tempo model" + "Model contract for `BNNSTechnique`" |
@@ -551,7 +603,7 @@ The DSP spine runs 9 unconditional steps. Two optional rescore stages and three 
 6. **Fourier Tempogram** — Frequency-domain periodicity
 7. **Periodicity Fusion** — Geometric mean of ACF + tempogram
 8. **Peak Selection** — Top candidates from fused spectrum
-9. **Range Normalization** — Constrain to 60-200 BPM
+9. **Range Normalization** — Fold into the perceptual window (default 60-200 BPM, set by `Options.perceptualWindow`)
 
 ### Optional gated rescore stages
 
@@ -614,7 +666,7 @@ Path A above — supplying your own weights against the built-in `BNNSTechnique`
 
 `BNNSTechnique` featurizes in three stages before inference: transpose the frame-major log-mel to mel-major, z-score normalize per mel band, then resample to a fixed width of 512 frames. Softmax is applied host-side, and decoding is `argmax` over the 256 bins. If your architecture needs different featurization, implement `MLTechnique` directly (Path B) instead of matching this contract.
 
-Only 141 of the 256 bins are reachable in practice, because the library normalizes every result into 60-200 BPM. The remaining bins are decode-dead by construction; training against the full 256 is harmless but wastes capacity.
+At the default `Options.perceptualWindow` of 60-200 BPM, only 141 of the 256 bins are reachable, because every result is folded into that window. Widening the window widens the reachable set, up to the 30-300 envelope. Bins outside the window in use are decode-dead; training against the full 256 is harmless but wastes capacity.
 
 If you want the measured history of the models this project trained against that contract — including why none of them shipped — it is kept with the weights on the `develop` branch rather than here, since no model ships with the library.
 

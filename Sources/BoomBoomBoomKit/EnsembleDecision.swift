@@ -8,7 +8,7 @@
 
 import Foundation
 
-/// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)``
+/// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:perceptualWindow:)``
 /// reconciled the post-corroboration DSP candidate with the ML technique's
 /// invocation outcome.
 ///
