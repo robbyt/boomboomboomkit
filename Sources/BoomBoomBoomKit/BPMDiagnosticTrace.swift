@@ -90,8 +90,9 @@ public struct BPMDiagnosticTrace: Sendable {
   ///
   /// Carries:
   /// - `fileDurationSeconds`: file duration at full `Double` precision.
-  /// - `barCandidates`: bar-count candidates whose corresponding BPM fell within `60...200`
-  ///   BPM. Empty when no bar count yields an in-range BPM (very short clips).
+  /// - `barCandidates`: bar-count candidates whose corresponding BPM fell inside the
+  ///   active ``AudioAnalysisService/Options/perceptualWindow`` (default `60...200`).
+  ///   Empty when no bar count yields an in-window BPM (very short clips).
   /// - `boostedCandidates`: DSP candidate BPMs that received the multiplicative boost.
   ///   Empty when no candidate matched any in-range bar BPM within the relative tolerance.
   ///
@@ -163,7 +164,7 @@ public struct BPMDiagnosticTrace: Sendable {
 
   // MARK: - Story 4.4: Ensemble Decision
 
-  /// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)``
+  /// Diagnostic record of how ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:perceptualWindow:)``
   /// resolved the post-corroboration DSP candidate against the ML
   /// invocation outcome. Populated under ``EnsemblePolicy/mlOnly`` /
   /// ``EnsemblePolicy/highestConfidence`` whenever
@@ -503,8 +504,9 @@ public struct DurationHintEvidence: Sendable, CustomStringConvertible {
   /// File duration in seconds at full `Double` precision.
   public let fileDurationSeconds: Double
 
-  /// Bar-count candidates whose corresponding BPM fell within `60...200` BPM.
-  /// Empty when no bar count yields an in-range BPM (very short clips).
+  /// Bar-count candidates whose corresponding BPM fell inside the active
+  /// ``AudioAnalysisService/Options/perceptualWindow`` (default `60...200`).
+  /// Empty when no bar count yields an in-window BPM (very short clips).
   public let barCandidates: [BarCandidate]
 
   /// DSP candidate BPMs that received the multiplicative boost. Empty when
@@ -533,8 +535,8 @@ public struct BarCandidate: Sendable, CustomStringConvertible {
   /// Number of bars (e.g., `64`, `96`, `128`, `192`).
   public let bars: Int
 
-  /// BPM derived from `bars * 4` beats / `fileDurationSeconds`. Filtered
-  /// upstream to the `60...200` BPM range.
+  /// BPM derived from `bars * 4` beats / `fileDurationSeconds`. Filtered upstream to
+  /// the active ``AudioAnalysisService/Options/perceptualWindow`` (default `60...200`).
   public let bpm: Double
 
   public init(bars: Int, bpm: Double) {
