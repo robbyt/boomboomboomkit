@@ -947,6 +947,18 @@ struct SMCPriorReplicationTests {
 //  Gated by `SMC_PRIOR_REPLICATION=1` plus `TONY_AUDIO_ROOT`.
 //
 
+/// Both Tony artifacts are `{schema_version, ..., track_count, tracks: [...]}` envelopes,
+/// not bare arrays. Decoding the envelope rather than the array also gives the
+/// `track_count` cross-check below.
+private struct TonyEnvelope<Row: Decodable>: Decodable {
+  let trackCount: Int?
+  let tracks: [Row]
+  enum CodingKeys: String, CodingKey {
+    case trackCount = "track_count"
+    case tracks
+  }
+}
+
 private struct TonySurveyRow: Decodable {
   let localPath: String?
   let genre: String?
@@ -994,10 +1006,25 @@ extension SMCPriorReplicationTests {
     }
 
     let decoder = JSONDecoder()
-    let survey = try decoder.decode(
-      [TonySurveyRow].self, from: Data(contentsOf: surveyURL))
-    let labels = try decoder.decode(
-      [TonyLabelRow].self, from: Data(contentsOf: labelsURL))
+    let surveyEnvelope = try decoder.decode(
+      TonyEnvelope<TonySurveyRow>.self, from: Data(contentsOf: surveyURL))
+    let labelsEnvelope = try decoder.decode(
+      TonyEnvelope<TonyLabelRow>.self, from: Data(contentsOf: labelsURL))
+    let survey = surveyEnvelope.tracks
+    let labels = labelsEnvelope.tracks
+
+    // The envelopes carry their own counts. A mismatch means the artifact was written
+    // by a different pipeline version than the one this reader assumes, which would
+    // silently change the corpus under the experiment.
+    if let declared = surveyEnvelope.trackCount, declared != survey.count {
+      throw ReplicationError.groundTruthNotFound(
+        "tony-survey.json declares track_count \(declared) but carries \(survey.count) rows")
+    }
+    if let declared = labelsEnvelope.trackCount, declared != labels.count {
+      throw ReplicationError.groundTruthNotFound(
+        "tony-truth-labels.json declares track_count \(declared) but carries \(labels.count) rows"
+      )
+    }
 
     var genreByPath: [String: String] = [:]
     for row in survey {
