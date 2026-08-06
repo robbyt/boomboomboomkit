@@ -1,0 +1,5029 @@
+{
+  "arms" : [
+    {
+      "all" : {
+        "acc1" : 466,
+        "acc2" : 526,
+        "n" : 661,
+        "nils" : 0
+      },
+      "dnb" : {
+        "acc1" : 111,
+        "acc2" : 129,
+        "n" : 139,
+        "nils" : 0
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 200,
+        "minBPM" : 60
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 250,
+        "minBPM" : 40
+      },
+      "id" : "A",
+      "label" : "baseline",
+      "nonDnb" : {
+        "acc1" : 355,
+        "acc2" : 397,
+        "n" : 522,
+        "nils" : 0
+      },
+      "normalized" : false
+    },
+    {
+      "all" : {
+        "acc1" : 361,
+        "acc2" : 413,
+        "n" : 661,
+        "nils" : 1
+      },
+      "dnb" : {
+        "acc1" : 110,
+        "acc2" : 126,
+        "n" : 139,
+        "nils" : 0
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 200,
+        "minBPM" : 60
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      },
+      "id" : "B",
+      "label" : "scan-only",
+      "nonDnb" : {
+        "acc1" : 251,
+        "acc2" : 287,
+        "n" : 522,
+        "nils" : 1
+      },
+      "normalized" : false,
+      "requestedScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      }
+    },
+    {
+      "all" : {
+        "acc1" : 361,
+        "acc2" : 413,
+        "n" : 661,
+        "nils" : 1
+      },
+      "dnb" : {
+        "acc1" : 110,
+        "acc2" : 126,
+        "n" : 139,
+        "nils" : 0
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 260,
+        "minBPM" : 130
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      },
+      "id" : "C",
+      "label" : "scan+window",
+      "nonDnb" : {
+        "acc1" : 251,
+        "acc2" : 287,
+        "n" : 522,
+        "nils" : 1
+      },
+      "normalized" : true,
+      "requestedPerceptualWindow" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      },
+      "requestedScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      }
+    },
+    {
+      "all" : {
+        "acc1" : 323,
+        "acc2" : 504,
+        "n" : 661,
+        "nils" : 6
+      },
+      "dnb" : {
+        "acc1" : 105,
+        "acc2" : 121,
+        "n" : 139,
+        "nils" : 0
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 260,
+        "minBPM" : 130
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 250,
+        "minBPM" : 40
+      },
+      "id" : "D",
+      "label" : "window-only",
+      "nonDnb" : {
+        "acc1" : 218,
+        "acc2" : 383,
+        "n" : 522,
+        "nils" : 6
+      },
+      "normalized" : true,
+      "requestedPerceptualWindow" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      }
+    }
+  ],
+  "casualties" : [
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 174.05162467624206,
+        "B" : 174.05162467624206,
+        "C" : 174.05162467624206,
+        "D" : 174.05162467624206
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "1240672.LOFI.mp3",
+      "truthBPM" : 87
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 174.40953750440192,
+        "B" : 174.40953750440192,
+        "C" : 174.40953750440192,
+        "D" : 174.40953750440192
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "1698047.LOFI.mp3",
+      "truthBPM" : 87
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 164.83015010351968,
+        "B" : 164.83242593061536,
+        "C" : 164.83242593061536,
+        "D" : 248.04396717117885
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3013772.LOFI.mp3",
+      "truthBPM" : 83
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 165.11179762182326,
+        "B" : 165.11179762182326,
+        "C" : 165.11179762182326,
+        "D" : 165.11179762182326
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3173482.LOFI.mp3",
+      "truthBPM" : 83
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 175.01639109697933,
+        "B" : 175.01639109697933,
+        "C" : 175.01639109697933,
+        "D" : 175.01639109697933
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3190084.LOFI.mp3",
+      "truthBPM" : 87
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 174.64139479905438,
+        "B" : 174.64139479905438,
+        "C" : 174.64139479905438,
+        "D" : 174.64139479905438
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3194652.LOFI.mp3",
+      "truthBPM" : 87
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 169.86411986193914,
+        "B" : 169.90592292089249,
+        "C" : 169.90592292089249,
+        "D" : 169.86411986193914
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3313129.LOFI.mp3",
+      "truthBPM" : 85
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 175.28987665463299,
+        "B" : 175.28987665463299,
+        "C" : 175.28987665463299,
+        "D" : 175.28987665463299
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3343760.LOFI.mp3",
+      "truthBPM" : 87
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 175.53295548693228,
+        "B" : 175.53295548693228,
+        "C" : 175.53295548693228,
+        "D" : 175.53295548693228
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3387888.LOFI.mp3",
+      "truthBPM" : 88
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 174.04571878032286,
+        "B" : 174.04571878032286,
+        "C" : 174.04571878032286,
+        "D" : 174.04571878032286
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3789981.LOFI.mp3",
+      "truthBPM" : 86
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 171.3505919925222,
+        "B" : 171.3505919925222,
+        "C" : 171.3505919925222,
+        "D" : 171.3505919925222
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3829043.LOFI.mp3",
+      "truthBPM" : 85
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 176.34810557684122,
+        "B" : 176.34810557684122,
+        "C" : 176.34810557684122,
+        "D" : 176.34810557684122
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3873575.LOFI.mp3",
+      "truthBPM" : 88
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 172.47862252086267,
+        "B" : 172.47862252086267,
+        "C" : 172.47862252086267,
+        "D" : 172.47862252086267
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "3914630.LOFI.mp3",
+      "truthBPM" : 86
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 175.39814938871211,
+        "B" : 175.39814938871211,
+        "C" : 175.39814938871211,
+        "D" : 175.39814938871211
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "4283854.LOFI.mp3",
+      "truthBPM" : 87
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 113.18992208585833,
+        "B" : 170.40031601123596,
+        "C" : 170.40031601123596,
+        "D" : 228.69496495758023
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "4288893.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 172.61330101678882,
+        "B" : 172.61330101678882,
+        "C" : 172.61330101678882,
+        "D" : 172.61330101678882
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "4346730.LOFI.mp3",
+      "truthBPM" : 86
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 174.87997957099083,
+        "B" : 174.87997957099083,
+        "C" : 174.87997957099083,
+        "D" : 174.87997957099083
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "5431709.LOFI.mp3",
+      "truthBPM" : 87
+    }
+  ],
+  "changedTracks" : [
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 135.75077420384707,
+        "C" : 135.75077420384707,
+        "D" : 238.92202572347267
+      },
+      "baselineBPM" : 184.55016770560533,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "1092771.LOFI.mp3",
+      "truthBPM" : 136
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 162.20971177944861,
+        "C" : 162.20971177944861,
+        "D" : 239.79720218851034
+      },
+      "baselineBPM" : 120.38852240032882,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "1198571.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 175.99489247311828,
+        "C" : 175.99489247311828,
+        "D" : 220.19795741520178
+      },
+      "baselineBPM" : 176.02316478555304,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "1234669.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.95135276630825,
+        "C" : 168.95135276630825,
+        "D" : 250
+      },
+      "baselineBPM" : 125.77843493903657,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "1380256.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 193.36967321704572
+      },
+      "baselineBPM" : 192,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "0.667",
+        "C" : "0.667",
+        "D" : "1.0"
+      },
+      "trackId" : "1469706.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.14844353502008,
+        "C" : 160.14844353502008,
+        "D" : 246.0803506650544
+      },
+      "baselineBPM" : 122.73699509856534,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "1562235.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.05088203712225,
+        "C" : 140.05088203712225,
+        "D" : 189.64189009159034
+      },
+      "baselineBPM" : 189.64189009159034,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "1626348.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.0084760372371,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "1735621.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 140.06328862810841,
+        "C" : 140.06328862810841,
+        "D" : 140.07517781796261
+      },
+      "baselineBPM" : 69.935276663182393,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "1839656.LOFI.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 132.53292949688711,
+        "C" : 132.53292949688711,
+        "D" : 202.00016512549539
+      },
+      "baselineBPM" : 100.93163887587029,
+      "genre" : "chill-out",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "1885798.LOFI.mp3",
+      "truthBPM" : 101
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.73290411529057,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "1889739.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 136.89288140390605,
+        "C" : 136.89288140390605,
+        "D" : 232.17311935807422
+      },
+      "baselineBPM" : 168.06111984282907,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "1905592.LOFI.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 224.8793734154292
+      },
+      "baselineBPM" : 139.47637050384643,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "1918704.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 176.053441040705,
+        "C" : 176.053441040705,
+        "D" : 136.53640840446488
+      },
+      "baselineBPM" : 136.53640840446488,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "1968659.LOFI.mp3",
+      "truthBPM" : 136
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 125.53503157732594,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "1982430.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.28925147279659,
+        "C" : 168.28925147279659,
+        "D" : 250
+      },
+      "baselineBPM" : 125.76968878235078,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "1982431.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 250
+      },
+      "baselineBPM" : 126.23416158309776,
+      "genre" : "house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2013128.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.93535928143714,
+        "C" : 160.93535928143714,
+        "D" : 239.21758045292015
+      },
+      "baselineBPM" : 120.1396697618691,
+      "genre" : "breaks",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2039114.LOFI.mp3",
+      "truthBPM" : 119
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 155.94019841310364,
+        "C" : 155.94019841310364,
+        "D" : 236.08445022145196
+      },
+      "baselineBPM" : 117.60030627576376,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2083393.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 139.69812130256355
+      },
+      "baselineBPM" : 139.69812130256355,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "2088277.LOFI.mp3",
+      "truthBPM" : 142
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 179.64165671047391,
+        "C" : 179.64165671047391,
+        "D" : 139.12015571341206
+      },
+      "baselineBPM" : 139.12015571341206,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "2088281.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 138.04889989368149,
+        "C" : 138.04889989368149,
+        "D" : 164
+      },
+      "baselineBPM" : 79.968615850302697,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "220883.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.38260542834411,
+        "C" : 140.38260542834411,
+        "D" : 164
+      },
+      "baselineBPM" : 140.38260542834411,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "2442269.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.2834329473291,
+      "genre" : "dj-tools",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2676506.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 166.25807549504952,
+        "C" : 166.25807549504952,
+        "D" : 250
+      },
+      "baselineBPM" : 125.79332474226804,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2677224.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 143.67656020017662,
+        "C" : 143.67656020017662,
+        "D" : 143.7772351797862
+      },
+      "baselineBPM" : 72.091457288868625,
+      "genre" : "house",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "2702022.LOFI.mp3",
+      "truthBPM" : 144
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 148.24924093854597,
+        "C" : 148.24924093854597,
+        "D" : 223.94678207739307
+      },
+      "baselineBPM" : 111.91428217002978,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2720752.LOFI.mp3",
+      "truthBPM" : 112
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 174.79770370370372,
+        "C" : 174.79770370370372,
+        "D" : 235.14180585576733
+      },
+      "baselineBPM" : 117.61315285671552,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "2726350.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 145.98374158815614,
+        "C" : 145.98374158815614,
+        "D" : 235.0591384950927
+      },
+      "baselineBPM" : 117.49704948699053,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2726353.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.57190224570672,
+        "C" : 159.57190224570672,
+        "D" : 235.06039367181751
+      },
+      "baselineBPM" : 117.55648444919278,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2726355.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 152.73192608578364,
+        "C" : 152.73192608578364,
+        "D" : 232.54557809330629
+      },
+      "baselineBPM" : 116.78996898138882,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2745205.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.61735905044509,
+        "C" : 160.61735905044509,
+        "D" : 240.04030150753769
+      },
+      "baselineBPM" : 120.30751680060153,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2751688.LOFI.mp3",
+      "truthBPM" : 120
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 163.2009189925119,
+        "C" : 163.2009189925119,
+        "D" : 250
+      },
+      "baselineBPM" : 122.89082482913585,
+      "genre" : "indie-dance-nu-disco",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "2992360.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 126.03899309342057,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3059880.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.44176499409699,
+        "C" : 164.44176499409699,
+        "D" : 249.91527536231885
+      },
+      "baselineBPM" : 125.0703078433435,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3091814.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 176.21148671955845,
+        "C" : 176.21148671955845,
+        "D" : 250
+      },
+      "baselineBPM" : 176.21148671955845,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "3167057.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 186.58075611142695
+      },
+      "baselineBPM" : 186.58075611142695,
+      "genre" : "hardcore-hard-techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3173803.LOFI.mp3",
+      "truthBPM" : 188
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 153.71549550968962,
+        "C" : 153.71549550968962,
+        "D" : 234
+      },
+      "baselineBPM" : 115.13602262672228,
+      "genre" : "indie-dance-nu-disco",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3188462.LOFI.mp3",
+      "truthBPM" : 115
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 175.46844727373374,
+        "C" : 175.46844727373374,
+        "D" : 238
+      },
+      "baselineBPM" : 120.63660966318616,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3190021.LOFI.mp3",
+      "truthBPM" : 179
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.26145118337647,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3208076.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 140.24915347810082,
+        "C" : 140.24915347810082,
+        "D" : 140.24915347810082
+      },
+      "baselineBPM" : 185.50452415812592,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "3211234.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 161.92941877084326,
+        "C" : 161.92941877084326,
+        "D" : 203.5660642570281
+      },
+      "baselineBPM" : 161.98269683494638,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "3226171.LOFI.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 173.37822802197803,
+        "C" : 173.37822802197803,
+        "D" : 202.17193732193732
+      },
+      "baselineBPM" : 100.75115477040981,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3230477.LOFI.mp3",
+      "truthBPM" : 101
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 138.36971506027572,
+        "C" : 138.36971506027572,
+        "D" : 156
+      },
+      "baselineBPM" : 80.051749030401595,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "3261883.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 141.05011021158114
+      },
+      "baselineBPM" : 141.05011021158114,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3267829.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.44848870552914,
+        "C" : 164.44848870552914,
+        "D" : 250
+      },
+      "baselineBPM" : 127.13039731229915,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3298908.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 161.09321240491514,
+        "C" : 161.09321240491514,
+        "D" : 250
+      },
+      "baselineBPM" : 127.41088602271135,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3317417.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.13401305398367,
+        "C" : 160.13401305398367,
+        "D" : 236
+      },
+      "baselineBPM" : 120.00515678381761,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3333492.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 139.66647470013504,
+        "C" : 139.66647470013504,
+        "D" : 139.61481528662421
+      },
+      "baselineBPM" : 69.95021311739761,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "3349486.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 153.46378992628993,
+        "C" : 153.46378992628993,
+        "D" : 235.12792383529867
+      },
+      "baselineBPM" : 117.44382197976408,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3368053.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 173.85614962329083,
+        "C" : 173.85614962329083,
+        "D" : 232.8909009009009
+      },
+      "baselineBPM" : 116.42964480874318,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "3368054.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 152.05313910895305,
+        "C" : 152.05313910895305,
+        "D" : 232.93006559766764
+      },
+      "baselineBPM" : 116.8861600731166,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3368055.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 131.17605881412817,
+        "C" : 131.17605881412817,
+        "D" : 196.0202466793169
+      },
+      "baselineBPM" : 196.0202466793169,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "0.667",
+        "C" : "0.667",
+        "D" : "1.0"
+      },
+      "trackId" : "3372883.LOFI.mp3",
+      "truthBPM" : 132
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 158.80104377104379,
+        "C" : 158.80104377104379,
+        "D" : 246.45712919492263
+      },
+      "baselineBPM" : 122.82191172629929,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3398611.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 188.99826132771338
+      },
+      "baselineBPM" : 188.99826132771338,
+      "genre" : "hardcore-hard-techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3403794.LOFI.mp3",
+      "truthBPM" : 192
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 171.87826729745714,
+        "C" : 171.87826729745714,
+        "D" : 250
+      },
+      "baselineBPM" : 126.14905665803853,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3405537.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 179.05764244046546,
+        "C" : 179.05764244046546,
+        "D" : 243.97892022732057
+      },
+      "baselineBPM" : 121.87661927961027,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3409480.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 178.49056087551298,
+        "C" : 178.49056087551298,
+        "D" : 238.898432563791
+      },
+      "baselineBPM" : 117.93939533810294,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "3412362.LOFI.mp3",
+      "truthBPM" : 119
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 155.94678507972907,
+        "C" : 155.94678507972907,
+        "D" : 238.88705035971225
+      },
+      "baselineBPM" : 120.01520871445202,
+      "genre" : "chill-out",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "344470.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.95568804098215,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "3484119.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 163.98164983164983,
+        "C" : 163.98164983164983,
+        "D" : 234
+      },
+      "baselineBPM" : 148.68396248603514,
+      "genre" : "hard-dance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "3511308.LOFI.mp3",
+      "truthBPM" : 147
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 156.38552278820376,
+        "C" : 156.38552278820376,
+        "D" : 239.66172638436481
+      },
+      "baselineBPM" : 120.10368201168724,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3520036.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 133.39941102669547,
+        "C" : 133.39941102669547,
+        "D" : 198.05970837947581
+      },
+      "baselineBPM" : 198.05970837947581,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "0.667",
+        "C" : "0.667",
+        "D" : "1.0"
+      },
+      "trackId" : "3530058.LOFI.mp3",
+      "truthBPM" : 134
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : null
+      },
+      "baselineBPM" : 128.34252298429746,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "nil"
+      },
+      "trackId" : "3535112.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 163.62825711820534,
+        "C" : 163.62825711820534,
+        "D" : 220.67677165354328
+      },
+      "baselineBPM" : 110.27282884406328,
+      "genre" : "indie-dance-nu-disco",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "3535520.LOFI.mp3",
+      "truthBPM" : 110
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 141.05399593176941,
+        "C" : 141.05399593176941,
+        "D" : 211.53020951302378
+      },
+      "baselineBPM" : 190.35623794603137,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "3605780.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 141.05453261866924,
+        "C" : 141.05453261866924,
+        "D" : 221.60634920634919
+      },
+      "baselineBPM" : 141.0545327513077,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "3612407.LOFI.mp3",
+      "truthBPM" : 142
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 174.44596013716244,
+        "C" : 174.44596013716244,
+        "D" : 230.25233822729746
+      },
+      "baselineBPM" : 117.46338289962826,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "3629920.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 169.30404546177078,
+        "C" : 169.30404546177078,
+        "D" : 218.2428843445916
+      },
+      "baselineBPM" : 169.6582973687874,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "3642438.LOFI.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 249.61285816618911
+      },
+      "baselineBPM" : 124.18660104312055,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3650152.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 131.93536588890831,
+        "C" : 131.93536588890831,
+        "D" : 250
+      },
+      "baselineBPM" : 181,
+      "genre" : "house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "3651620.LOFI.mp3",
+      "truthBPM" : 134
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 179.2383181928339,
+        "C" : 179.2383181928339,
+        "D" : 138.60653954440747
+      },
+      "baselineBPM" : 138.60653954440747,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3655121.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.8981296983969,
+        "C" : 140.8981296983969,
+        "D" : 188.42319382162432
+      },
+      "baselineBPM" : 188.42319382162432,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "365981.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 179.24985829799752,
+        "C" : 179.24985829799752,
+        "D" : 139.78014382347146
+      },
+      "baselineBPM" : 139.78014382347146,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3660450.LOFI.mp3",
+      "truthBPM" : 142
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 175.22431286053612,
+        "C" : 175.22431286053612,
+        "D" : 139.49611891435211
+      },
+      "baselineBPM" : 139.49611891435211,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3665864.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 249.84312880324543
+      },
+      "baselineBPM" : 125.20840937370386,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3678548.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.01097332082048,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3692859.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 145.72193649643847,
+        "C" : 145.72193649643847,
+        "D" : 169.13979949963837
+      },
+      "baselineBPM" : 145.72193649643847,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "3696445.LOFI.mp3",
+      "truthBPM" : 147
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 249.88701131176822
+      },
+      "baselineBPM" : 125.1193242284498,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3703893.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 138.14895114179501,
+        "C" : 138.14895114179501,
+        "D" : 190.222827198364
+      },
+      "baselineBPM" : 190.222827198364,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3706845.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.44845169243453,
+        "C" : 164.44845169243453,
+        "D" : 250
+      },
+      "baselineBPM" : 125.82810119855937,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3730279.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.44888626654108,
+        "C" : 164.44888626654108,
+        "D" : 250
+      },
+      "baselineBPM" : 126.02961689587427,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3741346.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 132.24340753424656,
+        "C" : 132.24340753424656,
+        "D" : 231.60482541222115
+      },
+      "baselineBPM" : 115.02901821060966,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3787878.LOFI.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : null
+      },
+      "baselineBPM" : 128.15892205862488,
+      "genre" : "house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "nil"
+      },
+      "trackId" : "3792954.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 179.51809378185524,
+        "C" : 179.51809378185524,
+        "D" : 239.93426133812304
+      },
+      "baselineBPM" : 120.02490841121495,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "3824612.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 147.81361029356276,
+        "C" : 147.81361029356276,
+        "D" : 147.81361029356276
+      },
+      "baselineBPM" : 196.84103175227457,
+      "genre" : "psy-trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "3828895.LOFI.mp3",
+      "truthBPM" : 147
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.51018942018942,
+        "C" : 140.51018942018942,
+        "D" : 189.42730990081782
+      },
+      "baselineBPM" : 189.42730990081782,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3863423.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 170.25482236329213,
+        "C" : 170.25482236329213,
+        "D" : 241.31228629752488
+      },
+      "baselineBPM" : 120.00318485835346,
+      "genre" : "minimal",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3873406.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 158.64659579550883,
+        "C" : 158.64659579550883,
+        "D" : 250
+      },
+      "baselineBPM" : 125.20769569428546,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3883083.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.4434963515242,
+        "C" : 164.4434963515242,
+        "D" : 250
+      },
+      "baselineBPM" : 125.73324106693508,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3883902.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.69318355884604,
+        "C" : 140.69318355884604,
+        "D" : 190.35737521679044
+      },
+      "baselineBPM" : 190.35737521679044,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "3886051.LOFI.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 128.33228434628157,
+      "genre" : "pop-rock",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "3892740.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 177.23106838135277,
+        "C" : 177.23106838135277,
+        "D" : 235.15041518046587
+      },
+      "baselineBPM" : 117.67611651015505,
+      "genre" : "minimal",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "3902915.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : null
+      },
+      "baselineBPM" : 169.13840943326335,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "nil"
+      },
+      "trackId" : "3928924.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 171,
+        "C" : 171,
+        "D" : 250
+      },
+      "baselineBPM" : 125.93506966826995,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3961040.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 157.72440318302387,
+        "C" : 157.72440318302387,
+        "D" : 239.91090773563027
+      },
+      "baselineBPM" : 120.02713426100037,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3962200.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 144.70563335000355,
+        "C" : 144.70563335000355,
+        "D" : 220.90666062212304
+      },
+      "baselineBPM" : 110.36853702318625,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3964688.LOFI.mp3",
+      "truthBPM" : 110
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.14138410619344,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "3981797.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.62998068876729,
+        "C" : 164.62998068876729,
+        "D" : 219.47074938140685
+      },
+      "baselineBPM" : 109.98375176008868,
+      "genre" : "glitch-hop",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "3983645.LOFI.mp3",
+      "truthBPM" : 110
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 179.06071351287548,
+        "C" : 179.06071351287548,
+        "D" : 239.96807041431629
+      },
+      "baselineBPM" : 119.77515705194006,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "4014747.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 162.32636647579386,
+        "C" : 162.32636647579386,
+        "D" : 240.1197475301866
+      },
+      "baselineBPM" : 119.91394557823129,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4014749.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 125.90814615306434,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4017781.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 177.97103533278553,
+        "C" : 177.97103533278553,
+        "D" : 248.02712437518377
+      },
+      "baselineBPM" : 124.31857550821027,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4017892.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 166.94772382397574,
+        "C" : 166.94772382397574,
+        "D" : 223.72967006307616
+      },
+      "baselineBPM" : 112.03882266155208,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "4017909.LOFI.mp3",
+      "truthBPM" : 112
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 155.93591370264014,
+        "C" : 155.93591370264014,
+        "D" : 244.06973566308244
+      },
+      "baselineBPM" : 122.1932895909524,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4018082.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 243.62158073105786
+      },
+      "baselineBPM" : 123.09501483954739,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4018083.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 165.57630766592351,
+        "C" : 165.57630766592351,
+        "D" : 243.75723434535107
+      },
+      "baselineBPM" : 121.80054754172646,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4018084.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.14075404440544,
+        "C" : 160.14075404440544,
+        "D" : 243.83431839847475
+      },
+      "baselineBPM" : 121.84906835040621,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4018085.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.44992184954893,
+        "C" : 164.44992184954893,
+        "D" : 250
+      },
+      "baselineBPM" : 125.85706371700961,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4031300.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.86954898282015,
+      "genre" : "psy-trance",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4032006.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 161.60937917222964,
+        "C" : 161.60937917222964,
+        "D" : 246.29848424411648
+      },
+      "baselineBPM" : 122.95614432831233,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4035020.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 172.07067334446299,
+        "C" : 172.07067334446299,
+        "D" : 250
+      },
+      "baselineBPM" : 126.0734506503443,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4045981.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 155.75153146658209,
+        "C" : 155.75153146658209,
+        "D" : 250
+      },
+      "baselineBPM" : 125.60606660000869,
+      "genre" : "minimal",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4047428.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 139.6688288392547,
+        "C" : 139.6688288392547,
+        "D" : 210.63671713186704
+      },
+      "baselineBPM" : 187.45541196456742,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4067151.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 179.24680127838022,
+        "C" : 179.24680127838022,
+        "D" : 220
+      },
+      "baselineBPM" : 139.26897214854114,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4071447.LOFI.mp3",
+      "truthBPM" : 142
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 136.12781466453544,
+        "C" : 136.12781466453544,
+        "D" : 183.93774609340514
+      },
+      "baselineBPM" : 183.93774609340514,
+      "genre" : "psy-trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4077896.LOFI.mp3",
+      "truthBPM" : 136
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 165.02564288540157,
+        "C" : 165.02564288540157,
+        "D" : 250
+      },
+      "baselineBPM" : 126.11453338520643,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4117487.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.89126699474519,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4152109.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 210.45431664092564
+      },
+      "baselineBPM" : 104.44481506270643,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4161667.LOFI.mp3",
+      "truthBPM" : 106
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 174.34504118616147,
+        "C" : 174.34504118616147,
+        "D" : 241.01963596249311
+      },
+      "baselineBPM" : 120.96706058416761,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4162274.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.83589522406901,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4162405.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.63469633574235,
+        "C" : 164.63469633574235,
+        "D" : 248.18295107033637
+      },
+      "baselineBPM" : 124.23939268270206,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4162511.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 125.92805430910857,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4163587.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 153.95508549528302,
+        "C" : 153.95508549528302,
+        "D" : 243.77432373472951
+      },
+      "baselineBPM" : 121.63927791046292,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4166222.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 165.97257919904362,
+        "C" : 165.97257919904362,
+        "D" : 248.18231720315498
+      },
+      "baselineBPM" : 124.08935758220062,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4166612.LOFI.mp3",
+      "truthBPM" : 124
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 125.85519281980471,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4207348.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.14898894195866,
+        "C" : 160.14898894195866,
+        "D" : 246.18317603610996
+      },
+      "baselineBPM" : 122.90511955107353,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4214761.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 138.98095644748079,
+        "C" : 138.98095644748079,
+        "D" : 192
+      },
+      "baselineBPM" : 138.80248631929575,
+      "genre" : "breaks",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4226434.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 156.92462525112037,
+        "C" : 156.92462525112037,
+        "D" : 240.49188911704312
+      },
+      "baselineBPM" : 119.94208729458657,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4233696.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 161.49307414104882,
+        "C" : 161.49307414104882,
+        "D" : 250
+      },
+      "baselineBPM" : 126.4380183931569,
+      "genre" : "progressive-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4283622.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 128.42340458015266,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4300617.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.40904020752271,
+        "C" : 160.40904020752271,
+        "D" : 239.80311716230742
+      },
+      "baselineBPM" : 119.95620433151208,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4353566.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 132.23926775956284,
+        "C" : 132.23926775956284,
+        "D" : 197.37416570771001
+      },
+      "baselineBPM" : 132.26885034242733,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "1.5"
+      },
+      "trackId" : "4358231.LOFI.mp3",
+      "truthBPM" : 132
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 247.95162276575729
+      },
+      "baselineBPM" : 124.07446742341781,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4372309.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 139.33254760798886,
+        "C" : 139.33254760798886,
+        "D" : 190.35389150825014
+      },
+      "baselineBPM" : 190.35389150825014,
+      "genre" : "breaks",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4377106.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.95673752142656,
+        "C" : 168.95673752142656,
+        "D" : 250
+      },
+      "baselineBPM" : 126.04763299254896,
+      "genre" : "psy-trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4403519.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 190.35286146528284
+      },
+      "baselineBPM" : 190.35286146528284,
+      "genre" : "hardcore-hard-techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4404346.LOFI.mp3",
+      "truthBPM" : 188
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.58642398760787,
+        "C" : 168.58642398760787,
+        "D" : 250
+      },
+      "baselineBPM" : 125.07191582914572,
+      "genre" : "house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4407745.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 132.81461345065998,
+        "C" : 132.81461345065998,
+        "D" : 218.75257762155829
+      },
+      "baselineBPM" : 176.71099692889203,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4411925.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 184.74679362858868
+      },
+      "baselineBPM" : 184.74679362858868,
+      "genre" : "hardcore-hard-techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4416336.LOFI.mp3",
+      "truthBPM" : 188
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 124.98747447694306,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4416506.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 212.00785852504836
+      },
+      "baselineBPM" : 105.87696878325647,
+      "genre" : "glitch-hop",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4426890.LOFI.mp3",
+      "truthBPM" : 106
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 157.65399823607231,
+        "C" : 157.65399823607231,
+        "D" : 243.88019771071799
+      },
+      "baselineBPM" : 122.16674681322037,
+      "genre" : "house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4427618.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 171,
+        "C" : 171,
+        "D" : 250
+      },
+      "baselineBPM" : 125.77919620616976,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4442121.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 175.42480650154801,
+        "C" : 175.42480650154801,
+        "D" : 140.12244077374484
+      },
+      "baselineBPM" : 140.12244077374484,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4457771.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.50826607654257,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "2.0"
+      },
+      "trackId" : "4459187.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.51478326708309,
+        "C" : 159.51478326708309,
+        "D" : null
+      },
+      "baselineBPM" : 63.928339724717816,
+      "genre" : "glitch-hop",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "nil"
+      },
+      "trackId" : "4468729.LOFI.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 132.91760707002041,
+        "C" : 132.91760707002041,
+        "D" : 175.76205382436262
+      },
+      "baselineBPM" : 175.76205382436262,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4471292.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 177.43067623724971,
+        "C" : 177.43067623724971,
+        "D" : 240.12919566898685
+      },
+      "baselineBPM" : 119.94595623035856,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "4473065.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 173.8463514269726,
+        "C" : 173.8463514269726,
+        "D" : 173.8463514269726
+      },
+      "baselineBPM" : 87.01511446536793,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "4474029.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.10414065260926,
+        "C" : 140.10414065260926,
+        "D" : 226.36315902625711
+      },
+      "baselineBPM" : 186.07594660194175,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4486412.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 140.19681452730799
+      },
+      "baselineBPM" : 140.19681452730799,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4493439.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.16470844212358,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4494659.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 179.3411652944902,
+        "C" : 179.3411652944902,
+        "D" : 250
+      },
+      "baselineBPM" : 127.98000475511175,
+      "genre" : "minimal",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4508138.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 126.25537307325791,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4540818.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 128.3317447787451,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4543103.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 176.3607590966123,
+        "C" : 176.3607590966123,
+        "D" : 176.41811636791067
+      },
+      "baselineBPM" : 87.013212290502793,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "4549757.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 175.62749355542334,
+        "C" : 175.62749355542334,
+        "D" : 133.80920373556157
+      },
+      "baselineBPM" : 133.80920373556157,
+      "genre" : "breaks",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4559522.LOFI.mp3",
+      "truthBPM" : 134
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 167.15167071688941,
+        "C" : 167.15167071688941,
+        "D" : 244.12468950749465
+      },
+      "baselineBPM" : 121.91713534780226,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4565270.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 172.40860334071243,
+        "C" : 172.40860334071243,
+        "D" : 235.15469992790747
+      },
+      "baselineBPM" : 172.41951118475561,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4586220.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.00239053850025,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4593850.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.16840322813084,
+        "C" : 159.16840322813084,
+        "D" : 239.3872669683258
+      },
+      "baselineBPM" : 120.20396052052556,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4596215.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 228
+      },
+      "baselineBPM" : 146.72467330016582,
+      "genre" : "breaks",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4623143.LOFI.mp3",
+      "truthBPM" : 147
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 169.78722041674632,
+        "C" : 169.78722041674632,
+        "D" : 227.56016713091921
+      },
+      "baselineBPM" : 169.64607204116638,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4625875.LOFI.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 139.94826397919377,
+        "C" : 139.94826397919377,
+        "D" : 184.74766916430337
+      },
+      "baselineBPM" : 184.74766916430337,
+      "genre" : "hip-hop",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4633603.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.95476997197468,
+        "C" : 159.95476997197468,
+        "D" : 240
+      },
+      "baselineBPM" : 117.99874700434924,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4650113.LOFI.mp3",
+      "truthBPM" : 117
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 172.53953579858378,
+        "C" : 172.53953579858378,
+        "D" : 250
+      },
+      "baselineBPM" : 140.07721191195512,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4653852.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.16169061208421,
+        "C" : 168.16169061208421,
+        "D" : 250
+      },
+      "baselineBPM" : 125.84190066933344,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4671406.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 167.19940704080679,
+        "C" : 167.19940704080679,
+        "D" : 250
+      },
+      "baselineBPM" : 125.74109079696738,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4693198.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 142.30896134322532,
+        "C" : 142.30896134322532,
+        "D" : 187.92965668371073
+      },
+      "baselineBPM" : 187.92965668371073,
+      "genre" : "breaks",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4694833.LOFI.mp3",
+      "truthBPM" : 144
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 162.57989660696083,
+        "C" : 162.57989660696083,
+        "D" : 218.05104338518922
+      },
+      "baselineBPM" : 162.70203147353359,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4696505.LOFI.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 144.76850372736956,
+        "C" : 144.76850372736956,
+        "D" : 220.36941886638019
+      },
+      "baselineBPM" : 109.92377585950291,
+      "genre" : "glitch-hop",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4703149.LOFI.mp3",
+      "truthBPM" : 110
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 134.94139465875372,
+        "C" : 134.94139465875372,
+        "D" : 172.38598171910706
+      },
+      "baselineBPM" : 172.38598171910706,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4710576.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 141.06112868155762,
+        "C" : 141.06112868155762,
+        "D" : 229.60876803551608
+      },
+      "baselineBPM" : 141.06112831173425,
+      "genre" : "breaks",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4735587.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.19530399274046,
+        "C" : 168.19530399274046,
+        "D" : 250
+      },
+      "baselineBPM" : 125.01007646917148,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4743012.LOFI.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : null
+      },
+      "baselineBPM" : 127.97935519876363,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "nil"
+      },
+      "trackId" : "4749611.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 163.79066639355457,
+        "C" : 163.79066639355457,
+        "D" : 239.98246009715476
+      },
+      "baselineBPM" : 120.03460393583595,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4772658.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 128.01008391409474,
+      "genre" : "minimal",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4823611.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 149.02776032668447,
+        "C" : 149.02776032668447,
+        "D" : 187.53799082831756
+      },
+      "baselineBPM" : 187.53799082831756,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "4827287.LOFI.mp3",
+      "truthBPM" : 147
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 156.42811396873424,
+        "C" : 156.42811396873424,
+        "D" : 239.4284223247638
+      },
+      "baselineBPM" : 120.00198049194232,
+      "genre" : "deep-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4850346.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 166.34499531076818,
+        "C" : 166.34499531076818,
+        "D" : 247.80965634508681
+      },
+      "baselineBPM" : 125.07007609116849,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4853692.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 139.0749981699729,
+        "C" : 139.0749981699729,
+        "D" : 164
+      },
+      "baselineBPM" : 80.049968965369629,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "4860099.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.14749290444655,
+        "C" : 164.14749290444655,
+        "D" : 220.16693422083006
+      },
+      "baselineBPM" : 109.5896328817897,
+      "genre" : "glitch-hop",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "4863146.LOFI.mp3",
+      "truthBPM" : 110
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 151.93935720909212,
+        "C" : 151.93935720909212,
+        "D" : 240.69523116715163
+      },
+      "baselineBPM" : 119.39109748978402,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4875475.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 172.27607292289301,
+        "C" : 172.27607292289301,
+        "D" : 234
+      },
+      "baselineBPM" : 114.34863790103184,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "other"
+      },
+      "trackId" : "4899365.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 139.75598200801105,
+        "C" : 139.75598200801105,
+        "D" : 158.19823477493378
+      },
+      "baselineBPM" : 139.75598200801105,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "4921810.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 162.96555816262071,
+        "C" : 162.96555816262071,
+        "D" : 239.82917489576477
+      },
+      "baselineBPM" : 120.07066961465571,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "4969415.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.74603160968906,
+        "C" : 140.74603160968906,
+        "D" : 164
+      },
+      "baselineBPM" : 140.74603160968906,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "5024644.LOFI.mp3",
+      "truthBPM" : 142
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 128.29271042471044,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "5051606.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 175.40957211361123,
+        "C" : 175.40957211361123,
+        "D" : 208.08253922138292
+      },
+      "baselineBPM" : 140.19246886446885,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.5"
+      },
+      "trackId" : "5076753.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.14638120537015,
+        "C" : 160.14638120537015,
+        "D" : 245.73704891740175
+      },
+      "baselineBPM" : 123.24023612687091,
+      "genre" : "minimal",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "5102537.LOFI.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.13890036408634,
+        "C" : 160.13890036408634,
+        "D" : 240.25085933121616
+      },
+      "baselineBPM" : 119.96224479247428,
+      "genre" : "tech-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "5117279.LOFI.mp3",
+      "truthBPM" : 119
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 151.78154517985018,
+        "C" : 151.78154517985018,
+        "D" : 152.20512173722307
+      },
+      "baselineBPM" : 165.90055309734512,
+      "genre" : "dubstep",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "5137157.LOFI.mp3",
+      "truthBPM" : 153
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 140.78980364955714,
+        "C" : 140.78980364955714,
+        "D" : 220
+      },
+      "baselineBPM" : 140.78980364955714,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "5143186.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 138.43865790278204,
+        "C" : 138.43865790278204,
+        "D" : 221.45754491017965
+      },
+      "baselineBPM" : 172,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "5213896.LOFI.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 156.6882434996094,
+        "C" : 156.6882434996094,
+        "D" : 239.0517693455553
+      },
+      "baselineBPM" : 119.89114905187331,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "5214265.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 171.52646267652992,
+        "C" : 171.52646267652992,
+        "D" : 211.97843212727739
+      },
+      "baselineBPM" : 171.44141924452046,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "5214755.LOFI.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 161.21359808612439,
+        "C" : 161.21359808612439,
+        "D" : 240.2784514078111
+      },
+      "baselineBPM" : 120.20463963780234,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "5237462.LOFI.mp3",
+      "truthBPM" : 121
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.44722218904735,
+        "C" : 164.44722218904735,
+        "D" : 250
+      },
+      "baselineBPM" : 125.84511867235305,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "5268098.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 168.65086735946321,
+        "C" : 168.65086735946321,
+        "D" : 168.65087077136471
+      },
+      "baselineBPM" : 83.12023518361805,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "5355157.LOFI.mp3",
+      "truthBPM" : 167
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : null
+      },
+      "baselineBPM" : 128.56422741734679,
+      "genre" : "electro-house",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "nil"
+      },
+      "trackId" : "5377710.LOFI.mp3",
+      "truthBPM" : 129
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 125.95345488421613,
+      "genre" : "minimal",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "5406759.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 172.42636925270287,
+        "C" : 172.42636925270287,
+        "D" : 222.60189143341813
+      },
+      "baselineBPM" : 172.42636925270287,
+      "genre" : "hardcore-hard-techno",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "547692.LOFI.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.24721911459164,
+        "C" : 168.24721911459164,
+        "D" : 250
+      },
+      "baselineBPM" : 125.87743306933579,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "633082.LOFI.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 155.28747745247676,
+        "C" : 155.28747745247676,
+        "D" : 234.24606145251394
+      },
+      "baselineBPM" : 155.06055525989001,
+      "genre" : "hardcore-hard-techno",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "1.5"
+      },
+      "trackId" : "710469.LOFI.mp3",
+      "truthBPM" : 156
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 132.82378990731206,
+        "C" : 132.82378990731206,
+        "D" : 132.82378990731206
+      },
+      "baselineBPM" : 174.98468259453057,
+      "genre" : "electronica",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "750132.LOFI.mp3",
+      "truthBPM" : 132
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 140.06317822727667,
+        "C" : 140.06317822727667,
+        "D" : 140.06317822727667
+      },
+      "baselineBPM" : 160.52868471135545,
+      "genre" : "trance",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "825292.LOFI.mp3",
+      "truthBPM" : 139
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 250
+      },
+      "baselineBPM" : 127.13903050466239,
+      "genre" : "techno",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "956606.LOFI.mp3",
+      "truthBPM" : 127
+    }
+  ],
+  "corpus" : "giantsteps",
+  "coverage" : {
+    "groundTruthEntries" : 661,
+    "missingFromDisk" : 0,
+    "resolvedOnDisk" : 661
+  },
+  "dnbGenreLabel" : "drum-and-bass",
+  "gitSHA" : "416e867",
+  "maxSeconds" : 120,
+  "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
+  "requestedPrior" : {
+    "maxBPM" : 180,
+    "minBPM" : 130
+  },
+  "tolerance" : 0.02,
+  "wallClockSeconds" : 60.26698100566864
+}

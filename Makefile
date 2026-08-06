@@ -253,6 +253,7 @@ smc-prior-replication:
 	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
 	SMC_PRIOR_REPLICATION=1 \
 	SMC_PRIOR_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	$(if $(SMC_PRIOR_BOUNDS),SMC_PRIOR_BOUNDS="$(SMC_PRIOR_BOUNDS)",) \

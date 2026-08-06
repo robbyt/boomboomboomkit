@@ -713,8 +713,11 @@ struct SMCPriorReplicationTests {
 
   // MARK: - Runner
 
-  private static func run(
-    corpus: String, tracks: [ReplicationTrack], gitSHA: String
+  fileprivate static func run(
+    corpus: String, tracks: [ReplicationTrack], gitSHA: String,
+    nonDnbReportable: Bool = true,
+    nonDnbUnreportableReason: String? = nil,
+    truthCaveat: String? = nil
   ) async throws {
     let bounds = priorBounds
     let arms = ReplicationArm.matrix(min: bounds.min, max: bounds.max)
@@ -837,6 +840,11 @@ struct SMCPriorReplicationTests {
       },
       "changedTracks": changed,
       "casualties": casualties,
+      // A corpus whose complement is not a labelled non-DnB set says so in the artifact,
+      // so its non-DnB column is never read as comparable to the other corpora.
+      "nonDnbReportable": nonDnbReportable,
+      "nonDnbUnreportableReason": nonDnbUnreportableReason as Any,
+      "truthCaveat": truthCaveat as Any,
     ]
     let out = URL(fileURLWithPath: dir)
       .appendingPathComponent("12-2-smc-prior-replication-\(corpus).json")
@@ -895,5 +903,134 @@ struct SMCPriorReplicationTests {
     }
     if let parsed = Int(raw), (1...128).contains(parsed) { return parsed }
     return defaultCap
+  }
+}
+
+// MARK: - Tony corpus (Rekordbox) — DnB slice only
+
+//
+//  A third, independent read on the same question, added on operator prompt.
+//
+//  Tony's Rekordbox collection carries free-text `Genre` in the XML export, surfaced by
+//  `make tony-survey` into `tony-corpus/tony-survey.json`, with `bpm_truth` alongside in
+//  `tony-truth-labels.json`. Joining on `local_path` gives 1509 rows carrying truth.
+//
+//  MEMBERSHIP IS DERIVED FROM THE PATH, NOT THE XML `Genre` TAG. The tag is nearly
+//  useless here: 1520 of 1721 survey rows carry an EMPTY genre string, and tag-matching
+//  yields only 115 tracks. The collection is instead filed on disk by genre, so
+//  `local_path` containing "drum and bass" identifies 901 rows, 884 of which carry
+//  `bpm_truth` and resolve on disk. That is a larger DnB slice than OA300 (67) and
+//  GiantSteps (139) combined, and it is the sharpest available read.
+//
+//  WHY THIS CORPUS IS DnB-ONLY, and must not be read as a whole-corpus arm: the
+//  complement of the DnB directories is not a labelled non-DnB set. It is a mix of other
+//  genre directories and unfiled material, and the empty-tag rate means it cannot be
+//  partitioned reliably. Reporting a "non-DnB cost" from it would be measuring filing
+//  habits, not genre, so the artifact records `nonDnbReportable: false` with the reason
+//  rather than emitting a number that reads comparable to the OA300 and GiantSteps
+//  non-DnB columns and is not.
+//
+//  SCOPE NOTE: the full collection is larger than this. `non-rekordbox-survey.json`
+//  covers roughly 4,700 further files outside the Rekordbox `<COLLECTION>`, which is
+//  where the rest of the DnB material lives. Those tracks are deliberately NOT used
+//  here: Story 7.2 tiered them precisely because they have no Rekordbox-validated BPM,
+//  and this experiment needs trustworthy truth rather than volume. 884 is the count with
+//  validated truth, not the count of DnB tracks the operator owns.
+//
+//  CAVEAT ON THE TRUTH, carried into the artifact: `bpm_truth` snaps to the Rekordbox
+//  value, which is Tony's validated truth but is itself a metrical-level CONVENTION. If
+//  Rekordbox reports the fast octave for half-time material, then "truth inside
+//  130...180" partly reflects the labelling convention rather than the music, which is
+//  exactly the ambiguity Story 12.6 exists to settle. Casualty counts from this corpus
+//  are a lower bound.
+//
+//  Gated by `SMC_PRIOR_REPLICATION=1` plus `TONY_AUDIO_ROOT`.
+//
+
+private struct TonySurveyRow: Decodable {
+  let localPath: String?
+  let genre: String?
+  enum CodingKeys: String, CodingKey {
+    case localPath = "local_path"
+    case genre
+  }
+}
+
+private struct TonyLabelRow: Decodable {
+  let localPath: String?
+  let bpmTruth: Double?
+  enum CodingKeys: String, CodingKey {
+    case localPath = "local_path"
+    case bpmTruth = "bpm_truth"
+  }
+}
+
+extension SMCPriorReplicationTests {
+
+  /// DnB membership, derived from the on-disk filing rather than the XML tag. See the
+  /// note above: the tag is empty on 88% of rows, the directory structure is not.
+  fileprivate static func isTonyDnB(path: String, genre: String) -> Bool {
+    if path.lowercased().contains("drum and bass") { return true }
+    // The sparse tag is kept as a secondary signal so a correctly-tagged track filed
+    // outside the DnB directories still counts.
+    let tag = genre.lowercased()
+    if tag == "dnb" { return true }
+    return tag.contains("drum") && tag.contains("bass")
+  }
+
+  @Test("Tony Rekordbox corpus — four arms, DnB slice", .timeLimit(.minutes(60)))
+  func tonyReplication() async throws {
+    guard ProcessInfo.processInfo.environment["SMC_PRIOR_REPLICATION"] == "1" else { return }
+    let sha = try Self.preflightGitSHA()
+    _ = try Self.preflightCorpus("TONY_AUDIO_ROOT")
+
+    let corpusDir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+      .appendingPathComponent("_bmad-output/ml-training/tony-corpus")
+    let surveyURL = corpusDir.appendingPathComponent("tony-survey.json")
+    let labelsURL = corpusDir.appendingPathComponent("tony-truth-labels.json")
+    for url in [surveyURL, labelsURL] where !FileManager.default.fileExists(atPath: url.path) {
+      throw ReplicationError.groundTruthNotFound(
+        "\(url.path) (run `make tony-corpus` first)")
+    }
+
+    let decoder = JSONDecoder()
+    let survey = try decoder.decode(
+      [TonySurveyRow].self, from: Data(contentsOf: surveyURL))
+    let labels = try decoder.decode(
+      [TonyLabelRow].self, from: Data(contentsOf: labelsURL))
+
+    var genreByPath: [String: String] = [:]
+    for row in survey {
+      guard let path = row.localPath else { continue }
+      genreByPath[path] = row.genre ?? ""
+    }
+
+    let tracks = labels.compactMap { row -> ReplicationTrack? in
+      guard let path = row.localPath, let truth = row.bpmTruth,
+        Self.isTonyDnB(path: path, genre: genreByPath[path] ?? "")
+      else { return nil }
+      // basename, not the absolute path: the artifact is develop-only but there is no
+      // reason to bake the operator's home directory into it.
+      return ReplicationTrack(
+        id: (path as NSString).lastPathComponent,
+        genre: "drum-and-bass",
+        truthBPM: truth,
+        url: URL(fileURLWithPath: path))
+    }
+
+    print("\nTony corpus: \(survey.count) survey rows, \(labels.count) label rows")
+    print("DnB-labelled with truth: \(tracks.count)   (non-DnB slice NOT reportable)")
+
+    try await Self.run(
+      corpus: "tony", tracks: tracks, gitSHA: sha,
+      nonDnbReportable: false,
+      nonDnbUnreportableReason:
+        "1520 of 1721 Rekordbox survey rows carry an empty genre string, so the "
+        + "complement of the DnB slice is unlabelled material rather than labelled "
+        + "non-DnB and would be seeded with unlabelled DnB",
+      truthCaveat:
+        "bpm_truth snaps to the Rekordbox value, which is a metrical-level convention; "
+        + "if Rekordbox reports the fast octave for half-time material then casualty "
+        + "counts from this corpus are a lower bound (see Story 12.6)")
   }
 }
