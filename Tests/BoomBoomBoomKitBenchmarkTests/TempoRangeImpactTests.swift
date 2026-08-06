@@ -523,6 +523,12 @@ private struct ReplicationTrack: Sendable {
   let id: String
   let genre: String
   let truthBPM: Double
+  /// The corpus's SECOND annotation, where it has one. GiantSteps ground truth v2
+  /// carries `tempo2` on 577 of 661 rows, 303 of them exactly half `bpm` and 58 exactly
+  /// double. `GiantStepsBenchmarkTests` counts a hit against either value, which is what
+  /// the committed 537/546 floor measures. OA300 and Tony have no second annotation, so
+  /// for them the two metrics coincide.
+  let altTruthBPM: Double?
   let url: URL
 }
 
@@ -583,8 +589,14 @@ private struct ReplicationArm: Sendable {
 private struct ReplicationRow: Sendable {
   let track: ReplicationTrack
   let bpm: [Double?]
+  /// Octave-STRICT: scored against `truthBPM` alone.
   let acc1: [Bool]
   let acc2: [Bool]
+  /// FLOOR-COMPATIBLE: scored against `truthBPM` or `altTruthBPM`, which is what the
+  /// committed corpus benchmark asserts. Identical to the strict columns wherever the
+  /// corpus has no second annotation.
+  let acc1Floor: [Bool]
+  let acc2Floor: [Bool]
 
   var isDnB: Bool { track.genre == "drum-and-bass" }
 
@@ -603,6 +615,8 @@ private struct ReplicationTally: Sendable {
   var n = 0
   var acc1 = 0
   var acc2 = 0
+  var acc1Floor = 0
+  var acc2Floor = 0
   var nils = 0
 
   init(rows: [ReplicationRow], arm index: Int) {
@@ -611,10 +625,23 @@ private struct ReplicationTally: Sendable {
       if row.bpm[index] == nil { nils += 1 }
       if row.acc1[index] { acc1 += 1 }
       if row.acc2[index] { acc2 += 1 }
+      if row.acc1Floor[index] { acc1Floor += 1 }
+      if row.acc2Floor[index] { acc2Floor += 1 }
     }
   }
 
-  var json: [String: Any] { ["n": n, "acc1": acc1, "acc2": acc2, "nils": nils] }
+  var json: [String: Any] {
+    [
+      "n": n,
+      // Octave-strict, scored against the primary annotation alone. This is the
+      // instrument for an octave experiment.
+      "acc1": acc1, "acc2": acc2,
+      // Floor-compatible, scored the way the committed corpus benchmark scores. Equal
+      // to the strict columns wherever the corpus has no second annotation.
+      "acc1Floor": acc1Floor, "acc2Floor": acc2Floor,
+      "nils": nils,
+    ]
+  }
 }
 
 private enum ReplicationError: Error {
@@ -683,9 +710,12 @@ struct SMCPriorReplicationTests {
       if let subdir = track.subdir { fileURL.appendPathComponent(subdir) }
       fileURL.appendPathComponent(track.filename)
       return ReplicationTrack(
-        id: track.filename, genre: track.genre, truthBPM: track.bpm, url: fileURL)
+        id: track.filename, genre: track.genre, truthBPM: track.bpm, altTruthBPM: nil,
+        url: fileURL)
     }
-    try await Self.run(corpus: "oa300", tracks: tracks, gitSHA: sha)
+    // Committed OA300 measurement (CLAUDE.md; floors are 57/73).
+    try await Self.run(
+      corpus: "oa300", tracks: tracks, gitSHA: sha, floorReference: (acc1: 58, acc2: 74))
   }
 
   @Test("GiantSteps — four arms", .timeLimit(.minutes(60)))
@@ -704,17 +734,21 @@ struct SMCPriorReplicationTests {
     let tracks = corpus.map { track in
       ReplicationTrack(
         id: track.filename, genre: track.genre, truthBPM: track.bpm,
+        altTruthBPM: track.tempo2,
         url: URL(fileURLWithPath: corpusPath)
           .appendingPathComponent("audio")
           .appendingPathComponent(track.filename))
     }
-    try await Self.run(corpus: "giantsteps", tracks: tracks, gitSHA: sha)
+    // Committed GiantSteps measurement, which sits exactly on its floor.
+    try await Self.run(
+      corpus: "giantsteps", tracks: tracks, gitSHA: sha, floorReference: (acc1: 537, acc2: 546))
   }
 
   // MARK: - Runner
 
   fileprivate static func run(
     corpus: String, tracks: [ReplicationTrack], gitSHA: String,
+    floorReference: (acc1: Int, acc2: Int)? = nil,
     nonDnbReportable: Bool = true,
     nonDnbUnreportableReason: String? = nil,
     truthCaveat: String? = nil
@@ -742,6 +776,8 @@ struct SMCPriorReplicationTests {
       var bpms: [Double?] = []
       var acc1: [Bool] = []
       var acc2: [Bool] = []
+      var acc1Floor: [Bool] = []
+      var acc2Floor: [Bool] = []
       for arm in arms {
         var options = AudioAnalysisService.Options()
         options.maxSeconds = maxSeconds
@@ -751,11 +787,28 @@ struct SMCPriorReplicationTests {
         let bpm = result?.bpm
         bpms.append(bpm)
         let hit1 = bpm.map { isAcc1Match($0, track.truthBPM, tolerance: tolerance) } ?? false
+        let hit2 =
+          hit1 || (bpm.map { isAcc2Match($0, track.truthBPM, tolerance: tolerance) } ?? false)
         acc1.append(hit1)
-        acc2.append(
-          hit1 || (bpm.map { isAcc2Match($0, track.truthBPM, tolerance: tolerance) } ?? false))
+        acc2.append(hit2)
+        // Floor-compatible scoring, mirroring `GiantStepsBenchmarkTests.isHit`: a match
+        // against EITHER annotation counts. Without this the harness measures a
+        // stricter metric than the committed floor and its baseline reads as a 71-track
+        // regression that does not exist.
+        let alt1 =
+          bpm.flatMap { detected in
+            track.altTruthBPM.map { isAcc1Match(detected, $0, tolerance: tolerance) }
+          } ?? false
+        let alt2 =
+          bpm.flatMap { detected in
+            track.altTruthBPM.map { isAcc2Match(detected, $0, tolerance: tolerance) }
+          } ?? false
+        acc1Floor.append(hit1 || alt1)
+        acc2Floor.append(hit2 || alt1 || alt2)
       }
-      return ReplicationRow(track: track, bpm: bpms, acc1: acc1, acc2: acc2)
+      return ReplicationRow(
+        track: track, bpm: bpms, acc1: acc1, acc2: acc2, acc1Floor: acc1Floor,
+        acc2Floor: acc2Floor)
     }
     let elapsed = Date().timeIntervalSince(started)
 
@@ -771,6 +824,28 @@ struct SMCPriorReplicationTests {
         nonNil + tally.nils + missingFromDisk == tracks.count,
         "Arm \(arm.id) accounting broken: analyzed \(nonNil) + nils \(tally.nils) + missing \(missingFromDisk) != ground truth \(tracks.count)"
       )
+    }
+
+    // Reconciliation against the committed corpus benchmark. Arm A is shipped defaults,
+    // so scored the way that benchmark scores, it must reproduce its number exactly. This
+    // gate exists because the first run of this harness scored octave-strict and its
+    // baseline read 71 tracks below the GiantSteps floor, which is indistinguishable from
+    // a real regression until someone checks. Never let that ambiguity ship again.
+    if let floorReference {
+      let armA = ReplicationTally(rows: rows, arm: 0)
+      print(
+        "\nFloor reconciliation: arm A floor-compatible "
+          + "Acc1 \(armA.acc1Floor) (expect \(floorReference.acc1)), "
+          + "Acc2 \(armA.acc2Floor) (expect \(floorReference.acc2))")
+      #expect(
+        armA.acc1Floor == floorReference.acc1 && armA.acc2Floor == floorReference.acc2,
+        "Arm A does not reproduce the committed \(corpus) benchmark: got Acc1 \(armA.acc1Floor)/Acc2 \(armA.acc2Floor), expected \(floorReference.acc1)/\(floorReference.acc2). Either the harness diverges from the corpus benchmark or the default path regressed."
+      )
+      if armA.acc1 != armA.acc1Floor {
+        print(
+          "  octave-strict arm A Acc1 \(armA.acc1) is \(armA.acc1Floor - armA.acc1) below "
+            + "floor-compatible; that gap is the corpus's second annotation, not a regression")
+      }
     }
 
     printTable(arms: arms, rows: rows, dnb: dnb, nonDnb: nonDnb)
@@ -842,6 +917,12 @@ struct SMCPriorReplicationTests {
       "casualties": casualties,
       // A corpus whose complement is not a labelled non-DnB set says so in the artifact,
       // so its non-DnB column is never read as comparable to the other corpora.
+      "metricNote":
+        "acc1/acc2 are octave-STRICT, scored against the primary annotation alone. "
+        + "acc1Floor/acc2Floor add the corpus's second annotation and reproduce the "
+        + "committed benchmark. They differ only on GiantSteps, which carries tempo2 on "
+        + "577 of 661 rows, 303 of them exactly half the primary value.",
+      "floorReference": floorReference.map { ["acc1": $0.acc1, "acc2": $0.acc2] } as Any,
       "nonDnbReportable": nonDnbReportable,
       "nonDnbUnreportableReason": nonDnbUnreportableReason as Any,
       "truthCaveat": truthCaveat as Any,
@@ -873,7 +954,9 @@ struct SMCPriorReplicationTests {
             + (index == 0 ? "        " : String(format: " (%+d)  ", tally.acc1 - base.acc1))
             + String(format: "  %4d", tally.acc2)
             + (index == 0 ? "        " : String(format: " (%+d)  ", tally.acc2 - base.acc2))
-            + String(format: "  %4d", tally.nils))
+            + String(format: "  %4d", tally.nils)
+            + (tally.acc1Floor == tally.acc1
+              ? "" : String(format: "   [floor %d/%d]", tally.acc1Floor, tally.acc2Floor)))
       }
     }
   }
@@ -1042,6 +1125,7 @@ extension SMCPriorReplicationTests {
         id: (path as NSString).lastPathComponent,
         genre: "drum-and-bass",
         truthBPM: truth,
+        altTruthBPM: nil,
         url: URL(fileURLWithPath: path))
     }
 
