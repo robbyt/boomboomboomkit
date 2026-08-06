@@ -799,18 +799,25 @@
     "acc1" : 58,
     "acc2" : 74
   },
-  "gitSHA" : "bdeee3d",
+  "gitSHA" : "7474bd3",
+  "inputProvenance" : [
+    {
+      "basename" : "oa300-ground-truth.json",
+      "sha256" : "df6686952d3692bcb34cc78c847b375ac0e8e143f76a4e1c07af9b9cae332b59"
+    }
+  ],
   "labelProvenance" : null,
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
-  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows, 303 of them exactly half the primary value.",
+  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows -- 303 of them WITHIN THE 2% SCORING TOLERANCE of half the primary value, though only 100 at literal equality. See tempo2Stats.",
   "nonDnbReportable" : true,
   "nonDnbUnreportableReason" : null,
   "requestedPrior" : {
     "maxBPM" : 180,
     "minBPM" : 130
   },
+  "tempo2Stats" : null,
   "tolerance" : 0.02,
   "truthCaveat" : null,
-  "wallClockSeconds" : 14.115606904029846
+  "wallClockSeconds" : 13.280624985694885
 }

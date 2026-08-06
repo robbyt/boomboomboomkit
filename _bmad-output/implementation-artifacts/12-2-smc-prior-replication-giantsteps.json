@@ -5045,18 +5045,42 @@
     "acc1" : 537,
     "acc2" : 546
   },
-  "gitSHA" : "bdeee3d",
+  "gitSHA" : "7474bd3",
+  "inputProvenance" : [
+    {
+      "basename" : "giantsteps-tempo-ground-truth.json",
+      "sha256" : "3dc6f3759f9a67398130b3ee8c86996f9d8bd312262b300bed05f329bc8ccf13"
+    }
+  ],
   "labelProvenance" : null,
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
-  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows, 303 of them exactly half the primary value.",
+  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows -- 303 of them WITHIN THE 2% SCORING TOLERANCE of half the primary value, though only 100 at literal equality. See tempo2Stats.",
   "nonDnbReportable" : true,
   "nonDnbUnreportableReason" : null,
   "requestedPrior" : {
     "maxBPM" : 180,
     "minBPM" : 130
   },
+  "tempo2Stats" : {
+    "field" : "tempo2",
+    "formulas" : {
+      "literalDouble" : "abs(alt \/ 2 - primary) < literalEpsilon",
+      "literalHalf" : "abs(alt * 2 - primary) < literalEpsilon",
+      "toleranceDouble" : "abs(alt \/ 2 - primary) <= scoringTolerance * primary",
+      "toleranceHalf" : "abs(alt * 2 - primary) <= scoringTolerance * primary"
+    },
+    "groundTruthRows" : 661,
+    "literalDouble" : 23,
+    "literalEpsilon" : 9.9999999999999995e-07,
+    "literalHalf" : 100,
+    "note" : "The tolerant pair is operative because the shared MIREX matcher decides hits at this tolerance. It is NOT label identity: a row counted here as half may differ from exactly half by up to the tolerance. Their sum is how many rows carry an octave-related alternative, NOT how many the floor metric actually rescues -- for that, compare arm A's acc1 against acc1Floor.",
+    "present" : 577,
+    "scoringTolerance" : 0.02,
+    "toleranceDouble" : 58,
+    "toleranceHalf" : 303
+  },
   "tolerance" : 0.02,
   "truthCaveat" : null,
-  "wallClockSeconds" : 116.82804596424103
+  "wallClockSeconds" : 96.883598923683167
 }

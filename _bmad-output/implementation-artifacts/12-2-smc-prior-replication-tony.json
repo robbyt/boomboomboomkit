@@ -3943,7 +3943,17 @@
   },
   "dnbGenreLabel" : "drum-and-bass",
   "floorReference" : null,
-  "gitSHA" : "bdeee3d",
+  "gitSHA" : "7474bd3",
+  "inputProvenance" : [
+    {
+      "basename" : "tony-survey.json",
+      "sha256" : "55b283ce5238dfb99b505e286a2b39cc18ef44bb65b861847fe2e26d2b13ca01"
+    },
+    {
+      "basename" : "tony-truth-labels.json",
+      "sha256" : "b33b836acd404e91b7eb76050fb9cce64c62c41fd87ac76244531e8f13d07962"
+    }
+  ],
   "labelProvenance" : {
     "distinctFiles" : 848,
     "duplicatePathRowsDropped" : 35,
@@ -3957,14 +3967,15 @@
   },
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
-  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows, 303 of them exactly half the primary value.",
+  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows -- 303 of them WITHIN THE 2% SCORING TOLERANCE of half the primary value, though only 100 at literal equality. See tempo2Stats.",
   "nonDnbReportable" : false,
   "nonDnbUnreportableReason" : "1520 of 1721 Rekordbox survey rows carry an empty genre string, so the complement of the DnB slice is unlabelled material rather than labelled non-DnB and would be seeded with unlabelled DnB",
   "requestedPrior" : {
     "maxBPM" : 180,
     "minBPM" : 130
   },
+  "tempo2Stats" : null,
   "tolerance" : 0.02,
   "truthCaveat" : "bpm_truth snaps to the Rekordbox value, which is a metrical-level convention; if Rekordbox reports the fast octave for half-time material then casualty counts from this corpus are a lower bound (see Story 12.6)",
-  "wallClockSeconds" : 136.47937905788422
+  "wallClockSeconds" : 114.4829089641571
 }
