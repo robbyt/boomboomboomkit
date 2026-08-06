@@ -15,7 +15,7 @@ so that the detector stops reporting 140 for a 70 BPM track without my having to
 
 **Covers:** FR-53 (tempo search range consumer-specifiable), FR-55 (per-band and per-genre measurement against the `AccuracyFloorTests` fixtures).
 
-**Explicitly NOT in this story:** FR-54 / FR-54a, the style-conditioned prior. Its classifier is an unscoped second model the PRD does not build; Story 12.2 decides whether it is scoped, deferred, or rejected. Do not add style conditioning here.
+**Explicitly NOT in this story:** FR-54 / FR-54a, the style-conditioned prior. Its classifier is an unscoped second model the PRD does not build; ~~Story 12.2 decides whether it is scoped, deferred, or rejected~~ **RESOLVED 2026-08-05 by Story 12.2: rejected.** This project does not build a style classifier. Decision artifact: `_bmad-output/implementation-artifacts/12-2-style-classifier-decision.md`. The constraint on this story is unchanged; only its tense is. Note what 12.2 did **not** decide: FR-53's caller-declared tempo bounds, shipped here, are an alternative octave mechanism, not the caller-declared-*style* option PRD §14 Q5 names. Do not add style conditioning here.
 
 ## Key Design Decisions
 
