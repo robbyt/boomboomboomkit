@@ -799,7 +799,8 @@
     "acc1" : 58,
     "acc2" : 74
   },
-  "gitSHA" : "d6dd8a2",
+  "gitSHA" : "bdeee3d",
+  "labelProvenance" : null,
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
   "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows, 303 of them exactly half the primary value.",
@@ -811,5 +812,5 @@
   },
   "tolerance" : 0.02,
   "truthCaveat" : null,
-  "wallClockSeconds" : 19.01469898223877
+  "wallClockSeconds" : 14.115606904029846
 }

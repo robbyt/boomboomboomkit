@@ -2,19 +2,19 @@
   "arms" : [
     {
       "all" : {
-        "acc1" : 743,
-        "acc1Floor" : 743,
-        "acc2" : 782,
-        "acc2Floor" : 782,
-        "n" : 883,
+        "acc1" : 713,
+        "acc1Floor" : 713,
+        "acc2" : 751,
+        "acc2Floor" : 751,
+        "n" : 848,
         "nils" : 0
       },
       "dnb" : {
-        "acc1" : 743,
-        "acc1Floor" : 743,
-        "acc2" : 782,
-        "acc2Floor" : 782,
-        "n" : 883,
+        "acc1" : 713,
+        "acc1Floor" : 713,
+        "acc2" : 751,
+        "acc2Floor" : 751,
+        "n" : 848,
         "nils" : 0
       },
       "effectivePerceptualWindow" : {
@@ -39,19 +39,19 @@
     },
     {
       "all" : {
-        "acc1" : 791,
-        "acc1Floor" : 791,
-        "acc2" : 791,
-        "acc2Floor" : 791,
-        "n" : 883,
+        "acc1" : 757,
+        "acc1Floor" : 757,
+        "acc2" : 757,
+        "acc2Floor" : 757,
+        "n" : 848,
         "nils" : 0
       },
       "dnb" : {
-        "acc1" : 791,
-        "acc1Floor" : 791,
-        "acc2" : 791,
-        "acc2Floor" : 791,
-        "n" : 883,
+        "acc1" : 757,
+        "acc1Floor" : 757,
+        "acc2" : 757,
+        "acc2Floor" : 757,
+        "n" : 848,
         "nils" : 0
       },
       "effectivePerceptualWindow" : {
@@ -80,19 +80,19 @@
     },
     {
       "all" : {
-        "acc1" : 791,
-        "acc1Floor" : 791,
-        "acc2" : 791,
-        "acc2Floor" : 791,
-        "n" : 883,
+        "acc1" : 757,
+        "acc1Floor" : 757,
+        "acc2" : 757,
+        "acc2Floor" : 757,
+        "n" : 848,
         "nils" : 0
       },
       "dnb" : {
-        "acc1" : 791,
-        "acc1Floor" : 791,
-        "acc2" : 791,
-        "acc2Floor" : 791,
-        "n" : 883,
+        "acc1" : 757,
+        "acc1Floor" : 757,
+        "acc2" : 757,
+        "acc2Floor" : 757,
+        "n" : 848,
         "nils" : 0
       },
       "effectivePerceptualWindow" : {
@@ -125,19 +125,19 @@
     },
     {
       "all" : {
-        "acc1" : 723,
-        "acc1Floor" : 723,
-        "acc2" : 726,
-        "acc2Floor" : 726,
-        "n" : 883,
+        "acc1" : 693,
+        "acc1Floor" : 693,
+        "acc2" : 696,
+        "acc2Floor" : 696,
+        "n" : 848,
         "nils" : 2
       },
       "dnb" : {
-        "acc1" : 723,
-        "acc1Floor" : 723,
-        "acc2" : 726,
-        "acc2Floor" : 726,
-        "n" : 883,
+        "acc1" : 693,
+        "acc1Floor" : 693,
+        "acc2" : 696,
+        "acc2Floor" : 696,
+        "n" : 848,
         "nils" : 2
       },
       "effectivePerceptualWindow" : {
@@ -837,50 +837,6 @@
         "A" : false,
         "B" : true,
         "C" : true,
-        "D" : true
-      },
-      "armBPMs" : {
-        "B" : 138.11061504639687,
-        "C" : 138.11061504639687,
-        "D" : 138.13215648463463
-      },
-      "baselineBPM" : 69.912363559717562,
-      "genre" : "drum-and-bass",
-      "ratioClass" : {
-        "B" : "2.0",
-        "C" : "2.0",
-        "D" : "2.0"
-      },
-      "trackId" : "Coco Bryce - Daktari EP - 03 Change Of Heart (Sam Binga's Slow Mix).mp3",
-      "truthBPM" : 140
-    },
-    {
-      "acc1" : {
-        "A" : false,
-        "B" : true,
-        "C" : true,
-        "D" : false
-      },
-      "armBPMs" : {
-        "B" : 164.44760254613999,
-        "C" : 164.44760254613999,
-        "D" : 216
-      },
-      "baselineBPM" : 109.36023563455974,
-      "genre" : "drum-and-bass",
-      "ratioClass" : {
-        "B" : "1.5",
-        "C" : "1.5",
-        "D" : "2.0"
-      },
-      "trackId" : "ADMM66D3 - Concept 2 - Soon Come.mp3",
-      "truthBPM" : 165.02000000000001
-    },
-    {
-      "acc1" : {
-        "A" : false,
-        "B" : true,
-        "C" : true,
         "D" : false
       },
       "armBPMs" : {
@@ -984,28 +940,6 @@
         "D" : "1.0"
       },
       "trackId" : "Dead Man's Chest - Trilogy Dubs Vol. 1 - 02 Rinsa.mp3",
-      "truthBPM" : 157
-    },
-    {
-      "acc1" : {
-        "A" : false,
-        "B" : true,
-        "C" : true,
-        "D" : false
-      },
-      "armBPMs" : {
-        "B" : 156.92044064937804,
-        "C" : 156.92044064937804,
-        "D" : 198.04515669515669
-      },
-      "baselineBPM" : 198.04515669515669,
-      "genre" : "drum-and-bass",
-      "ratioClass" : {
-        "B" : "other",
-        "C" : "other",
-        "D" : "1.0"
-      },
-      "trackId" : "Dead Man's Chest - Trilogy Dubs Vol. 1 - 01 Tears (Fantazia Version).mp3",
       "truthBPM" : 157
     },
     {
@@ -1161,28 +1095,6 @@
       },
       "trackId" : "Donato Dozzy - The Tao - 04 Tao.mp3",
       "truthBPM" : 170
-    },
-    {
-      "acc1" : {
-        "A" : true,
-        "B" : true,
-        "C" : true,
-        "D" : false
-      },
-      "armBPMs" : {
-        "B" : 164.44955909974047,
-        "C" : 164.44955909974047,
-        "D" : 219.61996708721887
-      },
-      "baselineBPM" : 164.44955901841612,
-      "genre" : "drum-and-bass",
-      "ratioClass" : {
-        "B" : "1.0",
-        "C" : "1.0",
-        "D" : "other"
-      },
-      "trackId" : "Dwarde & Tim Reaper - Dwarde & Tim Reaper - Aquatics - Holding On - Realisation - Ghost Mutt - 03 Realisation.mp3",
-      "truthBPM" : 165
     },
     {
       "acc1" : {
@@ -3100,28 +3012,6 @@
     },
     {
       "acc1" : {
-        "A" : true,
-        "B" : false,
-        "C" : false,
-        "D" : true
-      },
-      "armBPMs" : {
-        "B" : 179.8210635579687,
-        "C" : 179.8210635579687,
-        "D" : 161.38966605579313
-      },
-      "baselineBPM" : 161.38966605579313,
-      "genre" : "drum-and-bass",
-      "ratioClass" : {
-        "B" : "other",
-        "C" : "other",
-        "D" : "1.0"
-      },
-      "trackId" : "Sully - Flock - 03 Crystal Cuts.mp3",
-      "truthBPM" : 160
-    },
-    {
-      "acc1" : {
         "A" : false,
         "B" : true,
         "C" : true,
@@ -3141,50 +3031,6 @@
       },
       "trackId" : "Sully - Flock - 01 Flock.mp3",
       "truthBPM" : 160
-    },
-    {
-      "acc1" : {
-        "A" : false,
-        "B" : true,
-        "C" : true,
-        "D" : false
-      },
-      "armBPMs" : {
-        "B" : 161.59255704454907,
-        "C" : 161.59255704454907,
-        "D" : 214.71473312748125
-      },
-      "baselineBPM" : 106.61759887145473,
-      "genre" : "drum-and-bass",
-      "ratioClass" : {
-        "B" : "1.5",
-        "C" : "1.5",
-        "D" : "2.0"
-      },
-      "trackId" : "Sully - Flock - 01 Flock.mp3",
-      "truthBPM" : 160
-    },
-    {
-      "acc1" : {
-        "A" : false,
-        "B" : true,
-        "C" : true,
-        "D" : false
-      },
-      "armBPMs" : {
-        "B" : 159.9507045365406,
-        "C" : 159.9507045365406,
-        "D" : 208
-      },
-      "baselineBPM" : 106.05026106265629,
-      "genre" : "drum-and-bass",
-      "ratioClass" : {
-        "B" : "1.5",
-        "C" : "1.5",
-        "D" : "2.0"
-      },
-      "trackId" : "Sully - Flock - 02 Helios.mp3",
-      "truthBPM" : 158
     },
     {
       "acc1" : {
@@ -4091,13 +3937,24 @@
   ],
   "corpus" : "tony",
   "coverage" : {
-    "groundTruthEntries" : 883,
+    "groundTruthEntries" : 848,
     "missingFromDisk" : 0,
-    "resolvedOnDisk" : 883
+    "resolvedOnDisk" : 848
   },
   "dnbGenreLabel" : "drum-and-bass",
   "floorReference" : null,
-  "gitSHA" : "d6dd8a2",
+  "gitSHA" : "bdeee3d",
+  "labelProvenance" : {
+    "distinctFiles" : 848,
+    "duplicatePathRowsDropped" : 35,
+    "minConfidenceFilter" : null,
+    "tiers" : {
+      "marginal" : 312,
+      "solid" : 488,
+      "strong" : 48
+    },
+    "truthClusterIncludesOwnDSP" : 800
+  },
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
   "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows, 303 of them exactly half the primary value.",
@@ -4109,5 +3966,5 @@
   },
   "tolerance" : 0.02,
   "truthCaveat" : "bpm_truth snaps to the Rekordbox value, which is a metrical-level convention; if Rekordbox reports the fast octave for half-time material then casualty counts from this corpus are a lower bound (see Story 12.6)",
-  "wallClockSeconds" : 124.66365802288055
+  "wallClockSeconds" : 136.47937905788422
 }
