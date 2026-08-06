@@ -560,3 +560,19 @@ Operator-owned, not agent-completable:
 3. **Decide on `minimumSpanBPM` 2 -> 3.** Forced by the fractional-bounds fix. Nothing
    shipped depends on it (the type is new in this story), but it is a wider change than
    "round the two conversions" and is flagged rather than buried.
+
+## Independent confirmation of the default-path claim (2026-08-06)
+
+Story 12.2's SMC replication harness (`12-2-smc-prior-replication.md`) runs a baseline arm
+at fully shipped defaults before it moves any knob, and asserts that arm against the
+committed corpus benchmarks. On this lineage it reproduces **OA300 Acc1 58 / Acc2 74** and
+**GiantSteps Acc1 537 / Acc2 546** exactly.
+
+That is direct third-party evidence for this story's "the default path is unchanged" claim,
+produced by a harness written for a different purpose and asserted rather than eyeballed.
+It is worth recording because the same run initially reported GiantSteps at 466/661 and
+briefly looked like a 13% regression introduced here; the gap turned out to be the
+`tempo2` second annotation, which the committed metric accepts and the strict metric does
+not. Nothing in Story 12.1 moved.
+
+Note only. This story's status is unchanged by it.

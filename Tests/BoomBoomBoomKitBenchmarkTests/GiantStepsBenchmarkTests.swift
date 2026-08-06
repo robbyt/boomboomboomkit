@@ -324,6 +324,25 @@ struct GiantStepsBenchmarkTests {
 
   /// MIREX Acc1/Acc2 hit check with optional `tempo2` fallback.
   /// Shared by `runBenchmark` and `benchmarkByGenre` so the two stay in lockstep.
+  ///
+  /// WHAT THE `tempo2` FALLBACK COSTS, and why an octave experiment must not use this
+  /// metric alone. GiantSteps ground truth v2 ships a second annotation on 577 of its 661
+  /// rows, and 361 of those sit within the 2% tolerance of an octave relation to the
+  /// primary value (303 at half, 58 at double; under literal equality, only 100 and 23).
+  /// Accepting either value therefore makes the committed Acc1 >= 537 / Acc2 >= 546 floors
+  /// close to blind to octave behaviour: a change can move the reported octave of a track
+  /// and score identically. Measured, the gap between scoring against the primary
+  /// annotation alone and scoring the way this function does is **71 tracks** at the
+  /// default configuration -- 466 strict against 537 here.
+  ///
+  /// That is the right trade for a general tempo benchmark, where both metrical levels are
+  /// defensible readings of the same music, and it is the wrong one for any experiment
+  /// whose subject IS the metrical level. Such an experiment should report a primary-only
+  /// (octave-strict) score alongside this one, and reconcile its floor-compatible baseline
+  /// against the committed figure -- otherwise a strict-scored baseline reads as a large
+  /// regression against a floor it was never measuring the same way.
+  ///
+  /// Nothing enforces that; it is a convention for whoever writes the next octave harness.
   private func mirexHit(
     track: GiantStepsTrack,
     detected: Double,

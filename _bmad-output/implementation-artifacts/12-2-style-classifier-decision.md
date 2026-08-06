@@ -378,6 +378,27 @@ The ruling and its reasoning:
 
 ### 6.1 It does not refute Hörschläger et al. SMC 2015
 
+> **EVIDENCE ADDENDUM 2026-08-06 (`12-2-smc-prior-replication.md`).** This section is
+> written throughout in the tense of 2026-08-05, when the published range had not been run
+> here. **It has now been run**, as a hard `Options.tempoScanRange` bound at `130...180`
+> over OA300, GiantSteps and the Tony drum-and-bass slice, and it is negative: DnB Acc1
+> 58 to 54, 466 to 361 octave-strict, 510 to 492 on the FR-14-conformant slice. All-tier
+> Tony is +44 and is carried entirely by the 312 Marginal-tier rows FR-14 excludes.
+> **Every "has never been run" and "has not been run" sentence below is superseded on that
+> narrow point**, and is retained because the reasoning around it — why the Story 12.1
+> report was not a test of AS-7 — is unaffected and still correct.
+>
+> **Three things this does NOT change, and the section already says all three.** (1) It
+> still does not refute SMC 2015: their baseline had a drum-and-bass octave catastrophe
+> (7.19% Acc1) this pipeline does not have, and our GiantSteps DnB baseline already meets
+> their post-prior 78.42% before any prior is applied. (2) The mechanism is **still
+> unverified** — the caution recorded immediately below, that a range-shaped statement does
+> not establish whether the range was applied as a search constraint or as a reweighting,
+> is exactly why this run bounds only the hard-filter reading. **Soft reweighting remains
+> untested.** (3) The reject itself is untouched: it rests on the product-policy premise in
+> section 1.1, not on evidence about AS-7. AS-7 is re-annotated at PRD §15
+> (`prd.md:489` as of 2026-08-06) as tested-as-a-hard-bound and negative, not as refuted.
+
 PRD §4.3 (`prd.md:101` as of 2026-08-05) records the strongest published result in the epic:
 genre-conditioned tempo priors lift drum-and-bass Acc1 from 7.19% to 78.42% and overall 45.5%
 to 75.0% on GiantSteps, with no model change.
@@ -596,7 +617,7 @@ contingent lines and from section 1:
 | PRD §1 executive summary (`prd.md:42`, `:46`) | Annotated: the style-prior lever is not delivered by a classifier; the small-model claim at `:46` flagged against `epics.md:2379`. |
 | PRD §9 success-metric row (`prd.md:388`) | Annotated: the non-DnB counter-metric guards a style prior that is not built. |
 | PRD §13 risk row (`prd.md:427`) | Annotated: the mitigation is inverted, naming a rejected FR whose replacement is a hard filter. |
-| PRD §15 AS-7 row (`prd.md:489`) | Annotated **UNTESTED**, restated 2026-08-05 from an unearned WEAKENED. The 12.1 report is not a test of style-prior transfer, so it cannot move AS-7. Annotation kept, not reverted. |
+| PRD §15 AS-7 row (`prd.md:489`) | Annotated **UNTESTED**, restated 2026-08-05 from an unearned WEAKENED. The 12.1 report is not a test of style-prior transfer, so it cannot move AS-7. Annotation kept, not reverted. **Re-annotated 2026-08-06** to TESTED-as-a-hard-search-range-bound and negative, on `12-2-smc-prior-replication.md`; still not refuted, because the published mechanism is unverified and soft reweighting is untested. |
 | `deferred-work.md` | New `## Deferred from: Story 12.2 (2026-08-05)` entry, plus a fired-trigger annotation on the Story 12.1 entry whose re-open trigger named this decision, plus a `## Deferred from: Story 12.2 external review (2026-08-05)` heading carrying three further entries. |
 | `epic-12-context.md:49` | Corrected: asserted the decision was pending in the commit that resolves it. |
 | `12-1-consumer-specifiable-tempo-search-range.md:18` | Annotated: its live-tense "Story 12.2 decides whether it is scoped, deferred, or rejected" is resolved, and points here. |

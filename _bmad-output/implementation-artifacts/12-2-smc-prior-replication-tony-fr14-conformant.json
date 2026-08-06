@@ -1,0 +1,1807 @@
+{
+  "arms" : [
+    {
+      "all" : {
+        "acc1" : 510,
+        "acc1Floor" : 510,
+        "acc2" : 512,
+        "acc2Floor" : 512,
+        "n" : 536,
+        "nils" : 0
+      },
+      "dnb" : {
+        "acc1" : 510,
+        "acc1Floor" : 510,
+        "acc2" : 512,
+        "acc2Floor" : 512,
+        "n" : 536,
+        "nils" : 0
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 200,
+        "minBPM" : 60
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 250,
+        "minBPM" : 40
+      },
+      "id" : "A",
+      "label" : "baseline",
+      "nonDnb" : {
+        "acc1" : 0,
+        "acc1Floor" : 0,
+        "acc2" : 0,
+        "acc2Floor" : 0,
+        "n" : 0,
+        "nils" : 0
+      },
+      "normalized" : false
+    },
+    {
+      "all" : {
+        "acc1" : 492,
+        "acc1Floor" : 492,
+        "acc2" : 492,
+        "acc2Floor" : 492,
+        "n" : 536,
+        "nils" : 0
+      },
+      "dnb" : {
+        "acc1" : 492,
+        "acc1Floor" : 492,
+        "acc2" : 492,
+        "acc2Floor" : 492,
+        "n" : 536,
+        "nils" : 0
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 200,
+        "minBPM" : 60
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      },
+      "id" : "B",
+      "label" : "scan-only",
+      "nonDnb" : {
+        "acc1" : 0,
+        "acc1Floor" : 0,
+        "acc2" : 0,
+        "acc2Floor" : 0,
+        "n" : 0,
+        "nils" : 0
+      },
+      "normalized" : false,
+      "requestedScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      }
+    },
+    {
+      "all" : {
+        "acc1" : 492,
+        "acc1Floor" : 492,
+        "acc2" : 492,
+        "acc2Floor" : 492,
+        "n" : 536,
+        "nils" : 0
+      },
+      "dnb" : {
+        "acc1" : 492,
+        "acc1Floor" : 492,
+        "acc2" : 492,
+        "acc2Floor" : 492,
+        "n" : 536,
+        "nils" : 0
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 260,
+        "minBPM" : 130
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      },
+      "id" : "C",
+      "label" : "scan+window",
+      "nonDnb" : {
+        "acc1" : 0,
+        "acc1Floor" : 0,
+        "acc2" : 0,
+        "acc2Floor" : 0,
+        "n" : 0,
+        "nils" : 0
+      },
+      "normalized" : true,
+      "requestedPerceptualWindow" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      },
+      "requestedScanRange" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      }
+    },
+    {
+      "all" : {
+        "acc1" : 467,
+        "acc1Floor" : 467,
+        "acc2" : 470,
+        "acc2Floor" : 470,
+        "n" : 536,
+        "nils" : 2
+      },
+      "dnb" : {
+        "acc1" : 467,
+        "acc1Floor" : 467,
+        "acc2" : 470,
+        "acc2Floor" : 470,
+        "n" : 536,
+        "nils" : 2
+      },
+      "effectivePerceptualWindow" : {
+        "maxBPM" : 260,
+        "minBPM" : 130
+      },
+      "effectiveScanRange" : {
+        "maxBPM" : 250,
+        "minBPM" : 40
+      },
+      "id" : "D",
+      "label" : "window-only",
+      "nonDnb" : {
+        "acc1" : 0,
+        "acc1Floor" : 0,
+        "acc2" : 0,
+        "acc2Floor" : 0,
+        "n" : 0,
+        "nils" : 0
+      },
+      "normalized" : true,
+      "requestedPerceptualWindow" : {
+        "maxBPM" : 180,
+        "minBPM" : 130
+      }
+    }
+  ],
+  "casualties" : [
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 107.15659831039652,
+        "B" : 146.13678571428571,
+        "C" : 146.13678571428571,
+        "D" : 214.33337218337221
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "Release - The Jungle (Jacked Down)(Remaster).wav",
+      "truthBPM" : 107.38
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 127.41649440137813,
+        "B" : 130,
+        "C" : 130,
+        "D" : null
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "Itoa - EXIT099 - Itoa - 'Oh No' EP - 02 We Want.mp3",
+      "truthBPM" : 128
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 127.3428494181771,
+        "B" : 165.12351573187414,
+        "C" : 165.12351573187414,
+        "D" : 250
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "QUADRANT VOL 1 - Quadrant 1-4 - 10 Beartrap - Overlook.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 107,
+        "B" : 146,
+        "C" : 146,
+        "D" : 214
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "Release - The Jungle (Jacked Down)(Remaster).mp3",
+      "truthBPM" : 107.38
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "A" : 130,
+        "B" : 130,
+        "C" : 130,
+        "D" : 130
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "robbyt - completely remix.mp3",
+      "truthBPM" : 129.58000000000001
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 150.9433171324423,
+        "B" : 162.20473191795608,
+        "C" : 162.20473191795608,
+        "D" : 217.29814323607428
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "Dub Phizix - Wasted.mp3",
+      "truthBPM" : 116.2
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "A" : 172.06991750931346,
+        "B" : 172.06991750931346,
+        "C" : 172.06991750931346,
+        "D" : 200
+      },
+      "genre" : "drum-and-bass",
+      "trackId" : "gyrofield - The B - 01 Oblast.mp3",
+      "truthBPM" : 127
+    }
+  ],
+  "changedTracks" : [
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 146.4018650552126,
+        "C" : 146.4018650552126,
+        "D" : 218.27466124661248
+      },
+      "baselineBPM" : 146.4018650552126,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "1.5"
+      },
+      "trackId" : "ADMM58D1 - Origin Unknown - Eastern Promise (Mix 1).wav",
+      "truthBPM" : 145.84999999999999
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 150,
+        "C" : 150,
+        "D" : 152
+      },
+      "baselineBPM" : 76,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "Aeon Flux - Reality (Remaster).mp3",
+      "truthBPM" : 150.94999999999999
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 174,
+        "C" : 174,
+        "D" : 155
+      },
+      "baselineBPM" : 155,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Fallen Angels - Oh Yeah 1994 (Remaster v1-2).mp3",
+      "truthBPM" : 154.99000000000001
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 174,
+        "C" : 174,
+        "D" : 155
+      },
+      "baselineBPM" : 155,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Fallen Angels - Oh Yeah 1994 (Remaster v2).mp3",
+      "truthBPM" : 154.97999999999999
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 174,
+        "C" : 174,
+        "D" : 155
+      },
+      "baselineBPM" : 155,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Fallen Angels - Oh Yeah 1994 (Remaster).mp3",
+      "truthBPM" : 154.99000000000001
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 174.49188557034904,
+        "C" : 174.49188557034904,
+        "D" : 154.80706827309237
+      },
+      "baselineBPM" : 154.80706827309237,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Fallen Angels - Oh Yeah 1994 (Remaster).wav",
+      "truthBPM" : 154.97999999999999
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 146.13678571428571,
+        "C" : 146.13678571428571,
+        "D" : 214.33337218337221
+      },
+      "baselineBPM" : 107.15659831039652,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "Release - The Jungle (Jacked Down)(Remaster).wav",
+      "truthBPM" : 107.38
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 175.16507565337,
+        "C" : 175.16507565337,
+        "D" : 220.25
+      },
+      "baselineBPM" : 175.10380509379289,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Todd Bucher - Proem 16BIT MASTER.wav",
+      "truthBPM" : 174.97999999999999
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 150.56812849906692
+      },
+      "baselineBPM" : 150.56812849906692,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "ADMM56D1 - Aeon Flux - Reality.mp3",
+      "truthBPM" : 150.94999999999999
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 173,
+        "C" : 173,
+        "D" : 171
+      },
+      "baselineBPM" : 171,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "1.0"
+      },
+      "trackId" : "01 Soul Beat Runna.mp3",
+      "truthBPM" : 167.84
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 138.11061504639687,
+        "C" : 138.11061504639687,
+        "D" : 138.13215648463463
+      },
+      "baselineBPM" : 69.912363559717562,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "2.0",
+        "C" : "2.0",
+        "D" : "2.0"
+      },
+      "trackId" : "Coco Bryce - Daktari EP - 03 Change Of Heart (Sam Binga's Slow Mix).mp3",
+      "truthBPM" : 140
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 177.0019313304721,
+        "C" : 177.0019313304721,
+        "D" : 235.3328967614851
+      },
+      "baselineBPM" : 177.02952661139341,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "D-Struct & Kemal - The Beacon.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 157.60914714615637,
+        "C" : 157.60914714615637,
+        "D" : 200.81079429735234
+      },
+      "baselineBPM" : 157.58596737190925,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Dj Scam - Psycho Bummer 001 - 01 Darkside Geezer.wav",
+      "truthBPM" : 157
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 152.58783689994215,
+        "C" : 152.58783689994215,
+        "D" : 202.09552688690619
+      },
+      "baselineBPM" : 152.6013532513181,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Dj Scam - K-Line.wav",
+      "truthBPM" : 152
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 141.63247103107238,
+        "C" : 141.63247103107238,
+        "D" : 179.93091802462993
+      },
+      "baselineBPM" : 179.93091802462993,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Donato Dozzy - The Tao - 02 Dusty Bones.mp3",
+      "truthBPM" : 180
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.13874060458031,
+        "C" : 160.13874060458031,
+        "D" : null
+      },
+      "baselineBPM" : 160.13874060458031,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "nil"
+      },
+      "trackId" : "Earl Grey - Death Rattle EP - 04 Prussia Dub.mp3",
+      "truthBPM" : 160.06
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 174.48613564111622,
+        "C" : 174.48613564111622,
+        "D" : 154.82212956581668
+      },
+      "baselineBPM" : 154.82212956581668,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Fallen Angels - Oh Yeah 1994 (Remaster v1-2).wav",
+      "truthBPM" : 155
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 134.94521242284105,
+        "C" : 134.94521242284105,
+        "D" : 218.24923326677643
+      },
+      "baselineBPM" : 170.69431627516778,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Fixate - EXITMINILP008 - Fixate - 'Conundrum' - 04 Subject To Change.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 167,
+        "C" : 167,
+        "D" : 211
+      },
+      "baselineBPM" : 105.5,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "Fixate - Wrong Foot Forward - Exit Records.mp3",
+      "truthBPM" : 167
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 134.9468641457488,
+        "C" : 134.9468641457488,
+        "D" : 170.30402152641881
+      },
+      "baselineBPM" : 170.30402152641881,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Forest Drive West - Terminus EP - 01 Impulse.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 165.63876201923077,
+        "C" : 165.63876201923077,
+        "D" : 208.10248267898382
+      },
+      "baselineBPM" : 165.63876201923077,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Fracture & Neptune - Erase Everything - Good Stuff - 01 Erase Everything.mp3",
+      "truthBPM" : 166
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 210.81809954751134
+      },
+      "baselineBPM" : 162.94280581767813,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Fracture x Tim Reaper - APHAFR001 - 02 Whipcrack.mp3",
+      "truthBPM" : 163
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 154.20117904744151,
+        "C" : 154.20117904744151,
+        "D" : 212
+      },
+      "baselineBPM" : 103.53671020269697,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "other"
+      },
+      "trackId" : "Future Sound Of Hardcore - Angels In Rhythm Alt Mix (Digital ONLY).mp3",
+      "truthBPM" : 154.86000000000001
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 169.32329998436768,
+        "C" : 169.32329998436768,
+        "D" : 233
+      },
+      "baselineBPM" : 169.32329998436768,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Gremlinz & Jesta - The Lee Garden Historical Preservation Society - 08 Vermin (ft. flowanastasia).mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 167.03302461304239,
+        "C" : 167.03302461304239,
+        "D" : 218.24237996837454
+      },
+      "baselineBPM" : 167.03302461304239,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "GutterFunk - Addison Groove & DJ Die- Legion of Boom EP - 03 Addison Groove & DJ Die - Dr Know.mp3",
+      "truthBPM" : 167
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.95409438325561,
+        "C" : 159.95409438325561,
+        "D" : 201.68837242158801
+      },
+      "baselineBPM" : 159.95409438325561,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "GutterFunk - DJ Die & Addison Groove - Gunsmok£ - 01 DJ Die & Addison Groove - Gunsmok£.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 162.92289124668434,
+        "C" : 162.92289124668434,
+        "D" : 203.9230305025236
+      },
+      "baselineBPM" : 162.92289124668434,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Harmony - DAT117 Harmony - Ecstasy - Solar - Kaos - 01 Harmony - Ecstasy.mp3",
+      "truthBPM" : 162
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 166.87778351275622,
+        "C" : 166.87778351275622,
+        "D" : 216
+      },
+      "baselineBPM" : 166.87777697320783,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Harmony - DAT117 Harmony - Ecstasy - Solar - Kaos - 03 Harmony - Solar.mp3",
+      "truthBPM" : 165
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 164.97215222422216,
+        "C" : 164.97215222422216,
+        "D" : 222.86407766990291
+      },
+      "baselineBPM" : 164.97215222422216,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Harmony - FR013 - 01 Dream.mp3",
+      "truthBPM" : 165
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.12588112165042,
+        "C" : 160.12588112165042,
+        "D" : 218.04414613602864
+      },
+      "baselineBPM" : 160.12588112165042,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Humb - Memory Breaks Vol.3 - 01 Seh Gwan.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 170.32943009795193,
+        "C" : 170.32943009795193,
+        "D" : 218.24616901665649
+      },
+      "baselineBPM" : 170.32943009795193,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "ITSUFO - LEVEL UP - 02 BIG UP ALL.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 169.96128539417396,
+        "C" : 169.96128539417396,
+        "D" : 231.76565335753176
+      },
+      "baselineBPM" : 170.00046950890447,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Itoa - EXIT078 - Itoa - 'Ever Orbit' EP - 01 Diceman.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : null
+      },
+      "baselineBPM" : 127.41649440137813,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "nil"
+      },
+      "trackId" : "Itoa - EXIT099 - Itoa - 'Oh No' EP - 02 We Want.mp3",
+      "truthBPM" : 128
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 131.94599473531514,
+        "C" : 131.94599473531514,
+        "D" : 221.57300884955751
+      },
+      "baselineBPM" : 168.95263603150693,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Kid Lib - Kid Lib - Learn II Fly - 01 Eternity.mp3",
+      "truthBPM" : 166.03999999999999
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 131.93912286683917,
+        "C" : 131.93912286683917,
+        "D" : 213.05388012618295
+      },
+      "baselineBPM" : 168.17160083431102,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Kid Lib - Kid Lib - Learn II Fly - 02 The Countdown.mp3",
+      "truthBPM" : 167.91999999999999
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 158,
+        "C" : 158,
+        "D" : 217.51044340723453
+      },
+      "baselineBPM" : 106.9275670813971,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "Mani Festo - FAST LANE EP - 02 M25 Orbital.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 134.94022885543828,
+        "C" : 134.94022885543828,
+        "D" : 170.46611603545529
+      },
+      "baselineBPM" : 170.46611603545529,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Marcus Visionary - Shak Attack - It's Energy - 02 It's Energy.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 132.33156812339334,
+        "C" : 132.33156812339334,
+        "D" : 214.63451930355791
+      },
+      "baselineBPM" : 172.13711375377716,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Modal - Thieves EP - 02 Heads or Tails.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 160.14219660989468,
+        "C" : 160.14219660989468,
+        "D" : 217.04004649560875
+      },
+      "baselineBPM" : 106.7032450517999,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "Nectax - A State of Play - 02 Swarm Behaviour.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.95271325796506,
+        "C" : 159.95271325796506,
+        "D" : 204.34874167283496
+      },
+      "baselineBPM" : 159.95271325796506,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Nectax - Body Talk EP - 01 Body Talk.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 158.29926139339969,
+        "C" : 158.29926139339969,
+        "D" : 236.94664
+      },
+      "baselineBPM" : 158.51679961710275,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "1.5"
+      },
+      "trackId" : "Pouty's Rage - Club Rage - 02 Charm City Don't Stop.mp3",
+      "truthBPM" : 158
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130,
+        "C" : 130,
+        "D" : 210.64975143079511
+      },
+      "baselineBPM" : 163.90405312176614,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "QUADRANT VOL 1 - Quadrant 1-4 - 12 Beartrap (Madcap Remix) - Overlook.mp3",
+      "truthBPM" : 164
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 165.12351573187414,
+        "C" : 165.12351573187414,
+        "D" : 250
+      },
+      "baselineBPM" : 127.3428494181771,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "QUADRANT VOL 1 - Quadrant 1-4 - 10 Beartrap - Overlook.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 134.94450565277728,
+        "C" : 134.94450565277728,
+        "D" : 218.73843259514081
+      },
+      "baselineBPM" : 172.25753543034912,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "QUADRANT VOL 1 - Quadrant 1-4 - 06 Fuck Society - Abstract Drumz.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 134.94463777858215,
+        "C" : 134.94463777858215,
+        "D" : 232.46641681002703
+      },
+      "baselineBPM" : 169.14980187118431,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "QUADRANT VOL 1 - Quadrant 1-4 - 07 The Unspeakable Pain - Abstract Drumz.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 170.32609633357299,
+        "C" : 170.32609633357299,
+        "D" : 214.85625000000002
+      },
+      "baselineBPM" : 170.35517593370963,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Raiden - Experiments In White Noise - 03 657.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 146,
+        "C" : 146,
+        "D" : 214
+      },
+      "baselineBPM" : 107,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "2.0"
+      },
+      "trackId" : "Release - The Jungle (Jacked Down)(Remaster).mp3",
+      "truthBPM" : 107.38
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 177.39319869588843,
+        "C" : 177.39319869588843,
+        "D" : 236
+      },
+      "baselineBPM" : 177.39321489001694,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Rizzle - METHXX027 - Fragments EP - 02 Depths.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 163.46981011034129,
+        "C" : 163.46981011034129,
+        "D" : 245.23469629240071
+      },
+      "baselineBPM" : 164.07555588496888,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "1.5"
+      },
+      "trackId" : "Sinistarr - Garden Remix - 02 Garden (feat. Morgan Neiman).mp3",
+      "truthBPM" : 164
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 169.59196911196909,
+        "C" : 169.59196911196909,
+        "D" : 226
+      },
+      "baselineBPM" : 169.53368813934199,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Skeptical - Initiate E.P - 03 Skeptical - Initiate.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 172.96061361554899,
+        "C" : 172.96061361554899,
+        "D" : 234.84089123057689
+      },
+      "baselineBPM" : 172.95516394264513,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Stakka & Skynet Feat Friction - Clockwork - Remastered 2014 - 07 Altitude.mp3",
+      "truthBPM" : 172.96000000000001
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 130.59103621504084,
+        "C" : 130.59103621504084,
+        "D" : 130.70578318055001
+      },
+      "baselineBPM" : 163.09747666080366,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Sully - Vanta (Original Mix).wav",
+      "truthBPM" : 164
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 162.34127500000002,
+        "C" : 162.34127500000002,
+        "D" : 224.73701046917409
+      },
+      "baselineBPM" : 109.83495310814175,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "other"
+      },
+      "trackId" : "Sully - Nights - 02 Nights (Not Just A Dub Mix).mp3",
+      "truthBPM" : 164
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 165,
+        "C" : 165,
+        "D" : 222
+      },
+      "baselineBPM" : 111,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "Sully - Digitalis (Original Mix).mp3",
+      "truthBPM" : 166
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 168.70006754931097,
+        "C" : 168.70006754931097,
+        "D" : 221.08913802128774
+      },
+      "baselineBPM" : 168.70005796728069,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Sully - UH-03 - 01 Extant.mp3",
+      "truthBPM" : 168
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.21131038772546,
+        "C" : 159.21131038772546,
+        "D" : 218.05637287072335
+      },
+      "baselineBPM" : 159.10993464052288,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "The Prodigy - 160 Experience - 10 Fire (Neekeetone 160 Rework).aiff",
+      "truthBPM" : 160
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 159.85427436387408,
+        "C" : 159.85427436387408,
+        "D" : 217.05031485044603
+      },
+      "baselineBPM" : 159.85427436387408,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "The Prodigy - 160 Experience - 09 Weather Experience (Neekeetone 160 Rework).aiff",
+      "truthBPM" : 160.09999999999999
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 172.63630390835579,
+        "C" : 172.63630390835579,
+        "D" : 230
+      },
+      "baselineBPM" : 172.63630420918366,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "The Prodigy - 160 Experience - 03 Wind It Up (Neekeetone Jungle Rework).aiff",
+      "truthBPM" : 170
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 136.33211691456245,
+        "C" : 136.33211691456245,
+        "D" : 171.70276741607015
+      },
+      "baselineBPM" : 171.70276741607015,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "The Untouchables - Lost Knowledge - 01 Drunken Bells.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "acc1" : {
+        "A" : false,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 154.10988797931924,
+        "C" : 154.10988797931924,
+        "D" : 208.16133156350426
+      },
+      "baselineBPM" : 103.74512922465209,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.5",
+        "C" : "1.5",
+        "D" : "2.0"
+      },
+      "trackId" : "Tim Reaper, Mantra & Decibella - Sage EP - 04 Golden Hour.mp3",
+      "truthBPM" : 155
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 176.00125908618898,
+        "C" : 176.00125908618898,
+        "D" : 198.75898751115076
+      },
+      "baselineBPM" : 176.00125908618898,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Todd Bucher - Onyx 16BIT MASTER.wav",
+      "truthBPM" : 175
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 170.02275193798451,
+        "C" : 170.02275193798451,
+        "D" : 218.24503512097576
+      },
+      "baselineBPM" : 170.02275193798451,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "other"
+      },
+      "trackId" : "Universal Project Recordings - Universal Project - Back Catalogue Volume 1 - 07 Universal Project & Loxy - Torment.mp3",
+      "truthBPM" : 170.02000000000001
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 164
+      },
+      "baselineBPM" : 139.94303347401285,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Dolenz - Bassic.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 131.14748031496063,
+        "C" : 131.14748031496063,
+        "D" : 177.30754538065565
+      },
+      "baselineBPM" : 177.30754538065565,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "Villem - Ones - State Of Affairs - 02 State Of Affairs.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 163,
+        "C" : 163,
+        "D" : 231.87283013463193
+      },
+      "baselineBPM" : 171.44181066021275,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "other"
+      },
+      "trackId" : "Workforce - Set & Setting - 06 Observer.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : false,
+        "C" : false,
+        "D" : true
+      },
+      "armBPMs" : {
+        "B" : 180,
+        "C" : 180,
+        "D" : 144.62858797401853
+      },
+      "baselineBPM" : 144.62858797401853,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "other",
+        "C" : "other",
+        "D" : "1.0"
+      },
+      "trackId" : "gyrofield - A Faint Glow of Bravery - 02 Gossamer.mp3",
+      "truthBPM" : 145
+    },
+    {
+      "acc1" : {
+        "A" : true,
+        "B" : true,
+        "C" : true,
+        "D" : false
+      },
+      "armBPMs" : {
+        "B" : 169.07273485269593,
+        "C" : 169.07273485269593,
+        "D" : 250
+      },
+      "baselineBPM" : 168.72807415310749,
+      "genre" : "drum-and-bass",
+      "ratioClass" : {
+        "B" : "1.0",
+        "C" : "1.0",
+        "D" : "1.5"
+      },
+      "trackId" : "gyrofield - A Faint Glow of Bravery - 04 Harsh Sun.mp3",
+      "truthBPM" : 168.16
+    }
+  ],
+  "corpus" : "tony",
+  "coverage" : {
+    "groundTruthEntries" : 536,
+    "missingFromDisk" : 0,
+    "resolvedOnDisk" : 536
+  },
+  "dnbGenreLabel" : "drum-and-bass",
+  "floorReference" : null,
+  "gitSHA" : "713e42e",
+  "inputProvenance" : [
+    {
+      "basename" : "tony-survey.json",
+      "sha256" : "55b283ce5238dfb99b505e286a2b39cc18ef44bb65b861847fe2e26d2b13ca01"
+    },
+    {
+      "basename" : "tony-truth-labels.json",
+      "sha256" : "b33b836acd404e91b7eb76050fb9cce64c62c41fd87ac76244531e8f13d07962"
+    }
+  ],
+  "labelProvenance" : {
+    "distinctFiles" : 536,
+    "duplicatePathRowsDropped" : 35,
+    "minConfidenceFilter" : 0.66000000000000003,
+    "tiers" : {
+      "solid" : 488,
+      "strong" : 48
+    },
+    "truthClusterIncludesOwnDSP" : 529
+  },
+  "maxSeconds" : 120,
+  "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
+  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows -- 303 of them WITHIN THE 2% SCORING TOLERANCE of half the primary value, though only 100 at literal equality. See tempo2Stats.",
+  "nonDnbReportable" : false,
+  "nonDnbUnreportableReason" : "1520 of 1721 Rekordbox survey rows carry an empty genre string, so the complement of the DnB slice is unlabelled material rather than labelled non-DnB and would be seeded with unlabelled DnB",
+  "requestedPrior" : {
+    "maxBPM" : 180,
+    "minBPM" : 130
+  },
+  "tempo2Stats" : null,
+  "tolerance" : 0.02,
+  "truthCaveat" : "bpm_truth snaps to the Rekordbox value, which is a metrical-level convention; if Rekordbox reports the fast octave for half-time material then casualty counts from this corpus are a lower bound (see Story 12.6)",
+  "wallClockSeconds" : 81.252671003341675
+}
