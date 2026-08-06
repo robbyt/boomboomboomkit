@@ -3,13 +3,17 @@
     {
       "all" : {
         "acc1" : 58,
+        "acc1Floor" : 58,
         "acc2" : 74,
+        "acc2Floor" : 74,
         "n" : 82,
         "nils" : 0
       },
       "dnb" : {
         "acc1" : 48,
+        "acc1Floor" : 48,
         "acc2" : 61,
+        "acc2Floor" : 61,
         "n" : 67,
         "nils" : 0
       },
@@ -25,7 +29,9 @@
       "label" : "baseline",
       "nonDnb" : {
         "acc1" : 10,
+        "acc1Floor" : 10,
         "acc2" : 13,
+        "acc2Floor" : 13,
         "n" : 15,
         "nils" : 0
       },
@@ -34,13 +40,17 @@
     {
       "all" : {
         "acc1" : 54,
+        "acc1Floor" : 54,
         "acc2" : 69,
+        "acc2Floor" : 69,
         "n" : 82,
         "nils" : 0
       },
       "dnb" : {
         "acc1" : 46,
+        "acc1Floor" : 46,
         "acc2" : 61,
+        "acc2Floor" : 61,
         "n" : 67,
         "nils" : 0
       },
@@ -56,7 +66,9 @@
       "label" : "scan-only",
       "nonDnb" : {
         "acc1" : 8,
+        "acc1Floor" : 8,
         "acc2" : 8,
+        "acc2Floor" : 8,
         "n" : 15,
         "nils" : 0
       },
@@ -69,13 +81,17 @@
     {
       "all" : {
         "acc1" : 54,
+        "acc1Floor" : 54,
         "acc2" : 69,
+        "acc2Floor" : 69,
         "n" : 82,
         "nils" : 0
       },
       "dnb" : {
         "acc1" : 46,
+        "acc1Floor" : 46,
         "acc2" : 61,
+        "acc2Floor" : 61,
         "n" : 67,
         "nils" : 0
       },
@@ -91,7 +107,9 @@
       "label" : "scan+window",
       "nonDnb" : {
         "acc1" : 8,
+        "acc1Floor" : 8,
         "acc2" : 8,
+        "acc2Floor" : 8,
         "n" : 15,
         "nils" : 0
       },
@@ -108,13 +126,17 @@
     {
       "all" : {
         "acc1" : 50,
+        "acc1Floor" : 50,
         "acc2" : 65,
+        "acc2Floor" : 65,
         "n" : 82,
         "nils" : 2
       },
       "dnb" : {
         "acc1" : 44,
+        "acc1Floor" : 44,
         "acc2" : 55,
+        "acc2Floor" : 55,
         "n" : 67,
         "nils" : 0
       },
@@ -130,7 +152,9 @@
       "label" : "window-only",
       "nonDnb" : {
         "acc1" : 6,
+        "acc1Floor" : 6,
         "acc2" : 10,
+        "acc2Floor" : 10,
         "n" : 15,
         "nils" : 2
       },
@@ -771,9 +795,14 @@
     "resolvedOnDisk" : 82
   },
   "dnbGenreLabel" : "drum-and-bass",
-  "gitSHA" : "da6b0f1",
+  "floorReference" : {
+    "acc1" : 58,
+    "acc2" : 74
+  },
+  "gitSHA" : "d6dd8a2",
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
+  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows, 303 of them exactly half the primary value.",
   "nonDnbReportable" : true,
   "nonDnbUnreportableReason" : null,
   "requestedPrior" : {
@@ -782,5 +811,5 @@
   },
   "tolerance" : 0.02,
   "truthCaveat" : null,
-  "wallClockSeconds" : 13.368731021881104
+  "wallClockSeconds" : 19.01469898223877
 }

@@ -749,6 +749,7 @@ struct SMCPriorReplicationTests {
   fileprivate static func run(
     corpus: String, tracks: [ReplicationTrack], gitSHA: String,
     floorReference: (acc1: Int, acc2: Int)? = nil,
+    tonyLabelStats: [String: Any]? = nil,
     nonDnbReportable: Bool = true,
     nonDnbUnreportableReason: String? = nil,
     truthCaveat: String? = nil
@@ -923,6 +924,7 @@ struct SMCPriorReplicationTests {
         + "committed benchmark. They differ only on GiantSteps, which carries tempo2 on "
         + "577 of 661 rows, 303 of them exactly half the primary value.",
       "floorReference": floorReference.map { ["acc1": $0.acc1, "acc2": $0.acc2] } as Any,
+      "labelProvenance": tonyLabelStats as Any,
       "nonDnbReportable": nonDnbReportable,
       "nonDnbUnreportableReason": nonDnbUnreportableReason as Any,
       "truthCaveat": truthCaveat as Any,
@@ -1051,13 +1053,33 @@ private struct TonySurveyRow: Decodable {
   }
 }
 
+private struct TonyTruthCluster: Decodable {
+  let sources: [String]?
+}
+
 private struct TonyLabelRow: Decodable {
+  let truthConfidence: Double?
+  let truthCluster: TonyTruthCluster?
   let localPath: String?
   let bpmTruth: Double?
   enum CodingKeys: String, CodingKey {
     case localPath = "local_path"
     case bpmTruth = "bpm_truth"
+    case truthConfidence = "truth_confidence"
+    case truthCluster = "truth_cluster"
   }
+
+  /// The repo's FR-14 label tiers.
+  var tier: String {
+    guard let c = truthConfidence else { return "unknown" }
+    if c >= 0.85 { return "strong" }
+    if c >= 0.66 { return "solid" }
+    return "marginal"
+  }
+
+  /// True when this library's own prepass is a member of the cluster that produced the
+  /// truth centroid. The label is then not detector-independent.
+  var truthUsedDSP: Bool { truthCluster?.sources?.contains("dsp") ?? false }
 }
 
 extension SMCPriorReplicationTests {
@@ -1115,10 +1137,27 @@ extension SMCPriorReplicationTests {
       genreByPath[path] = row.genre ?? ""
     }
 
+    // DEDUPE BY PATH. The label file carries 883 DnB rows against only 848 distinct
+    // files: 35 are repeats, and counting them twice inflates the denominator and
+    // double-weights whatever those tracks do. Keep first occurrence.
+    var seenPaths = Set<String>()
+    var duplicateRows = 0
+    let minConfidence = ProcessInfo.processInfo.environment["SMC_TONY_MIN_CONFIDENCE"]
+      .flatMap(Double.init)
+    var tierCounts: [String: Int] = [:]
+    var truthUsedDSPCount = 0
+
     let tracks = labels.compactMap { row -> ReplicationTrack? in
       guard let path = row.localPath, let truth = row.bpmTruth,
         Self.isTonyDnB(path: path, genre: genreByPath[path] ?? "")
       else { return nil }
+      guard seenPaths.insert(path).inserted else {
+        duplicateRows += 1
+        return nil
+      }
+      if let minConfidence, (row.truthConfidence ?? 0) < minConfidence { return nil }
+      tierCounts[row.tier, default: 0] += 1
+      if row.truthUsedDSP { truthUsedDSPCount += 1 }
       // basename, not the absolute path: the artifact is develop-only but there is no
       // reason to bake the operator's home directory into it.
       return ReplicationTrack(
@@ -1130,10 +1169,28 @@ extension SMCPriorReplicationTests {
     }
 
     print("\nTony corpus: \(survey.count) survey rows, \(labels.count) label rows")
-    print("DnB-labelled with truth: \(tracks.count)   (non-DnB slice NOT reportable)")
+    print(
+      "DnB-labelled with truth: \(tracks.count) distinct files "
+        + "(\(duplicateRows) duplicate path rows dropped)   non-DnB slice NOT reportable")
+    print(
+      "  label tiers: \(tierCounts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " "))"
+    )
+    print(
+      "  truth cluster includes this detector's own prepass on \(truthUsedDSPCount) of "
+        + "\(tracks.count) rows")
+    if let minConfidence {
+      print("  filtered to truth_confidence >= \(minConfidence)")
+    }
 
     try await Self.run(
       corpus: "tony", tracks: tracks, gitSHA: sha,
+      tonyLabelStats: [
+        "distinctFiles": tracks.count,
+        "duplicatePathRowsDropped": duplicateRows,
+        "tiers": tierCounts,
+        "truthClusterIncludesOwnDSP": truthUsedDSPCount,
+        "minConfidenceFilter": minConfidence as Any,
+      ],
       nonDnbReportable: false,
       nonDnbUnreportableReason:
         "1520 of 1721 Rekordbox survey rows carry an empty genre string, so the "

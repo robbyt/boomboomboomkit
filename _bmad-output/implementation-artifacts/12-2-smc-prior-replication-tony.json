@@ -3,13 +3,17 @@
     {
       "all" : {
         "acc1" : 743,
+        "acc1Floor" : 743,
         "acc2" : 782,
+        "acc2Floor" : 782,
         "n" : 883,
         "nils" : 0
       },
       "dnb" : {
         "acc1" : 743,
+        "acc1Floor" : 743,
         "acc2" : 782,
+        "acc2Floor" : 782,
         "n" : 883,
         "nils" : 0
       },
@@ -25,7 +29,9 @@
       "label" : "baseline",
       "nonDnb" : {
         "acc1" : 0,
+        "acc1Floor" : 0,
         "acc2" : 0,
+        "acc2Floor" : 0,
         "n" : 0,
         "nils" : 0
       },
@@ -34,13 +40,17 @@
     {
       "all" : {
         "acc1" : 791,
+        "acc1Floor" : 791,
         "acc2" : 791,
+        "acc2Floor" : 791,
         "n" : 883,
         "nils" : 0
       },
       "dnb" : {
         "acc1" : 791,
+        "acc1Floor" : 791,
         "acc2" : 791,
+        "acc2Floor" : 791,
         "n" : 883,
         "nils" : 0
       },
@@ -56,7 +66,9 @@
       "label" : "scan-only",
       "nonDnb" : {
         "acc1" : 0,
+        "acc1Floor" : 0,
         "acc2" : 0,
+        "acc2Floor" : 0,
         "n" : 0,
         "nils" : 0
       },
@@ -69,13 +81,17 @@
     {
       "all" : {
         "acc1" : 791,
+        "acc1Floor" : 791,
         "acc2" : 791,
+        "acc2Floor" : 791,
         "n" : 883,
         "nils" : 0
       },
       "dnb" : {
         "acc1" : 791,
+        "acc1Floor" : 791,
         "acc2" : 791,
+        "acc2Floor" : 791,
         "n" : 883,
         "nils" : 0
       },
@@ -91,7 +107,9 @@
       "label" : "scan+window",
       "nonDnb" : {
         "acc1" : 0,
+        "acc1Floor" : 0,
         "acc2" : 0,
+        "acc2Floor" : 0,
         "n" : 0,
         "nils" : 0
       },
@@ -108,13 +126,17 @@
     {
       "all" : {
         "acc1" : 723,
+        "acc1Floor" : 723,
         "acc2" : 726,
+        "acc2Floor" : 726,
         "n" : 883,
         "nils" : 2
       },
       "dnb" : {
         "acc1" : 723,
+        "acc1Floor" : 723,
         "acc2" : 726,
+        "acc2Floor" : 726,
         "n" : 883,
         "nils" : 2
       },
@@ -130,7 +152,9 @@
       "label" : "window-only",
       "nonDnb" : {
         "acc1" : 0,
+        "acc1Floor" : 0,
         "acc2" : 0,
+        "acc2Floor" : 0,
         "n" : 0,
         "nils" : 0
       },
@@ -4072,9 +4096,11 @@
     "resolvedOnDisk" : 883
   },
   "dnbGenreLabel" : "drum-and-bass",
-  "gitSHA" : "da6b0f1",
+  "floorReference" : null,
+  "gitSHA" : "d6dd8a2",
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
+  "metricNote" : "acc1\/acc2 are octave-STRICT, scored against the primary annotation alone. acc1Floor\/acc2Floor add the corpus's second annotation and reproduce the committed benchmark. They differ only on GiantSteps, which carries tempo2 on 577 of 661 rows, 303 of them exactly half the primary value.",
   "nonDnbReportable" : false,
   "nonDnbUnreportableReason" : "1520 of 1721 Rekordbox survey rows carry an empty genre string, so the complement of the DnB slice is unlabelled material rather than labelled non-DnB and would be seeded with unlabelled DnB",
   "requestedPrior" : {
@@ -4083,5 +4109,5 @@
   },
   "tolerance" : 0.02,
   "truthCaveat" : "bpm_truth snaps to the Rekordbox value, which is a metrical-level convention; if Rekordbox reports the fast octave for half-time material then casualty counts from this corpus are a lower bound (see Story 12.6)",
-  "wallClockSeconds" : 122.68899095058441
+  "wallClockSeconds" : 124.66365802288055
 }
