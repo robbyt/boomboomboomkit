@@ -1,20 +1,28 @@
 # SMC 2015 published-prior replication: results
 
-Date: 2026-08-05 (revised same day after external review)
+Date: 2026-08-05, revised 2026-08-06 after a second external review
 Branch: `rterhaar/12-2-smc-prior-replication`
-Measurement revision: `d6dd8a2`
+Measurement revision: `7474bd3` (`713e42e` for the FR-14 conformant artifact)
 Raw artifacts, same directory:
 `12-2-smc-prior-replication-{oa300,giantsteps,tony}.json` plus
 `12-2-smc-prior-replication-tony-fr14-conformant.json`
 
 This document is self-contained. It assumes no prior context.
 
-**Revision note.** The first version of this document reported a positive result on one
-of the three corpora and did not reconcile its baseline against the committed corpus
-benchmark. External review caught both. Section 9 now carries the reconciliation, and
-section 4's conclusion is reversed: once label quality is controlled, the published prior
-costs accuracy on every corpus tested. The superseded claims are named in section 10 so
-anyone who read the earlier version can see exactly what changed.
+**What this tested, in one sentence.** A hard `Options.tempoScanRange` bound at the
+published `130...180`, which is an **analogue** of SMC 2015's drum-and-bass prior: the
+repository's only source for that prior is the phrase "DnB prior 130-180 BPM", which fixes
+a range but not whether it was applied as a search constraint or as a candidate
+reweighting. A negative result here bounds the hard-filter reading and leaves soft
+reweighting untested.
+
+**Revision note.** v1 reported a positive result on one of the three corpora and did not
+reconcile its baseline against the committed corpus benchmark; v2 fixed both, and reversed
+section 4 once label quality was controlled. v3 (2026-08-06) narrows three overclaims that
+survived v2: that the experiment ran "on the correct knob", that the result is negative on
+"all three corpora" unqualified, and that the Marginal tier was the most DSP-circular
+slice — the artifact's own `labelProvenance` says the opposite. Section 10 names every
+superseded claim across both revisions.
 
 ## 1. The question
 
@@ -54,12 +62,19 @@ the non-DnB rows measure what a blanket or mistaken declaration costs.
 - **Floor-compatible**: scored the way the committed corpus benchmark scores, which for
   GiantSteps means a hit against *either* `bpm` or `tempo2`.
 
-GiantSteps ground truth v2 carries `tempo2` on 577 of 661 rows, and **303 of those are
-exactly half the primary value, 58 exactly double**. The committed metric therefore
-already credits the octave alternative as correct, which makes it close to blind to the
-phenomenon this experiment is about. Octave-strict is the right instrument for the
-question; floor-compatible is what reconciles against the repo's gates. OA300 and Tony
-have no second annotation, so for them the two coincide.
+GiantSteps ground truth v2 carries `tempo2` on 577 of 661 rows. Of those, **303 are within
+the 2% scoring tolerance of half the primary value and 58 within it of double** — under
+literal equality the counts are only **100 and 23**. The tolerant pair is the operative
+one, because the 2% MIREX matcher is what decides hits, but the distinction is not
+cosmetic: an earlier version of this document called them "exactly half", which asserts
+label identity where only scoring equivalence holds. Both pairs now ship in the artifact's
+`tempo2Stats` block with their formulas.
+
+The committed metric therefore already credits the octave alternative as correct on a large
+minority of rows, which makes it close to blind to the phenomenon this experiment is about.
+Octave-strict is the right instrument for the question; floor-compatible is what reconciles
+against the repo's gates. OA300 and Tony have no second annotation, so for them the two
+coincide.
 
 Three corpora: **OA300** (82 tracks, 67 DnB), **GiantSteps** (661, 139 DnB, the corpus
 SMC published on), and the **DnB slice of Tony's Rekordbox collection** (848 distinct
@@ -105,11 +120,25 @@ OA300 DnB −4, GiantSteps DnB −6 strict, Tony DnB −20.
 **The published lift does not reproduce anywhere. Once label quality is controlled, the
 prior costs accuracy on all three corpora.**
 
-The only positive number in this experiment, Tony's +44, does not survive the repository's
-own label-quality rule. Filtering to `truth_confidence >= 0.66`, which is the FR-14 rule
-excluding Marginal tier, reverses it to **−18**. The gain was carried entirely by the 312
-Marginal-tier rows: the least trustworthy labels in the set, and the ones whose truth was
-most influenced by this detector's own output (section 6).
+Stated precisely, because the unqualified form is false at face value: the hard-bound
+analogue is negative on **OA300**, on **GiantSteps**, and on the **FR-14-conformant Tony
+slice**. All-tier Tony is **+44**, and that is the only positive number in the experiment.
+
+It does not survive the repository's own label-quality rule. Filtering to
+`truth_confidence >= 0.66`, the FR-14 rule that excludes the Marginal tier, reverses it to
+**−18**. The gain was carried entirely by the 312 Marginal-tier rows, the least trustworthy
+labels in the set — which under FR-14 is sufficient on its own to discount the +44.
+
+~~and the ones whose truth was most influenced by this detector's own output~~
+**WITHDRAWN 2026-08-06 (external review): the artifact's own `labelProvenance` contradicts
+it.** The FR-14-conformant slice is DSP-influenced on **529 of 536 rows (98.7%)**, the
+Marginal tier on **271 of 312 (86.9%)** — so Marginal is the *less* circular slice, not the
+more. The accurate statement is that DSP circularity is **pervasive on both slices** and
+**likely biases the comparison in favour of the baseline**, because the baseline detector
+contributed to how the labels were formed. Its direction is arguable, its magnitude is not
+independently measurable here, and the prevalence figures demonstrate prevalence, not bias
+size. The consequence for reading this document: **Tony is a weak instrument in either
+direction**, and the load-bearing negative evidence is OA300 and GiantSteps-strict.
 
 Three supporting observations.
 
@@ -134,13 +163,24 @@ wrong, and low casualty exposure is necessary but not sufficient for the prior t
 
 Identical on all three corpora; only the ratio of gains to losses moves.
 
-| corpus | arm B gained | arm B lost | net | ratioClass over changed DnB rows |
-|---|---:|---:|---:|---|
-| OA300 | 1 | 3 | −2 | 2.0 x2, 1.0 x3, 1.5 x1, other x2 |
-| GiantSteps | 3 | 4 | −1 | 1.0 x6, 2.0 x2, 1.5 x1, other x4 |
-| Tony, all tiers | 84 | 36 | +48 (pre-dedupe) | 1.5 x45, 1.0 x44, 2.0 x29, other x54 |
+| corpus | arm B gained | arm B lost | net | changed rows | ratioClass over changed DnB rows |
+|---|---:|---:|---:|---:|---|
+| OA300 | 1 | 3 | −2 | 8 | 1.0 x3, 2.0 x2, 1.5 x1, other x2 |
+| GiantSteps | 3 | 4 | −1 | 13 | 1.0 x6, other x4, 2.0 x2, 1.5 x1 |
+| Tony, all tiers | 79 | 35 | **+44** | 165 | 1.0 x43, 1.5 x42, 2.0 x28, other x52 |
 
-`ratioClass` buckets `armBPM / baselineBPM`.
+`ratioClass` buckets `armBPM / baselineBPM`, computed over **all changed DnB rows** — every
+row whose BPM moved in at least one non-baseline arm — which is the `changed rows` column
+and the same basis on all three corpora.
+
+**Three different row sets, and they are easy to confuse.** On Tony: **165** rows changed
+in at least one non-baseline arm; **114** of those are arm-B correctness flips (79 gained +
+35 lost); the remaining **51** either changed only in arms C or D, or changed BPM without
+crossing the correctness threshold. `79 + 35` is not meant to equal 165.
+
+The Tony row is recomputed from the deduped artifact. The earlier version of this document
+reported **84 / 36 / +48** over 883 pre-dedupe rows; deduping to 848 distinct files gives
+79 / 35 / +44 (DnB Acc1 713 → 757).
 
 **Losses are exact doublings of half-time truth.** Truth 86.0, baseline 85.9, arm B 173.2.
 Truth 84.0, baseline 84.0, arm B 167.7. The 130 floor excludes the correct answer, so the
@@ -158,11 +198,18 @@ The corpus carrying the only positive number needs all three read together.
 **1. The truth is not detector-independent.** `tony-truth-labels.json` derives `bpm_truth`
 by clustering five noisy signals, and one of them is `tony-dsp-prepass`, a run of this
 same library. The winning truth cluster lists `dsp` among its sources on **800 of 848
-distinct files, 94%**. Row selection is therefore DSP-influenced, so the slice skews toward material
-where this detector already agreed with the other signals. The direction of arm B's gains
-is partially insulated, because a gain is a row where the baseline *disagreed* with truth
-and so the label came from the Rekordbox side, but the denominator is not independent and
-the aggregate should not be read as a clean external check.
+distinct files, 94%** — and on the FR-14-conformant slice, **529 of 536, 98.7%**. Circularity
+is therefore *pervasive on both slices*, and slightly worse on the conformant one, which
+rules out reading the FR-14 filter as a way to escape it. (The Marginal tier alone is
+271 of 312, 86.9%.)
+
+Row selection is DSP-influenced, so the slice skews toward material where this detector
+already agreed with the other signals. The direction of arm B's gains is partially
+insulated, because a gain is a row where the baseline *disagreed* with truth and so the
+label came from the Rekordbox side. But the denominator is not independent, the effect
+**likely favours the baseline**, and its magnitude is not measurable from inside this
+corpus. Prevalence figures show prevalence, not bias size. The aggregate should not be
+read as a clean external check in either direction.
 
 **2. Label tiers.** Of the 848 distinct files: **Strong 48, Solid 488, Marginal 312**.
 Only 5.7% is Strong and 36.8% is Marginal, the tier FR-14 excludes from training. The
@@ -187,14 +234,26 @@ the count of drum-and-bass tracks the operator owns.
 
 **Established.**
 
-- AS-7 does not hold as stated. The published configuration, run on the correct knob at
-  the published values, produces no drum-and-bass lift on any corpus once label quality is
-  controlled.
+- **A hard `tempoScanRange` bound at the published `130...180` produces no drum-and-bass
+  lift on any corpus once label quality is controlled.** ~~AS-7 does not hold as stated.
+  The published configuration, run on the correct knob at the published values~~
+  **CORRECTED 2026-08-06 (external review): "the correct knob" overclaims.** What the
+  repository knows about SMC's prior is the summary phrase "DnB prior 130-180 BPM", which
+  establishes a *range* and nothing about whether it was applied as a search constraint or
+  as a candidate reweighting (`epics.md:2079` says so in those words). `tempoScanRange` is
+  a hard filter by construction. **So this bounds the hard-filter reading of AS-7 and not
+  the published mechanism** — read this bullet together with the first "not established"
+  bullet below, not three bullets apart from it.
 - A hard declared range is expensive when misapplied: GiantSteps non-DnB loses 104 to 108
   tracks depending on metric.
-- The committed GiantSteps metric credits the octave alternative as correct on 361 of 661
-  rows, so it is a poor instrument for octave questions. Anyone measuring octave behaviour
-  on that corpus should report the strict metric alongside it.
+- **The committed GiantSteps metric is a poor instrument for octave questions**, because it
+  accepts `tempo2`. Stated precisely: **361 of 661 rows carry a second annotation within
+  the 2% tolerance of an octave relation** (303 half + 58 double). That is latent
+  ambiguity, not realized score inflation — the metric's actual effect on arm A is **71
+  tracks** (466 octave-strict against 537 floor-compatible), so 290 of the 361 never come
+  into play here. ~~credits the octave alternative as correct on 361 of 661 rows~~
+  **CORRECTED 2026-08-06: that read the exposure as the effect.** Anyone measuring octave
+  behaviour on this corpus should report the strict metric alongside the floor one.
 
 **Not established.**
 
@@ -256,6 +315,17 @@ Both pass. The gate is permanent, so this ambiguity cannot recur silently.
 | Tony truth described only with the Rekordbox convention caveat | **Extended.** The truth is also DSP-influenced on 94% of rows. |
 | No tolerance note | **Added.** Ours is 2%, SMC's is 4%. |
 
+Superseded again on 2026-08-06, after a second external review:
+
+| claim in v2 | status |
+|---|---|
+| §4: the Marginal tier holds "the ones whose truth was most influenced by this detector's own output" | **Withdrawn — backwards.** `labelProvenance` puts the conformant slice at 529/536 (98.7%) DSP-inclusive against Marginal's 271/312 (86.9%). Circularity is pervasive on both, likely favours the baseline, and its magnitude is not measurable here. Tony is a weak instrument in either direction. |
+| §5 Tony row: 84 gained / 36 lost / +48 | **Corrected** to 79 / 35 / **+44** from the deduped artifact, with the 165 / 114 / 51 row sets separated so `79 + 35` is not read against 165. |
+| §2 and §7: `tempo2` rows "exactly half" / "exactly double" | **Corrected.** 303/58 hold only within the 2% scoring tolerance; literal equality gives 100/23. Both now ship in the artifact's `tempo2Stats`. The harness was writing the false wording into every artifact via `metricNote`. |
+| §7: the metric "credits the octave alternative as correct on 361 of 661 rows" | **Corrected.** 361 is the *exposure* — rows carrying an octave-related alternative. The realized effect on arm A is **71 tracks** (466 strict vs 537 floor). |
+| §7: "run on the correct knob at the published values" | **Narrowed.** SMC's application mechanism is unverified here, so this tests a hard-bound *analogue*. It bounds the hard-filter reading of AS-7, not the published mechanism. |
+| "negative on all three corpora", unqualified | **Qualified.** Negative on OA300, GiantSteps, and the FR-14-conformant Tony slice; all-tier Tony is +44 but label-compromised. |
+
 ## 11. Provenance and reproduction
 
 ```
@@ -267,9 +337,22 @@ Release config. Requires `OA300_CORPUS_PATH`, `GIANTSTEPS_CORPUS_PATH`, `TONY_AU
 and for the Tony arm the outputs of `make tony-corpus`. Override the prior with
 `SMC_PRIOR_BOUNDS="<min>,<max>"`.
 
-- `GIT_SHA` = `d6dd8a2`. A preflight rejects an unset, non-hex or dirty-tree SHA before the
-  corpus loop, so an artifact's provenance always ties to code. It fired correctly during
-  this work and blocked a run against uncommitted changes.
+- **Measurement revision.** The three canonical artifacts were produced at `GIT_SHA`
+  `7474bd3`, the FR-14 conformant one at `713e42e`. (v1 of this document reported `d6dd8a2`,
+  the pre-regeneration revision.) A preflight rejects an unset, non-hex or dirty-tree SHA
+  before the corpus loop, so an artifact's provenance always ties to code. It fired
+  correctly twice during this work, blocking runs against uncommitted changes.
+- **Input provenance.** `gitSHA` pins the code and nothing else, and two of the three
+  corpora are unpinnable by it: GiantSteps ground truth is external to this repository, and
+  the Tony labels are regenerated by `make tony-corpus`. Every artifact now carries an
+  `inputProvenance` block with the basename and SHA-256 of each truth file it read
+  (`giantsteps-tempo-ground-truth.json` = `3dc6f375…`; `tony-survey.json` = `55b283ce…`,
+  `tony-truth-labels.json` = `b33b836a…`).
+- **Regeneration check.** Re-running after the harness change moved no accuracy number:
+  9,839 compared leaves across the three canonical artifacts, and 1,793 in the conformant
+  one, are byte-identical once `gitSHA`, `wallClockSeconds`, `metricNote` and the two new
+  blocks are excluded. `tempo2Stats` was verified against an independent recomputation from
+  the ground-truth file, and each `inputProvenance` digest against `shasum -a 256`.
 - Coverage: no corpus had missing audio. The per-arm identity
   `analyzed + nils + missing == ground truth` is asserted in-harness and held for every arm
   and corpus.
@@ -288,9 +371,16 @@ worth a uniquifying prefix if the harness is reused.
 
 ## 12. Recommendations for whoever consumes this
 
-1. **AS-7: mark TESTED, does not transfer as published.** Not "refuted". The assumption as
-   written is measured false on three corpora, while SMC itself is untouched because their
-   baseline had an octave catastrophe ours does not.
+1. **AS-7: mark TESTED as a hard search-range bound, and negative — but not resolved.**
+   ~~mark TESTED, does not transfer as published. Not "refuted". The assumption as written
+   is measured false on three corpora~~ **CORRECTED 2026-08-06 (external review): both
+   halves overclaimed.** "Does not transfer as published" asserts the published mechanism
+   was tested, and §7 says it was not — only its range, as a hard filter. "On three
+   corpora" is false unqualified: all-tier Tony is +44. The supportable annotation is
+   *tested as a hard `tempoScanRange` bound at `130...180`; negative on OA300, on
+   GiantSteps, and on the FR-14-conformant Tony slice; unresolved for soft reweighting and
+   for the published mechanism.* SMC itself is untouched either way, because their baseline
+   had an octave catastrophe ours does not.
 2. **The 12.2 reject is vindicated and sharpened.** The published configuration buys
    nothing anywhere and costs GiantSteps non-DnB over 100 tracks. A style classifier would
    have been machinery for automatically applying a prior that measures at best neutral
@@ -301,6 +391,6 @@ worth a uniquifying prefix if the harness is reused.
    the correct metrical level for the same genre, and the committed GiantSteps metric
    papers over the disagreement by accepting both.
 5. **Independently: the GiantSteps floor metric deserves scrutiny.** Accepting `tempo2`
-   means 361 of 661 rows can be scored correct at either octave. That is defensible for a
-   general tempo benchmark and misleading for octave work, and no document in the repo
-   currently says so.
+   means 361 of 661 rows *could* be scored correct at either octave, and 71 of them
+   actually are on arm A. That is defensible for a general tempo benchmark and misleading
+   for octave work, and no document in the repo said so before this one.
