@@ -24,6 +24,7 @@
 //
 
 import BoomBoomBoomKitTestSupport
+import CryptoKit
 import Foundation
 import Testing
 
@@ -524,12 +525,110 @@ private struct ReplicationTrack: Sendable {
   let genre: String
   let truthBPM: Double
   /// The corpus's SECOND annotation, where it has one. GiantSteps ground truth v2
-  /// carries `tempo2` on 577 of 661 rows, 303 of them exactly half `bpm` and 58 exactly
-  /// double. `GiantStepsBenchmarkTests` counts a hit against either value, which is what
-  /// the committed 537/546 floor measures. OA300 and Tony have no second annotation, so
-  /// for them the two metrics coincide.
+  /// carries `tempo2` on 577 of 661 rows; 303 of those are WITHIN THE 2% SCORING
+  /// TOLERANCE of half `bpm` and 58 within it of double. Under literal equality the
+  /// counts are only 100 and 23 — the artifact's `tempo2Stats` block carries both, and
+  /// the tolerant pair is the operative one because the shared MIREX matcher is what
+  /// decides hits. `GiantStepsBenchmarkTests` counts a hit against either value, which
+  /// is what the committed 537/546 floor measures. OA300 and Tony have no second
+  /// annotation, so for them the two metrics coincide.
   let altTruthBPM: Double?
   let url: URL
+}
+
+/// Declares that a corpus carries a second tempo annotation, and names it.
+///
+/// DECLARED, never inferred. An earlier draft emitted the `tempo2Stats` block whenever
+/// some track happened to carry a non-nil `altTruthBPM`, which couples the artifact's
+/// schema to incidental data: a corpus that lost its second annotation would silently
+/// drop the block rather than fail. The runner asserts the declaration against the data
+/// in both directions — a declared source must be present on `expectedRows`, and an
+/// undeclared corpus must carry none.
+private struct AlternateTruthSource: Sendable {
+  /// Field name in the corpus's own ground truth, for the artifact.
+  let field: String
+  /// Row count the declaration promises. Asserted, not recorded.
+  let expectedRows: Int
+}
+
+/// Half/double census over a corpus's second annotation, under BOTH definitions.
+///
+/// The distinction is load-bearing and was wrong in prose for a week. Under literal
+/// equality GiantSteps has 100 half and 23 double; under the 2% MIREX tolerance the
+/// shared matcher actually applies, 303 and 58. The tolerant pair is operative — it is
+/// what decides hits — but calling it "exactly half" states label identity where only
+/// scoring equivalence holds. Both ship, so no reader has to take the word on trust.
+private struct AlternateTruthCensus: Sendable {
+  let field: String
+  let present: Int
+  let total: Int
+  let literalHalf: Int
+  let literalDouble: Int
+  let toleranceHalf: Int
+  let toleranceDouble: Int
+  let tolerance: Double
+
+  /// `literalEpsilon` is absolute; the tolerant test is relative to the primary value,
+  /// matching `isAcc1Match`.
+  static let literalEpsilon = 1e-6
+
+  init(field: String, tracks: [ReplicationTrack], tolerance: Double) {
+    let alts = tracks.compactMap { track in
+      track.altTruthBPM.map { (primary: track.truthBPM, alt: $0) }
+    }
+    self.field = field
+    self.total = tracks.count
+    self.present = alts.count
+    self.tolerance = tolerance
+    self.literalHalf = alts.count { abs($0.alt * 2 - $0.primary) < Self.literalEpsilon }
+    self.literalDouble = alts.count { abs($0.alt / 2 - $0.primary) < Self.literalEpsilon }
+    self.toleranceHalf = alts.count { abs($0.alt * 2 - $0.primary) <= tolerance * $0.primary }
+    self.toleranceDouble = alts.count { abs($0.alt / 2 - $0.primary) <= tolerance * $0.primary }
+  }
+
+  var json: [String: Any] {
+    [
+      "field": field,
+      "present": present,
+      "groundTruthRows": total,
+      "literalHalf": literalHalf,
+      "literalDouble": literalDouble,
+      "literalEpsilon": Self.literalEpsilon,
+      "toleranceHalf": toleranceHalf,
+      "toleranceDouble": toleranceDouble,
+      "scoringTolerance": tolerance,
+      "formulas": [
+        "literalHalf": "abs(alt * 2 - primary) < literalEpsilon",
+        "literalDouble": "abs(alt / 2 - primary) < literalEpsilon",
+        "toleranceHalf": "abs(alt * 2 - primary) <= scoringTolerance * primary",
+        "toleranceDouble": "abs(alt / 2 - primary) <= scoringTolerance * primary",
+      ],
+      "note":
+        "The tolerant pair is operative because the shared MIREX matcher decides hits at "
+        + "this tolerance. It is NOT label identity: a row counted here as half may differ "
+        + "from exactly half by up to the tolerance. Their sum is how many rows carry an "
+        + "octave-related alternative, NOT how many the floor metric actually rescues -- "
+        + "for that, compare arm A's acc1 against acc1Floor.",
+    ]
+  }
+}
+
+/// `gitSHA` pins the code. It says nothing about the inputs, and two of the three corpora
+/// here are unpinnable by it: GiantSteps ground truth is external to this repository and
+/// the Tony labels are a generated artifact that `make tony-corpus` rewrites. Recording
+/// the basename and digest of every truth file makes a run reproducible rather than merely
+/// attributable.
+private struct InputProvenance: Sendable {
+  let basename: String
+  let sha256: String
+
+  init(url: URL) throws {
+    self.basename = url.lastPathComponent
+    let digest = SHA256.hash(data: try Data(contentsOf: url))
+    self.sha256 = digest.map { String(format: "%02x", $0) }.joined()
+  }
+
+  var json: [String: Any] { ["basename": basename, "sha256": sha256] }
 }
 
 /// One configured arm.
@@ -715,7 +814,8 @@ struct SMCPriorReplicationTests {
     }
     // Committed OA300 measurement (CLAUDE.md; floors are 57/73).
     try await Self.run(
-      corpus: "oa300", tracks: tracks, gitSHA: sha, floorReference: (acc1: 58, acc2: 74))
+      corpus: "oa300", tracks: tracks, gitSHA: sha, floorReference: (acc1: 58, acc2: 74),
+      inputs: [url])
   }
 
   @Test("GiantSteps — four arms", .timeLimit(.minutes(60)))
@@ -741,7 +841,9 @@ struct SMCPriorReplicationTests {
     }
     // Committed GiantSteps measurement, which sits exactly on its floor.
     try await Self.run(
-      corpus: "giantsteps", tracks: tracks, gitSHA: sha, floorReference: (acc1: 537, acc2: 546))
+      corpus: "giantsteps", tracks: tracks, gitSHA: sha, floorReference: (acc1: 537, acc2: 546),
+      alternateTruth: AlternateTruthSource(field: "tempo2", expectedRows: 577),
+      inputs: [URL(fileURLWithPath: jsonPath)])
   }
 
   // MARK: - Runner
@@ -749,11 +851,31 @@ struct SMCPriorReplicationTests {
   fileprivate static func run(
     corpus: String, tracks: [ReplicationTrack], gitSHA: String,
     floorReference: (acc1: Int, acc2: Int)? = nil,
+    alternateTruth: AlternateTruthSource? = nil,
+    inputs: [URL] = [],
     tonyLabelStats: [String: Any]? = nil,
     nonDnbReportable: Bool = true,
     nonDnbUnreportableReason: String? = nil,
     truthCaveat: String? = nil
   ) async throws {
+    // Declaration versus data, checked BOTH ways before a single track is analyzed.
+    let carried = tracks.count { $0.altTruthBPM != nil }
+    if let alternateTruth {
+      #expect(
+        carried == alternateTruth.expectedRows,
+        "\(corpus) declares a `\(alternateTruth.field)` second annotation on \(alternateTruth.expectedRows) rows but the ground truth carries \(carried). The corpus changed under the experiment."
+      )
+    } else {
+      #expect(
+        carried == 0,
+        "\(corpus) declares no second annotation but \(carried) rows carry one, so acc1Floor would silently diverge from acc1 with nothing in the artifact to explain it."
+      )
+    }
+    let census = alternateTruth.map {
+      AlternateTruthCensus(field: $0.field, tracks: tracks, tolerance: tolerance)
+    }
+    let provenance = try inputs.map { try InputProvenance(url: $0) }
+
     let bounds = priorBounds
     let arms = ReplicationArm.matrix(min: bounds.min, max: bounds.max)
     let onDisk = tracks.filter { FileManager.default.fileExists(atPath: $0.url.path) }
@@ -922,7 +1044,10 @@ struct SMCPriorReplicationTests {
         "acc1/acc2 are octave-STRICT, scored against the primary annotation alone. "
         + "acc1Floor/acc2Floor add the corpus's second annotation and reproduce the "
         + "committed benchmark. They differ only on GiantSteps, which carries tempo2 on "
-        + "577 of 661 rows, 303 of them exactly half the primary value.",
+        + "577 of 661 rows -- 303 of them WITHIN THE 2% SCORING TOLERANCE of half the "
+        + "primary value, though only 100 at literal equality. See tempo2Stats.",
+      "tempo2Stats": census?.json as Any,
+      "inputProvenance": provenance.isEmpty ? nil as Any? as Any : provenance.map(\.json),
       "floorReference": floorReference.map { ["acc1": $0.acc1, "acc2": $0.acc2] } as Any,
       "labelProvenance": tonyLabelStats as Any,
       "nonDnbReportable": nonDnbReportable,
@@ -1184,6 +1309,7 @@ extension SMCPriorReplicationTests {
 
     try await Self.run(
       corpus: "tony", tracks: tracks, gitSHA: sha,
+      inputs: [surveyURL, labelsURL],
       tonyLabelStats: [
         "distinctFiles": tracks.count,
         "duplicatePathRowsDropped": duplicateRows,
