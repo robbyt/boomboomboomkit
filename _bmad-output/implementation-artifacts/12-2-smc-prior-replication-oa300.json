@@ -771,7 +771,7 @@
     "resolvedOnDisk" : 82
   },
   "dnbGenreLabel" : "drum-and-bass",
-  "gitSHA" : "ba14a9b",
+  "gitSHA" : "da6b0f1",
   "maxSeconds" : 120,
   "metric" : "full AudioAnalysisService.analyzeBPM at shipped defaults except the named knobs; MIREX Acc1\/Acc2 at 2% tolerance; maxSeconds=120",
   "nonDnbReportable" : true,
@@ -782,5 +782,5 @@
   },
   "tolerance" : 0.02,
   "truthCaveat" : null,
-  "wallClockSeconds" : 11.121834993362427
+  "wallClockSeconds" : 13.368731021881104
 }
