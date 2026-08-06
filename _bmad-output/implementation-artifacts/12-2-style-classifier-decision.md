@@ -592,7 +592,7 @@ contingent lines and from section 1:
 | PRD §5.1 FR-54 (`prd.md:131`) | Annotated: not delivered, mechanism superseded by FR-53. |
 | PRD §5.1 FR-54a (`prd.md:132`) | Annotated: second exit taken. |
 | PRD §8.1 MVP (`prd.md:365`) | Annotated: F1's MVP content is FR-53 and FR-55. |
-| PRD §14 Q5 (`prd.md:475`) | Annotated: reversed, and labelled as reversing an operator decision. |
+| PRD §14 Q5 (`prd.md:475`) | Annotated: reversed, and labelled as reversing an operator decision. **Annotation basis corrected 2026-08-06**: it had reproduced the shipped-code clause this artifact withdrew at §7, and now restates the basis as FR-54a plus the §1.1 premise. |
 | PRD §1 executive summary (`prd.md:42`, `:46`) | Annotated: the style-prior lever is not delivered by a classifier; the small-model claim at `:46` flagged against `epics.md:2379`. |
 | PRD §9 success-metric row (`prd.md:388`) | Annotated: the non-DnB counter-metric guards a style prior that is not built. |
 | PRD §13 risk row (`prd.md:427`) | Annotated: the mitigation is inverted, naming a rejected FR whose replacement is a hard filter. |

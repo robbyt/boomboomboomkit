@@ -157,6 +157,29 @@ against it.
 **Nothing was deleted.** Every retraction is `~~strikethrough~~` plus a dated bold
 clause, and no existing deferred-work entry or open item was removed or weakened.
 
+### 2026-08-06: external review pass (Q5 annotation)
+
+One finding, patched.
+
+- addressed_findings:
+  - `[high]` `[patch]` **The PRD §14 Q5 annotation still carried the withdrawn basis.** The
+    2026-08-05 pass struck "the caller-declared option now exists in shipped code" from the
+    decision artifact's §7 (`12-2-style-classifier-decision.md:513-515`) as the same
+    conflation of caller-declared *style* with caller-declared *bounds*, and corrected the
+    PRD's FR-54 annotation (§5.1) accordingly. It did **not** correct the §14 Q5 annotation,
+    which reproduced the withdrawn clause verbatim as its "Basis for the reversal" — so the
+    PRD asserted at §14 exactly what it withdrew at §5.1. The basis is restated to match the
+    decision artifact's §7: FR-54a names the exit, and the §1.1 product-policy premise is
+    what converts an available exit into a taken one. FR-53's bounds pairs are named as the
+    alternative octave mechanism Epic 12 ships instead of FR-54, explicitly not as Q5's
+    option. Everything else in the annotation is untouched: both strikethrough spans, the
+    retained original resolution, the REVERSED label, the operator-decision clause, and the
+    section-8 pointer.
+
+**Nothing else changed.** No evidence, no decision, no acceptance criterion. The decision is
+still reject; only the warrant recorded at §14 Q5 was wrong, and it now matches the warrant
+recorded everywhere else.
+
 ## Design Notes
 
 **Why reject rather than defer.** ~~Six lines say the classifier's time never comes on this project's terms.~~ **CORRECTED 2026-08-05 (external review): the six lines do not say that, and the decision artifact now says so plainly.** The ledger below is an inventory of things absent, frozen, or broken *today*, and every one of them could change; read alone it supports "not now" as readily as "never". What converts "not now" into "no" is a **product-policy premise**, stated as a premise and not as a finding: **automatic style inference is outside this library's mission, and callers own their own domain constraints.** Two independent reviews reached the same conclusion about the gap, and §1.1 of the decision artifact now records the premise, labels it a judgment, and makes overturning it the primary re-open trigger. The evidence below is the cost side of that judgment, not its derivation.
