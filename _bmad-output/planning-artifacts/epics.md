@@ -2078,6 +2078,24 @@ So that FR-54's style-conditioned prior stops shadowing F1 with a dependency not
 
 **OUTCOME 2026-08-05: reject.** The decision artifact is `_bmad-output/implementation-artifacts/12-2-style-classifier-decision.md`. This project does not build a style classifier. The replacement octave mechanism the reject exit requires be named is FR-53's caller-declared bounds, shipped by Story 12.1 as `Options.tempoScanRange` and `Options.perceptualWindow`. The two mechanisms do not coexist: FR-53 supersedes FR-54's delivery mechanism, ~~because with no classifier there is no style left to condition on~~ **CORRECTED 2026-08-05, same day: that reason is false** (Q5 names two non-classifier style sources, and file-tag metadata is already read here) **and is replaced by the scope statement it should have been:** Epic 12 builds no style-conditioned prior of any kind, on the product-policy premise recorded in §1.1 of the decision artifact. The hard-filter objection is answered by opt-in defaults rather than dismissed. Nothing downstream is stranded: the Story 12.3 through 12.9 sections contain zero occurrences of `FR-54`, `classif`, `style`, `genre`, `taxonom` or `prior`, and no §6 gate references FR-54. The decision reverses the operator decision recorded at PRD §14 Q5 on 2026-07-28, and says so in those words. It does **not** refute Hörschläger et al. SMC 2015, but *not* for the reason first written here. ~~Story 12.1 tested a hard-filtered window where FR-54 specifies soft reweighting~~ **CORRECTED 2026-08-05, same day:** that mechanism distinction is withdrawn as unsound, because PRD §4.3 (`prd.md:101` as of 2026-08-05) states the published prior as a *range* ("DnB prior 130-180 BPM"). Note the converse does not follow either: that the prior is *stated* as a range does not establish whether it was *applied* as a search constraint or as a reweighting. That remains unverified and is filed as deferred work. The sound reason is that **Story 12.1 did not test the published configuration on either axis**: it moved `Options.perceptualWindow`, the octave-*normalization* window, rather than `Options.tempoScanRange`, which sizes the candidate *search* (the impact report's own `metric` field reads "only perceptualWindow moved"), and it moved it to `100...200` rather than the published `130-180`. ~~AS-7's transfer assumption is therefore weakened, not settled, and is annotated WEAKENED at `prd.md:485`.~~ **CORRECTED 2026-08-05, same day: AS-7 is UNTESTED, not weakened.** The WEAKENED verdict rested on calling the 12.1 report "the first direct test" of the SMC result. It is not a test of style-prior transfer at all: it inferred no style, accepted no declared style, and conditioned nothing by style. AS-7 is annotated **UNTESTED** in the PRD §15 assumptions table (`prd.md:489` as of 2026-08-05). A consequence worth stating: the published prior being a range makes FR-53's caller-declared bounds a **closer** analogue of the published mechanism than the reject rationale first implied. The residual questions, running `tempoScanRange` at the published `130...180`, and whether candidate *reweighting* beats range *bounding*, are filed in `deferred-work.md` with re-open triggers. Epic 12's FR count is unchanged at 26. Note that Story 12.1 is at `review`, not `done`, so a review change to `TempoScanRange` or `PerceptualTempoWindow` is itself a re-open condition for this decision.
 
+> **EVIDENCE ADDENDUM 2026-08-06 (Story 12.2 SMC hard-bound replication,
+> `_bmad-output/implementation-artifacts/12-2-smc-prior-replication.md`).** The residual
+> experiment named above -- running `tempoScanRange` at the published `130...180` -- has
+> now been run over three corpora. It is negative: drum-and-bass Acc1 falls 58 to 54 on
+> OA300, 466 to 361 octave-strict on GiantSteps, and 510 to 492 on the FR-14-conformant
+> Tony slice. All-tier Tony is +44, the one positive number, carried entirely by the 312
+> Marginal-tier rows FR-14 excludes. **This supersedes two current-state claims in the
+> paragraph above**: that AS-7 is wholly untested, and that running this bound is still
+> deferred work. AS-7 is re-annotated at PRD §15 (`prd.md:489` as of 2026-08-06).
+>
+> **What it does NOT settle, and the paragraph above already says why.** The caution
+> recorded above -- that a prior *stated* as a range does not establish whether it was
+> *applied* as a search constraint or as a reweighting -- is correct and stands. This run
+> used a hard filter, so it bounds the hard-filter reading and leaves the soft-reweighting
+> form FR-54 actually specifies untested. The corresponding deferred-work item is
+> **resolved in part, not closed**. The reject decision is unaffected: it rests on the
+> product-policy premise, not on this evidence.
+
 ### Story 12.3: Annotation-version tagging and the octave-error metric
 
 As an engineer comparing an accuracy figure across corpora and dates,
