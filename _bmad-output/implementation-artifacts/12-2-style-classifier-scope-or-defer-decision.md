@@ -2,9 +2,10 @@
 title: 'Story 12.2: Style-classifier decision — scope it, defer it, or reject it'
 type: 'chore'
 created: '2026-08-05'
-status: 'review'
+status: 'done'
 baseline_revision: '13135f8' # branch rterhaar/12-2, clean tree
-final_revision: 'uncommitted' # commit is operator-owned, gated on the 1Password SSH signer
+final_revision: 'a56157a' # squash of PR #190 into rterhaar/epic-12, 2026-08-06
+evidence_revision: '87accb5' # squash of PR #191, the SMC hard-bound replication run
 review_loop_iteration: 0
 followup_review_recommended: true # two review passes: 21 patches (4 high) same-session, then 7 more (1 critical, 3 high) from an external Codex diff review plus a Gemini tie-break
 context:
