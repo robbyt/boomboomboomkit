@@ -248,14 +248,19 @@ duration-impact-report:
 	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/durationImpactReport
 
 ## smc-prior-replication: Story 12.2 section 6.2 item 1 -- run the published SMC 2015 drum-and-bass tempo prior (130-180 BPM) on this pipeline, on the correct knob, at the correct values. Story 12.1 only ever moved Options.perceptualWindow, and only to 100...200; nobody has run Options.tempoScanRange at 130...180. Four arms per corpus at otherwise-shipped defaults: A baseline, B scan-only (PRIMARY), C scan+window, D window-only. Arms run over the whole corpus; the artifact slices DnB against non-DnB, because the DnB rows measure the win and the non-DnB rows measure what a blanket or mistaken declaration costs. Note the published prior is SUB-OCTAVE, so PerceptualTempoWindow normalizes a requested 130...180 up to 130...260 and arms C and D cannot express it on the fold knob; every arm records requested AND effective bounds. Release config for wall-clock (accuracy is config-independent; the baseline arm reproducing the known corpus figures is the built-in cross-check). Refuses to run against a dirty tree, so the artifact's gitSHA always ties to code. Override the prior with SMC_PRIOR_BOUNDS="<min>,<max>". Changes no default; JSON per corpus to _bmad-output/implementation-artifacts/12-2-smc-prior-replication-<corpus>.json.
+# Overridable so a sensitivity run can be staged elsewhere. A recipe-level assignment
+# would beat the caller's environment, which silently overwrote the canonical artifact
+# the first time a sensitivity sweep was attempted.
+SMC_PRIOR_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts
 .PHONY: smc-prior-replication
 smc-prior-replication:
-	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	@mkdir -p "$(SMC_PRIOR_OUT_DIR)"
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
 	SMC_PRIOR_REPLICATION=1 \
-	SMC_PRIOR_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	SMC_PRIOR_OUT_DIR="$(SMC_PRIOR_OUT_DIR)" \
+	$(if $(SMC_TONY_MIN_CONFIDENCE),SMC_TONY_MIN_CONFIDENCE="$(SMC_TONY_MIN_CONFIDENCE)",) \
 	$(if $(SMC_PRIOR_BOUNDS),SMC_PRIOR_BOUNDS="$(SMC_PRIOR_BOUNDS)",) \
 	GIT_SHA=$$( \
 	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
