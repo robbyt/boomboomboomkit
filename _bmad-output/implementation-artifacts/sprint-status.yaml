@@ -346,7 +346,7 @@ development_status:
   12-1-consumer-specifiable-tempo-search-range: review
   12-2-style-classifier-scope-or-defer-decision: done
   12-3-annotation-version-tagging-and-octave-error-metric: ready-for-dev
-  12-4-tempocnn-reference-baseline-gate-0: backlog
+  12-4-tempocnn-reference-baseline-gate-0: done
   12-5-pipeline-differential-and-cause-ranking: backlog
   12-6-metrical-level-convention-and-ground-truth-rule: backlog
   12-7-band-balanced-258-track-corpus: backlog

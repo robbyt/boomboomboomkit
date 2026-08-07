@@ -6,7 +6,7 @@ status: 'done'
 review_loop_iteration: 0
 followup_review_recommended: true # 16 patches applied, one measurement-affecting (per-window normalization moved the gate row 539 -> 545)
 baseline_revision: '4184c72' # branch rterhaar/12-4-tempocnn-reference-baseline, clean tree
-final_revision: '8b2c6fc' # two-stage: 093decb harness+rule, then results
+final_revision: '0b8ef2c' # results commit (amended); harness+rule at 093decb
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
 warnings: ['oversized']
