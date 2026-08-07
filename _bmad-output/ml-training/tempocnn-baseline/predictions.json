@@ -1,0 +1,4677 @@
+{
+  "story": "12.4",
+  "generatedAt": "2026-08-07T05:26:10.872362+00:00",
+  "modelVariant": "ismir2018.h5",
+  "weightsSHA256": "622751f2c5395028dee0554be8c9292081191b167135eac35de7ff160fdd8973",
+  "groundTruthFile": {
+    "basename": "giantsteps-tempo-ground-truth.json",
+    "sha256": "3dc6f3759f9a67398130b3ee8c86996f9d8bd312262b300bed05f329bc8ccf13"
+  },
+  "matchedTempo2Rows": 661,
+  "summary": {
+    "denominator": 661,
+    "perTrackFailures": 0,
+    "protocolRows": {
+      "strictAcc1At4pct": {
+        "tracks": 545,
+        "protocol": "FR-18 strict Acc1, 4% relative tolerance, no tempo2 fallback, abstain/decode-failure wrong. GATE ROW (the protocol behind 348/661)."
+      },
+      "strictAcc1At2pct": {
+        "tracks": 544,
+        "protocol": "Strict Acc1, 2% relative tolerance, no tempo2 fallback. Context row only."
+      },
+      "tempo2FloorAcc1At2pct": {
+        "tracks": 642,
+        "protocol": "Acc1 at 2% tolerance with tempo2 fallback (the DSP benchmark's 537/661 = 81.2% instrument; Python re-implementation of the Swift mirexHit metric, equivalence tested on synthetic rows). Context row only."
+      },
+      "octaveTolerantAcc1At4pct": {
+        "tracks": 645,
+        "protocol": "Acc1 at 4% accepting pred, 2*pred, or pred/2 (evaluate_fr18.octave_match). Context row only."
+      },
+      "acc2At4pct": {
+        "tracks": 645,
+        "protocol": "Acc2 per the papers: 4% tolerance allowing octave errors by factors 2 and 3 (2018 paper Section 4). Context row only."
+      }
+    },
+    "strictMissesOctaveRecoverable": 100,
+    "gate": {
+      "ourModelTracks": 348,
+      "publishedAcc1": 0.825,
+      "publishedTracksOn661": 545,
+      "midpointTracks": 446.5,
+      "rule": "Gate 0 fires iff referenceStrictAcc1Tracks <= midpoint; passes iff above.",
+      "referenceStrictAcc1Tracks": 545,
+      "gate0Fires": false,
+      "verdict": "gap-attributable-to-our-model"
+    }
+  },
+  "tracks": [
+    {
+      "trackId": "1030011.LOFI.mp3",
+      "audioPath": "1030011.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 139.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "1068430.LOFI.mp3",
+      "audioPath": "1068430.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 177.0
+    },
+    {
+      "trackId": "1084996.LOFI.mp3",
+      "audioPath": "1084996.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 132.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1092771.LOFI.mp3",
+      "audioPath": "1092771.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": 148.0,
+      "modelBPM": 136.0
+    },
+    {
+      "trackId": "1114156.LOFI.mp3",
+      "audioPath": "1114156.LOFI.mp3",
+      "groundTruthBPM": 86.0,
+      "tempo2": 172.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "1118326.LOFI.mp3",
+      "audioPath": "1118326.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": null,
+      "modelBPM": 172.0
+    },
+    {
+      "trackId": "1120171.LOFI.mp3",
+      "audioPath": "1120171.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "1171800.LOFI.mp3",
+      "audioPath": "1171800.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1174239.LOFI.mp3",
+      "audioPath": "1174239.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 192.0,
+      "modelBPM": 172.0
+    },
+    {
+      "trackId": "1177875.LOFI.mp3",
+      "audioPath": "1177875.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 139.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "1183908.LOFI.mp3",
+      "audioPath": "1183908.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 129.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1198571.LOFI.mp3",
+      "audioPath": "1198571.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "122772.LOFI.mp3",
+      "audioPath": "122772.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 152.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1234668.LOFI.mp3",
+      "audioPath": "1234668.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 177.0
+    },
+    {
+      "trackId": "1234669.LOFI.mp3",
+      "audioPath": "1234669.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 153.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "1234745.LOFI.mp3",
+      "audioPath": "1234745.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1234750.LOFI.mp3",
+      "audioPath": "1234750.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1240669.LOFI.mp3",
+      "audioPath": "1240669.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 171.0
+    },
+    {
+      "trackId": "1240672.LOFI.mp3",
+      "audioPath": "1240672.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "1317507.LOFI.mp3",
+      "audioPath": "1317507.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "1329955.LOFI.mp3",
+      "audioPath": "1329955.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 86.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "1380256.LOFI.mp3",
+      "audioPath": "1380256.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 153.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "1418652.LOFI.mp3",
+      "audioPath": "1418652.LOFI.mp3",
+      "groundTruthBPM": 66.0,
+      "tempo2": 144.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1424458.LOFI.mp3",
+      "audioPath": "1424458.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 169.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "1461087.LOFI.mp3",
+      "audioPath": "1461087.LOFI.mp3",
+      "groundTruthBPM": 90.0,
+      "tempo2": 183.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "1469706.LOFI.mp3",
+      "audioPath": "1469706.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 65.0,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "1479462.LOFI.mp3",
+      "audioPath": "1479462.LOFI.mp3",
+      "groundTruthBPM": 99.0,
+      "tempo2": 197.0,
+      "modelBPM": 98.0
+    },
+    {
+      "trackId": "1514866.LOFI.mp3",
+      "audioPath": "1514866.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1548088.LOFI.mp3",
+      "audioPath": "1548088.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": null,
+      "modelBPM": 137.0
+    },
+    {
+      "trackId": "1556416.LOFI.mp3",
+      "audioPath": "1556416.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1560139.LOFI.mp3",
+      "audioPath": "1560139.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1560729.LOFI.mp3",
+      "audioPath": "1560729.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 61.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "1562235.LOFI.mp3",
+      "audioPath": "1562235.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 153.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "1569136.LOFI.mp3",
+      "audioPath": "1569136.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "1623443.LOFI.mp3",
+      "audioPath": "1623443.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1626348.LOFI.mp3",
+      "audioPath": "1626348.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 152.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1676961.LOFI.mp3",
+      "audioPath": "1676961.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "1698047.LOFI.mp3",
+      "audioPath": "1698047.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "172384.LOFI.mp3",
+      "audioPath": "172384.LOFI.mp3",
+      "groundTruthBPM": 84.0,
+      "tempo2": 170.0,
+      "modelBPM": 84.0
+    },
+    {
+      "trackId": "1728723.LOFI.mp3",
+      "audioPath": "1728723.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 69.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "1735621.LOFI.mp3",
+      "audioPath": "1735621.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "1743969.LOFI.mp3",
+      "audioPath": "1743969.LOFI.mp3",
+      "groundTruthBPM": 79.0,
+      "tempo2": 156.0,
+      "modelBPM": 78.0
+    },
+    {
+      "trackId": "1747518.LOFI.mp3",
+      "audioPath": "1747518.LOFI.mp3",
+      "groundTruthBPM": 71.0,
+      "tempo2": 140.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1753073.LOFI.mp3",
+      "audioPath": "1753073.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 151.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1765409.LOFI.mp3",
+      "audioPath": "1765409.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 73.0,
+      "modelBPM": 145.0
+    },
+    {
+      "trackId": "1791554.LOFI.mp3",
+      "audioPath": "1791554.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 184.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "1816200.LOFI.mp3",
+      "audioPath": "1816200.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 68.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "1817444.LOFI.mp3",
+      "audioPath": "1817444.LOFI.mp3",
+      "groundTruthBPM": 172.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "1825982.LOFI.mp3",
+      "audioPath": "1825982.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 62.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "1839656.LOFI.mp3",
+      "audioPath": "1839656.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1842615.LOFI.mp3",
+      "audioPath": "1842615.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 135.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "1851619.LOFI.mp3",
+      "audioPath": "1851619.LOFI.mp3",
+      "groundTruthBPM": 99.0,
+      "tempo2": 197.0,
+      "modelBPM": 99.0
+    },
+    {
+      "trackId": "1855660.LOFI.mp3",
+      "audioPath": "1855660.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 89.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "1874244.LOFI.mp3",
+      "audioPath": "1874244.LOFI.mp3",
+      "groundTruthBPM": 71.0,
+      "tempo2": 139.0,
+      "modelBPM": 70.0
+    },
+    {
+      "trackId": "1885798.LOFI.mp3",
+      "audioPath": "1885798.LOFI.mp3",
+      "groundTruthBPM": 101.0,
+      "tempo2": 203.0,
+      "modelBPM": 101.0
+    },
+    {
+      "trackId": "1889739.LOFI.mp3",
+      "audioPath": "1889739.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "1889844.LOFI.mp3",
+      "audioPath": "1889844.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1896782.LOFI.mp3",
+      "audioPath": "1896782.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 174.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1905591.LOFI.mp3",
+      "audioPath": "1905591.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": null,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "1905592.LOFI.mp3",
+      "audioPath": "1905592.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "1918704.LOFI.mp3",
+      "audioPath": "1918704.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1921248.LOFI.mp3",
+      "audioPath": "1921248.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 159.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "1929611.LOFI.mp3",
+      "audioPath": "1929611.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 85.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "1943706.LOFI.mp3",
+      "audioPath": "1943706.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": null,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "1950701.LOFI.mp3",
+      "audioPath": "1950701.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "1955621.LOFI.mp3",
+      "audioPath": "1955621.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1960598.LOFI.mp3",
+      "audioPath": "1960598.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "1968659.LOFI.mp3",
+      "audioPath": "1968659.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": 150.0,
+      "modelBPM": 136.0
+    },
+    {
+      "trackId": "1973680.LOFI.mp3",
+      "audioPath": "1973680.LOFI.mp3",
+      "groundTruthBPM": 80.0,
+      "tempo2": 160.0,
+      "modelBPM": 79.0
+    },
+    {
+      "trackId": "1974485.LOFI.mp3",
+      "audioPath": "1974485.LOFI.mp3",
+      "groundTruthBPM": 167.0,
+      "tempo2": 183.0,
+      "modelBPM": 167.0
+    },
+    {
+      "trackId": "1982430.LOFI.mp3",
+      "audioPath": "1982430.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 62.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "1982431.LOFI.mp3",
+      "audioPath": "1982431.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 116.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "2013128.LOFI.mp3",
+      "audioPath": "2013128.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "2022116.LOFI.mp3",
+      "audioPath": "2022116.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "2039114.LOFI.mp3",
+      "audioPath": "2039114.LOFI.mp3",
+      "groundTruthBPM": 119.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "2048806.LOFI.mp3",
+      "audioPath": "2048806.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2061919.LOFI.mp3",
+      "audioPath": "2061919.LOFI.mp3",
+      "groundTruthBPM": 141.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2071203.LOFI.mp3",
+      "audioPath": "2071203.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": 192.0,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "2083393.LOFI.mp3",
+      "audioPath": "2083393.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": 60.0,
+      "modelBPM": 118.0
+    },
+    {
+      "trackId": "2083969.LOFI.mp3",
+      "audioPath": "2083969.LOFI.mp3",
+      "groundTruthBPM": 69.0,
+      "tempo2": 139.0,
+      "modelBPM": 69.0
+    },
+    {
+      "trackId": "2088277.LOFI.mp3",
+      "audioPath": "2088277.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 174.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2088281.LOFI.mp3",
+      "audioPath": "2088281.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 171.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "210560.LOFI.mp3",
+      "audioPath": "210560.LOFI.mp3",
+      "groundTruthBPM": 78.0,
+      "tempo2": 160.0,
+      "modelBPM": 79.0
+    },
+    {
+      "trackId": "220883.LOFI.mp3",
+      "audioPath": "220883.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 189.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2422602.LOFI.mp3",
+      "audioPath": "2422602.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 144.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "2432724.LOFI.mp3",
+      "audioPath": "2432724.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 159.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "2442269.LOFI.mp3",
+      "audioPath": "2442269.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2673896.LOFI.mp3",
+      "audioPath": "2673896.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 119.0,
+      "modelBPM": 129.0
+    },
+    {
+      "trackId": "2676246.LOFI.mp3",
+      "audioPath": "2676246.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2676506.LOFI.mp3",
+      "audioPath": "2676506.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 111.0,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "2677224.LOFI.mp3",
+      "audioPath": "2677224.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 119.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "2702022.LOFI.mp3",
+      "audioPath": "2702022.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 164.0,
+      "modelBPM": 144.0
+    },
+    {
+      "trackId": "2703359.LOFI.mp3",
+      "audioPath": "2703359.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "2704868.LOFI.mp3",
+      "audioPath": "2704868.LOFI.mp3",
+      "groundTruthBPM": 133.0,
+      "tempo2": 66.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "2706792.LOFI.mp3",
+      "audioPath": "2706792.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "2720752.LOFI.mp3",
+      "audioPath": "2720752.LOFI.mp3",
+      "groundTruthBPM": 112.0,
+      "tempo2": 173.0,
+      "modelBPM": 112.0
+    },
+    {
+      "trackId": "2725284.LOFI.mp3",
+      "audioPath": "2725284.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "2725286.LOFI.mp3",
+      "audioPath": "2725286.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "2725352.LOFI.mp3",
+      "audioPath": "2725352.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2725358.LOFI.mp3",
+      "audioPath": "2725358.LOFI.mp3",
+      "groundTruthBPM": 141.0,
+      "tempo2": 153.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2725361.LOFI.mp3",
+      "audioPath": "2725361.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "2726350.LOFI.mp3",
+      "audioPath": "2726350.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": null,
+      "modelBPM": 118.0
+    },
+    {
+      "trackId": "2726353.LOFI.mp3",
+      "audioPath": "2726353.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": null,
+      "modelBPM": 118.0
+    },
+    {
+      "trackId": "2726355.LOFI.mp3",
+      "audioPath": "2726355.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": 59.0,
+      "modelBPM": 118.0
+    },
+    {
+      "trackId": "2734649.LOFI.mp3",
+      "audioPath": "2734649.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "2734862.LOFI.mp3",
+      "audioPath": "2734862.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 90.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "2741734.LOFI.mp3",
+      "audioPath": "2741734.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 90.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "2745205.LOFI.mp3",
+      "audioPath": "2745205.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": 58.0,
+      "modelBPM": 117.0
+    },
+    {
+      "trackId": "2751688.LOFI.mp3",
+      "audioPath": "2751688.LOFI.mp3",
+      "groundTruthBPM": 120.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "2757093.LOFI.mp3",
+      "audioPath": "2757093.LOFI.mp3",
+      "groundTruthBPM": 81.0,
+      "tempo2": 160.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "2759853.LOFI.mp3",
+      "audioPath": "2759853.LOFI.mp3",
+      "groundTruthBPM": 130.0,
+      "tempo2": 120.0,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "278893.LOFI.mp3",
+      "audioPath": "278893.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "28952.LOFI.mp3",
+      "audioPath": "28952.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 77.0,
+      "modelBPM": 138.0
+    },
+    {
+      "trackId": "2992360.LOFI.mp3",
+      "audioPath": "2992360.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 136.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "3013673.LOFI.mp3",
+      "audioPath": "3013673.LOFI.mp3",
+      "groundTruthBPM": 156.0,
+      "tempo2": 78.0,
+      "modelBPM": 78.0
+    },
+    {
+      "trackId": "3013772.LOFI.mp3",
+      "audioPath": "3013772.LOFI.mp3",
+      "groundTruthBPM": 83.0,
+      "tempo2": 163.0,
+      "modelBPM": 83.0
+    },
+    {
+      "trackId": "3016341.LOFI.mp3",
+      "audioPath": "3016341.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3023605.LOFI.mp3",
+      "audioPath": "3023605.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": null,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "3040535.LOFI.mp3",
+      "audioPath": "3040535.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3058700.LOFI.mp3",
+      "audioPath": "3058700.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3059880.LOFI.mp3",
+      "audioPath": "3059880.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3062661.LOFI.mp3",
+      "audioPath": "3062661.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3069960.LOFI.mp3",
+      "audioPath": "3069960.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 71.0,
+      "modelBPM": 105.0
+    },
+    {
+      "trackId": "3079792.LOFI.mp3",
+      "audioPath": "3079792.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 75.0,
+      "modelBPM": 75.0
+    },
+    {
+      "trackId": "3088145.LOFI.mp3",
+      "audioPath": "3088145.LOFI.mp3",
+      "groundTruthBPM": 64.0,
+      "tempo2": 127.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "3089629.LOFI.mp3",
+      "audioPath": "3089629.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3091433.LOFI.mp3",
+      "audioPath": "3091433.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3091814.LOFI.mp3",
+      "audioPath": "3091814.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 62.0,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "3097674.LOFI.mp3",
+      "audioPath": "3097674.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3101046.LOFI.mp3",
+      "audioPath": "3101046.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "310291.LOFI.mp3",
+      "audioPath": "310291.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 179.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3109241.LOFI.mp3",
+      "audioPath": "3109241.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3116297.LOFI.mp3",
+      "audioPath": "3116297.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 130.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3124242.LOFI.mp3",
+      "audioPath": "3124242.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 65.0,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "3125254.LOFI.mp3",
+      "audioPath": "3125254.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3128068.LOFI.mp3",
+      "audioPath": "3128068.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3128701.LOFI.mp3",
+      "audioPath": "3128701.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3130573.LOFI.mp3",
+      "audioPath": "3130573.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "3134837.LOFI.mp3",
+      "audioPath": "3134837.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3151015.LOFI.mp3",
+      "audioPath": "3151015.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "3158774.LOFI.mp3",
+      "audioPath": "3158774.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 84.0,
+      "modelBPM": 84.0
+    },
+    {
+      "trackId": "3165747.LOFI.mp3",
+      "audioPath": "3165747.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3167057.LOFI.mp3",
+      "audioPath": "3167057.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3169408.LOFI.mp3",
+      "audioPath": "3169408.LOFI.mp3",
+      "groundTruthBPM": 112.0,
+      "tempo2": 203.0,
+      "modelBPM": 112.0
+    },
+    {
+      "trackId": "3173482.LOFI.mp3",
+      "audioPath": "3173482.LOFI.mp3",
+      "groundTruthBPM": 83.0,
+      "tempo2": 166.0,
+      "modelBPM": 165.0
+    },
+    {
+      "trackId": "3173803.LOFI.mp3",
+      "audioPath": "3173803.LOFI.mp3",
+      "groundTruthBPM": 188.0,
+      "tempo2": 93.0,
+      "modelBPM": 93.0
+    },
+    {
+      "trackId": "3181214.LOFI.mp3",
+      "audioPath": "3181214.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3188462.LOFI.mp3",
+      "audioPath": "3188462.LOFI.mp3",
+      "groundTruthBPM": 115.0,
+      "tempo2": null,
+      "modelBPM": 115.0
+    },
+    {
+      "trackId": "3189712.LOFI.mp3",
+      "audioPath": "3189712.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 114.0
+    },
+    {
+      "trackId": "3190021.LOFI.mp3",
+      "audioPath": "3190021.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 89.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "3190084.LOFI.mp3",
+      "audioPath": "3190084.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "3194652.LOFI.mp3",
+      "audioPath": "3194652.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3202338.LOFI.mp3",
+      "audioPath": "3202338.LOFI.mp3",
+      "groundTruthBPM": 80.0,
+      "tempo2": 160.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "3208076.LOFI.mp3",
+      "audioPath": "3208076.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "3209004.LOFI.mp3",
+      "audioPath": "3209004.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 147.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3209061.LOFI.mp3",
+      "audioPath": "3209061.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "3211234.LOFI.mp3",
+      "audioPath": "3211234.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 164.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3213176.LOFI.mp3",
+      "audioPath": "3213176.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3218565.LOFI.mp3",
+      "audioPath": "3218565.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3218804.LOFI.mp3",
+      "audioPath": "3218804.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3220340.LOFI.mp3",
+      "audioPath": "3220340.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3226171.LOFI.mp3",
+      "audioPath": "3226171.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 81.0,
+      "modelBPM": 160.0
+    },
+    {
+      "trackId": "3226172.LOFI.mp3",
+      "audioPath": "3226172.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 138.0
+    },
+    {
+      "trackId": "3226180.LOFI.mp3",
+      "audioPath": "3226180.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3230477.LOFI.mp3",
+      "audioPath": "3230477.LOFI.mp3",
+      "groundTruthBPM": 101.0,
+      "tempo2": 203.0,
+      "modelBPM": 101.0
+    },
+    {
+      "trackId": "3230949.LOFI.mp3",
+      "audioPath": "3230949.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 68.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3241615.LOFI.mp3",
+      "audioPath": "3241615.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3244386.LOFI.mp3",
+      "audioPath": "3244386.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 70.0
+    },
+    {
+      "trackId": "3247762.LOFI.mp3",
+      "audioPath": "3247762.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 179.0,
+      "modelBPM": 171.0
+    },
+    {
+      "trackId": "3261686.LOFI.mp3",
+      "audioPath": "3261686.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 144.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3261883.LOFI.mp3",
+      "audioPath": "3261883.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 160.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3264338.LOFI.mp3",
+      "audioPath": "3264338.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3267829.LOFI.mp3",
+      "audioPath": "3267829.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 133.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3269490.LOFI.mp3",
+      "audioPath": "3269490.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 132.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3269670.LOFI.mp3",
+      "audioPath": "3269670.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 79.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3281282.LOFI.mp3",
+      "audioPath": "3281282.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 80.0,
+      "modelBPM": 160.0
+    },
+    {
+      "trackId": "3289180.LOFI.mp3",
+      "audioPath": "3289180.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 80.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "3291017.LOFI.mp3",
+      "audioPath": "3291017.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 152.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3297802.LOFI.mp3",
+      "audioPath": "3297802.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 142.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3298908.LOFI.mp3",
+      "audioPath": "3298908.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "3303241.LOFI.mp3",
+      "audioPath": "3303241.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 167.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "3304445.LOFI.mp3",
+      "audioPath": "3304445.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3312045.LOFI.mp3",
+      "audioPath": "3312045.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "3313129.LOFI.mp3",
+      "audioPath": "3313129.LOFI.mp3",
+      "groundTruthBPM": 85.0,
+      "tempo2": 171.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3317417.LOFI.mp3",
+      "audioPath": "3317417.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 119.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3333492.LOFI.mp3",
+      "audioPath": "3333492.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": null,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "333579.LOFI.mp3",
+      "audioPath": "333579.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3336126.LOFI.mp3",
+      "audioPath": "3336126.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3336604.LOFI.mp3",
+      "audioPath": "3336604.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3343760.LOFI.mp3",
+      "audioPath": "3343760.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 176.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3344148.LOFI.mp3",
+      "audioPath": "3344148.LOFI.mp3",
+      "groundTruthBPM": 109.0,
+      "tempo2": 179.0,
+      "modelBPM": 108.0
+    },
+    {
+      "trackId": "3349486.LOFI.mp3",
+      "audioPath": "3349486.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 70.0
+    },
+    {
+      "trackId": "3368053.LOFI.mp3",
+      "audioPath": "3368053.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": 165.0,
+      "modelBPM": 118.0
+    },
+    {
+      "trackId": "3368054.LOFI.mp3",
+      "audioPath": "3368054.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": null,
+      "modelBPM": 117.0
+    },
+    {
+      "trackId": "3368055.LOFI.mp3",
+      "audioPath": "3368055.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": null,
+      "modelBPM": 117.0
+    },
+    {
+      "trackId": "3370500.LOFI.mp3",
+      "audioPath": "3370500.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "3372883.LOFI.mp3",
+      "audioPath": "3372883.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 66.0,
+      "modelBPM": 131.0
+    },
+    {
+      "trackId": "3377892.LOFI.mp3",
+      "audioPath": "3377892.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3383105.LOFI.mp3",
+      "audioPath": "3383105.LOFI.mp3",
+      "groundTruthBPM": 81.0,
+      "tempo2": 160.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "3387888.LOFI.mp3",
+      "audioPath": "3387888.LOFI.mp3",
+      "groundTruthBPM": 88.0,
+      "tempo2": 174.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3391054.LOFI.mp3",
+      "audioPath": "3391054.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 99.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3398611.LOFI.mp3",
+      "audioPath": "3398611.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 159.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "3403794.LOFI.mp3",
+      "audioPath": "3403794.LOFI.mp3",
+      "groundTruthBPM": 192.0,
+      "tempo2": 95.0,
+      "modelBPM": 95.0
+    },
+    {
+      "trackId": "3405537.LOFI.mp3",
+      "audioPath": "3405537.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3409480.LOFI.mp3",
+      "audioPath": "3409480.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 61.0,
+      "modelBPM": 122.0
+    },
+    {
+      "trackId": "3412362.LOFI.mp3",
+      "audioPath": "3412362.LOFI.mp3",
+      "groundTruthBPM": 119.0,
+      "tempo2": null,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3414605.LOFI.mp3",
+      "audioPath": "3414605.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 63.0,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "3414746.LOFI.mp3",
+      "audioPath": "3414746.LOFI.mp3",
+      "groundTruthBPM": 86.0,
+      "tempo2": 170.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3419452.LOFI.mp3",
+      "audioPath": "3419452.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3428474.LOFI.mp3",
+      "audioPath": "3428474.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 157.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3433621.LOFI.mp3",
+      "audioPath": "3433621.LOFI.mp3",
+      "groundTruthBPM": 85.0,
+      "tempo2": 170.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3435022.LOFI.mp3",
+      "audioPath": "3435022.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 170.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3439626.LOFI.mp3",
+      "audioPath": "3439626.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3443201.LOFI.mp3",
+      "audioPath": "3443201.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": null,
+      "modelBPM": 136.0
+    },
+    {
+      "trackId": "344470.LOFI.mp3",
+      "audioPath": "344470.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 208.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3453642.LOFI.mp3",
+      "audioPath": "3453642.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3460093.LOFI.mp3",
+      "audioPath": "3460093.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3460094.LOFI.mp3",
+      "audioPath": "3460094.LOFI.mp3",
+      "groundTruthBPM": 171.0,
+      "tempo2": 86.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3467867.LOFI.mp3",
+      "audioPath": "3467867.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3471827.LOFI.mp3",
+      "audioPath": "3471827.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3475669.LOFI.mp3",
+      "audioPath": "3475669.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3475672.LOFI.mp3",
+      "audioPath": "3475672.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3480108.LOFI.mp3",
+      "audioPath": "3480108.LOFI.mp3",
+      "groundTruthBPM": 130.0,
+      "tempo2": 150.0,
+      "modelBPM": 150.0
+    },
+    {
+      "trackId": "3482508.LOFI.mp3",
+      "audioPath": "3482508.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 89.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3482510.LOFI.mp3",
+      "audioPath": "3482510.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3482733.LOFI.mp3",
+      "audioPath": "3482733.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3484119.LOFI.mp3",
+      "audioPath": "3484119.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 64.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3485917.LOFI.mp3",
+      "audioPath": "3485917.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 169.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3486206.LOFI.mp3",
+      "audioPath": "3486206.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3492833.LOFI.mp3",
+      "audioPath": "3492833.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3493047.LOFI.mp3",
+      "audioPath": "3493047.LOFI.mp3",
+      "groundTruthBPM": 141.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3509304.LOFI.mp3",
+      "audioPath": "3509304.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 89.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3511308.LOFI.mp3",
+      "audioPath": "3511308.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3512227.LOFI.mp3",
+      "audioPath": "3512227.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3519546.LOFI.mp3",
+      "audioPath": "3519546.LOFI.mp3",
+      "groundTruthBPM": 167.0,
+      "tempo2": 83.0,
+      "modelBPM": 166.0
+    },
+    {
+      "trackId": "3520036.LOFI.mp3",
+      "audioPath": "3520036.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3530058.LOFI.mp3",
+      "audioPath": "3530058.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": null,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "3534448.LOFI.mp3",
+      "audioPath": "3534448.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3535112.LOFI.mp3",
+      "audioPath": "3535112.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 64.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3535520.LOFI.mp3",
+      "audioPath": "3535520.LOFI.mp3",
+      "groundTruthBPM": 110.0,
+      "tempo2": 94.0,
+      "modelBPM": 110.0
+    },
+    {
+      "trackId": "3558940.LOFI.mp3",
+      "audioPath": "3558940.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3564559.LOFI.mp3",
+      "audioPath": "3564559.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "3565815.LOFI.mp3",
+      "audioPath": "3565815.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 174.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3566606.LOFI.mp3",
+      "audioPath": "3566606.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 163.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3574815.LOFI.mp3",
+      "audioPath": "3574815.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3577628.LOFI.mp3",
+      "audioPath": "3577628.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 150.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3577631.LOFI.mp3",
+      "audioPath": "3577631.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3593643.LOFI.mp3",
+      "audioPath": "3593643.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3596904.LOFI.mp3",
+      "audioPath": "3596904.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": null,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "3605780.LOFI.mp3",
+      "audioPath": "3605780.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3612407.LOFI.mp3",
+      "audioPath": "3612407.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3618176.LOFI.mp3",
+      "audioPath": "3618176.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3621649.LOFI.mp3",
+      "audioPath": "3621649.LOFI.mp3",
+      "groundTruthBPM": 178.0,
+      "tempo2": 89.0,
+      "modelBPM": 88.0
+    },
+    {
+      "trackId": "3629920.LOFI.mp3",
+      "audioPath": "3629920.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3630279.LOFI.mp3",
+      "audioPath": "3630279.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 132.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "3630280.LOFI.mp3",
+      "audioPath": "3630280.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 110.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3638589.LOFI.mp3",
+      "audioPath": "3638589.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3640677.LOFI.mp3",
+      "audioPath": "3640677.LOFI.mp3",
+      "groundTruthBPM": 115.0,
+      "tempo2": 73.0,
+      "modelBPM": 115.0
+    },
+    {
+      "trackId": "3642438.LOFI.mp3",
+      "audioPath": "3642438.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 163.0,
+      "modelBPM": 108.0
+    },
+    {
+      "trackId": "3649527.LOFI.mp3",
+      "audioPath": "3649527.LOFI.mp3",
+      "groundTruthBPM": 90.0,
+      "tempo2": 179.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "3649559.LOFI.mp3",
+      "audioPath": "3649559.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3650152.LOFI.mp3",
+      "audioPath": "3650152.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 63.0,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "3651620.LOFI.mp3",
+      "audioPath": "3651620.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": 163.0,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "3655121.LOFI.mp3",
+      "audioPath": "3655121.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3656301.LOFI.mp3",
+      "audioPath": "3656301.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3658743.LOFI.mp3",
+      "audioPath": "3658743.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 72.0,
+      "modelBPM": 144.0
+    },
+    {
+      "trackId": "365981.LOFI.mp3",
+      "audioPath": "365981.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 150.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3660450.LOFI.mp3",
+      "audioPath": "3660450.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3661855.LOFI.mp3",
+      "audioPath": "3661855.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3665864.LOFI.mp3",
+      "audioPath": "3665864.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3674961.LOFI.mp3",
+      "audioPath": "3674961.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 132.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3678548.LOFI.mp3",
+      "audioPath": "3678548.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": null,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "3682931.LOFI.mp3",
+      "audioPath": "3682931.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "368533.LOFI.mp3",
+      "audioPath": "368533.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3692859.LOFI.mp3",
+      "audioPath": "3692859.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "3696445.LOFI.mp3",
+      "audioPath": "3696445.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 74.0,
+      "modelBPM": 147.0
+    },
+    {
+      "trackId": "3703893.LOFI.mp3",
+      "audioPath": "3703893.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": null,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "3706845.LOFI.mp3",
+      "audioPath": "3706845.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3711752.LOFI.mp3",
+      "audioPath": "3711752.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": 67.0,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "3721308.LOFI.mp3",
+      "audioPath": "3721308.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 118.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3724279.LOFI.mp3",
+      "audioPath": "3724279.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3725208.LOFI.mp3",
+      "audioPath": "3725208.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3730279.LOFI.mp3",
+      "audioPath": "3730279.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3733281.LOFI.mp3",
+      "audioPath": "3733281.LOFI.mp3",
+      "groundTruthBPM": 70.0,
+      "tempo2": 139.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3741346.LOFI.mp3",
+      "audioPath": "3741346.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3742708.LOFI.mp3",
+      "audioPath": "3742708.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 169.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3743957.LOFI.mp3",
+      "audioPath": "3743957.LOFI.mp3",
+      "groundTruthBPM": 85.0,
+      "tempo2": 170.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3746398.LOFI.mp3",
+      "audioPath": "3746398.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3752371.LOFI.mp3",
+      "audioPath": "3752371.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3754674.LOFI.mp3",
+      "audioPath": "3754674.LOFI.mp3",
+      "groundTruthBPM": 71.0,
+      "tempo2": 139.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3766995.LOFI.mp3",
+      "audioPath": "3766995.LOFI.mp3",
+      "groundTruthBPM": 95.0,
+      "tempo2": 188.0,
+      "modelBPM": 95.0
+    },
+    {
+      "trackId": "3783220.LOFI.mp3",
+      "audioPath": "3783220.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 163.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3787878.LOFI.mp3",
+      "audioPath": "3787878.LOFI.mp3",
+      "groundTruthBPM": 130.0,
+      "tempo2": 115.0,
+      "modelBPM": 116.0
+    },
+    {
+      "trackId": "3789981.LOFI.mp3",
+      "audioPath": "3789981.LOFI.mp3",
+      "groundTruthBPM": 86.0,
+      "tempo2": 174.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3790342.LOFI.mp3",
+      "audioPath": "3790342.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "3792954.LOFI.mp3",
+      "audioPath": "3792954.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3801596.LOFI.mp3",
+      "audioPath": "3801596.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 90.0,
+      "modelBPM": 89.0
+    },
+    {
+      "trackId": "3807114.LOFI.mp3",
+      "audioPath": "3807114.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 62.0,
+      "modelBPM": 124.0
+    },
+    {
+      "trackId": "3809763.LOFI.mp3",
+      "audioPath": "3809763.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3813277.LOFI.mp3",
+      "audioPath": "3813277.LOFI.mp3",
+      "groundTruthBPM": 110.0,
+      "tempo2": 208.0,
+      "modelBPM": 110.0
+    },
+    {
+      "trackId": "3818797.LOFI.mp3",
+      "audioPath": "3818797.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": 68.0,
+      "modelBPM": 136.0
+    },
+    {
+      "trackId": "3819089.LOFI.mp3",
+      "audioPath": "3819089.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3824612.LOFI.mp3",
+      "audioPath": "3824612.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3828895.LOFI.mp3",
+      "audioPath": "3828895.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 77.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3829043.LOFI.mp3",
+      "audioPath": "3829043.LOFI.mp3",
+      "groundTruthBPM": 85.0,
+      "tempo2": 170.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3835017.LOFI.mp3",
+      "audioPath": "3835017.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 177.0
+    },
+    {
+      "trackId": "3853293.LOFI.mp3",
+      "audioPath": "3853293.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 203.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3853477.LOFI.mp3",
+      "audioPath": "3853477.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 129.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3863423.LOFI.mp3",
+      "audioPath": "3863423.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3863498.LOFI.mp3",
+      "audioPath": "3863498.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 74.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3865706.LOFI.mp3",
+      "audioPath": "3865706.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3871968.LOFI.mp3",
+      "audioPath": "3871968.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 172.0
+    },
+    {
+      "trackId": "3873406.LOFI.mp3",
+      "audioPath": "3873406.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3873575.LOFI.mp3",
+      "audioPath": "3873575.LOFI.mp3",
+      "groundTruthBPM": 88.0,
+      "tempo2": 174.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "3875632.LOFI.mp3",
+      "audioPath": "3875632.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3875836.LOFI.mp3",
+      "audioPath": "3875836.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 172.0
+    },
+    {
+      "trackId": "3877057.LOFI.mp3",
+      "audioPath": "3877057.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 80.0,
+      "modelBPM": 160.0
+    },
+    {
+      "trackId": "3879813.LOFI.mp3",
+      "audioPath": "3879813.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 151.0,
+      "modelBPM": 142.0
+    },
+    {
+      "trackId": "3883083.LOFI.mp3",
+      "audioPath": "3883083.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3883902.LOFI.mp3",
+      "audioPath": "3883902.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3886051.LOFI.mp3",
+      "audioPath": "3886051.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 170.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "3886124.LOFI.mp3",
+      "audioPath": "3886124.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "3889689.LOFI.mp3",
+      "audioPath": "3889689.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 174.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3892740.LOFI.mp3",
+      "audioPath": "3892740.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "3902915.LOFI.mp3",
+      "audioPath": "3902915.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": 59.0,
+      "modelBPM": 118.0
+    },
+    {
+      "trackId": "3907042.LOFI.mp3",
+      "audioPath": "3907042.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "3914630.LOFI.mp3",
+      "audioPath": "3914630.LOFI.mp3",
+      "groundTruthBPM": 86.0,
+      "tempo2": 170.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3920460.LOFI.mp3",
+      "audioPath": "3920460.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 90.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "3928924.LOFI.mp3",
+      "audioPath": "3928924.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 65.0,
+      "modelBPM": 129.0
+    },
+    {
+      "trackId": "3942754.LOFI.mp3",
+      "audioPath": "3942754.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 74.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "3958395.LOFI.mp3",
+      "audioPath": "3958395.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": 68.0,
+      "modelBPM": 135.0
+    },
+    {
+      "trackId": "3961040.LOFI.mp3",
+      "audioPath": "3961040.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "3961797.LOFI.mp3",
+      "audioPath": "3961797.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 162.0,
+      "modelBPM": 124.0
+    },
+    {
+      "trackId": "3962200.LOFI.mp3",
+      "audioPath": "3962200.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": null,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "3964688.LOFI.mp3",
+      "audioPath": "3964688.LOFI.mp3",
+      "groundTruthBPM": 110.0,
+      "tempo2": null,
+      "modelBPM": 110.0
+    },
+    {
+      "trackId": "3970827.LOFI.mp3",
+      "audioPath": "3970827.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "3980001.LOFI.mp3",
+      "audioPath": "3980001.LOFI.mp3",
+      "groundTruthBPM": 167.0,
+      "tempo2": 83.0,
+      "modelBPM": 83.0
+    },
+    {
+      "trackId": "3981797.LOFI.mp3",
+      "audioPath": "3981797.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 138.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "3983645.LOFI.mp3",
+      "audioPath": "3983645.LOFI.mp3",
+      "groundTruthBPM": 110.0,
+      "tempo2": null,
+      "modelBPM": 110.0
+    },
+    {
+      "trackId": "3983646.LOFI.mp3",
+      "audioPath": "3983646.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 170.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "400259.LOFI.mp3",
+      "audioPath": "400259.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 172.0
+    },
+    {
+      "trackId": "4004314.LOFI.mp3",
+      "audioPath": "4004314.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4004668.LOFI.mp3",
+      "audioPath": "4004668.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 137.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4005630.LOFI.mp3",
+      "audioPath": "4005630.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 74.0,
+      "modelBPM": 150.0
+    },
+    {
+      "trackId": "4006551.LOFI.mp3",
+      "audioPath": "4006551.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 71.0,
+      "modelBPM": 144.0
+    },
+    {
+      "trackId": "4012083.LOFI.mp3",
+      "audioPath": "4012083.LOFI.mp3",
+      "groundTruthBPM": 167.0,
+      "tempo2": 84.0,
+      "modelBPM": 167.0
+    },
+    {
+      "trackId": "4014747.LOFI.mp3",
+      "audioPath": "4014747.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 100.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4014749.LOFI.mp3",
+      "audioPath": "4014749.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 169.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4017608.LOFI.mp3",
+      "audioPath": "4017608.LOFI.mp3",
+      "groundTruthBPM": 101.0,
+      "tempo2": 203.0,
+      "modelBPM": 101.0
+    },
+    {
+      "trackId": "4017611.LOFI.mp3",
+      "audioPath": "4017611.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 73.0,
+      "modelBPM": 146.0
+    },
+    {
+      "trackId": "4017781.LOFI.mp3",
+      "audioPath": "4017781.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4017892.LOFI.mp3",
+      "audioPath": "4017892.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 62.0,
+      "modelBPM": 124.0
+    },
+    {
+      "trackId": "4017909.LOFI.mp3",
+      "audioPath": "4017909.LOFI.mp3",
+      "groundTruthBPM": 112.0,
+      "tempo2": 153.0,
+      "modelBPM": 112.0
+    },
+    {
+      "trackId": "4018082.LOFI.mp3",
+      "audioPath": "4018082.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 61.0,
+      "modelBPM": 122.0
+    },
+    {
+      "trackId": "4018083.LOFI.mp3",
+      "audioPath": "4018083.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 63.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "4018084.LOFI.mp3",
+      "audioPath": "4018084.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": null,
+      "modelBPM": 122.0
+    },
+    {
+      "trackId": "4018085.LOFI.mp3",
+      "audioPath": "4018085.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 61.0,
+      "modelBPM": 122.0
+    },
+    {
+      "trackId": "4018247.LOFI.mp3",
+      "audioPath": "4018247.LOFI.mp3",
+      "groundTruthBPM": 96.0,
+      "tempo2": 190.0,
+      "modelBPM": 95.0
+    },
+    {
+      "trackId": "4020698.LOFI.mp3",
+      "audioPath": "4020698.LOFI.mp3",
+      "groundTruthBPM": 141.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4029289.LOFI.mp3",
+      "audioPath": "4029289.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4029970.LOFI.mp3",
+      "audioPath": "4029970.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 71.0,
+      "modelBPM": 143.0
+    },
+    {
+      "trackId": "4031300.LOFI.mp3",
+      "audioPath": "4031300.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4032006.LOFI.mp3",
+      "audioPath": "4032006.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4033240.LOFI.mp3",
+      "audioPath": "4033240.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4035020.LOFI.mp3",
+      "audioPath": "4035020.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 132.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "4038987.LOFI.mp3",
+      "audioPath": "4038987.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4043892.LOFI.mp3",
+      "audioPath": "4043892.LOFI.mp3",
+      "groundTruthBPM": 183.0,
+      "tempo2": 93.0,
+      "modelBPM": 138.0
+    },
+    {
+      "trackId": "4044590.LOFI.mp3",
+      "audioPath": "4044590.LOFI.mp3",
+      "groundTruthBPM": 100.0,
+      "tempo2": 201.0,
+      "modelBPM": 100.0
+    },
+    {
+      "trackId": "4044591.LOFI.mp3",
+      "audioPath": "4044591.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 81.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4045981.LOFI.mp3",
+      "audioPath": "4045981.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 106.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4047428.LOFI.mp3",
+      "audioPath": "4047428.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4067151.LOFI.mp3",
+      "audioPath": "4067151.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4071447.LOFI.mp3",
+      "audioPath": "4071447.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4072499.LOFI.mp3",
+      "audioPath": "4072499.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4077896.LOFI.mp3",
+      "audioPath": "4077896.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": null,
+      "modelBPM": 136.0
+    },
+    {
+      "trackId": "4086561.LOFI.mp3",
+      "audioPath": "4086561.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4091609.LOFI.mp3",
+      "audioPath": "4091609.LOFI.mp3",
+      "groundTruthBPM": 80.0,
+      "tempo2": 160.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "4093057.LOFI.mp3",
+      "audioPath": "4093057.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 66.0,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "4093135.LOFI.mp3",
+      "audioPath": "4093135.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4093555.LOFI.mp3",
+      "audioPath": "4093555.LOFI.mp3",
+      "groundTruthBPM": 92.0,
+      "tempo2": 183.0,
+      "modelBPM": 92.0
+    },
+    {
+      "trackId": "4101363.LOFI.mp3",
+      "audioPath": "4101363.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 170.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4101447.LOFI.mp3",
+      "audioPath": "4101447.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 150.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4106593.LOFI.mp3",
+      "audioPath": "4106593.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 72.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4107957.LOFI.mp3",
+      "audioPath": "4107957.LOFI.mp3",
+      "groundTruthBPM": 93.0,
+      "tempo2": 188.0,
+      "modelBPM": 93.0
+    },
+    {
+      "trackId": "4117487.LOFI.mp3",
+      "audioPath": "4117487.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 136.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4120277.LOFI.mp3",
+      "audioPath": "4120277.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 65.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4122833.LOFI.mp3",
+      "audioPath": "4122833.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4136911.LOFI.mp3",
+      "audioPath": "4136911.LOFI.mp3",
+      "groundTruthBPM": 153.0,
+      "tempo2": 76.0,
+      "modelBPM": 152.0
+    },
+    {
+      "trackId": "4140514.LOFI.mp3",
+      "audioPath": "4140514.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4140702.LOFI.mp3",
+      "audioPath": "4140702.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "4145229.LOFI.mp3",
+      "audioPath": "4145229.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4149743.LOFI.mp3",
+      "audioPath": "4149743.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4149811.LOFI.mp3",
+      "audioPath": "4149811.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4151958.LOFI.mp3",
+      "audioPath": "4151958.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 159.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4152109.LOFI.mp3",
+      "audioPath": "4152109.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4153394.LOFI.mp3",
+      "audioPath": "4153394.LOFI.mp3",
+      "groundTruthBPM": 80.0,
+      "tempo2": 160.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "4157075.LOFI.mp3",
+      "audioPath": "4157075.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4161667.LOFI.mp3",
+      "audioPath": "4161667.LOFI.mp3",
+      "groundTruthBPM": 106.0,
+      "tempo2": 91.0,
+      "modelBPM": 105.0
+    },
+    {
+      "trackId": "4162259.LOFI.mp3",
+      "audioPath": "4162259.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": 141.0,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "4162274.LOFI.mp3",
+      "audioPath": "4162274.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4162405.LOFI.mp3",
+      "audioPath": "4162405.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 143.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4162511.LOFI.mp3",
+      "audioPath": "4162511.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": null,
+      "modelBPM": 124.0
+    },
+    {
+      "trackId": "4163571.LOFI.mp3",
+      "audioPath": "4163571.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 81.0,
+      "modelBPM": 161.0
+    },
+    {
+      "trackId": "4163572.LOFI.mp3",
+      "audioPath": "4163572.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 74.0,
+      "modelBPM": 75.0
+    },
+    {
+      "trackId": "4163586.LOFI.mp3",
+      "audioPath": "4163586.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4163587.LOFI.mp3",
+      "audioPath": "4163587.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 95.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4163588.LOFI.mp3",
+      "audioPath": "4163588.LOFI.mp3",
+      "groundTruthBPM": 90.0,
+      "tempo2": 180.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "4166222.LOFI.mp3",
+      "audioPath": "4166222.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 61.0,
+      "modelBPM": 122.0
+    },
+    {
+      "trackId": "4166612.LOFI.mp3",
+      "audioPath": "4166612.LOFI.mp3",
+      "groundTruthBPM": 124.0,
+      "tempo2": null,
+      "modelBPM": 124.0
+    },
+    {
+      "trackId": "4172572.LOFI.mp3",
+      "audioPath": "4172572.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4186191.LOFI.mp3",
+      "audioPath": "4186191.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 147.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4191591.LOFI.mp3",
+      "audioPath": "4191591.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4192452.LOFI.mp3",
+      "audioPath": "4192452.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4193623.LOFI.mp3",
+      "audioPath": "4193623.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 65.0,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "4207348.LOFI.mp3",
+      "audioPath": "4207348.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4214761.LOFI.mp3",
+      "audioPath": "4214761.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 138.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "4216184.LOFI.mp3",
+      "audioPath": "4216184.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 192.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4218466.LOFI.mp3",
+      "audioPath": "4218466.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "4226166.LOFI.mp3",
+      "audioPath": "4226166.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 88.0,
+      "modelBPM": 89.0
+    },
+    {
+      "trackId": "4226227.LOFI.mp3",
+      "audioPath": "4226227.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 175.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4226434.LOFI.mp3",
+      "audioPath": "4226434.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4231951.LOFI.mp3",
+      "audioPath": "4231951.LOFI.mp3",
+      "groundTruthBPM": 141.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4233696.LOFI.mp3",
+      "audioPath": "4233696.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 141.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4235798.LOFI.mp3",
+      "audioPath": "4235798.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 167.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4237913.LOFI.mp3",
+      "audioPath": "4237913.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 170.0,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "4264210.LOFI.mp3",
+      "audioPath": "4264210.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 163.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "4264359.LOFI.mp3",
+      "audioPath": "4264359.LOFI.mp3",
+      "groundTruthBPM": 85.0,
+      "tempo2": 170.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "4265125.LOFI.mp3",
+      "audioPath": "4265125.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "426992.LOFI.mp3",
+      "audioPath": "426992.LOFI.mp3",
+      "groundTruthBPM": 167.0,
+      "tempo2": 83.0,
+      "modelBPM": 167.0
+    },
+    {
+      "trackId": "4275052.LOFI.mp3",
+      "audioPath": "4275052.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 62.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4279669.LOFI.mp3",
+      "audioPath": "4279669.LOFI.mp3",
+      "groundTruthBPM": 82.0,
+      "tempo2": 163.0,
+      "modelBPM": 164.0
+    },
+    {
+      "trackId": "4283622.LOFI.mp3",
+      "audioPath": "4283622.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4283854.LOFI.mp3",
+      "audioPath": "4283854.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 134.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4284345.LOFI.mp3",
+      "audioPath": "4284345.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 148.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4288893.LOFI.mp3",
+      "audioPath": "4288893.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 85.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "4297277.LOFI.mp3",
+      "audioPath": "4297277.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 152.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4300617.LOFI.mp3",
+      "audioPath": "4300617.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 141.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4300619.LOFI.mp3",
+      "audioPath": "4300619.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 66.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "4301518.LOFI.mp3",
+      "audioPath": "4301518.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4304445.LOFI.mp3",
+      "audioPath": "4304445.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 90.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "4313859.LOFI.mp3",
+      "audioPath": "4313859.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4315749.LOFI.mp3",
+      "audioPath": "4315749.LOFI.mp3",
+      "groundTruthBPM": 130.0,
+      "tempo2": 65.0,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "4323506.LOFI.mp3",
+      "audioPath": "4323506.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 183.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4325441.LOFI.mp3",
+      "audioPath": "4325441.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 152.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4331667.LOFI.mp3",
+      "audioPath": "4331667.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4332592.LOFI.mp3",
+      "audioPath": "4332592.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 178.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "4346730.LOFI.mp3",
+      "audioPath": "4346730.LOFI.mp3",
+      "groundTruthBPM": 86.0,
+      "tempo2": 174.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4353566.LOFI.mp3",
+      "audioPath": "4353566.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": null,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4358231.LOFI.mp3",
+      "audioPath": "4358231.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 66.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "4360483.LOFI.mp3",
+      "audioPath": "4360483.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4360488.LOFI.mp3",
+      "audioPath": "4360488.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4365752.LOFI.mp3",
+      "audioPath": "4365752.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4366506.LOFI.mp3",
+      "audioPath": "4366506.LOFI.mp3",
+      "groundTruthBPM": 197.0,
+      "tempo2": 99.0,
+      "modelBPM": 99.0
+    },
+    {
+      "trackId": "4372309.LOFI.mp3",
+      "audioPath": "4372309.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 62.0,
+      "modelBPM": 124.0
+    },
+    {
+      "trackId": "4377106.LOFI.mp3",
+      "audioPath": "4377106.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 127.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4381717.LOFI.mp3",
+      "audioPath": "4381717.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4386702.LOFI.mp3",
+      "audioPath": "4386702.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4397324.LOFI.mp3",
+      "audioPath": "4397324.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4397469.LOFI.mp3",
+      "audioPath": "4397469.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 89.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4398117.LOFI.mp3",
+      "audioPath": "4398117.LOFI.mp3",
+      "groundTruthBPM": 179.0,
+      "tempo2": 89.0,
+      "modelBPM": 177.0
+    },
+    {
+      "trackId": "4399289.LOFI.mp3",
+      "audioPath": "4399289.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "4403315.LOFI.mp3",
+      "audioPath": "4403315.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4403519.LOFI.mp3",
+      "audioPath": "4403519.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4404346.LOFI.mp3",
+      "audioPath": "4404346.LOFI.mp3",
+      "groundTruthBPM": 188.0,
+      "tempo2": 94.0,
+      "modelBPM": 95.0
+    },
+    {
+      "trackId": "4407745.LOFI.mp3",
+      "audioPath": "4407745.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 62.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4409752.LOFI.mp3",
+      "audioPath": "4409752.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 152.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4411925.LOFI.mp3",
+      "audioPath": "4411925.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "4416336.LOFI.mp3",
+      "audioPath": "4416336.LOFI.mp3",
+      "groundTruthBPM": 188.0,
+      "tempo2": 92.0,
+      "modelBPM": 186.0
+    },
+    {
+      "trackId": "4416506.LOFI.mp3",
+      "audioPath": "4416506.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 174.0,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "4416888.LOFI.mp3",
+      "audioPath": "4416888.LOFI.mp3",
+      "groundTruthBPM": 89.0,
+      "tempo2": 179.0,
+      "modelBPM": 89.0
+    },
+    {
+      "trackId": "4416962.LOFI.mp3",
+      "audioPath": "4416962.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 66.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "4418582.LOFI.mp3",
+      "audioPath": "4418582.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 139.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4419049.LOFI.mp3",
+      "audioPath": "4419049.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4420924.LOFI.mp3",
+      "audioPath": "4420924.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 66.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4426890.LOFI.mp3",
+      "audioPath": "4426890.LOFI.mp3",
+      "groundTruthBPM": 106.0,
+      "tempo2": 150.0,
+      "modelBPM": 106.0
+    },
+    {
+      "trackId": "4427618.LOFI.mp3",
+      "audioPath": "4427618.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": null,
+      "modelBPM": 122.0
+    },
+    {
+      "trackId": "4442121.LOFI.mp3",
+      "audioPath": "4442121.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4446908.LOFI.mp3",
+      "audioPath": "4446908.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "4457771.LOFI.mp3",
+      "audioPath": "4457771.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4459005.LOFI.mp3",
+      "audioPath": "4459005.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4459187.LOFI.mp3",
+      "audioPath": "4459187.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": null,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4460536.LOFI.mp3",
+      "audioPath": "4460536.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4468729.LOFI.mp3",
+      "audioPath": "4468729.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 81.0,
+      "modelBPM": 160.0
+    },
+    {
+      "trackId": "4469489.LOFI.mp3",
+      "audioPath": "4469489.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4469780.LOFI.mp3",
+      "audioPath": "4469780.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4471292.LOFI.mp3",
+      "audioPath": "4471292.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 88.0
+    },
+    {
+      "trackId": "4471702.LOFI.mp3",
+      "audioPath": "4471702.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 160.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "4473065.LOFI.mp3",
+      "audioPath": "4473065.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4474027.LOFI.mp3",
+      "audioPath": "4474027.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4474029.LOFI.mp3",
+      "audioPath": "4474029.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4475855.LOFI.mp3",
+      "audioPath": "4475855.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 70.0
+    },
+    {
+      "trackId": "4480118.LOFI.mp3",
+      "audioPath": "4480118.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 66.0,
+      "modelBPM": 151.0
+    },
+    {
+      "trackId": "4480454.LOFI.mp3",
+      "audioPath": "4480454.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "4483708.LOFI.mp3",
+      "audioPath": "4483708.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 133.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4486124.LOFI.mp3",
+      "audioPath": "4486124.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4486412.LOFI.mp3",
+      "audioPath": "4486412.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4489017.LOFI.mp3",
+      "audioPath": "4489017.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4493439.LOFI.mp3",
+      "audioPath": "4493439.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4494659.LOFI.mp3",
+      "audioPath": "4494659.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "4495270.LOFI.mp3",
+      "audioPath": "4495270.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 80.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "4497852.LOFI.mp3",
+      "audioPath": "4497852.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 75.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4508138.LOFI.mp3",
+      "audioPath": "4508138.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 83.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4509910.LOFI.mp3",
+      "audioPath": "4509910.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 127.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4512512.LOFI.mp3",
+      "audioPath": "4512512.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4514851.LOFI.mp3",
+      "audioPath": "4514851.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 163.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4517258.LOFI.mp3",
+      "audioPath": "4517258.LOFI.mp3",
+      "groundTruthBPM": 82.0,
+      "tempo2": 163.0,
+      "modelBPM": 82.0
+    },
+    {
+      "trackId": "4532060.LOFI.mp3",
+      "audioPath": "4532060.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "4540818.LOFI.mp3",
+      "audioPath": "4540818.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4543103.LOFI.mp3",
+      "audioPath": "4543103.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 64.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4547732.LOFI.mp3",
+      "audioPath": "4547732.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4549757.LOFI.mp3",
+      "audioPath": "4549757.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4558106.LOFI.mp3",
+      "audioPath": "4558106.LOFI.mp3",
+      "groundTruthBPM": 128.0,
+      "tempo2": 110.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4559522.LOFI.mp3",
+      "audioPath": "4559522.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": 68.0,
+      "modelBPM": 134.0
+    },
+    {
+      "trackId": "4565270.LOFI.mp3",
+      "audioPath": "4565270.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 61.0,
+      "modelBPM": 122.0
+    },
+    {
+      "trackId": "4566667.LOFI.mp3",
+      "audioPath": "4566667.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": null,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "4567978.LOFI.mp3",
+      "audioPath": "4567978.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4567979.LOFI.mp3",
+      "audioPath": "4567979.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 72.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4585539.LOFI.mp3",
+      "audioPath": "4585539.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4586220.LOFI.mp3",
+      "audioPath": "4586220.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 84.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4593850.LOFI.mp3",
+      "audioPath": "4593850.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "4596215.LOFI.mp3",
+      "audioPath": "4596215.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4604737.LOFI.mp3",
+      "audioPath": "4604737.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 134.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "4609093.LOFI.mp3",
+      "audioPath": "4609093.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4609944.LOFI.mp3",
+      "audioPath": "4609944.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 72.0,
+      "modelBPM": 145.0
+    },
+    {
+      "trackId": "4610426.LOFI.mp3",
+      "audioPath": "4610426.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4611640.LOFI.mp3",
+      "audioPath": "4611640.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 62.0,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "4623143.LOFI.mp3",
+      "audioPath": "4623143.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 139.0,
+      "modelBPM": 147.0
+    },
+    {
+      "trackId": "4624663.LOFI.mp3",
+      "audioPath": "4624663.LOFI.mp3",
+      "groundTruthBPM": 167.0,
+      "tempo2": 83.0,
+      "modelBPM": 151.0
+    },
+    {
+      "trackId": "4625875.LOFI.mp3",
+      "audioPath": "4625875.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4631727.LOFI.mp3",
+      "audioPath": "4631727.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4633603.LOFI.mp3",
+      "audioPath": "4633603.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4650113.LOFI.mp3",
+      "audioPath": "4650113.LOFI.mp3",
+      "groundTruthBPM": 117.0,
+      "tempo2": 170.0,
+      "modelBPM": 118.0
+    },
+    {
+      "trackId": "4653852.LOFI.mp3",
+      "audioPath": "4653852.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4661735.LOFI.mp3",
+      "audioPath": "4661735.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 80.0,
+      "modelBPM": 160.0
+    },
+    {
+      "trackId": "4666231.LOFI.mp3",
+      "audioPath": "4666231.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4667626.LOFI.mp3",
+      "audioPath": "4667626.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 127.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4671406.LOFI.mp3",
+      "audioPath": "4671406.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 60.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4671443.LOFI.mp3",
+      "audioPath": "4671443.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 74.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4677606.LOFI.mp3",
+      "audioPath": "4677606.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": null,
+      "modelBPM": 144.0
+    },
+    {
+      "trackId": "4678080.LOFI.mp3",
+      "audioPath": "4678080.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 85.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4693039.LOFI.mp3",
+      "audioPath": "4693039.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4693198.LOFI.mp3",
+      "audioPath": "4693198.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": null,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4694833.LOFI.mp3",
+      "audioPath": "4694833.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 71.0,
+      "modelBPM": 143.0
+    },
+    {
+      "trackId": "4696505.LOFI.mp3",
+      "audioPath": "4696505.LOFI.mp3",
+      "groundTruthBPM": 160.0,
+      "tempo2": 80.0,
+      "modelBPM": 80.0
+    },
+    {
+      "trackId": "4703149.LOFI.mp3",
+      "audioPath": "4703149.LOFI.mp3",
+      "groundTruthBPM": 110.0,
+      "tempo2": 123.0,
+      "modelBPM": 110.0
+    },
+    {
+      "trackId": "4710576.LOFI.mp3",
+      "audioPath": "4710576.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 147.0,
+      "modelBPM": 177.0
+    },
+    {
+      "trackId": "4711578.LOFI.mp3",
+      "audioPath": "4711578.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "4714481.LOFI.mp3",
+      "audioPath": "4714481.LOFI.mp3",
+      "groundTruthBPM": 112.0,
+      "tempo2": 144.0,
+      "modelBPM": 112.0
+    },
+    {
+      "trackId": "4723905.LOFI.mp3",
+      "audioPath": "4723905.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4735587.LOFI.mp3",
+      "audioPath": "4735587.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4735758.LOFI.mp3",
+      "audioPath": "4735758.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 131.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4743012.LOFI.mp3",
+      "audioPath": "4743012.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": null,
+      "modelBPM": 125.0
+    },
+    {
+      "trackId": "4749611.LOFI.mp3",
+      "audioPath": "4749611.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 64.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "4767260.LOFI.mp3",
+      "audioPath": "4767260.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4772658.LOFI.mp3",
+      "audioPath": "4772658.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 178.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4773857.LOFI.mp3",
+      "audioPath": "4773857.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4773948.LOFI.mp3",
+      "audioPath": "4773948.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4800274.LOFI.mp3",
+      "audioPath": "4800274.LOFI.mp3",
+      "groundTruthBPM": 141.0,
+      "tempo2": 173.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4800275.LOFI.mp3",
+      "audioPath": "4800275.LOFI.mp3",
+      "groundTruthBPM": 141.0,
+      "tempo2": 116.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4810810.LOFI.mp3",
+      "audioPath": "4810810.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": 203.0,
+      "modelBPM": 136.0
+    },
+    {
+      "trackId": "4816604.LOFI.mp3",
+      "audioPath": "4816604.LOFI.mp3",
+      "groundTruthBPM": 70.0,
+      "tempo2": 142.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4823439.LOFI.mp3",
+      "audioPath": "4823439.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4823611.LOFI.mp3",
+      "audioPath": "4823611.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 137.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "4826952.LOFI.mp3",
+      "audioPath": "4826952.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 180.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4826957.LOFI.mp3",
+      "audioPath": "4826957.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4827285.LOFI.mp3",
+      "audioPath": "4827285.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4827287.LOFI.mp3",
+      "audioPath": "4827287.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 74.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "4845088.LOFI.mp3",
+      "audioPath": "4845088.LOFI.mp3",
+      "groundTruthBPM": 90.0,
+      "tempo2": 179.0,
+      "modelBPM": 90.0
+    },
+    {
+      "trackId": "4850346.LOFI.mp3",
+      "audioPath": "4850346.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4853692.LOFI.mp3",
+      "audioPath": "4853692.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 116.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "4860099.LOFI.mp3",
+      "audioPath": "4860099.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4861484.LOFI.mp3",
+      "audioPath": "4861484.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4863146.LOFI.mp3",
+      "audioPath": "4863146.LOFI.mp3",
+      "groundTruthBPM": 110.0,
+      "tempo2": null,
+      "modelBPM": 110.0
+    },
+    {
+      "trackId": "4875475.LOFI.mp3",
+      "audioPath": "4875475.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 129.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4884993.LOFI.mp3",
+      "audioPath": "4884993.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "4896659.LOFI.mp3",
+      "audioPath": "4896659.LOFI.mp3",
+      "groundTruthBPM": 85.0,
+      "tempo2": 170.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "4899365.LOFI.mp3",
+      "audioPath": "4899365.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "4921810.LOFI.mp3",
+      "audioPath": "4921810.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 163.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4936740.LOFI.mp3",
+      "audioPath": "4936740.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4937390.LOFI.mp3",
+      "audioPath": "4937390.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4947281.LOFI.mp3",
+      "audioPath": "4947281.LOFI.mp3",
+      "groundTruthBPM": 136.0,
+      "tempo2": null,
+      "modelBPM": 136.0
+    },
+    {
+      "trackId": "4951739.LOFI.mp3",
+      "audioPath": "4951739.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 86.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "4955051.LOFI.mp3",
+      "audioPath": "4955051.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4955053.LOFI.mp3",
+      "audioPath": "4955053.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "4960424.LOFI.mp3",
+      "audioPath": "4960424.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "4969415.LOFI.mp3",
+      "audioPath": "4969415.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "4984238.LOFI.mp3",
+      "audioPath": "4984238.LOFI.mp3",
+      "groundTruthBPM": 116.0,
+      "tempo2": 77.0,
+      "modelBPM": 115.0
+    },
+    {
+      "trackId": "4993934.LOFI.mp3",
+      "audioPath": "4993934.LOFI.mp3",
+      "groundTruthBPM": 140.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5024644.LOFI.mp3",
+      "audioPath": "5024644.LOFI.mp3",
+      "groundTruthBPM": 142.0,
+      "tempo2": 71.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5039329.LOFI.mp3",
+      "audioPath": "5039329.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "5051606.LOFI.mp3",
+      "audioPath": "5051606.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 139.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "5068771.LOFI.mp3",
+      "audioPath": "5068771.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "5070846.LOFI.mp3",
+      "audioPath": "5070846.LOFI.mp3",
+      "groundTruthBPM": 110.0,
+      "tempo2": 142.0,
+      "modelBPM": 110.0
+    },
+    {
+      "trackId": "5073839.LOFI.mp3",
+      "audioPath": "5073839.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "5076753.LOFI.mp3",
+      "audioPath": "5076753.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 133.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5076821.LOFI.mp3",
+      "audioPath": "5076821.LOFI.mp3",
+      "groundTruthBPM": 169.0,
+      "tempo2": 86.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "5078640.LOFI.mp3",
+      "audioPath": "5078640.LOFI.mp3",
+      "groundTruthBPM": 172.0,
+      "tempo2": 85.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "5079918.LOFI.mp3",
+      "audioPath": "5079918.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5081990.LOFI.mp3",
+      "audioPath": "5081990.LOFI.mp3",
+      "groundTruthBPM": 85.0,
+      "tempo2": 170.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "5089294.LOFI.mp3",
+      "audioPath": "5089294.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "5102537.LOFI.mp3",
+      "audioPath": "5102537.LOFI.mp3",
+      "groundTruthBPM": 123.0,
+      "tempo2": 61.0,
+      "modelBPM": 123.0
+    },
+    {
+      "trackId": "5117279.LOFI.mp3",
+      "audioPath": "5117279.LOFI.mp3",
+      "groundTruthBPM": 119.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "5118757.LOFI.mp3",
+      "audioPath": "5118757.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 69.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5135326.LOFI.mp3",
+      "audioPath": "5135326.LOFI.mp3",
+      "groundTruthBPM": 130.0,
+      "tempo2": 150.0,
+      "modelBPM": 130.0
+    },
+    {
+      "trackId": "5137153.LOFI.mp3",
+      "audioPath": "5137153.LOFI.mp3",
+      "groundTruthBPM": 130.0,
+      "tempo2": 141.0,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "5137154.LOFI.mp3",
+      "audioPath": "5137154.LOFI.mp3",
+      "groundTruthBPM": 134.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5137157.LOFI.mp3",
+      "audioPath": "5137157.LOFI.mp3",
+      "groundTruthBPM": 153.0,
+      "tempo2": 144.0,
+      "modelBPM": 77.0
+    },
+    {
+      "trackId": "5137158.LOFI.mp3",
+      "audioPath": "5137158.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5143186.LOFI.mp3",
+      "audioPath": "5143186.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5157605.LOFI.mp3",
+      "audioPath": "5157605.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 66.0,
+      "modelBPM": 132.0
+    },
+    {
+      "trackId": "5160584.LOFI.mp3",
+      "audioPath": "5160584.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 108.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "5162042.LOFI.mp3",
+      "audioPath": "5162042.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "5171396.LOFI.mp3",
+      "audioPath": "5171396.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "5195826.LOFI.mp3",
+      "audioPath": "5195826.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    },
+    {
+      "trackId": "5202182.LOFI.mp3",
+      "audioPath": "5202182.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 87.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5204781.LOFI.mp3",
+      "audioPath": "5204781.LOFI.mp3",
+      "groundTruthBPM": 125.0,
+      "tempo2": 62.0,
+      "modelBPM": 124.0
+    },
+    {
+      "trackId": "5213896.LOFI.mp3",
+      "audioPath": "5213896.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "5214265.LOFI.mp3",
+      "audioPath": "5214265.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": null,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "5214755.LOFI.mp3",
+      "audioPath": "5214755.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "5214943.LOFI.mp3",
+      "audioPath": "5214943.LOFI.mp3",
+      "groundTruthBPM": 74.0,
+      "tempo2": 147.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "5237462.LOFI.mp3",
+      "audioPath": "5237462.LOFI.mp3",
+      "groundTruthBPM": 121.0,
+      "tempo2": 60.0,
+      "modelBPM": 120.0
+    },
+    {
+      "trackId": "5248391.LOFI.mp3",
+      "audioPath": "5248391.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5258365.LOFI.mp3",
+      "audioPath": "5258365.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 72.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "5261461.LOFI.mp3",
+      "audioPath": "5261461.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "5268098.LOFI.mp3",
+      "audioPath": "5268098.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 63.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "5294335.LOFI.mp3",
+      "audioPath": "5294335.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 80.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "5302339.LOFI.mp3",
+      "audioPath": "5302339.LOFI.mp3",
+      "groundTruthBPM": 163.0,
+      "tempo2": 83.0,
+      "modelBPM": 165.0
+    },
+    {
+      "trackId": "5314439.LOFI.mp3",
+      "audioPath": "5314439.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": null,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "5315510.LOFI.mp3",
+      "audioPath": "5315510.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5335389.LOFI.mp3",
+      "audioPath": "5335389.LOFI.mp3",
+      "groundTruthBPM": 71.0,
+      "tempo2": 139.0,
+      "modelBPM": 105.0
+    },
+    {
+      "trackId": "5345058.LOFI.mp3",
+      "audioPath": "5345058.LOFI.mp3",
+      "groundTruthBPM": 147.0,
+      "tempo2": 160.0,
+      "modelBPM": 148.0
+    },
+    {
+      "trackId": "5347155.LOFI.mp3",
+      "audioPath": "5347155.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "5355157.LOFI.mp3",
+      "audioPath": "5355157.LOFI.mp3",
+      "groundTruthBPM": 167.0,
+      "tempo2": 83.0,
+      "modelBPM": 83.0
+    },
+    {
+      "trackId": "5356489.LOFI.mp3",
+      "audioPath": "5356489.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "5363251.LOFI.mp3",
+      "audioPath": "5363251.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": null,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "536656.LOFI.mp3",
+      "audioPath": "536656.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 174.0,
+      "modelBPM": 137.0
+    },
+    {
+      "trackId": "5377710.LOFI.mp3",
+      "audioPath": "5377710.LOFI.mp3",
+      "groundTruthBPM": 129.0,
+      "tempo2": 65.0,
+      "modelBPM": 128.0
+    },
+    {
+      "trackId": "5406759.LOFI.mp3",
+      "audioPath": "5406759.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 140.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "5431709.LOFI.mp3",
+      "audioPath": "5431709.LOFI.mp3",
+      "groundTruthBPM": 87.0,
+      "tempo2": 174.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "547692.LOFI.mp3",
+      "audioPath": "547692.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 85.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "587794.LOFI.mp3",
+      "audioPath": "587794.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "633082.LOFI.mp3",
+      "audioPath": "633082.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 144.0,
+      "modelBPM": 126.0
+    },
+    {
+      "trackId": "672063.LOFI.mp3",
+      "audioPath": "672063.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 89.0,
+      "modelBPM": 175.0
+    },
+    {
+      "trackId": "672064.LOFI.mp3",
+      "audioPath": "672064.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 87.0
+    },
+    {
+      "trackId": "691688.LOFI.mp3",
+      "audioPath": "691688.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 156.0,
+      "modelBPM": 143.0
+    },
+    {
+      "trackId": "691694.LOFI.mp3",
+      "audioPath": "691694.LOFI.mp3",
+      "groundTruthBPM": 144.0,
+      "tempo2": 73.0,
+      "modelBPM": 145.0
+    },
+    {
+      "trackId": "710469.LOFI.mp3",
+      "audioPath": "710469.LOFI.mp3",
+      "groundTruthBPM": 156.0,
+      "tempo2": null,
+      "modelBPM": 157.0
+    },
+    {
+      "trackId": "750132.LOFI.mp3",
+      "audioPath": "750132.LOFI.mp3",
+      "groundTruthBPM": 132.0,
+      "tempo2": 121.0,
+      "modelBPM": 133.0
+    },
+    {
+      "trackId": "825292.LOFI.mp3",
+      "audioPath": "825292.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 70.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "861484.LOFI.mp3",
+      "audioPath": "861484.LOFI.mp3",
+      "groundTruthBPM": 171.0,
+      "tempo2": 86.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "906680.LOFI.mp3",
+      "audioPath": "906680.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 84.0,
+      "modelBPM": 170.0
+    },
+    {
+      "trackId": "906681.LOFI.mp3",
+      "audioPath": "906681.LOFI.mp3",
+      "groundTruthBPM": 172.0,
+      "tempo2": 85.0,
+      "modelBPM": 86.0
+    },
+    {
+      "trackId": "906760.LOFI.mp3",
+      "audioPath": "906760.LOFI.mp3",
+      "groundTruthBPM": 104.0,
+      "tempo2": 134.0,
+      "modelBPM": 77.0
+    },
+    {
+      "trackId": "907836.LOFI.mp3",
+      "audioPath": "907836.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 88.0,
+      "modelBPM": 88.0
+    },
+    {
+      "trackId": "907837.LOFI.mp3",
+      "audioPath": "907837.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 109.0,
+      "modelBPM": 172.0
+    },
+    {
+      "trackId": "925895.LOFI.mp3",
+      "audioPath": "925895.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 130.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "942357.LOFI.mp3",
+      "audioPath": "942357.LOFI.mp3",
+      "groundTruthBPM": 170.0,
+      "tempo2": 84.0,
+      "modelBPM": 85.0
+    },
+    {
+      "trackId": "94350.LOFI.mp3",
+      "audioPath": "94350.LOFI.mp3",
+      "groundTruthBPM": 150.0,
+      "tempo2": 75.0,
+      "modelBPM": 151.0
+    },
+    {
+      "trackId": "956606.LOFI.mp3",
+      "audioPath": "956606.LOFI.mp3",
+      "groundTruthBPM": 127.0,
+      "tempo2": 112.0,
+      "modelBPM": 127.0
+    },
+    {
+      "trackId": "986931.LOFI.mp3",
+      "audioPath": "986931.LOFI.mp3",
+      "groundTruthBPM": 139.0,
+      "tempo2": 163.0,
+      "modelBPM": 140.0
+    },
+    {
+      "trackId": "989704.LOFI.mp3",
+      "audioPath": "989704.LOFI.mp3",
+      "groundTruthBPM": 174.0,
+      "tempo2": 87.0,
+      "modelBPM": 174.0
+    }
+  ]
+}
