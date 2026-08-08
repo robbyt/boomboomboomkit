@@ -348,7 +348,7 @@ development_status:
   12-3-annotation-version-tagging-and-octave-error-metric: done
   12-4-tempocnn-reference-baseline-gate-0: done
   12-5-pipeline-differential-and-cause-ranking: done
-  12-6-metrical-level-convention-and-ground-truth-rule: backlog
+  12-6-metrical-level-convention-and-ground-truth-rule: done
   12-7-band-balanced-258-track-corpus: backlog
   12-8-bin-schema-public-contract: backlog
   12-9-bundle-gate-definition: backlog
