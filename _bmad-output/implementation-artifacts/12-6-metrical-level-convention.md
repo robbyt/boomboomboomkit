@@ -412,7 +412,8 @@ this document and re-signoff before verification continues.
 
 Dependency risk carried into signing: the section-5 tag validates against Story
 12.3's scheme as committed on this stacked branch (commits
-0fb914b/4b66b75, signed, not yet PR-reviewed); if 12.3's validation rules change in PR
+0fb914b/4b66b75, signed; PR #195 review pass fixed only labelling and hardening,
+no validation-rule change, and pinned the digest golden vector at 9da521e); if 12.3's validation rules change in PR
 review, the tag must be re-validated before corpus load.
 
 Until signed, all of the following stay open: no convention exists, no candidate

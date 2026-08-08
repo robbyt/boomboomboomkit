@@ -5,7 +5,7 @@ created: '2026-08-08'
 status: 'blocked'
 review_loop_iteration: 0
 followup_review_recommended: true
-final_revision: '32b6c7e' # re-signed 2026-08-08
+final_revision: '8a8f751' # re-signed 2026-08-08
 baseline_revision: '4b66b75' # branch rterhaar/12-6-metrical-level-convention, stacked on Story 12.3 (re-signed 2026-08-08)
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
@@ -155,4 +155,4 @@ Status: blocked (2026-08-08) -- blocking condition: operator signoff required on
 
 **Residual risks:** the operator may overturn the recommended level (the half-tempo amendment path and tag fallback are pre-written); per-band pool sizes under the declared convention are unmeasured until Story 12.7 re-bands the pool; the 18-vs-14 row-basis delta is unreconciled and assigned to 12.7's fingerprint join.
 
-**Operator actions needed (morning):** (1) unlock 1Password; (2) re-sign or accept the four commits on the stacked branches (DONE 2026-08-08: re-signed as 0fb914b/4b66b75/32b6c7e/c7b6207); (3) push both branches and open PRs (12.3 -> rterhaar/epic-12, then 12.6 -> 12.3's branch or rebase after 12.3 lands); (4) read `12-6-metrical-level-convention.md` and sign or overturn the convention in its section 6 block.
+**Operator actions needed (morning):** (1) unlock 1Password; (2) re-sign or accept the four commits on the stacked branches (DONE 2026-08-08: re-signed as 0fb914b/4b66b75/8a8f751/b19e2a6); (3) push both branches and open PRs (12.3 -> rterhaar/epic-12, then 12.6 -> 12.3's branch or rebase after 12.3 lands); (4) read `12-6-metrical-level-convention.md` and sign or overturn the convention in its section 6 block.
