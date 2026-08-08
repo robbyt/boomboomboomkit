@@ -1,0 +1,86 @@
+{
+ "artist_exclusion_limitation": "Pool rows carry no artist field, so artist-based FR-59a.2 exclusion is enforceable only for Tony rows; recorded as a limitation, compensated by the audit fingerprint pass.",
+ "bands": {
+  "100-120": {
+   "candidates": 3,
+   "exclusions": {
+    "artist": 7,
+    "audio-unresolved": 25,
+    "manifest-hash": 262,
+    "tony-split": 5
+   },
+   "seed": 3788676503
+  },
+  "120-140": {
+   "candidates": 28,
+   "exclusions": {
+    "artist": 37,
+    "audio-unresolved": 44,
+    "manifest-hash": 52,
+    "tony-split": 99
+   },
+   "seed": 737215078
+  },
+  "140-160": {
+   "candidates": 60,
+   "exclusions": {
+    "artist": 36,
+    "audio-unresolved": 47,
+    "manifest-hash": 42,
+    "tony-split": 246
+   },
+   "seed": 2135622856
+  },
+  "160-175": {
+   "candidates": 41,
+   "exclusions": {
+    "artist": 0,
+    "audio-unresolved": 0,
+    "manifest-hash": 102,
+    "tony-split": 0
+   },
+   "seed": 949256517
+  },
+  "175-plus": {
+   "candidates": 9,
+   "exclusions": {
+    "artist": 0,
+    "audio-unresolved": 0,
+    "manifest-hash": 104,
+    "tony-split": 0
+   },
+   "seed": 804341996
+  },
+  "sub-100": {
+   "candidates": 206,
+   "exclusions": {
+    "artist": 290,
+    "audio-unresolved": 109,
+    "manifest-hash": 1988,
+    "tony-split": 527
+   },
+   "seed": 387184073
+  }
+ },
+ "draw_file_sha256": "5772f474de20e205f0bee743d8ff7572178169cddedfe0d7d1ac252ef93062c4",
+ "generated": "2026-08-08",
+ "master_seed": 1063288555,
+ "n_band_target": 43,
+ "pool_file_sha256": "56b48eccfb4a7a27030cc6d0f43e25d5da4f138a5690e831ac7004b617c3864d",
+ "protocol": "_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md section 2",
+ "run_command": "make eval-corpus-pools",
+ "schema_version": 1,
+ "seed_algorithm": "python-stdlib random.Random (Mersenne Twister), Random(seed).shuffle(sorted_rows)",
+ "short_bands": [
+  "100-120",
+  "120-140",
+  "160-175",
+  "175-plus"
+ ],
+ "story": "12.7",
+ "tagless_by_source": {
+  "oa300": 0,
+  "pool": 2198,
+  "tony": 2
+ }
+}

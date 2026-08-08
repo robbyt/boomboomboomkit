@@ -134,3 +134,8 @@ codex-review.diff
 # Scratch worktree produced by `make release-rehearse` (removed on exit; ignored
 # so an interrupted run cannot leave the repo looking dirty).
 .release-rehearse/
+
+# Story 12.7: row-level eval-corpus working state (candidate pools, draw
+# sequences, staged batch audio, annotations, membership). Private inventory;
+# the committed commitment artifact carries counts, seeds, and digests only.
+_bmad-output/ml-training/eval-corpus/

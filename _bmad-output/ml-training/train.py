@@ -451,6 +451,10 @@ def parse_args(argv: list[str]) -> TrainArgs:
 ML_TRAINING_DIR = Path(__file__).resolve().parent
 REPO_ROOT = ML_TRAINING_DIR.parent.parent
 DIAGNOSTICS_MD = ML_TRAINING_DIR / "corpus-diagnostics-v1.md"
+# Story 12.7: the 258-track band-balanced evaluation corpus artifact. Its
+# signoff gates ANY substrate-v2 training run (epic decision: the fail-closed
+# gate is wired before any training story runs).
+EVAL_CORPUS_MD = REPO_ROOT / "_bmad-output" / "implementation-artifacts" / "12-7-eval-corpus.md"
 _SIGNOFF_RE = re.compile(r"REVIEWER_SIGNOFF:\s*(signed|pending)")
 
 
@@ -512,6 +516,32 @@ def check_substrate_preconditions() -> None:
             f"operator transcribes what they verified in {DIAGNOSTICS_MD.name} and flips "
             "REVIEWER_SIGNOFF -> signed (the same gate `audit-corpus-splits.py --check-gate` "
             "enforces). Story 7.1 'done' = evidence assembled, NOT corpus-safe-to-train."
+        )
+
+    # (d) Story 12.7: the 258-track band-balanced evaluation-corpus signoff.
+    # Unconditional for every substrate-v2 run (epic decision: "wired before any
+    # training story runs"). Same fail-closed contract as (c): exactly one
+    # REVIEWER_SIGNOFF marker, and it must read `signed`.
+    if not EVAL_CORPUS_MD.exists():
+        raise SubstratePreconditionError(
+            f"Story 12.7 gate: {EVAL_CORPUS_MD.name} not found - the 258-track "
+            "band-balanced evaluation corpus artifact must exist before any "
+            "substrate-v2 training run. Fails CLOSED."
+        )
+    markers_258 = _SIGNOFF_RE.findall(EVAL_CORPUS_MD.read_text(encoding="utf-8"))
+    if len(markers_258) != 1:
+        raise SubstratePreconditionError(
+            f"Story 12.7 gate: expected exactly ONE REVIEWER_SIGNOFF marker in "
+            f"{EVAL_CORPUS_MD.name}, found {len(markers_258)} - fails CLOSED."
+        )
+    if markers_258[0] != "signed":
+        raise SubstratePreconditionError(
+            "Story 12.7 gate: the 258-corpus signoff is `pending`. Training is BLOCKED "
+            "until the 43x6 corpus completes - which may be stalled on operator "
+            "hand-verification OR on the precommitted fallback addendum for bands whose "
+            "committed pools cannot reach 43 (see the commitment artifact's short-bands "
+            f"record) - and the operator flips REVIEWER_SIGNOFF -> signed in "
+            f"{EVAL_CORPUS_MD.name}."
         )
 
 
