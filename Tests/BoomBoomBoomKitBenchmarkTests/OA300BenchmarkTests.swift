@@ -38,6 +38,8 @@ struct OA300BenchmarkTests {
 
   private let corpusPath: String
   private let groundTruth: [OA300Track]
+  /// Resolved at the loader (Story 12.3, FR-60).
+  private let annotationVersion: AnnotationVersion
 
   init() throws {
     guard let path = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"], !path.isEmpty
@@ -56,7 +58,11 @@ struct OA300BenchmarkTests {
     }
 
     let data = try Data(contentsOf: url)
-    groundTruth = try OA300Track.loadCorpus(from: data)
+    // Story 12.3 (FR-60): resolve the annotation version at the loader so every
+    // figure this suite emits carries it.
+    let versioned = try OA300Track.loadVersionedCorpus(from: data)
+    groundTruth = versioned.tracks
+    annotationVersion = versioned.annotationVersion
   }
 
   // GH-167 item 4 (#155): `benchmarkDefaultIntensity` was deleted. It called
@@ -71,10 +77,16 @@ struct OA300BenchmarkTests {
     let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.02)
     print("\n=== OA300 Benchmark — Acc1 Strict (2% tolerance) ===")
     print("Corpus: \(metrics.total) tracks, Rekordbox ground truth")
+    print("Annotation version: \(annotationVersion)")
     print(
       "Acc1: \(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total))")
     print(
       "Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
+    // Story 12.3 (FR-61): the octave-error proxy as a named figure, not a reader derivation.
+    let tally = try AccuracyTally(
+      acc1: metrics.acc1Correct, acc2: metrics.acc2Correct, total: metrics.total,
+      annotationVersion: annotationVersion)
+    print("Acc2-Acc1 (octave-error proxy): \(tally.formattedOctaveErrorProxy)")
     if !metrics.failures.isEmpty {
       print("\nAcc1 Failures:")
       print("| Track | Expected | Got | Delta% |")
@@ -737,6 +749,7 @@ struct OA300BenchmarkTests {
     let report = GenreAccuracyReporter.format(
       corpusLabel: "OA300",
       intensity: AnalysisIntensity.default.level,
+      annotationVersion: annotationVersion,
       buckets: buckets,
       overallAcc1Percent: metrics.acc1, overallAcc2Percent: metrics.acc2)
     print("\n" + report)

@@ -2,10 +2,10 @@
 title: 'Story 12.3: Annotation-version tagging and the octave-error metric'
 type: 'feature' # feature | bugfix | refactor | chore
 created: '2026-08-06'
-status: 'ready-for-dev' # draft | ready-for-dev | in-progress | in-review | done | blocked
+status: 'done' # draft | ready-for-dev | in-progress | in-review | done | blocked
 review_loop_iteration: 1
-followup_review_recommended: false
-baseline_revision: 'e48475a' # branch rterhaar/12-3-annotation-version-tagging, clean tree
+followup_review_recommended: true
+baseline_revision: '89e2092' # branch rterhaar/12-3-annotation-version-tagging-impl, clean tree (implementation run 2026-08-08; spec authored at e48475a)
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
 warnings: ['multiple-goals', 'oversized']
@@ -108,7 +108,57 @@ that predates tagging reads as `untagged`, never as current.
 
 ## Code Map
 
-Line numbers are as of `e48475a`, 2026-08-06; the named symbol governs if they drift.
+**As built (2026-08-08, implementation run at baseline `89e2092`):**
+
+- `Sources/BoomBoomBoomKitTestSupport/AnnotationVersion.swift` -- NEW.
+  `AnnotationVersion:24` (open tag; `.untagged` static, validating `init(parsing:)` +
+  Codable), `declared(_:):63`, `AnnotationRow` + `contentDigest(corpus:rows:):107`
+  (length-prefixed UTF-8, big-endian IEEE-754 bit patterns, 0x00/0x01 nil markers,
+  domain prefix `BoomBoomBoomKit.annotation.v1/<corpus>`), two-rule `resolve:150`,
+  `AccuracyRecordSchema:218` (schema 2 -> `.untagged`, 3 required, else rejected --
+  extracted here so the perf-baseline back-compat rule is unit-testable).
+- `Sources/BoomBoomBoomKitTestSupport/AccuracyTally.swift` -- NEW. `AccuracyTally:15`
+  (throwing init rejects `acc1 > acc2`; `octaveErrorProxy` count + `%.1f` pp,
+  `0.0` at `total == 0`), `MIREXTempoVerdict:71` (carries the relocated 71-track
+  strict-vs-floor doc comment), `mirexTempoVerdict:92` (the shared pairing all five
+  hand-rolled sites migrated to).
+- `Sources/BoomBoomBoomKitTestSupport/CorpusTracks.swift` -- `VersionedCorpus:81`,
+  `resolveJAMSAnnotationVersion:98` (row ID `identifiers.local_path`, loud fail when
+  absent; never reads `jams_version`), OA300 `loadVersionedCorpus:181` (+ `loadCorpus`
+  wrapper `:174`), `extension GiantStepsTrack:189` (NEW `loadCorpus` +
+  `loadVersionedCorpus:200`, row ID `track_id`), DAW `loadVersionedCorpus` below it.
+- `Sources/BoomBoomBoomKitTestSupport/JAMS/JAMSDecoder.swift` --
+  `JAMSAnnotationMetadata.version:243` (optional, defaulted init param, key `version`).
+- `Sources/BoomBoomBoomKitTestSupport/GenreAccuracyReporter.swift` --
+  `GenreBucket.octaveErrorProxy:37`/`:41`, `format` gains
+  `annotationVersion: AnnotationVersion = .untagged` `:117`, header line
+  `Annotation version: <tag>` `:140`, `Acc2-Acc1` column cell `:179`
+  (`%3d %5.1fpp`; `insufficient` cell widened to 27 to span it).
+- `Tests/BoomBoomBoomKitBenchmarkTests/PerformanceBenchmarkTests.swift` --
+  `AccuracySnapshot.annotationVersion:132` (optional, normalized non-nil at decode),
+  custom `BaselineRecord.init(from:):153` (schemaVersion-first decode,
+  `AccuracyRecordSchema.supported` gate), `readHistory` guard `:267`, writer
+  `schemaVersion: AccuracyRecordSchema.current:783`, per-corpus versions recorded
+  `:460` (oa300) / `:767` (giantsteps).
+- `Tests/BoomBoomBoomKitBenchmarkTests/GiantStepsBenchmarkTests.swift` /
+  `OA300BenchmarkTests.swift` -- loaders flipped to `loadVersionedCorpus`, headline
+  prints `Annotation version:` + `Acc2-Acc1 (octave-error proxy):` via `AccuracyTally`,
+  genre passes thread `annotationVersion` into the reporter; `mirexHit` delegates to
+  `mirexTempoVerdict` (floor pair).
+- Migrated raw-decode/hand-rolled sites: `AccuracyForensicsTests.swift:77`,
+  `AblationFullMatrixTests.swift:503` (both -> `GiantStepsTrack.loadCorpus`),
+  `OctaveThresholdSweepTests.swift` sweep hit, `TempoRangeImpactTests.swift` strict
+  pairing (12.1 impact path) + SMC floor/strict block -- all via `mirexTempoVerdict`.
+- `Tests/BoomBoomBoomKitTests/AnnotationVersionTests.swift` -- NEW unit suites
+  `AnnotationVersion` (declared/reserved/conflict, digest determinism + order/corpus/nil
+  discrimination, validating Codable, schema rule, synthetic declared-version JAMS
+  fixture, GiantSteps re-serialization invariance) and `AccuracyTally` (proxy
+  aggregate/empty/degenerate, rejected construction, strict-vs-floor split).
+- `Tests/BoomBoomBoomKitTests/GenreAccuracyReporterTests.swift` -- new column/header
+  tests (goldens are contains-based; existing ones unchanged and passing).
+
+Spec-time line numbers below are as of `e48475a`, 2026-08-06; the named symbol governs
+if they drift.
 
 - `Sources/BoomBoomBoomKitTestSupport/AccuracyMatchers.swift` -- `isAcc1Match:7`,
   `isAcc2Match:18`, `classifyTempoError:45`. The primitives. Untouched; the new tally
@@ -161,7 +211,7 @@ five migrate to.
 
 **Execution:**
 
-- [ ] `Sources/BoomBoomBoomKitTestSupport/AnnotationVersion.swift` -- NEW. An open
+- [x] `Sources/BoomBoomBoomKitTestSupport/AnnotationVersion.swift` -- NEW. An open
   identifier (`Sendable`, `Hashable`, `Codable`, `CustomStringConvertible`) wrapping a
   string, with `.untagged` as a named static. Open because Story 12.6 must mint one; a
   closed enum would have to be reopened by that story. Provides the two-rule resolution:
@@ -177,17 +227,17 @@ five migrate to.
   track id for GiantSteps. Rendered `sha256:<64 lowercase hex>`. Do not
   enumerate corpus-specific statics beyond what a resolution rule needs; a per-corpus
   static list is the closed-enum failure mode wearing different clothes.
-- [ ] `Sources/BoomBoomBoomKitTestSupport/AccuracyTally.swift` -- NEW. `acc1`, `acc2`,
+- [x] `Sources/BoomBoomBoomKitTestSupport/AccuracyTally.swift` -- NEW. `acc1`, `acc2`,
   `total`, `annotationVersion`, and `octaveErrorProxy` as a computed `acc2 - acc1` (a
   track count; percentage-point rendering `100 * (acc2 - acc1) / total` lives beside it).
   Construction rejects `acc1 > acc2`. Carries the shared MIREX hit that returns the
   octave-strict and floor-compatible verdicts as distinct values, so the five hand-rolled
   pairings collapse to one and FR-61's proxy is meaningful on GiantSteps rather than
   pre-absorbed by the `tempo2` acceptance.
-- [ ] `Sources/BoomBoomBoomKitTestSupport/JAMS/JAMSDecoder.swift` -- add an optional
+- [x] `Sources/BoomBoomBoomKitTestSupport/JAMS/JAMSDecoder.swift` -- add an optional
   `version` property to `JAMSAnnotationMetadata` (absent today), so a declared version is
   representable at all. The synthetic declared-version unit fixture exercises it.
-- [ ] `Sources/BoomBoomBoomKitTestSupport/CorpusTracks.swift` -- new `loadVersionedCorpus`
+- [x] `Sources/BoomBoomBoomKitTestSupport/CorpusTracks.swift` -- new `loadVersionedCorpus`
   API per corpus returning the tracks plus the resolved `AnnotationVersion`, with the
   existing array-returning `loadCorpus` retained as a wrapper so its ~13 test-file call
   sites provably keep compiling. Add the GiantSteps loader (none exists today) and migrate
@@ -196,24 +246,24 @@ five migrate to.
   `annotation_metadata.version`; the migrator never writes it); the declared branch is
   exercised by the unit fixture and becomes live if a future migration populates the
   field.
-- [ ] `Sources/BoomBoomBoomKitTestSupport/GenreAccuracyReporter.swift` -- add the
+- [x] `Sources/BoomBoomBoomKitTestSupport/GenreAccuracyReporter.swift` -- add the
   `Acc2-Acc1` column (count, with percentage points) and surface the annotation version in
   the header, so the per-genre reading FR-61's success metric depends on is available
   without hand subtraction.
-- [ ] `Tests/BoomBoomBoomKitBenchmarkTests/PerformanceBenchmarkTests.swift` -- bump the
+- [x] `Tests/BoomBoomBoomKitBenchmarkTests/PerformanceBenchmarkTests.swift` -- bump the
   persisted schema and record the annotation version per corpus. **The reader must accept
   the previous schema and surface `untagged` for it**; rejecting it kills the cross-run
   delta line against every committed baseline. Mechanics: a **custom decoder** that
   defaults the version field to `.untagged` when `schemaVersion == 2`, decodes it for the
   bumped schema, and rejects unsupported versions -- a synthesized `Decodable` on a
   non-optional field would fail before `schemaVersion` can be inspected.
-- [ ] `Tests/BoomBoomBoomKitBenchmarkTests/GiantStepsBenchmarkTests.swift` and
+- [x] `Tests/BoomBoomBoomKitBenchmarkTests/GiantStepsBenchmarkTests.swift` and
   `.../OA300BenchmarkTests.swift` -- adopt the shared tally and print the version and the
   proxy in the headline output. Hit counts must not change.
-- [ ] `Tests/BoomBoomBoomKitTests/` -- NEW unit suite covering the I/O matrix: the untagged
+- [x] `Tests/BoomBoomBoomKitTests/` -- NEW unit suite covering the I/O matrix: the untagged
   resolution path, the previous-schema read, the rejected `acc1 > acc2` construction, the
   degenerate zero proxy, and the strict-versus-floor split on a `tempo2` row.
-- [ ] `Tests/BoomBoomBoomKitTests/GenreAccuracyReporterTests.swift` -- update goldens for
+- [x] `Tests/BoomBoomBoomKitTests/GenreAccuracyReporterTests.swift` -- update goldens for
   the new column.
 
 **Acceptance Criteria:**
@@ -374,6 +424,62 @@ boundary (recording the FR-60 amendment in the triage log when accepted), or wid
 story to convert the remaining stdout-only emit sites. The spec proceeds on the narrowed
 reading until answered.
 
+### Implementation Notes (2026-08-08)
+
+Judgment calls made during the implementation run, none contradicting the contract:
+
+- **`AccuracyTally` rejects invalid counts with a throwing init**, not a
+  `precondition`: "rejected at construction" must be unit-testable under Swift
+  Testing, and a precondition crash is not. `TallyError.invalidCounts` also covers
+  negatives and `acc2 > total`.
+- **The schema back-compat rule lives in TestSupport** (`AccuracyRecordSchema`)
+  rather than inline in the private `BaselineRecord` decoder, so the
+  previous-schema-read row of the I/O matrix is covered by the non-env-gated unit
+  suite; the benchmark decoder calls it. The custom `BaselineRecord.init(from:)`
+  sits in an extension to preserve the synthesized memberwise init.
+- **Digest encoding pinned as**: 8-byte big-endian UTF-8 byte-count length
+  prefixes, 8-byte big-endian IEEE-754 bit patterns, `0x00`/`0x01` optional
+  markers, rows sorted by `stableRowID` in Unicode-scalar order. Documented on
+  `contentDigest`.
+- **`loadCorpus` is a true wrapper** (`loadVersionedCorpus(...).tracks`), which
+  adds a loud-fail on a JAMS entry missing `identifiers.local_path` to the ~13
+  existing call sites. Verified before adopting: `local_path` is present and
+  unique on all 82 OA300 rows, all 23 DAW-oracle rows, and every synthetic unit
+  fixture, so no existing path changes behavior.
+- **All five hand-rolled MIREX pairings migrated** to `mirexTempoVerdict` (the
+  tally task's "five collapse to one"), including `OctaveThresholdSweepTests` and
+  both `TempoRangeImpactTests` sites, as pure expression-equivalent swaps.
+- **Reporter column format**: proxy cell `%3d %5.1fpp`; the `insufficient` cell
+  widened from 14 to 27 chars to span the new column; `Annotation version: <tag>`
+  is line 2 of every report, defaulting to `untagged` when a caller passes none
+  (the existing reporter tests' non-version call sites stay valid).
+- One edge accepted: a schema-3 baseline record with a MISSING version field
+  fails loudly via `AccuracyRecordSchema.missingAnnotationVersion` (spec-aligned);
+  a schema-3 record with a MALFORMED string fails in `AnnotationVersion`'s
+  validating decoder before the schema rule runs -- both are decode failures,
+  never silent `untagged`.
+- Measured on this run: GiantSteps digest tag
+  `sha256:7c4dafc499c97cb40d837806ef5675211065d628a0689e411de260fe8d65a686`;
+  floor-metric proxy at default config is 9 tracks (1.4 pp) on 537/546/661.
+
+### 2026-08-08 -- Review pass (Blind Hunter + Edge Case Hunter, post-implementation)
+- intent_gap: 0
+- bad_spec: 0
+- patch: 12: (high 0, medium 3, low 9)
+- defer: 0
+- reject: 6
+- addressed_findings:
+  - `[medium]` `[patch]` Two raw GiantSteps `JSONDecoder` sites remained (OctaveThresholdSweepTests, TempoRangeImpactTests SMC arm) beyond the four the spec enumerated; migrated to the versioned loader. The spec's count of four was a survey undercount, not a scope decision.
+  - `[medium]` `[patch]` Digest determinism guards: stableRowID uniqueness enforced (typed error on duplicates), empty row IDs rejected in both the JAMS resolver and the GiantSteps loader, rows sorted by UTF-8 byte order instead of String `<` (canonical-equivalence sorting could flap the tag), empty row set refuses to mint a tag on both the digest and declared branches.
+  - `[medium]` `[patch]` A schema-2 accuracy record carrying an `annotationVersion` field is now a loud decode failure instead of being silently trusted; schema 2 predates tagging, so a present field is forged or foreign.
+  - `[low]` `[patch]` Declared-version collection restricted to tempo-namespace annotations; a beat-annotation version can no longer tag a tempo corpus.
+  - `[low]` `[patch]` `contentDigest` throws on non-finite tempos and canonicalizes -0.0 to 0.0 before taking the IEEE-754 bit pattern.
+  - `[low]` `[patch]` `declared(_:)` trims whitespace before validation, rejects control characters and interior newlines (report-line injection), and applies the reserved-prefix check case-insensitively ("SHA256:", "Untagged" variants rejected).
+  - `[low]` `[patch]` Unsupported perf-baseline schema now surfaces as "unsupported schemaVersion N" instead of "malformed baseline file"; the unreachable post-decode guard removed.
+  - `[low]` `[patch]` `MIREXTempoVerdict.miss` added; the hand-built all-false sentinel in the SMC harness uses it.
+  - `[low]` `[patch]` New unit tests covering every guard above, including a three-ordering digest-determinism test with a non-ASCII row ID.
+  - Rejected (spec-conformant design or unreachable): digest row tuple excludes beat annotations and GiantSteps filename (the canonical row is pinned by this spec); partial declared-version resolution follows the spec's agreeing-set rule; tally/reporter proxy render differ deliberately (prose line vs table cell); reporter column overflow needs a >999-track bucket; throwing tally on acc1>acc2 is structurally unreachable at call sites; `loadCorpus` wrapper's loud-fail on missing local_path is the spec's own choke-point contract.
+
 ## Verification
 
 **Commands:**
@@ -393,3 +499,17 @@ reading until answered.
 **Manual checks:**
 - One committed perf-baseline JSON at the previous schema still reads and reports
   `untagged`, confirmed by the delta line rendering rather than by inspecting the file.
+
+## Auto Run Result
+
+Status: done (2026-08-08, bmad-dev-auto run; spec authored 2026-08-06 at e48475a, implemented at baseline 89e2092)
+
+**Summary:** Annotation-version tagging (FR-60) and the Acc2-Acc1 octave-error proxy (FR-61) landed in the test-support and benchmark surface. `AnnotationVersion` (namespaced `declared:` / `sha256:` / `untagged` tag space, two-rule resolution, CryptoKit content digest over canonicalized rows), `AccuracyTally` + `MIREXTempoVerdict` (shared strict/floor pairing collapsing five hand-rolled variants), versioned corpus loaders (`loadVersionedCorpus` with `loadCorpus` compat wrappers), all six raw GiantSteps decode sites migrated, perf-baseline schema bumped to 3 with schema-2 records reading as `untagged`.
+
+**Files:** Sources/BoomBoomBoomKitTestSupport/{AnnotationVersion,AccuracyTally}.swift (new), {CorpusTracks,GenreAccuracyReporter,JAMS/JAMSDecoder}.swift (modified); Tests/BoomBoomBoomKitTests/AnnotationVersionTests.swift (new), GenreAccuracyReporterTests.swift; Tests/BoomBoomBoomKitBenchmarkTests/{GiantSteps,OA300,Performance,AccuracyForensics,AblationFullMatrix,OctaveThresholdSweep,TempoRangeImpact}Tests.swift.
+
+**Review:** 12 patches applied (3 medium, 9 low), 0 deferred, 6 rejected; no intent gaps, no spec repairs.
+
+**Verification:** `make test` 1031/170 suites, 4 known issues, green. `make benchmark`: OA300 Acc1 58/82, Acc2 74/82, proxy 16 (19.5 pp), version `sha256:6dd9349a...`. `make benchmark-giantsteps`: Acc1 537/661, Acc2 546/661 (exact floors), proxy 9 (1.4 pp), version `sha256:7c4dafc4...65a686`. `make perf-benchmark`: schema-3 record written, delta line rendered against the schema-2 baseline at 8bcec39 (untagged back-compat path proven). `git diff --stat 89e2092 -- Sources/BoomBoomBoomKit/ Sources/BoomBoomBoomKitML/` empty. `make ml-training-tests` 37 passed. `make pre-commit`: all gates green except two `scripts/tests/test_promote_to_main.py` cases that fail only because the 1Password commit signer is locked (any `git commit` in a scratch repo fails; reproduced independently of this change; they will pass once the signer is unlocked).
+
+**Residual risks:** none identified beyond the rejected-findings rationale above; the two signer-dependent test failures are environmental.

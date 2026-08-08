@@ -367,8 +367,13 @@ struct TempoRangeImpactTests {
       else { return .comparisonOnlyFailed }
 
       let truth = entry.track.bpm
-      let baselineAcc1 = isAcc1Match(baseline.bpm, truth, tolerance: tolerance)
-      let comparisonAcc1 = isAcc1Match(comparison.bpm, truth, tolerance: tolerance)
+      // Story 12.3: shared primary-only (octave-strict) MIREX pairing.
+      let baselineVerdict = mirexTempoVerdict(
+        detected: baseline.bpm, primary: truth, alternate: nil, tolerance: tolerance)
+      let comparisonVerdict = mirexTempoVerdict(
+        detected: comparison.bpm, primary: truth, alternate: nil, tolerance: tolerance)
+      let baselineAcc1 = baselineVerdict.strictAcc1
+      let comparisonAcc1 = comparisonVerdict.strictAcc1
       return .measured(
         ImpactRow(
           genre: entry.track.genre,
@@ -829,8 +834,9 @@ struct SMCPriorReplicationTests {
     guard FileManager.default.fileExists(atPath: jsonPath) else {
       throw ReplicationError.groundTruthNotFound(jsonPath)
     }
-    let corpus = try JSONDecoder().decode(
-      [GiantStepsTrack].self, from: Data(contentsOf: URL(fileURLWithPath: jsonPath)))
+    let corpus = try GiantStepsTrack.loadVersionedCorpus(
+      from: Data(contentsOf: URL(fileURLWithPath: jsonPath))
+    ).tracks
     let tracks = corpus.map { track in
       ReplicationTrack(
         id: track.filename, genre: track.genre, truthBPM: track.bpm,
@@ -909,25 +915,21 @@ struct SMCPriorReplicationTests {
         let result = try? AudioAnalysisService.analyzeBPM(url: track.url, options: options)
         let bpm = result?.bpm
         bpms.append(bpm)
-        let hit1 = bpm.map { isAcc1Match($0, track.truthBPM, tolerance: tolerance) } ?? false
-        let hit2 =
-          hit1 || (bpm.map { isAcc2Match($0, track.truthBPM, tolerance: tolerance) } ?? false)
-        acc1.append(hit1)
-        acc2.append(hit2)
-        // Floor-compatible scoring, mirroring `GiantStepsBenchmarkTests.isHit`: a match
-        // against EITHER annotation counts. Without this the harness measures a
-        // stricter metric than the committed floor and its baseline reads as a 71-track
-        // regression that does not exist.
-        let alt1 =
-          bpm.flatMap { detected in
-            track.altTruthBPM.map { isAcc1Match(detected, $0, tolerance: tolerance) }
-          } ?? false
-        let alt2 =
-          bpm.flatMap { detected in
-            track.altTruthBPM.map { isAcc2Match(detected, $0, tolerance: tolerance) }
-          } ?? false
-        acc1Floor.append(hit1 || alt1)
-        acc2Floor.append(hit2 || alt1 || alt2)
+        // Story 12.3: shared strict + floor-compatible MIREX pairing. The floor
+        // verdicts accept EITHER annotation, mirroring the committed GiantSteps
+        // floors — without them the harness measures a stricter metric and its
+        // baseline reads as a 71-track regression that does not exist.
+        let verdict =
+          bpm.map { detected in
+            mirexTempoVerdict(
+              detected: detected, primary: track.truthBPM, alternate: track.altTruthBPM,
+              tolerance: tolerance)
+          }
+          ?? .miss
+        acc1.append(verdict.strictAcc1)
+        acc2.append(verdict.strictAcc2)
+        acc1Floor.append(verdict.floorAcc1)
+        acc2Floor.append(verdict.floorAcc2)
       }
       return ReplicationRow(
         track: track, bpm: bpms, acc1: acc1, acc2: acc2, acc1Floor: acc1Floor,

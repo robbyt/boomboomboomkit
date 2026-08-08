@@ -73,6 +73,54 @@ public struct DAWOracleTrack: Sendable {
   }
 }
 
+// MARK: - Versioned corpus loading (Story 12.3, FR-60)
+
+/// A loaded ground-truth corpus plus its resolved ``AnnotationVersion``. Resolution
+/// happens HERE, at the loader choke point, so every downstream emit site inherits
+/// the tag rather than each remembering to compute it.
+public struct VersionedCorpus<Track: Sendable>: Sendable {
+  public let tracks: [Track]
+  public let annotationVersion: AnnotationVersion
+
+  public init(tracks: [Track], annotationVersion: AnnotationVersion) {
+    self.tracks = tracks
+    self.annotationVersion = annotationVersion
+  }
+}
+
+/// Shared JAMS-corpus annotation-version resolution: collects every declared
+/// `annotation_metadata.version` from TEMPO-namespace annotations only (a beat
+/// oracle's version must not tag a tempo figure; all must agree; mixed values fail loudly via
+/// ``AnnotationVersion/resolve(declaredVersions:corpus:rows:)``) and canonical rows
+/// keyed by `file_metadata.identifiers.local_path` (82/82 unique on OA300, where the
+/// nested `track_id` is only 80/82). A missing `local_path` fails loudly — the digest
+/// would silently drop the row otherwise. NEVER reads `file_metadata.jams_version`
+/// (the JAMS FORMAT version — identical across any re-annotation).
+private func resolveJAMSAnnotationVersion(
+  _ corpus: JAMSCorpus, corpusName: String
+) throws -> AnnotationVersion {
+  var declared: [String] = []
+  var rows: [AnnotationVersion.AnnotationRow] = []
+  rows.reserveCapacity(corpus.entries.count)
+  for entry in corpus.entries {
+    for annotation in entry.annotations where annotation.namespace == .tempo {
+      if let version = annotation.annotationMetadata?.version {
+        declared.append(version)
+      }
+    }
+    guard let rowID = entry.fileMetadata.identifiers?.localPath, !rowID.isEmpty else {
+      throw AnnotationVersion.ResolutionError.missingStableRowID(corpus: corpusName)
+    }
+    rows.append(
+      AnnotationVersion.AnnotationRow(
+        stableRowID: rowID,
+        primaryTempo: try entry.tempoBPM(),
+        alternateTempo: nil,
+        genre: entry.sandbox?.genre))
+  }
+  return try AnnotationVersion.resolve(declaredVersions: declared, corpus: corpusName, rows: rows)
+}
+
 // MARK: - JAMS corpus adapters (Story 8.8a)
 
 extension OA300Track {
@@ -121,8 +169,52 @@ extension OA300Track {
   }
 
   /// Decode a full OA300 corpus from migrated JAMS data (the `{ "entries": [...] }` wrapper).
+  /// Wrapper over ``loadVersionedCorpus(from:)`` (Story 12.3) so existing call sites
+  /// keep compiling; use the versioned form when the figure will be persisted or gated.
   public static func loadCorpus(from data: Data) throws -> [OA300Track] {
-    try JSONDecoder().decode(JAMSCorpus.self, from: data).entries.map(OA300Track.init(jamsFile:))
+    try loadVersionedCorpus(from: data).tracks
+  }
+
+  /// Decode a full OA300 corpus plus its resolved ``AnnotationVersion`` (Story 12.3).
+  /// All three shipped corpora take the content-digest branch today (no corpus
+  /// declares `annotation_metadata.version`); the declared branch activates if a
+  /// future migration populates the field.
+  public static func loadVersionedCorpus(from data: Data) throws -> VersionedCorpus<OA300Track> {
+    let corpus = try JSONDecoder().decode(JAMSCorpus.self, from: data)
+    let tracks = try corpus.entries.map(OA300Track.init(jamsFile:))
+    let version = try resolveJAMSAnnotationVersion(corpus, corpusName: "oa300")
+    return VersionedCorpus(tracks: tracks, annotationVersion: version)
+  }
+}
+
+extension GiantStepsTrack {
+  /// Decode the GiantSteps flat ground-truth array (Story 12.3 — previously four
+  /// suites decoded `[GiantStepsTrack]` raw via `JSONDecoder`; this loader is the
+  /// choke point they migrate to).
+  public static func loadCorpus(from data: Data) throws -> [GiantStepsTrack] {
+    try JSONDecoder().decode([GiantStepsTrack].self, from: data)
+  }
+
+  /// Decode the GiantSteps corpus plus its resolved ``AnnotationVersion``. The flat
+  /// array carries no version field anywhere, so resolution always takes the
+  /// content-digest branch; row ID is the GiantSteps `track_id`.
+  public static func loadVersionedCorpus(from data: Data) throws
+    -> VersionedCorpus<GiantStepsTrack>
+  {
+    let tracks = try loadCorpus(from: data)
+    let rows = try tracks.map { track in
+      guard !track.track_id.isEmpty else {
+        throw AnnotationVersion.ResolutionError.missingStableRowID(corpus: "giantsteps")
+      }
+      return AnnotationVersion.AnnotationRow(
+        stableRowID: track.track_id,
+        primaryTempo: track.bpm,
+        alternateTempo: track.tempo2,
+        genre: track.genre)
+    }
+    return VersionedCorpus(
+      tracks: tracks,
+      annotationVersion: try AnnotationVersion.contentDigest(corpus: "giantsteps", rows: rows))
   }
 }
 
@@ -162,8 +254,18 @@ extension DAWOracleTrack {
   }
 
   /// Decode a full DAW oracle from migrated JAMS data (the `{ "entries": [...] }` wrapper).
+  /// Wrapper over ``loadVersionedCorpus(from:)`` (Story 12.3).
   public static func loadCorpus(from data: Data) throws -> [DAWOracleTrack] {
-    try JSONDecoder().decode(JAMSCorpus.self, from: data)
-      .entries.map(DAWOracleTrack.init(jamsFile:))
+    try loadVersionedCorpus(from: data).tracks
+  }
+
+  /// Decode the DAW oracle plus its resolved ``AnnotationVersion`` (Story 12.3).
+  public static func loadVersionedCorpus(from data: Data) throws
+    -> VersionedCorpus<DAWOracleTrack>
+  {
+    let corpus = try JSONDecoder().decode(JAMSCorpus.self, from: data)
+    let tracks = try corpus.entries.map(DAWOracleTrack.init(jamsFile:))
+    let version = try resolveJAMSAnnotationVersion(corpus, corpusName: "daw-oracle")
+    return VersionedCorpus(tracks: tracks, annotationVersion: version)
   }
 }

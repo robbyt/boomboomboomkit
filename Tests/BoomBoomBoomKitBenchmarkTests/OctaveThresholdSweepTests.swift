@@ -215,8 +215,9 @@ struct OctaveThresholdSweepTests {
       print("GiantSteps ground truth not found at \(jsonPath); skipping confirmation pass.")
       return
     }
-    let gt = try JSONDecoder().decode(
-      [GiantStepsTrack].self, from: Data(contentsOf: URL(fileURLWithPath: jsonPath)))
+    let gt = try GiantStepsTrack.loadVersionedCorpus(
+      from: Data(contentsOf: URL(fileURLWithPath: jsonPath))
+    ).tracks
 
     let defaultPoint = ThresholdPoint(
       energy: BPMAnalyzer.octaveEnergyThreshold, score: BPMAnalyzer.octaveScoreThreshold)
@@ -295,15 +296,12 @@ struct OctaveThresholdSweepTests {
           decoded: .synthetic(samples, sampleRate: sampleRate),
           options: optionsFor(point))?.bpm
         guard let bpm else { return Hit(acc1: false, acc2: false) }
-        // MIREX hit with the crowdsourced `tempo2` fallback, matching
-        // `GiantStepsBenchmarkTests.mirexHit` so the two report the same units.
-        let acc1 =
-          isAcc1Match(bpm, entry.track.bpm, tolerance: tolerance)
-          || (entry.track.tempo2.map { isAcc1Match(bpm, $0, tolerance: tolerance) } ?? false)
-        let acc2 =
-          acc1 || isAcc2Match(bpm, entry.track.bpm, tolerance: tolerance)
-          || (entry.track.tempo2.map { isAcc2Match(bpm, $0, tolerance: tolerance) } ?? false)
-        return Hit(acc1: acc1, acc2: acc2)
+        // MIREX hit with the crowdsourced `tempo2` fallback, via the shared
+        // `mirexTempoVerdict` (Story 12.3) so the units match `GiantStepsBenchmarkTests`.
+        let verdict = mirexTempoVerdict(
+          detected: bpm, primary: entry.track.bpm, alternate: entry.track.tempo2,
+          tolerance: tolerance)
+        return Hit(acc1: verdict.floorAcc1, acc2: verdict.floorAcc2)
       }
     }
     return tally(perTrack: perTrack, grid: grid, requested: tracks.count)

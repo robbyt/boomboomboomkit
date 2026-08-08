@@ -32,6 +32,16 @@ public struct GenreBucket: Sendable {
     total > 0 ? Double(acc2Correct) / Double(total) * 100 : 0
   }
 
+  /// `Acc2 - Acc1` as a track count — the per-genre octave-error proxy (Story 12.3,
+  /// FR-61). Non-negative by the `acc1Correct <= acc2Correct` init precondition.
+  public var octaveErrorProxy: Int { acc2Correct - acc1Correct }
+
+  /// The octave-error proxy in percentage points: `100 * (acc2 - acc1) / total`,
+  /// `0.0` when `total == 0`.
+  public var octaveErrorProxyPercentagePoints: Double {
+    total > 0 ? 100.0 * Double(acc2Correct - acc1Correct) / Double(total) : 0.0
+  }
+
   /// True when this bucket has fewer than `GenreAccuracyReporter.minSampleSize` tracks.
   /// Insufficient buckets render the literal string `insufficient` instead of percentages
   /// and never receive the `** LOW **` marker.
@@ -88,17 +98,23 @@ public enum GenreAccuracyReporter {
   ///
   /// Sections (in order, trailing newline):
   /// 1. `=== <corpusLabel> Genre-Stratified Accuracy (Intensity <intensity>) ===`
-  /// 2. Column header: `Genre<padded to 100>    Acc1    Acc2  Count  Status`
-  /// 3. Rule of `-` characters matching the column-header width
-  /// 4. One row per bucket, sorted `total` descending with `genre` ASCII tie-break
-  /// 5. `Overall: Acc1=<XX.X>%, Acc2=<XX.X>%`
+  /// 2. `Annotation version: <tag>` (Story 12.3, FR-60 — defaults to `untagged`
+  ///    when the caller supplies none)
+  /// 3. Column header: `Genre<padded to 100>    Acc1    Acc2    Acc2-Acc1  Count  Status`
+  /// 4. Rule of `-` characters matching the column-header width
+  /// 5. One row per bucket, sorted `total` descending with `genre` ASCII tie-break;
+  ///    the `Acc2-Acc1` cell shows the octave-error proxy as a count plus percentage
+  ///    points (Story 12.3, FR-61)
+  /// 6. `Overall: Acc1=<XX.X>%, Acc2=<XX.X>%`
   ///
   /// Insufficient buckets (`total < minSampleSize`) render `insufficient` in a
-  /// left-justified 14-character field and never receive the `** LOW **` marker.
-  /// Empty `buckets` is valid: header + rule + Overall line, no data rows.
+  /// left-justified field spanning the numeric columns and never receive the
+  /// `** LOW **` marker. Empty `buckets` is valid: header + rule + Overall line,
+  /// no data rows.
   public static func format(
     corpusLabel: String,
     intensity: Int,
+    annotationVersion: AnnotationVersion = .untagged,
     buckets: [GenreBucket],
     overallAcc1Percent: Double,
     overallAcc2Percent: Double
@@ -112,7 +128,7 @@ public enum GenreAccuracyReporter {
 
     let columnHeader =
       "Genre".padding(toLength: 100, withPad: " ", startingAt: 0)
-      + "    Acc1    Acc2  Count  Status"
+      + "    Acc1    Acc2    Acc2-Acc1  Count  Status"
     let rule = String(repeating: "-", count: columnHeader.count)
 
     let sorted = buckets.sorted { a, b in
@@ -121,6 +137,7 @@ public enum GenreAccuracyReporter {
 
     var lines: [String] = []
     lines.append("=== \(corpusLabel) Genre-Stratified Accuracy (Intensity \(intensity)) ===")
+    lines.append("Annotation version: \(annotationVersion)")
     lines.append(columnHeader)
     lines.append(rule)
 
@@ -150,18 +167,21 @@ public enum GenreAccuracyReporter {
     let countCell = String(format: "%5d", bucket.total)
 
     if bucket.isInsufficient {
-      // 14-char field: 6 (Acc1) + 2 (sep) + 6 (Acc2) = 14. "insufficient  " has 2 trailing spaces.
-      let insufficientCell = "insufficient".padding(toLength: 14, withPad: " ", startingAt: 0)
+      // Field spans the numeric columns: 6 (Acc1) + 2 + 6 (Acc2) + 2 + 11 (Acc2-Acc1) = 27.
+      let insufficientCell = "insufficient".padding(toLength: 27, withPad: " ", startingAt: 0)
       return "\(genreCell)  \(insufficientCell)  \(countCell)  "
     }
 
     let acc1Cell = String(format: "%5.1f%%", bucket.acc1Percent)
     let acc2Cell = String(format: "%5.1f%%", bucket.acc2Percent)
+    // Story 12.3 (FR-61): the octave-error proxy as a count plus percentage points.
+    let proxyCell = String(
+      format: "%3d %5.1fpp", bucket.octaveErrorProxy, bucket.octaveErrorProxyPercentagePoints)
     let status =
       isSignificantlyLower(
         bucketAcc1Percent: bucket.acc1Percent,
         overallAcc1Percent: overallAcc1Percent)
       ? "** LOW **" : ""
-    return "\(genreCell)  \(acc1Cell)  \(acc2Cell)  \(countCell)  \(status)"
+    return "\(genreCell)  \(acc1Cell)  \(acc2Cell)  \(proxyCell)  \(countCell)  \(status)"
   }
 }

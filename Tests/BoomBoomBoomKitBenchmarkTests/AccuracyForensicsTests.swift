@@ -74,7 +74,7 @@ struct AccuracyForensicsTests {
     let jsonPath = (corpusPath as NSString).appendingPathComponent(
       "giantsteps-tempo-ground-truth.json")
     let data = try Data(contentsOf: URL(fileURLWithPath: jsonPath))
-    let tracks = try JSONDecoder().decode([GiantStepsTrack].self, from: data)
+    let tracks = try GiantStepsTrack.loadCorpus(from: data)
 
     let inputs = await analyze(tracks) { track in
       let url = URL(fileURLWithPath: corpusPath)
