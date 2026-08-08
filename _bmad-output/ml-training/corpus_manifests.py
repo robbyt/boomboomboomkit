@@ -51,7 +51,13 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def sha256_file(path: Path) -> str:
-    return sha256_bytes(Path(path).read_bytes())
+    # Streamed in 1 MiB chunks: this helper is shared with the Story 12.4 baseline
+    # harness, whose weights file is ~12 MB; a read_bytes slurp scales with file size.
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def serialize(payload: dict) -> str:

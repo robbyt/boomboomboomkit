@@ -570,7 +570,7 @@ def _load_cached_fingerprints(
         np.savez_compressed(
             cc.FINGERPRINT_CACHE,
             __method__=cc.FINGERPRINT_METHOD,
-            **cache,  # ty: ignore[invalid-argument-type]
+            **cache,
         )
     return vecs, new_entries
 

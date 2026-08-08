@@ -92,7 +92,7 @@ Claims are tagged **MEASURED** (we ran it), **PUBLISHED** (cited), or **UNTESTED
 
 **On capacity:**
 
-- **PUBLISHED.** Böck & Davies TCN: GiantSteps Acc1 **87.0** at ~33k parameters *(figure is secondary-source — AS-3)*. Schreiber TempoCNN: **82.1 / 97.1** — the family our design copies. **Ours: 315k parameters, 52.6.** This is the reference gap.
+- **PUBLISHED.** Böck & Davies TCN: GiantSteps Acc1 **87.0** at ~33k parameters *(figure is secondary-source — AS-3)*. Schreiber TempoCNN: **82.1 / 97.1** *(AMENDED 2026-08-07, Story 12.4: this figure pair is unconfirmed in either primary text. Traced primary figures for the ISMIR 2018 single-step CNN on GiantSteps: Acc1 73.0 (ISMIR 2018, Table 1b, original Knees et al. 2015 annotations) and Acc1 82.5 (SMC 2019 / arXiv:1903.10839, Table 4a "Literature" row, revised crowd-sourced annotations, 661 tracks). Neither paper reports a 97.1 Acc2 at either annotation; the 2018 paper's Table 1c GiantSteps Acc2 is 89.3 on the original annotations. Original text left visible per amend-not-erase.)* — the family our design copies. **Ours: 315k parameters, 52.6.** This is the reference gap.
 - **PUBLISHED.** No evaluation of EfficientAT or any AudioSet-tagging CNN on tempo exists. HEAR and MARBLE contain no tempo task.
 - **PUBLISHED.** Generic music embeddings are octave-blind: MULE 1-NN scores Acc1 35.9 / Acc2 96.1. Pulse present, metrical level absent.
 

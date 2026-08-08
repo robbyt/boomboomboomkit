@@ -24,6 +24,15 @@ dependencies = [
 ]
 
 [dependency-groups]
+# Story 12.4 (Gate 0): TF/Keras runtime needed only to LOAD and RUN the published
+# reference-baseline weights (Schreiber and Mueller ISMIR 2018 single-step tempo CNN)
+# in tempocnn_baseline.py. Deliberately a group, not a core dep: nothing else in the
+# training pipeline uses TensorFlow, and the torch stack must not co-resolve with it
+# by default. macOS arm64 wheels exist for tensorflow >= 2.16; sub-major pinned per
+# the epic version-pin guard.
+tempocnn-baseline = [
+  "tensorflow>=2.20,<2.21",
+]
 dev = [
   "pytest>=8.0",
   "ruff>=0.15.15",
