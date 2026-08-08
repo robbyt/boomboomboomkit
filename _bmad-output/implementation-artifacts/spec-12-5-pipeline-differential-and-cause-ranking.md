@@ -2,10 +2,11 @@
 title: 'Story 12.5: Pipeline differential and cause ranking'
 type: 'chore'
 created: '2026-08-08'
-status: 'in-review'
+status: 'done'
 baseline_revision: '12699f4'
+final_revision: 'f6f2b14'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 ---
@@ -106,3 +107,17 @@ warnings: ['oversized']
 
 **Manual checks (if no CLI):**
 - Read each axis verdict against its cited evidence; confirm no figure appears without a ledger row.
+
+## Auto Run Result
+
+Status: done.
+
+Implemented: `12-5-pipeline-differential.md` (eight-axis FR-57 differential, exact error-structure recomputation, FR-58 ranking, Epic 14 input list, provenance + primary-text citation ledger sourced from the ISMIR 2018 paper itself); epics.md dated supersession annotation on the charter's corrected lever ranking; five Epic-14-input entries plus one defer entry in deferred-work.md; sprint-status flipped to done.
+
+Key results: axis labels input representation/window policy/loss/augmentation/corpus composition suspect, bin schema/decode neutral, evaluation protocol ruled out. Ranking: 1 corpus composition, 2 augmentation breadth, 3 input representation, 4 multi-window aggregation, 5 loss target shape. Error structure recomputed exactly: ours 348 hits, 313 misses, 53 octave-recoverable, 260 mis-pulsed; reference 545/116/100/16. Notable: the Code Map's originally-named our-side dump scored 330/661 (older rebalanced run); the pre-registered 348 lives in `fr18-predictions-191/seed_42/` and both dumps agree octave-recoverable = 53 (Code Map corrected).
+
+Review: two-reviewer pass, all load-bearing numbers independently reconfirmed; 14 patches applied (5 medium, 9 low), 1 defer, 2 rejects, no intent gaps, no bad_spec. Follow-up review recommended: true (patch volume and breadth across four artifacts).
+
+Verification: `git diff --stat 12699f4 -- Sources/ Tests/` empty; `make pre-commit` green (fmt, lint, scripts-tests, ml-training-tests 37 passed); label grep >= 8; epics annotation present. Committed as f6f2b14 on rterhaar/12-5-pipeline-differential (this frontmatter/result update follows in a separate commit, the 12.4 precedent).
+
+Residual risks: reference training-side facts rest on one primary source (ISMIR 2018); the 2019 re-annotation paper was used only for the published-figure trace. The FR-58 ranking's top cause (corpus composition) implies Epic 14 work the charter never priced.
