@@ -130,13 +130,46 @@ private struct BaselineRecord: Codable, Sendable {
     /// (`.untagged` for the previous schema); optional only so a schema-2 payload
     /// without the field can decode at all.
     let annotationVersion: AnnotationVersion?
+    /// Whether the JSON carried the `annotationVersion` KEY at all. Captured at
+    /// decode time because `decodeIfPresent` collapses an explicit `null` and an
+    /// absent key to the same `nil` — and a schema-2 record carrying the key,
+    /// even as `null`, must fail the schema rule loudly. Not encoded.
+    var annotationVersionFieldPresent: Bool = true
+
+    private enum CodingKeys: String, CodingKey {
+      case total, acc1Correct, acc2Correct, tolerance, annotationVersion
+    }
+
+    init(
+      total: Int, acc1Correct: Int, acc2Correct: Int, tolerance: Double,
+      annotationVersion: AnnotationVersion?
+    ) {
+      self.total = total
+      self.acc1Correct = acc1Correct
+      self.acc2Correct = acc2Correct
+      self.tolerance = tolerance
+      self.annotationVersion = annotationVersion
+      self.annotationVersionFieldPresent = annotationVersion != nil
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      total = try container.decode(Int.self, forKey: .total)
+      acc1Correct = try container.decode(Int.self, forKey: .acc1Correct)
+      acc2Correct = try container.decode(Int.self, forKey: .acc2Correct)
+      tolerance = try container.decode(Double.self, forKey: .tolerance)
+      annotationVersion = try container.decodeIfPresent(
+        AnnotationVersion.self, forKey: .annotationVersion)
+      annotationVersionFieldPresent = container.contains(.annotationVersion)
+    }
 
     func resolvingAnnotationVersion(schemaVersion: Int) throws -> AccuracySnapshot {
       AccuracySnapshot(
         total: total, acc1Correct: acc1Correct, acc2Correct: acc2Correct,
         tolerance: tolerance,
         annotationVersion: try AccuracyRecordSchema.annotationVersion(
-          fromDecoded: annotationVersion, schemaVersion: schemaVersion))
+          fromDecoded: annotationVersion, fieldPresent: annotationVersionFieldPresent,
+          schemaVersion: schemaVersion))
     }
   }
 
@@ -1126,6 +1159,20 @@ struct BaselineStoreUnitTests {
     let redecoded = try JSONDecoder().decode(BaselineRecord.self, from: reencoded)
     #expect(redecoded.schemaVersion == AccuracyRecordSchema.current)
     #expect(redecoded.accuracy.oa300.annotationVersion == .untagged)
+  }
+
+  @Test("schema-2 record with an explicit null version field fails decode loudly")
+  func schema2ExplicitNullVersionFieldFails() throws {
+    // `decodeIfPresent` collapses explicit null and absent key; the presence
+    // bit captured by the snapshot decoder must keep them distinct — schema 2
+    // CARRYING the key, even as null, violates the schema rule.
+    var json = Self.stubRecordJSON(schemaVersion: 2)
+    let needle = "\"oa300\": {"
+    let range = try #require(json.range(of: needle))
+    json.replaceSubrange(range, with: "\"oa300\": { \"annotationVersion\": null,")
+    #expect(throws: (any Error).self) {
+      _ = try JSONDecoder().decode(BaselineRecord.self, from: Data(json.utf8))
+    }
   }
 
   @Test("write atomicity — temp file absent post-write")

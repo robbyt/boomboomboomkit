@@ -76,7 +76,12 @@ public struct AnnotationVersion: Sendable, Hashable, Codable, CustomStringConver
     guard !trimmed.isEmpty else {
       throw ResolutionError.emptyDeclaredVersion(value)
     }
-    guard trimmed.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) })
+    // `.newlines` is checked separately: U+2028/U+2029 are category Zl/Zp, not
+    // control characters, but still split a printed header line.
+    guard
+      trimmed.unicodeScalars.allSatisfy({
+        !CharacterSet.controlCharacters.contains($0) && !CharacterSet.newlines.contains($0)
+      })
     else {
       throw ResolutionError.invalidDeclaredVersion(value)
     }
@@ -135,6 +140,9 @@ public struct AnnotationVersion: Sendable, Hashable, Codable, CustomStringConver
     }
     var seenRowIDs = Set<String>()
     for row in rows {
+      guard !row.stableRowID.isEmpty else {
+        throw ResolutionError.missingStableRowID(corpus: corpus)
+      }
       guard seenRowIDs.insert(row.stableRowID).inserted else {
         throw ResolutionError.duplicateStableRowID(corpus: corpus, rowID: row.stableRowID)
       }
@@ -197,14 +205,19 @@ public struct AnnotationVersion: Sendable, Hashable, Codable, CustomStringConver
     guard !rows.isEmpty else {
       throw ResolutionError.emptyRowSet(corpus: corpus)
     }
-    let unique = Set(declaredVersions)
+    // Canonicalize (validate + trim) EVERY declaration before comparing, so
+    // whitespace variants of one version agree instead of falsely conflicting,
+    // and an invalid declaration fails even when another one would have won.
+    let canonical = try declaredVersions.map { try declared($0) }
+    let unique = Set(canonical)
     guard let sole = unique.first else {
       return try contentDigest(corpus: corpus, rows: rows)
     }
     guard unique.count == 1 else {
-      throw ResolutionError.conflictingDeclaredVersions(unique.sorted())
+      throw ResolutionError.conflictingDeclaredVersions(
+        unique.map { String($0.tag.dropFirst(declaredPrefix.count)) }.sorted())
     }
-    return try declared(sole)
+    return sole
   }
 
   // MARK: - Parsing / Codable (validating)
@@ -285,12 +298,18 @@ public enum AccuracyRecordSchema {
   /// Applies the rule to an already-decoded optional field: schema 2 requires the
   /// field ABSENT (present is a loud failure) and reads as `.untagged`, schema 3
   /// requires the field, anything else is rejected.
+  ///
+  /// `fieldPresent` distinguishes an explicit JSON `null` from an absent key,
+  /// which `decodeIfPresent` collapses: a schema-2 record CARRYING the key —
+  /// even as `null` — fails loudly. Callers without a presence bit get the
+  /// default `value != nil`, the pre-existing behavior.
   public static func annotationVersion(
-    fromDecoded value: AnnotationVersion?, schemaVersion: Int
+    fromDecoded value: AnnotationVersion?, fieldPresent: Bool? = nil, schemaVersion: Int
   ) throws -> AnnotationVersion {
+    let present = fieldPresent ?? (value != nil)
     switch schemaVersion {
     case previous:
-      guard value == nil else {
+      guard value == nil, !present else {
         throw SchemaError.unexpectedAnnotationVersion(schemaVersion: schemaVersion)
       }
       return .untagged

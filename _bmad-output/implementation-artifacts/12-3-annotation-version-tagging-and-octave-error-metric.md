@@ -440,7 +440,7 @@ Judgment calls made during the implementation run, none contradicting the contra
   sits in an extension to preserve the synthesized memberwise init.
 - **Digest encoding pinned as**: 8-byte big-endian UTF-8 byte-count length
   prefixes, 8-byte big-endian IEEE-754 bit patterns, `0x00`/`0x01` optional
-  markers, rows sorted by `stableRowID` in Unicode-scalar order. Documented on
+  markers, rows sorted by `stableRowID` in UTF-8 byte order (equivalent to Unicode-scalar order for well-formed strings; stated as bytes to match the code and the golden vector literally). Documented on
   `contentDigest`.
 - **`loadCorpus` is a true wrapper** (`loadVersionedCorpus(...).tracks`), which
   adds a loud-fail on a JAMS entry missing `identifiers.local_path` to the ~13
@@ -495,6 +495,21 @@ Judgment calls made during the implementation run, none contradicting the contra
   - `[low]` `[patch]` `init?(parsing:)` normalized padded `declared:` payloads instead of failing; the parsing path now rejects non-canonical payloads while `declared(_:)` construction keeps trimming. Tests added.
   - `[low]` `[patch]` Decode-time schema-2 normalization left `schemaVersion: 2` on a record now carrying the field, so a re-encode round-trip would poison the file for this same decoder; normalization now bumps the decoded record to schema 3. Round-trip test added.
   - `[low]` `[patch]` The two harnesses that discarded the resolved tag now print it in their output headers, and the four copy-pasted tally print blocks collapsed into a shared `AccuracyTally` headline helper (which also gave the strict-proxy line a single home).
+
+### 2026-08-08 -- PR #195 Copilot review pass (5 comments, fact-checked individually)
+- intent_gap: 0
+- bad_spec: 0
+- patch: 5: (high 0, medium 0, low 5)
+- defer: 0
+- reject: 0
+- addressed_findings:
+  - `[low]` `[patch]` `contentDigest` is public but did not reject an empty `stableRowID` (only the loaders guarded it); the validation loop now throws `missingStableRowID` on an empty ID. Test added.
+  - `[low]` `[patch]` `declared(_:)` rejected only `CharacterSet.controlCharacters`, so U+2028/U+2029 (category Zl/Zp, in `.newlines` but not control characters) passed interior to a payload and could split a printed header line; the validation now rejects `.newlines` members too. Test added.
+  - `[low]` `[patch]` `resolve` compared raw declared strings before `declared(_:)`'s trimming, so `"v2"` and `" v2 "` falsely conflicted although each alone canonicalizes to `declared:v2`; every declaration is now canonicalized and validated first, and the agreement check runs on canonical tags (the conflict error still lists payload values). Test added.
+  - `[low]` `[patch]` A schema-2 baseline record with an explicit `"annotationVersion": null` decoded as absent (`decodeIfPresent` collapses null and absent) and bypassed the carrying-the-field-fails-loudly rule; the snapshot decoder now captures `container.contains(.annotationVersion)` and the schema rule takes the presence bit. JSON-level test added.
+  - `[low]` `[patch, premise rejected]` The implementation note said rows sort in "Unicode-scalar order" while the code sorts UTF-8 bytes. Copilot's claim that the two orders can differ is FALSE (UTF-8 byte order preserves scalar order for all well-formed strings by design; the divergence exists for UTF-16 code units); accepted as wording precision only -- the note now says UTF-8 byte order and records the equivalence.
+
+None of the five changes the digest byte stream: the golden-vector test is unchanged and green, and both corpus tags are unaffected (the new guards reject inputs no real corpus produces; the resolve fix changes behavior only for whitespace-variant declarations, which no corpus carries).
 
 ## Verification
 

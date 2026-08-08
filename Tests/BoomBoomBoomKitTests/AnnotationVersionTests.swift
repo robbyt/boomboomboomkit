@@ -282,7 +282,49 @@ struct AnnotationVersionTests {
     }
   }
 
+  @Test("contentDigest rejects an empty stableRowID even from direct callers")
+  func contentDigestRejectsEmptyRowID() {
+    let rows = [
+      AnnotationVersion.AnnotationRow(
+        stableRowID: "", primaryTempo: 120.0, alternateTempo: nil, genre: nil)
+    ]
+    #expect(throws: AnnotationVersion.ResolutionError.missingStableRowID(corpus: "c")) {
+      _ = try AnnotationVersion.contentDigest(corpus: "c", rows: rows)
+    }
+  }
+
+  @Test("declared rejects Unicode line separators U+2028/U+2029 interior to the payload")
+  func declaredRejectsUnicodeLineSeparators() {
+    #expect(throws: AnnotationVersion.ResolutionError.invalidDeclaredVersion("v\u{2028}2")) {
+      _ = try AnnotationVersion.declared("v\u{2028}2")
+    }
+    #expect(throws: AnnotationVersion.ResolutionError.invalidDeclaredVersion("v\u{2029}2")) {
+      _ = try AnnotationVersion.declared("v\u{2029}2")
+    }
+  }
+
+  @Test("resolve canonicalizes whitespace-variant declarations before the agreement check")
+  func resolveCanonicalizesBeforeAgreement() throws {
+    let rows = [
+      AnnotationVersion.AnnotationRow(
+        stableRowID: "a", primaryTempo: 120.0, alternateTempo: nil, genre: nil)
+    ]
+    let v = try AnnotationVersion.resolve(
+      declaredVersions: ["v2", " v2 "], corpus: "c", rows: rows)
+    #expect(v.tag == "declared:v2")
+  }
+
   // MARK: - Previous-schema read rule (perf-baseline back-compat)
+
+  @Test("previous schema (2) fails loudly on an explicitly null version field")
+  func previousSchemaRejectsExplicitNullField() {
+    #expect(
+      throws: AccuracyRecordSchema.SchemaError.unexpectedAnnotationVersion(schemaVersion: 2)
+    ) {
+      _ = try AccuracyRecordSchema.annotationVersion(
+        fromDecoded: nil, fieldPresent: true, schemaVersion: 2)
+    }
+  }
 
   @Test("previous schema (2) surfaces untagged for an absent version field")
   func previousSchemaDefaultsUntagged() throws {
