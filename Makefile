@@ -116,9 +116,9 @@ demo-lint:
 	fi; \
 	bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
 
-## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ pytest suite). NOT a git hook — runs on demand
+## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ and ml-training pytest suites). NOT a git hook — runs on demand
 .PHONY: pre-commit
-pre-commit: fmt demo-fmt lint demo-lint scripts-tests
+pre-commit: fmt demo-fmt lint demo-lint scripts-tests ml-training-tests
 
 ## test: Run unit tests only (excludes benchmark target; no corpus env required)
 .PHONY: test
@@ -501,7 +501,7 @@ ifndef CASE
 endif
 	uv run scripts/new-case.py "$(TYPE)" "$(CASE)"
 
-## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration, because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration; Story 12.4's tempocnn_baseline.py is ruff-covered but out of the ty scope too (its lazy tensorflow import resolves only with the tempocnn-baseline dependency group installed -- the torch-debt precedent), because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
 .PHONY: py-lint
 py-lint:
 	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
@@ -626,6 +626,32 @@ audit-corpus-splits:
 	uv run --project $(ML_TRAINING_DIR) python scripts/audit-corpus-splits.py \
 		--check-sentinels-against Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/12-dnb-sentinels-expanded.json \
 		--reject-marginal
+
+## tempocnn-baseline: Story 12.4 (Gate 0) -- run the published Schreiber and Mueller ISMIR 2018 single-step tempo CNN end to end (its own featurization and decode) on the same 661 GiantSteps rows, annotation source, and FR-18-strict protocol behind our 348/661, then evaluate the pre-registered midpoint(348, P) gate rule. Requires TEMPOCNN_WEIGHTS_DIR (weights live outside git; checksums verified against tempocnn-baseline-provenance.json, refuse on mismatch) and GIANTSTEPS_CORPUS_PATH. Develop-only; fails loudly on a main-only checkout (the ml-* convention). Uses the tempocnn-baseline dependency group (TF runtime), synced on demand.
+.PHONY: tempocnn-baseline
+tempocnn-baseline:
+ifndef TEMPOCNN_WEIGHTS_DIR
+	$(error TEMPOCNN_WEIGHTS_DIR is not set. Invoke as: TEMPOCNN_WEIGHTS_DIR=/path/to/weights make tempocnn-baseline)
+endif
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
+		echo "ERROR: $(ML_TRAINING_DIR) absent (main-only checkout); tempocnn-baseline is develop-only tooling."; \
+		exit 1; \
+	fi
+	cd $(ML_TRAINING_DIR) && uv sync --locked --group tempocnn-baseline
+	cd $(ML_TRAINING_DIR) && \
+	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	TEMPOCNN_WEIGHTS_DIR="$(abspath $(TEMPOCNN_WEIGHTS_DIR))" \
+	uv run --group tempocnn-baseline python tempocnn_baseline.py
+	@echo "Output: $(ML_TRAINING_DIR)/tempocnn-baseline/predictions.json"
+
+## ml-training-tests: Run the ml-training pytest suite under _bmad-output/ml-training/tests/ (Story 12.4: the Gate 0 harness pure-logic tests; no network, no weights, no TensorFlow). Self-skips with a printed note on a main-only checkout, the scripts-tests convention -- this target is a pre-commit prerequisite and a mid-run hard failure there would abort the gate chain.
+.PHONY: ml-training-tests
+ml-training-tests:
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)/tests" ]; then \
+		echo "Note: $(ML_TRAINING_DIR)/tests absent (main-only checkout); skipping the develop-only ml-training pytest suite."; \
+	else \
+		cd $(ML_TRAINING_DIR) && uv run pytest tests/; \
+	fi
 
 ## ml-summary: Regenerate model_summary.txt and model_metadata.json
 .PHONY: ml-summary
