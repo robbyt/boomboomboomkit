@@ -5,6 +5,7 @@ created: '2026-08-08'
 status: 'blocked'
 review_loop_iteration: 0
 followup_review_recommended: true
+final_revision: '1137560' # unsigned, pending operator re-sign
 baseline_revision: 'c37a7ff' # branch rterhaar/12-6-metrical-level-convention, stacked on Story 12.3 (unsigned commits, pending re-sign)
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
