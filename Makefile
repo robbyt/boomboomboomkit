@@ -510,7 +510,7 @@ py-lint:
 	fi; \
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
 	uv run ruff format --check . ../../scripts/ && \
-	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py corpus_manifests.py
+	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py ../../scripts/build-eval-corpus.py corpus_manifests.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -602,6 +602,45 @@ pool-durations:
 .PHONY: repair-mix-manifests
 repair-mix-manifests:
 	uv run --project $(ML_TRAINING_DIR) python scripts/repair-mix-manifests.py
+
+## eval-corpus-pools: Story 12.7 -- build and commit the banded candidate pools for the 258-track evaluation corpus per the signed section-2 protocol (face-value banding, FR-59a.2 exclusion, seeded draw sequences). Row-level pools stay gitignored under _bmad-output/ml-training/eval-corpus/; the committed 12-7-candidate-commitment.{json,md} carries counts, seeds, and digests only. Nonzero exit if any band is below 43 candidates (operator escalation, no auto-extension). Develop-only.
+.PHONY: eval-corpus-pools
+eval-corpus-pools:
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py commit-pools $(if $(SEED),--seed $(SEED),)
+
+## eval-corpus-batch: Story 12.7 -- stage the next blinded annotation batch for BAND= (opaque row IDs, copied audio, worklist with row_id + staged path only). Optional BATCH= (validated against sequence) and SIZE= (default 40). Develop-only.
+.PHONY: eval-corpus-batch
+eval-corpus-batch:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-batch BAND=100-120)
+endif
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py stage-batch --band "$(BAND)" $(if $(BATCH),--batch $(BATCH),) $(if $(SIZE),--size $(SIZE),)
+
+## eval-corpus-ingest: Story 12.7 -- ingest the operator-filled annotation CSV for BAND= BATCH= ANNOTATIONS= (DSP-free keep/reject, first-43-cumulative membership recompute; all-or-nothing validation). Develop-only.
+.PHONY: eval-corpus-ingest
+eval-corpus-ingest:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-ingest BAND=100-120 BATCH=0 ANNOTATIONS=path.csv)
+endif
+ifndef BATCH
+	$(error BATCH is not set. Usage: make eval-corpus-ingest BAND=100-120 BATCH=0 ANNOTATIONS=path.csv)
+endif
+ifndef ANNOTATIONS
+	$(error ANNOTATIONS is not set. Usage: make eval-corpus-ingest BAND=100-120 BATCH=0 ANNOTATIONS=path.csv)
+endif
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py ingest --band "$(BAND)" --batch $(BATCH) --annotations "$(ANNOTATIONS)"
+
+## eval-corpus-audit: Story 12.7 -- fail-closed audit: FR-59a.1 no-DSP-field assertion over every membership input, FR-59a.2 residual cross-corpus overlap, duplicate check, and the oa300 18-vs-14 row-basis reconciliation report. Nonzero exit on any assertion failure. Develop-only.
+.PHONY: eval-corpus-audit
+eval-corpus-audit:
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py audit
+
+## eval-corpus-manifest: Story 12.7 -- emit the JAMS corpus manifest (section-5 annotation-version tag, octave-sentinel tags, 175+ degeneracy note). Refuses while any band is below 43 members and prints per-band progress instead. Develop-only.
+.PHONY: eval-corpus-manifest
+eval-corpus-manifest:
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py emit-manifest
 
 ## q9-ratio-cluster: Epic 12 Q9 — emit q9-ratio-cluster-v1.json, the tracked evidence artifact behind q9-ratio-cluster-2026-08-01.md. Derived from the gitignored non-rekordbox-survey.json, which cannot be committed (a complete private-collection inventory: absolute roots, per-file BPM signals, audio hashes), so this is the repository-only auditable substitute. Counts only; a recursive privacy allowlist stops the aggregate becoming a row-level dump or carrying an absolute root before the file is written. Run with --check to verify the committed aggregate still matches the survey, or --audit-prose to report any figure in the artifact with no backing value in the aggregate. Develop-only.
 .PHONY: q9-ratio-cluster
