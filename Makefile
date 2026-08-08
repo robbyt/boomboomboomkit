@@ -116,9 +116,9 @@ demo-lint:
 	fi; \
 	bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
 
-## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ pytest suite). NOT a git hook — runs on demand
+## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ and ml-training pytest suites). NOT a git hook — runs on demand
 .PHONY: pre-commit
-pre-commit: fmt demo-fmt lint demo-lint scripts-tests
+pre-commit: fmt demo-fmt lint demo-lint scripts-tests ml-training-tests
 
 ## test: Run unit tests only (excludes benchmark target; no corpus env required)
 .PHONY: test
@@ -247,6 +247,28 @@ duration-impact-report:
 	DURATION_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/durationImpactReport
 
+## smc-prior-replication: Story 12.2 section 6.2 item 1 -- run the published SMC 2015 drum-and-bass tempo prior (130-180 BPM) on this pipeline as a hard search-range bound, at the published values. Story 12.1 only ever moved Options.perceptualWindow, and only to 100...200; nobody has run Options.tempoScanRange at 130...180. Note this is a hard-bound ANALOGUE of the published prior: whether SMC constrained a search grid or reweighted candidates is unverified here, so a negative result bounds the hard-filter reading and not the published mechanism. Four arms per corpus at otherwise-shipped defaults: A baseline, B scan-only (PRIMARY), C scan+window, D window-only. Arms run over the whole corpus; the artifact slices DnB against non-DnB, because the DnB rows measure the win and the non-DnB rows measure what a blanket or mistaken declaration costs. Note the published prior is SUB-OCTAVE, so PerceptualTempoWindow normalizes a requested 130...180 up to 130...260 and arms C and D cannot express it on the fold knob; every arm records requested AND effective bounds. Release config for wall-clock (accuracy is config-independent; the baseline arm reproducing the known corpus figures is the built-in cross-check). Refuses to run against a dirty tree, so the artifact's gitSHA always ties to code. Override the prior with SMC_PRIOR_BOUNDS="<min>,<max>". Changes no default; JSON per corpus to _bmad-output/implementation-artifacts/12-2-smc-prior-replication-<corpus>.json.
+# Overridable so a sensitivity run can be staged elsewhere. A recipe-level assignment
+# would beat the caller's environment, which silently overwrote the canonical artifact
+# the first time a sensitivity sweep was attempted.
+SMC_PRIOR_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts
+.PHONY: smc-prior-replication
+smc-prior-replication:
+	@mkdir -p "$(SMC_PRIOR_OUT_DIR)"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	SMC_PRIOR_REPLICATION=1 \
+	SMC_PRIOR_OUT_DIR="$(SMC_PRIOR_OUT_DIR)" \
+	$(if $(SMC_TONY_MIN_CONFIDENCE),SMC_TONY_MIN_CONFIDENCE="$(SMC_TONY_MIN_CONFIDENCE)",) \
+	$(if $(SMC_PRIOR_BOUNDS),SMC_PRIOR_BOUNDS="$(SMC_PRIOR_BOUNDS)",) \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.SMCPriorReplicationTests
+
 ## ml-policy-sweep: Generate per-policy ml-policy-sweep JSON to _bmad-output/implementation-artifacts/4-4-ml-policy-sweep.json
 .PHONY: ml-policy-sweep
 ml-policy-sweep:
@@ -318,6 +340,32 @@ tempo-refine-impact-report:
 	TEMPO_REFINE_IMPACT=1 \
 	TEMPO_REFINE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.DAWOracleBenchmarkTests/tempoRefinementImpact
+
+## octave-threshold-sweep: Story 12.1 AC #1 -- the inherited Epic-13 charter-item-1 ceiling sweep over the two hand-tuned resolveOctaveAmbiguity thresholds (octaveEnergyThreshold 0.3, octaveScoreThreshold 0.5). Sweeps a 7x7 grid on OA300 (the 6x6 bracket around the shipped pair plus the 1.0 row and column that effectively close the 2:1 fallback), then runs one GiantSteps confirmation pass at the shipped default AND at the best OA300 point (override with OCTAVE_SWEEP_CONFIRM="<energy>,<score>"). Measurement only -- it never changes the defaults. Per-combination JSON to _bmad-output/implementation-artifacts/12-1-octave-threshold-sweep.json. Numbers are single-window BPMAnalyzer.estimateBPM, not the full AudioAnalysisService pipeline, so they are NOT comparable to the corpus floors.
+.PHONY: octave-threshold-sweep
+octave-threshold-sweep:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	OCTAVE_THRESHOLD_SWEEP=1 \
+	OCTAVE_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.OctaveThresholdSweepTests/oa300ThresholdSweep
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	OCTAVE_THRESHOLD_SWEEP=1 \
+	OCTAVE_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	$(if $(OCTAVE_SWEEP_CONFIRM),OCTAVE_SWEEP_CONFIRM="$(OCTAVE_SWEEP_CONFIRM)",) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.OctaveThresholdSweepTests/giantStepsConfirmation
+
+## tempo-range-impact-report: Story 12.1 AC #8 / NFR-14 -- per-track impact of the consumer-specifiable perceptual tempo window (FR-53), with the per-band and per-genre breakdown FR-55 asks for. Compares the full AudioAnalysisService.analyzeBPM pipeline at default options against the same pipeline with only Options.perceptualWindow moved (default comparison window 100...200; override with TEMPO_RANGE_IMPACT_WINDOW="<min>,<max>"). Schema follows the click-impact precedent: {changedRanking, changedDisambiguationWinner, changedFinalBPM, total} plus perBand / perGenre. Changes no default; JSON to _bmad-output/implementation-artifacts/12-1-tempo-range-impact-report.json.
+.PHONY: tempo-range-impact-report
+tempo-range-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	TEMPO_RANGE_IMPACT=1 \
+	TEMPO_RANGE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	$(if $(TEMPO_RANGE_IMPACT_WINDOW),TEMPO_RANGE_IMPACT_WINDOW="$(TEMPO_RANGE_IMPACT_WINDOW)",) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.TempoRangeImpactTests/tempoRangeImpactReport
 
 ## accuracy-forensics: Phase 0 — forensic accuracy attribution over OA300 + GiantSteps (default pipeline). Per-corpus JSON to _bmad-output/implementation-artifacts/accuracy-forensics-<corpus>.json: candidate-recall oracle (true BPM in top-1/3/5/10 + factor + score margin), error-type histogram (octave vs triplet kept separate), recall split (selection-bound vs generation-bound), confidence reliability curve, BPM-error distribution, per-genre error-type composition, label-policy tags. Reporting-only — touches no DSP; corpus floors unaffected.
 .PHONY: accuracy-forensics
@@ -453,7 +501,7 @@ ifndef CASE
 endif
 	uv run scripts/new-case.py "$(TYPE)" "$(CASE)"
 
-## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration, because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration; Story 12.4's tempocnn_baseline.py is ruff-covered but out of the ty scope too (its lazy tensorflow import resolves only with the tempocnn-baseline dependency group installed -- the torch-debt precedent), because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
 .PHONY: py-lint
 py-lint:
 	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
@@ -578,6 +626,32 @@ audit-corpus-splits:
 	uv run --project $(ML_TRAINING_DIR) python scripts/audit-corpus-splits.py \
 		--check-sentinels-against Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/12-dnb-sentinels-expanded.json \
 		--reject-marginal
+
+## tempocnn-baseline: Story 12.4 (Gate 0) -- run the published Schreiber and Mueller ISMIR 2018 single-step tempo CNN end to end (its own featurization and decode) on the same 661 GiantSteps rows, annotation source, and FR-18-strict protocol behind our 348/661, then evaluate the pre-registered midpoint(348, P) gate rule. Requires TEMPOCNN_WEIGHTS_DIR (weights live outside git; checksums verified against tempocnn-baseline-provenance.json, refuse on mismatch) and GIANTSTEPS_CORPUS_PATH. Develop-only; fails loudly on a main-only checkout (the ml-* convention). Uses the tempocnn-baseline dependency group (TF runtime), synced on demand.
+.PHONY: tempocnn-baseline
+tempocnn-baseline:
+ifndef TEMPOCNN_WEIGHTS_DIR
+	$(error TEMPOCNN_WEIGHTS_DIR is not set. Invoke as: TEMPOCNN_WEIGHTS_DIR=/path/to/weights make tempocnn-baseline)
+endif
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
+		echo "ERROR: $(ML_TRAINING_DIR) absent (main-only checkout); tempocnn-baseline is develop-only tooling."; \
+		exit 1; \
+	fi
+	cd $(ML_TRAINING_DIR) && uv sync --locked --group tempocnn-baseline
+	cd $(ML_TRAINING_DIR) && \
+	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	TEMPOCNN_WEIGHTS_DIR="$(abspath $(TEMPOCNN_WEIGHTS_DIR))" \
+	uv run --group tempocnn-baseline python tempocnn_baseline.py
+	@echo "Output: $(ML_TRAINING_DIR)/tempocnn-baseline/predictions.json"
+
+## ml-training-tests: Run the ml-training pytest suite under _bmad-output/ml-training/tests/ (Story 12.4: the Gate 0 harness pure-logic tests; no network, no weights, no TensorFlow). Self-skips with a printed note on a main-only checkout, the scripts-tests convention -- this target is a pre-commit prerequisite and a mid-run hard failure there would abort the gate chain.
+.PHONY: ml-training-tests
+ml-training-tests:
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)/tests" ]; then \
+		echo "Note: $(ML_TRAINING_DIR)/tests absent (main-only checkout); skipping the develop-only ml-training pytest suite."; \
+	else \
+		cd $(ML_TRAINING_DIR) && uv run pytest tests/; \
+	fi
 
 ## ml-summary: Regenerate model_summary.txt and model_metadata.json
 .PHONY: ml-summary

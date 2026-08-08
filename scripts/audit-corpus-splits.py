@@ -318,7 +318,7 @@ def fingerprint_pass(tony: dict, tracks: list[dict], res: AuditResult) -> None:
         np.savez_compressed(
             cc.FINGERPRINT_CACHE,
             __method__=cc.FINGERPRINT_METHOD,
-            **cache,  # ty: ignore[invalid-argument-type]
+            **cache,
         )
 
     res.note(

@@ -261,7 +261,7 @@ public struct AudioAnalysisService {
 
     /// Resolution policy for the DSP+ML ensemble combiner (Story 4.4).
     ///
-    /// Selects how ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:)``
+    /// Selects how ``AudioAnalysisService/combineEnsemble(dspWinner:ml:policy:perceptualWindow:)``
     /// reconciles the post-corroboration DSP candidate with the invocation
     /// outcome of ``mlTechnique``. Always-present configuration
     /// per ADR-11 (`_bmad-output/planning-artifacts/architecture.md`) — the
@@ -341,6 +341,64 @@ public struct AudioAnalysisService {
     /// assumption). Lower this to a smaller value if your audio includes legitimate
     /// short tracks where you still want the hint to fire.
     public var durationHintMinFileSeconds: Double = 180
+
+    /// Candidate SCAN bounds for the DSP tempo search (Story 12.1, FR-53).
+    ///
+    /// Bounds which tempi the autocorrelation / Fourier-tempogram search generates at
+    /// all: a periodicity outside this range is never a candidate, and a winner
+    /// outside it is rejected. Widen it for material slower or faster than dance
+    /// music; it is NOT the setting that decides which octave gets reported.
+    ///
+    /// Always-present configuration per ADR-11 — the field is non-optional with a
+    /// property-level default and is mutated rather than threaded as a method
+    /// parameter on ``analyzeBPM(url:options:)``.
+    ///
+    /// Default ``TempoScanRange/default`` (`40...250`) is byte-identical to the
+    /// pre-Story-12.1 pipeline, where these were `private static let` constants on the
+    /// internal analyzer.
+    ///
+    /// Invalid input NORMALIZES rather than throwing, following the
+    /// ``votingThreshold`` precedent: a non-finite bound falls back to its default,
+    /// both bounds clamp into `30...300`, and an inverted or degenerate range widens
+    /// to the 3 BPM minimum span. See ``TempoScanRange`` for the exact rules and for
+    /// the documented interaction with ``perceptualWindow``.
+    public var tempoScanRange: TempoScanRange = .default
+
+    /// Octave NORMALIZATION window for reported tempi (Story 12.1, FR-53).
+    ///
+    /// Every reported BPM is folded into this window by repeated doubling/halving, so
+    /// this — not ``tempoScanRange`` — is the setting a genre-constrained consumer
+    /// wants. A drum-and-bass application that should never see 70 for a 140 BPM
+    /// track sets `PerceptualTempoWindow(minBPM: 100, maxBPM: 200)`.
+    ///
+    /// Always-present configuration per ADR-11.
+    ///
+    /// Default ``PerceptualTempoWindow/default`` (`60...200`) is byte-identical to the
+    /// pre-Story-12.1 pipeline.
+    ///
+    /// Invalid input NORMALIZES rather than throwing, following the
+    /// ``votingThreshold`` precedent: a non-finite bound falls back to its default,
+    /// ``PerceptualTempoWindow/minBPM`` clamps into `30...150`, and
+    /// ``PerceptualTempoWindow/maxBPM`` clamps into `(2 * minBPM)...300` — the
+    /// one-octave invariant the sequential fold loops depend on.
+    ///
+    /// A requested ``PerceptualTempoWindow/minBPM`` above 150 is LOWERED to 150 rather
+    /// than honoured, so a full octave still fits below the 300 BPM envelope ceiling.
+    /// This is asymmetric with ``tempoScanRange``, whose minimum is honoured to 297.
+    ///
+    /// > Important: This window is also the ensemble octave-fold authority. Under
+    /// > ``EnsemblePolicy/mlOnly``, ``EnsemblePolicy/highestConfidence``, and the
+    /// > weighted policies, a winning ``MLEvaluation/bpm`` is folded through this same
+    /// > window, so moving it changes ML-influenced output as well as DSP output.
+    ///
+    /// > Warning: Moving this window ALONE can make individual tracks return `nil`.
+    /// > The two pairs are not cross-constrained: folding pushes a tempo toward this
+    /// > window, and ``tempoScanRange``'s final guard then rejects anything outside
+    /// > it. With the default `40...250` scan range and a `30...60` window,
+    /// > `Submerged_Lament` folds to roughly 35 and is rejected while neighbouring
+    /// > tracks still return values (measured 2026-08-02). Whenever this window
+    /// > reaches outside `40...250`, widen ``tempoScanRange`` to match.
+    public var perceptualWindow: PerceptualTempoWindow = .default
 
     /// File-metadata corroboration policy (Story 3.6).
     ///
@@ -644,7 +702,8 @@ public struct AudioAnalysisService {
     let combined = Self.combineEnsemble(
       dspWinner: corroboratedWithSnapshot,
       ml: mlOutcome,
-      policy: options.ensemblePolicy)
+      policy: options.ensemblePolicy,
+      perceptualWindow: options.perceptualWindow)
 
     // Story 4.2: post-pipeline reporting of effective intensity + degradation
     // reason. Computed AFTER both `runPreCorroborationPipeline` and
@@ -882,7 +941,8 @@ public struct AudioAnalysisService {
   static func combineEnsemble(
     dspWinner: BPMResult,
     ml: MLSeamOutcome,
-    policy: EnsemblePolicy
+    policy: EnsemblePolicy,
+    perceptualWindow: PerceptualTempoWindow = .default
   ) -> BPMResult {
     switch policy {
     case .dspOnly:
@@ -931,7 +991,7 @@ public struct AudioAnalysisService {
       // deliberately KEPT for the weighted policies — GH-167 item 3 changed it
       // only for the decision-recording policies below). A zero vote still
       // participates: it ties a zero DSP vote (winner `.tie`, DSP tiebreak).
-      let foldedBPM = foldEnsembleBPM(evaluation.bpm)
+      let foldedBPM = foldEnsembleBPM(evaluation.bpm, window: perceptualWindow)
       let mlConf = sanitizeEnsembleConfidence(evaluation.confidence)
       let mlVote = mlConf * weights.ml
       if mlVote > dspVote {
@@ -993,7 +1053,7 @@ public struct AudioAnalysisService {
             selectedBPM: dspWinner.bpm)
           return dspWinner.with(trace: ensembleTrace(decision: decision, base: dspWinner.trace))
         }
-        let foldedBPM = foldEnsembleBPM(evaluation.bpm)
+        let foldedBPM = foldEnsembleBPM(evaluation.bpm, window: perceptualWindow)
         let mlConf = sanitizeEnsembleConfidence(evaluation.confidence)
         let decision = EnsembleDecision(
           policy: .mlOnly, winner: .ml,
@@ -1038,7 +1098,7 @@ public struct AudioAnalysisService {
             selectedBPM: dspWinner.bpm)
           return dspWinner.with(trace: ensembleTrace(decision: decision, base: dspWinner.trace))
         }
-        let foldedBPM = foldEnsembleBPM(evaluation.bpm)
+        let foldedBPM = foldEnsembleBPM(evaluation.bpm, window: perceptualWindow)
         let mlConf = sanitizeEnsembleConfidence(evaluation.confidence)
         // Compare confidences. DSP wins ties (deterministic tiebreak).
         if mlConf > dspWinner.confidence {
@@ -1077,8 +1137,10 @@ public struct AudioAnalysisService {
   /// documented behavior — the same value the old clamp produced). For
   /// finite positive input the fold always terminates: doubling strictly
   /// increases to ≥ 60, halving strictly decreases to ≤ 200.
-  private static func foldEnsembleBPM(_ bpm: Double) -> Double {
-    BPMAnalyzer.rangeNormalize(bpm)
+  private static func foldEnsembleBPM(
+    _ bpm: Double, window: PerceptualTempoWindow
+  ) -> Double {
+    BPMAnalyzer.rangeNormalize(bpm, window: window)
   }
 
   /// Non-finite confidence collapses to `0.0`; finite-but-out-of-range clamps
@@ -1267,6 +1329,8 @@ public struct AudioAnalysisService {
             analysisWindowSeconds: windowSeconds,
             intensity: options.intensity,
             techniqueSet: options.techniqueSet,
+            tempoScanRange: options.tempoScanRange,
+            perceptualWindow: options.perceptualWindow,
             enableTrace: enableTrace,
             fileDurationSeconds: fileDurationSeconds,
             durationHintMinFileSeconds: options.durationHintMinFileSeconds,
@@ -1804,6 +1868,8 @@ public struct AudioAnalysisService {
       let bpmOptions = BPMAnalyzer.Options(
         intensity: options.intensity,
         techniqueSet: options.techniqueSet,
+        tempoScanRange: options.tempoScanRange,
+        perceptualWindow: options.perceptualWindow,
         enableTrace: options.enableTrace,
         computeBeatGrid: true,
         detectDownbeats: options.detectDownbeats,
@@ -1826,6 +1892,8 @@ public struct AudioAnalysisService {
     let bpmOptions = BPMAnalyzer.Options(
       intensity: options.intensity,
       techniqueSet: options.techniqueSet,
+      tempoScanRange: options.tempoScanRange,
+      perceptualWindow: options.perceptualWindow,
       detectDownbeats: options.detectDownbeats,
       downbeatStrategy: options.downbeatStrategy,
       refineBeatGridTempo: options.refineBeatGridTempo)
