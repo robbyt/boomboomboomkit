@@ -232,18 +232,26 @@ public struct JAMSAnnotation: Codable, Equatable, Sendable {
 }
 
 /// Annotation provenance: who curated it and what the underlying source was.
+/// `version` (Story 12.3) is the JAMS `annotation_metadata.version` — the declared
+/// annotation version consumed by `AnnotationVersion` resolution. No shipped corpus
+/// declares one today (verified 2026-08-07); the field makes a declared version
+/// representable at all. NEVER confuse it with `file_metadata.jams_version`, the
+/// JAMS FORMAT version.
 public struct JAMSAnnotationMetadata: Codable, Equatable, Sendable {
   public let curator: JAMSCurator?
   public let dataSource: String?
+  public let version: String?
 
-  public init(curator: JAMSCurator?, dataSource: String?) {
+  public init(curator: JAMSCurator?, dataSource: String?, version: String? = nil) {
     self.curator = curator
     self.dataSource = dataSource
+    self.version = version
   }
 
   private enum CodingKeys: String, CodingKey {
     case curator
     case dataSource = "data_source"
+    case version
   }
 }
 

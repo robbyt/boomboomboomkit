@@ -19,6 +19,12 @@ private struct AccuracyMetrics: Sendable {
   let total: Int
   let acc1Correct: Int
   let acc2Correct: Int
+  /// Primary-annotation-only Acc1 (no `tempo2` fallback) — the octave-strict
+  /// reading of the same scoring pass. The floor tallies above are unchanged.
+  let strictAcc1Correct: Int
+  /// Primary-annotation-only Acc2 (strictAcc1 || metric-factor family against
+  /// the primary annotation; no `tempo2`).
+  let strictAcc2Correct: Int
   let failures: [(track: GiantStepsTrack, expected: Double, got: Double)]
 
   var acc1: Double { total > 0 ? Double(acc1Correct) / Double(total) * 100 : 0 }
@@ -32,6 +38,9 @@ struct GiantStepsBenchmarkTests {
 
   private let corpusPath: String
   private let groundTruth: [GiantStepsTrack]
+  /// Resolved at the loader (Story 12.3, FR-60) so every figure this suite emits
+  /// carries the annotation version of the ground truth it was scored against.
+  private let annotationVersion: AnnotationVersion
 
   init() throws {
     guard let path = ProcessInfo.processInfo.environment["GIANTSTEPS_CORPUS_PATH"], !path.isEmpty
@@ -47,7 +56,9 @@ struct GiantStepsBenchmarkTests {
     }
 
     let data = try Data(contentsOf: URL(fileURLWithPath: jsonPath))
-    groundTruth = try JSONDecoder().decode([GiantStepsTrack].self, from: data)
+    let versioned = try GiantStepsTrack.loadVersionedCorpus(from: data)
+    groundTruth = versioned.tracks
+    annotationVersion = versioned.annotationVersion
   }
 
   @Test("benchmark at default intensity (7)")
@@ -55,10 +66,21 @@ struct GiantStepsBenchmarkTests {
     let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.02)
     print("\n=== GiantSteps Tempo Benchmark — Intensity 7 (default) ===")
     print("Corpus: \(metrics.total) tracks, crowdsourced ground truth (v2)")
+    print("Annotation version: \(annotationVersion)")
     print(
       "Acc1: \(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total))")
     print(
       "Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
+    // Story 12.3 (FR-61): the octave-error proxy as a named figure, not a reader derivation.
+    // Both readings print: floor-compatible (primary-or-tempo2, the committed floors) and
+    // primary-strict (primary annotation only).
+    let tally = try AccuracyTally(
+      acc1: metrics.acc1Correct, acc2: metrics.acc2Correct, total: metrics.total,
+      annotationVersion: annotationVersion)
+    let strictTally = try AccuracyTally(
+      acc1: metrics.strictAcc1Correct, acc2: metrics.strictAcc2Correct, total: metrics.total,
+      annotationVersion: annotationVersion)
+    for line in tally.formattedProxyLines(strict: strictTally) { print(line) }
     if !metrics.failures.isEmpty {
       print("\nAcc1 Failures (first 30):")
       print("| Track ID | Genre | Expected | Got | Delta% |")
@@ -158,10 +180,21 @@ struct GiantStepsBenchmarkTests {
     let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.02)
     print("\n=== GiantSteps Tempo Benchmark — Acc1 Strict (2% tolerance) ===")
     print("Corpus: \(metrics.total) tracks, crowdsourced ground truth (v2)")
+    print("Annotation version: \(annotationVersion)")
     print(
       "Acc1: \(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total))")
     print(
       "Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
+    // Story 12.3 (FR-61): the octave-error proxy as a named figure, not a reader derivation.
+    // Both readings print: floor-compatible (primary-or-tempo2, the committed floors) and
+    // primary-strict (primary annotation only).
+    let tally = try AccuracyTally(
+      acc1: metrics.acc1Correct, acc2: metrics.acc2Correct, total: metrics.total,
+      annotationVersion: annotationVersion)
+    let strictTally = try AccuracyTally(
+      acc1: metrics.strictAcc1Correct, acc2: metrics.strictAcc2Correct, total: metrics.total,
+      annotationVersion: annotationVersion)
+    for line in tally.formattedProxyLines(strict: strictTally) { print(line) }
     if !metrics.failures.isEmpty {
       print("\nAcc1 Failures (first 30):")
       print("| Track ID | Genre | Expected | Got | Delta% |")
@@ -184,10 +217,21 @@ struct GiantStepsBenchmarkTests {
     let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.04)
     print("\n=== GiantSteps Tempo Benchmark — Acc1 MIREX (4% tolerance) ===")
     print("Corpus: \(metrics.total) tracks, crowdsourced ground truth (v2)")
+    print("Annotation version: \(annotationVersion)")
     print(
       "Acc1: \(String(format: "%.1f", metrics.acc1))% (\(metrics.acc1Correct)/\(metrics.total))")
     print(
       "Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
+    // Story 12.3 (FR-61): the octave-error proxy as a named figure, not a reader derivation.
+    // Both readings print: floor-compatible (primary-or-tempo2, the committed floors) and
+    // primary-strict (primary annotation only).
+    let tally = try AccuracyTally(
+      acc1: metrics.acc1Correct, acc2: metrics.acc2Correct, total: metrics.total,
+      annotationVersion: annotationVersion)
+    let strictTally = try AccuracyTally(
+      acc1: metrics.strictAcc1Correct, acc2: metrics.strictAcc2Correct, total: metrics.total,
+      annotationVersion: annotationVersion)
+    for line in tally.formattedProxyLines(strict: strictTally) { print(line) }
     if !metrics.failures.isEmpty {
       print("\nAcc1 Failures (first 30):")
       print("| Track ID | Genre | Expected | Got | Delta% |")
@@ -237,6 +281,7 @@ struct GiantStepsBenchmarkTests {
     let report = GenreAccuracyReporter.format(
       corpusLabel: "GiantSteps",
       intensity: AnalysisIntensity.default.level,
+      annotationVersion: annotationVersion,
       buckets: buckets,
       overallAcc1Percent: metrics.acc1, overallAcc2Percent: metrics.acc2)
     print("\n" + report)
@@ -290,6 +335,8 @@ struct GiantStepsBenchmarkTests {
 
     var acc1Correct = 0
     var acc2Correct = 0
+    var strictAcc1Correct = 0
+    var strictAcc2Correct = 0
     var failures: [(track: GiantStepsTrack, expected: Double, got: Double)] = []
     var perTrack: [(track: GiantStepsTrack, detected: Double?)] = []
     perTrack.reserveCapacity(availableTracks.count)
@@ -303,12 +350,16 @@ struct GiantStepsBenchmarkTests {
         continue
       }
 
-      let hit = mirexHit(track: track, detected: detected, tolerance: tolerance)
+      let verdict = mirexTempoVerdict(
+        detected: detected, primary: track.bpm, alternate: track.tempo2, tolerance: tolerance)
 
-      if hit.acc1 {
+      if verdict.strictAcc1 { strictAcc1Correct += 1 }
+      if verdict.strictAcc2 { strictAcc2Correct += 1 }
+
+      if verdict.floorAcc1 {
         acc1Correct += 1
         acc2Correct += 1
-      } else if hit.acc2 {
+      } else if verdict.floorAcc2 {
         acc2Correct += 1
         failures.append((track: track, expected: track.bpm, got: detected))
       } else {
@@ -318,43 +369,24 @@ struct GiantStepsBenchmarkTests {
 
     let metrics = AccuracyMetrics(
       total: availableTracks.count, acc1Correct: acc1Correct,
-      acc2Correct: acc2Correct, failures: failures)
+      acc2Correct: acc2Correct,
+      strictAcc1Correct: strictAcc1Correct, strictAcc2Correct: strictAcc2Correct,
+      failures: failures)
     return (metrics: metrics, perTrack: perTrack)
   }
 
-  /// MIREX Acc1/Acc2 hit check with optional `tempo2` fallback.
+  /// MIREX Acc1/Acc2 hit check with optional `tempo2` fallback — the FLOOR-compatible
+  /// verdicts of the shared ``mirexTempoVerdict`` helper (Story 12.3; the strict-vs-floor
+  /// rationale, including the measured 71-track gap, moved to that helper's doc comment).
   /// Shared by `runBenchmark` and `benchmarkByGenre` so the two stay in lockstep.
-  ///
-  /// WHAT THE `tempo2` FALLBACK COSTS, and why an octave experiment must not use this
-  /// metric alone. GiantSteps ground truth v2 ships a second annotation on 577 of its 661
-  /// rows, and 361 of those sit within the 2% tolerance of an octave relation to the
-  /// primary value (303 at half, 58 at double; under literal equality, only 100 and 23).
-  /// Accepting either value therefore makes the committed Acc1 >= 537 / Acc2 >= 546 floors
-  /// close to blind to octave behaviour: a change can move the reported octave of a track
-  /// and score identically. Measured, the gap between scoring against the primary
-  /// annotation alone and scoring the way this function does is **71 tracks** at the
-  /// default configuration -- 466 strict against 537 here.
-  ///
-  /// That is the right trade for a general tempo benchmark, where both metrical levels are
-  /// defensible readings of the same music, and it is the wrong one for any experiment
-  /// whose subject IS the metrical level. Such an experiment should report a primary-only
-  /// (octave-strict) score alongside this one, and reconcile its floor-compatible baseline
-  /// against the committed figure -- otherwise a strict-scored baseline reads as a large
-  /// regression against a floor it was never measuring the same way.
-  ///
-  /// Nothing enforces that; it is a convention for whoever writes the next octave harness.
   private func mirexHit(
     track: GiantStepsTrack,
     detected: Double,
     tolerance: Double
   ) -> (acc1: Bool, acc2: Bool) {
-    let acc1 =
-      isAcc1Match(detected, track.bpm, tolerance: tolerance)
-      || (track.tempo2.map { isAcc1Match(detected, $0, tolerance: tolerance) } ?? false)
-    let acc2 =
-      acc1 || isAcc2Match(detected, track.bpm, tolerance: tolerance)
-      || (track.tempo2.map { isAcc2Match(detected, $0, tolerance: tolerance) } ?? false)
-    return (acc1, acc2)
+    let verdict = mirexTempoVerdict(
+      detected: detected, primary: track.bpm, alternate: track.tempo2, tolerance: tolerance)
+    return (verdict.floorAcc1, verdict.floorAcc2)
   }
 }
 
