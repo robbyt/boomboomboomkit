@@ -1,8 +1,8 @@
 # Story 12.1: Consumer-specifiable tempo search range
 
-Status: review
+Status: done (2026-08-08, operator-confirmed: the story merged into `rterhaar/epic-12` and Stories 12.2/12.4/12.5 built on its knobs; the status fields here and in sprint-status.yaml had simply never been updated from review)
 Baseline revision: aff5286 (branch `rterhaar/epic-12`, clean tree)
-Final revision: uncommitted (commit is operator-owned, gated on the 1Password SSH signer)
+Final revision: 13135f8 (was recorded "uncommitted" pending the operator-owned commit; the commit landed as `13135f8` on `rterhaar/epic-12`)
 Followup review recommended: true
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
