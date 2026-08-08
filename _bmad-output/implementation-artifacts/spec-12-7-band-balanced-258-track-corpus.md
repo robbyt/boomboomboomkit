@@ -5,7 +5,7 @@ created: '2026-08-08'
 status: 'blocked' # on operator hand-verification + the fallback addendum for the four short bands
 review_loop_iteration: 0
 baseline_revision: '31d772e' # rterhaar/epic-12 tip (#196 squash-merge)
-final_revision: '45bd2ad'
+final_revision: '202d60a' # implementation commit; this reference recorded in a follow-up commit
 followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
