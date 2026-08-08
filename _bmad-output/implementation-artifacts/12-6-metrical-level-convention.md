@@ -347,8 +347,9 @@ The reverse direction is included because the old ambiguity was two-sided: AS-5
 treated both halves as ground truth. The [80, 87.5) window is the halves of
 [160, 175); it is a recorded deviation that widens the "80-85" phrase used
 elsewhere (prd.md line 185 and the census prose), adopted so the half window is
-exactly half of the full-tempo band. Window width is a pending operator decision
-at signoff: [80, 87.5) as written, or the PRD-literal [80, 85). "Same recording" means an audio-fingerprint
+exactly half of the full-tempo band. Window width was resolved at signoff
+(2026-08-08, operator): [80, 87.5) as written, chosen over the PRD-literal
+[80, 85) for octave symmetry with [160, 175). "Same recording" means an audio-fingerprint
 match per the `scripts/audit-corpus-splits.py` fingerprint, with exact-filename
 match as the fallback where no fingerprint is available. The rule reads the
 verified tempo and legacy static labels only; no DSP output, confidence, or
@@ -440,7 +441,14 @@ before corpus load.
 
 ## 6. Operator signoff
 
-- [ ] **Operator signoff: the metrical-level convention and ground-truth rule are adopted as written above.**
+- [x] **Operator signoff: the metrical-level convention and ground-truth rule are adopted as written above.**
+  Signed 2026-08-08 by the operator (robbyt), recorded via the structured
+  decision elicitation in the development session: convention full-tempo
+  (perceptual) as recommended; section-2 protocol accepted as revised after the
+  second-reader review; budget accepted with the expected-value framing and the
+  re-plan checkpoint as the control; sentinel window [80, 87.5); 10 percent
+  blind re-pass audit adopted. The section-5 tag is minted at this date:
+  `declared:metrical-full-tempo-v1-2026-08-08`.
 
 Signing binds:
 
@@ -475,9 +483,13 @@ Accepted risks, stated plainly and bound with the signoff:
   states abandoned batches yield no members.
 - **Independence, not correctness.** Option 1 guarantees independence from the
   detector, not label correctness: all 258 labels rest on one annotator's
-  perceptual judgement with no second-reader sample or repeatability audit
-  unless the operator adds one. An optional audit is a pending operator
-  decision, recorded here as such.
+  perceptual judgement. Mitigation adopted at signoff (2026-08-08, operator):
+  a **10 percent blind re-pass** -- after the corpus is complete, a random
+  sample of roughly 26 kept tracks (drawn by the same seeded-PRNG mechanism as
+  the membership sequences, recorded) is re-annotated blind under the same DAW
+  SOP, and the disagreement rate is recorded with the corpus. The re-pass adds
+  roughly 26 verifications to the budget. It measures repeatability; it does
+  not relabel -- a disagreement is data, resolved only by a dated amendment.
 
 Changing any of the bound items mid-verification requires a dated amendment to
 this document and re-signoff before verification continues.
@@ -488,10 +500,15 @@ into rterhaar/epic-12 as 255a159 (2026-08-08). Its two review passes fixed only
 labelling and hardening, with no validation-rule change, and pinned the digest
 golden vector; the tag remains valid as validated.
 
-Until signed, all of the following stay open: no convention exists, no candidate
-set may be committed, no track may be verified or labelled, Story 12.7 cannot
-start, and the tag in section 5 names a recommendation rather than a rule. The
-sentinel-subset rule (section 3) and the FR-62 audit (section 4) are descriptive
-and carry no gate, but the subset rule references the declared convention and so
-also floats until signing fixes it. Per epics.md Story 12.6's final AC, this story
-cannot close on agent work alone; its run status is `blocked` on this signoff.
+The paragraph below is retained as the record of the pre-signoff state; the
+signoff above (2026-08-08) closes it. The convention exists, candidate sets may
+be committed under the section-2 protocol, Story 12.7 may start, and the
+section-5 tag names the rule.
+
+> Until signed, all of the following stay open: no convention exists, no candidate
+> set may be committed, no track may be verified or labelled, Story 12.7 cannot
+> start, and the tag in section 5 names a recommendation rather than a rule. The
+> sentinel-subset rule (section 3) and the FR-62 audit (section 4) are descriptive
+> and carry no gate, but the subset rule references the declared convention and so
+> also floats until signing fixes it. Per epics.md Story 12.6's final AC, this story
+> cannot close on agent work alone; its run status is `blocked` on this signoff.

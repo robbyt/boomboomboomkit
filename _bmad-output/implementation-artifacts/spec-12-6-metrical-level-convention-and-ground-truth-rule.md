@@ -2,7 +2,7 @@
 title: 'Story 12.6: Metrical-level convention and the ground-truth rule'
 type: 'feature'
 created: '2026-08-08'
-status: 'blocked'
+status: 'done'
 review_loop_iteration: 0
 followup_review_recommended: true
 final_revision: '4c69a86' # rebased onto the #195 squash-merge 2026-08-08
@@ -143,7 +143,7 @@ explicit operator-signoff block; the story cannot close on agent work alone.
 
 ## Auto Run Result
 
-Status: blocked (2026-08-08) -- blocking condition: operator signoff required on the ground-truth rule (FR-59f / epics.md Story 12.6 final AC). All agent-completable work is done and reviewed; the story closes only when the operator signs the declaration artifact.
+Status: done (2026-08-08). Was blocked on operator signoff; the operator signed the same day via structured decision elicitation (convention full-tempo, protocol accepted after a second-reader Codex review resolved 7 blockers, budget accepted, sentinel window [80, 87.5), 10 percent blind re-pass audit adopted). The signoff is recorded in the declaration artifact's section 6; the minted tag is `declared:metrical-full-tempo-v1-2026-08-08`.
 
 **Summary:** The Story 12.6 declaration artifact `12-6-metrical-level-convention.md` is written: (1) recommended convention full-tempo (perceptual), argued from the FR-59a.1-clean populations plus detector-comparability and band-design, with the octave-corrected caveat at every citation; (2) FR-59f option-1 hand-verification protocol operationalized (face-value-tag pool banding, four safe-ordering conditions, blinding with recorded residual, 100-120 first, batch mechanics, keep/reject, replacement and exhaustion rules, sourced-only budget, re-plan checkpoint); (3) `octave-sentinel` subset with a two-directional DSP-free membership rule; (4) FR-62 legacy audit (OA300 full-tempo, GiantSteps full-tempo on 661 scored rows, Tony full-tempo after a detector-influenced octave vote, counts only); (5) tag rule `metrical-<level>-v1-<signoff-date>`, draft string executed through Story 12.3's validator; (6) signoff block binding the convention, the entire protocol, and the budget, with the stacked-12.3 dependency risk recorded.
 
