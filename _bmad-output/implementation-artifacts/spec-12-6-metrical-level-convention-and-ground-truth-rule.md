@@ -92,7 +92,7 @@ explicit operator-signoff block; the story cannot close on agent work alone.
 - `Sources/BoomBoomBoomKitTestSupport/AnnotationVersion.swift` -- Story 12.3 tag scheme the declared tag must validate against (read-only reference)
 - `Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json` + `12-dnb-sentinels-expanded.json` -- legacy-corpus label sources for the FR-62 audit (read-only)
 - `_bmad-output/ml-training/tony-corpus/tony-truth-labels.json` -- Tony legacy labels for the FR-62 audit (read-only; gitignored corpus data referenced by counts only)
-- `_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md` -- AS-BUILT: the declaration artifact (six sections; recommends full-tempo; tag `declared:metrical-full-tempo-v1-2026-08-08`; unchecked operator-signoff block)
+- `_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md` -- AS-BUILT: the declaration artifact (six sections; recommends full-tempo; tag `declared:metrical-full-tempo-v1-2026-08-08`; operator-signoff block, checked 2026-08-08)
 - As-built count anchors: oa300-ground-truth.json measured 2026-08-08 as 82 entries / 41 in [160,175) / 18 below 100 (13 within [80,85]); tony-truth-labels.json measured as 1,509 of 1,534 labelled, bands 36/26/253/372/786/36 (matches census octave-corrected column)
 
 ## Tasks & Acceptance
@@ -131,6 +131,17 @@ explicit operator-signoff block; the story cannot close on agent work alone.
   - `[medium]` `[patch]` Sentinel-subset rule was one-directional, used two names, left "same recording" and the empty outcome undefined, and silently widened "80-85" to [80, 87.5); all four pinned (reverse clause included, `octave-sentinel` unified, fingerprint join defined, size-0 a recorded result, widening declared as a deviation).
   - `[low]` `[patch]` Band edges pinned half-open [lo, hi) at all six boundaries; surplus-keeper and duplicate tiebreaks defined by committed draw order; annotated span pinned to full track; blinding band-level-prior residual recorded as a limitation; the 18-vs-14 fixture/census delta stated as unreconciled and flagged for Story 12.7's fingerprint join; FR-62 GiantSteps row basis corrected to 661 scored rows; tag naming unified to `metrical-<level>-v1-<signoff-date>` minted at signing; the draft tag string executed through `AnnotationVersion.declared(_:)` via a throwaway test (passed, then deleted); the 12.3 stacked-branch not-yet-PR-reviewed dependency recorded as a signoff risk.
 
+### 2026-08-08 -- PR #196 Copilot review pass (3 comments, fact-checked individually)
+- intent_gap: 0
+- bad_spec: 0
+- patch: 3: (high 0, medium 0, low 3)
+- defer: 0
+- reject: 0
+- addressed_findings:
+  - `[low]` `[patch]` The intent contract's never-reaches-done clause read as contradicting the `done` frontmatter. Accepted as a clarification: the clause is scoped to the auto run, which did end `blocked`; `done` records the operator signoff. A status-flow note was appended to the Auto Run Result (the intent contract is read-only and was not touched); the "internally contradictory" framing itself was a scope misread.
+  - `[low]` `[patch]` Code Map still described the signoff block as unchecked; updated to checked 2026-08-08.
+  - `[low]` `[patch]` epic-12-context.md still listed 12.6 as next/backlog against sprint-status done; the story line now records done with the signoff, and 12.7 is marked next.
+
 ## Verification
 
 **Commands:**
@@ -156,3 +167,5 @@ Status: done (2026-08-08). Was blocked on operator signoff; the operator signed 
 **Residual risks:** the operator may overturn the recommended level (the half-tempo amendment path and tag fallback are pre-written); per-band pool sizes under the declared convention are unmeasured until Story 12.7 re-bands the pool; the 18-vs-14 row-basis delta is unreconciled and assigned to 12.7's fingerprint join.
 
 **Operator actions needed (morning):** (1) unlock 1Password; (2) re-sign or accept the four commits on the stacked branches (DONE 2026-08-08: re-signed as 0fb914b/4b66b75/8e3decb/6c40d04); (3) push both branches and open PRs (12.3 -> rterhaar/epic-12, then 12.6 -> 12.3's branch or rebase after 12.3 lands); (4) read `12-6-metrical-level-convention.md` and sign or overturn the convention in its section 6 block.
+
+**Status-flow note (2026-08-08, added after PR #196 review):** the intent contract's Block If clause ("this story NEVER reaches `done` in this run; the run HALTs `blocked`") was satisfied as written: the auto run ended `blocked` on operator signoff. The frontmatter's subsequent same-day `done` records the operator SIGNING (decisions elicited and recorded in the declaration artifact's section 6), which is the AC's designed exit, not an agent bypass of the clause. The two AC bullets referencing the `blocked` run status describe the run's end state and were met at that point.

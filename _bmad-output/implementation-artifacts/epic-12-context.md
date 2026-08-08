@@ -13,8 +13,8 @@ Establish whether the thirty-point gap between our ML model (348/661 GiantSteps 
 - Story 12.3: Annotation-version tagging and the octave-error metric — **done** 2026-08-08 (PR #195, squash-merged into rterhaar/epic-12 as 255a159)
 - Story 12.4: Reproduce the TempoCNN reference baseline (Gate 0) — **done**; Gate 0 did NOT fire (reference reproduced at 545/661; verdict gap-attributable-to-our-model)
 - Story 12.5: Pipeline differential and cause ranking — **done** (FR-58 ranking recorded)
-- Story 12.6: Metrical-level convention and the ground-truth rule — **next** (backlog)
-- Story 12.7: Build the 258-track band-balanced corpus — backlog
+- Story 12.6: Metrical-level convention and the ground-truth rule — **done** 2026-08-08 (operator signoff recorded in the declaration artifact section 6; PR #196; convention full-tempo, tag `declared:metrical-full-tempo-v1-2026-08-08`)
+- Story 12.7: Build the 258-track band-balanced corpus — **next** (backlog; unblocked by 12.6's signoff)
 - Story 12.8: Declare the bin schema a public contract — backlog
 - Story 12.9: Define the bundle gate — backlog
 
