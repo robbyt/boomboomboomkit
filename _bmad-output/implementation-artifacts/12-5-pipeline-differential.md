@@ -23,7 +23,7 @@ source or measured artifacts.
 | Bin schema | 256 integer-BPM classes, 30-285 (`dataset.py:59-62`, the `BPM_BIN_MIN`/`BPM_BIN_MAX`/`BPM_BIN_COUNT` constants, and `tools/coreml-convert/reference_arch.py:37-39`) | 256 integer-BPM classes, 30-285 (2018 paper, Section 3.2) |
 | Loss | Categorical CE with label smoothing 0.05 plus octave_mass 0.15 split onto in-range partners {2T, T/2} (`ablation/octave_aware_loss.py:42,77`, the `OCTAVE_FACTORS` constant and the `octave_mass` default; PRD 4.3) | Categorical cross-entropy on one-hot targets; no smearing, no octave mass (2018 paper, Section 3.3; PRD 4.3) |
 | Augmentation | On-PCM: tempo stretch +-4% (resample-based, pitch co-shifts), gain +-6 dB, pink noise SNR 30-50 dB; one window per track per epoch (`dataset.py:941-996`, `augment_pcm`) | Mel-domain scale-and-crop: time-axis scale factor in {0.8, 0.84, ..., 1.16, 1.2} (spline interpolation, label adjusted), then crop to 256 frames at a random offset, per epoch (2018 paper, Section 3.3, Figure 4) |
-| Corpus composition | Tony private corpus v2 splits, DnB-dominant (pooled table PRD 4.4/5.3: 160-175 BPM holds 980 pooled tracks, 100-120 holds 62, 175+ holds 52) | Union of LMD Tempo (3,611), MTG Tempo (1,159), EBall (3,826) = 8,596 tracks, 44-216 BPM, multi-genre, mean 121.32, sigma 30.52 (2018 paper, Sections 2.1-2.4, Figure 1) |
+| Corpus composition | Tony private corpus v2 splits, DnB-dominant (Tony columns of the PRD 5.3 band table: 160-175 BPM holds 786 tracks against 26 at 100-120, a 30:1 skew; pooled across corpora 980 against 62, but the pool includes the 661-row GiantSteps evaluation set) | Union of LMD Tempo (3,611), MTG Tempo (1,159), EBall (3,826) = 8,596 tracks, 44-216 BPM, multi-genre, mean 121.32, sigma 30.52 (2018 paper, Sections 2.1-2.4, Figure 1) |
 | Decode | Single-window argmax, bpm = 30 + argmax; runtime abstains outside 60.0...200.0, so 115 of 256 bins are decode-dead (`BNNSTechnique.swift:885` `bpm = bpmBinOffset + Double(maxIdx)` and `:890` the `60.0...200.0` abstain guard; charter item 2 / #147) | Sliding window hop 128, class-wise averaged softmax activations over the whole track, then argmax; full 30-285 range decodable (2018 paper, Section 3.4) |
 | Evaluation protocol | FR-18 strict Acc1 at 4%, 661 rows, revised annotations | Identical by construction: the 12.4 harness scored the reference on the same rows, annotation source, and tolerance |
 
@@ -64,10 +64,11 @@ factors 2.0 and 0.5 only, no factor 3). Denominator 661 in all rows.
   no rows in this run and the decode-dead-bin issue cannot directly forfeit
   any row on this corpus.
 
-Reproduction (no script committed; the recipe is the artifact): filter both
-dumps to `corpus == "giantsteps"` (661 rows each; the reference dump's rows
-live under its `tracks` key with the prediction in `modelBPM`, ours in
-`fr18ModelBPM`), score prediction versus `groundTruthBPM` with
+Reproduction (no script committed; the recipe is the artifact): filter OUR
+dump's rows to `corpus == "giantsteps"` (661 of its 1243 rows; prediction in
+`fr18ModelBPM`); take ALL 661 rows under the reference dump's `tracks` key
+(they carry no `corpus` field, the dump is all-GiantSteps; prediction in
+`modelBPM`). Score prediction versus `groundTruthBPM` with
 `evaluate_fr18.acc1_correct` (4% relative tolerance), then apply
 `evaluate_fr18.octave_match` (factors 2.0 and 0.5, same tolerance) to the
 misses.
@@ -171,11 +172,14 @@ not suffer from strong genre-bias" (2018 paper, Section 2), and the paper
 itself attributes its GiantSteps strength to training-set correspondence: the
 high GiantSteps result "can be explained through our training dataset. They
 clearly correspond to EBall and MTG Tempo" (Section 4.1). Ours trains on the
-DnB-dominant Tony corpus: pooled band table (PRD 4.4/5.3) holds 980 tracks at
-160-175 BPM against 62 at 100-120 and 52 at 175+; excluding GiantSteps rows
-per FR-69c (the contamination boundary), the 100-120 pool falls to 27 (PRD
-4.4), so the evaluation corpus itself supplies over half of that band and the
-trainable skew is worse than the pooled figure suggests. Measured corroboration that
+DnB-dominant Tony corpus: the Tony columns of the PRD 5.3 band table hold 786
+tracks at 160-175 BPM against 26 at 100-120, a 30:1 skew starker than the
+pooled table's 980 against 62 (16:1), because the pool folds in the 661-row
+GiantSteps evaluation set (153 at 160-175, 35 at 100-120); excluding
+GiantSteps rows per FR-69c (the contamination boundary), the 100-120 pool
+falls to 27 (PRD 5.3), so the evaluation corpus itself supplies over half of
+that pooled band and the trainable skew is worse than the pooled figure
+suggests. Measured corroboration that
 this is structural, not volume: the calibration ladder (296 -> 330 -> 348)
 shows hand-label additions trading bands against each other at fixed capacity
 (`octave-bias-finding-and-plan.md`), and the opposite octave-miss directions in
@@ -372,7 +376,7 @@ Input artifacts (SHA-256 where file-hashed):
   (baseline revision 4184c72),
   `_bmad-output/ml-training/v2-runs/octave-bias-finding-and-plan.md`,
   `12-1-tempo-range-impact-report.json` context, PRD
-  `prd-BoomBoomBoomKit-2026-07-26/prd.md` sections 4.3, 4.4, 5.2, and
+  `prd-BoomBoomBoomKit-2026-07-26/prd.md` sections 4.3, 4.4, 5.2, 5.3, and
   `epics.md` Story 12.5 ACs plus the charter ranking. Branch baseline 12699f4.
 
 Citation ledger (every reference-side figure to primary text; 12.4 format):

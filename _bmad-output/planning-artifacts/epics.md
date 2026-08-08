@@ -2000,6 +2000,8 @@ Nine stories, designed 2026-08-02 from `prd-BoomBoomBoomKit-2026-07-26`. Every d
 
 **Epic-level pressure-release valve.** §6 Gate 0 can stop this epic at Story 12.4. If the reference baseline also scores near 52 on our evaluation path, stories 12.5 onward are re-planned rather than executed, and the finding is the deliverable. Document at `_bmad-output/implementation-artifacts/12-gate0-pressure-release.md`.
 
+> **GATE 0 RAN AND DID NOT FIRE (2026-08-08).** Story 12.4 reproduced the reference baseline at 545/661 FR-18-strict on our evaluation path, against our model's 348/661 and the pre-registered midpoint threshold of 446.5; verdict `gap-attributable-to-our-model` (`_bmad-output/implementation-artifacts/12-4-tempocnn-baseline-report.md`). The pressure-release document was not needed; Story 12.5 executed as planned. The paragraph above is retained as the record of the rule as written before the measurement.
+
 ### Story 12.1: Consumer-specifiable tempo search range
 
 As a consumer integrating BoomBoomBoomKit into a drum-and-bass application,

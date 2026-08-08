@@ -1316,12 +1316,12 @@ narrowed, or closed by this pass.
 
 Epic 14 input: one entry per FR-58-ranked cause whose action falls outside Epic 12's
 scope. Epic 12 is measurement and corpus construction; every retrain or runtime change
-below waits for Epic 14 (or later), conditional on the PRD's Gate 1 and Gate 2 (epics.md section 6 gate table). Ranking and
+below waits for Epic 14 (or later), conditional on the PRD's Gate 1 and Gate 2 (PRD section 6, "Decision Gates and Stopping Rule"). Ranking and
 evidence live in `12-5-pipeline-differential.md`; nothing here is acted on inside Epic 12.
 
 - source_spec: `_bmad-output/implementation-artifacts/12-5-pipeline-differential.md`
   summary: FR-58 rank 1, corpus composition. The differential locates the largest gap cause in the DnB-dominant training corpus; the F3 purpose-built corpus (Stories 12.6-12.9) is the Epic 12 half, and the retrain against it is the Epic 14 half filed here.
-  evidence: Section 3.6 of the differential: reference trains on 8,596 multi-genre tracks 44-216 BPM built explicitly to avoid genre bias (ISMIR 2018, Section 2) and attributes its GiantSteps strength to training-set correspondence (Section 4.1); our pooled bands hold 980 tracks at 160-175 BPM against 62 at 100-120 (PRD 4.4/5.3); the calibration ladder (296 -> 330 -> 348) measured the fixed-capacity band trade; opposite octave-miss directions (ours 38/53 predict high, reference 17/100) are opposite corpus-prior signatures. Not independent of the rank-2 entry below: rank 2 is rank 1's cheap probe, and a rank-2 result partially discharges rank 1. **Re-open trigger:** Epic 14 scoping after Gate 1, OR Story 12.9 delivering the F3 corpus.
+  evidence: Section 3.6 of the differential: reference trains on 8,596 multi-genre tracks 44-216 BPM built explicitly to avoid genre bias (ISMIR 2018, Section 2) and attributes its GiantSteps strength to training-set correspondence (Section 4.1); the Tony training columns hold 786 tracks at 160-175 BPM against 26 at 100-120, a 30:1 skew (PRD 5.3; the pooled 980/62 figures include the GiantSteps evaluation set and understate the trainable skew); the calibration ladder (296 -> 330 -> 348) measured the fixed-capacity band trade; opposite octave-miss directions (ours 38/53 predict high, reference 17/100) are opposite corpus-prior signatures. Not independent of the rank-2 entry below: rank 2 is rank 1's cheap probe, and a rank-2 result partially discharges rank 1. **Re-open trigger:** Epic 14 scoping after Gate 1, OR Story 12.9 delivering the F3 corpus.
 
 - source_spec: `_bmad-output/implementation-artifacts/12-5-pipeline-differential.md`
   summary: FR-58 rank 2, augmentation breadth. Retrain with reference-style wide scale-and-crop tempo augmentation (factor set spanning +-20% in eleven steps, label-adjusted, random crop offset) in place of the current +-4% PCM stretch; the cheapest retrain-shaped probe of the rank-1 imbalance.

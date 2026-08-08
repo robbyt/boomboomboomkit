@@ -49,7 +49,7 @@ warnings: ['oversized']
 - `_bmad-output/ml-training/fr18-predictions-191/seed_42/predictions.json` -- our 348/661 per-track predictions (the other half of the comparison). Planning originally named `fr18-predictions/maskedMelPretrain/seed_42/predictions.json`, but that dump scores 330/661 (an older rebalanced run); the -191 dump reproduces the pre-registered 348 exactly (verified during implementation). Both dumps agree octave-recoverable = 53.
 - `_bmad-output/ml-training/v2-runs/octave-bias-finding-and-plan.md` -- E0 finding: sub-100 BPM misses are clean octave doublings; 100-120 genuinely mis-pulsed
 - `_bmad-output/planning-artifacts/prds/prd-BoomBoomBoomKit-2026-07-26/prd.md` -- FR-57 (:143), FR-58 (:144), section 4.3 traced literature (reference loss = one-hot CE, no Gaussian smearing; our targets octave_mass 0.15 + label smoothing)
-- `_bmad-output/planning-artifacts/epics.md` -- Story 12.5 ACs (:2168-2200); charter's corrected lever ranking (:~2450-2470) and its supersession header (:2369) which already says FR-58 governs once it exists
+- `_bmad-output/planning-artifacts/epics.md` -- Story 12.5 ACs (:2168-2200); charter's corrected lever ranking (:~2406-2431) and its supersession header (:2369) which already says FR-58 governs once it exists
 - `_bmad-output/ml-training/{dataset.py,feature_substrate_v2.py,train.py,evaluate_fr18.py}` -- our-side axis facts (44100 Hz / 128 mel / 2048 FFT / single 512-frame tensor per track, per-band z-score; CE + octave_mass 0.15; augmentation set; Tony-corpus v2 splits; argmax+30 with 60-200 abstain, 115/256 bins decode-dead per #147)
 - `_bmad-output/implementation-artifacts/deferred-work.md` -- Epic 14 input entries land here (`## Deferred from: Story 12.5 (2026-08-08)` + source_spec/summary/evidence/re-open-trigger shape)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` -- `12-5-pipeline-differential-and-cause-ranking`
@@ -89,6 +89,21 @@ warnings: ['oversized']
   - `[low]` `[patch]` Full path for octave-bias-finding-and-plan.md at first use; deferred-work gate reference corrected to PRD Gate 1/2; reproduction recipe added to section 2; unbacked dump dates dropped (SHA identification only); symbol names added to line citations and BNNSTechnique lines corrected to :885/:890; zero-abstains fact added to the decode-forfeit argument; octave-mass negative existence claim labelled PRD-inherited; ledger caveat row moved to body prose; sprint-status flipped to done
 - Rejected: "planning promoted ahead of story acceptance" and the sprint-status/epics contradiction — the supersession statement is an explicit AC of this story and the whole story lands in one commit with the done flip.
 - Deferred: the committed 12.4 baseline report also says "track-for-track"; pre-existing, outside this story's file set.
+
+### 2026-08-08 — Review pass (PR #194, post-done follow-up)
+- intent_gap: 0
+- bad_spec: 0
+- patch: 7 (high 0, medium 2, low 5)
+- defer: 0
+- reject: 0
+- addressed_findings:
+  - `[medium]` `[patch]` epic-12-context "12.1 done" vs sprint-status "review": accepted with the fix INVERTED per operator confirmation — 12.1 IS done (merged as 13135f8, later stories built on it); sprint-status and the 12-1 spec status/final-revision fields updated to done; context sentence retained
+  - `[medium]` `[patch]` Gate-0 present-tense text at epics.md:2001 annotated (dated, amend-not-erase): Gate 0 ran at 12.4 and did not fire, so a compile-epic-context regeneration no longer reverts the context doc's paragraph
+  - `[low]` `[patch]` Reproduction recipe corrected: corpus filter applies to our dump only; the reference dump's 661 tracks rows carry no corpus key
+  - `[low]` `[patch]` Rank-1 corpus evidence restated with Tony training columns leading (786/26, 30:1) at all three sites; pooled 980/62 kept as labelled context (includes the GiantSteps evaluation set)
+  - `[low]` `[patch]` Falls-to-27 cite corrected to PRD 5.3; 5.3 added to the provenance ledger's PRD section list
+  - `[low]` `[patch]` deferred-work gate pointer corrected from "epics.md section 6 gate table" to PRD section 6, "Decision Gates and Stopping Rule"
+  - `[low]` `[patch]` Code Map charter-ranking anchor corrected from :~2450-2470 (Epic 13 charter) to :~2406-2431
 
 ## Design Notes
 
