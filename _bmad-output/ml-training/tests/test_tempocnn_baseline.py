@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from evaluate_fr18 import EXPECTED_GIANTSTEPS, acc1_correct  # noqa: E402
 from tempocnn_baseline import (  # noqa: E402
+    persist_failed_run,
     acc2_correct,
     acc_within,
     gate_inputs,
@@ -113,11 +114,9 @@ class TestTempo2Floor:
 class TestTempo2Join:
     RESOLVED = [{"trackId": "a.mp3", "audioPath": "/x/a.mp3", "groundTruthBPM": 127.0}]
 
-    def test_joins_and_counts(self):
-        rows, matched = join_tempo2(
-            self.RESOLVED, [{"filename": "a.mp3", "bpm": 127.0, "tempo2": 139.0}]
-        )
-        assert matched == 1
+    def test_joins(self):
+        rows = join_tempo2(self.RESOLVED, [{"filename": "a.mp3", "bpm": 127.0, "tempo2": 139.0}])
+        assert len(rows) == 1
         assert rows[0]["tempo2"] == 139.0
 
     def test_missing_join_refuses(self):
@@ -136,11 +135,17 @@ class TestTempo2Join:
             join_tempo2(self.RESOLVED, [{"filename": "a.mp3", "tempo2": "fast"}])
 
     def test_unkeyed_entries_skipped(self):
-        rows, matched = join_tempo2(
+        rows = join_tempo2(
             self.RESOLVED, [{"tempo2": 5.0}, {"filename": "", "tempo2": 6.0}, {"filename": "a.mp3"}]
         )
-        assert matched == 1
+        assert len(rows) == 1
         assert rows[0]["tempo2"] is None
+
+    def test_boolean_tempo2_refuses(self):
+        # bool is an int subclass; a corrupted ground truth with true/false must
+        # trip the join-integrity refusal, not coerce to 1.0/0.0.
+        with pytest.raises(SystemExit):
+            join_tempo2(self.RESOLVED, [{"filename": "a.mp3", "tempo2": True}])
 
 
 class TestDenominatorGuard:
@@ -241,6 +246,12 @@ class TestChecksumRefusal:
         digest = hashlib.sha256(b"abc").hexdigest()
         assert verify_checksums(tmp_path, self._provenance(digest)) == tmp_path / "weights.h5"
 
+    def test_missing_sha256_key_refuses_cleanly(self, tmp_path):
+        (tmp_path / "weights.h5").write_bytes(b"abc")
+        prov = {"model_file": "weights.h5", "files": {"weights.h5": {"size_bytes": 3}}}
+        with pytest.raises(SystemExit, match="no sha256"):
+            verify_checksums(tmp_path, prov)
+
     def test_blob_sha1_verified(self, tmp_path):
         data = b"abc"
         (tmp_path / "weights.h5").write_bytes(data)
@@ -264,3 +275,20 @@ class TestChecksumRefusal:
         del prov["model_file"]
         with pytest.raises(SystemExit):
             verify_checksums(tmp_path, prov)
+
+
+class TestFailedRunPersistence:
+    def test_guard_trip_preserves_per_track_evidence(self, tmp_path):
+        import json
+
+        rows = [
+            {"trackId": "a.mp3", "modelBPM": None, "failureReason": "decode error"},
+            {"trackId": "b.mp3", "modelBPM": 128.0, "failureReason": None},
+        ]
+        out = tmp_path / "tempocnn-baseline" / "predictions.json"
+        failed = persist_failed_run(out, "weights.h5", "gt.json", "0" * 64, rows)
+        assert failed == out.parent / "predictions-failed.json"
+        payload = json.loads(failed.read_text())
+        assert payload["scored"] is False
+        assert "summary" not in payload  # a failed run must not look scored
+        assert payload["tracks"][0]["failureReason"] == "decode error"

@@ -47,6 +47,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from build_fr18_input import resolve_giantsteps
+from corpus_manifests import sha256_file  # streamed digest, shared with the manifest tooling
 from evaluate_fr18 import EXPECTED_GIANTSTEPS, acc1_correct, octave_match
 
 HERE = Path(__file__).resolve().parent
@@ -70,14 +71,6 @@ MAX_FAILURE_FRACTION = 0.05
 # ---------------------------------------------------------------------------
 # Pure logic (importable without TensorFlow)
 # ---------------------------------------------------------------------------
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def git_blob_sha1(path: Path) -> str:
@@ -105,11 +98,14 @@ def verify_checksums(weights_dir: Path, provenance: dict) -> Path:
         path = weights_dir / name
         if not path.is_file():
             raise SystemExit(f"ERROR: weights file missing: {path}")
+        expected_sha = meta.get("sha256")
+        if not expected_sha:
+            raise SystemExit(f"ERROR: provenance entry for {name} has no sha256; refusing to run.")
         digest = sha256_file(path)
-        if digest != meta["sha256"]:
+        if digest != expected_sha:
             raise SystemExit(
                 f"ERROR: SHA-256 mismatch for {path}\n"
-                f"  expected {meta['sha256']}\n"
+                f"  expected {expected_sha}\n"
                 f"  actual   {digest}\n"
                 "Refusing to run: the weights are not the recorded artifact."
             )
@@ -160,6 +156,31 @@ def acc2_correct(pred: float | None, truth: float, tol: float) -> bool:
         if abs(pred * factor - truth) / truth <= tol:
             return True
     return False
+
+
+def persist_failed_run(
+    output: Path, model_variant: str, gt_basename: str, gt_sha256: str, rows: list[dict]
+) -> Path:
+    """Write the per-track evidence of a run the failure guard refused to score.
+
+    Deliberately carries ``scored: False`` and NO summary/gate block, so a failed
+    run can never be mistaken for a scored artifact."""
+    failed_path = output.parent / "predictions-failed.json"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    failed_path.write_text(
+        json.dumps(
+            {
+                "story": "12.4",
+                "generatedAt": datetime.now(timezone.utc).isoformat(),
+                "modelVariant": model_variant,
+                "groundTruthFile": {"basename": gt_basename, "sha256": gt_sha256},
+                "scored": False,
+                "tracks": rows,
+            },
+            indent=2,
+        )
+    )
+    return failed_path
 
 
 def gate_inputs(n: int = EXPECTED_GIANTSTEPS) -> dict:
@@ -274,16 +295,16 @@ def join_tempo2(resolved: list[dict], gt_entries: list[dict]) -> tuple[list[dict
         if key in tempo2_by_id:
             raise SystemExit(f"ERROR: duplicate ground-truth id {key!r}; join is ambiguous.")
         tempo2 = t.get("tempo2")
-        if tempo2 is not None and not isinstance(tempo2, (int, float)):
+        if tempo2 is not None and (
+            isinstance(tempo2, bool) or not isinstance(tempo2, (int, float))
+        ):
             raise SystemExit(f"ERROR: non-numeric tempo2 {tempo2!r} for ground-truth id {key!r}.")
         tempo2_by_id[key] = float(tempo2) if tempo2 is not None else None
     rows: list[dict] = []
-    matched = 0
     for r in resolved:
         tid = r["trackId"]
         if tid not in tempo2_by_id:
             raise SystemExit(f"ERROR: resolved row {tid!r} has no ground-truth join entry.")
-        matched += 1
         rows.append(
             {
                 "trackId": tid,
@@ -292,9 +313,9 @@ def join_tempo2(resolved: list[dict], gt_entries: list[dict]) -> tuple[list[dict
                 "tempo2": tempo2_by_id[tid],
             }
         )
-    if matched != len(resolved):
-        raise SystemExit(f"ERROR: tempo2 join matched {matched}/{len(resolved)} rows.")
-    return rows, matched
+    # Every resolved row either joined or hard-exited above, so a partial join is
+    # unrepresentable; the emitted matchedTempo2Rows is simply len(rows).
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +356,7 @@ def _featurize(audio_path: str):
 def run_model(rows: list[dict], weights_path: Path) -> None:
     """Predict in place: sets modelBPM (or None + failureReason) on each row."""
     import numpy as np
-    from tensorflow.keras.models import load_model  # noqa: PLC0415
+    from tensorflow.keras.models import load_model
 
     model = load_model(weights_path, compile=False)
     for i, row in enumerate(rows, start=1):
@@ -398,21 +419,32 @@ def main() -> int:
 
     gt_path = Path(corpus_path) / "giantsteps-tempo-ground-truth.json"
     gt_sha256 = sha256_file(gt_path)
-    rows, matched = join_tempo2(resolved, json.loads(gt_path.read_text()))
+    rows = join_tempo2(resolved, json.loads(gt_path.read_text()))
 
     print(f"running reference model on {len(rows)} rows ...")
     run_model(rows, weights_path)
-    summary = score_rows(rows)
 
     for r in rows:  # machine-specific absolute paths are noise in a tracked artifact
         r["audioPath"] = os.path.basename(r["audioPath"])
+    try:
+        summary = score_rows(rows)
+    except SystemExit:
+        # The >5% failure guard tripped. Preserve the completed run's per-track
+        # evidence (predictions + failureReason) so the fault can be diagnosed
+        # without a re-run. Deliberately NO summary/gate block: a failed run must
+        # never be mistakable for a scored artifact.
+        failed_path = persist_failed_run(
+            ns.output, provenance["model_file"], gt_path.name, gt_sha256, rows
+        )
+        print(f"wrote {failed_path} (per-track evidence preserved)", file=sys.stderr)
+        raise
     out = {
         "story": "12.4",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "modelVariant": provenance["model_file"],
         "weightsSHA256": provenance["files"][weights_path.name]["sha256"],
         "groundTruthFile": {"basename": gt_path.name, "sha256": gt_sha256},
-        "matchedTempo2Rows": matched,
+        "matchedTempo2Rows": len(rows),
         "summary": summary,
         "tracks": rows,
     }

@@ -193,6 +193,22 @@ Line numbers as of `4184c72`, 2026-08-07; named symbols govern.
 
 ## Review Triage Log
 
+### 2026-08-08 -- Review pass (PR #193, post-done follow-up)
+- intent_gap: 0
+- bad_spec: 0
+- patch: 8: (high 0, medium 1, low 7)
+- defer: 0
+- reject: 0
+- addressed_findings:
+  - `[medium]` `[patch]` The >5% failure guard discarded the completed run's per-track evidence; per-track rows now persist to predictions-failed.json (scored: False, no summary/gate block) before the guard exits
+  - `[low]` `[patch]` Boolean tempo2 now trips the join-integrity refusal (bool is an int subclass)
+  - `[low]` `[patch]` TEMPOCNN_WEIGHTS_DIR and GIANTSTEPS_CORPUS_PATH wrapped in $(abspath) so relative overrides do not re-anchor after the recipe's cd
+  - `[low]` `[patch]` pre-commit help text updated to name the ml-training pytest gate
+  - `[low]` `[patch]` Missing sha256 provenance key now refuses with the named message instead of a raw KeyError
+  - `[low]` `[patch]` Unreachable partial-join counter removed; matchedTempo2Rows emitted as len(rows)
+  - `[low]` `[patch]` sha256_file promoted into corpus_manifests (streamed) and imported; single definition across ml-training
+  - `[low]` `[patch]` Inert noqa PLC0415 dropped (project ruff config never enforces it)
+
 ### 2026-08-07 -- Review pass
 - intent_gap: 0
 - bad_spec: 0

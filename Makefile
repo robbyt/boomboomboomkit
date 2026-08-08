@@ -116,7 +116,7 @@ demo-lint:
 	fi; \
 	bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
 
-## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ pytest suite). NOT a git hook — runs on demand
+## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ and ml-training pytest suites). NOT a git hook — runs on demand
 .PHONY: pre-commit
 pre-commit: fmt demo-fmt lint demo-lint scripts-tests ml-training-tests
 
@@ -639,8 +639,8 @@ endif
 	fi
 	cd $(ML_TRAINING_DIR) && uv sync --locked --group tempocnn-baseline
 	cd $(ML_TRAINING_DIR) && \
-	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
-	TEMPOCNN_WEIGHTS_DIR="$(TEMPOCNN_WEIGHTS_DIR)" \
+	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	TEMPOCNN_WEIGHTS_DIR="$(abspath $(TEMPOCNN_WEIGHTS_DIR))" \
 	uv run --group tempocnn-baseline python tempocnn_baseline.py
 	@echo "Output: $(ML_TRAINING_DIR)/tempocnn-baseline/predictions.json"
 
