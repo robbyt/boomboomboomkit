@@ -5,7 +5,7 @@ created: '2026-08-06'
 status: 'done' # draft | ready-for-dev | in-progress | in-review | done | blocked
 review_loop_iteration: 1
 followup_review_recommended: true
-final_revision: '363926e' # unsigned, pending operator re-sign
+final_revision: '0fb914b' # re-signed 2026-08-08
 baseline_revision: '89e2092' # branch rterhaar/12-3-annotation-version-tagging-impl, clean tree (implementation run 2026-08-08; spec authored at e48475a)
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
