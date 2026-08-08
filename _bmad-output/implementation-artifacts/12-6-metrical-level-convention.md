@@ -377,7 +377,7 @@ corpus's ground-truth file declares this tag; figures scored against it carry it
 per FR-60.
 
 **Dependency risk:** the tag validates against Story 12.3's scheme as committed
-on this stacked branch (unsigned commits 363926e/c37a7ff, not yet PR-reviewed).
+on this stacked branch (commits 0fb914b/4b66b75, re-signed 2026-08-08, not yet PR-reviewed).
 If 12.3's validation rules change in PR review, the tag must be re-validated
 before corpus load.
 
@@ -411,8 +411,8 @@ Changing any of the bound items mid-verification requires a dated amendment to
 this document and re-signoff before verification continues.
 
 Dependency risk carried into signing: the section-5 tag validates against Story
-12.3's scheme as committed on this stacked branch (unsigned commits
-363926e/c37a7ff, not yet PR-reviewed); if 12.3's validation rules change in PR
+12.3's scheme as committed on this stacked branch (commits
+0fb914b/4b66b75, signed, not yet PR-reviewed); if 12.3's validation rules change in PR
 review, the tag must be re-validated before corpus load.
 
 Until signed, all of the following stay open: no convention exists, no candidate

@@ -5,8 +5,8 @@ created: '2026-08-08'
 status: 'blocked'
 review_loop_iteration: 0
 followup_review_recommended: true
-final_revision: '1137560' # unsigned, pending operator re-sign
-baseline_revision: 'c37a7ff' # branch rterhaar/12-6-metrical-level-convention, stacked on Story 12.3 (unsigned commits, pending re-sign)
+final_revision: '32b6c7e' # re-signed 2026-08-08
+baseline_revision: '4b66b75' # branch rterhaar/12-6-metrical-level-convention, stacked on Story 12.3 (re-signed 2026-08-08)
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
 warnings: ['oversized']
@@ -73,7 +73,7 @@ explicit operator-signoff block; the story cannot close on agent work alone.
 
 **Never:**
 - No changes under `Sources/` or `Tests/` (this is a declaration/audit story; Story 12.3
-  already landed the tagging machinery). `git diff --stat c37a7ff -- Sources/ Tests/`
+  already landed the tagging machinery). `git diff --stat 4b66b75 -- Sources/ Tests/`
   stays empty.
 - No corpus building, no track draw, no labelling: that is Story 12.7.
 - No re-litigating settled operator decisions (FR-59f option 1; six bands kept; N=43;
@@ -109,7 +109,7 @@ explicit operator-signoff block; the story cannot close on agent work alone.
 - Given the FR-62 audit table, when read, then each legacy corpus row states its convention with an evidence anchor, and no OA300 relabelling is proposed
 - Given the tag section, when checked against Story 12.3's `AnnotationVersion` rules, then the `declared:` string is valid and non-colliding
 - Given the full artifact, when the run ends, then an unchecked operator-signoff block exists and the run status is `blocked` on operator signoff, not `done`
-- Given the branch, when diffed against c37a7ff, then `Sources/` and `Tests/` are byte-identical
+- Given the branch, when diffed against 4b66b75, then `Sources/` and `Tests/` are byte-identical
 
 ## Spec Change Log
 
@@ -129,12 +129,12 @@ explicit operator-signoff block; the story cannot close on agent work alone.
   - `[medium]` `[patch]` The faster-level tie-break was buried in recommendation prose and undefined for non-2:1 ratios; now a named signable rule, scoped to 2:1 pairs, with a verbatim-record ratio-ambiguous flag otherwise and the half-tempo inversion stated.
   - `[medium]` `[patch]` One citation of the octave-corrected 786 column lacked the FR-59a.1 caveat and used the column as evidence for which level is right; caveat attached and the column demoted to convention-description evidence.
   - `[medium]` `[patch]` Sentinel-subset rule was one-directional, used two names, left "same recording" and the empty outcome undefined, and silently widened "80-85" to [80, 87.5); all four pinned (reverse clause included, `octave-sentinel` unified, fingerprint join defined, size-0 a recorded result, widening declared as a deviation).
-  - `[low]` `[patch]` Band edges pinned half-open [lo, hi) at all six boundaries; surplus-keeper and duplicate tiebreaks defined by committed draw order; annotated span pinned to full track; blinding band-level-prior residual recorded as a limitation; the 18-vs-14 fixture/census delta stated as unreconciled and flagged for Story 12.7's fingerprint join; FR-62 GiantSteps row basis corrected to 661 scored rows; tag naming unified to `metrical-<level>-v1-<signoff-date>` minted at signing; the draft tag string executed through `AnnotationVersion.declared(_:)` via a throwaway test (passed, then deleted); the 12.3 unsigned-stacked-branch dependency recorded as a signoff risk.
+  - `[low]` `[patch]` Band edges pinned half-open [lo, hi) at all six boundaries; surplus-keeper and duplicate tiebreaks defined by committed draw order; annotated span pinned to full track; blinding band-level-prior residual recorded as a limitation; the 18-vs-14 fixture/census delta stated as unreconciled and flagged for Story 12.7's fingerprint join; FR-62 GiantSteps row basis corrected to 661 scored rows; tag naming unified to `metrical-<level>-v1-<signoff-date>` minted at signing; the draft tag string executed through `AnnotationVersion.declared(_:)` via a throwaway test (passed, then deleted); the 12.3 stacked-branch not-yet-PR-reviewed dependency recorded as a signoff risk.
 
 ## Verification
 
 **Commands:**
-- `git diff --stat c37a7ff -- Sources/ Tests/` -- expected: empty
+- `git diff --stat 4b66b75 -- Sources/ Tests/` -- expected: empty
 - `make test` -- expected: unchanged (1031 tests, 170 suites, 4 known issues) since no code changes
 
 **Manual checks:**
@@ -147,12 +147,12 @@ Status: blocked (2026-08-08) -- blocking condition: operator signoff required on
 
 **Summary:** The Story 12.6 declaration artifact `12-6-metrical-level-convention.md` is written: (1) recommended convention full-tempo (perceptual), argued from the FR-59a.1-clean populations plus detector-comparability and band-design, with the octave-corrected caveat at every citation; (2) FR-59f option-1 hand-verification protocol operationalized (face-value-tag pool banding, four safe-ordering conditions, blinding with recorded residual, 100-120 first, batch mechanics, keep/reject, replacement and exhaustion rules, sourced-only budget, re-plan checkpoint); (3) `octave-sentinel` subset with a two-directional DSP-free membership rule; (4) FR-62 legacy audit (OA300 full-tempo, GiantSteps full-tempo on 661 scored rows, Tony full-tempo after a detector-influenced octave vote, counts only); (5) tag rule `metrical-<level>-v1-<signoff-date>`, draft string executed through Story 12.3's validator; (6) signoff block binding the convention, the entire protocol, and the budget, with the stacked-12.3 dependency risk recorded.
 
-**Files:** `12-6-metrical-level-convention.md` (new), this spec, `epic-12-context.md` (regenerated). `Sources/` and `Tests/` byte-identical to c37a7ff.
+**Files:** `12-6-metrical-level-convention.md` (new), this spec, `epic-12-context.md` (regenerated). `Sources/` and `Tests/` byte-identical to 4b66b75.
 
 **Review:** 15 patches applied (1 high, 6 medium, 8 low), 0 deferred, 0 rejected; no intent gaps, no spec repairs. The high finding was a pool-construction phrasing that could have leaked DSP output into draw membership.
 
-**Verification:** `git diff --stat c37a7ff -- Sources/ Tests/` empty; `make test` 1031/170/4 green; every quoted number traced to prd.md, epics.md, the three-source census, the Q9 artifact, or the committed OA300 fixture (82/18/13/41 re-verified); tag validator executed, not inspected.
+**Verification:** `git diff --stat 4b66b75 -- Sources/ Tests/` empty; `make test` 1031/170/4 green; every quoted number traced to prd.md, epics.md, the three-source census, the Q9 artifact, or the committed OA300 fixture (82/18/13/41 re-verified); tag validator executed, not inspected.
 
 **Residual risks:** the operator may overturn the recommended level (the half-tempo amendment path and tag fallback are pre-written); per-band pool sizes under the declared convention are unmeasured until Story 12.7 re-bands the pool; the 18-vs-14 row-basis delta is unreconciled and assigned to 12.7's fingerprint join.
 
-**Operator actions needed (morning):** (1) unlock 1Password; (2) re-sign or accept the four unsigned commits on the stacked branches; (3) push both branches and open PRs (12.3 -> rterhaar/epic-12, then 12.6 -> 12.3's branch or rebase after 12.3 lands); (4) read `12-6-metrical-level-convention.md` and sign or overturn the convention in its section 6 block.
+**Operator actions needed (morning):** (1) unlock 1Password; (2) re-sign or accept the four commits on the stacked branches (DONE 2026-08-08: re-signed as 0fb914b/4b66b75/32b6c7e/c7b6207); (3) push both branches and open PRs (12.3 -> rterhaar/epic-12, then 12.6 -> 12.3's branch or rebase after 12.3 lands); (4) read `12-6-metrical-level-convention.md` and sign or overturn the convention in its section 6 block.
