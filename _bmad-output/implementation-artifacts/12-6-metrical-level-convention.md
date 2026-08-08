@@ -377,7 +377,7 @@ corpus's ground-truth file declares this tag; figures scored against it carry it
 per FR-60.
 
 **Dependency risk:** the tag validates against Story 12.3's scheme as committed
-on this stacked branch (commits 0fb914b/4b66b75, re-signed 2026-08-08, not yet PR-reviewed).
+via PR #195 (squash-merged into rterhaar/epic-12 as 255a159, 2026-08-08).
 If 12.3's validation rules change in PR review, the tag must be re-validated
 before corpus load.
 
@@ -411,10 +411,10 @@ Changing any of the bound items mid-verification requires a dated amendment to
 this document and re-signoff before verification continues.
 
 Dependency risk carried into signing: the section-5 tag validates against Story
-12.3's scheme as committed on this stacked branch (commits
-0fb914b/4b66b75, signed; PR #195 review pass fixed only labelling and hardening,
-no validation-rule change, and pinned the digest golden vector at 9da521e); if 12.3's validation rules change in PR
-review, the tag must be re-validated before corpus load.
+12.3's scheme as committed on this stacked branch via PR #195, squash-merged
+into rterhaar/epic-12 as 255a159 (2026-08-08). Its two review passes fixed only
+labelling and hardening, with no validation-rule change, and pinned the digest
+golden vector; the tag remains valid as validated.
 
 Until signed, all of the following stay open: no convention exists, no candidate
 set may be committed, no track may be verified or labelled, Story 12.7 cannot

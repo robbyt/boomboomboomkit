@@ -5,8 +5,8 @@ created: '2026-08-08'
 status: 'blocked'
 review_loop_iteration: 0
 followup_review_recommended: true
-final_revision: '8e3decb' # re-signed 2026-08-08
-baseline_revision: '4b66b75' # branch rterhaar/12-6-metrical-level-convention, stacked on Story 12.3 (re-signed 2026-08-08)
+final_revision: '4c69a86' # rebased onto the #195 squash-merge 2026-08-08
+baseline_revision: '255a159' # rterhaar/epic-12 tip after the #195 squash-merge (2026-08-08; original stacked baseline was the pre-merge 12.3 branch)
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
 warnings: ['oversized']
@@ -73,7 +73,7 @@ explicit operator-signoff block; the story cannot close on agent work alone.
 
 **Never:**
 - No changes under `Sources/` or `Tests/` (this is a declaration/audit story; Story 12.3
-  already landed the tagging machinery). `git diff --stat 4b66b75 -- Sources/ Tests/`
+  already landed the tagging machinery). `git diff --stat 255a159 -- Sources/ Tests/`
   stays empty.
 - No corpus building, no track draw, no labelling: that is Story 12.7.
 - No re-litigating settled operator decisions (FR-59f option 1; six bands kept; N=43;
@@ -109,7 +109,7 @@ explicit operator-signoff block; the story cannot close on agent work alone.
 - Given the FR-62 audit table, when read, then each legacy corpus row states its convention with an evidence anchor, and no OA300 relabelling is proposed
 - Given the tag section, when checked against Story 12.3's `AnnotationVersion` rules, then the `declared:` string is valid and non-colliding
 - Given the full artifact, when the run ends, then an unchecked operator-signoff block exists and the run status is `blocked` on operator signoff, not `done`
-- Given the branch, when diffed against 4b66b75, then `Sources/` and `Tests/` are byte-identical
+- Given the branch, when diffed against 255a159 (the #195 squash-merge), then `Sources/` and `Tests/` are byte-identical
 
 ## Spec Change Log
 
@@ -134,7 +134,7 @@ explicit operator-signoff block; the story cannot close on agent work alone.
 ## Verification
 
 **Commands:**
-- `git diff --stat 4b66b75 -- Sources/ Tests/` -- expected: empty
+- `git diff --stat 255a159 -- Sources/ Tests/` -- expected: empty
 - `make test` -- expected: unchanged (1031 tests, 170 suites, 4 known issues) since no code changes
 
 **Manual checks:**
@@ -147,7 +147,7 @@ Status: blocked (2026-08-08) -- blocking condition: operator signoff required on
 
 **Summary:** The Story 12.6 declaration artifact `12-6-metrical-level-convention.md` is written: (1) recommended convention full-tempo (perceptual), argued from the FR-59a.1-clean populations plus detector-comparability and band-design, with the octave-corrected caveat at every citation; (2) FR-59f option-1 hand-verification protocol operationalized (face-value-tag pool banding, four safe-ordering conditions, blinding with recorded residual, 100-120 first, batch mechanics, keep/reject, replacement and exhaustion rules, sourced-only budget, re-plan checkpoint); (3) `octave-sentinel` subset with a two-directional DSP-free membership rule; (4) FR-62 legacy audit (OA300 full-tempo, GiantSteps full-tempo on 661 scored rows, Tony full-tempo after a detector-influenced octave vote, counts only); (5) tag rule `metrical-<level>-v1-<signoff-date>`, draft string executed through Story 12.3's validator; (6) signoff block binding the convention, the entire protocol, and the budget, with the stacked-12.3 dependency risk recorded.
 
-**Files:** `12-6-metrical-level-convention.md` (new), this spec, `epic-12-context.md` (regenerated). `Sources/` and `Tests/` byte-identical to 4b66b75.
+**Files:** `12-6-metrical-level-convention.md` (new), this spec, `epic-12-context.md` (regenerated). `Sources/` and `Tests/` byte-identical to the 12.3 tip (now the #195 squash-merge 255a159).
 
 **Review:** 15 patches applied (1 high, 6 medium, 8 low), 0 deferred, 0 rejected; no intent gaps, no spec repairs. The high finding was a pool-construction phrasing that could have leaked DSP output into draw membership.
 

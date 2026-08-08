@@ -10,7 +10,7 @@ Establish whether the thirty-point gap between our ML model (348/661 GiantSteps 
 
 - Story 12.1: Consumer-specifiable tempo search range — **done** (merged into rterhaar/epic-12)
 - Story 12.2: Style-classifier decision — **done** (outcome: reject; SMC hard-bound replication addendum ran and was negative)
-- Story 12.3: Annotation-version tagging and the octave-error metric — **done** 2026-08-08 (commits 0fb914b/4b66b75 on rterhaar/12-3-annotation-version-tagging-impl, not yet PR'd)
+- Story 12.3: Annotation-version tagging and the octave-error metric — **done** 2026-08-08 (PR #195, squash-merged into rterhaar/epic-12 as 255a159)
 - Story 12.4: Reproduce the TempoCNN reference baseline (Gate 0) — **done**; Gate 0 did NOT fire (reference reproduced at 545/661; verdict gap-attributable-to-our-model)
 - Story 12.5: Pipeline differential and cause ranking — **done** (FR-58 ranking recorded)
 - Story 12.6: Metrical-level convention and the ground-truth rule — **next** (backlog)
