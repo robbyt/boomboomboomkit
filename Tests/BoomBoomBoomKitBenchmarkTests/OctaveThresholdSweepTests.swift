@@ -215,9 +215,9 @@ struct OctaveThresholdSweepTests {
       print("GiantSteps ground truth not found at \(jsonPath); skipping confirmation pass.")
       return
     }
-    let gt = try GiantStepsTrack.loadVersionedCorpus(
-      from: Data(contentsOf: URL(fileURLWithPath: jsonPath))
-    ).tracks
+    let versionedCorpus = try GiantStepsTrack.loadVersionedCorpus(
+      from: Data(contentsOf: URL(fileURLWithPath: jsonPath)))
+    let gt = versionedCorpus.tracks
 
     let defaultPoint = ThresholdPoint(
       energy: BPMAnalyzer.octaveEnergyThreshold, score: BPMAnalyzer.octaveScoreThreshold)
@@ -238,6 +238,7 @@ struct OctaveThresholdSweepTests {
     }
 
     print("\n=== Story 12.1 AC #1 — GiantSteps confirmation pass ===")
+    print("GiantSteps annotation version: \(versionedCorpus.annotationVersion)")
     print("Points: \(points.map(\.label).joined(separator: "  |  "))")
 
     let result = await Self.sweepGiantSteps(

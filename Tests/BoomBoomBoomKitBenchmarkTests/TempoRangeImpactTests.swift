@@ -834,9 +834,10 @@ struct SMCPriorReplicationTests {
     guard FileManager.default.fileExists(atPath: jsonPath) else {
       throw ReplicationError.groundTruthNotFound(jsonPath)
     }
-    let corpus = try GiantStepsTrack.loadVersionedCorpus(
-      from: Data(contentsOf: URL(fileURLWithPath: jsonPath))
-    ).tracks
+    let versionedCorpus = try GiantStepsTrack.loadVersionedCorpus(
+      from: Data(contentsOf: URL(fileURLWithPath: jsonPath)))
+    print("GiantSteps annotation version: \(versionedCorpus.annotationVersion)")
+    let corpus = versionedCorpus.tracks
     let tracks = corpus.map { track in
       ReplicationTrack(
         id: track.filename, genre: track.genre, truthBPM: track.bpm,

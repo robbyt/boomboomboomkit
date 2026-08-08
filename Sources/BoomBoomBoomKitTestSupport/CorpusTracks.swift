@@ -96,8 +96,11 @@ public struct VersionedCorpus<Track: Sendable>: Sendable {
 /// nested `track_id` is only 80/82). A missing `local_path` fails loudly — the digest
 /// would silently drop the row otherwise. NEVER reads `file_metadata.jams_version`
 /// (the JAMS FORMAT version — identical across any re-annotation).
+/// `alternateTempo` lets a corpus fold a second per-row tempo signal into the
+/// digest (the DAW oracle passes `sandbox.rekordbox_bpm`); default is none.
 private func resolveJAMSAnnotationVersion(
-  _ corpus: JAMSCorpus, corpusName: String
+  _ corpus: JAMSCorpus, corpusName: String,
+  alternateTempo: (JAMSFile) -> Double? = { _ in nil }
 ) throws -> AnnotationVersion {
   var declared: [String] = []
   var rows: [AnnotationVersion.AnnotationRow] = []
@@ -115,7 +118,7 @@ private func resolveJAMSAnnotationVersion(
       AnnotationVersion.AnnotationRow(
         stableRowID: rowID,
         primaryTempo: try entry.tempoBPM(),
-        alternateTempo: nil,
+        alternateTempo: alternateTempo(entry),
         genre: entry.sandbox?.genre))
   }
   return try AnnotationVersion.resolve(declaredVersions: declared, corpus: corpusName, rows: rows)
@@ -260,12 +263,17 @@ extension DAWOracleTrack {
   }
 
   /// Decode the DAW oracle plus its resolved ``AnnotationVersion`` (Story 12.3).
+  /// The digest folds `sandbox.rekordbox_bpm` into each row's `alternateTempo`,
+  /// so an oracle regeneration that changes only the Rekordbox cross-check
+  /// values mints a new tag.
   public static func loadVersionedCorpus(from data: Data) throws
     -> VersionedCorpus<DAWOracleTrack>
   {
     let corpus = try JSONDecoder().decode(JAMSCorpus.self, from: data)
     let tracks = try corpus.entries.map(DAWOracleTrack.init(jamsFile:))
-    let version = try resolveJAMSAnnotationVersion(corpus, corpusName: "daw-oracle")
+    let version = try resolveJAMSAnnotationVersion(
+      corpus, corpusName: "daw-oracle",
+      alternateTempo: { $0.sandbox?.rekordboxBpm })
     return VersionedCorpus(tracks: tracks, annotationVersion: version)
   }
 }

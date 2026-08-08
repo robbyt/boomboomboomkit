@@ -211,6 +211,10 @@ public struct AnnotationVersion: Sendable, Hashable, Codable, CustomStringConver
 
   /// Parses a rendered tag. `nil` when the string is not a well-formed tag —
   /// unnamespaced values, malformed hex, or forged declared payloads all fail.
+  /// The `declared:` payload must already be CANONICAL: a payload that is not
+  /// its own whitespace-trimmed self (or otherwise fails `declared(_:)`
+  /// validation) is rejected rather than normalized, so parsing never mints a
+  /// tag string different from its input. Only `declared(_:)` construction trims.
   public init?(parsing raw: String) {
     if raw == "untagged" {
       self.init(validatedTag: raw)
@@ -218,7 +222,7 @@ public struct AnnotationVersion: Sendable, Hashable, Codable, CustomStringConver
     }
     if raw.hasPrefix(Self.declaredPrefix) {
       let value = String(raw.dropFirst(Self.declaredPrefix.count))
-      guard let parsed = try? Self.declared(value) else { return nil }
+      guard let parsed = try? Self.declared(value), parsed.tag == raw else { return nil }
       self = parsed
       return
     }

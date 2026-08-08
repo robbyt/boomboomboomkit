@@ -83,10 +83,11 @@ struct OA300BenchmarkTests {
     print(
       "Acc2: \(String(format: "%.1f", metrics.acc2))% (\(metrics.acc2Correct)/\(metrics.total))")
     // Story 12.3 (FR-61): the octave-error proxy as a named figure, not a reader derivation.
+    // One-line form: OA300 has no alternate annotation, so floor and strict coincide.
     let tally = try AccuracyTally(
       acc1: metrics.acc1Correct, acc2: metrics.acc2Correct, total: metrics.total,
       annotationVersion: annotationVersion)
-    print("Acc2-Acc1 (octave-error proxy): \(tally.formattedOctaveErrorProxy)")
+    for line in tally.formattedProxyLines() { print(line) }
     if !metrics.failures.isEmpty {
       print("\nAcc1 Failures:")
       print("| Track | Expected | Got | Delta% |")

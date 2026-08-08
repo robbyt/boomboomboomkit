@@ -481,6 +481,21 @@ Judgment calls made during the implementation run, none contradicting the contra
   - `[low]` `[patch]` New unit tests covering every guard above, including a three-ordering digest-determinism test with a non-ASCII row ID.
   - Rejected (spec-conformant design or unreachable): digest row tuple excludes beat annotations and GiantSteps filename (the canonical row is pinned by this spec); partial declared-version resolution follows the spec's agreeing-set rule; tally/reporter proxy render differ deliberately (prose line vs table cell); reporter column overflow needs a >999-track bucket; throwing tally on acc1>acc2 is structurally unreachable at call sites; `loadCorpus` wrapper's loud-fail on missing local_path is the spec's own choke-point contract.
 
+### 2026-08-08 -- PR #195 review pass (7 inline findings, fact-checked individually)
+- intent_gap: 0
+- bad_spec: 0
+- patch: 7: (high 0, medium 2, low 5)
+- defer: 0
+- reject: 0
+- addressed_findings:
+  - `[medium]` `[patch]` No golden-vector test pinned the canonical digest byte stream; every digest test was self-referential, so a canonicalization change would silently re-mint every `sha256:` tag. Added a test pinning the exact 64-hex tag for a fixed two-row input, commented that changing the byte stream requires a `.v2` domain-prefix bump.
+  - `[medium]` `[patch]` The GiantSteps headline labelled a floor-based Acc2-Acc1 as "the octave-error proxy" while the floor metric is near-blind to octave behaviour. `runBenchmark` now also tallies primary-only strict verdicts and every GiantSteps headline prints both, labelled floor-compatible and primary-strict (at the committed floors: floor 9 / 1.4 pp, strict 60 / 9.1 pp).
+  - `[low]` `[patch]` `try?` in the perf-benchmark GiantSteps pass swallowed the versioned loader's typed failures and blamed the env var; the skip line now prints the actual error.
+  - `[low]` `[patch]` The DAW-oracle digest row omitted `rekordbox_bpm`, so a regenerated oracle with corrected cross-check values minted an identical tag; `rekordboxBpm` now feeds `alternateTempo`. Latent: no committed artifact records a DAW tag (verified by grep).
+  - `[low]` `[patch]` `init?(parsing:)` normalized padded `declared:` payloads instead of failing; the parsing path now rejects non-canonical payloads while `declared(_:)` construction keeps trimming. Tests added.
+  - `[low]` `[patch]` Decode-time schema-2 normalization left `schemaVersion: 2` on a record now carrying the field, so a re-encode round-trip would poison the file for this same decoder; normalization now bumps the decoded record to schema 3. Round-trip test added.
+  - `[low]` `[patch]` The two harnesses that discarded the resolved tag now print it in their output headers, and the four copy-pasted tally print blocks collapsed into a shared `AccuracyTally` headline helper (which also gave the strict-proxy line a single home).
+
 ## Verification
 
 **Commands:**

@@ -216,6 +216,39 @@ struct AnnotationVersionTests {
     #expect(a == c)
   }
 
+  // Golden-vector pin: the exact digest for a small FIXED input. Any change to
+  // the canonical byte stream (domain prefix, sort order, length prefixes,
+  // float canonicalization, optional markers) breaks this test — that is the
+  // point. Changing the canonical byte stream requires bumping the domain
+  // prefix to `.v2`, never silently re-minting tags.
+  @Test("golden vector: the exact sha256 tag for a fixed two-row input is pinned")
+  func goldenVectorDigestPinned() throws {
+    let fixedRows = [
+      AnnotationVersion.AnnotationRow(
+        stableRowID: "a.wav", primaryTempo: 120.0, alternateTempo: nil, genre: "techno"),
+      AnnotationVersion.AnnotationRow(
+        stableRowID: "b.wav", primaryTempo: 174.0, alternateTempo: 87.0, genre: "drum-and-bass"),
+    ]
+    let v = try AnnotationVersion.contentDigest(corpus: "golden", rows: fixedRows)
+    #expect(
+      v.tag == "sha256:78f32fae72962686dfb0c0f794e33cfe028bce30f2d734e3c4202326da5166c5")
+  }
+
+  @Test("parsing rejects a non-canonical declared payload instead of normalizing")
+  func parsingRejectsNonCanonicalDeclaredPayload() {
+    #expect(AnnotationVersion(parsing: "declared:  v2 ") == nil)
+    #expect(AnnotationVersion(parsing: "declared: v2") == nil)
+    #expect(AnnotationVersion(parsing: "declared:v2\n") == nil)
+  }
+
+  @Test("canonical declared tags still round-trip through parsing")
+  func canonicalDeclaredRoundTripsThroughParsing() throws {
+    let constructed = try AnnotationVersion.declared("  v2 \n")
+    #expect(constructed.tag == "declared:v2")
+    let parsed = try #require(AnnotationVersion(parsing: constructed.tag))
+    #expect(parsed == constructed)
+  }
+
   // MARK: - Codable (validating)
 
   @Test("untagged round-trips as a first-class value")

@@ -159,8 +159,14 @@ extension BaselineRecord {
       // schemaVersion N" instead of "malformed baseline file".
       throw AccuracyRecordSchema.SchemaError.unsupportedSchemaVersion(schema)
     }
+    // A schema-2 record decodes with `.untagged` filled in (see
+    // resolvingAnnotationVersions below), so the decoded record already
+    // satisfies the schema-3 shape; bump its schemaVersion to match so a
+    // re-encode is self-consistent rather than claiming schema 2 while
+    // carrying the field schema 2 forbids.
     self.init(
-      schemaVersion: schema,
+      schemaVersion: schema == AccuracyRecordSchema.previous
+        ? AccuracyRecordSchema.current : schema,
       recordedAt: try c.decode(String.self, forKey: .recordedAt),
       gitSHA: try c.decode(String.self, forKey: .gitSHA),
       buildConfiguration: try c.decode(String.self, forKey: .buildConfiguration),
@@ -694,9 +700,12 @@ struct PerformanceBenchmarkTests {
     guard FileManager.default.fileExists(atPath: jsonPath) else {
       return nil
     }
-    guard let data = try? Data(contentsOf: URL(fileURLWithPath: jsonPath)),
-      let versioned = try? GiantStepsTrack.loadVersionedCorpus(from: data)
-    else {
+    let versioned: VersionedCorpus<GiantStepsTrack>
+    do {
+      let data = try Data(contentsOf: URL(fileURLWithPath: jsonPath))
+      versioned = try GiantStepsTrack.loadVersionedCorpus(from: data)
+    } catch {
+      print("GiantSteps accuracy pass skipped: \(error)")
       return nil
     }
     let tracks = versioned.tracks
@@ -1100,8 +1109,23 @@ struct BaselineStoreUnitTests {
     let read = try #require(history.first)
     #expect(read.recordedAt == original.recordedAt)
     #expect(read.gitSHA == original.gitSHA)
-    #expect(read.schemaVersion == original.schemaVersion)
+    // The stub is a schema-2 record; decode fills `.untagged` and bumps the
+    // decoded schemaVersion to 3 so the record is self-consistent on re-encode.
+    #expect(read.schemaVersion == AccuracyRecordSchema.current)
     #expect(read.wallClock.meanSeconds == original.wallClock.meanSeconds)
+  }
+
+  @Test("schema-2 decode normalizes to a self-consistent schema-3 record on re-encode")
+  func schema2DecodeReencodeRoundTrip() throws {
+    let decoded = try JSONDecoder().decode(
+      BaselineRecord.self, from: Data(Self.stubRecordJSON(schemaVersion: 2).utf8))
+    #expect(decoded.schemaVersion == AccuracyRecordSchema.current)
+    #expect(decoded.accuracy.oa300.annotationVersion == .untagged)
+
+    let reencoded = try JSONEncoder().encode(decoded)
+    let redecoded = try JSONDecoder().decode(BaselineRecord.self, from: reencoded)
+    #expect(redecoded.schemaVersion == AccuracyRecordSchema.current)
+    #expect(redecoded.accuracy.oa300.annotationVersion == .untagged)
   }
 
   @Test("write atomicity — temp file absent post-write")

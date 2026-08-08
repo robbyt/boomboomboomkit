@@ -48,6 +48,22 @@ public struct AccuracyTally: Sendable {
   public var formattedOctaveErrorProxy: String {
     "\(octaveErrorProxy) (\(String(format: "%.1f", octaveErrorProxyPercentagePoints)) pp)"
   }
+
+  /// The shared headline line(s) for the octave-error proxy (Story 12.3 review).
+  /// Without a strict tally: the single-corpus one-line form (OA300, which has no
+  /// alternate annotation, so floor and strict coincide and the label claims
+  /// neither). With `strict`: the two-line GiantSteps form, both readings
+  /// clearly labelled — `self` is the floor-compatible tally, `strict` the
+  /// primary-annotation-only one.
+  public func formattedProxyLines(strict: AccuracyTally? = nil) -> [String] {
+    guard let strict else {
+      return ["Acc2-Acc1 (octave-error proxy): \(formattedOctaveErrorProxy)"]
+    }
+    return [
+      "Acc2-Acc1 octave-error proxy (floor-compatible): \(formattedOctaveErrorProxy)",
+      "Acc2-Acc1 octave-error proxy (primary-strict): \(strict.formattedOctaveErrorProxy)",
+    ]
+  }
 }
 
 // MARK: - Shared MIREX verdict
