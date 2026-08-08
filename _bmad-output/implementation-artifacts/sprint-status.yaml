@@ -343,11 +343,11 @@ development_status:
   11-6-demo-strategy-popovers-wired-to-documentedcase-docs: review
   epic-11-retrospective: done
   epic-12: in-progress
-  12-1-consumer-specifiable-tempo-search-range: review
+  12-1-consumer-specifiable-tempo-search-range: done
   12-2-style-classifier-scope-or-defer-decision: done
   12-3-annotation-version-tagging-and-octave-error-metric: ready-for-dev
   12-4-tempocnn-reference-baseline-gate-0: done
-  12-5-pipeline-differential-and-cause-ranking: backlog
+  12-5-pipeline-differential-and-cause-ranking: done
   12-6-metrical-level-convention-and-ground-truth-rule: backlog
   12-7-band-balanced-258-track-corpus: backlog
   12-8-bin-schema-public-contract: backlog
