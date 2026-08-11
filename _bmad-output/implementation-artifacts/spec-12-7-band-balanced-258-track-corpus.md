@@ -5,7 +5,7 @@ created: '2026-08-08'
 status: 'blocked' # PR #197 review: re-mint blocked on two machine-readable operator decisions (short-band allocation, cross-band duplicate rule) + the Phase 2 fingerprint review; then operator hand-verification
 review_loop_iteration: 0
 baseline_revision: '31d772e' # rterhaar/epic-12 tip (#196 squash-merge)
-final_revision: '202d60a' # implementation commit; this reference recorded in a follow-up commit
+final_revision: 'c2865b7' # PR #197 Phase 1 rework (2026-08-10); original run was 202d60a
 followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-12-context.md'
