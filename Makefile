@@ -603,9 +603,18 @@ pool-durations:
 repair-mix-manifests:
 	uv run --project $(ML_TRAINING_DIR) python scripts/repair-mix-manifests.py
 
-## eval-corpus-pools: Story 12.7 -- build and commit the banded candidate pools for the 258-track evaluation corpus per the signed section-2 protocol (face-value banding, FR-59a.2 exclusion, seeded draw sequences). Row-level pools stay gitignored under _bmad-output/ml-training/eval-corpus/; the committed 12-7-candidate-commitment.{json,md} carries counts, seeds, and digests only. Nonzero exit if any band is below 43 candidates (operator escalation, no auto-extension). Develop-only.
+## eval-corpus-prepare-review: Story 12.7 -- stage 1 of the MANDATORY pre-commitment fingerprint review the signed section-2 exclusion rule requires. Emits the review flag set (candidate audio matching a training recording at or above the DD #3 review cosine, plus conservative GiantSteps normalized-title collisions) and a disposition template. The algorithm only flags; a recorded human disposition is what excludes, and minting is blocked until every flag carries one. Both files stay gitignored under _bmad-output/ml-training/eval-corpus/. Develop-only.
+.PHONY: eval-corpus-prepare-review
+eval-corpus-prepare-review:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py prepare-review
+
+## eval-corpus-pools: Story 12.7 -- build and commit the banded candidate pools for the 258-track evaluation corpus per the signed section-2 protocol (face-value banding, FR-59a.2 metadata AND fingerprint exclusion, content-bound rows, seeded draw sequences). Refuses while the commitment on record is superseded, while any fingerprint review flag is unadjudicated, or while the two operator decisions (short-band allocation, cross-band duplicate rule) are absent as machine-readable input. Row-level pools stay gitignored under _bmad-output/ml-training/eval-corpus/; the committed 12-7-candidate-commitment.{json,md} carries counts, seeds, and named digests only. Exit 4 on operator escalation, 2 on input drift, 3 on a privacy-gate violation. Develop-only.
 .PHONY: eval-corpus-pools
 eval-corpus-pools:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py commit-pools $(if $(SEED),--seed $(SEED),)
 
 ## eval-corpus-batch: Story 12.7 -- stage the next blinded annotation batch for BAND= (opaque row IDs, copied audio, worklist with row_id + staged path only). Optional BATCH= (validated against sequence) and SIZE= (default 40). Develop-only.
@@ -631,16 +640,42 @@ ifndef ANNOTATIONS
 endif
 	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py ingest --band "$(BAND)" --batch $(BATCH) --annotations "$(ANNOTATIONS)"
 
-## eval-corpus-audit: Story 12.7 -- fail-closed audit: FR-59a.1 no-DSP-field assertion over every membership input, FR-59a.2 residual cross-corpus overlap, duplicate check, and the oa300 18-vs-14 row-basis reconciliation report. Nonzero exit on any assertion failure. Develop-only.
+## eval-corpus-abandon: Story 12.7 -- record BAND= BATCH= as abandoned. The signed rule is that an abandoned batch yields no members; this appends an append-only ledger event so the batch contributes no annotations and no membership, and the draw-sequence span it consumed is never re-staged. Pass FORCE=1 to discard an existing annotation record. Develop-only.
+.PHONY: eval-corpus-abandon
+eval-corpus-abandon:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-abandon BAND=100-120 BATCH=0)
+endif
+ifndef BATCH
+	$(error BATCH is not set. Usage: make eval-corpus-abandon BAND=100-120 BATCH=0)
+endif
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py abandon --band "$(BAND)" --batch $(BATCH) $(if $(REASON),--reason "$(REASON)",) $(if $(FORCE),--force,)
+
+## eval-corpus-status: Story 12.7 -- per-band membership progress plus the observed keeper rate and the ceil(43/rate) review estimate the signed re-plan checkpoint consumes. Validates every batch record against the committed draw sequence first. Develop-only.
+.PHONY: eval-corpus-status
+eval-corpus-status:
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py status
+
+## eval-corpus-audit: Story 12.7 -- fail-closed audit, shared by emit-manifest and signoff: annotation-ledger integrity, canonical batch-record validation, FR-59a.1 no-DSP-field assertion over every membership input, FR-59a.2 residual cross-corpus overlap over EVERY candidate (GiantSteps coverage is required, not optional), cross-band duplicate check, and the oa300 18-vs-14 row-basis reconciliation report. Nonzero exit on any assertion failure, including an absent or superseded commitment. Develop-only.
 .PHONY: eval-corpus-audit
 eval-corpus-audit:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py audit
 
-## eval-corpus-manifest: Story 12.7 -- emit the JAMS corpus manifest (section-5 annotation-version tag, octave-sentinel tags, 175+ degeneracy note). Refuses while any band is below 43 members and prints per-band progress instead. Develop-only.
+## eval-corpus-manifest: Story 12.7 -- emit the JAMS corpus manifest (section-5 annotation-version tag, octave-sentinel tags joined fingerprint-first per the signed section-3 rule, 175+ degeneracy note). Refuses while any band is below 43 members and prints per-band progress instead, and refuses unless the shared audit is clean. Develop-only.
 .PHONY: eval-corpus-manifest
 eval-corpus-manifest:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py emit-manifest
+
+## eval-corpus-signoff: Story 12.7 -- record the signoff ATTESTATION that train.py validates. Runs the shared audit and refuses unless it is clean and every band holds its full membership, then writes 12-7-signoff-attestation.json bound to the active commitment digest and the annotation-ledger head. Editing the REVIEWER_SIGNOFF marker by hand does not produce one. Develop-only.
+.PHONY: eval-corpus-signoff
+eval-corpus-signoff:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py signoff
 
 ## q9-ratio-cluster: Epic 12 Q9 — emit q9-ratio-cluster-v1.json, the tracked evidence artifact behind q9-ratio-cluster-2026-08-01.md. Derived from the gitignored non-rekordbox-survey.json, which cannot be committed (a complete private-collection inventory: absolute roots, per-file BPM signals, audio hashes), so this is the repository-only auditable substitute. Counts only; a recursive privacy allowlist stops the aggregate becoming a row-level dump or carrying an absolute root before the file is written. Run with --check to verify the committed aggregate still matches the survey, or --audit-prose to report any figure in the artifact with no backing value in the aggregate. Develop-only.
 .PHONY: q9-ratio-cluster

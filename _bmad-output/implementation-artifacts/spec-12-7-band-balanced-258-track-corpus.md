@@ -2,7 +2,7 @@
 title: 'Story 12.7: Build the 258-track band-balanced corpus (construction harness)'
 type: 'feature'
 created: '2026-08-08'
-status: 'blocked' # on operator hand-verification + the fallback addendum for the four short bands
+status: 'blocked' # PR #197 review: re-mint blocked on two machine-readable operator decisions (short-band allocation, cross-band duplicate rule) + the Phase 2 fingerprint review; then operator hand-verification
 review_loop_iteration: 0
 baseline_revision: '31d772e' # rterhaar/epic-12 tip (#196 squash-merge)
 final_revision: '202d60a' # implementation commit; this reference recorded in a follow-up commit
@@ -172,7 +172,68 @@ degeneracy note, and the KDD-B4-pattern fail-closed signoff gate wired into `tra
   - 13 low patches: non-finite bpm parse error; oa300 bpm-key guard; atomic md write; `--size` validation + interrupted-copy repair; schema-access guards; conflicting `--seed` error; non-numeric stored bpm guard; mid-string audio-extension regex; bidirectional duplicate registration; train.py gate message names the fallback-addendum stall; short-bands framing strengthened in both committed artifacts with per-band shortfall numbers; record-then-stage ordering; verify/restore output prints both digests
   - Rejected: band-visible row IDs (the signed protocol's stated per-track-only blinding residual), surplus-duplicate membership loss (unreachable given sequence ordering), Makefile exit-code aggregation note, train.py read_text traceback shape (fails closed regardless)
 
+### 2026-08-10 -- PR #197 review (Copilot inline + suppressed, verified, then Codex pressure-test)
+
+18 findings, all upheld. 0 rejected. 2 dispositions from the 2026-08-08 pass
+REVERSED. Phase 1 (findings 1, 3, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17,
+the real fingerprint sentinel join, and the machinery for 5) lands here; the
+fingerprint review RUN and the re-mint are Phase 2, blocked on two operator
+decisions.
+
+- intent_gap: 0
+- bad_spec: 0
+- patch: 16
+- defer: 1 (the fingerprint review run, finding 5's execution, deliberately Phase 2)
+- open: 1 (finding 18, short-band allocation, operator decision)
+- reject: 0
+- reversed_prior_dispositions:
+  - Position-encoding row IDs, rejected on 2026-08-08 as covered by the signed
+    per-track-only blinding residual. That reasoning considered band visibility
+    and not draw POSITION: `e<band>-<position>-<salt>` plus a sequence-ordered
+    worklist tells an annotator who knows the first-43 rule which rows are likely
+    members. Row IDs are now `e<band>-<12 random hex>` and the within-batch work
+    order is randomized, which the protocol explicitly permits.
+  - Two review patches from that pass were themselves defects. Patch 17's
+    duplicate registration covered every annotated row, so an earlier
+    audio-defect rejection (a property of the FILE) suppressed a later clean copy
+    of the same recording, which the short bands cannot afford; registration now
+    happens only after a row survives keep/reject including duplicate
+    resolution, and its correct bidirectional-tag half survives. The
+    "compensated by the audit fingerprint pass" sentence written into both
+    committed commitment artifacts named a control that did not exist.
+- addressed_findings:
+  - `[high]` `[patch]` Commitment did not detect INPUT drift: `pools_doc`/`draws_doc` were regenerated from today's inputs and then discarded, so a changed survey or manifest printed "commitment verified". Both regenerated documents are now hashed against the recorded digests (drift, exit 2) in addition to the on-disk files (tamper).
+  - `[high]` `[patch]` Annotation state had no tamper evidence at all: batches, annotations, and membership live under the gitignore and `_load_all_annotations` merged whatever it globbed. Now an append-only ledger binds each batch by digest to the active commitment, membership is ledger-driven, and the head digest is committed to git (digests and counts only).
+  - `[high]` `[patch]` The signed section-2 audio-fingerprint exclusion route was absent, and the section-3 sentinel join used a raw byte hash plus basename so re-encodes were missed. Fingerprint is now a mandatory two-stage pre-commitment gate (`prepare-review` generates flags, `commit-pools` refuses until every flag carries a recorded human disposition) and the sentinel join is fingerprint-first behind an injectable function. DD #3 constrains fingerprint from being the sole AUTOMATIC signal; it does not make the route optional.
+  - `[high]` `[patch]` The audit printed "clean" after skipping the GiantSteps pass, including when `GIANTSTEPS_CORPUS_PATH` was merely unset. Now a hard failure, matching `scripts/audit-corpus-splits.py:221`.
+  - `[high]` `[patch]` `emit-manifest` and the signoff marker required no clean audit. The audit is extracted into a shared routine that gates both, and signoff is now an attestation bound to the commitment digest and the ledger head, which `train.py` validates instead of the human-editable marker text.
+  - `[medium]` `[patch]` Batch records were never validated against the committed sequence (`start` derived from prior record lengths only). One canonical validator now checks filename index, band, batch, start, size, the exact slice, the work-order permutation, and the contiguous prefix, and every consumer uses it.
+  - `[medium]` `[patch]` Staging verified size, not content, so an equal-size substitution passed and was silently recopied as a refresh. Rows are content-bound at mint (Tony and OA300 included, closing the identifier-only binding) and a source that does not hash to the committed digest hard-fails.
+  - `[medium]` `[patch]` The FR-59a.2 residual pass ran over members only, which is vacuous while membership is empty. It now covers every candidate; GiantSteps title hits are treated as unresolved review flags that block certification until adjudicated, because `normalize_track_key` drops suffixes and parenthesized material.
+  - `[medium]` `[patch]` The privacy gate was pattern-based, so it accepted arbitrary keys and screened only string values: a track title passed. The exact key schema of each committed artifact is now asserted, with the value screens kept as defense in depth.
+  - `[medium]` `[patch]` No abandoned-batch state existed. `abandon` appends a ledger event whose batch contributes no annotations and no members, and whose consumed span is never re-staged.
+  - `[medium]` `[patch]` Command-level acceptance criteria were untested; the suite was self-described pure-logic and nothing invoked `cmd_stage_batch`, `cmd_ingest`, `cmd_audit`, or `cmd_emit_manifest`. Both ACs were marked satisfied on 2026-08-08 and were not. The suite now drives every subcommand over a synthetic corpus in `tmp_path` with an injected fingerprint function.
+  - `[medium]` `[patch]` Cross-band duplicates had no defined winner: membership is per band while cross-band duplication was only discovered afterward by the audit, and the signed draw-sequence tie-break orders rows within a band only. The harness implements both candidate policies, refuses to mint until the operator records one, and `prepare-review` now emits `cross-band-recording` flags (candidate pairs in different bands whose fingerprints match) so the decision rests on evidence and `pre-commitment-recording-dedup` has recording groups to collapse on; a byte digest cannot see a half-tempo and a full-tempo encode of one recording.
+  - `[low]` `[patch]` The 2026-08-08 commitment is marked `status: superseded` with a dated note and is retained, not deleted; supersession is ENFORCED in code, with every consumer refusing.
+  - `[low]` `[patch]` Both committed commitment artifacts now say precisely what compensates the pool-side artist-exclusion gap, and say plainly that nothing compensated it in the superseded record.
+  - `[low]` `[patch]` The short-bands paragraph in the commitment record no longer presents the signed fallback addendum as the next action; it states that the fallback set is empty by construction with the per-band recoverable counts.
+  - `[medium]` `[patch]` Found while building the command-level suite: the new fingerprint comparisons used RAW timbral cosine. `corpus_common` records that raw vectors are near-degenerate (an earlier signature scored ~1.0 between unrelated dense electronic tracks) and `scripts/audit-corpus-splits.py` standardizes per dimension across the cohort before cosine; without it the review would have flagged most of the corpus. All three comparison sites now standardize against their cohort, and the sentinel join standardizes a member against the legacy cohort's own statistics. A cohort too small to estimate scale is left raw rather than centred to zero.
+  - `[low]` `[patch]` The Phase-2 review would have re-decoded every candidate and every training row. The default fingerprint function now memoizes per path and reads and writes the method-versioned npz cache the audit already maintains, degrading to recomputation if numpy or the cache is unavailable.
+  - `[low]` `[patch]` Four Makefile targets added (`eval-corpus-prepare-review`, `eval-corpus-abandon`, `eval-corpus-status`, `eval-corpus-signoff`); the pools, audit, manifest, and signoff targets now pass both corpus paths.
+- superseded_statements: the Auto Run Result section below predates this pass. Its
+  "Audit outcome: clean" line described the superseded commitment, its residual-risk
+  sentence names the non-existent compensating fingerprint pass corrected above, and
+  its verification counts (55 new tests, 170 scripts-tests) are superseded by this
+  pass's numbers. The section is left as the record of the 2026-08-08 run.
+
 ## Auto Run Result
+
+> **Amended 2026-08-10 after the PR #197 review.** The record of the original
+> run is retained below unchanged (amend, never erase), but several of its
+> statements no longer hold. Read the amendment that follows it before relying
+> on anything in it: the commitment it describes is now `superseded`, the
+> compensating control it names never existed, and two of its verification
+> claims were wrong.
 
 Status: `blocked` on operator hand-verification (by design -- the spec's Never
 section and the 12.6 precedent: the 43x6 corpus ACs are operator DAW work).
@@ -226,26 +287,80 @@ rows (pool has no artist field; recorded limitation, compensated by the audit
 fingerprint pass); keeper rates unmeasured until the first completed batch (the
 signed re-plan checkpoint).
 
+### Amendment 2026-08-10 (PR #197 review): what above no longer holds
+
+- **"compensated by the audit fingerprint pass" was false.** No fingerprint
+  pass existed anywhere in the harness. The signed section-2 exclusion rule and
+  the section-3 sentinel join both require one; neither had it. The artist gap
+  was uncompensated, and the same false sentence had been generated into both
+  committed commitment artifacts.
+- **The commitment is now `status: superseded`** and every subcommand refuses to
+  operate on it. It was minted without the mandatory pre-commitment fingerprint
+  review, its row IDs encode draw position, and its Tony and OA300 rows are
+  bound only by identifier and filename rather than by audio content.
+- **"the signed fallback is the operator's next action" understated the
+  problem.** The fallback is empty by construction: Tony and OA300 rows are
+  already in the initial pool and are also the fallback source. Recoverable rows
+  are +25 for 100-120, +44 for 120-140, and **zero** for 160-175 and 175-plus.
+  This is now one of two machine-readable operator decisions the harness
+  requires before it will mint.
+- **"`make eval-corpus-audit` clean" certified nothing.** The residual-overlap
+  pass ran over members only (there were none), and an unresolvable GiantSteps
+  ground truth was downgraded to a warning before printing "audit clean".
+- **Two acceptance criteria were marked satisfied that no test exercised** --
+  the `stage-batch` then `ingest` criterion and the `emit-manifest`
+  complete-vs-incomplete criterion. The suite was pure-logic only. It now runs
+  115 tests including command-level coverage.
+- **Test counts above are stale:** 55 became 115 in this suite, and
+  `make scripts-tests` reports 230.
+
 ## Design Notes
 
 - **Commitment without publication:** the signed protocol requires the candidate list be
   committed before verification, but the pool inventory is private (q9 lesson). The
   mechanism: full row-level pools + draw sequences in one gitignored JSON; a committed
   artifact carries its SHA-256 + counts + seeds. Any later tampering with the row-level
-  file breaks the digest; re-running `commit-pools` verifies instead of overwriting.
+  file breaks the digest. Re-running `commit-pools` verifies instead of overwriting, and
+  (2026-08-10) verifies in BOTH directions: the documents re-derived from today's inputs
+  must hash to the recorded digests, not only the files on disk, or a changed source
+  input would verify silently.
 - **Primary pools = union of all three sources** banded by face value (AC1 "drawn
   across"), with FR-59a.2 exclusions applied. The signed exhaustion fallback (Tony
-  as-entered, then OA300) applies to rows NOT in the primary pools only if a band was
-  sourced pool-only; since the union already includes Tony/OA300 face-value rows, the
-  fallback's practical role is the operator-escalation path — implement exhaustion as
-  HALT + escalate exactly as signed, no auto-extension.
-- **Artist exclusion asymmetry is recorded, not solved:** pool rows carry no artist
-  string; artist-based FR-59a.2 exclusion is only enforceable for Tony rows. The
-  commitment artifact states this; the audit's fingerprint pass (existing cache,
-  report-only precedent) is the compensating check.
-- **Opaque row IDs:** `e<band-index>-<zero-padded sequence position>-<4-hex salt>` derived
-  from the seeded PRNG at commitment — stable, meaningless to the annotator, join key for
-  ingest.
+  as-entered, then OA300) draws from sources the union already contains, so the fallback
+  set is EMPTY BY CONSTRUCTION and cannot extend a short band; it recovers at most 25
+  rows for 100-120, 44 for 120-140, and zero for 160-175 and 175-plus. That makes the
+  short-band shortfall an operator decision (a precommitted primary allocation plus
+  reserves, or shrinking the corpus), supplied as machine-readable input, and never an
+  auto-extension.
+- **Artist exclusion asymmetry is recorded, and now actually compensated:** pool rows
+  carry no artist string, so artist-based FR-59a.2 exclusion is only enforceable for Tony
+  rows. The compensating control is the mandatory pre-commitment fingerprint review, which
+  covers every candidate against the training manifests by audio content and excludes
+  confirmed matches before minting. The 2026-08-08 wording named an "audit fingerprint
+  pass" that did not exist; the residual gap that remains is a training track by the same
+  artist that is a DIFFERENT recording, which artist-string exclusion would have removed
+  and fingerprinting deliberately does not.
+- **Opaque row IDs:** `e<band-index>-<12 random hex>` drawn from the seeded PRNG at
+  commitment. Stable, meaningless to the annotator, join key for ingest, and
+  position-independent: the earlier `e<band>-<zero-padded position>-<salt>` form plus a
+  sequence-ordered worklist told an annotator who knows the first-43 rule which rows were
+  likely members. The within-batch work order is randomized for the same reason; the
+  signed protocol permits any within-batch order.
+- **Two-stage fingerprint gate:** `prepare-review` generates the flags and a disposition
+  template; `commit-pools` consumes and validates the filled template. Splitting it this
+  way means a mint can never demand dispositions that were never generated, and each
+  disposition set is bound to the candidate-universe digest, the fingerprint method
+  version, and the training-input digest so a changed allocation cannot reuse stale
+  adjudications.
+- **Annotation ledger:** append-only, one event per completed, replaced, or abandoned
+  batch, each binding the active commitment digest, the batch record, the work order, the
+  annotation record, and the previous head; the head digest and counts are committed.
+  Membership reads the ledger rather than globbing a directory. It provides INTEGRITY,
+  not backup or recovery: it detects editing, deletion, reordering, and stale-file reuse,
+  and cannot restore a label that these annotations cannot regenerate.
+- **Signoff is an attestation, not a marker:** `signoff` runs the shared audit and records
+  a digest bound to the active commitment and the ledger head. `train.py` validates that
+  attestation, so hand-editing `REVIEWER_SIGNOFF` buys no training run.
 - **`status` subcommand** prints the per-band progress + keeper-rate estimate after each
   completed batch (the signed re-plan checkpoint input: ceil(43/rate)).
 

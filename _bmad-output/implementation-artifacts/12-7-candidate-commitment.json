@@ -1,5 +1,5 @@
 {
- "artist_exclusion_limitation": "Pool rows carry no artist field, so artist-based FR-59a.2 exclusion is enforceable only for Tony rows; recorded as a limitation, compensated by the audit fingerprint pass.",
+ "artist_exclusion_limitation": "Pool rows carry no artist field, so artist-string FR-59a.2 exclusion was enforceable only for Tony rows in this mint. NOTHING compensated that gap here: the earlier text named an audit fingerprint pass as the compensating control, and no such pass existed in the harness at the time. That is one of the reasons this record is superseded. In the re-mint the compensating control is real and named: the mandatory pre-commitment fingerprint review covers every candidate against the training manifests by audio content, and confirmed matches are excluded before minting. Even then the residual gap is a training track by the same artist that is a DIFFERENT recording, which artist-string exclusion would have removed and fingerprinting deliberately does not.",
  "bands": {
   "100-120": {
    "candidates": 3,
@@ -77,7 +77,9 @@
   "160-175",
   "175-plus"
  ],
+ "status": "superseded",
  "story": "12.7",
+ "superseded_note": "SUPERSEDED 2026-08-10. This commitment was minted without the mandatory pre-commitment audio-fingerprint review that the signed section-2 exclusion rule requires, its opaque row IDs encode draw position (a blinding weakness against an annotator who knows the first-43 rule), and its Tony and OA300 rows are bound only by track identifier and filename rather than by audio content. It is retained as the record of what was minted and is never operated on: every consumer of this harness refuses while status is superseded, in code and not merely in prose. Nothing was lost by re-minting, because the working state held only candidate and draw files at the time, with no batch staged and no annotation recorded. Re-minting is blocked on the recorded fingerprint dispositions and on two operator decisions: the short-band allocation and the cross-band duplicate rule.",
  "tagless_by_source": {
   "oa300": 0,
   "pool": 2198,
