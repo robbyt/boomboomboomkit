@@ -1,12 +1,14 @@
 # Story 12.7: the 258-track band-balanced evaluation corpus
 
-Date: 2026-08-08, reworked 2026-08-10 and again 2026-08-11 after the second PR
-#197 review. Status: harness complete; corpus construction BLOCKED. The
-candidate commitment minted on 2026-08-08 is SUPERSEDED and no consumer will
-operate on it. Construction restarts at an explicit re-mint
-(`make eval-corpus-remint`), which is itself blocked on two operator decisions
-and on the pre-commitment fingerprint review. No track has been verified or
-labelled by this run; no annotation was simulated or invented.
+Date: 2026-08-08, reworked 2026-08-10, 2026-08-11 after the second PR #197
+review, and 2026-08-12 for the signed FR-59a.2 partition-order amendment.
+Status: harness complete; corpus construction BLOCKED. The candidate commitment
+minted on 2026-08-08 is SUPERSEDED and no consumer will operate on it.
+Construction restarts at an explicit re-mint (`make eval-corpus-remint`), which
+is now blocked on the pre-commitment fingerprint review ALONE: both operator
+decisions are on record as of 2026-08-11 and supplied as machine-readable input.
+No track has been verified or labelled by this run; no annotation was simulated
+or invented.
 
 The 2026-08-11 rework closed eight defects the 2026-08-10 rework introduced. The
 pattern is worth stating plainly: that pass hardened the commitment chain and,
@@ -20,8 +22,9 @@ the test suite now walks the whole lifecycle end to end.
 Signed protocol: `_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md`
 section 2 (pool construction, draw sequences, batches, keep/reject, replacement,
 exhaustion), section 3 (octave-sentinel rule), section 5 (annotation-version tag
-`declared:metrical-full-tempo-v1-2026-08-08`). Where the harness and the protocol
-could differ, the protocol wins.
+`declared:metrical-full-tempo-v1-2026-08-08`), and the separately signed
+**Amendment 2026-08-11: FR-59a.2 partition ORDER** in section 6. Where the
+harness and the protocol could differ, the protocol wins.
 
 Harness: `scripts/build-eval-corpus.py` (subcommands prepare-review,
 commit-pools, remint, stage-batch, ingest, abandon, status, audit,
@@ -106,31 +109,165 @@ still halts on a superseded record, but it now lists ONLY the prerequisites
 genuinely missing, and when none are missing it names the re-mint as the next
 action.
 
+## The signed 2026-08-11 amendment: FR-59a.2 partition ORDER
+
+The operator signed an amendment on 2026-08-11 that changes the ORDER in which
+the eval and training corpora are partitioned. It does not change the invariant
+they are partitioned for: no track, no remix, and no artist appears in both
+corpora.
+
+**Exactly one of the three exclusion routes reverses direction.** Matching a row
+in the two non-Rekordbox TRAINING MANIFESTS by audio content (`audioHash`) no
+longer removes a candidate from the eval draw. The eval corpus draws it and the
+training rebuild drops it. The `corpus_splits.json` tony.train and tony.val
+recording-identity route and the artist-string route are UNCHANGED and still
+exclude at candidate construction, so artist-level disjointness survives intact.
+A confirmed fingerprint match whose training peer is a tony.train or tony.val row
+also still excludes: that is the recording-identity route under another name.
+
+The reversal is conditional on the recorded short-band policy. Under
+`repartition` it applies; under every other policy candidate construction is
+byte-identical to the pre-amendment harness, down to the exclusion counts and the
+candidate-universe digest, and the test suite asserts that rather than assuming
+it. The policy is derived on the `prepare-review` path and the mint path through
+one function, because those two share `build_pool_universe` and a divergence
+there would move `candidate_universe_sha256` on one path only and silently
+invalidate every recorded fingerprint disposition.
+
+**The `manifest-hash` exclusion reason is NOT removed.** Its count simply stays 0
+under the reversed route. That key set is a frozen schema used by the commitment
+and by superseded-record rendering, and dropping a key would make an archived
+record unreadable against today's shape.
+
+**The audit becomes two gates.** The MINT-TIME obligation gate, which this
+harness runs, asserts that every eval member appearing in a current training
+manifest is named on a recorded must-drop list. It is driven off the recorded
+obligation set cross-checked against today's manifests, over every member
+regardless of source: a manifest `audioHash` is sha256 over the raw bytes, which
+is exactly the `contentSha256` bound onto every candidate row, so Tony and OA300
+members are covered as well as pool ones. A re-encode sharing no bytes is
+invisible to that check by construction and is covered only by the mint-time
+fingerprint route, which is stated in the audit's own report line rather than
+papered over. The gate is labelled as an obligation everywhere it is reported,
+including the audit's success line: a clean run records that the rebuild has been
+told what to drop, NOT that FR-59a.2 currently holds.
+
+The SIGNOFF-TIME closure gate is a fresh audit against the REBUILT training
+corpus finding zero overlap, which re-runs the full comparison rather than
+confirming the listed rows disappeared, because a rebuild can introduce a
+re-encode that was never on the list. That rebuild and that audit are FR-59d work
+in a later story, so `make eval-corpus-signoff` REFUSES while the obligation is
+open. Training therefore stays blocked, which is the intent: every accuracy
+figure from a model trained before the rebuild is contaminated against this
+corpus and must be discarded.
+
+**The refusal has a forward path, because the rebuild and signoff must not
+deadlock** (signed amendment, consequence 5). Closure is certified on any of
+three bases. `no-obligation`: the corpus was not minted under the reversed route.
+`obligation-vacuous`: it was, but the measured overlap is zero, so there is
+nothing for the rebuild to drop and refusing forever would be a deadlock with no
+work behind it. `closure-record`: a later story ran the rebuild and wrote a
+closure record. That record is a separate gitignored artifact, deliberately NOT a
+mutation of the minted commitment, whose archived copies must stay verifiable; it
+binds the commitment digest, the mint-time must-drop digest, the member-scoped
+list digest, the post-rebuild training-input digests, and a residual overlap of
+zero. A record that fails any of those bindings is an AUDIT failure, because a
+closure claim that does not verify is worse than none. `cmd_signoff` and
+`validate_attestation` (which `train.py` gates on) both read the closure state
+through one function, so the writer and the validator cannot disagree.
+
+**The must-drop list derives from the MEMBER roster, not from all candidates.**
+Dropping training rows for candidates that were rejected or ended up surplus
+would starve training for nothing. Membership evolves during annotation, so the
+list is provisional and regenerated by every clean audit against the
+annotation-ledger head, and it records the commitment digest, the per-file
+training-input digests pinned at mint, the fingerprint method, and the
+dispositions digest. It carries no wall-clock field, so its digest is a pure
+function of the state it describes. That digest is NOT pinned in the commitment,
+which is immutable while membership is not; it is bound at closure time by the
+closure record, and the audit fails if a present closure record binds a different
+member set. A failing audit never rewrites the list, so an empty file always
+means "no obligations" and never "the audit blew up".
+
+**Row-level obligations never enter git.** They live in two gitignored,
+generation-scoped sidecars, `must-drop-obligation.json` (the mint-time universe
+over candidates, whose digest and counts the commitment pins) and
+`must-drop-members.json` (the member-scoped provisional list). Only the digest
+and the counts are committed, the pattern `coverage_sha256` already uses. The
+privacy gate matches EXACT json paths, so a list index can never be allowlisted,
+and a bare `audioHash` row id is hash-shaped and trips the gate on its own.
+Generation-scoped rather than at the state root, unlike the coverage record,
+because the commitment PINS the mint-time digest: a state-root file would be
+clobbered by the next re-mint and make every archived commitment unverifiable.
+Two sidecars rather than one because the commitment is immutable once minted
+while membership is not.
+
+**One obligation per (eval row, training row) pair.** A retained manifest-hash
+candidate IS the training row it matched, so it fingerprints against itself at
+cosine 1.0 and the confirmed flag records the same pair a second time.
+Obligations are deduplicated on the pair and carry every route that found them,
+so `must_drop_count` (pinned in the immutable commitment, and what the FR-59d
+rebuild joins on) counts distinct pairs. The per-route figures are therefore
+ATTRIBUTIONS, not a partition, and the rendered markdown says so rather than
+presenting them as arithmetic.
+
+**A confirmed training-fingerprint match now means something different in the
+commitment.** `fingerprint_review.confirmed_same_recording` and its `cleared`
+complement count confirmed matches, and under the reversed route a confirmed
+match no longer implies an exclusion. The outcomes are reported explicitly in the
+new `partition_obligation` block and in the rendered markdown:
+`excluded_by_confirmed_disposition` with its two attributions
+(`excluded_training_fingerprint_matches`, `excluded_giantsteps_matches`) versus
+`enumerated_fingerprint_matches`. Those are attributions rather than a partition,
+because one candidate can carry several confirmed flags. Retaining candidates
+also shrinks the excluded-for-cause set that the fallback enumerator reads and
+changes the generation id, since that is derived from the pool and draw bytes.
+Those are expected value changes, not regressions. The commitment's
+`schema_version` moves 3 to 4, because an active record now REQUIRES
+`partition_obligation` and `fingerprint_review.training_input_digests` and a
+reader keyed on the version has to be able to tell the two shapes apart.
+
+**Expected post-rebuild drift.** Once the FR-59d rebuild lands, the training
+inputs move and `load_dispositions` will raise on training-input drift for every
+later run. The amendment anticipates that. The digest is now recorded PER FILE
+and pinned into the commitment as immutable mint-time provenance, so the raise
+names which manifest moved instead of reporting one opaque mismatch.
+
 ## What blocks the re-mint
 
-Both are operator decisions, and both must be supplied as machine-readable input
-at `_bmad-output/ml-training/eval-corpus/12-7-operator-decisions.json`. The
-harness refuses to mint while either is absent rather than inferring a policy
-from prose.
+Both operator decisions are now ON RECORD, dated 2026-08-11 and supplied as
+machine-readable input at
+`_bmad-output/ml-training/eval-corpus/12-7-operator-decisions.json` (gitignored,
+its digest recorded in the commitment). The harness still refuses to mint if the
+file is absent rather than inferring a policy from prose. What remains is the
+pre-commitment fingerprint review, which is operator-time work because it decodes
+audio.
 
-**(a) Short-band allocation.** At the superseded commitment four bands could not
-reach 43 candidates: 100-120 at 3 of 43, 120-140 at 28 of 43, 160-175 at 41 of
-43, and 175-plus at 9 of 43. The dominant cause is the FR-59a.2 manifest-hash
-exclusion, which removes nearly the whole tag-carrying non-Rekordbox pool because
-the two committed training manifests cover it.
+**(a) Short-band allocation: `repartition`.** At the superseded commitment four
+bands could not reach 43 candidates: 100-120 at 3 of 43, 120-140 at 28 of 43,
+160-175 at 41 of 43, and 175-plus at 9 of 43. The cause is the FR-59a.2
+manifest-hash exclusion, which removes nearly the whole tag-carrying
+non-Rekordbox pool because the two committed training manifests cover it.
 
-The signed exhaustion fallback does not resolve this on its own, and the earlier
-version of this artifact was wrong to present it as the next action. Its source
-order is Tony as-entered rows, then OA300 rows, and both are already inside the
-primary pools, so the fallback set is empty by construction. It can recover at
-most 25 rows for 100-120 and 44 for 120-140, and exactly zero for 160-175 and
-175-plus. A precommitted primary allocation plus reserves would draw across all
-three sources (satisfying the epic AC that the corpus is drawn across them) while
-preserving a real fallback; shrinking the corpus by operator decision is the
-other option the protocol already allows.
+The signed exhaustion fallback does not resolve this, and an earlier version of
+this artifact was wrong to present it as the next action. Its source order is
+Tony as-entered rows, then OA300 rows, and both are already inside the primary
+pools, so the fallback set is empty by construction and its measured net-new set
+is zero for every band. Restoring Tony's unresolved audio was investigated and
+abandoned on 2026-08-11: of 373 unresolved rows only 19 were recoverable and none
+sat in a short band.
 
-The harness implements BOTH policies, and it now ENUMERATES the signed fallback
-under either of them. That correction matters: until 2026-08-11 only
+The operator chose the re-partition over shrinking the corpus, and the scope was
+then narrowed on the same day from all three exclusion routes to the manifest
+route alone, once it was measured that the narrow lift already clears 43 in every
+band: 100-120 from 3 to 265, 175-plus from 9 to 113, 120-140 to 80, 140-160 to
+102, 160-175 to 143, sub-100 to 2,194. Those counts are pre-dedup, so the
+committed pools are re-checked against 43 at mint rather than assumed from them.
+The narrowing is strictly more conservative than what was approved and preserves
+the artist rule the broader version would have weakened.
+
+The harness implements all three policies, and it ENUMERATES the signed fallback
+under every one of them. That correction matters: until 2026-08-11 only
 `shrink-corpus` changed behaviour, `fallback-addendum` was accepted and then did
 nothing, and short bands simply halted - while this artifact claimed both were
 implemented. Enumerating it is what lets the operator SEE the emptiness rather
@@ -143,7 +280,8 @@ rows, then OA300) is already inside the primary pools, and the fallback extends
 a pool without ever re-admitting a row excluded for cause. A short band still
 HALTS. No auto-extension is performed either way.
 
-**(b) Cross-band duplicate rule.** The signed tie-break is "earlier in the
+**(b) Cross-band duplicate rule: `pre-commitment-recording-dedup`,
+scarcest-first.** The signed tie-break is "earlier in the
 membership draw sequence wins", which orders rows WITHIN a band and defines no
 winner BETWEEN two bands. This is not a corner case in this collection: the same
 recording tagged 85 in one source and 170 in another lands in two different bands
@@ -153,6 +291,14 @@ recording is kept only in the highest-priority band, priority recorded) and
 `audit-fails-on-cross-band-duplicate` (no pre-dedup; the audit's cross-band
 duplicate check is the rule). Choosing after annotation has begun would be
 improvising over frozen labels, so it is decided before the re-mint.
+
+The operator decided `pre-commitment-recording-dedup` on 2026-08-11, bound with
+the amendment signature: a recording qualifying for two bands is resolved BEFORE
+annotation rather than at the audit, so no track is ever verified twice, and the
+band that keeps it is chosen scarcest-first, in the order 175-plus, 100-120,
+120-140, 160-175, 140-160, sub-100. Scarcest-first also happens to favour the
+faster band, which is where a half-tagged track actually verifies under the
+full-tempo convention.
 
 The second policy was a no-op until 2026-08-11. Its whole purpose is catching
 cross-band re-encodes, but the audit's duplicate check compared only recording
@@ -177,23 +323,46 @@ one recording, since the two files differ byte for byte.
 
 ## The pre-commitment fingerprint review
 
-The signed exclusion route is mandatory and runs before commitment, so it is a
-two-stage gate rather than a report. `prepare-review` computes the flags:
-candidate audio matching a training recording at or above the DD #3 review cosine
-(0.97), plus GiantSteps normalized-title collisions, which are conservative
-heuristics because `normalize_track_key` drops suffixes and parenthesized
-material. `commit-pools` then refuses to mint until every flag carries a recorded
-human disposition, and excludes the ones confirmed as the same recording. The
-algorithm flags; the human disposition excludes. That is what DD #3's "never the
+The signed route is mandatory and runs before commitment, so it is a two-stage
+gate rather than a report. `prepare-review` computes the flags: candidate audio
+matching a training recording at or above the DD #3 review cosine (0.97), plus
+GiantSteps normalized-title collisions, which are conservative heuristics because
+`normalize_track_key` drops suffixes and parenthesized material. `commit-pools`
+then refuses to mint until every flag carries a recorded human disposition. The
+algorithm flags; the human disposition disposes. That is what DD #3's "never the
 sole auto-exclusion signal" requires, and it does not make the route optional.
 
-Each disposition set is bound to the candidate-universe digest, the fingerprint
-method version, and the training-input digest, so a change to the short-band
-allocation cannot silently reuse adjudications made against a different universe.
+What a confirmation DOES depends on the recorded partition order. A confirmed
+GiantSteps-title match always excludes. A confirmed training-fingerprint match
+excludes too, except under the signed `repartition` order when the training peer
+is a training-MANIFEST row, in which case the candidate is retained and the match
+is enumerated as a must-drop obligation. Training-fingerprint flags therefore
+carry a STRUCTURED `training_key` (namespace plus row id) alongside the prose
+`evidence` string, because a prose string cannot back a machine-checkable
+must-drop list and the rebuild has to join on the row id. That key is mirrored
+into the disposition template so an operator's filled file round-trips it.
+`peer_key` deliberately stays `None` on these flags: it carries
+candidate-vs-candidate edges into `union_recording_groups`, and a training row is
+not a candidate, so reusing it would inject a non-candidate node into the
+recording-group graph and onto pool entries.
 
-The review RUN is deliberately not performed yet: the two decisions above change
-the candidate universe, so adjudicating today's universe would produce stale
-dispositions.
+Each disposition set is bound to the candidate-universe digest, the fingerprint
+method version, the training-input digest, and the recorded PARTITION ORDER, so a
+change to the short-band allocation cannot silently reuse adjudications made
+against a different universe or a different meaning of "confirmed". The order is
+bound explicitly rather than inferred from the universe digest: with zero overlap
+between the pool and the training manifests both orders produce an identical
+universe, so the digest alone would accept a pre-amendment review under a
+`repartition` mint. The training peer recorded on a flag is derived evidence, not
+an operator field, and a disposition file whose `training_key` disagrees with the
+harness-generated flag is rejected rather than obeyed.
+
+The review RUN is deliberately not performed here. It decodes audio and is
+operator-time work, and it must be run AFTER the decisions file is in place: the
+recorded short-band policy sets the partition order, which sets the candidate
+universe, so a review run under the wrong order produces dispositions the mint
+refuses. The decisions file is now in place, so the review is the single
+remaining blocker on the re-mint.
 
 **The route failed OPEN until 2026-08-11**, in four independent ways: missing
 audio was skipped by a bare `continue`; every decode failure returned `None`
@@ -300,11 +469,22 @@ bound item requiring its own signature.
 The `REVIEWER_SIGNOFF` marker at the bottom of this file is human-editable, so it
 is a courtesy gate only. The binding artifact is `12-7-signoff-attestation.json`,
 which `make eval-corpus-signoff` writes only after the shared fail-closed audit
-passes, every band holds its full membership, and a validated blind re-pass
-exists, and which is bound to the active commitment digest, the
-annotation-ledger head, and the re-pass record digest. `train.py`
-`check_substrate_preconditions` validates that attestation, so hand-editing the
-marker below buys no training run.
+passes, every band holds its full membership, the FR-59a.2 partition closure is
+certified, and a validated blind re-pass exists, and which is bound to the active
+commitment digest, the annotation-ledger head, and the re-pass record digest.
+`train.py` `check_substrate_preconditions` validates that attestation, so
+hand-editing the marker below buys no training run.
+
+Under the signed `repartition` order with a non-empty must-drop list the closure
+is NOT certified until a verified closure record exists, so signoff refuses and
+no attestation is written. The attestation carries a `partition_closure` block
+naming the basis and, where one applies, the closure record's digest. The
+validator recomputes that state from the artifacts on disk through the same
+function `signoff` used, so it rejects an attestation whose closure is absent or
+uncertified, one that claims certification the artifacts do not support (a
+commitment naming the reversed policy is enough to keep it open, whatever its
+recorded status string), and one that binds a closure record that has since
+changed or vanished.
 
 The validator now READS AND HASHES every referenced artifact. Comparing the
 attestation's ledger-head string against the tracked head JSON validated a
@@ -355,9 +535,31 @@ re-mint does not change.
 
 Flipped by the operator only after all six bands reach 43 verified members, the
 shared audit passes on the final state, the manifest is emitted, the signed
-10 percent blind re-pass has been drawn and annotated, and
+10 percent blind re-pass has been drawn and annotated, the FR-59a.2 partition
+closure is certified against the REBUILT training corpus, and
 `make eval-corpus-signoff` has recorded the attestation. This marker plus that
 attestation gate any substrate-v2 training run (`train.py`
 `check_substrate_preconditions`, fail closed).
+
+## Left to FR-59d (a later story)
+
+The training-corpus rebuild and the closure gate are explicitly out of scope
+here, and this story's intent contract forbids modifying
+`non-rekordbox-*-manifest.json` or `corpus_splits.json`. What the later story
+owes: rebuild the two training manifests with every row on the member-scoped
+must-drop list removed; re-run the FR-59a.2 comparison in full against the
+rebuilt corpus; and write the closure record at
+`generations/<generation>/partition-closure.json` recording a residual overlap of
+zero and binding the commitment digest, the mint-time must-drop digest, the
+member-list digest, and the post-rebuild training-input digests. The harness
+validates all of that and refuses anything less. Until then the obligation is
+open by design and no model may train against this corpus.
+
+Two consequences the rebuild should expect. The per-file training-input digests
+will move, which `load_dispositions` reports by NAMING the manifests that
+changed. And `training_input_paths()` resolves the manifest constants at call
+time rather than freezing them at import, so pointing the harness at rebuilt
+manifests actually redirects the digests instead of silently digesting the
+originals.
 
 REVIEWER_SIGNOFF: pending

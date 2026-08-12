@@ -111,8 +111,8 @@ def test_tagless_rows_excluded_and_counted():
     assert len(bands["100-120"]) == 1
 
 
-def test_fr59a2_exclusion_accounting():
-    bands, acc = bec.build_candidates(
+def _fr59a2_fixture(**kw):
+    return bec.build_candidates(
         [_pool_row("trainhash", 105.0), _pool_row("clean", 105.0)],
         [
             _tony_row("split-id", 105.0),
@@ -124,7 +124,14 @@ def test_fr59a2_exclusion_accounting():
         {"trainhash"},
         {"split-id"},
         {bec.cc.canonical_artist_key("Dillinja")},
+        **kw,
     )
+
+
+def test_fr59a2_exclusion_accounting():
+    # The PRE-AMENDMENT partition order, which is what every short-band policy
+    # other than `repartition` still gets. All three routes exclude.
+    bands, acc = _fr59a2_fixture()
     e = acc["exclusions"]["100-120"]
     assert e["manifest-hash"] == 1
     assert e["tony-split"] == 1
@@ -132,6 +139,119 @@ def test_fr59a2_exclusion_accounting():
     assert e["audio-unresolved"] == 1
     assert set(e) == set(bec.EXCLUSION_REASONS)
     assert {r["identity"] for r in bands["100-120"]} == {"clean", "t3"}
+    assert acc["partition_obligations"] == []
+
+
+def test_repartition_retains_manifest_matches_and_enumerates_them():
+    # Signed amendment 2026-08-11: the training-manifest audioHash route stops
+    # excluding. The row is drawn into the eval corpus and the training rebuild
+    # drops it, so the match becomes a recorded obligation.
+    bands, acc = _fr59a2_fixture(retain_manifest_matches=True)
+    e = acc["exclusions"]["100-120"]
+    assert e["manifest-hash"] == 0  # the count stays 0; the KEY set is frozen
+    assert set(e) == set(bec.EXCLUSION_REASONS)
+    assert "trainhash" in {r["identity"] for r in bands["100-120"]}
+    assert acc["partition_obligations"] == [
+        {
+            "candidate_key": "pool:trainhash",
+            "band": "100-120",
+            "routes": [bec.OBLIGATION_ROUTE_MANIFEST],
+            "training_key": {
+                "source": "manifest",
+                "row_id": "trainhash",
+                "key": "manifest:trainhash",
+            },
+        }
+    ]
+
+
+def test_obligations_dedup_on_the_candidate_and_training_row_pair():
+    # A retained manifest-hash candidate IS the training row it matched, so it
+    # fingerprints against itself and both routes record the same pair. Counting
+    # it twice would inflate `must_drop_count`, which is pinned in the immutable
+    # commitment and which the FR-59d rebuild joins on.
+    training = bec.training_row_key("manifest:h1")
+    rows = [
+        bec._obligation("pool:h1", "sub-100", bec.OBLIGATION_ROUTE_FINGERPRINT, training),
+        bec._obligation("pool:h1", "sub-100", bec.OBLIGATION_ROUTE_MANIFEST, training),
+        bec._obligation("pool:h1", "sub-100", bec.OBLIGATION_ROUTE_MANIFEST_CONTENT, training),
+        bec._obligation("tony:t1", "sub-100", bec.OBLIGATION_ROUTE_MANIFEST_CONTENT, training),
+    ]
+    out = bec.dedup_obligations(rows)
+    assert len(out) == 2
+    merged = next(r for r in out if r["candidate_key"] == "pool:h1")
+    # Every route that found it is kept, in precedence order.
+    assert merged["routes"] == [
+        bec.OBLIGATION_ROUTE_MANIFEST,
+        bec.OBLIGATION_ROUTE_MANIFEST_CONTENT,
+        bec.OBLIGATION_ROUTE_FINGERPRINT,
+    ]
+    assert bec.dedup_obligations(list(reversed(rows))) == out  # order-independent
+
+
+@pytest.mark.parametrize("key", ["garbage", "manifest", "manifest:", ":abc", "unknown:abc"])
+def test_training_row_key_rejects_a_malformed_namespace(key):
+    # The field round-trips through an operator-editable template and decides
+    # exclude-versus-enumerate, so an unrecognized namespace must fail loudly.
+    with pytest.raises(bec.HarnessError, match="malformed"):
+        bec.training_row_key(key)
+
+
+def test_tony_split_and_artist_routes_still_exclude_under_repartition():
+    # The narrow scope IS the amendment. Any reading that also lifts these two
+    # would relax the artist-level disjointness the PRD states.
+    bands, acc = _fr59a2_fixture(retain_manifest_matches=True)
+    e = acc["exclusions"]["100-120"]
+    assert e["tony-split"] == 1
+    assert e["artist"] == 1
+    assert e["audio-unresolved"] == 1
+    identities = {r["identity"] for r in bands["100-120"]}
+    assert "split-id" not in identities
+    assert "t2" not in identities
+
+
+def test_non_repartition_candidate_construction_is_byte_identical():
+    # Every other policy must produce the same exclusion counts AND the same
+    # candidate-universe digest as the pre-amendment harness.
+    default_bands, default_acc = _fr59a2_fixture()
+    explicit_bands, explicit_acc = _fr59a2_fixture(retain_manifest_matches=False)
+    assert explicit_acc["exclusions"] == default_acc["exclusions"]
+    assert explicit_acc["tagless"] == default_acc["tagless"]
+    assert bec.candidate_universe_digest(explicit_bands) == bec.candidate_universe_digest(
+        default_bands
+    )
+    repartitioned, _acc = _fr59a2_fixture(retain_manifest_matches=True)
+    assert bec.candidate_universe_digest(repartitioned) != bec.candidate_universe_digest(
+        default_bands
+    )
+
+
+@pytest.mark.parametrize(
+    ("policy", "expected"),
+    [
+        (None, False),
+        ("shrink-corpus", False),
+        ("fallback-addendum", False),
+        ("repartition", True),
+    ],
+)
+def test_reversed_route_is_derived_from_the_recorded_policy_alone(policy, expected):
+    decisions = None if policy is None else {"short_band_allocation": {"policy": policy}}
+    assert bec.retain_training_manifest_matches(decisions) is expected
+
+
+def test_reversed_route_derivation_tolerates_a_malformed_decisions_block():
+    assert bec.retain_training_manifest_matches({}) is False
+    assert bec.retain_training_manifest_matches({"short_band_allocation": "repartition"}) is False
+
+
+def test_training_row_key_is_structured_not_prose():
+    assert bec.training_row_key("manifest:abc") == {
+        "source": "manifest",
+        "row_id": "abc",
+        "key": "manifest:abc",
+    }
+    assert bec.training_row_key("tony-split:t9")["source"] == bec.TRAINING_SOURCE_TONY_SPLIT
 
 
 def test_candidate_universe_digest_is_content_derived():
@@ -597,6 +717,45 @@ def test_privacy_gate_rejects_mid_string_audio_extension():
         bec.privacy_gate(doc)
 
 
+def test_privacy_gate_rejects_a_row_level_must_drop_entry():
+    # `_DIGEST_PATHS` matches EXACT json paths, so a list index can never be
+    # allowlisted, and the training row id is a bare audioHash. Row-level
+    # obligations belong in the gitignored sidecar, never in a committed file.
+    doc = _clean_commitment()
+    doc["partition_obligation"] = {
+        "must_drop_sha256": "e" * 64,
+        "must_drop": [
+            {
+                "row_id": "e0-0123456789ab",
+                "training_key": {"source": "manifest", "row_id": "f" * 64},
+            }
+        ],
+    }
+    with pytest.raises(bec.PrivacyError, match="hash-shaped"):
+        bec.privacy_gate(doc)
+
+
+def test_privacy_gate_allows_only_the_named_must_drop_digest():
+    doc = _clean_commitment()
+    doc["partition_obligation"] = {"must_drop_sha256": "e" * 64}
+    bec.privacy_gate(doc)
+    doc["partition_obligation"]["must_drop_sha256"] = "not-a-digest"
+    with pytest.raises(bec.PrivacyError, match="64 lowercase hex"):
+        bec.privacy_gate(doc)
+
+
+def test_training_input_drift_detail_names_the_moved_manifest():
+    recorded = dict.fromkeys(bec.TRAINING_INPUT_NAMES, "0" * 64)
+    detail = bec._training_input_drift_detail(recorded)
+    for name in bec.TRAINING_INPUT_NAMES:
+        assert name in detail
+
+
+def test_training_input_drift_detail_without_a_map_says_so():
+    assert "predates the per-file digest map" in bec._training_input_drift_detail(None)
+    assert "predates the per-file digest map" in bec._training_input_drift_detail({})
+
+
 def _schema_commitment():
     return {
         "schema_version": 3,
@@ -631,6 +790,7 @@ def _schema_commitment():
             "dispositions_sha256": "1" * 64,
             "candidate_universe_sha256": "2" * 64,
             "training_input_sha256": "3" * 64,
+            "training_input_digests": dict.fromkeys(bec.TRAINING_INPUT_NAMES, "9" * 64),
             "coverage_sha256": "8" * 64,
             "coverage": {
                 "candidates_total": 10,
@@ -647,6 +807,19 @@ def _schema_commitment():
             "decided": "2026-08-11",
             "short_band_allocation": "shrink-corpus",
             "cross_band_duplicate_rule": "audit-fails-on-cross-band-duplicate",
+        },
+        "partition_obligation": {
+            "policy": "shrink-corpus",
+            "route_reversed": None,
+            "retained_manifest_matches": 0,
+            "enumerated_fingerprint_matches": 0,
+            "excluded_by_confirmed_disposition": 0,
+            "excluded_training_fingerprint_matches": 0,
+            "excluded_giantsteps_matches": 0,
+            "must_drop_sha256": "a" * 64,
+            "must_drop_count": 0,
+            "status": bec.OBLIGATION_STATUS_NOT_APPLICABLE,
+            "note": bec.PARTITION_OBLIGATION_NOTE,
         },
         "fallback_addendum": {
             "policy": "shrink-corpus",
@@ -679,6 +852,21 @@ def test_commitment_key_schema_rejects_a_missing_block():
     doc = _schema_commitment()
     del doc["fingerprint_review"]
     with pytest.raises(bec.PrivacyError, match="key-schema violation"):
+        bec.assert_commitment_schema(doc)
+
+
+def test_commitment_key_schema_rejects_row_level_must_drop_entries():
+    # The contract is the exact key schema, not the pattern gate.
+    doc = _schema_commitment()
+    doc["partition_obligation"]["must_drop"] = [{"row_id": "e0-0123456789ab"}]
+    with pytest.raises(bec.PrivacyError, match="key-schema violation"):
+        bec.assert_commitment_schema(doc)
+
+
+def test_commitment_key_schema_rejects_an_unknown_obligation_status():
+    doc = _schema_commitment()
+    doc["partition_obligation"]["status"] = "closed"
+    with pytest.raises(bec.PrivacyError, match="partition_obligation/status"):
         bec.assert_commitment_schema(doc)
 
 
@@ -899,6 +1087,22 @@ def _mint(seed=4242, cross="audit-fails-on-cross-band-duplicate", short=None, **
     return bec.main(["commit-pools", "--seed", str(seed)])
 
 
+def _mint_repartition(monkeypatch, seed=2026, disposition=bec.DISPOSITION_NOT_SAME, **kw):
+    """Mint under the signed 2026-08-11 order.
+
+    `repartition` keeps n = 43 (only `shrink-corpus` shrinks), so the target is
+    lowered here instead; otherwise every synthetic band is short and the mint
+    HALTS before anything downstream can be exercised. The decisions file is
+    written BEFORE `prepare-review` so both paths see the same partition order,
+    which is the whole point of the shared derivation.
+    """
+    monkeypatch.setattr(bec, "N_BAND", N_BAND_TEST)
+    _write_decisions(short={"policy": bec.SHORT_BAND_REPARTITION}, **kw)
+    assert bec.main(["prepare-review"]) == 0
+    _write_dispositions(disposition)
+    return bec.main(["commit-pools", "--seed", str(seed)])
+
+
 def _annotate(band, batch=0, overrides=None, ids=None, name=None):
     ids = ids if ids is not None else _batch_record(band, batch)["work_order"]
     path = bec.EVAL_CORPUS_DIR / (name or f"ann-{band}-{batch}.csv")
@@ -1030,12 +1234,550 @@ def test_dispositions_bound_to_the_candidate_universe(ws):
 def test_disposition_template_surfaces_the_keys(ws):
     # Without candidate_key/peer_key the operator has no key material to assign
     # a shared recording group by hand, which made the broken per-flag default
-    # the likely path.
+    # the likely path. `training_key` is mirrored too, or a confirmed training
+    # match would round-trip through the operator's file without the structured
+    # peer the must-drop list is built from.
     assert bec.main(["prepare-review"]) == 0
     template = json.loads(bec.DISPOSITIONS_TEMPLATE_PATH.read_text())
     for row in template["flags"]:
         assert "candidate_key" in row
         assert "peer_key" in row
+        assert "training_key" in row
+    assert set(template["training_input_digests"]) == set(bec.TRAINING_INPUT_NAMES)
+
+
+# --- the signed 2026-08-11 FR-59a.2 partition order -------------------------
+
+
+def _manifest_training_leak(ws, monkeypatch, index=0):
+    """Give the training side a MANIFEST row whose audio matches one candidate.
+
+    A `tony-split:` peer would exercise the recording-identity route, which the
+    amendment leaves alone; only a `manifest:` peer takes the reversed path.
+    """
+    root = Path(ws.inputs["pool_audio_root"])
+    leak = root / "train-leak.mp3"
+    _write_audio(leak, b"leaked manifest audio " * 8)
+    ws.inputs["manifest_paths"] = {"leakhash": "train-leak.mp3"}
+    row = ws.inputs["pool_rows"][index]
+    target = root / row["path"]
+    monkeypatch.setattr(
+        bec,
+        "FINGERPRINT_FN",
+        lambda p: [1.0, 0.0] if p in (str(leak), str(target)) else _unique_fingerprint(p),
+    )
+    return row
+
+
+def _only_member(band, keep_row_id):
+    """Annotate a band so exactly `keep_row_id` becomes a member."""
+    assert bec.main(["stage-batch", "--band", band, "--size", "6"]) == 0
+    overrides = {
+        rid: {"verified_bpm": "", "tempo_unstable": 1}
+        for rid in _batch_record(band)["work_order"]
+        if rid != keep_row_id
+    }
+    csv_path = _annotate(band, 0, overrides=overrides)
+    assert bec.main(["ingest", "--band", band, "--batch", "0", "--annotations", str(csv_path)]) == 0
+
+
+def test_repartition_policy_is_accepted_by_the_decisions_loader(ws):
+    _write_decisions(short={"policy": bec.SHORT_BAND_REPARTITION})
+    doc = bec.load_operator_decisions()
+    assert doc["short_band_allocation"]["policy"] == bec.SHORT_BAND_REPARTITION
+    assert bec.retain_training_manifest_matches(doc) is True
+
+
+def test_an_unimplemented_short_band_policy_is_rejected(ws):
+    _write_decisions(short={"policy": "lift-everything"})
+    with pytest.raises(bec.HarnessError, match="is not one of"):
+        bec.load_operator_decisions()
+
+
+def test_manifest_hash_still_excludes_under_every_other_policy(ws):
+    leaked = ws.inputs["pool_rows"][0]["audioHash"]
+    ws.inputs["manifest_hashes"] = {leaked}
+    assert _mint() == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["bands"]["sub-100"]["exclusions"]["manifest-hash"] == 1
+    assert leaked not in {e["identity"] for e in _pools()["bands"]["sub-100"]}
+    po = doc["partition_obligation"]
+    assert po["status"] == bec.OBLIGATION_STATUS_NOT_APPLICABLE
+    assert po["route_reversed"] is None
+    assert po["must_drop_count"] == 0
+
+
+def test_repartition_retains_a_manifest_hash_candidate_at_mint(ws, monkeypatch):
+    leaked = ws.inputs["pool_rows"][0]["audioHash"]
+    ws.inputs["manifest_hashes"] = {leaked}
+    assert _mint_repartition(monkeypatch) == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    bec.gate_committed(doc, bec.assert_commitment_schema)
+    assert doc["operator_decisions"]["short_band_allocation"] == bec.SHORT_BAND_REPARTITION
+    # The KEY set is frozen; the COUNT simply stays 0.
+    assert doc["bands"]["sub-100"]["exclusions"]["manifest-hash"] == 0
+    assert set(doc["bands"]["sub-100"]["exclusions"]) == set(bec.EXCLUSION_REASONS)
+    assert leaked in {e["identity"] for e in _pools()["bands"]["sub-100"]}
+    po = doc["partition_obligation"]
+    assert po["status"] == bec.OBLIGATION_STATUS_PROVISIONAL
+    assert po["route_reversed"] == bec.PARTITION_ROUTE_REVERSED
+    assert po["retained_manifest_matches"] == 1
+    assert po["must_drop_count"] == 1
+    sidecar = json.loads(bec.must_drop_path(_gen()).read_text())
+    assert bec.sha256_bytes(bec._json_bytes(sidecar)) == po["must_drop_sha256"]
+    assert [row["training_key"]["key"] for row in sidecar["obligations"]] == [f"manifest:{leaked}"]
+
+
+def test_prepare_review_and_mint_share_the_policy_conditionality(ws, monkeypatch):
+    # `build_pool_universe` feeds both. If the conditionality differed, the
+    # candidate universe digests would diverge and dispositions would stop
+    # validating.
+    ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
+    assert _mint_repartition(monkeypatch) == 0
+    review = json.loads(bec.REVIEW_FLAGS_PATH.read_text())
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert (
+        review["candidate_universe_sha256"]
+        == doc["fingerprint_review"]["candidate_universe_sha256"]
+    )
+    assert "repartition" in review["partition_order"]
+
+
+def test_a_review_run_under_the_other_order_cannot_mint_under_repartition(ws, monkeypatch):
+    ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
+    assert bec.main(["prepare-review"]) == 0  # no decisions yet: pre-amendment order
+    _write_dispositions()
+    monkeypatch.setattr(bec, "N_BAND", N_BAND_TEST)
+    _write_decisions(short={"policy": bec.SHORT_BAND_REPARTITION})
+    with pytest.raises(bec.DriftError, match="candidate universe"):
+        bec.cmd_commit_pools(bec.argparse.Namespace(seed=3))
+
+
+def test_the_partition_order_is_bound_even_when_the_universe_is_identical(ws, monkeypatch):
+    # With ZERO overlap between the pool and the training manifests both orders
+    # produce the same candidate universe, so the universe digest alone does not
+    # separate them - and the two orders mean different things by "confirmed".
+    assert bec.main(["prepare-review"]) == 0  # no decisions yet: pre-amendment order
+    _write_dispositions()
+    before = json.loads(bec.DISPOSITIONS_PATH.read_text())["candidate_universe_sha256"]
+    monkeypatch.setattr(bec, "N_BAND", N_BAND_TEST)
+    _write_decisions(short={"policy": bec.SHORT_BAND_REPARTITION})
+    with pytest.raises(bec.DriftError, match="partition order"):
+        bec.cmd_commit_pools(bec.argparse.Namespace(seed=3))
+    # The universe really is identical; only the recorded order separates them.
+    _, _acc, universe = bec.build_pool_universe(ws.inputs, True)
+    assert universe == before
+
+
+def test_an_edited_training_key_cannot_flip_exclude_to_enumerate(ws, monkeypatch):
+    _manifest_training_leak(ws, monkeypatch)
+    monkeypatch.setattr(bec, "N_BAND", N_BAND_TEST)
+    _write_decisions(short={"policy": bec.SHORT_BAND_REPARTITION})
+    assert bec.main(["prepare-review"]) == 0
+    template = json.loads(bec.DISPOSITIONS_TEMPLATE_PATH.read_text())
+    for row in template["flags"]:
+        row["disposition"] = bec.DISPOSITION_SAME
+        if row["kind"] == bec.FLAG_KIND_FINGERPRINT:
+            row["training_key"] = {
+                "source": "tony-split",
+                "row_id": "forged",
+                "key": "tony-split:forged",
+            }
+    bec._write_json(bec.DISPOSITIONS_PATH, template)
+    with pytest.raises(bec.HarnessError, match="records training_key"):
+        bec.cmd_commit_pools(bec.argparse.Namespace(seed=15))
+
+
+def test_confirmed_manifest_fingerprint_is_enumerated_not_excluded(ws, monkeypatch):
+    target = _manifest_training_leak(ws, monkeypatch)
+    assert _mint_repartition(monkeypatch, disposition=bec.DISPOSITION_SAME) == 0
+    review = json.loads(bec.REVIEW_FLAGS_PATH.read_text())
+    fingerprint_flags = [f for f in review["flags"] if f["kind"] == bec.FLAG_KIND_FINGERPRINT]
+    assert len(fingerprint_flags) == 1
+    flag = fingerprint_flags[0]
+    assert flag["training_key"]["source"] == bec.TRAINING_SOURCE_MANIFEST
+    # peer_key stays None: it carries candidate-vs-candidate edges into
+    # union_recording_groups, and a training row is not a candidate.
+    assert flag["peer_key"] is None
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["bands"]["sub-100"]["exclusions"]["fingerprint-confirmed"] == 0
+    assert target["audioHash"] in {e["identity"] for e in _pools()["bands"]["sub-100"]}
+    po = doc["partition_obligation"]
+    assert po["enumerated_fingerprint_matches"] == 1
+    assert po["excluded_by_confirmed_disposition"] == 0
+    assert doc["fingerprint_review"]["confirmed_same_recording"] == 1
+    sidecar = json.loads(bec.must_drop_path(_gen()).read_text())
+    assert sidecar["obligations"][0]["routes"] == [bec.OBLIGATION_ROUTE_FINGERPRINT]
+    assert sidecar["obligations"][0]["training_key"]["key"] == "manifest:leakhash"
+
+
+def test_confirmed_manifest_fingerprint_still_excludes_under_every_other_policy(ws, monkeypatch):
+    _manifest_training_leak(ws, monkeypatch)
+    assert bec.main(["prepare-review"]) == 0
+    _write_dispositions(bec.DISPOSITION_SAME)
+    _write_decisions()
+    assert bec.cmd_commit_pools(bec.argparse.Namespace(seed=7)) == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["bands"]["sub-100"]["exclusions"]["fingerprint-confirmed"] == 1
+    assert doc["partition_obligation"]["enumerated_fingerprint_matches"] == 0
+    assert doc["partition_obligation"]["must_drop_count"] == 0
+
+
+def test_confirmed_tony_split_fingerprint_peer_still_excludes_under_repartition(
+    ws, monkeypatch, tmp_path
+):
+    # A confirmed match against a tony.train or tony.val row is the
+    # recording-identity route by another name. The amendment does not touch it.
+    training = tmp_path / "training" / "split-leak.mp3"
+    _write_audio(training, b"leaked split audio " * 8)
+    ws.inputs["training_local_paths"]["train-1"] = str(training)
+    target = Path(ws.inputs["pool_audio_root"]) / ws.inputs["pool_rows"][0]["path"]
+    monkeypatch.setattr(
+        bec,
+        "FINGERPRINT_FN",
+        lambda p: [1.0, 0.0] if p in (str(training), str(target)) else _unique_fingerprint(p),
+    )
+    assert _mint_repartition(monkeypatch, disposition=bec.DISPOSITION_SAME) == 0
+    review = json.loads(bec.REVIEW_FLAGS_PATH.read_text())
+    flags = [f for f in review["flags"] if f["kind"] == bec.FLAG_KIND_FINGERPRINT]
+    assert flags and flags[0]["training_key"]["source"] == bec.TRAINING_SOURCE_TONY_SPLIT
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["bands"]["sub-100"]["exclusions"]["fingerprint-confirmed"] == 1
+    assert doc["partition_obligation"]["enumerated_fingerprint_matches"] == 0
+
+
+def test_confirmed_giantsteps_disposition_still_excludes_under_repartition(ws, monkeypatch):
+    norm = bec.cc.normalize_track_key(Path(ws.inputs["pool_rows"][0]["path"]).stem)
+    monkeypatch.setattr(bec, "_giantsteps_titles", lambda: {norm})
+    assert _mint_repartition(monkeypatch, disposition=bec.DISPOSITION_SAME) == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["bands"]["sub-100"]["exclusions"]["fingerprint-confirmed"] >= 1
+    assert doc["partition_obligation"]["enumerated_fingerprint_matches"] == 0
+
+
+def test_commitment_pins_per_file_training_input_provenance(ws):
+    assert _mint() == 0
+    digests = json.loads(bec.COMMITMENT_JSON.read_text())["fingerprint_review"][
+        "training_input_digests"
+    ]
+    assert set(digests) == set(bec.TRAINING_INPUT_NAMES)
+    assert all(len(value) == 64 for value in digests.values())
+
+
+def test_audit_runs_a_labelled_obligation_gate_under_repartition(ws, monkeypatch, capsys):
+    leaked = ws.inputs["pool_rows"][0]["audioHash"]
+    ws.inputs["manifest_hashes"] = {leaked}
+    assert _mint_repartition(monkeypatch) == 0
+    keep = next(e["rowId"] for e in _pools()["bands"]["sub-100"] if e["identity"] == leaked)
+    _only_member("sub-100", keep)
+    assert bec.main(["audit"]) == 0
+    out = capsys.readouterr().out
+    assert "OBLIGATION GATE, not proof the partition holds" in out
+    assert "NOT that FR-59a.2 currently holds" in out
+    listing = json.loads(bec.must_drop_members_path(_gen()).read_text())
+    assert listing["basis"] == "members"
+    assert listing["commitment_sha256"] == bec.sha256_file(bec.COMMITMENT_JSON)
+    assert listing["annotation_ledger_head"] == bec.head_of(bec.ledger_path(_gen()))[0]
+    assert [row["row_id"] for row in listing["must_drop"]] == [keep]
+    assert listing["must_drop"][0]["training_key"]["key"] == f"manifest:{leaked}"
+
+
+def test_must_drop_covers_members_only_not_every_candidate(ws, monkeypatch):
+    # Dropping training rows for candidates that were rejected or ended up
+    # surplus would starve training for nothing.
+    sub100 = [r for r in ws.inputs["pool_rows"] if r["fileMetadataBPM"] == 90.0]
+    ws.inputs["manifest_hashes"] = {sub100[0]["audioHash"], sub100[1]["audioHash"]}
+    assert _mint_repartition(monkeypatch) == 0
+    assert (
+        json.loads(bec.COMMITMENT_JSON.read_text())["partition_obligation"]["must_drop_count"] == 2
+    )
+    keep = next(
+        e["rowId"] for e in _pools()["bands"]["sub-100"] if e["identity"] == sub100[0]["audioHash"]
+    )
+    _only_member("sub-100", keep)
+    assert bec.main(["audit"]) == 0
+    listing = json.loads(bec.must_drop_members_path(_gen()).read_text())
+    assert [row["row_id"] for row in listing["must_drop"]] == [keep]
+
+
+@pytest.mark.parametrize("source", ["pool", "tony", "oa300"])
+def test_audit_fails_when_a_member_overlaps_a_manifest_it_was_not_enumerated_against(
+    ws, monkeypatch, capsys, source
+):
+    # A training manifest that moved AFTER the mint now contains a member the
+    # must-drop list never named. The rebuild would leave it in place.
+    #
+    # Parametrized over the source deliberately: driving the gate off
+    # `entry["identity"]` (the audio hash only for POOL rows) silently skipped
+    # every Tony and OA300 member. A manifest audioHash is sha256 over the raw
+    # bytes, which is exactly the committed `contentSha256`.
+    assert _mint_repartition(monkeypatch) == 0
+    entry = next(e for e in _pools()["bands"]["sub-100"] if e["source"] == source)
+    _only_member("sub-100", entry["rowId"])
+    assert bec.main(["audit"]) == 0
+    ws.inputs["manifest_hashes"] = {
+        entry["identity"] if source == "pool" else entry["contentSha256"]
+    }
+    assert bec.main(["audit"]) == 1
+    assert "PARTITION OBLIGATION GAP" in capsys.readouterr().err
+
+
+def test_the_content_route_enumerates_non_pool_candidates(ws, monkeypatch):
+    # A Tony or OA300 candidate can sit in a training manifest by CONTENT while
+    # its identity (a track id, a filename) matches nothing. Before the content
+    # route those rows were reachable only through the fingerprint route, which
+    # the obligation gate cannot re-derive at audit time.
+    tony_audio = Path(
+        next(r["local_path"] for r in ws.inputs["tony_rows"] if r["track_id"] == "t0")
+    )
+    digest = bec.sha256_file(tony_audio)
+    ws.inputs["manifest_hashes"] = {digest}
+    assert _mint_repartition(monkeypatch) == 0
+    sidecar = json.loads(bec.must_drop_path(_gen()).read_text())
+    rows = [r for r in sidecar["obligations"] if r["candidate_key"] == "tony:t0"]
+    assert len(rows) == 1
+    assert rows[0]["routes"] == [bec.OBLIGATION_ROUTE_MANIFEST_CONTENT]
+    assert rows[0]["training_key"]["key"] == f"manifest:{digest}"
+    # And the gate over that member passes rather than reporting a gap.
+    entry = next(e for e in _pools()["bands"]["sub-100"] if e["identity"] == "t0")
+    _only_member("sub-100", entry["rowId"])
+    assert bec.main(["audit"]) == 0
+    listing = json.loads(bec.must_drop_members_path(_gen()).read_text())
+    assert [r["row_id"] for r in listing["must_drop"]] == [entry["rowId"]]
+
+
+def test_one_obligation_per_pair_when_both_routes_find_it(ws, monkeypatch):
+    # A retained manifest-hash candidate IS the training row, so it fingerprints
+    # against itself at cosine 1.0 and the confirmed flag records the same pair a
+    # second time. Undeduplicated that doubled the pinned `must_drop_count`.
+    row = ws.inputs["pool_rows"][0]
+    ws.inputs["manifest_hashes"] = {row["audioHash"]}
+    ws.inputs["manifest_paths"] = {row["audioHash"]: row["path"]}
+    assert _mint_repartition(monkeypatch, disposition=bec.DISPOSITION_SAME) == 0
+    review = json.loads(bec.REVIEW_FLAGS_PATH.read_text())
+    assert [f["kind"] for f in review["flags"]].count(bec.FLAG_KIND_FINGERPRINT) == 1
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    po = doc["partition_obligation"]
+    assert po["must_drop_count"] == 1  # not 2
+    assert po["retained_manifest_matches"] == 1
+    assert po["enumerated_fingerprint_matches"] == 1
+    sidecar = json.loads(bec.must_drop_path(_gen()).read_text())
+    assert len(sidecar["obligations"]) == 1
+    assert sidecar["obligations"][0]["routes"] == [
+        bec.OBLIGATION_ROUTE_MANIFEST,
+        bec.OBLIGATION_ROUTE_FINGERPRINT,
+    ]
+
+
+def test_a_failing_audit_does_not_clobber_the_member_listing(ws, monkeypatch, capsys):
+    leaked = ws.inputs["pool_rows"][0]["audioHash"]
+    ws.inputs["manifest_hashes"] = {leaked}
+    assert _mint_repartition(monkeypatch) == 0
+    keep = next(e["rowId"] for e in _pools()["bands"]["sub-100"] if e["identity"] == leaked)
+    _only_member("sub-100", keep)
+    assert bec.main(["audit"]) == 0
+    good = bec.must_drop_members_path(_gen()).read_bytes()
+    # Break the audit in a way that empties membership.
+    _annotation_files("sub-100")[0].unlink()
+    assert bec.main(["audit"]) == 1
+    assert bec.must_drop_members_path(_gen()).read_bytes() == good
+
+
+def test_a_policy_change_clears_a_stale_member_listing(ws, monkeypatch):
+    leaked = ws.inputs["pool_rows"][0]["audioHash"]
+    ws.inputs["manifest_hashes"] = {leaked}
+    assert _mint_repartition(monkeypatch) == 0
+    keep = next(e["rowId"] for e in _pools()["bands"]["sub-100"] if e["identity"] == leaked)
+    _only_member("sub-100", keep)
+    assert bec.main(["audit"]) == 0
+    listing = bec.must_drop_members_path(_gen())
+    assert listing.exists()
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    doc["operator_decisions"]["short_band_allocation"] = "shrink-corpus"
+    bec._write_json(bec.COMMITMENT_JSON, doc)
+    bec.write_ledger_head(bec.sha256_file(bec.COMMITMENT_JSON), _gen())
+    bec.run_audit()
+    assert not listing.exists()
+
+
+def test_the_member_listing_digest_is_stable_across_runs(ws, monkeypatch):
+    # Its digest is what the FR-59d closure record binds, so a wall-clock field
+    # would churn it daily and defeat the binding.
+    leaked = ws.inputs["pool_rows"][0]["audioHash"]
+    ws.inputs["manifest_hashes"] = {leaked}
+    assert _mint_repartition(monkeypatch) == 0
+    keep = next(e["rowId"] for e in _pools()["bands"]["sub-100"] if e["identity"] == leaked)
+    _only_member("sub-100", keep)
+    assert bec.main(["audit"]) == 0
+    first = bec.must_drop_members_path(_gen()).read_bytes()
+    assert bec.main(["audit"]) == 0
+    assert bec.must_drop_members_path(_gen()).read_bytes() == first
+
+
+def test_must_drop_records_are_generation_scoped(ws, monkeypatch):
+    ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
+    assert _mint_repartition(monkeypatch) == 0
+    first_gen = _gen()
+    first = bec.must_drop_path(first_gen).read_bytes()
+    first_digest = json.loads(bec.COMMITMENT_JSON.read_text())["partition_obligation"][
+        "must_drop_sha256"
+    ]
+    _supersede()
+    assert bec.main(["remint", "--seed", "8181"]) == 0
+    second_gen = _gen()
+    assert second_gen != first_gen
+    # The predecessor's record survives, so its archived commitment's pinned
+    # digest is still verifiable.
+    assert bec.must_drop_path(first_gen).read_bytes() == first
+    assert bec.sha256_file(bec.must_drop_path(first_gen)) == first_digest
+    assert bec.must_drop_path(second_gen).exists()
+
+
+def test_a_deleted_must_drop_record_does_not_fail_a_non_repartition_audit(ws):
+    # Gated on the policy: reading it unconditionally made a non-repartition
+    # corpus fail permanently with no regeneration path.
+    assert _mint() == 0
+    bec.must_drop_path(_gen()).unlink()
+    assert bec.main(["audit"]) == 0
+
+
+def test_editing_the_must_drop_sidecar_fails_the_audit(ws, monkeypatch, capsys):
+    ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
+    assert _mint_repartition(monkeypatch) == 0
+    doc = json.loads(bec.must_drop_path(_gen()).read_text())
+    doc["obligations"] = []
+    bec._write_json(bec.must_drop_path(_gen()), doc)
+    assert bec.main(["audit"]) == 1
+    assert "partition-obligation record was edited" in capsys.readouterr().err
+
+
+def test_signoff_refuses_while_partition_closure_is_uncertified(ws, monkeypatch, capsys):
+    ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
+    assert _mint_repartition(monkeypatch) == 0
+    _complete_corpus()
+    assert bec.main(["audit"]) == 0
+    capsys.readouterr()
+    assert bec.main(["signoff"]) == 1
+    err = capsys.readouterr().err
+    assert "SIGNOFF REFUSED" in err
+    assert "partition closure is not certified" in err
+    assert "FR-59d" in err
+    assert not bec.ATTESTATION_JSON.exists()
+
+
+def test_a_vacuous_obligation_is_certifiable_rather_than_a_deadlock(ws, monkeypatch):
+    # Minted under the reversed route but with ZERO measured overlap. There is
+    # nothing for the rebuild to drop, so refusing forever would be a deadlock
+    # with no work behind it.
+    assert _mint_repartition(monkeypatch) == 0
+    assert (
+        json.loads(bec.COMMITMENT_JSON.read_text())["partition_obligation"]["must_drop_count"] == 0
+    )
+    _complete_corpus()
+    assert _repass() == 0
+    assert bec.main(["signoff"]) == 0
+    closure = json.loads(bec.ATTESTATION_JSON.read_text())["partition_closure"]
+    assert closure["certified"] is True
+    assert closure["basis"] == "obligation-vacuous"
+    assert _validate() == []
+
+
+def _write_closure_record(residual=0, member_digest=None, must_drop=None):
+    """What the FR-59d story will write once the rebuild lands."""
+    commitment = json.loads(bec.COMMITMENT_JSON.read_text())
+    gen = commitment["generation"]
+    if member_digest is None:
+        listing = json.loads(bec.must_drop_members_path(gen).read_text())
+        member_digest = bec.sha256_bytes(bec._json_bytes(listing))
+    doc = {
+        "schema_version": 1,
+        "story": "12.7",
+        "certified": True,
+        "closed": "2026-09-01",
+        "method": "full FR-59a.2 re-comparison against the rebuilt training corpus",
+        "commitment_sha256": bec.sha256_file(bec.COMMITMENT_JSON),
+        "annotation_ledger_head": bec.head_of(bec.ledger_path(gen))[0],
+        "must_drop_sha256": (
+            must_drop
+            if must_drop is not None
+            else commitment["partition_obligation"]["must_drop_sha256"]
+        ),
+        "member_must_drop_sha256": member_digest,
+        "residual_overlap": residual,
+        "training_input_digests": dict.fromkeys(bec.TRAINING_INPUT_NAMES, "b" * 64),
+        "note": "rebuilt training corpus; zero residual overlap",
+    }
+    bec._write_json(bec.partition_closure_path(gen), doc)
+    return doc
+
+
+def _repartition_with_one_obligation(ws, monkeypatch):
+    leaked = ws.inputs["pool_rows"][0]["audioHash"]
+    ws.inputs["manifest_hashes"] = {leaked}
+    assert _mint_repartition(monkeypatch) == 0
+    _complete_corpus()
+    assert bec.main(["audit"]) == 0
+    return leaked
+
+
+def test_a_verified_closure_record_unblocks_signoff(ws, monkeypatch):
+    # The forward path out of the refusal, and deliberately NOT a mutation of the
+    # minted commitment, whose archived copies must stay verifiable.
+    _repartition_with_one_obligation(ws, monkeypatch)
+    _write_closure_record()
+    assert bec.main(["audit"]) == 0
+    assert _repass() == 0
+    assert bec.main(["signoff"]) == 0
+    closure = json.loads(bec.ATTESTATION_JSON.read_text())["partition_closure"]
+    assert closure["certified"] is True
+    assert closure["basis"] == "closure-record"
+    assert closure["closure_record_sha256"]
+    assert _validate() == []
+
+
+@pytest.mark.parametrize(
+    ("flaw", "reason"),
+    [
+        ("residual", "does not record ZERO residual overlap"),
+        ("wrong-must-drop", "closes a different must-drop list"),
+        ("not-certified", "does not assert certified"),
+    ],
+)
+def test_a_closure_record_that_does_not_verify_still_refuses(ws, monkeypatch, capsys, flaw, reason):
+    # A closure claim that does not verify is worse than none, so it surfaces as
+    # an AUDIT failure and signoff never reaches the closure block.
+    _repartition_with_one_obligation(ws, monkeypatch)
+    if flaw == "residual":
+        _write_closure_record(residual=1)
+    elif flaw == "wrong-must-drop":
+        _write_closure_record(must_drop="c" * 64)
+    else:
+        doc = _write_closure_record()
+        doc["certified"] = False
+        bec._write_json(bec.partition_closure_path(_gen()), doc)
+    capsys.readouterr()
+    assert bec.main(["audit"]) == 1
+    assert reason in capsys.readouterr().err
+    assert bec.main(["signoff"]) == 1
+    assert reason in capsys.readouterr().err
+    assert not bec.ATTESTATION_JSON.exists()
+
+
+def test_a_closure_record_bound_to_a_different_member_set_fails_the_audit(ws, monkeypatch, capsys):
+    _repartition_with_one_obligation(ws, monkeypatch)
+    _write_closure_record(member_digest="d" * 64)
+    assert bec.main(["audit"]) == 1
+    assert "certified against a different member set" in capsys.readouterr().err
+
+
+def test_attestation_binding_a_vanished_closure_record_is_rejected(ws, monkeypatch):
+    _repartition_with_one_obligation(ws, monkeypatch)
+    _write_closure_record()
+    assert _repass() == 0
+    assert bec.main(["signoff"]) == 0
+    assert _validate() == []
+    bec.partition_closure_path(_gen()).unlink()
+    assert any("do not support it" in f for f in _validate())
 
 
 # --- the mandatory fingerprint route fails CLOSED ---------------------------
@@ -2004,6 +2746,59 @@ def test_attestation_rejected_when_the_repass_record_is_replaced(ws):
     assert any("no re-pass annotation record hashes" in f for f in failures)
 
 
+def test_attestation_carries_a_certified_closure_when_nothing_is_open(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    closure = json.loads(bec.ATTESTATION_JSON.read_text())["partition_closure"]
+    assert closure["certified"] is True
+    assert closure["must_drop_count"] == 0
+    assert _validate() == []
+
+
+def test_attestation_without_the_closure_field_is_rejected(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    doc = json.loads(bec.ATTESTATION_JSON.read_text())
+    del doc["partition_closure"]
+    bec._write_json(bec.ATTESTATION_JSON, doc)
+    assert any("schema" in f for f in _validate())
+
+
+def test_attestation_recording_an_uncertified_closure_is_rejected(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    doc = json.loads(bec.ATTESTATION_JSON.read_text())
+    doc["partition_closure"]["certified"] = False
+    bec._write_json(bec.ATTESTATION_JSON, doc)
+    assert any("UNCERTIFIED FR-59a.2 partition closure" in f for f in _validate())
+
+
+@pytest.mark.parametrize("how", ["status", "policy"])
+def test_attestation_claiming_closure_over_an_open_obligation_is_rejected(ws, how):
+    # Both signals must reach the validator. Checking only the recorded status
+    # let a commitment naming the reversed POLICY with a `not-applicable` status
+    # validate a certified attestation.
+    assert _mint() == 0
+    assert _sign() == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    doc["partition_obligation"]["must_drop_count"] = 1
+    if how == "status":
+        doc["partition_obligation"]["status"] = bec.OBLIGATION_STATUS_PROVISIONAL
+    else:
+        doc["operator_decisions"]["short_band_allocation"] = bec.SHORT_BAND_REPARTITION
+    bec._write_json(bec.COMMITMENT_JSON, doc)
+    assert any("do not support it" in f for f in _validate()), how
+
+
+def test_non_numeric_must_drop_count_does_not_traceback(ws):
+    assert _mint() == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    doc["partition_obligation"]["must_drop_count"] = "many"
+    state, failures = bec.partition_closure_state(doc, doc["generation"])
+    assert state["must_drop_count"] == 0
+    assert failures == []
+
+
 def test_attestation_rejected_when_the_repass_record_is_missing(ws):
     assert _mint() == 0
     assert _sign() == 0
@@ -2164,3 +2959,131 @@ def test_training_gate_rejects_every_broken_attestation_state(ws, gate, monkeypa
         state_root=bec.EVAL_CORPUS_DIR,
     )
     assert failures, state
+
+
+# ---------------------------------------------------------------------------
+# load_inputs: training-manifest path key
+#
+# Regression for a defect introduced in c2865b7 and caught in review on
+# 2026-08-12. Both committed manifests key the path `relPath`, but load_inputs
+# read `path`, so manifest_paths came back EMPTY in production and the training
+# side of the mandatory fingerprint route silently covered only the tony-split
+# rows. Nothing caught it because every command-level test stubs load_inputs.
+# These tests exercise the real reader against synthetic manifests.
+# ---------------------------------------------------------------------------
+
+
+def _write_training_inputs(root: Path, first: str | None, second: str | None = ...) -> None:
+    """Two manifests plus corpus_splits, with each row's path under its own key.
+
+    Per-manifest, because the reader's "did any row carry a path" guard has to be
+    per FILE: testing a shared accumulator let a path-less SECOND manifest pass
+    on the strength of the first one.
+    """
+    if second is ...:
+        second = first
+    for name, key, path_key, digest in (
+        ("non-rekordbox-secondary-supervised-manifest.json", "secondarySupervised", first, "a"),
+        ("non-rekordbox-unsupervised-pretrain-manifest.json", "unsupervisedPool", second, "b"),
+    ):
+        row: dict[str, object] = {"audioHash": digest * 64}
+        if path_key is not None:
+            row[path_key] = "Bass Music/track.mp3"
+        (root / name).write_text(json.dumps({key: [row]}), encoding="utf-8")
+    (root / "corpus_splits.json").write_text(
+        json.dumps({"tony": {"train": [], "val": []}}), encoding="utf-8"
+    )
+
+
+def _patch_training_inputs(monkeypatch, root: Path) -> None:
+    monkeypatch.setattr(
+        bec, "SECONDARY_MANIFEST", root / "non-rekordbox-secondary-supervised-manifest.json"
+    )
+    monkeypatch.setattr(
+        bec, "UNSUPERVISED_MANIFEST", root / "non-rekordbox-unsupervised-pretrain-manifest.json"
+    )
+    monkeypatch.setattr(bec, "CORPUS_SPLITS", root / "corpus_splits.json")
+
+
+def _call_load_inputs(root: Path, monkeypatch):
+    """Drive the REAL `load_inputs`, not a re-implementation of its logic.
+
+    Re-implementing the relPath-then-path read inline tests a copy and would not
+    catch a recurrence in the reader itself. The OA300 fixture is left real (it
+    ships and carries the 82 rows the reader asserts).
+    """
+    _patch_training_inputs(monkeypatch, root)
+    survey = root / "survey.json"
+    survey.write_text(json.dumps({"tracks": [], "audio_root": str(root)}), encoding="utf-8")
+    tony = root / "tony-survey.json"
+    tony.write_text(json.dumps({"tracks": []}), encoding="utf-8")
+    monkeypatch.setattr(bec, "SURVEY_PATH", survey)
+    monkeypatch.setattr(bec, "TONY_SURVEY_PATH", tony)
+    return bec.load_inputs()
+
+
+@pytest.mark.parametrize("path_key", ["relPath", "path"])
+def test_load_inputs_reads_the_manifest_row_path(tmp_path, monkeypatch, path_key):
+    """`relPath` is what the committed manifests use; `path` stays accepted."""
+    _write_training_inputs(tmp_path, path_key)
+    inputs = _call_load_inputs(tmp_path, monkeypatch)
+    assert inputs["manifest_hashes"] == {"a" * 64, "b" * 64}
+    assert inputs["manifest_paths"] == {
+        "a" * 64: "Bass Music/track.mp3",
+        "b" * 64: "Bass Music/track.mp3",
+    }
+    assert inputs["manifest_pathless"] == set()
+
+
+def test_load_inputs_guard_is_per_file_not_a_shared_accumulator(tmp_path, monkeypatch):
+    _write_training_inputs(tmp_path, "relPath", None)
+    with pytest.raises(bec.HarnessError, match="unsupervised-pretrain-manifest"):
+        _call_load_inputs(tmp_path, monkeypatch)
+
+
+def test_a_pathless_row_becomes_an_uncovered_training_row(tmp_path, monkeypatch):
+    # A row with no path never reaches the fingerprint stage, so without an
+    # explicit reason it was absent from the coverage denominators entirely and
+    # `assert_training_coverage` could not block on it.
+    _write_training_inputs(tmp_path, "relPath")
+    doc = json.loads((tmp_path / "non-rekordbox-secondary-supervised-manifest.json").read_text())
+    doc["secondarySupervised"].append({"audioHash": "c" * 64})
+    (tmp_path / "non-rekordbox-secondary-supervised-manifest.json").write_text(json.dumps(doc))
+    inputs = _call_load_inputs(tmp_path, monkeypatch)
+    assert inputs["manifest_pathless"] == {"c" * 64}
+    coverage, _cands, _train = bec.fingerprint_coverage(
+        {**inputs, "manifest_paths": {}, "training_local_paths": {}},
+        {name: [] for name in bec.BAND_NAMES},
+    )
+    assert coverage["training_by_reason"]["no-path"] == 1
+    assert coverage["training_roster"][f"manifest:{'c' * 64}"] == "no-path"
+    with pytest.raises(bec.OperatorHalt, match="COVERAGE INCOMPLETE ON THE TRAINING SIDE"):
+        bec.assert_training_coverage(coverage, set())
+
+
+def test_training_input_digests_follow_a_redirected_manifest_path(tmp_path, monkeypatch):
+    # A module-level tuple of Paths freezes at import, so redirecting the
+    # constants would leave `training_input_digests` digesting the originals
+    # while every other reader followed the redirect. That is a live footgun for
+    # the FR-59d rebuild, which points these at rebuilt manifests.
+    _write_training_inputs(tmp_path, "relPath")
+    _patch_training_inputs(monkeypatch, tmp_path)
+    digests = bec.training_input_digests()
+    assert set(digests) == set(bec.TRAINING_INPUT_NAMES)
+    assert digests[bec.SECONDARY_MANIFEST.name] == bec.sha256_file(bec.SECONDARY_MANIFEST)
+
+
+def test_committed_manifests_actually_carry_relpath():
+    """The production manifests use `relPath`. If this flips, the reader must too."""
+    for manifest, key in (
+        (bec.SECONDARY_MANIFEST, "secondarySupervised"),
+        (bec.UNSUPERVISED_MANIFEST, "unsupervisedPool"),
+    ):
+        if not manifest.exists():  # main-only checkout
+            continue
+        rows = json.loads(manifest.read_text(encoding="utf-8"))[key]
+        assert rows, f"{manifest.name} is empty"
+        assert "relPath" in rows[0], (
+            f"{manifest.name} rows no longer carry 'relPath'; load_inputs reads "
+            "relPath-then-path and would silently stop covering the training side"
+        )
