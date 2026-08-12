@@ -1641,6 +1641,23 @@ def test_a_deleted_must_drop_record_does_not_fail_a_non_repartition_audit(ws):
     assert bec.main(["audit"]) == 0
 
 
+def test_commit_pools_restores_a_missing_must_drop_record(ws, monkeypatch):
+    # `_write_plan` writes THREE digest-pinned row-level files; the restore loop
+    # in `cmd_commit_pools` covered only pools and draws. Under the signed
+    # repartition order the audit hard-fails without the must-drop sidecar, so
+    # losing that gitignored file left this command printing "restored" and
+    # exiting 0 while the audit failed forever - and `remint` refuses once the
+    # prior generation carries annotation state, so there was no repair path.
+    ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
+    assert _mint_repartition(monkeypatch) == 0
+    gen = _gen()
+    original = bec.must_drop_path(gen).read_bytes()
+    bec.must_drop_path(gen).unlink()
+    assert bec.main(["commit-pools"]) == 0
+    assert bec.must_drop_path(gen).read_bytes() == original
+    assert bec.main(["audit"]) == 0
+
+
 def test_editing_the_must_drop_sidecar_fails_the_audit(ws, monkeypatch, capsys):
     ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
     assert _mint_repartition(monkeypatch) == 0
@@ -2614,6 +2631,21 @@ def test_repass_sample_record_is_immutable_and_not_redrawn_while_pending(ws):
     _complete_corpus()
     assert bec.main(["repass-sample"]) == 0
     with pytest.raises(bec.HarnessError, match="already sampled"):
+        bec.cmd_repass_sample(bec.argparse.Namespace())
+
+
+def test_a_completed_repass_cannot_be_redrawn_while_the_ledger_is_unmoved(ws):
+    # The guard read `annotation_ledger_head` from the ANNOTATION document,
+    # which never carries that key (only the ledger event does), so it compared
+    # None against the head and could never fire. Because `plan_repass`'s seed
+    # includes the version, every redraw samples a DIFFERENT subset with fresh
+    # aliases, and `repass_status_for_signoff` binds the latest ingested one -
+    # so the signed section-6 disagreement rate could be re-rolled until it
+    # looked acceptable, with nothing in the ledger or the audit recording it.
+    assert _mint() == 0
+    _complete_corpus()
+    assert _repass() == 0
+    with pytest.raises(bec.HarnessError, match="has not moved"):
         bec.cmd_repass_sample(bec.argparse.Namespace())
 
 

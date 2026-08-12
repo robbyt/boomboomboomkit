@@ -3633,11 +3633,41 @@ def cmd_commit_pools(args: argparse.Namespace) -> int:
         verify_input_drift(existing, plan.pools_doc, plan.draws_doc)
         gen = str(_require(existing, "generation", "existing commitment"))
         restored = False
-        for path, doc, key in (
-            (pools_path(gen), plan.pools_doc, "pool_file_sha256"),
-            (draws_path(gen), plan.draws_doc, "draw_file_sha256"),
+        # ALL THREE digest-pinned row-level files `_write_plan` writes, not two.
+        # `must-drop-obligation.json` is gitignored and generation-scoped, and
+        # under the signed 2026-08-11 repartition order the audit hard-fails
+        # without it. Omitting it here meant losing that sidecar left this
+        # command printing "commitment restored (inputs re-derived and
+        # digest-matched)" and exiting 0 while the file stayed missing, with no
+        # other command able to regenerate it: `remint` refuses once the prior
+        # generation carries annotation state, and `commit-pools` never
+        # overwrites a commitment, so audit/emit-manifest/signoff could never
+        # run again and 258 irreplaceable hand annotations were stranded.
+        obligation_block = _require(existing, "partition_obligation", "existing commitment")
+        for path, doc, key, recorded in (
+            (
+                pools_path(gen),
+                plan.pools_doc,
+                "pool_file_sha256",
+                _require(existing, "pool_file_sha256", "existing commitment"),
+            ),
+            (
+                draws_path(gen),
+                plan.draws_doc,
+                "draw_file_sha256",
+                _require(existing, "draw_file_sha256", "existing commitment"),
+            ),
+            (
+                must_drop_path(gen),
+                plan.must_drop,
+                "partition_obligation.must_drop_sha256",
+                _require(
+                    obligation_block,
+                    "must_drop_sha256",
+                    "existing commitment partition_obligation",
+                ),
+            ),
         ):
-            recorded = _require(existing, key, "existing commitment")
             if path.exists():
                 actual = sha256_file(path)
                 if actual != recorded:
@@ -3648,6 +3678,18 @@ def cmd_commit_pools(args: argparse.Namespace) -> int:
                     )
             else:
                 _write_bytes_atomic(path, _json_bytes(doc))
+                written = sha256_file(path)
+                if written != recorded:
+                    # `verify_input_drift` covers pools and draws only. Restoring
+                    # from a re-derivation that no longer reproduces the pinned
+                    # digest would silently install a WRONG row-level file under
+                    # a commitment that claims to pin it.
+                    raise DriftError(
+                        f"cannot restore {path.name}: the re-derived document hashes to "
+                        f"{written}, but the commitment pins {key} {recorded}. The mint "
+                        "inputs have changed; refusing to install a file the commitment "
+                        "does not describe."
+                    )
                 restored = True
         state = "restored" if restored else "verified"
         print(
@@ -5205,10 +5247,25 @@ def cmd_repass_sample(_args: argparse.Namespace) -> int:
         )
     if status == REPASS_INGESTED and event is not None:
         head, _count = head_of(ledger_path(state.generation))
-        prior = _read_json(
-            generation_root(state.generation) / str(event["record_path"]), "re-pass record"
-        )
-        if prior.get("annotation_ledger_head") == head:
+        # Read the head off the ledger EVENT, not the annotation document. Only
+        # the event carries `annotation_ledger_head` (`cmd_repass_ingest` writes
+        # the document with schema_version/story/version/recorded/sample_sha256/
+        # rows/summary and nothing else), so reading the document returned None
+        # forever, `None == head` was never true, and this guard could not fire.
+        # A completed blind re-pass was therefore re-rollable: the seed includes
+        # the version, so each redraw samples a different 26 tracks, and signoff
+        # binds the latest ingested version. That turns the one bound mitigation
+        # for annotation repeatability into a number that can be re-rolled.
+        prior_head = event.get("annotation_ledger_head")
+        if not isinstance(prior_head, str) or len(prior_head) != 64:
+            raise HarnessError(
+                f"re-pass version {version} is ingested but its ledger event carries no "
+                "usable `annotation_ledger_head`, so whether the primary annotation ledger "
+                "has moved since the sample was drawn cannot be established. Refusing to "
+                "draw another sample: an unverifiable redraw is what this guard exists to "
+                "prevent."
+            )
+        if prior_head == head:
             raise HarnessError(
                 f"re-pass version {version} is complete and the primary annotation ledger "
                 "has not moved since it was drawn. A new sample is warranted only when a "
