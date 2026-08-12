@@ -154,6 +154,25 @@ degeneracy note, and the KDD-B4-pattern fail-closed signoff gate wired into `tra
 
 ## Review Triage Log
 
+### 2026-08-12 -- Superseded in part by the FR-59a.2 partition-order amendment
+
+The operator signed an amendment to the binding protocol on 2026-08-11
+("Amendment 2026-08-11: FR-59a.2 partition ORDER", 12-6 section 6). It reverses
+ONE of the three FR-59a.2 exclusion routes, because four bands could not
+otherwise reach 43 candidates. Where this spec describes a training-manifest
+`audioHash` match as excluding a candidate, the amendment and the follow-on spec
+below are authoritative; the `tony-split` and `artist` routes are unchanged and
+still exclude, and the invariant (no track, remix, or artist in both corpora) is
+untouched.
+
+Follow-on spec:
+`_bmad-output/implementation-artifacts/spec-12-7-repartition-and-must-drop-gates.md`.
+It adds the `repartition` short-band policy, the must-drop obligation list and
+its gitignored sidecars, the mint-time obligation gate in the audit, the
+per-file training-input digest map, and the signoff refusal that keeps the
+training gate closed until the FR-59d rebuild and its closure audit land. This
+spec's `<intent-contract>` is untouched.
+
 ### 2026-08-08 -- Review pass (Blind Hunter + Edge Case Hunter)
 - intent_gap: 0
 - bad_spec: 0
