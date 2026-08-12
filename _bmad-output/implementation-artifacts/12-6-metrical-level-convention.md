@@ -527,6 +527,110 @@ regenerated against the amended ledger head.
 Changing any of the bound items mid-verification requires a dated amendment to
 this document and re-signoff before verification continues.
 
+### Amendment 2026-08-11: FR-59a.2 partition ORDER (operator, re-signed)
+
+This amends a BOUND item, so it carries its own signoff. It changes the ORDER in
+which the eval and training corpora are partitioned. It does NOT change the
+invariant they are partitioned for.
+
+**Why.** Under the original order the four short bands cannot be built. Measured
+2026-08-10 against the committed pools: 100-120 held 3 candidates of 43 needed,
+175-plus 9, 120-140 28, 160-175 41. The cause is that the two committed training
+manifests already cover nearly the whole tag-carrying non-Rekordbox pool, so
+excluding training material from the eval draw empties the bands. The signed
+exhaustion fallback does not help: its sources (Tony as-entered, then OA300) are
+already inside the primary pools, and its measured net-new set is zero for every
+band. Restoring Tony's unresolved audio was investigated and abandoned on
+2026-08-11: of 373 unresolved rows only 19 were recoverable from the shared
+folder and none of those sat in a short band, and the operator judged the
+remainder to be mislabelled drum and bass, clips, or bad files.
+
+**What changes, stated narrowly.** ONE of the three exclusion routes reverses
+direction: matching a row in the two non-Rekordbox TRAINING MANIFESTS by audio
+content (`audioHash`) no longer removes a candidate from the eval draw. Instead
+the eval corpus draws it, and the training rebuild drops it.
+
+**The other two routes are UNCHANGED and still exclude at candidate
+construction:** `corpus_splits.json` `tony.train`/`tony.val` recording identity,
+and artist-string overlap with a training row.
+
+That narrow scope is deliberate, and it is sufficient. Measured against the
+committed pools, lifting the manifest route alone takes the worst band to 80
+candidates, and every band clears 43 with margin: 100-120 from 3 to 265,
+175-plus from 9 to 113, 120-140 to 80, 140-160 to 102, 160-175 to 143, sub-100
+to 2,194. Lifting the other two routes as well would add more headroom that is
+not needed, so they are left alone. (These counts are pre-dedup; the
+cross-band recording dedup below collapses some rows, so the final committed
+pools are re-checked against 43 at mint rather than assumed from these figures.)
+
+**What does NOT change.** FR-59a.2's invariant stands exactly as the PRD states
+it (prd.md FR-59a.2): no track, no remix, and no artist appears in both corpora.
+An earlier draft of this amendment described the invariant as "share no
+recording", which would have quietly narrowed the partition unit from artist to
+recording while claiming nothing changed. That draft was wrong and is not what
+is signed here. Artist-level disjointness survives intact, and nothing in this
+amendment relaxes it.
+
+**Consequences, bound with this signature.**
+
+1. **The audit becomes two gates, not one.**
+   - *Mint-time obligation gate:* every eval member that appears in a current
+     training manifest must be named on a recorded must-drop list, with the
+     training row identified STRUCTURALLY (row id and hash), never as prose
+     evidence. This is an obligation audit. It does not assert that FR-59a.2
+     currently holds, and it must be labelled as such.
+   - *Signoff-time closure gate:* a fresh audit against the REBUILT training
+     corpus must find zero overlap. It re-runs the full comparison rather than
+     merely confirming the listed rows disappeared, because a rebuild can
+     introduce a re-encode that was never on the list.
+2. **The must-drop list is generated from the final MEMBER roster, not from all
+   candidates.** Dropping training rows for candidates that were rejected or
+   ended up surplus would starve training for nothing. Because membership
+   evolves during annotation the list is provisional, regenerated against the
+   annotation-ledger head, and bound to the final member set at signoff. It also
+   binds the eval commitment digest, the digests of the training inputs it was
+   computed against, and the fingerprint method and dispositions.
+3. **The fingerprint review changes purpose, not rigour.** A confirmed
+   same-recording match between an eval candidate and a training-manifest row no
+   longer excludes the candidate; it enumerates what the rebuild must drop, and
+   the training peer is recorded structurally so the list is machine-checkable.
+   Coverage rules are untouched: every candidate and every training row must be
+   fingerprinted, uncoverable candidate audio stays excluded, an uncoverable
+   training row still blocks, and every flag still needs a human disposition
+   before minting.
+4. **The mint-time training inputs are preserved as immutable provenance.** The
+   rebuild changes those manifests, and without pinning the originals that change
+   would read as illegal input drift and make the eval commitment unauditable.
+5. **The rebuild is permitted before eval signoff; model training is not.** The
+   two must not deadlock: the rebuild has to be able to land so the closure gate
+   can pass, while the existing gate keeps training blocked until signoff.
+6. **Every accuracy figure produced by a model trained before the rebuild is
+   contaminated against this corpus and must be discarded.** No such figure has
+   passed a gate, so nothing is lost; the Epic 12 bundle gate will use a model
+   trained after the rebuild.
+7. The rebuild itself is FR-59d work, out of scope for Story 12.7, whose intent
+   contract forbids modifying the training manifests. Story 12.7 commits the eval
+   corpus and the must-drop list; a later story performs the rebuild and closes
+   the second gate.
+
+**Also decided 2026-08-11, and bound here:** when one recording qualifies for two
+bands, it is resolved BEFORE annotation rather than at the audit, so no track is
+ever verified twice; and the band that keeps it is chosen scarcest-first, in the
+order 175-plus, 100-120, 120-140, 160-175, 140-160, sub-100. Scarcest-first also
+happens to favour the faster band, which is where a half-tagged track actually
+verifies under the full-tempo convention.
+
+- [x] **Operator signoff on this amendment.** Signed 2026-08-11 by the operator
+  (robbyt), recorded via the structured decision elicitation in the development
+  session, the same mechanism as the 2026-08-08 signoff above. The operator was
+  shown the per-band candidate counts under both orders, the requirement for
+  this amendment and re-signoff, and the contamination consequence, and chose the
+  re-partition over shrinking the corpus. The scope was narrowed AFTER that
+  choice, on the same day, from all three exclusion routes to the manifest route
+  alone, once it was measured that the narrow lift already clears 43 in every
+  band. The narrowing is strictly more conservative than what was approved and
+  preserves the artist rule the approved version would have weakened.
+
 Dependency risk carried into signing: the section-5 tag validates against Story
 12.3's scheme as committed on this stacked branch via PR #195, squash-merged
 into rterhaar/epic-12 as 255a159 (2026-08-08). Its two review passes fixed only
