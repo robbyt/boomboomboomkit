@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-08-12'
 status: 'done'
 review_loop_iteration: 0
-final_revision: 'PENDING'
+final_revision: '6baaff9'
 baseline_revision: '617f43e' # branch tip after the signed FR-59a.2 amendment
 followup_review_recommended: true
 context:
