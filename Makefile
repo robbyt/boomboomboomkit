@@ -617,6 +617,29 @@ eval-corpus-pools:
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py commit-pools $(if $(SEED),--seed $(SEED),)
 
+## eval-corpus-remint: Story 12.7 -- mint a SUCCESSOR to a superseded candidate commitment. Archives the predecessor byte-for-byte next to the commitment artifact, records supersedes_sha256 (commitment validation walks the whole chain, so an archived predecessor cannot silently vanish), writes a fresh generation of row-level files, and replaces the canonical commitment last. Refuses while any prerequisite is missing, while the commitment on record is active, and while the prior generation carries ANY annotation state. Exit 4 on operator escalation. Develop-only.
+.PHONY: eval-corpus-remint
+eval-corpus-remint:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py remint $(if $(SEED),--seed $(SEED),)
+
+## eval-corpus-repass-sample: Story 12.7 -- draw the signed section-6 10 percent blind re-pass sample (12-6 lines 484-492, bound by the 2026-08-08 signoff). Independent domain-separated seed over a separate permutation of the frozen member roster, fresh aliases and an independently randomized order so the annotator is blinded to the first-pass BPM, the flags, membership position, and the original row id. Refuses until the corpus is complete and the shared audit is clean. Stage a FRESH DAW project per the signed SOP. Develop-only.
+.PHONY: eval-corpus-repass-sample
+eval-corpus-repass-sample:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py repass-sample
+
+## eval-corpus-repass-ingest: Story 12.7 -- ingest the blind re-pass annotation CSV (ANNOTATIONS=, keyed by re-pass alias). Records the two-tier disagreement rates per the operator clarification of 2026-08-11 (metrical-level: within 4 percent of 2x or 0.5x; fine: same level, above 0.5 BPM) plus the continuous absolute-difference distribution. It measures repeatability and never relabels: a disagreement is data, resolved only by a dated amendment. Develop-only.
+.PHONY: eval-corpus-repass-ingest
+eval-corpus-repass-ingest:
+ifndef ANNOTATIONS
+	$(error ANNOTATIONS is not set. Usage: make eval-corpus-repass-ingest ANNOTATIONS=path.csv)
+endif
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py repass-ingest --annotations "$(ANNOTATIONS)"
+
 ## eval-corpus-batch: Story 12.7 -- stage the next blinded annotation batch for BAND= (opaque row IDs, copied audio, worklist with row_id + staged path only). Optional BATCH= (validated against sequence) and SIZE= (default 40). Develop-only.
 .PHONY: eval-corpus-batch
 eval-corpus-batch:

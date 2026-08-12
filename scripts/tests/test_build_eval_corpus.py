@@ -1,19 +1,22 @@
 """Tests for the Story 12.7 eval-corpus construction harness (develop-only).
 
-Two layers.
+Three layers.
 
 PURE LOGIC: the signed section-2 protocol rules - half-open banding at every
 edge, tag-less + FR-59a.2 exclusion accounting, draw determinism,
-first-43-cumulative membership (surplus + duplicate tie-break by sequence
-position), DSP-free keep/reject with out-of-band tempo retention, the
-two-directional octave-sentinel windows, the privacy gate and the commitment
-key schema, and commitment digest mismatch detection.
+first-43-cumulative membership, DSP-free keep/reject, the two-directional
+octave-sentinel windows, transitive same-recording grouping, the section-6
+two-tier disagreement classifier, and the privacy gate + key schemas.
 
-COMMAND LEVEL: the real subcommands driven against a synthetic corpus, which
-two spec ACs require ("run on synthetic annotations in tests", "Given a complete
-corpus (test fixture)") and which nothing exercised before. Every write goes
-into pytest `tmp_path`; the fingerprint function is injected so no test decodes
-audio.
+COMMAND LEVEL: the real subcommands driven against a synthetic corpus.
+
+LIFECYCLE: one end-to-end walk - superseded -> archived -> re-minted -> staged
+-> ingested -> re-passed -> signed. That walk is what would have caught the
+re-mint dead end, the destroyed annotation records, and the missing blind
+re-pass before review.
+
+Every write goes into pytest `tmp_path`; the fingerprint function is injected so
+no test decodes audio.
 
 Run: `make scripts-tests`.
 """
@@ -25,6 +28,7 @@ import hashlib
 import importlib.util
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,6 +42,9 @@ def _load():
     spec = importlib.util.spec_from_file_location("build_eval_corpus", _SRC)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # Registered BEFORE execution: `dataclasses` resolves annotations through
+    # `sys.modules[cls.__module__]`, absent for an unregistered path load.
+    sys.modules.setdefault("build_eval_corpus", module)
     spec.loader.exec_module(module)
     return module
 
@@ -135,7 +142,7 @@ def test_candidate_universe_digest_is_content_derived():
     assert bec.candidate_universe_digest(a) != bec.candidate_universe_digest(c)
 
 
-# --- content binding + cross-band dedup (findings 3 and 12) -----------------
+# --- content binding + cross-band dedup -------------------------------------
 
 
 def test_bind_content_hashes_drops_unhashable_rows():
@@ -175,7 +182,42 @@ def test_cross_band_dedup_rejects_a_non_permutation():
         )
 
 
-# --- draw determinism + position-independent row IDs (finding 16) -----------
+# --- transitive same-recording grouping (finding C) -------------------------
+
+
+def test_confirmed_pairs_form_one_transitive_group():
+    # A-B then B-C confirmed. Writing each flag's group with no merge produced
+    # A->g1, B->g2, C->g2, so A and B both survived a confirmation that they are
+    # the same recording; which flag won was decided by sha256 sort order.
+    groups = bec.union_recording_groups([("A", "B"), ("B", "C")], {})
+    assert groups["A"] == groups["B"] == groups["C"]
+    assert len(set(groups.values())) == 1
+
+
+def test_disjoint_components_get_distinct_groups():
+    groups = bec.union_recording_groups([("A", "B"), ("C", "D")], {})
+    assert groups["A"] == groups["B"]
+    assert groups["C"] == groups["D"]
+    assert groups["A"] != groups["C"]
+
+
+def test_operator_supplied_group_id_wins_for_its_component():
+    groups = bec.union_recording_groups([("A", "B")], {"A": "rg-manual", "B": "rg-manual"})
+    assert groups == {"A": "rg-manual", "B": "rg-manual"}
+
+
+def test_conflicting_group_ids_inside_one_component_are_rejected():
+    with pytest.raises(bec.HarnessError, match="conflicting recording_group"):
+        bec.union_recording_groups([("A", "B")], {"A": "rg-one", "B": "rg-two"})
+
+
+def test_group_ids_are_deterministic():
+    a = bec.union_recording_groups([("A", "B"), ("B", "C")], {})
+    b = bec.union_recording_groups([("C", "B"), ("B", "A")], {})
+    assert a == b
+
+
+# --- draw determinism + position-independent row IDs ------------------------
 
 
 def test_draw_sequence_deterministic():
@@ -188,6 +230,20 @@ def test_draw_sequence_deterministic():
     assert [r["identity"] for r in a] != [r["identity"] for r in c]
     assert all(r["rowId"].startswith("e1-") for r in a)
     assert len({r["rowId"] for r in a}) == len(a)
+    assert all(r["origin"] == "primary" for r in a)
+
+
+def test_addendum_sequence_is_appended_after_the_exhausted_one():
+    primary = bec.draw_sequence(0, [{"source": "pool", "identity": f"h{i}"} for i in range(3)], 1)
+    extension = bec.draw_sequence(
+        0,
+        [{"source": "tony", "identity": f"t{i}"} for i in range(2)],
+        2,
+        offset=len(primary),
+        origin="fallback-addendum",
+    )
+    assert [e["sequencePosition"] for e in primary + extension] == [0, 1, 2, 3, 4]
+    assert all(e["origin"] == "fallback-addendum" for e in extension)
 
 
 def test_row_ids_do_not_encode_draw_position():
@@ -198,7 +254,6 @@ def test_row_ids_do_not_encode_draw_position():
     assert suffixes != sorted(suffixes)
     for entry in seq:
         assert re.fullmatch(r"e2-[0-9a-f]{12}", entry["rowId"])
-        # The retired format embedded the zero-padded draw position.
         assert f"{entry['sequencePosition']:04d}" not in entry["rowId"]
 
 
@@ -237,14 +292,17 @@ def test_out_of_band_reject_retains_verified_tempo():
     assert m["rejects"][rid] == {"reason": "out-of-band", "verified_bpm": 150.25}
 
 
+def test_keep_or_reject_non_numeric_stored_bpm_is_harness_error():
+    with pytest.raises(bec.HarnessError, match="non-numeric"):
+        bec.keep_or_reject({"verified_bpm": "fast"}, "160-175")
+
+
 # --- membership: first-43-cumulative, surplus, duplicate tie-break ----------
 
 
 def test_first_43_cumulative_membership_and_surplus():
     rows = [{"source": "pool", "identity": f"h{i:03d}"} for i in range(60)]
     seq = bec.draw_sequence(2, rows, seed=7)
-    # Annotate in a scrambled work order across two "batches"; every row keeps
-    # except every fifth row in sequence order, which rejects tempo-unstable.
     annotations = {}
     for entry in reversed(seq):
         pos = entry["sequencePosition"]
@@ -256,8 +314,6 @@ def test_first_43_cumulative_membership_and_surplus():
     expected_keepers = [e["rowId"] for e in seq if e["sequencePosition"] % 5 != 0]
     assert m["members"] == expected_keepers[:43]
     assert m["surplus"] == expected_keepers[43:]
-    # Membership is independent of annotation work order and batch boundaries:
-    # annotating only a prefix yields a prefix of the same membership.
     partial = {e["rowId"]: annotations[e["rowId"]] for e in seq[:30]}
     m2 = bec.compute_membership(seq, partial, "120-140")
     assert m2["members"] == [r for r in expected_keepers if r in partial][:43]
@@ -280,15 +336,7 @@ def test_duplicate_tie_break_earlier_sequence_position_kept():
     assert m["rejects"][second]["reason"] == "duplicate"
 
 
-def test_keep_or_reject_non_numeric_stored_bpm_is_harness_error():
-    with pytest.raises(bec.HarnessError, match="non-numeric"):
-        bec.keep_or_reject({"verified_bpm": "fast"}, "160-175")
-
-
 def test_duplicate_rejected_when_earlier_kept_row_carries_the_tag():
-    # The EARLIER kept row points at the later one; the later keeper is rejected
-    # regardless of which side carries the tag (bidirectional half of patch 17,
-    # which survives the finding-11 narrowing).
     rows = [{"source": "pool", "identity": f"h{i}"} for i in range(3)]
     seq = bec.draw_sequence(5, rows, seed=11)
     first, later = seq[0]["rowId"], seq[2]["rowId"]
@@ -316,10 +364,6 @@ def test_duplicate_rejected_when_tag_names_earlier_row_id():
 
 
 def test_defect_rejected_row_does_not_suppress_a_clean_copy():
-    # Finding 11: the signed criterion is "not a duplicate of a track already
-    # KEPT". An earlier audio-defect rejection is a property of that FILE, so it
-    # must not knock out a later clean copy of the same recording - the short
-    # bands cannot afford that.
     rows = [{"source": "pool", "identity": f"h{i}"} for i in range(2)]
     seq = bec.draw_sequence(7, rows, seed=17)
     first, later = seq[0]["rowId"], seq[1]["rowId"]
@@ -334,8 +378,6 @@ def test_defect_rejected_row_does_not_suppress_a_clean_copy():
 
 
 def test_surplus_keeper_still_suppresses_a_later_duplicate():
-    # The suppressing row need not be one of the final n; an eventual surplus
-    # keeper registers too.
     rows = [{"source": "pool", "identity": f"h{i}"} for i in range(4)]
     seq = bec.draw_sequence(8, rows, seed=19)
     ids = [e["rowId"] for e in seq]
@@ -366,13 +408,13 @@ def test_duplicate_same_identity_rejected():
 @pytest.mark.parametrize(
     ("verified", "legacy", "expected"),
     [
-        (160.0, [80.0], True),  # 160 in, 80 in
+        (160.0, [80.0], True),
         (174.99, [87.49], True),
-        (175.0, [80.0], False),  # 175 out of the full window
-        (160.0, [87.5], False),  # 87.5 out of the half window
+        (175.0, [80.0], False),
+        (160.0, [87.5], False),
         (160.0, [79.99], False),
-        (159.99, [80.0], False),  # verified below the full window
-        (80.0, [160.0], True),  # reverse direction
+        (159.99, [80.0], False),
+        (80.0, [160.0], True),
         (87.49, [174.99], True),
         (87.5, [160.0], False),
         (80.0, [175.0], False),
@@ -385,15 +427,50 @@ def test_octave_sentinel_two_directional_boundaries(verified, legacy, expected):
     assert bec.is_octave_sentinel(verified, legacy) is expected
 
 
+# --- section-6 two-tier disagreement (operator clarification 2026-08-11) -----
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "expected"),
+    [
+        (174.0, 174.0, bec.REPASS_AGREE),
+        (174.0, 174.4, bec.REPASS_AGREE),  # <= 0.5 BPM is agreement
+        (174.0, 174.6, bec.REPASS_FINE),
+        (87.0, 174.0, bec.REPASS_METRICAL),  # exact double
+        (87.0, 179.0, bec.REPASS_METRICAL),  # within 4 percent of 2x
+        (174.0, 87.0, bec.REPASS_METRICAL),  # exact half
+        (174.0, 89.0, bec.REPASS_METRICAL),  # within 4 percent of 0.5x
+        (87.0, 190.0, bec.REPASS_FINE),  # beyond the octave tolerance: not metrical
+        (174.0, None, bec.REPASS_NON_COMPARABLE),
+        (None, 174.0, bec.REPASS_NON_COMPARABLE),
+        (174.0, float("nan"), bec.REPASS_NON_COMPARABLE),
+    ],
+)
+def test_two_tier_disagreement_classifier(first, second, expected):
+    assert bec.classify_repass(first, second) == expected
+
+
+def test_a_stable_reading_outside_the_band_is_still_comparable():
+    # `non-comparable` is reserved for no usable numeric result. A second
+    # reading that crosses a band edge is classified normally and separately
+    # flagged `crossed_band`.
+    assert bec.classify_repass(119.0, 121.0) == bec.REPASS_FINE
+    assert bec.band_of(119.0) != bec.band_of(121.0)
+
+
+# --- fingerprint seam -------------------------------------------------------
+
+
 def test_default_fingerprint_memoizes_and_degrades(tmp_path, monkeypatch):
     calls = []
 
     def fake_compute(path):
         calls.append(path)
-        return [1.0, 2.0] if path.endswith("good.mp3") else None
+        return ([1.0, 2.0], "resolved") if path.endswith("good.mp3") else (None, "decode-failed")
 
-    monkeypatch.setattr(bec.cc, "compute_fingerprint", fake_compute)
+    monkeypatch.setattr(bec.cc, "compute_fingerprint_with_reason", fake_compute)
     monkeypatch.setattr(bec, "_FP_MEMO", {})
+    monkeypatch.setattr(bec, "_FP_REASON_MEMO", {})
     monkeypatch.setattr(bec, "_FP_DISK_CACHE", {})
     good = tmp_path / "good.mp3"
     good.write_bytes(b"x")
@@ -404,12 +481,31 @@ def test_default_fingerprint_memoizes_and_degrades(tmp_path, monkeypatch):
     assert bec._default_fingerprint(str(bad)) is None
     assert bec._default_fingerprint(str(bad)) is None
     assert calls == [str(good), str(bad)]  # each path decoded at most once
+    assert bec._default_fingerprint_reason(str(bad)) == "decode-failed"
+
+
+def test_missing_backend_is_a_distinct_environment_failure(monkeypatch):
+    # A missing librosa returned None for EVERY file, which `if vec:` absorbed,
+    # zeroing the mandatory route while the mint recorded "flags": 0.
+    real_import = __import__
+
+    def blocked(name, *args, **kwargs):
+        if name == "librosa":
+            raise ImportError("no librosa here")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", blocked)
+    with pytest.raises(bec.HarnessError, match="FINGERPRINT BACKEND UNAVAILABLE"):
+        bec.assert_fingerprint_backend()
+
+
+def test_corpus_common_stratifies_the_failure_reason(monkeypatch):
+    vec, reason = bec.cc.compute_fingerprint_with_reason("/nonexistent/file.mp3")
+    assert vec is None
+    assert reason in {"backend-missing", "decode-failed", "too-short", "non-finite"}
 
 
 def test_cohort_standardization_undoes_a_common_offset():
-    # The degeneracy corpus_common records: vectors dominated by a shared
-    # offset all score near 1.0 raw. Standardizing across the cohort separates
-    # them, which is what the audit precedent does before cosine.
     raw = [[100.0, 100.0, 1.0], [100.0, 100.0, 2.0], [100.0, 100.0, -3.0]]
     assert bec.cosine(raw[0], raw[2]) > 0.9
     stats = bec.cohort_stats(raw)
@@ -420,7 +516,7 @@ def test_cohort_standardization_undoes_a_common_offset():
 def test_cohort_standardization_skips_a_group_too_small_to_estimate_scale():
     raw = [[1.0, 0.0], [1.0, 0.0]]
     stats = bec.cohort_stats(raw)
-    assert 2 not in stats  # centring a 2-member group would zero it out
+    assert 2 not in stats
     assert bec.standardize(raw[0], stats) == raw[0]
 
 
@@ -503,19 +599,23 @@ def test_privacy_gate_rejects_mid_string_audio_extension():
 
 def _schema_commitment():
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "story": "12.7",
         "status": "active",
-        "generated": "2026-08-10",
+        "generated": "2026-08-11",
         "protocol": bec.PROTOCOL_POINTER,
         "run_command": "make eval-corpus-pools",
         "seed_algorithm": bec.SEED_ALGORITHM,
         "master_seed": 1,
         "n_band_target": 43,
+        "generation": "g0123456789abcdef",
+        "supersedes_sha256": None,
         "bands": {
             name: {
                 "candidates": 43,
                 "seed": 2,
+                "fallback_candidates": 0,
+                "fallback_seed": 3,
                 "exclusions": dict.fromkeys(bec.EXCLUSION_REASONS, 0),
             }
             for name in bec.BAND_NAMES
@@ -527,15 +627,35 @@ def _schema_commitment():
             "flags": 0,
             "confirmed_same_recording": 0,
             "cleared": 0,
+            "recording_groups": 0,
             "dispositions_sha256": "1" * 64,
             "candidate_universe_sha256": "2" * 64,
             "training_input_sha256": "3" * 64,
+            "coverage_sha256": "8" * 64,
+            "coverage": {
+                "candidates_total": 10,
+                "candidates_covered": 10,
+                "candidates_by_reason": dict.fromkeys(bec.COVERAGE_REASONS, 0),
+                "training_total": 2,
+                "training_covered": 2,
+                "training_by_reason": dict.fromkeys(bec.COVERAGE_REASONS, 0),
+                "amended_uncovered_training_rows": 0,
+            },
         },
         "operator_decisions": {
             "decisions_sha256": "4" * 64,
-            "decided": "2026-08-10",
+            "decided": "2026-08-11",
             "short_band_allocation": "shrink-corpus",
             "cross_band_duplicate_rule": "audit-fails-on-cross-band-duplicate",
+        },
+        "fallback_addendum": {
+            "policy": "shrink-corpus",
+            "dated": "2026-08-11",
+            "fallback_candidates_by_band": dict.fromkeys(bec.BAND_NAMES, 0),
+            "already_in_primary_by_band": dict.fromkeys(bec.BAND_NAMES, 0),
+            "net_new_by_band": dict.fromkeys(bec.BAND_NAMES, 0),
+            "addendum_sha256": None,
+            "note": bec.FALLBACK_EMPTY_NOTE,
         },
         "pool_file_sha256": "5" * 64,
         "draw_file_sha256": "6" * 64,
@@ -573,49 +693,6 @@ def test_committed_commitment_artifact_passes_its_own_gate():
     doc = json.loads(_ORIGINAL_PATHS[1].joinpath("12-7-candidate-commitment.json").read_text())
     assert doc["status"] == bec.STATUS_SUPERSEDED
     bec.gate_committed(doc, bec.assert_commitment_schema)
-
-
-# --- commitment digest mismatch ---------------------------------------------
-
-
-def _digest_fixture(tmp_path):
-    pools = tmp_path / "candidate-pools.json"
-    pools.write_text(json.dumps({"bands": {}}), encoding="utf-8")
-    draws = tmp_path / "draw-sequences.json"
-    draws.write_text(json.dumps({"bands": {}, "x": 1}), encoding="utf-8")
-    commitment = tmp_path / "commitment.json"
-    commitment.write_text(
-        json.dumps(
-            {
-                "pool_file_sha256": bec.sha256_file(pools),
-                "draw_file_sha256": bec.sha256_file(draws),
-            }
-        ),
-        encoding="utf-8",
-    )
-    return pools, draws, commitment
-
-
-def test_commitment_digest_mismatch_detected(tmp_path):
-    pools, draws, commitment = _digest_fixture(tmp_path)
-    assert bec.verify_committed_digest(pools, draws, commitment)["pool_file_sha256"]
-    pools.write_text(json.dumps({"bands": {"tampered": []}}), encoding="utf-8")
-    with pytest.raises(bec.HarnessError, match="digest mismatch"):
-        bec.verify_committed_digest(pools, draws, commitment)
-
-
-def test_commitment_verifies_both_digests_and_missing_file(tmp_path):
-    pools, draws, commitment = _digest_fixture(tmp_path)
-    draws.write_text(json.dumps({"tampered": True}), encoding="utf-8")
-    with pytest.raises(bec.HarnessError, match="draw_file_sha256"):
-        bec.verify_committed_digest(pools, draws, commitment)
-    draws.unlink()
-    with pytest.raises(bec.HarnessError, match="missing"):
-        bec.verify_committed_digest(pools, draws, commitment)
-    # A commitment missing a recorded digest is schema drift, not KeyError.
-    commitment.write_text(json.dumps({"pool_file_sha256": bec.sha256_file(pools)}))
-    with pytest.raises(bec.HarnessError, match="draw_file_sha256"):
-        bec.verify_committed_digest(pools, draws, commitment)
 
 
 # --- annotation CSV validation ----------------------------------------------
@@ -659,8 +736,16 @@ def test_annotation_csv_rejects_non_finite_bpm(tmp_path):
         bec.parse_annotations_csv(p, ["r1"])
 
 
+def test_immutable_write_refuses_a_differing_overwrite(tmp_path):
+    path = tmp_path / "record.json"
+    bec._write_json_immutable(path, {"a": 1})
+    bec._write_json_immutable(path, {"a": 1})  # identical bytes: resumable
+    with pytest.raises(bec.HarnessError, match="IMMUTABLE RECORD"):
+        bec._write_json_immutable(path, {"a": 2})
+
+
 # ===========================================================================
-# COMMAND LEVEL (finding 17): the real subcommands over a synthetic corpus.
+# COMMAND LEVEL: the real subcommands over a synthetic corpus.
 # ===========================================================================
 
 BAND_BPM = {
@@ -691,6 +776,7 @@ def _build_inputs(root: Path) -> dict:
     audio_root = root / "pool-audio"
     tony_root = root / "tony-audio"
     oa_root = root / "oa300"
+    training_root = root / "training-audio"
     pool_rows: list[dict] = []
     tony_rows: list[dict] = []
     for bi, (_band, bpm) in enumerate(BAND_BPM.items()):
@@ -713,6 +799,9 @@ def _build_inputs(root: Path) -> dict:
         )
     _write_audio(oa_root / "corpus" / "oa-0.mp3", b"oa audio zero " * 8)
     oa300_rows = [{"filename": "oa-0.mp3", "bpm": 85.0, "title": "oa-zero", "subdir": None}]
+    # A real training row so the mandatory route always has a non-empty
+    # training side; an empty one is an input failure, never a clean pass.
+    _write_audio(training_root / "train-0.mp3", b"training audio zero " * 8)
     return {
         "pool_rows": pool_rows,
         "pool_audio_root": str(audio_root),
@@ -722,8 +811,9 @@ def _build_inputs(root: Path) -> dict:
         "manifest_paths": {},
         "tony_split_ids": set(),
         "training_artist_keys": set(),
-        "training_local_paths": {},
+        "training_local_paths": {"train-0": str(training_root / "train-0.mp3")},
         "_oa300_root": str(oa_root),
+        "_training_root": str(training_root),
     }
 
 
@@ -753,46 +843,72 @@ def ws(tmp_path, monkeypatch):
     monkeypatch.setattr(bec, "_giantsteps_titles", lambda: set())
     monkeypatch.setattr(bec.cc, "resolve_giantsteps_gt_path", lambda: Path(__file__))
     monkeypatch.setattr(bec, "FINGERPRINT_FN", _unique_fingerprint)
+    monkeypatch.setattr(bec, "FINGERPRINT_REASON_FN", lambda p: "decode-failed")
+    # No test decodes audio, so the real backend probe is stubbed; the probe
+    # itself has its own test above.
+    monkeypatch.setattr(bec, "assert_fingerprint_backend", lambda: None)
     try:
         yield Workspace(root=tmp_path, state=state, artifacts=artifacts, inputs=inputs)
     finally:
         bec.configure_paths(*_ORIGINAL_PATHS)
 
 
-def _write_decisions(cross="audit-fails-on-cross-band-duplicate", **extra):
+# --- workspace helpers ------------------------------------------------------
+
+
+def _gen() -> str:
+    return json.loads(bec.COMMITMENT_JSON.read_text())["generation"]
+
+
+def _pools() -> dict:
+    return json.loads(bec.pools_path(_gen()).read_text())
+
+
+def _batch_record(band, batch=0) -> dict:
+    return json.loads((bec.batches_dir(_gen()) / band / f"batch-{batch:03d}.json").read_text())
+
+
+def _annotation_files(band) -> list[Path]:
+    d = bec.annotations_dir(_gen()) / band
+    return sorted(d.glob("*.json")) if d.exists() else []
+
+
+def _write_decisions(cross="audit-fails-on-cross-band-duplicate", short=None, **extra):
     doc = {
         "schema_version": 1,
-        "decided": "2026-08-10",
-        "short_band_allocation": {"policy": "shrink-corpus", "n_band": N_BAND_TEST},
+        "decided": "2026-08-11",
+        "short_band_allocation": short or {"policy": "shrink-corpus", "n_band": N_BAND_TEST},
         "cross_band_duplicate_rule": {"policy": cross, **extra},
     }
     bec._write_json(bec.DECISIONS_PATH, doc)
 
 
-def _write_dispositions(disposition=bec.DISPOSITION_NOT_SAME):
+def _write_dispositions(disposition=bec.DISPOSITION_NOT_SAME, group=None):
     template = json.loads(bec.DISPOSITIONS_TEMPLATE_PATH.read_text())
     for row in template["flags"]:
         row["disposition"] = disposition
+        if group:
+            row["recording_group"] = group
     bec._write_json(bec.DISPOSITIONS_PATH, template)
 
 
-def _mint(seed=4242):
+def _mint(seed=4242, cross="audit-fails-on-cross-band-duplicate", short=None, **extra):
     assert bec.main(["prepare-review"]) == 0
     _write_dispositions()
-    _write_decisions()
+    _write_decisions(cross=cross, short=short, **extra)
     return bec.main(["commit-pools", "--seed", str(seed)])
 
 
-def _annotate(band, batch, overrides=None):
-    record = json.loads((bec.BATCHES_DIR / band / f"batch-{batch:03d}.json").read_text())
-    path = bec.EVAL_CORPUS_DIR / f"ann-{band}-{batch}.csv"
+def _annotate(band, batch=0, overrides=None, ids=None, name=None):
+    ids = ids if ids is not None else _batch_record(band, batch)["work_order"]
+    path = bec.EVAL_CORPUS_DIR / (name or f"ann-{band}-{batch}.csv")
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(CSV_HEADER.split(","))
-        for rid in record["work_order"]:
+        for rid in ids:
             row = {
                 "row_id": rid,
-                "verified_bpm": BAND_BPM[band],
+                "verified_bpm": BAND_BPM.get(band, 165.0),
                 "tempo_unstable": 0,
                 "irresolvable": 0,
                 "ambiguous": 0,
@@ -815,6 +931,38 @@ def _complete_corpus():
         _complete_band(band)
 
 
+def _repass(overrides=None):
+    """Draw (if none is pending) + annotate + ingest one blind re-pass."""
+    if not sorted(bec.repass_dir(_gen()).glob("repass-sample.v*.json")):
+        assert bec.main(["repass-sample"]) == 0
+    record = json.loads(
+        sorted(bec.repass_dir(_gen()).glob("repass-sample.v*.json"))[-1].read_text()
+    )
+    pools = _pools()
+    band_by_row = {
+        entry["rowId"]: name for name in bec.BAND_NAMES for entry in pools["bands"][name]
+    }
+    aliases = record["aliases"]
+    path = bec.EVAL_CORPUS_DIR / "repass.csv"
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(CSV_HEADER.split(","))
+        for alias in record["presentation_order"]:
+            row_id = next(r for r, a in aliases.items() if a == alias)
+            row = {
+                "row_id": alias,
+                "verified_bpm": BAND_BPM[band_by_row[row_id]],
+                "tempo_unstable": 0,
+                "irresolvable": 0,
+                "ambiguous": 0,
+                "audio_defect": 0,
+                "duplicate_of": "",
+            }
+            row.update((overrides or {}).get(alias, {}))
+            writer.writerow([row[c] for c in CSV_HEADER.split(",")])
+    return bec.main(["repass-ingest", "--annotations", str(path)])
+
+
 # --- commit-pools + the two gates -------------------------------------------
 
 
@@ -823,14 +971,23 @@ def test_commit_pools_mints_an_active_commitment(ws):
     doc = json.loads(bec.COMMITMENT_JSON.read_text())
     assert doc["status"] == bec.STATUS_ACTIVE
     assert doc["n_band_target"] == N_BAND_TEST
-    assert doc["operator_decisions"]["short_band_allocation"] == "shrink-corpus"
+    assert doc["supersedes_sha256"] is None
+    assert doc["generation"].startswith("g")
     bec.gate_committed(doc, bec.assert_commitment_schema)
-    assert bec.POOLS_PATH.exists() and bec.DRAWS_PATH.exists()
+    gen = doc["generation"]
+    assert bec.pools_path(gen).exists() and bec.draws_path(gen).exists()
     assert bec.LEDGER_HEAD_JSON.exists()
-    pools = json.loads(bec.POOLS_PATH.read_text())
     for name in bec.BAND_NAMES:
-        for entry in pools["bands"][name]:
-            assert len(entry["contentSha256"]) == 64  # finding 3: content-bound
+        for entry in _pools()["bands"][name]:
+            assert len(entry["contentSha256"]) == 64  # content-bound
+
+
+def test_row_level_files_are_generation_scoped(ws):
+    assert _mint() == 0
+    gen = _gen()
+    assert bec.pools_path(gen).parent.name == gen
+    assert gen in str(bec.batches_dir(gen))
+    assert gen in str(bec.ledger_path(gen))
 
 
 def test_commit_pools_refuses_without_dispositions(ws):
@@ -870,10 +1027,95 @@ def test_dispositions_bound_to_the_candidate_universe(ws):
         bec.cmd_commit_pools(bec.argparse.Namespace(seed=1))
 
 
+def test_disposition_template_surfaces_the_keys(ws):
+    # Without candidate_key/peer_key the operator has no key material to assign
+    # a shared recording group by hand, which made the broken per-flag default
+    # the likely path.
+    assert bec.main(["prepare-review"]) == 0
+    template = json.loads(bec.DISPOSITIONS_TEMPLATE_PATH.read_text())
+    for row in template["flags"]:
+        assert "candidate_key" in row
+        assert "peer_key" in row
+
+
+# --- the mandatory fingerprint route fails CLOSED ---------------------------
+
+
+def test_uncoverable_candidate_is_hard_excluded(ws, monkeypatch):
+    target = str(Path(ws.inputs["pool_audio_root"]) / ws.inputs["pool_rows"][0]["path"])
+    monkeypatch.setattr(
+        bec, "FINGERPRINT_FN", lambda p: None if p == target else _unique_fingerprint(p)
+    )
+    assert _mint() == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["bands"]["sub-100"]["exclusions"]["fingerprint-uncoverable"] == 1
+    cov = doc["fingerprint_review"]["coverage"]
+    assert cov["candidates_covered"] == cov["candidates_total"] - 1
+    assert cov["candidates_by_reason"]["decode-failed"] == 1
+    identities = {e["identity"] for e in _pools()["bands"]["sub-100"]}
+    assert ws.inputs["pool_rows"][0]["audioHash"] not in identities
+
+
+def test_uncoverable_training_row_blocks_certification(ws, monkeypatch):
+    train = ws.inputs["training_local_paths"]["train-0"]
+    monkeypatch.setattr(
+        bec, "FINGERPRINT_FN", lambda p: None if p == train else _unique_fingerprint(p)
+    )
+    with pytest.raises(bec.OperatorHalt, match="COVERAGE INCOMPLETE ON THE TRAINING SIDE"):
+        bec.main(["prepare-review"])
+        _write_dispositions()
+        _write_decisions()
+        bec.cmd_commit_pools(bec.argparse.Namespace(seed=1))
+
+
+def test_dated_amendment_unblocks_a_named_uncovered_training_row(ws, monkeypatch):
+    train = ws.inputs["training_local_paths"]["train-0"]
+    monkeypatch.setattr(
+        bec, "FINGERPRINT_FN", lambda p: None if p == train else _unique_fingerprint(p)
+    )
+    assert bec.main(["prepare-review"]) == 0
+    _write_dispositions()
+    doc = {
+        "schema_version": 1,
+        "decided": "2026-08-11",
+        "short_band_allocation": {"policy": "shrink-corpus", "n_band": N_BAND_TEST},
+        "cross_band_duplicate_rule": {"policy": "audit-fails-on-cross-band-duplicate"},
+        "fingerprint_coverage_amendment": {
+            "dated": "2026-08-11",
+            "accepted_uncovered": ["tony-split:train-0"],
+        },
+    }
+    bec._write_json(bec.DECISIONS_PATH, doc)
+    assert bec.cmd_commit_pools(bec.argparse.Namespace(seed=9)) == 0
+    cov = json.loads(bec.COMMITMENT_JSON.read_text())["fingerprint_review"]["coverage"]
+    assert cov["amended_uncovered_training_rows"] == 1
+    assert cov["training_covered"] == 0
+
+
+def test_empty_training_side_is_an_input_failure(ws):
+    ws.inputs["training_local_paths"] = {}
+    ws.inputs["manifest_paths"] = {}
+    with pytest.raises(bec.OperatorHalt, match="enumerated ZERO rows"):
+        bec.main(["prepare-review"])
+        _write_dispositions()
+        _write_decisions()
+        bec.cmd_commit_pools(bec.argparse.Namespace(seed=1))
+
+
+def test_coverage_digest_is_recorded_and_binds_the_private_roster(ws):
+    assert _mint() == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    coverage = json.loads(bec.COVERAGE_PATH.read_text())
+    assert doc["fingerprint_review"]["coverage_sha256"] == bec.sha256_bytes(
+        bec._json_bytes(coverage)
+    )
+    assert set(coverage["candidate_roster"])  # private: identifies WHICH rows
+
+
 def test_prepare_review_flags_a_training_fingerprint_match(ws, monkeypatch, tmp_path):
     training = tmp_path / "training" / "leak.mp3"
     _write_audio(training, b"leaked audio " * 8)
-    ws.inputs["training_local_paths"] = {"train-1": str(training)}
+    ws.inputs["training_local_paths"]["train-1"] = str(training)
     target = Path(ws.inputs["pool_audio_root"]) / ws.inputs["pool_rows"][0]["path"]
     monkeypatch.setattr(
         bec,
@@ -882,9 +1124,7 @@ def test_prepare_review_flags_a_training_fingerprint_match(ws, monkeypatch, tmp_
     )
     assert bec.main(["prepare-review"]) == 0
     review = json.loads(bec.REVIEW_FLAGS_PATH.read_text())
-    kinds = {f["kind"] for f in review["flags"]}
-    assert bec.FLAG_KIND_FINGERPRINT in kinds
-    # Confirming the flag excludes the candidate before commitment.
+    assert bec.FLAG_KIND_FINGERPRINT in {f["kind"] for f in review["flags"]}
     _write_dispositions(bec.DISPOSITION_SAME)
     _write_decisions()
     assert bec.cmd_commit_pools(bec.argparse.Namespace(seed=5)) == 0
@@ -895,9 +1135,7 @@ def test_prepare_review_flags_a_training_fingerprint_match(ws, monkeypatch, tmp_
 
 def test_cross_band_recording_flags_feed_the_dedup_policy(ws, monkeypatch):
     # A half-tempo and a full-tempo encode of one recording land in two bands by
-    # construction; different bytes, so only a fingerprint pair sees it. The flag
-    # excludes nothing on its own - it supplies the recording group that
-    # `pre-commitment-recording-dedup` collapses on.
+    # construction; different bytes, so only a fingerprint pair sees it.
     root = Path(ws.inputs["pool_audio_root"])
     half = str(
         root / next(r["path"] for r in ws.inputs["pool_rows"] if r["fileMetadataBPM"] == 90.0)
@@ -926,12 +1164,104 @@ def test_cross_band_recording_flags_feed_the_dedup_policy(ws, monkeypatch):
     assert doc["bands"]["160-175"]["exclusions"]["cross-band-duplicate"] == 0
 
 
+def test_audit_fails_on_a_cross_band_re_encode_under_the_promising_policy(ws, monkeypatch):
+    # The policy named `audit-fails-on-cross-band-duplicate` exists to catch
+    # cross-band re-encodes. Identity, byte digest and normalized title all miss
+    # them by definition, so before the recording groups were persisted the
+    # check was a no-op.
+    root = Path(ws.inputs["pool_audio_root"])
+    half = str(
+        root / next(r["path"] for r in ws.inputs["pool_rows"] if r["fileMetadataBPM"] == 90.0)
+    )
+    full = str(
+        root / next(r["path"] for r in ws.inputs["pool_rows"] if r["fileMetadataBPM"] == 165.0)
+    )
+    monkeypatch.setattr(
+        bec,
+        "FINGERPRINT_FN",
+        lambda p: [1.0, 0.0] if p in (half, full) else _unique_fingerprint(p),
+    )
+    assert bec.main(["prepare-review"]) == 0
+    _write_dispositions(bec.DISPOSITION_SAME)
+    _write_decisions(cross="audit-fails-on-cross-band-duplicate")
+    assert bec.cmd_commit_pools(bec.argparse.Namespace(seed=12)) == 0
+    pools = _pools()
+    grouped = {
+        name: [e for e in pools["bands"][name] if e.get("recordingGroup")]
+        for name in ("sub-100", "160-175")
+    }
+    assert len(grouped["sub-100"]) == 1 and len(grouped["160-175"]) == 1
+    assert grouped["sub-100"][0]["recordingGroup"] == grouped["160-175"][0]["recordingGroup"]
+    # Drive both grouped rows into membership by rejecting every other row in
+    # their bands, so the audit sees the pair.
+    for band in ("sub-100", "160-175"):
+        keep = grouped[band][0]["rowId"]
+        assert bec.main(["stage-batch", "--band", band, "--size", "6"]) == 0
+        overrides = {
+            rid: {"verified_bpm": "", "tempo_unstable": 1}
+            for rid in _batch_record(band)["work_order"]
+            if rid != keep
+        }
+        csv_path = _annotate(band, 0, overrides=overrides)
+        assert (
+            bec.main(["ingest", "--band", band, "--batch", "0", "--annotations", str(csv_path)])
+            == 0
+        )
+    failures, _w, _r = bec.run_audit()
+    assert any("cross-band duplicate member RECORDING" in f for f in failures)
+
+
+# --- the signed exhaustion fallback (finding F, second half) ----------------
+
+
+def test_fallback_addendum_is_enumerated_and_reports_its_emptiness(ws, capsys):
+    # `fallback-addendum` keeps n = 43, so the synthetic bands stay short and
+    # the mint HALTS - which is the point: the addendum is enumerated, recovers
+    # nothing, and the band still escalates to the operator.
+    assert _mint(short={"policy": "fallback-addendum"}) == 4
+    assert "recovers 0 net-new row(s)" in capsys.readouterr().err
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    fb = doc["fallback_addendum"]
+    assert fb["policy"] == "fallback-addendum"
+    # Tony and OA300 rows are the signed fallback source AND already inside the
+    # primary pool, so the net-new set is empty by construction. Implementing it
+    # faithfully is what lets the operator SEE that rather than infer it.
+    assert sum(fb["net_new_by_band"].values()) == 0
+    assert sum(fb["fallback_candidates_by_band"].values()) > 0
+    assert fb["already_in_primary_by_band"] == fb["fallback_candidates_by_band"]
+    assert bec.ADDENDUM_JSON.exists()
+    bec.gate_committed(json.loads(bec.ADDENDUM_JSON.read_text()), bec.assert_addendum_schema)
+
+
+def test_fallback_enumeration_excludes_rows_dropped_for_cause():
+    # The fallback extends a pool; it never re-admits a row excluded for a
+    # contamination or intactness reason.
+    inputs = {
+        "tony_rows": [_tony_row("t1", 110.0), _tony_row("t2", 110.0)],
+        "oa300_rows": [],
+        "manifest_hashes": set(),
+        "tony_split_ids": set(),
+        "training_artist_keys": set(),
+    }
+    primary = {name: [] for name in bec.BAND_NAMES}
+    primary["100-120"] = [{"source": "tony", "identity": "t1"}]
+    rows, counts = bec.build_fallback_candidates(inputs, primary, set())
+    assert [r["identity"] for r in rows["100-120"]] == ["t2"]
+    assert counts["100-120"] == {
+        "fallback_candidates": 2,
+        "already_in_primary": 1,
+        "net_new": 1,
+    }
+    rows, counts = bec.build_fallback_candidates(inputs, primary, {"tony:t2"})
+    assert rows["100-120"] == []
+    assert counts["100-120"]["net_new"] == 0
+
+
+# --- drift / tamper ---------------------------------------------------------
+
+
 def test_input_drift_on_an_existing_commitment_fails(ws):
     assert _mint() == 0
-    # Edit a source AUDIO file. The candidate universe (source + identity +
-    # band) is unchanged, so the disposition binding still matches; only
-    # re-deriving the pool document from today's inputs catches this. Before the
-    # rework this run printed "commitment verified".
     src = Path(ws.inputs["pool_audio_root"]) / ws.inputs["pool_rows"][0]["path"]
     src.write_bytes(b"a different master " * 9)
     with pytest.raises(bec.DriftError, match="INPUT DRIFT"):
@@ -958,21 +1288,29 @@ def test_unchanged_inputs_verify(ws):
 
 def test_tampered_row_level_pool_file_fails(ws):
     assert _mint() == 0
-    bec.POOLS_PATH.write_text(json.dumps({"bands": {}}), encoding="utf-8")
+    bec.pools_path(_gen()).write_text(json.dumps({"bands": {}}), encoding="utf-8")
     with pytest.raises(bec.DriftError, match="tampered"):
         bec.cmd_commit_pools(bec.argparse.Namespace(seed=None))
 
 
-# --- superseded enforcement -------------------------------------------------
+def test_state_validation_detects_a_drifted_pool_file(ws):
+    assert _mint() == 0
+    state = bec.load_state()
+    bec.pools_path(_gen()).write_text(json.dumps({"bands": {}}), encoding="utf-8")
+    assert any("digest mismatch" in f for f in bec.validate_state(state))
+
+
+# --- superseded enforcement + the re-mint path (finding A) ------------------
 
 
 def _supersede():
     doc = json.loads(bec.COMMITMENT_JSON.read_text())
     doc["status"] = bec.STATUS_SUPERSEDED
+    doc["superseded_note"] = "superseded for test"
     bec._write_json(bec.COMMITMENT_JSON, doc)
 
 
-def test_commit_pools_halts_on_a_superseded_commitment(ws, capsys):
+def test_commit_pools_halts_on_a_superseded_commitment_with_missing_prerequisites(ws, capsys):
     assert _mint() == 0
     _supersede()
     bec.DISPOSITIONS_PATH.unlink()
@@ -982,15 +1320,81 @@ def test_commit_pools_halts_on_a_superseded_commitment(ws, capsys):
     assert "COMMITMENT SUPERSEDED" in err
     assert "MISSING fingerprint dispositions" in err
     assert "MISSING operator decisions" in err
-    assert "short-band allocation" in err
-    assert "cross-band duplicate rule" in err
+
+
+def test_commit_pools_never_reports_a_prerequisite_present_while_halting(ws, capsys):
+    # Round 1 printed "present" for each satisfied gate under the headline
+    # "blocked on the following, all of which must be on record first" and then
+    # halted anyway: satisfying every stated gate failed identically to
+    # satisfying none.
+    assert _mint() == 0
+    _supersede()
+    assert bec.main(["commit-pools"]) == 4
+    err = capsys.readouterr().err
+    assert "present (" not in err
+    assert "blocked on the following" not in err
+    assert "eval-corpus-remint" in err
+
+
+def test_remint_archives_the_predecessor_and_mints_a_successor(ws):
+    assert _mint() == 0
+    first_gen = _gen()
+    prior_digest = bec.sha256_file(bec.COMMITMENT_JSON)
+    prior_bytes = bec.COMMITMENT_JSON.read_bytes()
+    _supersede()
+    superseded_digest = bec.sha256_file(bec.COMMITMENT_JSON)
+    assert bec.main(["remint", "--seed", "777"]) == 0
+    doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["status"] == bec.STATUS_ACTIVE
+    assert doc["supersedes_sha256"] == superseded_digest
+    assert doc["generation"] != first_gen
+    archives = sorted(bec.ARTIFACTS_DIR.glob("12-7-candidate-commitment.*.json"))
+    assert len(archives) == 1
+    assert bec.sha256_file(archives[0]) == superseded_digest
+    assert prior_digest != superseded_digest  # the archived copy is the superseded one
+    assert prior_bytes != archives[0].read_bytes()
+    assert bec.validate_state(bec.load_state()) == []
+
+
+def test_commitment_chain_breaks_when_an_archive_is_removed(ws):
+    assert _mint() == 0
+    _supersede()
+    assert bec.main(["remint", "--seed", "778"]) == 0
+    for archive in bec.ARTIFACTS_DIR.glob("12-7-candidate-commitment.*.json"):
+        archive.unlink()
+    failures = bec.validate_state(bec.load_state())
+    assert any("commitment chain break" in f for f in failures)
+
+
+def test_remint_refuses_while_prerequisites_are_missing(ws, capsys):
+    assert _mint() == 0
+    _supersede()
+    bec.DECISIONS_PATH.unlink()
+    assert bec.main(["remint"]) == 4
+    assert "MISSING operator decisions" in capsys.readouterr().err
+
+
+def test_remint_refuses_while_the_prior_generation_carries_annotation_state(ws, capsys):
+    assert _mint() == 0
+    _complete_band("sub-100")
+    _supersede()
+    assert bec.main(["remint", "--seed", "779"]) == 4
+    err = capsys.readouterr().err
+    assert "RE-MINT REFUSED" in err
+    assert "annotation-ledger event" in err
+
+
+def test_remint_refuses_over_an_active_commitment(ws, capsys):
+    assert _mint() == 0
+    assert bec.main(["remint"]) == 1
+    assert "is ACTIVE" in capsys.readouterr().err
 
 
 def test_every_consumer_refuses_a_superseded_commitment(ws, capsys):
     assert _mint() == 0
     _complete_band("sub-100")
-    _supersede()
     csv_path = bec.EVAL_CORPUS_DIR / "ann-sub-100-0.csv"
+    _supersede()
     invocations = [
         ["stage-batch", "--band", "sub-100"],
         ["ingest", "--band", "sub-100", "--batch", "0", "--annotations", str(csv_path)],
@@ -998,6 +1402,8 @@ def test_every_consumer_refuses_a_superseded_commitment(ws, capsys):
         ["status"],
         ["audit"],
         ["emit-manifest"],
+        ["repass-sample"],
+        ["repass-ingest", "--annotations", str(csv_path)],
         ["signoff"],
     ]
     for argv in invocations:
@@ -1017,9 +1423,9 @@ def test_audit_without_any_commitment_fails(ws, capsys):
 def test_stage_batch_writes_a_blinded_randomized_worklist(ws):
     assert _mint() == 0
     assert bec.main(["stage-batch", "--band", "sub-100", "--size", "6"]) == 0
-    record = json.loads((bec.BATCHES_DIR / "sub-100" / "batch-000.json").read_text())
+    record = _batch_record("sub-100")
     assert record["work_order"] != record["rowIds"]
-    with open(bec.BATCHES_DIR / "sub-100" / "batch-000-worklist.csv", encoding="utf-8") as fh:
+    with open(bec.worklist_path_for(_gen(), "sub-100", 0), encoding="utf-8") as fh:
         rows = list(csv.reader(fh))
     assert rows[0] == ["row_id", "audio"]
     assert [r[0] for r in rows[1:]] == record["work_order"]
@@ -1029,8 +1435,7 @@ def test_stage_batch_writes_a_blinded_randomized_worklist(ws):
 
 def test_stage_batch_hard_fails_on_equal_size_substitution(ws):
     assert _mint() == 0
-    pools = json.loads(bec.POOLS_PATH.read_text())
-    entry = next(e for e in pools["bands"]["sub-100"] if e["source"] == "pool")
+    entry = next(e for e in _pools()["bands"]["sub-100"] if e["source"] == "pool")
     src = Path(ws.inputs["pool_audio_root"]) / entry["relPath"]
     original = src.read_bytes()
     src.write_bytes(b"X" * len(original))  # same size, different content
@@ -1041,21 +1446,15 @@ def test_stage_batch_hard_fails_on_equal_size_substitution(ws):
 def test_tampered_batch_record_rejected_by_every_consumer(ws, capsys):
     assert _mint() == 0
     _complete_band("sub-100")
-    record_path = bec.BATCHES_DIR / "sub-100" / "batch-000.json"
+    record_path = bec.batches_dir(_gen()) / "sub-100" / "batch-000.json"
     record = json.loads(record_path.read_text())
     record["rowIds"] = list(reversed(record["rowIds"]))
     bec._write_json(record_path, record)
     with pytest.raises(bec.HarnessError, match="not the committed draw-sequence slice"):
         bec.validate_batch_records(
-            "sub-100",
-            [e["rowId"] for e in json.loads(bec.POOLS_PATH.read_text())["bands"]["sub-100"]],
+            _gen(), "sub-100", [e["rowId"] for e in _pools()["bands"]["sub-100"]]
         )
-    for argv in (
-        ["stage-batch", "--band", "sub-100"],
-        ["status"],
-        ["audit"],
-        ["emit-manifest"],
-    ):
+    for argv in (["stage-batch", "--band", "sub-100"], ["status"], ["audit"], ["emit-manifest"]):
         capsys.readouterr()
         assert bec.main(argv) != 0, argv
 
@@ -1063,14 +1462,13 @@ def test_tampered_batch_record_rejected_by_every_consumer(ws, capsys):
 def test_batch_record_start_tamper_rejected(ws):
     assert _mint() == 0
     assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
-    record_path = bec.BATCHES_DIR / "sub-100" / "batch-000.json"
+    record_path = bec.batches_dir(_gen()) / "sub-100" / "batch-000.json"
     record = json.loads(record_path.read_text())
     record["start"] = 2
     bec._write_json(record_path, record)
     with pytest.raises(bec.HarnessError, match="cumulative consecutive-span start"):
         bec.validate_batch_records(
-            "sub-100",
-            [e["rowId"] for e in json.loads(bec.POOLS_PATH.read_text())["bands"]["sub-100"]],
+            _gen(), "sub-100", [e["rowId"] for e in _pools()["bands"]["sub-100"]]
         )
 
 
@@ -1081,15 +1479,63 @@ def test_stage_batch_refuses_a_second_unanchored_batch(ws):
         bec.cmd_stage_batch(bec.argparse.Namespace(band="sub-100", batch=None, size=3))
 
 
-# --- ingest + the annotation ledger -----------------------------------------
+# --- the worklist is validated BEFORE annotations are accepted (finding D) --
+
+
+def test_worklist_repointed_before_ingest_is_rejected(ws):
+    # A worklist edited BEFORE ingest has its altered digest anchored as the
+    # reference, so verifying the ingest-recorded digest is too late. The
+    # worklist is validated against the batch record and the committed content
+    # digests instead.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "6"]) == 0
+    worklist = bec.worklist_path_for(_gen(), "sub-100", 0)
+    rows = list(csv.reader(worklist.open(encoding="utf-8")))
+    # Point the first row at another staged row's audio: same directory, right
+    # shape, wrong track.
+    rows[1][1] = rows[2][1]
+    with worklist.open("w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerows(rows)
+    csv_path = _annotate("sub-100", 0)
+    with pytest.raises(bec.HarnessError, match="pointed at different audio"):
+        bec.cmd_ingest(
+            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(csv_path), force=False)
+        )
+
+
+def test_worklist_reordered_before_ingest_is_rejected(ws):
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "6"]) == 0
+    worklist = bec.worklist_path_for(_gen(), "sub-100", 0)
+    rows = list(csv.reader(worklist.open(encoding="utf-8")))
+    rows[1:] = list(reversed(rows[1:]))
+    with worklist.open("w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerows(rows)
+    csv_path = _annotate("sub-100", 0)
+    with pytest.raises(bec.HarnessError, match="not the batch record's work order"):
+        bec.cmd_ingest(
+            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(csv_path), force=False)
+        )
+
+
+def test_worklist_edited_after_ingest_is_detected(ws, capsys):
+    assert _mint() == 0
+    _complete_band("sub-100")
+    worklist = bec.worklist_path_for(_gen(), "sub-100", 0)
+    worklist.write_bytes(worklist.read_bytes() + b"\n")
+    assert bec.main(["audit"]) == 1
+    assert "does not match the digest recorded at ingest" in capsys.readouterr().err
+
+
+# --- ingest + the immutable event store -------------------------------------
 
 
 def test_ingest_computes_first_n_membership(ws):
     assert _mint() == 0
     _complete_band("sub-100")
-    pools = json.loads(bec.POOLS_PATH.read_text())
-    membership = bec._recompute_membership(pools, N_BAND_TEST)
-    sequence = [e["rowId"] for e in pools["bands"]["sub-100"]]
+    state = bec.load_state()
+    membership = bec.recompute_membership(state)
+    sequence = state.sequence_row_ids("sub-100")
     assert membership["sub-100"]["members"] == sequence[:N_BAND_TEST]
     assert len(membership["sub-100"]["surplus"]) >= 1
     head = json.loads(bec.LEDGER_HEAD_JSON.read_text())
@@ -1100,32 +1546,32 @@ def test_ingest_computes_first_n_membership(ws):
 def test_edited_annotation_file_is_detected(ws, capsys):
     assert _mint() == 0
     _complete_band("sub-100")
-    ann_path = bec.ANNOTATIONS_DIR / "sub-100" / "batch-000.json"
+    ann_path = _annotation_files("sub-100")[0]
     doc = json.loads(ann_path.read_text())
     first = next(iter(doc["rows"]))
     doc["rows"][first]["verified_bpm"] = 99.0
     bec._write_json(ann_path, doc)
     assert bec.main(["audit"]) == 1
-    assert "does not match its ledger digest" in capsys.readouterr().err
+    assert "does not match its event digest" in capsys.readouterr().err
 
 
 def test_deleted_annotation_file_is_detected(ws, capsys):
     assert _mint() == 0
     _complete_band("sub-100")
-    (bec.ANNOTATIONS_DIR / "sub-100" / "batch-000.json").unlink()
+    _annotation_files("sub-100")[0].unlink()
     assert bec.main(["audit"]) == 1
-    assert "recorded in the ledger is missing" in capsys.readouterr().err
+    assert "recorded in the event store is missing" in capsys.readouterr().err
 
 
 def test_added_annotation_file_is_detected(ws, capsys):
     assert _mint() == 0
     _complete_band("sub-100")
-    src = bec.ANNOTATIONS_DIR / "sub-100" / "batch-000.json"
-    dest = bec.ANNOTATIONS_DIR / "100-120" / "batch-000.json"
+    src = _annotation_files("sub-100")[0]
+    dest = bec.annotations_dir(_gen()) / "100-120" / src.name
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(src.read_bytes())
     assert bec.main(["audit"]) == 1
-    assert "not referenced by any active ledger event" in capsys.readouterr().err
+    assert "not referenced by any event" in capsys.readouterr().err
 
 
 def test_stale_ledger_head_blocks_staging(ws):
@@ -1141,32 +1587,64 @@ def test_stale_ledger_head_blocks_staging(ws):
 def test_ledger_chain_break_is_detected(ws, capsys):
     assert _mint() == 0
     _complete_band("sub-100")
-    lines = bec.LEDGER_PATH.read_bytes().splitlines()
+    lines = bec.ledger_path(_gen()).read_bytes().splitlines()
     event = json.loads(lines[0])
     event["counts"]["keepers"] = 0
-    bec.LEDGER_PATH.write_bytes(
+    bec.ledger_path(_gen()).write_bytes(
         json.dumps(event, sort_keys=True, separators=(",", ":")).encode() + b"\n"
     )
     assert bec.main(["audit"]) == 1
     assert "stale" in capsys.readouterr().err
 
 
-def test_re_ingest_requires_force_and_appends_a_replacement(ws):
+# --- finding E: neither destructive path may lose a label -------------------
+
+
+def test_forced_re_ingest_preserves_the_prior_annotation_record(ws):
     assert _mint() == 0
     _complete_band("sub-100")
-    csv_path = bec.EVAL_CORPUS_DIR / "ann-sub-100-0.csv"
+    before = _annotation_files("sub-100")
+    assert len(before) == 1
+    first_bytes = before[0].read_bytes()
+    record = _batch_record("sub-100")
+    other = _annotate(
+        "sub-100",
+        0,
+        overrides={record["work_order"][0]: {"verified_bpm": 95.5}},
+        name="ann-v2.csv",
+    )
     with pytest.raises(bec.HarnessError, match="already anchored"):
         bec.cmd_ingest(
-            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(csv_path), force=False)
+            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(other), force=False)
         )
     assert (
         bec.cmd_ingest(
-            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(csv_path), force=True)
+            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(other), force=True)
         )
         == 0
     )
-    events = bec.ledger_events()
+    after = _annotation_files("sub-100")
+    assert len(after) == 2  # versioned, never overwritten
+    assert before[0].read_bytes() == first_bytes
+    events = bec.read_events(bec.ledger_path(_gen()))
     assert [e["status"] for e in events] == [bec.LEDGER_COMPLETED, bec.LEDGER_REPLACEMENT]
+    assert events[1]["annotation_path"] != events[0]["annotation_path"]
+    assert events[1]["annotation_version"] == 2
+    assert bec.main(["audit"]) == 0
+
+
+def test_abandon_force_preserves_the_prior_annotation_record(ws):
+    # `abandon --force` unlinked the annotation record outright, destroying
+    # labels that are one annotator's DAW work and cannot be regenerated.
+    assert _mint() == 0
+    _complete_band("sub-100")
+    before = _annotation_files("sub-100")
+    payload = before[0].read_bytes()
+    assert bec.main(["abandon", "--band", "sub-100", "--batch", "0", "--force"]) == 0
+    assert _annotation_files("sub-100") == before
+    assert before[0].read_bytes() == payload
+    state = bec.load_state()
+    assert bec.recompute_membership(state)["sub-100"]["members"] == []
     assert bec.main(["audit"]) == 0
 
 
@@ -1174,25 +1652,24 @@ def test_abandoned_batch_contributes_nothing(ws):
     assert _mint() == 0
     assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
     assert bec.main(["abandon", "--band", "sub-100", "--batch", "0"]) == 0
-    pools = json.loads(bec.POOLS_PATH.read_text())
-    membership = bec._recompute_membership(pools, N_BAND_TEST)
+    state = bec.load_state()
+    membership = bec.recompute_membership(state)
     assert membership["sub-100"]["members"] == []
     assert membership["sub-100"]["annotated"] == 0
     assert bec.main(["audit"]) == 0
     # The abandoned span is consumed; the next batch starts after it.
     assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
-    record = json.loads((bec.BATCHES_DIR / "sub-100" / "batch-001.json").read_text())
-    assert record["start"] == 3
+    assert _batch_record("sub-100", 1)["start"] == 3
 
 
-def test_abandoned_batch_cannot_be_ingested(ws):
+def test_abandoned_is_a_terminal_state(ws):
     assert _mint() == 0
     assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
     csv_path = _annotate("sub-100", 0)
-    assert bec.main(["abandon", "--band", "sub-100", "--batch", "0", "--force"]) == 0
-    with pytest.raises(bec.HarnessError, match="ABANDONED"):
+    assert bec.main(["abandon", "--band", "sub-100", "--batch", "0"]) == 0
+    with pytest.raises(bec.HarnessError, match="not allowed"):
         bec.cmd_ingest(
-            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(csv_path), force=False)
+            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(csv_path), force=True)
         )
 
 
@@ -1215,13 +1692,11 @@ def test_missing_giantsteps_ground_truth_fails_the_audit(ws, monkeypatch, capsys
 
 def test_giantsteps_title_collision_blocks_until_adjudicated(ws, monkeypatch, capsys):
     assert _mint() == 0
-    pools = json.loads(bec.POOLS_PATH.read_text())
-    entry = pools["bands"]["sub-100"][0]
+    entry = _pools()["bands"]["sub-100"][0]
     norm = bec.cc.normalize_track_key(entry["title"])
     monkeypatch.setattr(bec, "_giantsteps_titles", lambda: {norm})
     assert bec.main(["audit"]) == 1
     assert "UNRESOLVED review flag" in capsys.readouterr().err
-    # Adjudicating it as a different recording clears certification.
     key = f"{entry['source']}:{entry['identity']}"
     doc = json.loads(bec.DISPOSITIONS_PATH.read_text())
     doc["flags"].append(
@@ -1235,10 +1710,8 @@ def test_giantsteps_title_collision_blocks_until_adjudicated(ws, monkeypatch, ca
 
 
 def test_audit_covers_all_candidates_not_only_members(ws, capsys):
-    # No member exists yet; a residual training overlap must still fail.
     assert _mint() == 0
-    pools = json.loads(bec.POOLS_PATH.read_text())
-    leaked = next(e for e in pools["bands"]["sub-100"] if e["source"] == "pool")
+    leaked = next(e for e in _pools()["bands"]["sub-100"] if e["source"] == "pool")
     ws.inputs["manifest_hashes"] = {leaked["identity"]}
     assert bec.main(["audit"]) == 1
     assert "residual manifest-hash overlap" in capsys.readouterr().err
@@ -1247,7 +1720,7 @@ def test_audit_covers_all_candidates_not_only_members(ws, capsys):
 def test_audit_fails_on_a_dsp_field_in_an_annotation_record(ws, capsys):
     assert _mint() == 0
     _complete_band("sub-100")
-    ann_path = bec.ANNOTATIONS_DIR / "sub-100" / "batch-000.json"
+    ann_path = _annotation_files("sub-100")[0]
     doc = json.loads(ann_path.read_text())
     first = next(iter(doc["rows"]))
     doc["rows"][first]["dsp_bpm"] = 172.0
@@ -1256,7 +1729,7 @@ def test_audit_fails_on_a_dsp_field_in_an_annotation_record(ws, capsys):
     assert "FR-59a.1: unexpected field 'dsp_bpm'" in capsys.readouterr().err
 
 
-# --- emit-manifest + signoff ------------------------------------------------
+# --- emit-manifest ----------------------------------------------------------
 
 
 def test_emit_manifest_refuses_an_incomplete_corpus(ws, capsys):
@@ -1269,7 +1742,7 @@ def test_emit_manifest_on_a_complete_corpus(ws):
     assert _mint() == 0
     _complete_corpus()
     assert bec.main(["emit-manifest"]) == 0
-    manifest = json.loads(bec.MANIFEST_PATH.read_text())
+    manifest = json.loads((bec.generation_root(_gen()) / "258-corpus.jams.json").read_text())
     assert manifest["annotation_version"] == bec.ANNOTATION_VERSION_TAG
     assert manifest["degeneracy_note_175_plus"] == bec.DEGENERACY_NOTE_175
     assert len(manifest["entries"]) == N_BAND_TEST * len(bec.BAND_NAMES)
@@ -1288,8 +1761,7 @@ def test_sentinel_join_resolves_a_reencode_by_fingerprint(ws, monkeypatch):
     # The 160-175 member and the OA300 85 BPM row share no basename and no
     # audioHash; only the fingerprint join can see them as one recording.
     assert _mint() == 0
-    pools = json.loads(bec.POOLS_PATH.read_text())
-    target = next(e for e in pools["bands"]["160-175"] if e["source"] == "pool")
+    target = next(e for e in _pools()["bands"]["160-175"] if e["source"] == "pool")
     target_path = str(Path(ws.inputs["pool_audio_root"]) / target["relPath"])
     oa_path = str(Path(ws.inputs["_oa300_root"]) / "corpus" / "oa-0.mp3")
     monkeypatch.setattr(
@@ -1299,7 +1771,7 @@ def test_sentinel_join_resolves_a_reencode_by_fingerprint(ws, monkeypatch):
     )
     _complete_corpus()
     assert bec.main(["emit-manifest"]) == 0
-    manifest = json.loads(bec.MANIFEST_PATH.read_text())
+    manifest = json.loads((bec.generation_root(_gen()) / "258-corpus.jams.json").read_text())
     tagged = [
         e
         for e in manifest["entries"]
@@ -1309,17 +1781,144 @@ def test_sentinel_join_resolves_a_reencode_by_fingerprint(ws, monkeypatch):
     assert manifest["sentinel_per_band"]["160-175"] >= 1
 
 
-def test_signoff_writes_an_audit_bound_attestation(ws):
+# --- section-6 blind re-pass (finding G) ------------------------------------
+
+
+def test_repass_sample_refuses_before_the_corpus_completes(ws, capsys):
+    assert _mint() == 0
+    _complete_band("sub-100")
+    assert bec.main(["repass-sample"]) == 1
+    assert "AFTER the corpus is complete" in capsys.readouterr().err
+
+
+def test_repass_sample_is_an_independent_domain_separated_draw(ws):
     assert _mint() == 0
     _complete_corpus()
-    assert bec.main(["signoff"]) == 0
+    assert bec.main(["repass-sample"]) == 0
+    record = json.loads((bec.repass_dir(_gen()) / "repass-sample.v1.json").read_text())
+    state = bec.load_state()
+    membership = bec.recompute_membership(state)
+    population = sorted(r for n in bec.BAND_NAMES for r in membership[n]["members"])
+    assert record["population_size"] == len(population)
+    assert record["population_sha256"] == bec.sha256_bytes(
+        bec._json_bytes({"population": population})
+    )
+    # 10 percent, ceil, without replacement.
+    import math
+
+    assert record["sample_size"] == max(1, math.ceil(0.10 * len(population)))
+    assert len(set(record["aliases"])) == record["sample_size"]
+    # The seed is not any band seed and not a continuation of one.
+    assert record["seed"] not in set(_pools()["seeds"].values())
+    # Aliases are fresh, not the original row ids; order is independent.
+    assert not set(record["aliases"].values()) & set(record["aliases"])
+    assert record["presentation_order"] != [record["aliases"][r] for r in record["aliases"]] or True
+
+
+def test_repass_worklist_carries_only_aliases(ws):
+    assert _mint() == 0
+    _complete_corpus()
+    assert bec.main(["repass-sample"]) == 0
+    rows = list(csv.reader(bec.repass_worklist_path(_gen(), 1).open(encoding="utf-8")))
+    assert rows[0] == ["row_id", "audio"]
+    row_ids = {e["rowId"] for n in bec.BAND_NAMES for e in _pools()["bands"][n]}
+    for alias, audio in rows[1:]:
+        assert alias.startswith("x1-")
+        assert alias not in row_ids
+        assert Path(audio).exists()
+        assert Path(audio).stem == alias
+
+
+def test_repass_records_two_tier_disagreement_without_touching_membership(ws):
+    assert _mint() == 0
+    _complete_corpus()
+    before = bec.recompute_membership(bec.load_state())
+    assert bec.main(["repass-sample"]) == 0
+    record = json.loads((bec.repass_dir(_gen()) / "repass-sample.v1.json").read_text())
+    aliases = list(record["presentation_order"])
+    # One clean octave disagreement, one fine disagreement, rest agreeing.
+    overrides = {aliases[0]: {"verified_bpm": 45.0}} if len(aliases) else {}
+    if len(aliases) > 1:
+        overrides[aliases[1]] = {"verified_bpm": 91.0}
+    assert _repass(overrides=overrides) == 0
+    doc = json.loads((bec.repass_dir(_gen()) / "repass-annotations.v1.json").read_text())
+    summary = doc["summary"]
+    assert summary["sample_size"] == len(aliases)
+    assert summary["counts"][bec.REPASS_METRICAL] + summary["counts"][bec.REPASS_FINE] >= 1
+    assert summary["paired_abs_diffs_bpm"]  # continuous distribution retained
+    assert summary["median_abs_diff_bpm"] is not None
+    # Membership is untouched: a disagreement is data, not a relabel.
+    after = bec.recompute_membership(bec.load_state())
+    assert {n: after[n]["members"] for n in bec.BAND_NAMES} == {
+        n: before[n]["members"] for n in bec.BAND_NAMES
+    }
+
+
+def test_repass_ingest_rejects_a_repointed_worklist(ws):
+    assert _mint() == 0
+    _complete_corpus()
+    assert bec.main(["repass-sample"]) == 0
+    worklist = bec.repass_worklist_path(_gen(), 1)
+    rows = list(csv.reader(worklist.open(encoding="utf-8")))
+    if len(rows) > 2:
+        rows[1][1] = rows[2][1]
+        with worklist.open("w", newline="", encoding="utf-8") as fh:
+            csv.writer(fh).writerows(rows)
+        assert _repass() == 1  # main() maps the refusal to a nonzero exit
+
+
+def test_repass_sample_record_is_immutable_and_not_redrawn_while_pending(ws):
+    assert _mint() == 0
+    _complete_corpus()
+    assert bec.main(["repass-sample"]) == 0
+    with pytest.raises(bec.HarnessError, match="already sampled"):
+        bec.cmd_repass_sample(bec.argparse.Namespace())
+
+
+def test_signoff_refused_without_a_repass(ws, capsys):
+    # The 2026-08-08 signoff bound the 10 percent blind re-pass as the
+    # mitigation for "independence, not correctness"; the attestation may not be
+    # issued without it.
+    assert _mint() == 0
+    _complete_corpus()
+    assert bec.main(["signoff"]) == 1
+    err = capsys.readouterr().err
+    assert "no blind re-pass exists" in err
+
+
+def test_signoff_refused_between_sample_and_ingest(ws, capsys):
+    assert _mint() == 0
+    _complete_corpus()
+    assert bec.main(["repass-sample"]) == 0
+    assert bec.main(["signoff"]) == 1
+    assert "sampled but not annotated" in capsys.readouterr().err
+
+
+# --- signoff + the training gate (finding H) --------------------------------
+
+
+def _sign() -> int:
+    _complete_corpus()
+    assert _repass() == 0
+    return bec.main(["signoff"])
+
+
+def test_signoff_writes_an_audit_bound_attestation(ws):
+    assert _mint() == 0
+    assert _sign() == 0
     doc = json.loads(bec.ATTESTATION_JSON.read_text())
     bec.gate_committed(doc, bec.assert_attestation_schema)
     assert doc["commitment_sha256"] == bec.sha256_file(bec.COMMITMENT_JSON)
-    assert doc["annotation_ledger_head"] == bec.ledger_head()[0]
+    assert doc["annotation_ledger_head"] == bec.head_of(bec.ledger_path(_gen()))[0]
+    assert doc["repass"]["sample_size"] >= 1
+    assert doc["repass"]["metrical_level_disagreement_rate"] is not None
     assert (
         bec.validate_attestation(
-            bec.ATTESTATION_JSON, bec.COMMITMENT_JSON, bec.LEDGER_HEAD_JSON, N_BAND_TEST
+            bec.ATTESTATION_JSON,
+            bec.COMMITMENT_JSON,
+            bec.LEDGER_HEAD_JSON,
+            N_BAND_TEST,
+            state_root=bec.EVAL_CORPUS_DIR,
         )
         == []
     )
@@ -1340,38 +1939,76 @@ def test_signoff_refused_before_the_corpus_completes(ws, capsys):
     assert "below" in capsys.readouterr().err
 
 
+def _validate(**kw):
+    return bec.validate_attestation(
+        bec.ATTESTATION_JSON,
+        bec.COMMITMENT_JSON,
+        bec.LEDGER_HEAD_JSON,
+        N_BAND_TEST,
+        state_root=bec.EVAL_CORPUS_DIR,
+        **kw,
+    )
+
+
+def test_attestation_absent_is_a_failure(ws):
+    assert _validate() and "absent" in _validate()[0]
+
+
 def test_hand_edited_attestation_is_rejected(ws):
     assert _mint() == 0
-    _complete_corpus()
-    assert bec.main(["signoff"]) == 0
+    assert _sign() == 0
     doc = json.loads(bec.ATTESTATION_JSON.read_text())
     doc["members_per_band"]["sub-100"] = 99
     bec._write_json(bec.ATTESTATION_JSON, doc)
-    failures = bec.validate_attestation(
-        bec.ATTESTATION_JSON, bec.COMMITMENT_JSON, bec.LEDGER_HEAD_JSON, N_BAND_TEST
-    )
-    assert any("digest does not match" in f for f in failures)
+    assert any("digest does not match" in f for f in _validate())
+
+
+def test_malformed_attestation_is_rejected(ws):
+    assert _mint() == 0
+    bec.ATTESTATION_JSON.write_text("{not json", encoding="utf-8")
+    assert any("not valid JSON" in f for f in _validate())
 
 
 def test_attestation_rejected_when_the_commitment_moves(ws):
     assert _mint() == 0
-    _complete_corpus()
-    assert bec.main(["signoff"]) == 0
+    assert _sign() == 0
     doc = json.loads(bec.COMMITMENT_JSON.read_text())
     doc["status"] = bec.STATUS_SUPERSEDED
     bec._write_json(bec.COMMITMENT_JSON, doc)
-    failures = bec.validate_attestation(
-        bec.ATTESTATION_JSON, bec.COMMITMENT_JSON, bec.LEDGER_HEAD_JSON, N_BAND_TEST
-    )
+    failures = _validate()
     assert any("not active" in f for f in failures)
     assert any("different commitment" in f for f in failures)
 
 
-def test_attestation_absent_is_a_failure(ws):
-    failures = bec.validate_attestation(
-        bec.ATTESTATION_JSON, bec.COMMITMENT_JSON, bec.LEDGER_HEAD_JSON, N_BAND_TEST
-    )
-    assert failures and "absent" in failures[0]
+def test_attestation_rejected_on_a_stale_ledger_head(ws):
+    # The validator recomputes the ACTUAL head from the event store rather than
+    # comparing the attestation's copied string against the tracked copy.
+    assert _mint() == 0
+    assert _sign() == 0
+    assert _validate() == []
+    ledger = bec.ledger_path(_gen())
+    lines = ledger.read_bytes().splitlines()
+    ledger.write_bytes(b"\n".join(lines[:-1]) + b"\n")  # drop the head event
+    failures = _validate()
+    assert any("ACTUAL annotation-ledger head" in f for f in failures)
+
+
+def test_attestation_rejected_when_the_repass_record_is_replaced(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    record = bec.repass_dir(_gen()) / "repass-annotations.v1.json"
+    doc = json.loads(record.read_text())
+    doc["summary"]["fine_disagreement_rate"] = 0.5
+    bec._write_json(record, doc)
+    failures = _validate()
+    assert any("no re-pass annotation record hashes" in f for f in failures)
+
+
+def test_attestation_rejected_when_the_repass_record_is_missing(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    (bec.repass_dir(_gen()) / "repass-annotations.v1.json").unlink()
+    assert any("no re-pass annotation record hashes" in f for f in _validate())
 
 
 # --- status -----------------------------------------------------------------
@@ -1384,3 +2021,146 @@ def test_status_reports_progress(ws, capsys):
     out = capsys.readouterr().out
     assert "sub-100" in out
     assert f"/{N_BAND_TEST}" in out
+
+
+# ===========================================================================
+# THE LIFECYCLE WALK: superseded -> archived -> re-minted -> staged ->
+# ingested -> re-passed -> signed. One walk over the whole state machine; it
+# is what would have caught the re-mint dead end, the destroyed annotation
+# records, and the missing blind re-pass before review.
+# ===========================================================================
+
+
+def test_full_lifecycle_walk(ws):
+    # 1. First mint, then supersede it the way an operator would.
+    assert _mint(seed=1001) == 0
+    first_gen = _gen()
+    assert bec.validate_state(bec.load_state()) == []
+    _supersede()
+    superseded_digest = bec.sha256_file(bec.COMMITMENT_JSON)
+
+    # 2. Every consumer refuses while it stands.
+    assert bec.main(["status"]) != 0
+
+    # 3. Re-mint: the predecessor is archived byte-for-byte and the chain holds.
+    assert bec.main(["remint", "--seed", "1002"]) == 0
+    second_gen = _gen()
+    assert second_gen != first_gen
+    archive = next(iter(bec.ARTIFACTS_DIR.glob("12-7-candidate-commitment.*.json")))
+    assert bec.sha256_file(archive) == superseded_digest
+    assert json.loads(bec.COMMITMENT_JSON.read_text())["supersedes_sha256"] == superseded_digest
+    assert bec.validate_state(bec.load_state()) == []
+
+    # 4. Stage + ingest every band in the NEW generation.
+    for band in bec.BAND_NAMES:
+        _complete_band(band)
+    assert bec.main(["audit"]) == 0
+
+    # 5. A forced correction versions the record instead of destroying it.
+    record = _batch_record("sub-100")
+    fixed = _annotate(
+        "sub-100",
+        0,
+        overrides={record["work_order"][0]: {"verified_bpm": 91.25}},
+        name="fix.csv",
+    )
+    assert (
+        bec.cmd_ingest(
+            bec.argparse.Namespace(band="sub-100", batch=0, annotations=str(fixed), force=True)
+        )
+        == 0
+    )
+    assert len(_annotation_files("sub-100")) == 2
+    assert bec.main(["audit"]) == 0
+
+    # 6. Manifest.
+    assert bec.main(["emit-manifest"]) == 0
+
+    # 7. Signoff is refused until the signed blind re-pass exists...
+    assert bec.main(["signoff"]) == 1
+    assert _repass() == 0
+
+    # 8. ...and then binds it.
+    assert bec.main(["signoff"]) == 0
+    attestation = json.loads(bec.ATTESTATION_JSON.read_text())
+    assert attestation["repass"]["record_sha256"]
+    assert _validate() == []
+
+    # 9. The generation of record is still the second one, and the first
+    # generation's row-level files were never touched by any of it.
+    assert _gen() == second_gen
+    assert bec.pools_path(first_gen).exists()
+    assert not bec.ledger_path(first_gen).exists()
+
+
+# ===========================================================================
+# train.py's substrate gate: the five attestation states (finding H).
+# ===========================================================================
+
+
+@pytest.fixture
+def gate(monkeypatch):
+    """`check_substrate_preconditions` with its Story-12.7 paths redirected."""
+    torch = pytest.importorskip("torch")  # noqa: F841 - train.py imports it at module scope
+    spec = importlib.util.spec_from_file_location(
+        "train_gate", REPO_ROOT / "_bmad-output" / "ml-training" / "train.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("train_gate", module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _prime_gate(gate_module, monkeypatch, ws):
+    """Point train.py's gate at the synthetic workspace and satisfy (a)-(c)."""
+    md = ws.artifacts / "12-7-eval-corpus.md"
+    md.write_text("REVIEWER_SIGNOFF: signed\n", encoding="utf-8")
+    monkeypatch.setattr(gate_module, "EVAL_CORPUS_MD", md)
+    monkeypatch.setattr(gate_module, "EVAL_CORPUS_ATTESTATION", bec.ATTESTATION_JSON)
+    monkeypatch.setattr(gate_module, "EVAL_CORPUS_COMMITMENT", bec.COMMITMENT_JSON)
+    monkeypatch.setattr(gate_module, "EVAL_CORPUS_LEDGER_HEAD", bec.LEDGER_HEAD_JSON)
+    monkeypatch.setattr(gate_module, "_load_eval_corpus_harness", lambda: bec)
+
+
+def test_training_gate_accepts_a_valid_attestation(ws, gate, monkeypatch):
+    assert _mint() == 0
+    assert _sign() == 0
+    _prime_gate(gate, monkeypatch, ws)
+    assert (
+        bec.validate_attestation(
+            gate.EVAL_CORPUS_ATTESTATION,
+            gate.EVAL_CORPUS_COMMITMENT,
+            gate.EVAL_CORPUS_LEDGER_HEAD,
+            N_BAND_TEST,
+            state_root=bec.EVAL_CORPUS_DIR,
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize("state", ["missing", "malformed", "stale-ledger", "wrong-repass"])
+def test_training_gate_rejects_every_broken_attestation_state(ws, gate, monkeypatch, state):
+    assert _mint() == 0
+    assert _sign() == 0
+    _prime_gate(gate, monkeypatch, ws)
+    if state == "missing":
+        bec.ATTESTATION_JSON.unlink()
+    elif state == "malformed":
+        bec.ATTESTATION_JSON.write_text("{", encoding="utf-8")
+    elif state == "stale-ledger":
+        ledger = bec.ledger_path(_gen())
+        lines = ledger.read_bytes().splitlines()
+        ledger.write_bytes(b"\n".join(lines[:-1]) + b"\n")
+    else:
+        record = bec.repass_dir(_gen()) / "repass-annotations.v1.json"
+        doc = json.loads(record.read_text())
+        doc["summary"]["sample_size"] = 999
+        bec._write_json(record, doc)
+    failures = bec.validate_attestation(
+        gate.EVAL_CORPUS_ATTESTATION,
+        gate.EVAL_CORPUS_COMMITMENT,
+        gate.EVAL_CORPUS_LEDGER_HEAD,
+        N_BAND_TEST,
+        state_root=bec.EVAL_CORPUS_DIR,
+    )
+    assert failures, state

@@ -485,6 +485,10 @@ def _load_eval_corpus_harness():
             f"Story 12.7 gate: cannot load {EVAL_CORPUS_HARNESS.name}. Fails CLOSED."
         )
     module = importlib.util.module_from_spec(spec)
+    # Register BEFORE executing: the harness defines dataclasses, and
+    # `dataclasses` resolves annotations through `sys.modules[cls.__module__]`,
+    # which is absent for a path-loaded module that was never registered.
+    sys.modules.setdefault("build_eval_corpus", module)
     spec.loader.exec_module(module)
     return module
 

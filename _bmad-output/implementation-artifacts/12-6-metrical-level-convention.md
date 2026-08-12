@@ -491,6 +491,39 @@ Accepted risks, stated plainly and bound with the signoff:
   roughly 26 verifications to the budget. It measures repeatability; it does
   not relabel -- a disagreement is data, resolved only by a dated amendment.
 
+### Clarification 2026-08-11: what counts as a disagreement (operator)
+
+The blind re-pass above says "the disagreement rate is recorded" without
+defining a disagreement. The operator resolved that on 2026-08-11. This is a
+CLARIFICATION of an underdefined term, not a change to a bound item, and it
+lands before any verification begins, so it requires no re-signoff. Recorded
+here because this is the binding document.
+
+The metric is **two-tier**, and the categories are exhaustive:
+
+- **Metrical-level disagreement.** The second reading lies within plus or minus
+  4 percent of 2x or 0.5x the first. This is an octave-RATIO criterion, not the
+  phrase "half or double", so nothing rests on an example.
+- **Fine disagreement.** Same metrical level, absolute difference above 0.5 BPM.
+  0.5 BPM is deliberately conservative: two-decimal RECORDING precision does not
+  imply two-decimal measurement accuracy after a manual 32-beat lock.
+- **Agreement.** Same metrical level, absolute difference at or below 0.5 BPM.
+- **Non-comparable.** Reserved for NO USABLE NUMERIC RESULT on either pass:
+  tempo-unstable, metrically irresolvable, or an audio defect. A stable numeric
+  second reading that falls outside the track's original band is still
+  comparable; it is classified as metrical-level or fine and additionally
+  flagged `crossed_band`.
+
+Both rates are recorded, and alongside them the CONTINUOUS absolute differences:
+median, maximum, and every paired value. Thresholding without the underlying
+distribution discards information that cannot be recovered later.
+
+**No pass/fail threshold exists.** The signed text says the rate is RECORDED. A
+gate on it would be a new bound item requiring its own signature. A disagreement
+remains data, resolved only by a dated amendment; if such an amendment changes a
+sampled primary label it invalidates the comparison, and the re-pass summary is
+regenerated against the amended ledger head.
+
 Changing any of the bound items mid-verification requires a dated amendment to
 this document and re-signoff before verification continues.
 
