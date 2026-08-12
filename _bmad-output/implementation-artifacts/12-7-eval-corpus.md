@@ -1,11 +1,21 @@
 # Story 12.7: the 258-track band-balanced evaluation corpus
 
-Date: 2026-08-08, reworked 2026-08-10 after the PR #197 review. Status: harness
-complete; corpus construction BLOCKED, and now blocked earlier than before. The
+Date: 2026-08-08, reworked 2026-08-10 and again 2026-08-11 after the second PR
+#197 review. Status: harness complete; corpus construction BLOCKED. The
 candidate commitment minted on 2026-08-08 is SUPERSEDED and no consumer will
-operate on it. Construction restarts at a re-mint, which is itself blocked on two
-operator decisions and on the pre-commitment fingerprint review. No track has
-been verified or labelled by this run; no annotation was simulated or invented.
+operate on it. Construction restarts at an explicit re-mint
+(`make eval-corpus-remint`), which is itself blocked on two operator decisions
+and on the pre-commitment fingerprint review. No track has been verified or
+labelled by this run; no annotation was simulated or invented.
+
+The 2026-08-11 rework closed eight defects the 2026-08-10 rework introduced. The
+pattern is worth stating plainly: that pass hardened the commitment chain and,
+in doing so, built a state machine whose paths it never walked. Two of the eight
+were blockers - the harness could no longer mint a corpus at all, and the
+"mandatory" fingerprint route did nothing in several ordinary conditions - and
+two more were policies these artifacts advertised as implemented that did
+nothing. The structural answer is in "How the harness is structured" below, and
+the test suite now walks the whole lifecycle end to end.
 
 Signed protocol: `_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md`
 section 2 (pool construction, draw sequences, batches, keep/reject, replacement,
@@ -14,12 +24,37 @@ exhaustion), section 3 (octave-sentinel rule), section 5 (annotation-version tag
 could differ, the protocol wins.
 
 Harness: `scripts/build-eval-corpus.py` (subcommands prepare-review,
-commit-pools, stage-batch, ingest, abandon, status, audit, emit-manifest,
-signoff), driven by the `make eval-corpus-*` targets. Row-level state is
-gitignored under `_bmad-output/ml-training/eval-corpus/`; the committed records
-are `12-7-candidate-commitment.{json,md}`, `12-7-annotation-ledger-head.json`,
-and `12-7-signoff-attestation.json` (counts, seeds, prose, and named digests
-only).
+commit-pools, remint, stage-batch, ingest, abandon, status, audit,
+emit-manifest, repass-sample, repass-ingest, signoff), driven by the
+`make eval-corpus-*` targets. Row-level state is gitignored under
+`_bmad-output/ml-training/eval-corpus/`; the committed records are
+`12-7-candidate-commitment.{json,md}`, one archived
+`12-7-candidate-commitment.<date>.<digest>.json` per superseded predecessor,
+`12-7-fallback-addendum.json` when that policy is in force,
+`12-7-annotation-ledger-head.json`, and `12-7-signoff-attestation.json` (counts,
+seeds, prose, and named digests only).
+
+## How the harness is structured
+
+Three narrow boundaries, and deliberately not a general workflow framework. They
+exist because the previous round's command functions held planning, validation,
+and mutation at once, so no single place could assert the state machine was
+coherent - and more tests alone would not have fixed that.
+
+1. A **pure planning layer** (`plan_commit`, `plan_batch`, `plan_repass`) that
+   returns every document a command would write and writes nothing itself.
+2. An **immutable event store** with explicit event kinds and an
+   allowed-transition table. `abandoned` is terminal; a correction appends a
+   replacement event and a NEW record version rather than overwriting one.
+3. A single **`validate_state()`** called before AND after every mutation, with
+   the commitment's generation present in every private path - the pools and
+   draws included, not only the annotations. Preserving an archived
+   commitment's JSON is not enough on its own: if the canonical row-level files
+   could be replaced in place, the archived chain would be unverifiable.
+
+Command handlers are thin: load, validate, plan, write immutable artifacts,
+validate again. The primary-annotation and blind-re-pass state machines stay
+separate.
 
 ## Why the 2026-08-08 commitment is superseded
 
@@ -42,6 +77,35 @@ Nothing was lost by re-minting, because the working state held only candidate
 and draw files, with no batch staged and no annotation recorded. That is why the
 re-mint had to happen now and not later.
 
+## The re-mint path
+
+Until 2026-08-11 no such path existed. `commit-pools` halted unconditionally on
+a superseded record, printing "present" for each satisfied prerequisite under
+the headline "blocked on the following, all of which must be on record first",
+so satisfying every stated gate failed identically to satisfying none. Nothing
+ever wrote `active` over a superseded record. Meanwhile this artifact said
+"construction restarts at a re-mint" and the harness told the operator to
+"re-mint with commit-pools" - both describing something impossible. The only
+escape was deleting a committed artifact.
+
+`make eval-corpus-remint` is now the explicit operation, ordered so a crash
+cannot leave an inconsistent chain:
+
+1. validate everything first, including that the prior generation carries NO
+   annotation state (every event binds the active commitment while batches,
+   annotations and membership are generation-scoped, so a successor over live
+   annotation state would strand labels that cannot be regenerated);
+2. copy the predecessor byte-for-byte to a unique archive named with its own
+   digest, refusing a collision, and verify the archive's digest;
+3. build and verify every new artifact in the new generation;
+4. replace the canonical commitment LAST, atomically.
+
+The successor records `supersedes_sha256`, and commitment validation walks the
+whole chain, so an archived predecessor cannot silently vanish. `commit-pools`
+still halts on a superseded record, but it now lists ONLY the prerequisites
+genuinely missing, and when none are missing it names the re-mint as the next
+action.
+
 ## What blocks the re-mint
 
 Both are operator decisions, and both must be supplied as machine-readable input
@@ -63,8 +127,21 @@ most 25 rows for 100-120 and 44 for 120-140, and exactly zero for 160-175 and
 175-plus. A precommitted primary allocation plus reserves would draw across all
 three sources (satisfying the epic AC that the corpus is drawn across them) while
 preserving a real fallback; shrinking the corpus by operator decision is the
-other option the protocol already allows. The harness implements
-`fallback-addendum` and `shrink-corpus`; it performs no auto-extension either way.
+other option the protocol already allows.
+
+The harness implements BOTH policies, and it now ENUMERATES the signed fallback
+under either of them. That correction matters: until 2026-08-11 only
+`shrink-corpus` changed behaviour, `fallback-addendum` was accepted and then did
+nothing, and short bands simply halted - while this artifact claimed both were
+implemented. Enumerating it is what lets the operator SEE the emptiness rather
+than infer it. The addendum is committed as a dated artifact
+(`12-7-fallback-addendum.json`) BEFORE any DSP statistic about it is consulted
+and before any of its tracks is annotated, and it receives its own draw sequence
+appended after the exhausted one. Measured against today's inputs the net-new
+set is ZERO for every band, because the signed source order (Tony as-entered
+rows, then OA300) is already inside the primary pools, and the fallback extends
+a pool without ever re-admitting a row excluded for cause. A short band still
+HALTS. No auto-extension is performed either way.
 
 **(b) Cross-band duplicate rule.** The signed tie-break is "earlier in the
 membership draw sequence wins", which orders rows WITHIN a band and defines no
@@ -76,6 +153,20 @@ recording is kept only in the highest-priority band, priority recorded) and
 `audit-fails-on-cross-band-duplicate` (no pre-dedup; the audit's cross-band
 duplicate check is the rule). Choosing after annotation has begun would be
 improvising over frozen labels, so it is decided before the re-mint.
+
+The second policy was a no-op until 2026-08-11. Its whole purpose is catching
+cross-band re-encodes, but the audit's duplicate check compared only recording
+identity, the audio byte digest, and the normalized title - and a confirmed
+re-encode differs in identity AND in bytes by definition. The confirmed
+same-recording GROUPS are now persisted on the candidate rows at mint and the
+audit fails on two members sharing one, which is the check the policy's name
+promises. Those groups are also now transitive: confirmed pairs are merged with
+union-find, so an A-B plus B-C confirmation yields one component. Writing each
+flag's group with no merge produced `A -> g1, B -> g2, C -> g2`, letting A and B
+both survive a confirmation that they are the same recording, with the winner
+decided by sha256 sort order. The disposition template now also surfaces
+`candidate_key` and `peer_key`, so an operator can assign a shared group by
+hand rather than being pushed onto the broken default.
 
 `prepare-review` supplies the evidence for this decision: it emits
 `cross-band-recording` flags for candidate pairs in different bands whose
@@ -104,6 +195,38 @@ The review RUN is deliberately not performed yet: the two decisions above change
 the candidate universe, so adjudicating today's universe would produce stale
 dispositions.
 
+**The route failed OPEN until 2026-08-11**, in four independent ways: missing
+audio was skipped by a bare `continue`; every decode failure returned `None`
+through a blanket `except Exception` that `if vec:` absorbed; a missing librosa
+returned `None` for EVERY file, zeroing the route entirely; and an empty
+training set short-circuited so the completeness check was trivially satisfied.
+The mint then recorded `"flags": 0` with no denominators, which is
+indistinguishable from "ran, found nothing". Twenty lines away the advisory
+GiantSteps heuristic raised loudly on a missing input, so the advisory route
+failed closed while the mandatory one failed open.
+
+It now fails closed, and the two sides are treated ASYMMETRICALLY because they
+are not symmetric:
+
+- **An unfingerprintable candidate is hard-excluded**, with the count recorded
+  under its own exclusion reason. There is no human escape and none is needed:
+  content binding already runs first, so such a row cannot be staged safely
+  anyway.
+- **An unfingerprintable training row BLOCKS certification.** It potentially
+  hides re-encoded overlap with every candidate, and a human cannot infer "not
+  the same recording" from a failed decode - that would turn absence of evidence
+  into evidence of absence. It is unblocked only by restoring the audio,
+  correcting the manifest, or a dated operator amendment naming the accepted
+  row.
+- **Coverage is reason-stratified** (resolved, unresolved path, missing file,
+  decode-failed, too-short, non-finite) with a digest binding the private
+  coverage roster, so "4,200 of 4,300" can still identify WHICH hundred after
+  the inputs move. The stratification comes from
+  `corpus_common.compute_fingerprint_with_reason`, which is now the single
+  decode implementation both this harness and the split audit share.
+- **A missing decode backend is a distinct environment failure**, raised
+  immediately.
+
 ## Annotation ledger: integrity, not backup
 
 Batches, annotations, and membership all live under the gitignore, so before this
@@ -112,24 +235,84 @@ duplicated: every committed digest still verified while membership silently
 changed. The harness now keeps an append-only ledger under
 `_bmad-output/ml-training/eval-corpus/annotation-ledger.jsonl`, and commits its
 head digest and event counts to `12-7-annotation-ledger-head.json`. Each event
-binds the active commitment digest, the batch record, the work order, the
-annotation record, and the previous head. Corrections append a replacement event;
-prior records are never overwritten. Abandoned batches are one such event, which
-is how the signed "an abandoned batch yields no members" rule is represented.
+binds the active commitment digest, the batch record, the work order, its own
+annotation record path, and the previous head. Abandoned batches are one such
+event, which is how the signed "an abandoned batch yields no members" rule is
+represented.
+
+**Annotation records are immutable and versioned.** Until 2026-08-11 the claim
+below that "prior records are never overwritten" was false in two places: a
+forced re-ingest wrote to the same unversioned path (ending in `os.replace`),
+leaving only a digest of bytes that no longer existed, and `abandon --force`
+unlinked the record outright. Both destroyed labels that cannot be regenerated.
+A correction now writes `batch-NNN.v<K>.json` and appends a replacement event
+carrying that path; `abandon` removes a batch from MEMBERSHIP and leaves every
+prior record on disk, still referenced by its own event and still digest-
+verified. No command overwrites or unlinks an annotation record.
+
+**The worklist is validated BEFORE annotations are accepted.** The recorded
+`work_order_sha256` was previously written and read nowhere, which is worse than
+recording nothing because it reads as assurance: a worklist could be edited to
+point a row id at different audio, producing labels for the wrong track, while
+every check passed. Verifying the ingest-recorded digest alone would still be
+too late, because a worklist altered BEFORE ingest has its altered digest
+anchored as the reference. Ingest therefore validates the full worklist against
+the batch record's work order, confines every path to that batch's staging
+directory, and hashes every staged file against that row's committed
+`contentSha256`; the recorded digest is then re-checked by the audit so
+post-ingest edits are caught too.
 
 **This provides integrity, not backup or recovery.** It detects tampering,
 deletion, and stale-file reuse. It cannot restore a lost annotation, and these
 labels cannot be regenerated: they are one annotator's DAW work.
+
+## The signed 10 percent blind re-pass
+
+The 2026-08-08 signoff bound a mitigation for "independence, not correctness"
+(12-6 section 6, lines 484-492): after the corpus is complete, roughly 26 kept
+tracks are re-annotated blind under the same DAW SOP and the disagreement rate
+is recorded with the corpus. Until 2026-08-11 the harness had no trace of it,
+and this artifact did not acknowledge it, so a corpus could have received the
+training-enabling attestation without the mitigation the operator signed - from
+the very artifact meant to certify the protocol was followed.
+
+`repass-sample` draws it: a domain-separated seed over a SEPARATE permutation of
+the frozen member roster, not a continuation or reuse of any membership
+sequence. Seed, algorithm, population digest, sample digest and size are
+persisted in an immutable record written before any re-pass annotation exists.
+Blinding means what is achievable - the annotator cannot forget prior exposure,
+so it means blinded to the first-pass BPM and flags, to membership position, and
+to the original row id: fresh re-pass aliases, an independently randomized
+order, a fresh DAW project, and a private alias map. `repass-ingest` records the
+result against the operator's 2026-08-11 two-tier definition (see 12-6), keeping
+the continuous absolute differences alongside the two rates.
+
+The re-pass never feeds membership, never replaces a primary annotation, and
+never appends an ordinary batch event; it has its own record, validator, and
+state machine, and reuses only the low-level primitives (content-verified
+staging, annotation CSV parsing). Signoff refuses without a validated re-pass
+record and binds its digest and both rates into the attestation. There is no
+pass/fail threshold: the signed text records the rate, and a gate would be a new
+bound item requiring its own signature.
 
 ## Signoff is an attestation, not a marker
 
 The `REVIEWER_SIGNOFF` marker at the bottom of this file is human-editable, so it
 is a courtesy gate only. The binding artifact is `12-7-signoff-attestation.json`,
 which `make eval-corpus-signoff` writes only after the shared fail-closed audit
-passes and every band holds its full membership, and which is bound to the active
-commitment digest and the annotation-ledger head. `train.py`
+passes, every band holds its full membership, and a validated blind re-pass
+exists, and which is bound to the active commitment digest, the
+annotation-ledger head, and the re-pass record digest. `train.py`
 `check_substrate_preconditions` validates that attestation, so hand-editing the
 marker below buys no training run.
+
+The validator now READS AND HASHES every referenced artifact. Comparing the
+attestation's ledger-head string against the tracked head JSON validated a
+self-consistent set of copied fields rather than the artifacts themselves: it
+never recomputed the actual ledger head from the event store, never verified the
+head artifact's commitment binding, and would not have hashed the re-pass
+record. All three are checked, and the gate has automated tests against five
+attestation states (valid, missing, malformed, stale ledger, wrong re-pass).
 
 ## 175+ degeneracy note (recorded, not re-litigated)
 
@@ -171,7 +354,8 @@ re-mint does not change.
 ## Signoff
 
 Flipped by the operator only after all six bands reach 43 verified members, the
-shared audit passes on the final state, the manifest is emitted, and
+shared audit passes on the final state, the manifest is emitted, the signed
+10 percent blind re-pass has been drawn and annotated, and
 `make eval-corpus-signoff` has recorded the attestation. This marker plus that
 attestation gate any substrate-v2 training run (`train.py`
 `check_substrate_preconditions`, fail closed).

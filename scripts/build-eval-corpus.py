@@ -8,18 +8,31 @@ corpus (develop-only; NOT shipped to main).
 
 Implements the SIGNED protocol in
 `_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md`
-section 2 literally: face-value-tag candidate pools with FR-59a.2 training-set
-exclusion (metadata AND the mandatory pre-commitment audio-fingerprint review),
-per-band seeded membership draw sequences cryptographically committed, blinded
-batch staging (position-independent opaque row IDs, randomized within-batch
-work order, content-verified audio copies), DSP-free keep/reject ingest with
-first-43-cumulative membership recorded in an append-only annotation ledger, a
-fail-closed audit that gates emission and signoff, and a JAMS manifest emitter
-carrying the section-5 annotation-version tag, the octave-sentinel tags
-(section 3, fingerprint-first join), and the 175+ degeneracy note.
+sections 2, 3 and 6 literally: face-value-tag candidate pools with FR-59a.2
+training-set exclusion (metadata AND the mandatory pre-commitment
+audio-fingerprint route, which fails CLOSED), per-band seeded membership draw
+sequences cryptographically committed, blinded batch staging, DSP-free
+keep/reject ingest with first-43-cumulative membership recorded in an
+append-only event store, the section-6 10 percent blind re-pass, a fail-closed
+audit that gates emission and signoff, and a JAMS manifest emitter.
 
-Subcommands: commit-pools, prepare-review, stage-batch, ingest, abandon,
-status, audit, emit-manifest, signoff.
+Structure (PR #197 round 2). Command handlers are thin: load state, validate,
+plan, write immutable artifacts, validate again.
+
+  * a PURE PLANNING layer (`plan_commit`, `plan_batch`, `plan_repass`) that
+    returns a plan and writes nothing;
+  * an IMMUTABLE EVENT STORE (`annotation-ledger.jsonl`, `repass-ledger.jsonl`)
+    with explicit event kinds and an allowed-transition table;
+  * a single `validate_state()` run BEFORE and AFTER every mutation.
+
+Every private row-level path is generation-scoped under
+`generations/<generation>/`, where the generation id is derived from the
+committed pool + draw bytes and recorded in the commitment. Preserving an
+archived commitment's JSON is not enough on its own: if the canonical row-level
+files could be replaced in place, the archived chain would be unverifiable.
+
+Subcommands: prepare-review, commit-pools, remint, stage-batch, ingest,
+abandon, status, audit, emit-manifest, repass-sample, repass-ingest, signoff.
 
 State lives under the gitignored `_bmad-output/ml-training/eval-corpus/`.
 Committed artifacts carry counts, seeds, band names, prose, and named digests
@@ -44,8 +57,10 @@ import random
 import re
 import secrets
 import shutil
+import statistics
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -57,22 +72,16 @@ sys.path.insert(0, str(ML_TRAINING_DIR))
 import corpus_common as cc  # noqa: E402  (runtime sys.path insert above)
 
 # ---------------------------------------------------------------------------
-# Paths. Every state/artifact path is module-global and rebindable through
-# `configure_paths` so the command-level test suite can drive the real commands
-# against a synthetic corpus in `tmp_path` without touching develop state.
+# Paths. Generation-INDEPENDENT state + committed artifacts are module globals,
+# rebindable through `configure_paths` so the command-level suite can drive the
+# real commands against a synthetic corpus in `tmp_path`. Every row-level path
+# is generation-SCOPED and reached only through the accessors below.
 # ---------------------------------------------------------------------------
 
 ARTIFACTS_DIR = REPO_ROOT / "_bmad-output" / "implementation-artifacts"
 EVAL_CORPUS_DIR = ML_TRAINING_DIR / "eval-corpus"
-POOLS_PATH = EVAL_CORPUS_DIR / "candidate-pools.json"
-DRAWS_PATH = EVAL_CORPUS_DIR / "draw-sequences.json"
-MEMBERSHIP_PATH = EVAL_CORPUS_DIR / "membership.json"
-BATCHES_DIR = EVAL_CORPUS_DIR / "batches"
-ANNOTATIONS_DIR = EVAL_CORPUS_DIR / "annotations"
-STAGING_DIR = EVAL_CORPUS_DIR / "staging"
-MANIFEST_PATH = EVAL_CORPUS_DIR / "258-corpus.jams.json"
-LEDGER_PATH = EVAL_CORPUS_DIR / "annotation-ledger.jsonl"
 REVIEW_FLAGS_PATH = EVAL_CORPUS_DIR / "fingerprint-review.json"
+COVERAGE_PATH = EVAL_CORPUS_DIR / "fingerprint-coverage.json"
 DISPOSITIONS_TEMPLATE_PATH = EVAL_CORPUS_DIR / "fingerprint-dispositions.template.json"
 DISPOSITIONS_PATH = EVAL_CORPUS_DIR / "fingerprint-dispositions.json"
 DECISIONS_PATH = EVAL_CORPUS_DIR / "12-7-operator-decisions.json"
@@ -80,24 +89,18 @@ COMMITMENT_JSON = ARTIFACTS_DIR / "12-7-candidate-commitment.json"
 COMMITMENT_MD = ARTIFACTS_DIR / "12-7-candidate-commitment.md"
 LEDGER_HEAD_JSON = ARTIFACTS_DIR / "12-7-annotation-ledger-head.json"
 ATTESTATION_JSON = ARTIFACTS_DIR / "12-7-signoff-attestation.json"
+ADDENDUM_JSON = ARTIFACTS_DIR / "12-7-fallback-addendum.json"
 
 
 def configure_paths(state_root: Path, artifacts_dir: Path) -> None:
-    """Rebind every state + committed-artifact path (test seam)."""
-    global EVAL_CORPUS_DIR, POOLS_PATH, DRAWS_PATH, MEMBERSHIP_PATH, BATCHES_DIR
-    global ANNOTATIONS_DIR, STAGING_DIR, MANIFEST_PATH, LEDGER_PATH, REVIEW_FLAGS_PATH
+    """Rebind every generation-independent state + committed-artifact path."""
+    global EVAL_CORPUS_DIR, REVIEW_FLAGS_PATH, COVERAGE_PATH
     global DISPOSITIONS_TEMPLATE_PATH, DISPOSITIONS_PATH, DECISIONS_PATH
-    global ARTIFACTS_DIR, COMMITMENT_JSON, COMMITMENT_MD, LEDGER_HEAD_JSON, ATTESTATION_JSON
+    global ARTIFACTS_DIR, COMMITMENT_JSON, COMMITMENT_MD, LEDGER_HEAD_JSON
+    global ATTESTATION_JSON, ADDENDUM_JSON
     EVAL_CORPUS_DIR = state_root
-    POOLS_PATH = state_root / "candidate-pools.json"
-    DRAWS_PATH = state_root / "draw-sequences.json"
-    MEMBERSHIP_PATH = state_root / "membership.json"
-    BATCHES_DIR = state_root / "batches"
-    ANNOTATIONS_DIR = state_root / "annotations"
-    STAGING_DIR = state_root / "staging"
-    MANIFEST_PATH = state_root / "258-corpus.jams.json"
-    LEDGER_PATH = state_root / "annotation-ledger.jsonl"
     REVIEW_FLAGS_PATH = state_root / "fingerprint-review.json"
+    COVERAGE_PATH = state_root / "fingerprint-coverage.json"
     DISPOSITIONS_TEMPLATE_PATH = state_root / "fingerprint-dispositions.template.json"
     DISPOSITIONS_PATH = state_root / "fingerprint-dispositions.json"
     DECISIONS_PATH = state_root / "12-7-operator-decisions.json"
@@ -106,6 +109,52 @@ def configure_paths(state_root: Path, artifacts_dir: Path) -> None:
     COMMITMENT_MD = artifacts_dir / "12-7-candidate-commitment.md"
     LEDGER_HEAD_JSON = artifacts_dir / "12-7-annotation-ledger-head.json"
     ATTESTATION_JSON = artifacts_dir / "12-7-signoff-attestation.json"
+    ADDENDUM_JSON = artifacts_dir / "12-7-fallback-addendum.json"
+
+
+def generation_root(generation: str) -> Path:
+    return EVAL_CORPUS_DIR / "generations" / generation
+
+
+def pools_path(generation: str) -> Path:
+    return generation_root(generation) / "candidate-pools.json"
+
+
+def draws_path(generation: str) -> Path:
+    return generation_root(generation) / "draw-sequences.json"
+
+
+def batches_dir(generation: str) -> Path:
+    return generation_root(generation) / "batches"
+
+
+def annotations_dir(generation: str) -> Path:
+    return generation_root(generation) / "annotations"
+
+
+def staging_dir(generation: str) -> Path:
+    return generation_root(generation) / "staging"
+
+
+def membership_path(generation: str) -> Path:
+    return generation_root(generation) / "membership.json"
+
+
+def ledger_path(generation: str) -> Path:
+    return generation_root(generation) / "annotation-ledger.jsonl"
+
+
+def repass_dir(generation: str) -> Path:
+    return generation_root(generation) / "repass"
+
+
+def repass_ledger_path(generation: str) -> Path:
+    return repass_dir(generation) / "repass-ledger.jsonl"
+
+
+def archive_path(digest: str, generated: str) -> Path:
+    """Where a superseded commitment's byte-for-byte copy is kept (committed)."""
+    return ARTIFACTS_DIR / f"12-7-candidate-commitment.{generated}.{digest[:12]}.json"
 
 
 SURVEY_PATH = ML_TRAINING_DIR / "non-rekordbox-survey.json"
@@ -131,6 +180,43 @@ LEDGER_REPLACEMENT = "replacement"
 LEDGER_ABANDONED = "abandoned"
 LEDGER_STATUSES = (LEDGER_COMPLETED, LEDGER_REPLACEMENT, LEDGER_ABANDONED)
 GENESIS_DIGEST = "0" * 64
+
+# Explicit transition table for the primary-annotation state machine. The key is
+# the CURRENT status of a (band, batch) - None when no event exists yet - and
+# the value is every status that may follow. `abandoned` is terminal: the signed
+# rule is that an abandoned batch yields no members, and re-opening one would
+# make that reversible by a later append.
+EVENT_TRANSITIONS: dict[str | None, frozenset[str]] = {
+    None: frozenset({LEDGER_COMPLETED, LEDGER_ABANDONED}),
+    LEDGER_COMPLETED: frozenset({LEDGER_REPLACEMENT, LEDGER_ABANDONED}),
+    LEDGER_REPLACEMENT: frozenset({LEDGER_REPLACEMENT, LEDGER_ABANDONED}),
+    LEDGER_ABANDONED: frozenset(),
+}
+
+# The section-6 blind re-pass runs its own state machine, deliberately NOT the
+# primary one: a re-pass never feeds `compute_membership`, never replaces a
+# primary annotation, and never appends an ordinary batch event.
+REPASS_SAMPLED = "repass-sampled"
+REPASS_INGESTED = "repass-ingested"
+REPASS_STATUSES = (REPASS_SAMPLED, REPASS_INGESTED)
+REPASS_TRANSITIONS: dict[str | None, frozenset[str]] = {
+    None: frozenset({REPASS_SAMPLED}),
+    REPASS_SAMPLED: frozenset({REPASS_INGESTED}),
+    REPASS_INGESTED: frozenset(),
+}
+
+# Section 6, signoff 2026-08-08: "a random sample of roughly 26 kept tracks".
+REPASS_FRACTION = 0.10
+# Operator clarification 2026-08-11 (two-tier disagreement). A metrical-level
+# disagreement is an OCTAVE-RATIO criterion, not the phrase "half/double": the
+# second reading lies within +/-4 percent of 2x or 0.5x the first. A fine
+# disagreement is a same-level absolute difference above 0.5 BPM - conservative,
+# because two-decimal RECORDING precision does not imply two-decimal measurement
+# accuracy after a manual 32-beat lock. There is NO pass/fail threshold: the
+# signed text says the rate is RECORDED, and a gate would be a new bound item
+# requiring its own signature.
+REPASS_OCTAVE_TOLERANCE = 0.04
+REPASS_FINE_TOLERANCE_BPM = 0.5
 
 # Review-flag cosine threshold, matching the audit-corpus-splits.py DD #3
 # precedent (NEAR_DUP_REVIEW = 0.97). The algorithm FLAGS; a recorded human
@@ -171,8 +257,23 @@ EXCLUSION_REASONS = (
     "artist",
     "audio-unresolved",
     "audio-unhashable",
+    "fingerprint-uncoverable",
     "fingerprint-confirmed",
     "cross-band-duplicate",
+)
+
+# Reason-stratified fingerprint coverage (finding B). `decode-failed`,
+# `too-short` and `non-finite` are separated by
+# `corpus_common.compute_fingerprint_with_reason`, which is the single decode
+# implementation both this harness and the audit share.
+COVERAGE_REASONS = (
+    "resolved",
+    "unresolved-path",
+    "missing-file",
+    "decode-failed",
+    "too-short",
+    "non-finite",
+    "metadata-excluded",
 )
 
 # FR-59a.1 allowlists: membership inputs may contain ONLY these keys. Any
@@ -192,6 +293,8 @@ ALLOWED_CANDIDATE_KEYS = frozenset(
         "rowId",
         "sequencePosition",
         "contentSha256",
+        "recordingGroup",
+        "origin",
     }
 )
 ALLOWED_ANNOTATION_KEYS = frozenset(
@@ -205,7 +308,7 @@ ALLOWED_ANNOTATION_KEYS = frozenset(
     }
 )
 ALLOWED_ANNOTATION_DOC_KEYS = frozenset({"_meta", "rows"})
-ALLOWED_ANNOTATION_META_KEYS = frozenset({"replaced_sha256", "band", "batch"})
+ALLOWED_ANNOTATION_META_KEYS = frozenset({"band", "batch", "version", "supersedes_sha256"})
 # The operator-facing annotation CSV: exactly these columns, no others.
 EXPECTED_ANNOTATION_COLUMNS = frozenset(
     {
@@ -239,7 +342,15 @@ ARTIST_LIMITATION_NOTE = (
 LEDGER_INTEGRITY_NOTE = (
     "The annotation ledger provides INTEGRITY, not backup or recovery. It detects "
     "editing, deletion, reordering, and stale-file reuse of annotation state; it cannot "
-    "restore a lost annotation, and these labels cannot be regenerated."
+    "restore a lost annotation, and these labels cannot be regenerated. Annotation "
+    "records are immutable and versioned: no command overwrites or unlinks one."
+)
+
+FALLBACK_EMPTY_NOTE = (
+    "The signed exhaustion fallback source order is Tony as-entered rows, then OA300 "
+    "rows. Both are already inside the primary pools, so the addendum's NET NEW set is "
+    "empty by construction: enumerating it recovers nothing for any band. A short band "
+    "still HALTS. This is reported rather than inferred so the operator can see it."
 )
 
 
@@ -303,7 +414,7 @@ def build_candidates(
     ONLY `fileMetadataBPM` + identity fields, Tony rows ONLY `average_bpm`
     as-entered + identity, OA300 ONLY the fixture value + identity. The
     fingerprint route (signed section 2) runs as a separate, mandatory
-    pre-commitment review stage; see `prepare-review` and `apply_dispositions`.
+    pre-commitment stage; see `prepare-review` and `fingerprint_route`.
     """
     bands: dict[str, list[dict]] = {name: [] for name in BAND_NAMES}
     tagless = {"pool": 0, "tony": 0, "oa300": 0}
@@ -346,9 +457,7 @@ def build_candidates(
         if not local_path:
             # A row whose audio cannot be resolved can never be staged, blinded,
             # or annotated; it is excluded at construction with the count
-            # recorded rather than deadlocking a batch later (intactness
-            # precondition of the keep criteria, applied at the only point the
-            # information exists without consulting any DSP quantity).
+            # recorded rather than deadlocking a batch later.
             exclusions[band]["audio-unresolved"] += 1
             continue
         bands[band].append(
@@ -401,10 +510,15 @@ def candidate_universe_digest(bands: dict[str, list[dict]]) -> str:
     return sha256_bytes(_json_bytes({"universe": rows}))
 
 
+def candidate_key(entry: dict) -> str:
+    return f"{entry['source']}:{entry['identity']}"
+
+
 # ---------------------------------------------------------------------------
-# Content binding (finding 3): every candidate row carries a byte digest of the
-# audio it names, so identity is content-bound for Tony (track_id) and OA300
-# (filename) rows as well as pool rows.
+# Content binding: every candidate row carries a byte digest of the audio it
+# names, so identity is content-bound for Tony (track_id) and OA300 (filename)
+# rows as well as pool rows. Runs BEFORE the fingerprint route, so a row that
+# cannot be staged safely is already gone by the time review flags are built.
 # ---------------------------------------------------------------------------
 
 
@@ -436,7 +550,7 @@ def dedup_across_bands(
     band_priority: list[str],
     recording_groups: dict[str, str],
 ) -> dict[str, list[dict]]:
-    """Cross-band recording-level dedup (finding 12, operator policy
+    """Cross-band recording-level dedup (operator policy
     `pre-commitment-recording-dedup`). A recording appearing in two bands - the
     collection's dominant half-vs-full-tempo pattern - is kept only in the
     highest-priority band. Recording key = the confirmed fingerprint group where
@@ -450,9 +564,7 @@ def dedup_across_bands(
     seen: set[str] = set()
     for name in band_priority:
         for entry in bands[name]:
-            key = recording_groups.get(
-                f"{entry['source']}:{entry['identity']}", entry.get("contentSha256", "")
-            )
+            key = recording_groups.get(candidate_key(entry), entry.get("contentSha256", ""))
             if key and key in seen:
                 exclusions[name]["cross-band-duplicate"] += 1
                 continue
@@ -467,14 +579,20 @@ def dedup_across_bands(
 # ---------------------------------------------------------------------------
 
 
-def draw_sequence(band_index: int, rows: list[dict], seed: int) -> list[dict]:
+def draw_sequence(
+    band_index: int, rows: list[dict], seed: int, offset: int = 0, origin: str = "primary"
+) -> list[dict]:
     """One global per-band permutation from `random.Random(seed)`.
 
     Row IDs are `e<band-index>-<12 hex>` minted from the same PRNG. The ID
-    carries NO draw position (finding 16): a position-encoding ID plus a
-    sequence-ordered worklist told an annotator who knows the first-43 rule
-    which rows were likely members. `sequencePosition` stays in the gitignored
-    row-level pool, which is never annotator-facing.
+    carries NO draw position: a position-encoding ID plus a sequence-ordered
+    worklist told an annotator who knows the first-43 rule which rows were
+    likely members. `sequencePosition` stays in the gitignored row-level pool,
+    which is never annotator-facing.
+
+    `offset` and `origin` exist for the signed exhaustion fallback: an addendum
+    sequence is appended AFTER the exhausted one and keeps globally increasing
+    sequence positions.
     """
     ordered = sorted(rows, key=lambda r: (r["source"], r["identity"]))
     rng = random.Random(seed)
@@ -489,7 +607,8 @@ def draw_sequence(band_index: int, rows: list[dict], seed: int) -> list[dict]:
         used.add(row_id)
         entry = dict(row)
         entry["rowId"] = row_id
-        entry["sequencePosition"] = pos
+        entry["sequencePosition"] = pos + offset
+        entry["origin"] = origin
         out.append(entry)
     return out
 
@@ -544,8 +663,8 @@ def compute_membership(
     surplus keepers recorded; duplicate tie-break by sequence position.
 
     Duplicate suppression registers a row ONLY after it survives keep/reject
-    including duplicate resolution (finding 11). The signed criterion is "not a
-    duplicate/re-encode of a track already KEPT", so an earlier audio-defect or
+    including duplicate resolution. The signed criterion is "not a duplicate/
+    re-encode of a track already KEPT", so an earlier audio-defect or
     out-of-band rejection - a property of that file, not of the recording -
     must not suppress a later clean copy. Eventual surplus keepers register too,
     not just the final 43, so consecutive-span batching still lets an earlier
@@ -614,11 +733,43 @@ def is_octave_sentinel(verified_bpm: float, legacy_labels: list[float]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Pure logic: two-tier re-pass disagreement (operator clarification 2026-08-11)
+# ---------------------------------------------------------------------------
+
+REPASS_AGREE = "agree"
+REPASS_FINE = "fine-disagreement"
+REPASS_METRICAL = "metrical-level-disagreement"
+REPASS_NON_COMPARABLE = "non-comparable"
+
+
+def classify_repass(first: float | None, second: float | None) -> str:
+    """Two-tier classification of a blind re-pass reading against the primary.
+
+    `non-comparable` is reserved for NO USABLE NUMERIC RESULT (unstable,
+    irresolvable, or audio-defect on either pass). A stable numeric second
+    reading that falls outside the track's original band is still comparable;
+    the caller additionally flags `crossed_band`.
+    """
+    if first is None or second is None:
+        return REPASS_NON_COMPARABLE
+    if not (math.isfinite(first) and math.isfinite(second)) or first <= 0 or second <= 0:
+        return REPASS_NON_COMPARABLE
+    ratio = second / first
+    for target in (2.0, 0.5):
+        if abs(ratio - target) <= REPASS_OCTAVE_TOLERANCE * target:
+            return REPASS_METRICAL
+    if abs(second - first) > REPASS_FINE_TOLERANCE_BPM:
+        return REPASS_FINE
+    return REPASS_AGREE
+
+
+# ---------------------------------------------------------------------------
 # Fingerprint seam (injectable so tests never decode audio)
 # ---------------------------------------------------------------------------
 
 
 _FP_MEMO: dict[str, list[float] | None] = {}
+_FP_REASON_MEMO: dict[str, str] = {}
 _FP_DISK_CACHE: dict[str, list[float]] | None = None
 _FP_DISK_DIRTY = False
 
@@ -626,10 +777,9 @@ _FP_DISK_DIRTY = False
 def _load_fingerprint_cache() -> dict[str, list[float]]:
     """The method-versioned npz cache `scripts/audit-corpus-splits.py` maintains.
 
-    Reusing it matters: the Phase-2 review fingerprints every candidate AND every
+    Reusing it matters: the review fingerprints every candidate AND every
     training row, which is thousands of decodes. A method change invalidates the
-    stale vectors, exactly as in the audit. Absent numpy or an unreadable cache
-    degrades to recomputation, never to a silently empty flag set.
+    stale vectors, exactly as in the audit.
     """
     global _FP_DISK_CACHE
     if _FP_DISK_CACHE is not None:
@@ -671,6 +821,34 @@ def flush_fingerprint_cache() -> None:
     _FP_DISK_DIRTY = False
 
 
+def assert_fingerprint_backend() -> None:
+    """A missing decode backend is an ENVIRONMENT failure, raised immediately.
+
+    Before this existed, `compute_fingerprint` returned None for every file when
+    librosa was absent, `if vec:` absorbed it, and the mandatory route recorded
+    `"flags": 0` - indistinguishable from "ran, found nothing". The mandatory
+    route may not run at all without a working backend.
+    """
+    try:
+        import librosa  # noqa: F401,PLC0415  (availability probe only)
+    except Exception as exc:  # noqa: BLE001 - any import failure is fatal here
+        raise HarnessError(
+            "FINGERPRINT BACKEND UNAVAILABLE: librosa cannot be imported "
+            f"({exc.__class__.__name__}: {exc}). The signed section-2 audio-fingerprint "
+            "exclusion route is MANDATORY and cannot run without a decode backend. This "
+            "is an environment failure, not an empty flag set: run "
+            "`uv sync` in _bmad-output/ml-training and re-run. Refusing to proceed."
+        ) from exc
+
+
+def _default_fingerprint_reason(path: str) -> str:
+    if path in _FP_REASON_MEMO:
+        return _FP_REASON_MEMO[path]
+    _, reason = cc.compute_fingerprint_with_reason(path)
+    _FP_REASON_MEMO[path] = reason
+    return reason
+
+
 def _default_fingerprint(path: str) -> list[float] | None:
     global _FP_DISK_DIRTY
     if path in _FP_MEMO:
@@ -680,7 +858,8 @@ def _default_fingerprint(path: str) -> list[float] | None:
     if key in cache:
         _FP_MEMO[path] = cache[key]
         return cache[key]
-    vec = cc.compute_fingerprint(path)
+    vec, reason = cc.compute_fingerprint_with_reason(path)
+    _FP_REASON_MEMO[path] = reason
     result = None if vec is None else [float(x) for x in vec]
     if result is not None:
         cache[key] = result
@@ -690,6 +869,7 @@ def _default_fingerprint(path: str) -> list[float] | None:
 
 
 FINGERPRINT_FN: Callable[[str], list[float] | None] = _default_fingerprint
+FINGERPRINT_REASON_FN: Callable[[str], str] = _default_fingerprint_reason
 FINGERPRINT_METHOD = cc.FINGERPRINT_METHOD
 
 
@@ -750,6 +930,67 @@ def flag_id(kind: str, left: str, right: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Union-find over confirmed same-recording pairs.
+#
+# Writing `recording_groups[key] = group` per flag with no merge was wrong: with
+# A-B then B-C confirmed, B is overwritten and the result is A->g1, B->g2,
+# C->g2, so A and B both survive a confirmation that they are the same
+# recording. Which flag won was decided by sha256 sort order.
+# ---------------------------------------------------------------------------
+
+
+def union_recording_groups(
+    edges: list[tuple[str, str]], supplied: dict[str, str]
+) -> dict[str, str]:
+    """Transitive same-recording components over confirmed pair edges.
+
+    `supplied` maps a member key to an operator-supplied group id. All supplied
+    ids inside one component must agree; a component with none gets a
+    deterministic id derived from its sorted member keys.
+    """
+    parent: dict[str, str] = {}
+
+    def find(x: str) -> str:
+        parent.setdefault(x, x)
+        root = x
+        while parent[root] != root:
+            root = parent[root]
+        while parent[x] != root:  # path compression
+            parent[x], x = root, parent[x]
+        return root
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+
+    for left, right in edges:
+        union(left, right)
+    for key in supplied:
+        find(key)
+
+    components: dict[str, list[str]] = {}
+    for key in parent:
+        components.setdefault(find(key), []).append(key)
+
+    groups: dict[str, str] = {}
+    for members in components.values():
+        members.sort()
+        ids = sorted({supplied[m] for m in members if supplied.get(m)})
+        if len(ids) > 1:
+            raise HarnessError(
+                "fingerprint dispositions assign conflicting recording_group ids "
+                f"{ids} inside one confirmed same-recording component of "
+                f"{len(members)} row(s). A component is one recording; give its rows "
+                "one id or leave them all blank."
+            )
+        group = ids[0] if ids else "rg-" + sha256_bytes(_json_bytes({"c": members}))[:16]
+        for m in members:
+            groups[m] = group
+    return groups
+
+
+# ---------------------------------------------------------------------------
 # Privacy gate (q9 recursive-allowlist precedent; exit code 3)
 # ---------------------------------------------------------------------------
 
@@ -768,12 +1009,18 @@ _DIGEST_PATHS = frozenset(
         "/draw_file_sha256",
         "/head_sha256",
         "/commitment_sha256",
+        "/supersedes_sha256",
         "/annotation_ledger_head",
         "/attestation_sha256",
+        "/repass/record_sha256",
+        "/repass/population_sha256",
+        "/repass/sample_sha256",
         "/fingerprint_review/dispositions_sha256",
         "/fingerprint_review/candidate_universe_sha256",
         "/fingerprint_review/training_input_sha256",
+        "/fingerprint_review/coverage_sha256",
         "/operator_decisions/decisions_sha256",
+        "/fallback_addendum/addendum_sha256",
     }
 )
 _PATH_EXEMPT = frozenset({"/protocol", "/seed_algorithm", "/run_command"})
@@ -792,7 +1039,7 @@ def privacy_gate(doc: dict) -> None:
     This is DEFENSE IN DEPTH, not the contract. The contract is the exact key
     schema asserted by `assert_commitment_schema` and its siblings: a
     pattern-only gate accepts arbitrary keys and screens only string values, so
-    a track title would pass it (finding 15).
+    a track title would pass it.
     """
 
     def walk(node: object, path: str) -> None:
@@ -842,22 +1089,58 @@ _COMMITMENT_COMMON_KEYS = frozenset(
         "short_bands",
     }
 )
-_COMMITMENT_ACTIVE_KEYS = frozenset({"fingerprint_review", "operator_decisions", "notes"})
-_COMMITMENT_SUPERSEDED_KEYS = frozenset({"superseded_note"})
-_COMMITMENT_BAND_KEYS = frozenset({"candidates", "seed", "exclusions"})
+_COMMITMENT_ACTIVE_KEYS = frozenset(
+    {
+        "generation",
+        "supersedes_sha256",
+        "fingerprint_review",
+        "operator_decisions",
+        "fallback_addendum",
+        "notes",
+    }
+)
+_COMMITMENT_SUPERSEDED_KEYS = frozenset({"superseded_note", "generation", "supersedes_sha256"})
+_COMMITMENT_BAND_KEYS = frozenset(
+    {"candidates", "seed", "exclusions", "fallback_candidates", "fallback_seed"}
+)
 _FINGERPRINT_REVIEW_KEYS = frozenset(
     {
         "method",
         "flags",
         "confirmed_same_recording",
         "cleared",
+        "recording_groups",
         "dispositions_sha256",
         "candidate_universe_sha256",
         "training_input_sha256",
+        "coverage_sha256",
+        "coverage",
+    }
+)
+_COVERAGE_KEYS = frozenset(
+    {
+        "candidates_total",
+        "candidates_covered",
+        "candidates_by_reason",
+        "training_total",
+        "training_covered",
+        "training_by_reason",
+        "amended_uncovered_training_rows",
     }
 )
 _OPERATOR_DECISIONS_KEYS = frozenset(
     {"decisions_sha256", "decided", "short_band_allocation", "cross_band_duplicate_rule"}
+)
+_FALLBACK_KEYS = frozenset(
+    {
+        "policy",
+        "dated",
+        "fallback_candidates_by_band",
+        "already_in_primary_by_band",
+        "net_new_by_band",
+        "addendum_sha256",
+        "note",
+    }
 )
 
 
@@ -877,27 +1160,28 @@ def _assert_keys(
 
 
 def assert_commitment_schema(doc: dict) -> None:
-    """Exact key schema of the machine-generated commitment JSON (finding 15)."""
+    """Exact key schema of the machine-generated commitment JSON.
+
+    A superseded record is a historical artifact of an earlier mint whose routes
+    were a strict subset of today's; its keys may be MISSING but never
+    unexpected. Zero-filling them would claim a route ran and confirmed nothing.
+    """
     if not isinstance(doc, dict):
         raise PrivacyError("commitment: expected an object")
     status = doc.get("status")
     if status not in (STATUS_ACTIVE, STATUS_SUPERSEDED):
         raise PrivacyError(f"commitment: status must be active or superseded, got {status!r}")
+    old = status == STATUS_SUPERSEDED
     extra = _COMMITMENT_ACTIVE_KEYS if status == STATUS_ACTIVE else _COMMITMENT_SUPERSEDED_KEYS
-    _assert_keys(doc, _COMMITMENT_COMMON_KEYS | extra, "commitment")
+    _assert_keys(doc, _COMMITMENT_COMMON_KEYS | extra, "commitment", allow_missing=old)
     bands = _assert_keys(doc["bands"], frozenset(BAND_NAMES), "commitment/bands")
     for name, band in bands.items():
-        _assert_keys(band, _COMMITMENT_BAND_KEYS, f"commitment/bands/{name}")
-        # A superseded record is a historical artifact of an earlier mint whose
-        # exclusion routes were a strict subset of today's; its exclusion keys
-        # may be missing but never unexpected. Zero-filling them would claim the
-        # fingerprint route ran and confirmed nothing, which is the dishonesty
-        # finding 6 is about.
+        _assert_keys(band, _COMMITMENT_BAND_KEYS, f"commitment/bands/{name}", allow_missing=old)
         _assert_keys(
             band["exclusions"],
             frozenset(EXCLUSION_REASONS),
             f"commitment/bands/{name}/exclusions",
-            allow_missing=status == STATUS_SUPERSEDED,
+            allow_missing=old,
         )
         for key in ("candidates", "seed"):
             if not isinstance(band[key], int):
@@ -908,12 +1192,14 @@ def assert_commitment_schema(doc: dict) -> None:
         "commitment/tagless_by_source",
     )
     if status == STATUS_ACTIVE:
-        _assert_keys(
+        review = _assert_keys(
             doc["fingerprint_review"], _FINGERPRINT_REVIEW_KEYS, "commitment/fingerprint_review"
         )
+        _assert_keys(review["coverage"], _COVERAGE_KEYS, "commitment/fingerprint_review/coverage")
         _assert_keys(
             doc["operator_decisions"], _OPERATOR_DECISIONS_KEYS, "commitment/operator_decisions"
         )
+        _assert_keys(doc["fallback_addendum"], _FALLBACK_KEYS, "commitment/fallback_addendum")
     for name in ("short_bands", *(("notes",) if status == STATUS_ACTIVE else ())):
         if not isinstance(doc[name], list) or any(not isinstance(x, str) for x in doc[name]):
             raise PrivacyError(f"commitment/{name} must be a list of strings")
@@ -931,7 +1217,39 @@ _ATTESTATION_KEYS = frozenset(
         "annotation_ledger_head",
         "audit_result",
         "members_per_band",
+        "repass",
         "attestation_sha256",
+    }
+)
+_ATTESTATION_REPASS_KEYS = frozenset(
+    {
+        "record_sha256",
+        "population_sha256",
+        "sample_sha256",
+        "sample_size",
+        "population_size",
+        "seed",
+        "metrical_level_disagreements",
+        "fine_disagreements",
+        "non_comparable",
+        "crossed_band",
+        "metrical_level_disagreement_rate",
+        "fine_disagreement_rate",
+        "median_abs_diff_bpm",
+        "max_abs_diff_bpm",
+        "note",
+    }
+)
+_ADDENDUM_KEYS = frozenset(
+    {
+        "schema_version",
+        "story",
+        "dated",
+        "commitment_generation",
+        "policy",
+        "source_order",
+        "bands",
+        "note",
     }
 )
 
@@ -944,6 +1262,12 @@ def assert_ledger_head_schema(doc: dict) -> None:
 def assert_attestation_schema(doc: dict) -> None:
     _assert_keys(doc, _ATTESTATION_KEYS, "attestation")
     _assert_keys(doc["members_per_band"], frozenset(BAND_NAMES), "attestation/members_per_band")
+    _assert_keys(doc["repass"], _ATTESTATION_REPASS_KEYS, "attestation/repass")
+
+
+def assert_addendum_schema(doc: dict) -> None:
+    _assert_keys(doc, _ADDENDUM_KEYS, "fallback-addendum")
+    _assert_keys(doc["bands"], frozenset(BAND_NAMES), "fallback-addendum/bands")
 
 
 def gate_committed(doc: dict, schema: Callable[[dict], None]) -> None:
@@ -991,6 +1315,26 @@ def _write_json(path: Path, doc: dict) -> None:
     _write_bytes_atomic(path, _json_bytes(doc))
 
 
+def _write_json_immutable(path: Path, doc: dict) -> None:
+    """Write a record that may never be overwritten with different bytes.
+
+    Re-writing identical bytes is allowed so an interrupted run is resumable;
+    anything else raises. Annotation records, re-pass records, and commitment
+    archives all go through this: these labels are one annotator's DAW work and
+    cannot be regenerated.
+    """
+    data = _json_bytes(doc)
+    if path.exists():
+        if path.read_bytes() == data:
+            return
+        raise HarnessError(
+            f"IMMUTABLE RECORD: {path.name} already exists with different content. "
+            "Records are versioned and never overwritten; a correction appends a new "
+            "version and a new event."
+        )
+    _write_bytes_atomic(path, data)
+
+
 def _write_text_atomic(path: Path, text: str) -> None:
     _write_bytes_atomic(path, text.encode("utf-8"))
 
@@ -1010,13 +1354,157 @@ def _require(doc: dict, key: str, what: str) -> Any:
     return doc[key]
 
 
+def _rel(path: Path, root: Path) -> str:
+    return path.relative_to(root).as_posix()
+
+
+def _under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
 # ---------------------------------------------------------------------------
-# Commitment: status enforcement + drift/tamper verification
+# Immutable event store
+# ---------------------------------------------------------------------------
+
+
+def _ledger_lines(path: Path) -> list[bytes]:
+    if not path.exists():
+        return []
+    return [ln for ln in path.read_bytes().split(b"\n") if ln.strip()]
+
+
+def head_of(path: Path) -> tuple[str, int]:
+    lines = _ledger_lines(path)
+    if not lines:
+        return GENESIS_DIGEST, 0
+    return sha256_bytes(lines[-1]), len(lines)
+
+
+def read_events(path: Path) -> list[dict]:
+    events: list[dict] = []
+    for i, line in enumerate(_ledger_lines(path)):
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise HarnessError(
+                f"event store {path.name} line {i} is not valid JSON: {exc}"
+            ) from exc
+        events.append(ev)
+    return events
+
+
+def append_event(path: Path, event: dict) -> str:
+    lines = _ledger_lines(path)
+    prev = GENESIS_DIGEST if not lines else sha256_bytes(lines[-1])
+    full = dict(event)
+    full["index"] = len(lines)
+    full["prev"] = prev
+    line = json.dumps(full, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "ab") as fh:
+        fh.write(line + b"\n")
+    return sha256_bytes(line)
+
+
+def latest_by_batch(events: list[dict]) -> dict[tuple[str, int], dict]:
+    """Latest event per (band, batch); a `replacement` supersedes its predecessor
+    without overwriting it."""
+    active: dict[tuple[str, int], dict] = {}
+    for ev in events:
+        active[(str(ev.get("band")), int(ev.get("batch", -1)))] = ev
+    return active
+
+
+def _chain_failures(
+    path: Path,
+    statuses: tuple[str, ...],
+    transitions: dict[str | None, frozenset[str]],
+    commitment_sha: str,
+    key: Callable[[dict], Any],
+) -> tuple[list[str], list[dict]]:
+    """Chain integrity + allowed-transition walk shared by both event stores."""
+    failures: list[str] = []
+    events: list[dict] = []
+    prev = GENESIS_DIGEST
+    current: dict[Any, str] = {}
+    for i, line in enumerate(_ledger_lines(path)):
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError as exc:
+            failures.append(f"{path.name} line {i} is not valid JSON: {exc}")
+            return failures, events
+        if int(ev.get("index", -1)) != i:
+            failures.append(f"{path.name} event {i} carries index {ev.get('index')!r}")
+        if ev.get("prev") != prev:
+            failures.append(
+                f"{path.name} chain break at event {i}: prev {ev.get('prev')!r} != "
+                f"the previous event digest {prev}"
+            )
+        status = ev.get("status")
+        if status not in statuses:
+            failures.append(f"{path.name} event {i}: unknown status {status!r}")
+        else:
+            k = key(ev)
+            allowed = transitions.get(current.get(k))
+            if allowed is None or status not in allowed:
+                failures.append(
+                    f"{path.name} event {i}: transition {current.get(k)!r} -> {status!r} for "
+                    f"{k!r} is not in the allowed-transition table"
+                )
+            current[k] = status
+        if ev.get("commitment_sha256") != commitment_sha:
+            failures.append(
+                f"{path.name} event {i} is bound to commitment "
+                f"{ev.get('commitment_sha256')!r}, not the active commitment"
+            )
+        prev = sha256_bytes(line)
+        events.append(ev)
+    return failures, events
+
+
+# ---------------------------------------------------------------------------
+# Commitment: status, chain, drift/tamper
 # ---------------------------------------------------------------------------
 
 
 def read_commitment() -> dict:
     return _read_json(COMMITMENT_JSON, "commitment artifact")
+
+
+def commitment_chain_failures(doc: dict, digest: str) -> list[str]:
+    """Walk `supersedes_sha256` back through the committed archives.
+
+    An archived predecessor cannot silently vanish: each link must name a file
+    in the artifacts directory that hashes to the recorded digest.
+    """
+    failures: list[str] = []
+    seen = {digest}
+    current = doc
+    while True:
+        prior = current.get("supersedes_sha256")
+        if not prior:
+            return failures
+        if prior in seen:
+            failures.append(f"commitment chain loops at {prior[:12]}")
+            return failures
+        seen.add(prior)
+        matches = [
+            p
+            for p in sorted(ARTIFACTS_DIR.glob("12-7-candidate-commitment.*.json"))
+            if _safe_sha256_file(p) == prior
+        ]
+        if not matches:
+            failures.append(
+                f"commitment chain break: this record supersedes {prior[:12]} but no archived "
+                "commitment in the artifacts directory hashes to it. An archived predecessor "
+                "may never be deleted or edited."
+            )
+            return failures
+        current = _read_json(matches[0], "archived commitment")
 
 
 def require_active_commitment() -> tuple[dict, str]:
@@ -1033,40 +1521,18 @@ def require_active_commitment() -> tuple[dict, str]:
     if status != STATUS_ACTIVE:
         raise HarnessError(
             f"NO ACTIVE COMMITMENT: the commitment on record has status {status!r}. "
-            "A superseded commitment can never be operated on - it was minted without "
-            "the mandatory pre-commitment fingerprint review, its row IDs leak draw "
-            "position, and its Tony/OA300 rows are not content-bound. Re-mint with "
-            "`commit-pools` once the two operator decisions and the fingerprint "
-            "dispositions are on record."
+            "A superseded commitment can never be operated on. Mint a successor with "
+            "`make eval-corpus-remint`, which archives this record byte-for-byte, "
+            "records `supersedes_sha256`, and refuses while any prerequisite or any "
+            "prior-generation annotation state is outstanding."
         )
     return commitment, sha256_file(COMMITMENT_JSON)
 
 
-def verify_committed_digest(pools_path: Path, draws_path: Path, commitment_json: Path) -> dict:
-    """Fail closed: BOTH row-level files must hash to their committed digests."""
-    commitment = _read_json(commitment_json, "commitment artifact")
-    for path, key in ((pools_path, "pool_file_sha256"), (draws_path, "draw_file_sha256")):
-        recorded = _require(commitment, key, "commitment artifact")
-        if not path.exists():
-            raise HarnessError(
-                f"committed row-level file {path.name} is missing; run commit-pools to "
-                "restore it from the recorded seed (restore verifies against the "
-                "committed digests)"
-            )
-        actual = sha256_file(path)
-        if recorded != actual:
-            raise HarnessError(
-                f"commitment digest mismatch: committed {key} {recorded} != actual "
-                f"{actual} for {path.name}; the row-level file has drifted since "
-                "commitment - refusing to proceed"
-            )
-    return commitment
-
-
 def verify_input_drift(commitment: dict, pools_doc: dict, draws_doc: dict) -> None:
-    """Finding 1: hash the documents REGENERATED FROM TODAY'S INPUTS against the
-    recorded digests. Verifying only the on-disk file is a tamper check; without
-    this a changed survey or training manifest printed 'commitment verified'."""
+    """Hash the documents REGENERATED FROM TODAY'S INPUTS against the recorded
+    digests. Verifying only the on-disk file is a tamper check; without this a
+    changed survey or training manifest printed 'commitment verified'."""
     for doc, key, label in (
         (pools_doc, "pool_file_sha256", "candidate pools"),
         (draws_doc, "draw_file_sha256", "draw sequences"),
@@ -1084,168 +1550,404 @@ def verify_input_drift(commitment: dict, pools_doc: dict, draws_doc: dict) -> No
 
 
 # ---------------------------------------------------------------------------
-# Operator decisions + fingerprint dispositions (machine-readable gates)
+# Batch records + worklists
+# ---------------------------------------------------------------------------
+
+_BATCH_RECORD_KEYS = ("band", "batch", "size", "start", "rowIds", "work_order_seed", "work_order")
+
+
+def validate_batch_records(generation: str, band: str, sequence_row_ids: list[str]) -> list[dict]:
+    """Validate every batch record for a band against the committed sequence.
+
+    Checks filename index, band, batch index, start, size, the EXACT sequence
+    slice, the work-order permutation, and a contiguous 0..n-1 prefix.
+    """
+    band_dir = batches_dir(generation) / band
+    if not band_dir.exists():
+        return []
+    files: dict[int, Path] = {}
+    for p in band_dir.glob("batch-*.json"):
+        m = re.fullmatch(r"batch-(\d{3})\.json", p.name)
+        if m:
+            files[int(m.group(1))] = p
+    indices = sorted(files)
+    if indices != list(range(len(indices))):
+        raise HarnessError(
+            f"batch records for {band} are not a contiguous 0..n-1 prefix: {indices} - a "
+            "record is missing or misnamed; restore it before proceeding"
+        )
+    records: list[dict] = []
+    start = 0
+    for i in indices:
+        path = files[i]
+        rec = _read_json(path, "batch record")
+        for key in _BATCH_RECORD_KEYS:
+            _require(rec, key, f"batch record {path.name}")
+        if rec["band"] != band:
+            raise HarnessError(f"batch record {path.name}: band {rec['band']!r} != {band!r}")
+        if int(rec["batch"]) != i:
+            raise HarnessError(
+                f"batch record {path.name}: recorded batch index {rec['batch']} does not "
+                "match the filename index"
+            )
+        row_ids = list(rec["rowIds"])
+        if int(rec["size"]) != len(row_ids):
+            raise HarnessError(
+                f"batch record {path.name}: size {rec['size']} != {len(row_ids)} row ids"
+            )
+        if int(rec["start"]) != start:
+            raise HarnessError(
+                f"batch record {path.name}: start {rec['start']} != the cumulative "
+                f"consecutive-span start {start}"
+            )
+        expected = sequence_row_ids[start : start + len(row_ids)]
+        if row_ids != expected:
+            raise HarnessError(
+                f"batch record {path.name}: rowIds are not the committed draw-sequence "
+                f"slice [{start}:{start + len(row_ids)}] - the batch was tampered with or "
+                "reordered"
+            )
+        if sorted(rec["work_order"]) != sorted(row_ids):
+            raise HarnessError(
+                f"batch record {path.name}: work_order is not a permutation of rowIds"
+            )
+        records.append(rec)
+        start += len(row_ids)
+    return records
+
+
+def worklist_path_for(generation: str, band: str, batch: int) -> Path:
+    return batches_dir(generation) / band / f"batch-{batch:03d}-worklist.csv"
+
+
+def read_worklist(path: Path) -> list[tuple[str, str]]:
+    with open(path, newline="", encoding="utf-8") as fh:
+        rows = list(csv.reader(fh))
+    if not rows or rows[0] != ["row_id", "audio"]:
+        raise HarnessError(
+            f"worklist {path.name} header is {rows[0] if rows else '<empty>'}, expected "
+            "exactly ['row_id', 'audio'] - the annotator-facing worklist carries an opaque "
+            "row id and a staged path and nothing else"
+        )
+    out: list[tuple[str, str]] = []
+    for i, row in enumerate(rows[1:], start=1):
+        if len(row) != 2:
+            raise HarnessError(f"worklist {path.name} line {i} has {len(row)} columns, expected 2")
+        out.append((row[0], row[1]))
+    return out
+
+
+def validate_worklist(
+    generation: str,
+    band: str,
+    batch: int,
+    record: dict,
+    by_row_id: dict[str, dict],
+    require_audio: bool,
+) -> list[str]:
+    """Structural worklist validation, run BEFORE annotations are accepted.
+
+    A recorded-but-unchecked digest is worse than none. Verifying only the
+    ingest-recorded digest is also too late: a worklist altered BEFORE ingest
+    has its altered digest anchored as the reference. So the worklist is checked
+    against the batch record itself - the full row set in work order, every path
+    confined to this batch's staging directory, and every staged file hashed
+    against that row's committed `contentSha256`.
+    """
+    failures: list[str] = []
+    path = worklist_path_for(generation, band, batch)
+    if not path.exists():
+        return [f"worklist for {band}/batch-{batch:03d} is missing"]
+    try:
+        rows = read_worklist(path)
+    except HarnessError as exc:
+        return [str(exc)]
+    expected_order = list(record["work_order"])
+    if [rid for rid, _ in rows] != expected_order:
+        return [
+            f"worklist {band}/batch-{batch:03d} row ids are not the batch record's work "
+            "order - the worklist was edited, reordered, or re-pointed"
+        ]
+    stage = (staging_dir(generation) / band / f"batch-{batch:03d}").resolve()
+    for rid, audio in rows:
+        audio_path = Path(audio)
+        if not _under(audio_path, stage):
+            failures.append(
+                f"worklist {band}/batch-{batch:03d} row {rid} points outside this batch's "
+                "staging directory"
+            )
+            continue
+        entry = by_row_id.get(rid)
+        committed = str((entry or {}).get("contentSha256") or "")
+        if not audio_path.exists():
+            if require_audio:
+                failures.append(
+                    f"staged audio for {band}/batch-{batch:03d} row {rid} is missing; the "
+                    "batch cannot be ingested without content-verifiable audio"
+                )
+            continue
+        actual = sha256_file(audio_path)
+        if committed and actual != committed:
+            failures.append(
+                f"staged audio for {band}/batch-{batch:03d} row {rid} hashes to {actual}, "
+                f"the commitment records {committed} - this row was pointed at different "
+                "audio, which would produce labels for the wrong track"
+            )
+    return failures
+
+
+# ---------------------------------------------------------------------------
+# Harness state: load once, validate before AND after every mutation
 # ---------------------------------------------------------------------------
 
 
-def load_operator_decisions() -> dict:
-    """The two pending operator decisions, supplied as machine-readable input.
+@dataclass
+class HarnessState:
+    commitment: dict
+    commitment_sha: str
+    generation: str
+    pools: dict
+    events: list[dict] = field(default_factory=list)
+    repass_events: list[dict] = field(default_factory=list)
 
-    `commit-pools` refuses when the file is absent rather than inferring
-    "pending" from prose. The file lives in the gitignored working directory
-    because a fallback addendum enumerates row identities.
+    @property
+    def n_band(self) -> int:
+        value = self.commitment.get("n_band_target")
+        return int(value) if isinstance(value, int) else N_BAND
+
+    def sequence(self, band: str) -> list[dict]:
+        return _require(_require(self.pools, "bands", "candidate pools"), band, "candidate pools")
+
+    def sequence_row_ids(self, band: str) -> list[str]:
+        return [e["rowId"] for e in self.sequence(band)]
+
+    @property
+    def by_row_id(self) -> dict[str, dict]:
+        return {e["rowId"]: e for band in BAND_NAMES for e in self.sequence(band)}
+
+
+def load_state() -> HarnessState:
+    commitment, sha = require_active_commitment()
+    generation = str(_require(commitment, "generation", "commitment artifact"))
+    pools = _read_json(pools_path(generation), "candidate pools")
+    return HarnessState(
+        commitment=commitment,
+        commitment_sha=sha,
+        generation=generation,
+        pools=pools,
+        events=read_events(ledger_path(generation)),
+        repass_events=read_events(repass_ledger_path(generation)),
+    )
+
+
+def annotation_record_path(generation: str, ev: dict) -> Path | None:
+    rel = ev.get("annotation_path")
+    if not rel:
+        return None
+    return generation_root(generation) / str(rel)
+
+
+def validate_state(state: HarnessState, require_audio: bool = False) -> list[str]:
+    """The single coherence check, run BEFORE and AFTER every mutation.
+
+    Round 1's command functions held planning, validation, and mutation at once,
+    so no single place could assert the state machine was coherent. Everything
+    that can be checked without re-deriving today's inputs is checked here.
     """
-    if not DECISIONS_PATH.exists():
-        raise OperatorHalt(
-            "MISSING OPERATOR DECISIONS: "
-            f"{DECISIONS_PATH.name} is absent. Two decisions block re-minting:\n"
-            "  (a) short-band allocation (finding 18): the precommitted fallback is empty "
-            "by construction - Tony and OA300 rows are already in the initial pool and are "
-            "also the signed fallback source, so the addendum cannot extend 160-175 or "
-            f"175-plus at all. Accepted policies: {list(SHORT_BAND_POLICIES)}.\n"
-            "  (b) cross-band duplicate rule (finding 12): the signed tie-break is "
-            "'earlier in the membership draw sequence wins', but there is no ordering "
-            "BETWEEN two per-band sequences, and the same recording tagged 85 in one "
-            "source and 170 in another lands in two bands by construction. Accepted "
-            f"policies: {list(CROSS_BAND_POLICIES)}."
-        )
-    doc = _read_json(DECISIONS_PATH, "operator decisions")
-    for key in ("schema_version", "decided", "short_band_allocation", "cross_band_duplicate_rule"):
-        _require(doc, key, "operator decisions")
-    short = _require(doc["short_band_allocation"], "policy", "short_band_allocation")
-    if short not in SHORT_BAND_POLICIES:
-        raise HarnessError(
-            f"operator decisions: short_band_allocation.policy {short!r} is not one of "
-            f"{list(SHORT_BAND_POLICIES)}. A policy the harness does not implement cannot "
-            "be recorded as decided."
-        )
-    if short == "shrink-corpus":
-        n = _require(doc["short_band_allocation"], "n_band", "short_band_allocation")
-        if not isinstance(n, int) or not 1 <= n <= N_BAND:
-            raise HarnessError(f"operator decisions: shrink-corpus n_band must be 1..{N_BAND}")
-    cross = _require(doc["cross_band_duplicate_rule"], "policy", "cross_band_duplicate_rule")
-    if cross not in CROSS_BAND_POLICIES:
-        raise HarnessError(
-            f"operator decisions: cross_band_duplicate_rule.policy {cross!r} is not one of "
-            f"{list(CROSS_BAND_POLICIES)}"
-        )
-    if cross == "pre-commitment-recording-dedup":
-        prio = _require(
-            doc["cross_band_duplicate_rule"], "band_priority", "cross_band_duplicate_rule"
-        )
-        if sorted(prio) != sorted(BAND_NAMES):
-            raise HarnessError(
-                f"operator decisions: band_priority must be a permutation of {BAND_NAMES}"
-            )
-    return doc
+    failures: list[str] = []
+    gen = state.generation
 
+    # 1. Committed artifact: schema, privacy screens, supersession chain.
+    try:
+        gate_committed(state.commitment, assert_commitment_schema)
+    except PrivacyError as exc:
+        failures.append(f"commitment artifact: {exc}")
+    failures.extend(commitment_chain_failures(state.commitment, state.commitment_sha))
 
-def training_input_digest() -> str:
-    """Digest over the training inputs a fingerprint disposition adjudicated
-    against, so a manifest change invalidates the dispositions."""
-    parts = []
-    for path in (SECONDARY_MANIFEST, UNSUPERVISED_MANIFEST, CORPUS_SPLITS):
+    # 2. Row-level files: present, generation-scoped, and hashing to the
+    # committed digests. Both directions matter; see verify_input_drift for the
+    # other one.
+    for path, key in (
+        (pools_path(gen), "pool_file_sha256"),
+        (draws_path(gen), "draw_file_sha256"),
+    ):
+        recorded = state.commitment.get(key)
         if not path.exists():
-            raise HarnessError(f"training input {path.name} not found - HALT")
-        parts.append(f"{path.name}:{sha256_file(path)}")
-    return sha256_bytes(_json_bytes({"training_inputs": sorted(parts)}))
-
-
-def load_dispositions(universe_digest: str, expected_flag_ids: set[str]) -> dict[str, dict]:
-    """Fail-closed disposition gate (finding 5). Blocks minting while any
-    generated review flag is unadjudicated, and refuses a disposition set bound
-    to a different candidate universe, fingerprint method, or training input."""
-    if not DISPOSITIONS_PATH.exists():
-        raise OperatorHalt(
-            "MISSING FINGERPRINT DISPOSITIONS: "
-            f"{DISPOSITIONS_PATH.name} is absent. The signed section-2 exclusion route "
-            "'by audio fingerprint (scripts/audit-corpus-splits.py precedent)' is "
-            "MANDATORY and runs BEFORE commitment. Run `prepare-review` to generate the "
-            f"flags plus {DISPOSITIONS_TEMPLATE_PATH.name}, record a human disposition for "
-            "every flag, and save it as the dispositions file. The algorithm is advisory; "
-            "the recorded human disposition is what excludes."
-        )
-    doc = _read_json(DISPOSITIONS_PATH, "fingerprint dispositions")
-    recorded_universe = _require(doc, "candidate_universe_sha256", "fingerprint dispositions")
-    if recorded_universe != universe_digest:
-        raise DriftError(
-            "fingerprint dispositions are bound to candidate universe "
-            f"{recorded_universe}, but today's universe is {universe_digest}. Stale "
-            "adjudications cannot carry across a changed candidate universe; re-run "
-            "`prepare-review`."
-        )
-    recorded_method = _require(doc, "fingerprint_method", "fingerprint dispositions")
-    if recorded_method != FINGERPRINT_METHOD:
-        raise DriftError(
-            f"fingerprint dispositions were recorded under method {recorded_method!r}, "
-            f"current method is {FINGERPRINT_METHOD!r}"
-        )
-    recorded_training = _require(doc, "training_input_sha256", "fingerprint dispositions")
-    actual_training = training_input_digest()
-    if recorded_training != actual_training:
-        raise DriftError(
-            "fingerprint dispositions are bound to training inputs "
-            f"{recorded_training}, but today's training inputs hash to {actual_training}"
-        )
-    by_id: dict[str, dict] = {}
-    for row in _require(doc, "flags", "fingerprint dispositions"):
-        fid = _require(row, "flag_id", "fingerprint disposition row")
-        disp = row.get("disposition")
-        if disp not in DISPOSITION_VALUES:
-            raise OperatorHalt(
-                f"UNRESOLVED FINGERPRINT DISPOSITION: flag {fid} carries "
-                f"disposition {disp!r}; every flag needs one of {list(DISPOSITION_VALUES)} "
-                "before a mint may proceed."
+            failures.append(
+                f"committed row-level file {path.name} is missing from generation {gen}"
             )
-        by_id[fid] = row
-    missing = sorted(expected_flag_ids - set(by_id))
-    stale = sorted(set(by_id) - expected_flag_ids)
-    if missing or stale:
-        raise OperatorHalt(
-            f"FINGERPRINT DISPOSITION SET MISMATCH: {len(missing)} generated flag(s) have "
-            f"no recorded disposition ({missing[:5]}), {len(stale)} recorded disposition(s) "
-            f"match no current flag ({stale[:5]}). Re-run `prepare-review` and adjudicate "
-            "the current flag set."
-        )
-    return by_id
+        elif sha256_file(path) != recorded:
+            failures.append(
+                f"commitment digest mismatch for {path.name}: committed {key} {recorded} != "
+                f"actual {sha256_file(path)} - the row-level file drifted since commitment"
+            )
 
+    # 3. Batch records against the committed sequence.
+    records: dict[tuple[str, int], dict] = {}
+    for band in BAND_NAMES:
+        try:
+            for rec in validate_batch_records(gen, band, state.sequence_row_ids(band)):
+                records[(band, int(rec["batch"]))] = rec
+        except HarnessError as exc:
+            failures.append(f"batch records for {band}: {exc}")
 
-def apply_dispositions(
-    bands: dict[str, list[dict]],
-    exclusions: dict[str, dict[str, int]],
-    dispositions: dict[str, dict],
-    flags: list[dict],
-) -> tuple[dict[str, list[dict]], dict[str, str], int]:
-    """Apply the recorded human dispositions.
+    # 4. Event store: chain, transitions, commitment binding.
+    chain_failures, events = _chain_failures(
+        ledger_path(gen),
+        LEDGER_STATUSES,
+        EVENT_TRANSITIONS,
+        state.commitment_sha,
+        lambda ev: (str(ev.get("band")), int(ev.get("batch", -1))),
+    )
+    failures.extend(chain_failures)
 
-    A confirmed training-fingerprint or GiantSteps-title flag EXCLUDES its
-    candidate. A confirmed cross-band-recording flag excludes nothing; it
-    supplies the recording group both sides share, which is what the operator's
-    `pre-commitment-recording-dedup` policy collapses on. Returns
-    (bands, recording_groups, confirmed)."""
-    confirmed_keys: set[str] = set()
-    recording_groups: dict[str, str] = {}
-    for flag in flags:
-        disp = dispositions.get(flag["flag_id"], {})
-        if disp.get("disposition") != DISPOSITION_SAME:
+    # 5. Annotation records: allowed root, uniqueness, digests, and the
+    # abandoned-batch invariant. Records are immutable and versioned, so EVERY
+    # event's record (not only the latest) must still be present and intact.
+    ann_root = annotations_dir(gen)
+    referenced: set[Path] = set()
+    for ev in events:
+        band, batch = str(ev.get("band")), int(ev.get("batch", -1))
+        rec = records.get((band, batch))
+        if rec is None:
+            failures.append(f"event references a missing batch record {band}/batch-{batch:03d}")
+        elif sha256_file(batches_dir(gen) / band / f"batch-{batch:03d}.json") != ev.get(
+            "batch_record_sha256"
+        ):
+            failures.append(
+                f"batch record {band}/batch-{batch:03d} does not match its event digest"
+            )
+        path = annotation_record_path(gen, ev)
+        if ev.get("status") == LEDGER_ABANDONED:
+            if path is not None:
+                failures.append(
+                    f"abandoned event for {band}/{batch} names an annotation record; an "
+                    "abandoned batch yields no members and contributes no annotations"
+                )
             continue
-        group = str(disp.get("recording_group") or flag["flag_id"])
-        recording_groups[flag["candidate_key"]] = group
-        if flag.get("peer_key"):
-            recording_groups[str(flag["peer_key"])] = group
-        if flag["kind"] in (FLAG_KIND_FINGERPRINT, FLAG_KIND_GIANTSTEPS):
-            confirmed_keys.add(flag["candidate_key"])
-    out: dict[str, list[dict]] = {name: [] for name in BAND_NAMES}
-    confirmed = 0
-    for name in BAND_NAMES:
-        for entry in bands[name]:
-            key = f"{entry['source']}:{entry['identity']}"
-            if key in confirmed_keys:
-                exclusions[name]["fingerprint-confirmed"] += 1
-                confirmed += 1
-                continue
-            out[name].append(entry)
-    return out, recording_groups, confirmed
+        if path is None:
+            failures.append(f"event for {band}/{batch} carries no annotation_path")
+            continue
+        if not _under(path, ann_root):
+            failures.append(f"annotation record for {band}/{batch} is outside {ann_root.name}/")
+            continue
+        if path in referenced:
+            failures.append(
+                f"annotation record {path.name} is referenced by two events; each event "
+                "carries its own immutable record path"
+            )
+        referenced.add(path)
+        if not path.exists():
+            failures.append(f"annotation record {path.name} recorded in the event store is missing")
+        elif sha256_file(path) != ev.get("annotation_sha256"):
+            failures.append(
+                f"annotation record {path.name} does not match its event digest - it was "
+                "edited after ingest"
+            )
+    if ann_root.exists():
+        for p in sorted(ann_root.glob("*/*.json")):
+            if p not in referenced:
+                failures.append(
+                    f"annotation record {p.parent.name}/{p.name} is not referenced by any "
+                    "event - it was added, duplicated, or moved"
+                )
+
+    # 6. Worklists: structural validation plus the recorded digest.
+    by_row_id = state.by_row_id
+    latest = latest_by_batch(events)
+    for (band, batch), rec in sorted(records.items()):
+        failures.extend(
+            validate_worklist(gen, band, batch, rec, by_row_id, require_audio=require_audio)
+        )
+        ev = latest.get((band, batch))
+        if ev is None or ev.get("status") == LEDGER_ABANDONED:
+            continue
+        wl = worklist_path_for(gen, band, batch)
+        if wl.exists() and sha256_file(wl) != ev.get("work_order_sha256"):
+            failures.append(
+                f"worklist {band}/batch-{batch:03d} does not match the digest recorded at "
+                "ingest - it was edited after the annotations were accepted"
+            )
+
+    # 7. Tracked ledger head.
+    head, count = head_of(ledger_path(gen))
+    if LEDGER_HEAD_JSON.exists():
+        head_doc = _read_json(LEDGER_HEAD_JSON, "annotation ledger head")
+        if head_doc.get("head_sha256") != head or int(head_doc.get("event_count", -1)) != count:
+            failures.append(
+                "tracked annotation-ledger head is stale: it records "
+                f"{head_doc.get('head_sha256')!r}/{head_doc.get('event_count')!r}, the ledger "
+                f"head is {head}/{count}"
+            )
+        if head_doc.get("commitment_sha256") != state.commitment_sha:
+            failures.append("tracked annotation-ledger head is bound to a different commitment")
+    elif count:
+        failures.append("annotation ledger has events but the tracked head artifact is absent")
+
+    # 8. Re-pass event store (separate state machine, same guarantees).
+    repass_failures, repass_events = _chain_failures(
+        repass_ledger_path(gen),
+        REPASS_STATUSES,
+        REPASS_TRANSITIONS,
+        state.commitment_sha,
+        lambda ev: int(ev.get("version", -1)),
+    )
+    failures.extend(repass_failures)
+    rp_root = repass_dir(gen)
+    for ev in repass_events:
+        rel = ev.get("record_path")
+        if not rel:
+            failures.append(f"re-pass event {ev.get('index')} carries no record_path")
+            continue
+        path = generation_root(gen) / str(rel)
+        if not _under(path, rp_root):
+            failures.append(f"re-pass record {path.name} is outside {rp_root.name}/")
+        elif not path.exists():
+            failures.append(f"re-pass record {path.name} recorded in the event store is missing")
+        elif sha256_file(path) != ev.get("record_sha256"):
+            failures.append(f"re-pass record {path.name} does not match its event digest")
+    return failures
+
+
+def require_valid_state(state: HarnessState, when: str, require_audio: bool = False) -> None:
+    failures = validate_state(state, require_audio=require_audio)
+    if failures:
+        raise HarnessError(
+            f"state validation failed {when}; refusing to proceed:\n  " + "\n  ".join(failures)
+        )
+
+
+def load_annotations(state: HarnessState, band: str) -> dict[str, dict]:
+    """Annotations for a band, EVENT-DRIVEN: only the record the latest
+    non-abandoned event for each batch names, verified against its digest."""
+    out: dict[str, dict] = {}
+    for (b, batch), ev in sorted(latest_by_batch(state.events).items()):
+        if b != band or ev.get("status") == LEDGER_ABANDONED:
+            continue
+        path = annotation_record_path(state.generation, ev)
+        if path is None:
+            raise HarnessError(f"event for {b}/{batch} carries no annotation_path")
+        doc = _read_json(path, "annotation record")
+        if sha256_file(path) != ev.get("annotation_sha256"):
+            raise HarnessError(f"annotation record {path.name} does not match its event digest")
+        rows = _require(doc, "rows", f"annotation record {path.name}")
+        overlap = sorted(set(rows) & set(out))
+        if overlap:
+            raise HarnessError(
+                f"annotation records for {band} overlap on row ids {overlap[:5]} - batches "
+                "are disjoint consecutive spans"
+            )
+        out.update(rows)
+    return out
+
+
+def recompute_membership(state: HarnessState) -> dict:
+    return {
+        name: compute_membership(
+            state.sequence(name), load_annotations(state, name), name, state.n_band
+        )
+        for name in BAND_NAMES
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1312,17 +2014,6 @@ def load_inputs() -> dict[str, Any]:
     }
 
 
-def build_universe(inputs: dict) -> tuple[dict[str, list[dict]], dict[str, Any]]:
-    return build_candidates(
-        inputs["pool_rows"],
-        inputs["tony_rows"],
-        inputs["oa300_rows"],
-        inputs["manifest_hashes"],
-        inputs["tony_split_ids"],
-        inputs["training_artist_keys"],
-    )
-
-
 # ---------------------------------------------------------------------------
 # Audio resolution + content-verified staging
 # ---------------------------------------------------------------------------
@@ -1362,45 +2053,52 @@ def _safe_resolve(entry: dict, pool_audio_root: str | None) -> Path | None:
     return path if path.exists() else None
 
 
-def _stage_copies(
-    span: list[dict], stage_dir: Path, pool_audio_root: str | None, order: list[str]
+def stage_copies(
+    span: list[dict],
+    stage_dir: Path,
+    pool_audio_root: str | None,
+    order: list[str],
+    alias: dict[str, str] | None = None,
 ) -> list[tuple[str, str]]:
     """Copy audio as blinded, opaque-ID-named copies, CONTENT-verified.
 
     A source that does not hash to the row's committed `contentSha256` is a hard
-    failure (finding 4): the pre-rework size comparison passed an equal-size
-    substitution and silently recopied it as a 'refresh'. Worklist rows come
-    back in the randomized within-batch work order.
+    failure: a size comparison passes an equal-size substitution. `alias` maps a
+    row id to the visible identifier, which the re-pass uses to blind the
+    annotator to the original row id. Worklist rows come back in `order`
+    (already expressed in visible identifiers).
     """
     stage_dir.mkdir(parents=True, exist_ok=True)
-    by_row_id = {e["rowId"]: e for e in span}
+    names = alias or {}
     staged: dict[str, str] = {}
     for entry in span:
+        row_id = entry["rowId"]
+        visible = names.get(row_id, row_id)
         committed = entry.get("contentSha256")
         if not committed:
             raise HarnessError(
-                f"row {entry['rowId']} carries no contentSha256; the commitment is not "
+                f"row {visible} carries no contentSha256; the commitment is not "
                 "content-bound and cannot be staged"
             )
         src_path = _resolve_audio(entry, pool_audio_root)
         if not src_path.exists():
-            raise HarnessError(f"audio missing for row {entry['rowId']}: cannot stage blinded copy")
+            raise HarnessError(f"audio missing for row {visible}: cannot stage blinded copy")
         actual = sha256_file(src_path)
         if actual != committed:
             raise HarnessError(
-                f"CONTENT MISMATCH for row {entry['rowId']}: the source audio hashes to "
+                f"CONTENT MISMATCH for row {visible}: the source audio hashes to "
                 f"{actual}, the commitment records {committed}. The file was replaced or "
                 "edited since commitment - refusing to stage (a substituted file of equal "
                 "size is exactly what a size check misses)."
             )
-        dest = stage_dir / f"{entry['rowId']}{src_path.suffix.lower()}"
+        dest = stage_dir / f"{visible}{src_path.suffix.lower()}"
         if not dest.exists() or sha256_file(dest) != committed:
             shutil.copyfile(src_path, dest)
-        staged[entry["rowId"]] = str(dest)
-    return [(rid, staged[rid]) for rid in order if rid in by_row_id]
+        staged[visible] = str(dest)
+    return [(vid, staged[vid]) for vid in order if vid in staged]
 
 
-def _write_worklist(path: Path, rows: list[tuple[str, str]]) -> None:
+def write_worklist(path: Path, rows: list[tuple[str, str]]) -> None:
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(["row_id", "audio"])  # opaque ID + staged copy ONLY
@@ -1408,361 +2106,541 @@ def _write_worklist(path: Path, rows: list[tuple[str, str]]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Canonical batch-record validator (finding 9) - used by EVERY consumer
+# Operator decisions + fingerprint dispositions (machine-readable gates)
 # ---------------------------------------------------------------------------
 
-_BATCH_RECORD_KEYS = ("band", "batch", "size", "start", "rowIds", "work_order_seed", "work_order")
 
-
-def validate_batch_records(band: str, sequence_row_ids: list[str]) -> list[dict]:
-    """Validate every batch record for a band against the committed sequence.
-
-    Checks filename index, band, batch index, start, size, the EXACT sequence
-    slice, the work-order permutation, and a contiguous 0..n-1 prefix. Deriving
-    `start` from prior record lengths alone (the pre-rework behaviour) trusted
-    whatever row IDs a record happened to carry.
-    """
-    band_dir = BATCHES_DIR / band
-    if not band_dir.exists():
-        return []
-    files: dict[int, Path] = {}
-    for p in band_dir.glob("batch-*.json"):
-        m = re.fullmatch(r"batch-(\d{3})\.json", p.name)
-        if m:
-            files[int(m.group(1))] = p
-    indices = sorted(files)
-    if indices != list(range(len(indices))):
-        raise HarnessError(
-            f"batch records for {band} are not a contiguous 0..n-1 prefix: {indices} - a "
-            "record is missing or misnamed; restore it before proceeding"
+def load_operator_decisions() -> dict:
+    """The two pending operator decisions, supplied as machine-readable input."""
+    if not DECISIONS_PATH.exists():
+        raise OperatorHalt(
+            "MISSING OPERATOR DECISIONS: "
+            f"{DECISIONS_PATH.name} is absent. Two decisions block minting:\n"
+            "  (a) short-band allocation: the precommitted fallback is empty by "
+            "construction - Tony and OA300 rows are already in the initial pool and are "
+            "also the signed fallback source. The harness implements and ENUMERATES the "
+            f"addendum so that emptiness is reported rather than inferred. Accepted "
+            f"policies: {list(SHORT_BAND_POLICIES)}.\n"
+            "  (b) cross-band duplicate rule: the signed tie-break is 'earlier in the "
+            "membership draw sequence wins', but there is no ordering BETWEEN two per-band "
+            "sequences, and the same recording tagged 85 in one source and 170 in another "
+            f"lands in two bands by construction. Accepted policies: "
+            f"{list(CROSS_BAND_POLICIES)}."
         )
-    records: list[dict] = []
-    start = 0
-    for i in indices:
-        path = files[i]
-        rec = _read_json(path, "batch record")
-        for key in _BATCH_RECORD_KEYS:
-            _require(rec, key, f"batch record {path.name}")
-        if rec["band"] != band:
-            raise HarnessError(f"batch record {path.name}: band {rec['band']!r} != {band!r}")
-        if int(rec["batch"]) != i:
+    doc = _read_json(DECISIONS_PATH, "operator decisions")
+    for key in ("schema_version", "decided", "short_band_allocation", "cross_band_duplicate_rule"):
+        _require(doc, key, "operator decisions")
+    short = _require(doc["short_band_allocation"], "policy", "short_band_allocation")
+    if short not in SHORT_BAND_POLICIES:
+        raise HarnessError(
+            f"operator decisions: short_band_allocation.policy {short!r} is not one of "
+            f"{list(SHORT_BAND_POLICIES)}. A policy the harness does not implement cannot "
+            "be recorded as decided."
+        )
+    if short == "shrink-corpus":
+        n = _require(doc["short_band_allocation"], "n_band", "short_band_allocation")
+        if not isinstance(n, int) or not 1 <= n <= N_BAND:
+            raise HarnessError(f"operator decisions: shrink-corpus n_band must be 1..{N_BAND}")
+    cross = _require(doc["cross_band_duplicate_rule"], "policy", "cross_band_duplicate_rule")
+    if cross not in CROSS_BAND_POLICIES:
+        raise HarnessError(
+            f"operator decisions: cross_band_duplicate_rule.policy {cross!r} is not one of "
+            f"{list(CROSS_BAND_POLICIES)}"
+        )
+    if cross == "pre-commitment-recording-dedup":
+        prio = _require(
+            doc["cross_band_duplicate_rule"], "band_priority", "cross_band_duplicate_rule"
+        )
+        if sorted(prio) != sorted(BAND_NAMES):
             raise HarnessError(
-                f"batch record {path.name}: recorded batch index {rec['batch']} does not "
-                "match the filename index"
+                f"operator decisions: band_priority must be a permutation of {BAND_NAMES}"
             )
-        row_ids = list(rec["rowIds"])
-        if int(rec["size"]) != len(row_ids):
-            raise HarnessError(
-                f"batch record {path.name}: size {rec['size']} != {len(row_ids)} row ids"
-            )
-        if int(rec["start"]) != start:
-            raise HarnessError(
-                f"batch record {path.name}: start {rec['start']} != the cumulative "
-                f"consecutive-span start {start}"
-            )
-        expected = sequence_row_ids[start : start + len(row_ids)]
-        if row_ids != expected:
-            raise HarnessError(
-                f"batch record {path.name}: rowIds are not the committed draw-sequence "
-                f"slice [{start}:{start + len(row_ids)}] - the batch was tampered with or "
-                "reordered"
-            )
-        if sorted(rec["work_order"]) != sorted(row_ids):
-            raise HarnessError(
-                f"batch record {path.name}: work_order is not a permutation of rowIds"
-            )
-        records.append(rec)
-        start += len(row_ids)
-    return records
-
-
-def _sequence_row_ids(pools: dict, band: str) -> list[str]:
-    seq = _require(_require(pools, "bands", "candidate pools"), band, "candidate pools")
-    return [e["rowId"] for e in seq]
-
-
-# ---------------------------------------------------------------------------
-# Append-only annotation ledger (finding 2 + finding 13)
-# ---------------------------------------------------------------------------
-
-
-def _ledger_lines() -> list[bytes]:
-    if not LEDGER_PATH.exists():
-        return []
-    return [ln for ln in LEDGER_PATH.read_bytes().split(b"\n") if ln.strip()]
-
-
-def ledger_head() -> tuple[str, int]:
-    lines = _ledger_lines()
-    if not lines:
-        return GENESIS_DIGEST, 0
-    return sha256_bytes(lines[-1]), len(lines)
-
-
-def ledger_events() -> list[dict]:
-    events: list[dict] = []
-    for i, line in enumerate(_ledger_lines()):
-        try:
-            ev = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise HarnessError(f"annotation ledger line {i} is not valid JSON: {exc}") from exc
-        events.append(ev)
-    return events
-
-
-def append_ledger_event(event: dict) -> str:
-    lines = _ledger_lines()
-    prev = GENESIS_DIGEST if not lines else sha256_bytes(lines[-1])
-    full = dict(event)
-    full["index"] = len(lines)
-    full["prev"] = prev
-    line = json.dumps(full, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(LEDGER_PATH, "ab") as fh:
-        fh.write(line + b"\n")
-    return sha256_bytes(line)
-
-
-def active_ledger_events() -> dict[tuple[str, int], dict]:
-    """Latest event per (band, batch); a `replacement` supersedes its predecessor
-    without overwriting it."""
-    active: dict[tuple[str, int], dict] = {}
-    for ev in ledger_events():
-        active[(str(ev.get("band")), int(ev.get("batch", -1)))] = ev
-    return active
-
-
-def verify_ledger(commitment_sha: str) -> list[str]:
-    """Return failures. Detects chain breaks, a stale tracked head, an edited or
-    deleted annotation file, an unreferenced (added or duplicated) annotation
-    file, and an abandoned batch that still carries annotations."""
-    failures: list[str] = []
-    lines = _ledger_lines()
-    prev = GENESIS_DIGEST
-    events: list[dict] = []
-    for i, line in enumerate(lines):
-        try:
-            ev = json.loads(line)
-        except json.JSONDecodeError as exc:
-            failures.append(f"annotation ledger line {i} is not valid JSON: {exc}")
-            return failures
-        if int(ev.get("index", -1)) != i:
-            failures.append(f"annotation ledger event {i} carries index {ev.get('index')!r}")
-        if ev.get("prev") != prev:
-            failures.append(
-                f"annotation ledger chain break at event {i}: prev {ev.get('prev')!r} != "
-                f"the previous event digest {prev}"
-            )
-        if ev.get("status") not in LEDGER_STATUSES:
-            failures.append(f"annotation ledger event {i}: unknown status {ev.get('status')!r}")
-        if ev.get("commitment_sha256") != commitment_sha:
-            failures.append(
-                f"annotation ledger event {i} is bound to commitment "
-                f"{ev.get('commitment_sha256')!r}, not the active commitment"
-            )
-        prev = sha256_bytes(line)
-        events.append(ev)
-
-    head, count = ledger_head()
-    if LEDGER_HEAD_JSON.exists():
-        head_doc = _read_json(LEDGER_HEAD_JSON, "annotation ledger head")
-        if head_doc.get("head_sha256") != head or int(head_doc.get("event_count", -1)) != count:
-            failures.append(
-                "tracked annotation-ledger head is stale: it records "
-                f"{head_doc.get('head_sha256')!r}/{head_doc.get('event_count')!r}, the ledger "
-                f"head is {head}/{count}"
-            )
-    elif count:
-        failures.append("annotation ledger has events but the tracked head artifact is absent")
-
-    active = active_ledger_events()
-    referenced: set[Path] = set()
-    for (band, batch), ev in sorted(active.items()):
-        record_path = BATCHES_DIR / band / f"batch-{batch:03d}.json"
-        if not record_path.exists():
-            failures.append(f"ledger references a missing batch record {band}/batch-{batch:03d}")
-        elif sha256_file(record_path) != ev.get("batch_record_sha256"):
-            failures.append(
-                f"batch record {band}/batch-{batch:03d} does not match its ledger digest"
-            )
-        ann_path = ANNOTATIONS_DIR / band / f"batch-{batch:03d}.json"
-        if ev.get("status") == LEDGER_ABANDONED:
-            if ann_path.exists():
-                failures.append(
-                    f"abandoned batch {band}/{batch} still carries an annotation record; an "
-                    "abandoned batch yields no members and must contribute no annotations"
-                )
-            continue
-        referenced.add(ann_path)
-        if not ann_path.exists():
-            failures.append(
-                f"annotation record {band}/batch-{batch:03d} recorded in the ledger is missing"
-            )
-        elif sha256_file(ann_path) != ev.get("annotation_sha256"):
-            failures.append(
-                f"annotation record {band}/batch-{batch:03d} does not match its ledger "
-                "digest - it was edited after ingest"
-            )
-    if ANNOTATIONS_DIR.exists():
-        for p in sorted(ANNOTATIONS_DIR.glob("*/batch-*.json")):
-            if p not in referenced:
-                failures.append(
-                    f"annotation record {p.parent.name}/{p.name} is not referenced by any "
-                    "active ledger event - it was added, duplicated, or moved"
-                )
-    return failures
-
-
-def write_ledger_head(commitment_sha: str) -> dict:
-    head, count = ledger_head()
-    active = active_ledger_events()
-    bands = {
-        name: {
-            "completed": sum(
-                1
-                for (b, _), ev in active.items()
-                if b == name and ev.get("status") in (LEDGER_COMPLETED, LEDGER_REPLACEMENT)
-            ),
-            "abandoned": sum(
-                1
-                for (b, _), ev in active.items()
-                if b == name and ev.get("status") == LEDGER_ABANDONED
-            ),
-        }
-        for name in BAND_NAMES
-    }
-    doc = {
-        "schema_version": 1,
-        "story": "12.7",
-        "head_sha256": head,
-        "event_count": count,
-        "commitment_sha256": commitment_sha,
-        "bands": bands,
-        "note": LEDGER_INTEGRITY_NOTE,
-    }
-    gate_committed(doc, assert_ledger_head_schema)
-    _write_json(LEDGER_HEAD_JSON, doc)
     return doc
 
 
-def _load_all_annotations(band: str) -> dict[str, dict]:
-    """Annotations for a band, LEDGER-DRIVEN: only files an active, non-abandoned
-    ledger event names, each verified against its recorded digest. The
-    pre-rework glob + `dict.update` merged whatever happened to be on disk."""
-    out: dict[str, dict] = {}
-    for (b, batch), ev in sorted(active_ledger_events().items()):
-        if b != band or ev.get("status") == LEDGER_ABANDONED:
-            continue
-        path = ANNOTATIONS_DIR / b / f"batch-{batch:03d}.json"
-        doc = _read_json(path, "annotation record")
-        if sha256_file(path) != ev.get("annotation_sha256"):
-            raise HarnessError(
-                f"annotation record {b}/batch-{batch:03d} does not match its ledger digest"
-            )
-        rows = _require(doc, "rows", f"annotation record {path.name}")
-        overlap = sorted(set(rows) & set(out))
-        if overlap:
-            raise HarnessError(
-                f"annotation records for {band} overlap on row ids {overlap[:5]} - batches "
-                "are disjoint consecutive spans"
-            )
-        out.update(rows)
-    return out
+def accepted_uncovered_training_rows(decisions: dict) -> set[str]:
+    """Rows a DATED operator amendment accepts as fingerprint-uncovered.
+
+    Absence of evidence is not evidence of absence: a human cannot infer "not the
+    same recording" from a failed decode, so the only ways to unblock are
+    restoring the audio, correcting the manifest, or naming the row here.
+    """
+    amendment = decisions.get("fingerprint_coverage_amendment")
+    if not isinstance(amendment, dict):
+        return set()
+    if not amendment.get("dated"):
+        raise HarnessError(
+            "operator decisions: fingerprint_coverage_amendment must carry a `dated` field; "
+            "an undated amendment is not a record."
+        )
+    return {str(x) for x in amendment.get("accepted_uncovered", [])}
 
 
-def _recompute_membership(pools: dict, n_band: int = N_BAND) -> dict:
-    membership = {}
-    for name in BAND_NAMES:
-        annotations = _load_all_annotations(name)
-        membership[name] = compute_membership(pools["bands"][name], annotations, name, n_band)
-    return membership
+def training_input_digest() -> str:
+    """Digest over the training inputs a fingerprint disposition adjudicated
+    against, so a manifest change invalidates the dispositions."""
+    parts = []
+    for path in (SECONDARY_MANIFEST, UNSUPERVISED_MANIFEST, CORPUS_SPLITS):
+        if not path.exists():
+            raise HarnessError(f"training input {path.name} not found - HALT")
+        parts.append(f"{path.name}:{sha256_file(path)}")
+    return sha256_bytes(_json_bytes({"training_inputs": sorted(parts)}))
 
 
-# ---------------------------------------------------------------------------
-# commit-pools
-# ---------------------------------------------------------------------------
-
-
-def _superseded_halt(commitment: dict) -> None:
-    lines = [
-        "COMMITMENT SUPERSEDED: the candidate commitment on record has "
-        f"status {commitment.get('status')!r} and CANNOT be operated on or extended.",
-        "Reason: it was minted without the mandatory pre-commitment fingerprint review "
-        "(signed section 2), its opaque row IDs encode draw position, and its Tony and "
-        "OA300 rows are not content-bound.",
-        "Re-minting is blocked on the following, all of which must be on record first:",
-    ]
+def load_dispositions(universe_digest: str, expected_flag_ids: set[str]) -> dict[str, dict]:
+    """Fail-closed disposition gate. Blocks minting while any generated review
+    flag is unadjudicated, and refuses a disposition set bound to a different
+    candidate universe, fingerprint method, or training input."""
     if not DISPOSITIONS_PATH.exists():
-        lines.append(
-            f"  - MISSING fingerprint dispositions ({DISPOSITIONS_PATH.name}). Run "
-            "`prepare-review` to generate the flag set plus the disposition template, then "
-            "record a human disposition for every flag."
+        raise OperatorHalt(
+            "MISSING FINGERPRINT DISPOSITIONS: "
+            f"{DISPOSITIONS_PATH.name} is absent. The signed section-2 exclusion route "
+            "'by audio fingerprint (scripts/audit-corpus-splits.py precedent)' is "
+            "MANDATORY and runs BEFORE commitment. Run `prepare-review` to generate the "
+            f"flags plus {DISPOSITIONS_TEMPLATE_PATH.name}, record a human disposition for "
+            "every flag, and save it as the dispositions file. The algorithm is advisory; "
+            "the recorded human disposition is what excludes."
         )
-    else:
-        lines.append(f"  - fingerprint dispositions present ({DISPOSITIONS_PATH.name}).")
-    if not DECISIONS_PATH.exists():
-        lines.append(f"  - MISSING operator decisions ({DECISIONS_PATH.name}), both of them:")
-        lines.append(
-            "      (a) short-band allocation: the precommitted fallback is empty by "
-            "construction - Tony and OA300 rows are already in the initial pool and are "
-            "also the signed fallback source, so 160-175 and 175-plus cannot be extended "
-            f"at all. Accepted policies: {list(SHORT_BAND_POLICIES)}."
+    doc = _read_json(DISPOSITIONS_PATH, "fingerprint dispositions")
+    recorded_universe = _require(doc, "candidate_universe_sha256", "fingerprint dispositions")
+    if recorded_universe != universe_digest:
+        raise DriftError(
+            "fingerprint dispositions are bound to candidate universe "
+            f"{recorded_universe}, but today's universe is {universe_digest}. Stale "
+            "adjudications cannot carry across a changed candidate universe; re-run "
+            "`prepare-review`."
         )
-        lines.append(
-            "      (b) cross-band duplicate rule: the signed tie-break orders rows WITHIN "
-            "a band's draw sequence and defines no winner BETWEEN two bands, while the "
-            "same recording tagged at half and full tempo lands in two bands by "
-            f"construction. Accepted policies: {list(CROSS_BAND_POLICIES)}."
+    recorded_method = _require(doc, "fingerprint_method", "fingerprint dispositions")
+    if recorded_method != FINGERPRINT_METHOD:
+        raise DriftError(
+            f"fingerprint dispositions were recorded under method {recorded_method!r}, "
+            f"current method is {FINGERPRINT_METHOD!r}"
         )
-    else:
-        lines.append(f"  - operator decisions present ({DECISIONS_PATH.name}).")
-    lines.append(
-        "No mint was performed and no committed digest was rewritten. The existing "
-        "commitment artifacts are retained (amend, never erase)."
-    )
-    raise OperatorHalt("\n".join(lines))
-
-
-def cmd_commit_pools(args: argparse.Namespace) -> int:
-    inputs = load_inputs()
-
-    existing = None
-    if COMMITMENT_JSON.exists():
-        existing = read_commitment()
-        if existing.get("status") != STATUS_ACTIVE:
-            _superseded_halt(existing)
-        master_seed = int(_require(existing, "master_seed", "existing commitment"))
-        if args.seed is not None and int(args.seed) != master_seed:
-            raise HarnessError(
-                f"--seed {args.seed} conflicts with the recorded master seed "
-                f"{master_seed}; a minted commitment's seed is immutable. Omit --seed "
-                "to verify, or remove the commitment deliberately to re-commit."
+    recorded_training = _require(doc, "training_input_sha256", "fingerprint dispositions")
+    actual_training = training_input_digest()
+    if recorded_training != actual_training:
+        raise DriftError(
+            "fingerprint dispositions are bound to training inputs "
+            f"{recorded_training}, but today's training inputs hash to {actual_training}"
+        )
+    by_id: dict[str, dict] = {}
+    for row in _require(doc, "flags", "fingerprint dispositions"):
+        fid = _require(row, "flag_id", "fingerprint disposition row")
+        disp = row.get("disposition")
+        if disp not in DISPOSITION_VALUES:
+            raise OperatorHalt(
+                f"UNRESOLVED FINGERPRINT DISPOSITION: flag {fid} carries "
+                f"disposition {disp!r}; every flag needs one of {list(DISPOSITION_VALUES)} "
+                "before a mint may proceed."
             )
-        print(f"existing commitment found; verifying with recorded master seed {master_seed}")
-    elif args.seed is not None:
-        master_seed = int(args.seed)
-    else:
-        master_seed = secrets.randbits(32)
+        by_id[fid] = row
+    missing = sorted(expected_flag_ids - set(by_id))
+    stale = sorted(set(by_id) - expected_flag_ids)
+    if missing or stale:
+        raise OperatorHalt(
+            f"FINGERPRINT DISPOSITION SET MISMATCH: {len(missing)} generated flag(s) have "
+            f"no recorded disposition ({missing[:5]}), {len(stale)} recorded disposition(s) "
+            f"match no current flag ({stale[:5]}). Re-run `prepare-review` and adjudicate "
+            "the current flag set."
+        )
+    return by_id
 
-    bands, accounting = build_universe(inputs)
-    exclusions = accounting["exclusions"]
-    universe_digest = candidate_universe_digest(bands)
 
-    flags = build_review_flags(inputs, bands)
-    dispositions = load_dispositions(universe_digest, {f["flag_id"] for f in flags})
-    bands, recording_groups, confirmed = apply_dispositions(bands, exclusions, dispositions, flags)
+def apply_dispositions(
+    bands: dict[str, list[dict]],
+    exclusions: dict[str, dict[str, int]],
+    dispositions: dict[str, dict],
+    flags: list[dict],
+) -> tuple[dict[str, list[dict]], dict[str, str], int]:
+    """Apply the recorded human dispositions.
 
-    decisions = load_operator_decisions()
-    n_band = N_BAND
-    if decisions["short_band_allocation"]["policy"] == "shrink-corpus":
-        n_band = int(decisions["short_band_allocation"]["n_band"])
+    A confirmed training-fingerprint or GiantSteps-title flag EXCLUDES its
+    candidate. A confirmed cross-band-recording flag excludes nothing; it
+    supplies one edge of the same-recording graph, and the transitive components
+    of that graph are what `pre-commitment-recording-dedup` collapses on and
+    what `audit-fails-on-cross-band-duplicate` fails on.
+    """
+    confirmed_keys: set[str] = set()
+    edges: list[tuple[str, str]] = []
+    supplied: dict[str, str] = {}
+    for flag in flags:
+        disp = dispositions.get(flag["flag_id"], {})
+        if disp.get("disposition") != DISPOSITION_SAME:
+            continue
+        group = disp.get("recording_group")
+        left = str(flag["candidate_key"])
+        peer = flag.get("peer_key")
+        if peer:
+            edges.append((left, str(peer)))
+            if group:
+                supplied[left] = str(group)
+                supplied[str(peer)] = str(group)
+        if flag["kind"] in (FLAG_KIND_FINGERPRINT, FLAG_KIND_GIANTSTEPS):
+            confirmed_keys.add(left)
+    recording_groups = union_recording_groups(edges, supplied)
+    out: dict[str, list[dict]] = {name: [] for name in BAND_NAMES}
+    confirmed = 0
+    for name in BAND_NAMES:
+        for entry in bands[name]:
+            key = candidate_key(entry)
+            if key in confirmed_keys:
+                exclusions[name]["fingerprint-confirmed"] += 1
+                confirmed += 1
+                continue
+            bound = dict(entry)
+            if key in recording_groups:
+                bound["recordingGroup"] = recording_groups[key]
+            out[name].append(bound)
+    return out, recording_groups, confirmed
 
+
+# ---------------------------------------------------------------------------
+# The mandatory pre-commitment fingerprint route - now FAIL-CLOSED.
+#
+# Round 1's route failed open in four independent ways: missing audio was
+# skipped by a bare `continue`, every decode failure returned None through a
+# blanket `except Exception` absorbed by `if vec:`, a missing librosa returned
+# None for EVERY file (zeroing the route entirely), and an empty training set
+# short-circuited so the completeness check was trivially satisfied. The mint
+# then recorded `"flags": 0` with no denominators - indistinguishable from
+# "ran, found nothing". Coverage is now reason-stratified, digest-bound, and
+# gating, and the two sides are treated ASYMMETRICALLY:
+#
+#   * an unfingerprintable CANDIDATE is hard-excluded with reasoned accounting
+#     (there is no human escape: it cannot be staged safely anyway);
+#   * an unfingerprintable TRAINING ROW BLOCKS certification, because it
+#     potentially hides re-encoded overlap with every candidate and a human
+#     cannot infer "not the same recording" from a failed decode.
+# ---------------------------------------------------------------------------
+
+
+def _giantsteps_titles() -> set[str]:
+    gs_path = cc.resolve_giantsteps_gt_path()
+    if gs_path is None or not gs_path.exists():
+        raise HarnessError(
+            "GiantSteps ground truth is not resolvable (GIANTSTEPS_CORPUS_PATH unset or "
+            "the file is absent). FR-59a.2 coverage cannot be certified and this harness "
+            "fails closed, matching scripts/audit-corpus-splits.py. Set "
+            "GIANTSTEPS_CORPUS_PATH and re-run."
+        )
+    external = cc.build_external_index(giantsteps_gt_path=gs_path)
+    return {
+        cc.normalize_track_key(title)
+        for hits in external.by_norm.values()
+        for (corpus, title) in hits
+        if corpus == "giantsteps"
+    }
+
+
+def _fingerprint_one(key: str, path: Path | None) -> tuple[str, list[float] | None, str]:
+    """(key, vector, coverage reason) for one row."""
+    if path is None:
+        return key, None, "unresolved-path"
+    if not path.exists():
+        return key, None, "missing-file"
+    vec = FINGERPRINT_FN(str(path))
+    if vec:
+        return key, vec, "resolved"
+    reason = FINGERPRINT_REASON_FN(str(path))
+    if reason not in COVERAGE_REASONS:
+        reason = "decode-failed"
+    return key, None, reason
+
+
+def fingerprint_coverage(
+    inputs: dict, bands: dict[str, list[dict]]
+) -> tuple[dict[str, Any], list[tuple[str, str, list[float]]], list[tuple[str, list[float]]]]:
+    """Reason-stratified coverage over EVERY candidate and EVERY training row.
+
+    Returns (coverage, candidate vectors, training vectors). The coverage record
+    carries the private roster so "4,200 of 4,300" can still identify WHICH
+    hundred after the inputs move; only its digest and the counts reach git.
+    """
+    assert_fingerprint_backend()
+    root = inputs.get("pool_audio_root")
+
+    candidates: list[tuple[str, str, list[float]]] = []
+    cand_reasons: dict[str, int] = dict.fromkeys(COVERAGE_REASONS, 0)
+    cand_roster: dict[str, str] = {}
+    for name in BAND_NAMES:
+        for entry in bands[name]:
+            key, vec, reason = _fingerprint_one(candidate_key(entry), _safe_resolve(entry, root))
+            cand_reasons[reason] += 1
+            cand_roster[key] = reason
+            if vec:
+                candidates.append((name, key, vec))
+
+    training: list[tuple[str, list[float]]] = []
+    train_reasons: dict[str, int] = dict.fromkeys(COVERAGE_REASONS, 0)
+    train_roster: dict[str, str] = {}
+    for audio_hash, rel in sorted(inputs.get("manifest_paths", {}).items()):
+        path = Path(root) / rel if root else Path(rel)
+        key, vec, reason = _fingerprint_one(f"manifest:{audio_hash}", path)
+        train_reasons[reason] += 1
+        train_roster[key] = reason
+        if vec:
+            training.append((key, vec))
+    for tid, local in sorted(inputs.get("training_local_paths", {}).items()):
+        key, vec, reason = _fingerprint_one(f"tony-split:{tid}", Path(local))
+        train_reasons[reason] += 1
+        train_roster[key] = reason
+        if vec:
+            training.append((key, vec))
+
+    coverage = {
+        "schema_version": 1,
+        "fingerprint_method": FINGERPRINT_METHOD,
+        "review_cosine": FINGERPRINT_REVIEW_COSINE,
+        "candidates_total": sum(cand_reasons.values()),
+        "candidates_covered": cand_reasons["resolved"],
+        "candidates_by_reason": cand_reasons,
+        "training_total": sum(train_reasons.values()),
+        "training_covered": train_reasons["resolved"],
+        "training_by_reason": train_reasons,
+        "candidate_roster": cand_roster,
+        "training_roster": train_roster,
+    }
+    return coverage, candidates, training
+
+
+def assert_training_coverage(coverage: dict, accepted: set[str]) -> list[str]:
+    """Block certification on any uncovered training row not named by a dated
+    operator amendment. Returns the accepted-and-still-uncovered roster."""
+    uncovered = sorted(
+        k for k, reason in coverage["training_roster"].items() if reason != "resolved"
+    )
+    unamended = [k for k in uncovered if k not in accepted]
+    if unamended:
+        raise OperatorHalt(
+            "FINGERPRINT COVERAGE INCOMPLETE ON THE TRAINING SIDE: "
+            f"{len(unamended)} of {coverage['training_total']} training rows could not be "
+            f"fingerprinted (by reason: {coverage['training_by_reason']}). An uncovered "
+            "training row potentially hides re-encoded overlap with EVERY candidate, and a "
+            "human cannot infer 'not the same recording' from a failed decode - that would "
+            "turn absence of evidence into evidence of absence. Unblock by restoring the "
+            "audio, correcting the manifest, or naming the accepted rows in a dated "
+            "`fingerprint_coverage_amendment` in the operator-decisions file. First few: "
+            f"{unamended[:5]}"
+        )
+    if coverage["training_total"] == 0:
+        raise OperatorHalt(
+            "FINGERPRINT COVERAGE INCOMPLETE: the training side enumerated ZERO rows, so "
+            "the mandatory route compared every candidate against nothing. An empty "
+            "training set is an input failure, never a clean pass."
+        )
+    return [k for k in uncovered if k in accepted]
+
+
+def build_review_flags(
+    bands: dict[str, list[dict]],
+    candidates: list[tuple[str, str, list[float]]],
+    training: list[tuple[str, list[float]]],
+) -> list[dict]:
+    """Generate the pre-commitment review flag set from covered vectors.
+
+    Three kinds, all ADVISORY signals a human disposition must resolve:
+      - `training-fingerprint`: candidate audio matching a training-manifest or
+        tony.train/val recording at or above the DD #3 review cosine.
+      - `giantsteps-title`: normalized-title collision with a GiantSteps row.
+        `normalize_track_key` drops suffixes and parenthesized material, so a hit
+        is a conservative heuristic, never proof of a shared recording.
+      - `cross-band-recording`: candidate-vs-candidate pairs in DIFFERENT bands.
+        A byte digest cannot see a half-tempo and a full-tempo encode of one
+        recording; these pairs are the evidence the cross-band decision needs.
+    """
+    flags: list[dict] = []
+    gs_titles = _giantsteps_titles()
+    for name in BAND_NAMES:
+        for entry in bands[name]:
+            nk = cc.normalize_track_key(entry.get("title", ""))
+            if nk and nk in gs_titles:
+                key = candidate_key(entry)
+                flags.append(
+                    {
+                        "flag_id": flag_id(FLAG_KIND_GIANTSTEPS, key, nk),
+                        "kind": FLAG_KIND_GIANTSTEPS,
+                        "band": name,
+                        "candidate_key": key,
+                        "peer_key": None,
+                        "evidence": "normalized-title collision with a GiantSteps row",
+                        "score": None,
+                    }
+                )
+
+    stats = cohort_stats([v for _, v in training] + [v for _, _, v in candidates])
+    training_z = [(k, standardize(v, stats)) for k, v in training]
+    candidates_z = [(b, k, standardize(v, stats)) for b, k, v in candidates]
+    for name, key, vec in candidates_z:
+        for train_key, train_vec in training_z:
+            score = cosine(vec, train_vec)
+            if score >= FINGERPRINT_REVIEW_COSINE:
+                flags.append(
+                    {
+                        "flag_id": flag_id(FLAG_KIND_FINGERPRINT, key, train_key),
+                        "kind": FLAG_KIND_FINGERPRINT,
+                        "band": name,
+                        "candidate_key": key,
+                        "peer_key": None,
+                        "evidence": f"standardized cosine {score:.4f} vs {train_key}",
+                        "score": round(score, 6),
+                    }
+                )
+
+    cross_stats = cohort_stats([v for _, _, v in candidates])
+    cross = [(b, k, standardize(v, cross_stats)) for b, k, v in candidates]
+    for i in range(len(cross)):
+        band_a, key_a, vec_a = cross[i]
+        for j in range(i + 1, len(cross)):
+            band_b, key_b, vec_b = cross[j]
+            if band_a == band_b:
+                continue  # within a band the signed draw-sequence tie-break decides
+            score = cosine(vec_a, vec_b)
+            if score < FINGERPRINT_REVIEW_COSINE:
+                continue
+            left, right = sorted((key_a, key_b))
+            flags.append(
+                {
+                    "flag_id": flag_id(FLAG_KIND_CROSS_BAND, left, right),
+                    "kind": FLAG_KIND_CROSS_BAND,
+                    "band": band_a if left == key_a else band_b,
+                    "candidate_key": left,
+                    "peer_key": right,
+                    "evidence": (
+                        f"standardized cosine {score:.4f} across bands {band_a} and {band_b}"
+                    ),
+                    "score": round(score, 6),
+                }
+            )
+    flags.sort(key=lambda f: f["flag_id"])
+    return flags
+
+
+def build_pool_universe(inputs: dict) -> tuple[dict[str, list[dict]], dict[str, Any], str]:
+    """Steps shared by `prepare-review` and every mint, in the SAME order, so
+    both compute the same candidate-universe digest: metadata exclusion, then
+    content binding, then the digest. Content binding precedes the fingerprint
+    route deliberately - a row whose audio cannot be resolved can never be
+    staged, so it is excluded before review rather than dispositioned."""
+    bands, accounting = build_candidates(
+        inputs["pool_rows"],
+        inputs["tony_rows"],
+        inputs["oa300_rows"],
+        inputs["manifest_hashes"],
+        inputs["tony_split_ids"],
+        inputs["training_artist_keys"],
+    )
     bands = bind_content_hashes(
         bands,
-        exclusions,
+        accounting["exclusions"],
         lambda entry: _safe_resolve(entry, inputs["pool_audio_root"]),
         _safe_sha256_file,
     )
+    return bands, accounting, candidate_universe_digest(bands)
+
+
+def drop_uncoverable(
+    bands: dict[str, list[dict]], exclusions: dict[str, dict[str, int]], coverage: dict
+) -> dict[str, list[dict]]:
+    """Hard-exclude every candidate the mandatory route could not cover."""
+    roster = coverage["candidate_roster"]
+    out: dict[str, list[dict]] = {name: [] for name in BAND_NAMES}
+    for name in BAND_NAMES:
+        for entry in bands[name]:
+            if roster.get(candidate_key(entry)) != "resolved":
+                exclusions[name]["fingerprint-uncoverable"] += 1
+                continue
+            out[name].append(entry)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Signed exhaustion fallback (section 2, "Replacement rule")
+# ---------------------------------------------------------------------------
+
+
+def build_fallback_candidates(
+    inputs: dict, primary: dict[str, list[dict]], excluded_for_cause: set[str]
+) -> tuple[dict[str, list[dict]], dict[str, dict[str, int]]]:
+    """Enumerate the precommitted fallback extension set, per band.
+
+    Source order is fixed by the signed protocol: (1) Tony's Rekordbox
+    as-entered rows, then (2) OA300 rows, each banded by the same face-value
+    rule. Rows already inside the primary pool are not new material, and rows
+    the primary construction excluded FOR CAUSE (training overlap, unresolvable
+    or unhashable audio, a confirmed fingerprint match) are never re-admitted -
+    the fallback extends a pool, it does not relax an exclusion.
+
+    Both facts together are why the addendum's net-new set is empty in this
+    collection. Implementing it faithfully is what lets the operator SEE that
+    rather than infer it.
+    """
+    fallback: dict[str, list[dict]] = {name: [] for name in BAND_NAMES}
+    counts = {
+        name: {"fallback_candidates": 0, "already_in_primary": 0, "net_new": 0}
+        for name in BAND_NAMES
+    }
+    in_primary = {candidate_key(e) for name in BAND_NAMES for e in primary[name]}
+    eligible, _ = build_candidates(
+        [],  # source order (1) Tony then (2) OA300; the pool is not a fallback source
+        inputs["tony_rows"],
+        inputs["oa300_rows"],
+        inputs["manifest_hashes"],
+        inputs["tony_split_ids"],
+        inputs["training_artist_keys"],
+    )
+    for name in BAND_NAMES:
+        for entry in eligible[name]:
+            key = candidate_key(entry)
+            counts[name]["fallback_candidates"] += 1
+            if key in in_primary or key in excluded_for_cause:
+                counts[name]["already_in_primary"] += 1
+                continue
+            counts[name]["net_new"] += 1
+            fallback[name].append(entry)
+    return fallback, counts
+
+
+# ---------------------------------------------------------------------------
+# PURE PLANNING LAYER. `plan_commit` writes nothing: it returns every document
+# a mint would produce, so the mint itself is "validate, plan, write, validate".
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CommitPlan:
+    master_seed: int
+    n_band: int
+    generation: str
+    pools_doc: dict
+    draws_doc: dict
+    commitment: dict
+    coverage: dict
+    addendum: dict | None
+    short_bands: list[str]
+    flags: list[dict]
+
+
+def plan_commit(
+    inputs: dict, master_seed: int, supersedes: str | None, generated: str
+) -> CommitPlan:
+    bands, accounting, universe_digest = build_pool_universe(inputs)
+    exclusions = accounting["exclusions"]
+    universe_keys = {candidate_key(e) for name in BAND_NAMES for e in bands[name]}
+
+    coverage, cand_vectors, train_vectors = fingerprint_coverage(inputs, bands)
+    decisions = load_operator_decisions()
+    amended = assert_training_coverage(coverage, accepted_uncovered_training_rows(decisions))
+    coverage["amended_uncovered_training_rows"] = len(amended)
+
+    flags = build_review_flags(bands, cand_vectors, train_vectors)
+    dispositions = load_dispositions(universe_digest, {f["flag_id"] for f in flags})
+    bands = drop_uncoverable(bands, exclusions, coverage)
+    bands, recording_groups, confirmed = apply_dispositions(bands, exclusions, dispositions, flags)
+
+    n_band = N_BAND
+    short_policy = decisions["short_band_allocation"]["policy"]
+    if short_policy == "shrink-corpus":
+        n_band = int(decisions["short_band_allocation"]["n_band"])
     if decisions["cross_band_duplicate_rule"]["policy"] == "pre-commitment-recording-dedup":
         bands = dedup_across_bands(
             bands,
@@ -1773,90 +2651,100 @@ def cmd_commit_pools(args: argparse.Namespace) -> int:
 
     seed_rng = random.Random(master_seed)
     band_seeds = {name: seed_rng.getrandbits(32) for name in BAND_NAMES}
+    fallback_seeds = {name: seed_rng.getrandbits(32) for name in BAND_NAMES}
+
+    # The signed fallback is ENUMERATED whichever policy is in force, so its
+    # emptiness is a reported measurement rather than an assumption; only
+    # `fallback-addendum` appends it to the draw sequences and commits the
+    # dated addendum artifact.
+    kept_keys = {candidate_key(e) for name in BAND_NAMES for e in bands[name]}
+    excluded_for_cause = universe_keys - kept_keys
+    fallback_rows, fallback_counts = build_fallback_candidates(inputs, bands, excluded_for_cause)
+    fallback_rows = bind_content_hashes(
+        fallback_rows,
+        _empty_exclusions(),
+        lambda entry: _safe_resolve(entry, inputs["pool_audio_root"]),
+        _safe_sha256_file,
+    )
+    for name in BAND_NAMES:
+        fallback_counts[name]["net_new"] = len(fallback_rows[name])
+    use_fallback = short_policy == "fallback-addendum"
 
     sequences: dict[str, list[dict]] = {}
     for i, name in enumerate(BAND_NAMES):
-        sequences[name] = draw_sequence(i, bands[name], band_seeds[name])
+        primary_seq = draw_sequence(i, bands[name], band_seeds[name])
+        extension: list[dict] = []
+        if use_fallback and fallback_rows[name]:
+            extension = draw_sequence(
+                i,
+                fallback_rows[name],
+                fallback_seeds[name],
+                offset=len(primary_seq),
+                origin="fallback-addendum",
+            )
+        ids = [e["rowId"] for e in primary_seq + extension]
+        if len(set(ids)) != len(ids):
+            raise HarnessError(
+                f"row-id collision between the primary and addendum sequences for {name}"
+            )
+        sequences[name] = primary_seq + extension
 
     pools_doc = {
-        "schema_version": 2,
+        "schema_version": 3,
         "bands": {name: sequences[name] for name in BAND_NAMES},
         "pool_audio_root": inputs["pool_audio_root"],
         "seeds": band_seeds,
+        "fallback_seeds": fallback_seeds,
         "master_seed": master_seed,
     }
     draws_doc = {
-        "schema_version": 2,
+        "schema_version": 3,
         "seed_algorithm": SEED_ALGORITHM,
         "bands": {
             name: {
                 "seed": band_seeds[name],
+                "fallback_seed": fallback_seeds[name],
                 "sequence": [e["rowId"] for e in sequences[name]],
             }
             for name in BAND_NAMES
         },
     }
-
-    if existing is not None:
-        # A minted commitment is immutable: never regenerate-and-overwrite, and
-        # never rewrite the committed digests. Check BOTH directions - today's
-        # regenerated documents against the recorded digests (input drift) and
-        # the on-disk files against them (tamper) - then restore a missing
-        # row-level file deterministically.
-        verify_input_drift(existing, pools_doc, draws_doc)
-        recorded_pool = _require(existing, "pool_file_sha256", "existing commitment")
-        recorded_draw = _require(existing, "draw_file_sha256", "existing commitment")
-        restored = False
-        for path, doc, recorded, label in (
-            (POOLS_PATH, pools_doc, recorded_pool, "pool_file_sha256"),
-            (DRAWS_PATH, draws_doc, recorded_draw, "draw_file_sha256"),
-        ):
-            if path.exists():
-                actual = sha256_file(path)
-                if actual != recorded:
-                    raise DriftError(
-                        f"commitment digest mismatch - committed {label} {recorded} != "
-                        f"on-disk {actual} for {path.name}. The row-level file was "
-                        "tampered with; refusing to overwrite."
-                    )
-            else:
-                _write_bytes_atomic(path, _json_bytes(doc))
-                restored = True
-        state = "restored" if restored else "verified"
-        print(
-            f"commitment {state} (inputs re-derived and digest-matched): "
-            f"pool_file_sha256 {recorded_pool}, draw_file_sha256 {recorded_draw}"
-        )
-        short = existing.get("short_bands", [])
-        if short:
-            raise OperatorHalt(
-                f"bands below the {existing.get('n_band_target', N_BAND)}-candidate floor "
-                f"remain recorded: {', '.join(short)}"
-            )
-        return 0
-
-    _write_json(POOLS_PATH, pools_doc)
-    _write_json(DRAWS_PATH, draws_doc)
-    pool_sha = sha256_file(POOLS_PATH)
-    draw_sha = sha256_file(DRAWS_PATH)
+    generation = "g" + sha256_bytes(_json_bytes({"p": pools_doc, "d": draws_doc}))[:16]
 
     band_counts = {name: len(sequences[name]) for name in BAND_NAMES}
     short_bands = [name for name in BAND_NAMES if band_counts[name] < n_band]
 
+    addendum: dict | None = None
+    if use_fallback:
+        addendum = {
+            "schema_version": 1,
+            "story": "12.7",
+            "dated": generated,
+            "commitment_generation": generation,
+            "policy": short_policy,
+            "source_order": ["tony-as-entered", "oa300"],
+            "bands": {name: dict(fallback_counts[name]) for name in BAND_NAMES},
+            "note": FALLBACK_EMPTY_NOTE,
+        }
+
     commitment = {
-        "schema_version": 2,
+        "schema_version": 3,
         "story": "12.7",
         "status": STATUS_ACTIVE,
-        "generated": date.today().isoformat(),
+        "generated": generated,
         "protocol": PROTOCOL_POINTER,
         "run_command": "make eval-corpus-pools",
         "seed_algorithm": SEED_ALGORITHM,
         "master_seed": master_seed,
         "n_band_target": n_band,
+        "generation": generation,
+        "supersedes_sha256": supersedes,
         "bands": {
             name: {
                 "candidates": band_counts[name],
                 "seed": band_seeds[name],
+                "fallback_candidates": len(fallback_rows[name]) if use_fallback else 0,
+                "fallback_seed": fallback_seeds[name],
                 "exclusions": exclusions[name],
             }
             for name in BAND_NAMES
@@ -1868,41 +2756,315 @@ def cmd_commit_pools(args: argparse.Namespace) -> int:
             "flags": len(flags),
             "confirmed_same_recording": confirmed,
             "cleared": len(flags) - confirmed,
+            "recording_groups": len(set(recording_groups.values())),
             "dispositions_sha256": sha256_file(DISPOSITIONS_PATH),
             "candidate_universe_sha256": universe_digest,
             "training_input_sha256": training_input_digest(),
+            "coverage_sha256": sha256_bytes(_json_bytes(coverage)),
+            "coverage": {
+                "candidates_total": coverage["candidates_total"],
+                "candidates_covered": coverage["candidates_covered"],
+                "candidates_by_reason": coverage["candidates_by_reason"],
+                "training_total": coverage["training_total"],
+                "training_covered": coverage["training_covered"],
+                "training_by_reason": coverage["training_by_reason"],
+                "amended_uncovered_training_rows": len(amended),
+            },
         },
         "operator_decisions": {
             "decisions_sha256": sha256_file(DECISIONS_PATH),
             "decided": str(decisions["decided"]),
-            "short_band_allocation": decisions["short_band_allocation"]["policy"],
+            "short_band_allocation": short_policy,
             "cross_band_duplicate_rule": decisions["cross_band_duplicate_rule"]["policy"],
         },
-        "pool_file_sha256": pool_sha,
-        "draw_file_sha256": draw_sha,
+        "fallback_addendum": {
+            "policy": short_policy,
+            "dated": generated,
+            "fallback_candidates_by_band": {
+                n: fallback_counts[n]["fallback_candidates"] for n in BAND_NAMES
+            },
+            "already_in_primary_by_band": {
+                n: fallback_counts[n]["already_in_primary"] for n in BAND_NAMES
+            },
+            "net_new_by_band": {
+                n: (fallback_counts[n]["net_new"] if use_fallback else 0) for n in BAND_NAMES
+            },
+            "addendum_sha256": (sha256_bytes(_json_bytes(addendum)) if addendum else None),
+            "note": FALLBACK_EMPTY_NOTE,
+        },
+        "pool_file_sha256": sha256_bytes(_json_bytes(pools_doc)),
+        "draw_file_sha256": sha256_bytes(_json_bytes(draws_doc)),
         "short_bands": short_bands,
         "notes": [LEDGER_INTEGRITY_NOTE],
     }
-    try:
-        gate_committed(commitment, assert_commitment_schema)
-    except PrivacyError as exc:
-        print(f"PRIVACY GATE FAILED on commitment artifact: {exc}", file=sys.stderr)
-        return 3
-    _write_json(COMMITMENT_JSON, commitment)
-    _write_text_atomic(COMMITMENT_MD, render_commitment_md(commitment))
-    write_ledger_head(sha256_file(COMMITMENT_JSON))
+    return CommitPlan(
+        master_seed=master_seed,
+        n_band=n_band,
+        generation=generation,
+        pools_doc=pools_doc,
+        draws_doc=draws_doc,
+        commitment=commitment,
+        coverage=coverage,
+        addendum=addendum,
+        short_bands=short_bands,
+        flags=flags,
+    )
 
+
+def _write_plan(plan: CommitPlan) -> None:
+    """Write a plan's artifacts, canonical row-level files FIRST and the
+    commitment LAST, so a crash never leaves an active commitment pointing at
+    documents that do not exist."""
+    gen = plan.generation
+    _write_json(COVERAGE_PATH, plan.coverage)
+    _write_json(pools_path(gen), plan.pools_doc)
+    _write_json(draws_path(gen), plan.draws_doc)
+    for path, key in ((pools_path(gen), "pool_file_sha256"), (draws_path(gen), "draw_file_sha256")):
+        if sha256_file(path) != plan.commitment[key]:
+            raise HarnessError(f"{path.name} does not hash to the planned {key} after writing")
+    if plan.addendum is not None:
+        gate_committed(plan.addendum, assert_addendum_schema)
+        _write_json(ADDENDUM_JSON, plan.addendum)
+    gate_committed(plan.commitment, assert_commitment_schema)
+    _write_json(COMMITMENT_JSON, plan.commitment)
+    _write_text_atomic(COMMITMENT_MD, render_commitment_md(plan.commitment))
+
+
+def _report_plan(plan: CommitPlan) -> None:
+    c = plan.commitment
     for name in BAND_NAMES:
-        print(f"  {name:9s} candidates={band_counts[name]:4d} exclusions={exclusions[name]}")
-    print(f"tag-less by source: {accounting['tagless']}")
-    print(f"pool_file_sha256: {pool_sha}")
+        print(
+            f"  {name:9s} candidates={c['bands'][name]['candidates']:4d} "
+            f"exclusions={c['bands'][name]['exclusions']}"
+        )
+    print(f"tag-less by source: {c['tagless_by_source']}")
+    fr = c["fingerprint_review"]
+    print(
+        f"fingerprint coverage: candidates {fr['coverage']['candidates_covered']}/"
+        f"{fr['coverage']['candidates_total']} {fr['coverage']['candidates_by_reason']}; "
+        f"training {fr['coverage']['training_covered']}/{fr['coverage']['training_total']} "
+        f"{fr['coverage']['training_by_reason']}"
+    )
+    print(f"generation: {plan.generation}; pool_file_sha256: {c['pool_file_sha256']}")
+
+
+def _missing_prerequisites() -> list[str]:
+    """ONLY the prerequisites genuinely absent. Round 1 printed 'present' for
+    each satisfied gate under the headline 'blocked on the following, all of
+    which must be on record first' and then halted anyway, so satisfying every
+    stated gate failed identically to satisfying none."""
+    missing: list[str] = []
+    if not DISPOSITIONS_PATH.exists():
+        missing.append(
+            f"MISSING fingerprint dispositions ({DISPOSITIONS_PATH.name}). Run "
+            "`prepare-review` to generate the flag set plus the disposition template, then "
+            "record a human disposition for every flag."
+        )
+    if not DECISIONS_PATH.exists():
+        missing.append(
+            f"MISSING operator decisions ({DECISIONS_PATH.name}), both of them: "
+            f"(a) short-band allocation {list(SHORT_BAND_POLICIES)}; "
+            f"(b) cross-band duplicate rule {list(CROSS_BAND_POLICIES)}."
+        )
+    return missing
+
+
+def prior_generation_annotation_state(commitment: dict) -> list[str]:
+    """A re-mint refuses while the prior generation carries annotation state.
+
+    Every event references the active commitment while batches, annotations,
+    staging and membership are generation-scoped; a successor over live
+    annotation state would strand labels that cannot be regenerated.
+    """
+    gen = commitment.get("generation")
+    if not gen:
+        return []
+    blockers: list[str] = []
+    events = read_events(ledger_path(str(gen)))
+    if events:
+        blockers.append(f"{len(events)} annotation-ledger event(s) in generation {gen}")
+    ann = annotations_dir(str(gen))
+    if ann.exists():
+        records = sorted(ann.glob("*/*.json"))
+        if records:
+            blockers.append(f"{len(records)} annotation record(s) in generation {gen}")
+    rp = read_events(repass_ledger_path(str(gen)))
+    if rp:
+        blockers.append(f"{len(rp)} re-pass event(s) in generation {gen}")
+    return blockers
+
+
+# ---------------------------------------------------------------------------
+# commit-pools / remint
+# ---------------------------------------------------------------------------
+
+
+def cmd_commit_pools(args: argparse.Namespace) -> int:
+    inputs = load_inputs()
+
+    if COMMITMENT_JSON.exists():
+        existing = read_commitment()
+        if existing.get("status") != STATUS_ACTIVE:
+            missing = _missing_prerequisites()
+            if missing:
+                raise OperatorHalt(
+                    "COMMITMENT SUPERSEDED: the candidate commitment on record has status "
+                    f"{existing.get('status')!r} and cannot be operated on or extended.\n"
+                    "Re-minting is blocked on the following, all of which must be on "
+                    "record first:\n  - " + "\n  - ".join(missing) + "\nNo mint was "
+                    "performed and no committed digest was rewritten."
+                )
+            raise OperatorHalt(
+                "COMMITMENT SUPERSEDED: the candidate commitment on record has status "
+                f"{existing.get('status')!r}. Every stated prerequisite IS on record, so "
+                "the next action is an explicit re-mint: run `make eval-corpus-remint`. It "
+                "archives this record byte-for-byte, records `supersedes_sha256`, writes a "
+                "fresh generation, and refuses if the prior generation carries any "
+                "annotation state. `commit-pools` never overwrites a commitment."
+            )
+        master_seed = int(_require(existing, "master_seed", "existing commitment"))
+        if args.seed is not None and int(args.seed) != master_seed:
+            raise HarnessError(
+                f"--seed {args.seed} conflicts with the recorded master seed "
+                f"{master_seed}; a minted commitment's seed is immutable. Omit --seed "
+                "to verify, or re-mint deliberately with `remint`."
+            )
+        print(f"existing commitment found; verifying with recorded master seed {master_seed}")
+        plan = plan_commit(
+            inputs, master_seed, existing.get("supersedes_sha256"), str(existing["generated"])
+        )
+        # A minted commitment is immutable: never regenerate-and-overwrite.
+        # Check BOTH directions - today's regenerated documents against the
+        # recorded digests (input drift) and the on-disk files against them
+        # (tamper) - then restore a missing row-level file deterministically.
+        verify_input_drift(existing, plan.pools_doc, plan.draws_doc)
+        gen = str(_require(existing, "generation", "existing commitment"))
+        restored = False
+        for path, doc, key in (
+            (pools_path(gen), plan.pools_doc, "pool_file_sha256"),
+            (draws_path(gen), plan.draws_doc, "draw_file_sha256"),
+        ):
+            recorded = _require(existing, key, "existing commitment")
+            if path.exists():
+                actual = sha256_file(path)
+                if actual != recorded:
+                    raise DriftError(
+                        f"commitment digest mismatch - committed {key} {recorded} != "
+                        f"on-disk {actual} for {path.name}. The row-level file was "
+                        "tampered with; refusing to overwrite."
+                    )
+            else:
+                _write_bytes_atomic(path, _json_bytes(doc))
+                restored = True
+        state = "restored" if restored else "verified"
+        print(
+            f"commitment {state} (inputs re-derived and digest-matched) in generation {gen}: "
+            f"pool_file_sha256 {existing['pool_file_sha256']}"
+        )
+        require_valid_state(load_state(), "after verifying the existing commitment")
+        short = existing.get("short_bands", [])
+        if short:
+            raise OperatorHalt(
+                f"bands below the {existing.get('n_band_target', N_BAND)}-candidate floor "
+                f"remain recorded: {', '.join(short)}"
+            )
+        return 0
+
+    master_seed = int(args.seed) if args.seed is not None else secrets.randbits(32)
+    plan = plan_commit(inputs, master_seed, None, date.today().isoformat())
+    _write_plan(plan)
+    write_ledger_head(sha256_file(COMMITMENT_JSON), plan.generation)
+    require_valid_state(load_state(), "after minting")
+    _report_plan(plan)
     flush_fingerprint_cache()
-    if short_bands:
+    if plan.short_bands:
         raise OperatorHalt(
-            f"bands below the {n_band}-candidate floor at commitment: "
-            f"{', '.join(short_bands)}. Exhaustion escalation is the operator's "
-            "(signed fallback order: Tony as-entered rows, then OA300; committed as "
-            "a dated addendum before any DSP statistic is consulted). No auto-extension."
+            f"bands below the {plan.n_band}-candidate floor at commitment: "
+            f"{', '.join(plan.short_bands)}. Exhaustion escalation is the operator's. The "
+            "signed fallback addendum was enumerated and recovers "
+            f"{sum(plan.commitment['fallback_addendum']['net_new_by_band'].values())} net-new "
+            "row(s); no auto-extension beyond it was performed."
+        )
+    return 0
+
+
+def cmd_remint(args: argparse.Namespace) -> int:
+    """Mint a successor to a superseded commitment.
+
+    Ordering is crash-safe: validate everything first, archive the predecessor
+    and verify the archive, build and verify every new artifact, and replace the
+    canonical commitment LAST. Round 1 had no path here at all - `_superseded_halt`
+    raised unconditionally while the artifacts told the operator to "re-mint with
+    commit-pools", so the only escape was deleting a committed artifact.
+    """
+    if not COMMITMENT_JSON.exists():
+        raise HarnessError(
+            "nothing to re-mint: no commitment artifact exists. Run `commit-pools` to mint "
+            "the first one."
+        )
+    existing = read_commitment()
+    if existing.get("status") == STATUS_ACTIVE:
+        raise HarnessError(
+            "the commitment on record is ACTIVE. `remint` succeeds a SUPERSEDED record; "
+            "supersede the active one deliberately before minting over it."
+        )
+    missing = _missing_prerequisites()
+    if missing:
+        raise OperatorHalt(
+            "Re-minting is blocked on the following, all of which must be on record "
+            "first:\n  - " + "\n  - ".join(missing)
+        )
+    blockers = prior_generation_annotation_state(existing)
+    if blockers:
+        raise OperatorHalt(
+            "RE-MINT REFUSED: the prior generation carries annotation state ("
+            + "; ".join(blockers)
+            + "). Every event binds the active commitment while batches, annotations and "
+            "membership are generation-scoped, so a successor here would strand labels that "
+            "cannot be regenerated. Resolve the outstanding generation first."
+        )
+
+    inputs = load_inputs()
+    prior_digest = sha256_file(COMMITMENT_JSON)
+    prior_bytes = COMMITMENT_JSON.read_bytes()
+    plan = plan_commit(
+        inputs,
+        int(args.seed) if args.seed is not None else secrets.randbits(32),
+        prior_digest,
+        date.today().isoformat(),
+    )
+    if plan.generation == existing.get("generation"):
+        raise HarnessError(
+            "the planned generation equals the superseded one; nothing would change. A "
+            "re-mint must produce a distinct generation."
+        )
+
+    archive = archive_path(prior_digest, str(existing.get("generated", "undated")))
+    if archive.exists() and archive.read_bytes() != prior_bytes:
+        raise HarnessError(
+            f"archive collision: {archive.name} exists with different bytes. An archived "
+            "predecessor is never overwritten."
+        )
+    _write_bytes_atomic(archive, prior_bytes)
+    if sha256_file(archive) != prior_digest:
+        raise HarnessError("the archived commitment does not hash to the record it copied")
+
+    _write_plan(plan)  # commitment replaced LAST, inside _write_plan
+    write_ledger_head(sha256_file(COMMITMENT_JSON), plan.generation)
+    require_valid_state(load_state(), "after re-minting")
+    print(
+        f"re-minted: archived {prior_digest[:12]} to {archive.name}; new generation "
+        f"{plan.generation} supersedes it"
+    )
+    _report_plan(plan)
+    flush_fingerprint_cache()
+    if plan.short_bands:
+        raise OperatorHalt(
+            f"bands below the {plan.n_band}-candidate floor at commitment: "
+            f"{', '.join(plan.short_bands)}. The signed fallback addendum was enumerated "
+            f"and recovers "
+            f"{sum(plan.commitment['fallback_addendum']['net_new_by_band'].values())} "
+            "net-new row(s)."
         )
     return 0
 
@@ -1913,7 +3075,7 @@ def render_commitment_md(c: dict) -> str:
         "",
         f"Status: **{c['status']}**.",
         "",
-        f"Generated {c['generated']} by `scripts/build-eval-corpus.py commit-pools` "
+        f"Generated {c['generated']} by `scripts/build-eval-corpus.py` "
         f"(`{c['run_command']}`). Counts, seeds, and the named commitment digests only; "
         "the row-level candidate inventory is gitignored per the privacy rule "
         "(OA300 and the collection inventory are private).",
@@ -1923,12 +3085,21 @@ def render_commitment_md(c: dict) -> str:
         f"Seed algorithm: {c['seed_algorithm']}. Master seed: {c['master_seed']}.",
         "",
     ]
+    if c.get("generation"):
+        lines += [f"Generation: `{c['generation']}` (every row-level path is scoped to it).", ""]
+    if c.get("supersedes_sha256"):
+        lines += [
+            f"Supersedes commitment `{c['supersedes_sha256']}`, archived byte-for-byte "
+            "alongside this record. Commitment validation walks the chain, so an archived "
+            "predecessor cannot silently vanish.",
+            "",
+        ]
     if c["status"] == STATUS_SUPERSEDED:
-        lines += [f"{c['superseded_note']}", ""]
+        lines += [f"{c.get('superseded_note', '')}", ""]
     # Render only the exclusion routes this record actually ran. A superseded
     # v1 record predates the fingerprint route; printing a 0 under it would
     # claim the route ran and confirmed nothing.
-    present = set()
+    present: set[str] = set()
     for name in BAND_NAMES:
         present |= set(c["bands"][name]["exclusions"])
     reasons = [r for r in EXCLUSION_REASONS if r in present]
@@ -1951,12 +3122,25 @@ def render_commitment_md(c: dict) -> str:
     ]
     if c["status"] == STATUS_ACTIVE:
         fr = c["fingerprint_review"]
+        cov = fr["coverage"]
         od = c["operator_decisions"]
+        fb = c["fallback_addendum"]
         lines += [
             f"Pre-commitment fingerprint review (mandatory, signed section 2): method "
             f"{fr['method']}, {fr['flags']} review flag(s), {fr['confirmed_same_recording']} "
             f"confirmed same-recording and excluded, {fr['cleared']} cleared by recorded "
-            "human disposition. The algorithm flags; the disposition excludes.",
+            f"human disposition, {fr['recording_groups']} transitive same-recording "
+            "group(s). The algorithm flags; the disposition excludes.",
+            "",
+            f"Fingerprint coverage (the route fails closed): candidates "
+            f"{cov['candidates_covered']} of {cov['candidates_total']} covered, by reason "
+            f"{cov['candidates_by_reason']}; training rows {cov['training_covered']} of "
+            f"{cov['training_total']} covered, by reason {cov['training_by_reason']}, with "
+            f"{cov['amended_uncovered_training_rows']} accepted by dated operator amendment. "
+            "An uncovered candidate is hard-excluded; an uncovered training row blocks "
+            "certification.",
+            "",
+            f"Coverage digest: `{fr['coverage_sha256']}`",
             "",
             f"Dispositions digest: `{fr['dispositions_sha256']}`",
             "",
@@ -1968,6 +3152,12 @@ def render_commitment_md(c: dict) -> str:
             f"{od['short_band_allocation']}, cross-band duplicate rule "
             f"{od['cross_band_duplicate_rule']}; decisions digest "
             f"`{od['decisions_sha256']}`.",
+            "",
+            f"Signed exhaustion fallback (enumerated under either policy, applied only "
+            f"under `fallback-addendum`): candidates by band "
+            f"{fb['fallback_candidates_by_band']}, already in the primary pool "
+            f"{fb['already_in_primary_by_band']}, NET NEW {fb['net_new_by_band']}. "
+            f"{fb['note']}",
             "",
         ]
     lines += [
@@ -1987,15 +3177,7 @@ def render_commitment_md(c: dict) -> str:
             f"HALT recorded: these bands CANNOT reach {target} members from the "
             f"committed pools: {shortfalls}. No auto-extension was performed.",
             "",
-            "The signed exhaustion fallback does NOT resolve this on its own. Its source "
-            "order is Tony as-entered rows, then OA300 rows, and both are already inside "
-            "the primary pools, so the fallback set is empty by construction: it can "
-            "recover at most 25 rows for 100-120 and 44 for 120-140, and exactly ZERO for "
-            "160-175 and 175-plus. A precommitted primary allocation plus reserves would "
-            "draw across all three sources while preserving a real fallback; shrinking the "
-            "corpus by operator decision is the other signed option. This is an operator "
-            "decision, supplied as machine-readable input; the harness refuses to mint "
-            "while it is absent rather than inferring a policy from prose.",
+            FALLBACK_EMPTY_NOTE,
             "",
         ]
     for note in c.get("notes", []):
@@ -2004,185 +3186,31 @@ def render_commitment_md(c: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# prepare-review (finding 5 machinery + finding 8 title flags)
+# prepare-review
 # ---------------------------------------------------------------------------
 
 
-def build_review_flags(inputs: dict, bands: dict[str, list[dict]]) -> list[dict]:
-    """Generate the pre-commitment review flag set.
-
-    Two kinds, both ADVISORY signals that a human disposition must resolve:
-      - `training-fingerprint`: candidate audio whose 52-d timbral fingerprint
-        matches a training-manifest or tony.train/val recording at or above the
-        DD #3 review cosine. This is the signed section-2 "by audio fingerprint"
-        route; DD #3 constrains fingerprint from being the SOLE AUTOMATIC signal,
-        which is exactly why the human disposition gates rather than the score.
-      - `giantsteps-title`: candidate whose normalized title collides with a
-        GiantSteps title. `normalize_track_key` drops suffixes and parenthesized
-        material, so a hit is a conservative heuristic, never proof of a shared
-        recording (finding 8).
-    """
-    flags: list[dict] = []
-    gs_titles = _giantsteps_titles()
-    for name in BAND_NAMES:
-        for entry in bands[name]:
-            nk = cc.normalize_track_key(entry.get("title", ""))
-            if nk and nk in gs_titles:
-                key = f"{entry['source']}:{entry['identity']}"
-                flags.append(
-                    {
-                        "flag_id": flag_id(FLAG_KIND_GIANTSTEPS, key, nk),
-                        "kind": FLAG_KIND_GIANTSTEPS,
-                        "band": name,
-                        "candidate_key": key,
-                        "evidence": "normalized-title collision with a GiantSteps row",
-                        "score": None,
-                    }
-                )
-    flags.extend(_fingerprint_flags(inputs, bands))
-    flags.extend(_cross_band_recording_flags(inputs, bands))
-    flags.sort(key=lambda f: f["flag_id"])
-    return flags
-
-
-def _giantsteps_titles() -> set[str]:
-    gs_path = cc.resolve_giantsteps_gt_path()
-    if gs_path is None or not gs_path.exists():
-        raise HarnessError(
-            "GiantSteps ground truth is not resolvable (GIANTSTEPS_CORPUS_PATH unset or "
-            "the file is absent). FR-59a.2 coverage cannot be certified and this harness "
-            "fails closed, matching scripts/audit-corpus-splits.py. Set "
-            "GIANTSTEPS_CORPUS_PATH and re-run."
-        )
-    external = cc.build_external_index(giantsteps_gt_path=gs_path)
-    return {
-        cc.normalize_track_key(title)
-        for hits in external.by_norm.values()
-        for (corpus, title) in hits
-        if corpus == "giantsteps"
-    }
-
-
-def _training_fingerprints(inputs: dict) -> list[tuple[str, list[float]]]:
-    out: list[tuple[str, list[float]]] = []
-    root = inputs.get("pool_audio_root")
-    for audio_hash, rel in sorted(inputs.get("manifest_paths", {}).items()):
-        path = Path(root) / rel if root else Path(rel)
-        if not path.exists():
-            continue
-        vec = FINGERPRINT_FN(str(path))
-        if vec:
-            out.append((f"manifest:{audio_hash}", vec))
-    for tid, local in sorted(inputs.get("training_local_paths", {}).items()):
-        if not Path(local).exists():
-            continue
-        vec = FINGERPRINT_FN(local)
-        if vec:
-            out.append((f"tony-split:{tid}", vec))
-    return out
-
-
-def _candidate_fingerprints(
-    inputs: dict, bands: dict[str, list[dict]]
-) -> list[tuple[str, str, list[float]]]:
-    root = inputs.get("pool_audio_root")
-    out: list[tuple[str, str, list[float]]] = []
-    for name in BAND_NAMES:
-        for entry in bands[name]:
-            path = _safe_resolve(entry, root)
-            if path is None:
-                continue
-            vec = FINGERPRINT_FN(str(path))
-            if vec:
-                out.append((name, f"{entry['source']}:{entry['identity']}", vec))
-    return out
-
-
-def _fingerprint_flags(inputs: dict, bands: dict[str, list[dict]]) -> list[dict]:
-    training = _training_fingerprints(inputs)
-    if not training:
-        return []
-    candidates = _candidate_fingerprints(inputs, bands)
-    stats = cohort_stats([v for _, v in training] + [v for _, _, v in candidates])
-    training_z = [(k, standardize(v, stats)) for k, v in training]
-    flags: list[dict] = []
-    for name, key, raw in candidates:
-        vec = standardize(raw, stats)
-        for train_key, train_vec in training_z:
-            score = cosine(vec, train_vec)
-            if score >= FINGERPRINT_REVIEW_COSINE:
-                flags.append(
-                    {
-                        "flag_id": flag_id(FLAG_KIND_FINGERPRINT, key, train_key),
-                        "kind": FLAG_KIND_FINGERPRINT,
-                        "band": name,
-                        "candidate_key": key,
-                        "evidence": f"standardized cosine {score:.4f} vs {train_key}",
-                        "score": round(score, 6),
-                    }
-                )
-    return flags
-
-
-def _cross_band_recording_flags(inputs: dict, bands: dict[str, list[dict]]) -> list[dict]:
-    """Candidate-vs-candidate fingerprint pairs in DIFFERENT bands (finding 12).
-
-    The same recording tagged 85 in one source and 170 in another lands in two
-    bands by construction, and a byte digest cannot see it because the two files
-    are different encodes. These pairs are the evidence the operator's cross-band
-    duplicate decision needs, and a confirmed disposition supplies the recording
-    group that `pre-commitment-recording-dedup` collapses on. They are review
-    flags, not exclusions: confirming one does not remove a candidate.
-    """
-    raw = _candidate_fingerprints(inputs, bands)
-    stats = cohort_stats([v for _, _, v in raw])
-    vectors = [(band, key, standardize(vec, stats)) for band, key, vec in raw]
-    flags: list[dict] = []
-    for i in range(len(vectors)):
-        band_a, key_a, vec_a = vectors[i]
-        for j in range(i + 1, len(vectors)):
-            band_b, key_b, vec_b = vectors[j]
-            if band_a == band_b:
-                continue  # within a band the signed draw-sequence tie-break decides
-            score = cosine(vec_a, vec_b)
-            if score < FINGERPRINT_REVIEW_COSINE:
-                continue
-            left, right = sorted((key_a, key_b))
-            flags.append(
-                {
-                    "flag_id": flag_id(FLAG_KIND_CROSS_BAND, left, right),
-                    "kind": FLAG_KIND_CROSS_BAND,
-                    "band": band_a if left == key_a else band_b,
-                    "candidate_key": left,
-                    "peer_key": right,
-                    "evidence": (
-                        f"standardized cosine {score:.4f} across bands {band_a} and {band_b}"
-                    ),
-                    "score": round(score, 6),
-                }
-            )
-    return flags
-
-
 def cmd_prepare_review(_args: argparse.Namespace) -> int:
-    """Stage 1 of the mandatory fingerprint route: generate flags plus a
-    disposition template. Minting consumes the filled template, so a mint can
-    never demand dispositions that were never generated."""
+    """Stage 1 of the mandatory fingerprint route: generate flags, the coverage
+    record, and a disposition template. Minting consumes the filled template, so
+    a mint can never demand dispositions that were never generated."""
     inputs = load_inputs()
-    bands, _ = build_universe(inputs)
-    universe = candidate_universe_digest(bands)
-    flags = build_review_flags(inputs, bands)
+    bands, _accounting, universe = build_pool_universe(inputs)
+    coverage, cand_vectors, train_vectors = fingerprint_coverage(inputs, bands)
+    flags = build_review_flags(bands, cand_vectors, train_vectors)
+    _write_json(COVERAGE_PATH, coverage)
     review = {
-        "schema_version": 1,
+        "schema_version": 2,
         "candidate_universe_sha256": universe,
         "fingerprint_method": FINGERPRINT_METHOD,
         "review_cosine": FINGERPRINT_REVIEW_COSINE,
         "training_input_sha256": training_input_digest(),
+        "coverage_sha256": sha256_bytes(_json_bytes(coverage)),
         "flags": flags,
     }
     _write_json(REVIEW_FLAGS_PATH, review)
     template = {
-        "schema_version": 1,
+        "schema_version": 2,
         "candidate_universe_sha256": universe,
         "fingerprint_method": FINGERPRINT_METHOD,
         "training_input_sha256": training_input_digest(),
@@ -2191,6 +3219,11 @@ def cmd_prepare_review(_args: argparse.Namespace) -> int:
                 "flag_id": f["flag_id"],
                 "kind": f["kind"],
                 "band": f["band"],
+                # The keys are surfaced so a human CAN assign a shared
+                # recording_group by hand; without them the operator had no key
+                # material and the broken per-flag default was the likely path.
+                "candidate_key": f["candidate_key"],
+                "peer_key": f.get("peer_key"),
                 "evidence": f["evidence"],
                 "disposition": None,
                 "recording_group": None,
@@ -2205,12 +3238,58 @@ def cmd_prepare_review(_args: argparse.Namespace) -> int:
         by_kind[f["kind"]] = by_kind.get(f["kind"], 0) + 1
     print(
         f"review flags: {len(flags)} ({by_kind}); candidate universe {universe}\n"
+        f"coverage: candidates {coverage['candidates_covered']}/{coverage['candidates_total']} "
+        f"{coverage['candidates_by_reason']}; training {coverage['training_covered']}/"
+        f"{coverage['training_total']} {coverage['training_by_reason']}\n"
         f"flags: {REVIEW_FLAGS_PATH}\ntemplate: {DISPOSITIONS_TEMPLATE_PATH}\n"
         f"Record a disposition ({' or '.join(DISPOSITION_VALUES)}) for every flag and save "
         f"as {DISPOSITIONS_PATH.name}; minting is blocked until then."
     )
     flush_fingerprint_cache()
+    if DECISIONS_PATH.exists():
+        # Surface a training-coverage block now rather than at mint time; the
+        # files above are already written, so nothing is lost by halting here.
+        assert_training_coverage(
+            coverage, accepted_uncovered_training_rows(load_operator_decisions())
+        )
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Tracked ledger head
+# ---------------------------------------------------------------------------
+
+
+def write_ledger_head(commitment_sha: str, generation: str) -> dict:
+    head, count = head_of(ledger_path(generation))
+    active = latest_by_batch(read_events(ledger_path(generation)))
+    bands = {
+        name: {
+            "completed": sum(
+                1
+                for (b, _), ev in active.items()
+                if b == name and ev.get("status") in (LEDGER_COMPLETED, LEDGER_REPLACEMENT)
+            ),
+            "abandoned": sum(
+                1
+                for (b, _), ev in active.items()
+                if b == name and ev.get("status") == LEDGER_ABANDONED
+            ),
+        }
+        for name in BAND_NAMES
+    }
+    doc = {
+        "schema_version": 2,
+        "story": "12.7",
+        "head_sha256": head,
+        "event_count": count,
+        "commitment_sha256": commitment_sha,
+        "bands": bands,
+        "note": LEDGER_INTEGRITY_NOTE,
+    }
+    gate_committed(doc, assert_ledger_head_schema)
+    _write_json(LEDGER_HEAD_JSON, doc)
+    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -2218,88 +3297,101 @@ def cmd_prepare_review(_args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
-def cmd_stage_batch(args: argparse.Namespace) -> int:
-    if args.band not in BAND_NAMES:
-        raise HarnessError(f"unknown band {args.band!r}; bands: {', '.join(BAND_NAMES)}")
-    if int(args.size) < 1:
-        raise HarnessError(f"--size must be >= 1, got {args.size}")
-    _commitment, commitment_sha = require_active_commitment()
-    verify_committed_digest(POOLS_PATH, DRAWS_PATH, COMMITMENT_JSON)
-    pools = _read_json(POOLS_PATH, "candidate pools")
-    sequence = _require(_require(pools, "bands", "candidate pools"), args.band, "candidate pools")
-    row_ids = [e["rowId"] for e in sequence]
+@dataclass(frozen=True)
+class BatchPlan:
+    band: str
+    index: int
+    start: int
+    span: list[dict]
+    order: list[str]
+    order_seed: int
+    resume: bool
 
-    ledger_failures = verify_ledger(commitment_sha)
-    if ledger_failures:
-        raise HarnessError(
-            "annotation ledger does not verify; refusing to stage:\n  "
-            + "\n  ".join(ledger_failures)
-        )
 
-    records = validate_batch_records(args.band, row_ids)
+def plan_batch(state: HarnessState, band: str, batch: int | None, size: int) -> BatchPlan:
+    """Pure: decide which consecutive span becomes the next batch. Writes nothing."""
+    if band not in BAND_NAMES:
+        raise HarnessError(f"unknown band {band!r}; bands: {', '.join(BAND_NAMES)}")
+    if size < 1:
+        raise HarnessError(f"--size must be >= 1, got {size}")
+    sequence = state.sequence(band)
+    records = validate_batch_records(state.generation, band, state.sequence_row_ids(band))
     next_index = len(records)
-    active = active_ledger_events()
-    unanchored = [rec["batch"] for rec in records if (args.band, int(rec["batch"])) not in active]
+    active = latest_by_batch(state.events)
+    unanchored = [rec["batch"] for rec in records if (band, int(rec["batch"])) not in active]
     by_row_id = {e["rowId"]: e for e in sequence}
 
-    if (
-        args.batch is not None
-        and int(args.batch) == next_index - 1
-        and unanchored == [next_index - 1]
-    ):
+    if batch is not None and int(batch) == next_index - 1 and unanchored == [next_index - 1]:
         # Resume: re-stage the last recorded but not-yet-anchored batch
         # (record-then-stage means an interrupted copy leaves a record).
         rec = records[next_index - 1]
-        span = [by_row_id[rid] for rid in rec["rowIds"]]
-        stage_dir = STAGING_DIR / args.band / f"batch-{next_index - 1:03d}"
-        rows = _stage_copies(span, stage_dir, pools.get("pool_audio_root"), rec["work_order"])
-        _write_worklist(BATCHES_DIR / args.band / f"batch-{next_index - 1:03d}-worklist.csv", rows)
-        print(f"re-staged batch {next_index - 1} for {args.band}: {len(span)} rows -> {stage_dir}")
-        return 0
+        return BatchPlan(
+            band=band,
+            index=next_index - 1,
+            start=int(rec["start"]),
+            span=[by_row_id[rid] for rid in rec["rowIds"]],
+            order=list(rec["work_order"]),
+            order_seed=int(rec["work_order_seed"]),
+            resume=True,
+        )
     if unanchored:
         raise HarnessError(
-            f"batch(es) {unanchored} for {args.band} are staged but not anchored in the "
+            f"batch(es) {unanchored} for {band} are staged but not anchored in the "
             "annotation ledger. Ingest or abandon them before staging another; several "
             "unanchored batches cannot accumulate behind illusory tamper evidence."
         )
-    if args.batch is not None and int(args.batch) != next_index:
+    if batch is not None and int(batch) != next_index:
         raise HarnessError(
-            f"batch out of sequence: next batch for {args.band} is {next_index}, "
-            f"requested {args.batch} (pass the previous index to re-stage it)"
+            f"batch out of sequence: next batch for {band} is {next_index}, "
+            f"requested {batch} (pass the previous index to re-stage it)"
         )
     start = sum(int(rec["size"]) for rec in records)
-    size = int(args.size)
     span = sequence[start : start + size]
     if not span:
-        raise HarnessError(f"band {args.band} draw sequence exhausted at position {start}")
-
-    band_seed = int(_require(_require(pools, "seeds", "candidate pools"), args.band, "seeds"))
+        raise HarnessError(f"band {band} draw sequence exhausted at position {start}")
+    band_seed = int(_require(_require(state.pools, "seeds", "candidate pools"), band, "seeds"))
     order_seed = (band_seed ^ (next_index * 0x9E3779B1)) & 0xFFFFFFFF
-    span_ids = [e["rowId"] for e in span]
-    order = work_order(span_ids, order_seed)
-
-    # Record BEFORE staging (record-then-stage): an interrupted copy leaves a
-    # batch record rather than orphan audio files.
-    band_batches = BATCHES_DIR / args.band
-    band_batches.mkdir(parents=True, exist_ok=True)
-    _write_json(
-        band_batches / f"batch-{next_index:03d}.json",
-        {
-            "band": args.band,
-            "batch": next_index,
-            "size": len(span),
-            "start": start,
-            "rowIds": span_ids,
-            "work_order_seed": order_seed,
-            "work_order": order,
-        },
+    return BatchPlan(
+        band=band,
+        index=next_index,
+        start=start,
+        span=span,
+        order=work_order([e["rowId"] for e in span], order_seed),
+        order_seed=order_seed,
+        resume=False,
     )
-    stage_dir = STAGING_DIR / args.band / f"batch-{next_index:03d}"
-    rows = _stage_copies(span, stage_dir, pools.get("pool_audio_root"), order)
-    worklist = band_batches / f"batch-{next_index:03d}-worklist.csv"
-    _write_worklist(worklist, rows)
+
+
+def cmd_stage_batch(args: argparse.Namespace) -> int:
+    state = load_state()
+    require_valid_state(state, "before staging")
+    plan = plan_batch(state, args.band, args.batch, int(args.size))
+    gen = state.generation
+    band_batches = batches_dir(gen) / plan.band
+    band_batches.mkdir(parents=True, exist_ok=True)
+    if not plan.resume:
+        # Record BEFORE staging: an interrupted copy leaves a batch record
+        # rather than orphan audio files.
+        _write_json(
+            band_batches / f"batch-{plan.index:03d}.json",
+            {
+                "band": plan.band,
+                "batch": plan.index,
+                "size": len(plan.span),
+                "start": plan.start,
+                "rowIds": [e["rowId"] for e in plan.span],
+                "work_order_seed": plan.order_seed,
+                "work_order": plan.order,
+            },
+        )
+    stage = staging_dir(gen) / plan.band / f"batch-{plan.index:03d}"
+    rows = stage_copies(plan.span, stage, state.pools.get("pool_audio_root"), plan.order)
+    worklist = worklist_path_for(gen, plan.band, plan.index)
+    write_worklist(worklist, rows)
+    require_valid_state(load_state(), "after staging", require_audio=True)
+    verb = "re-staged" if plan.resume else "staged"
     print(
-        f"staged batch {next_index} for {args.band}: {len(span)} rows -> {stage_dir}\n"
+        f"{verb} batch {plan.index} for {plan.band}: {len(plan.span)} rows -> {stage}\n"
         f"worklist: {worklist} (randomized within-batch work order)"
     )
     return 0
@@ -2324,7 +3416,11 @@ def _parse_flag(value: str, row_id: str, column: str) -> bool:
 
 def parse_annotations_csv(path: Path, expected_row_ids: list[str]) -> dict[str, dict]:
     """Validate + parse the operator-filled annotation CSV. Every worklist row
-    must appear exactly once and be well-formed, or NOTHING is applied."""
+    must appear exactly once and be well-formed, or NOTHING is applied.
+
+    Shared verbatim by the primary ingest and the section-6 blind re-pass; the
+    re-pass keys it by its own aliases, never by the original row ids.
+    """
     with open(path, newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
         header = set(reader.fieldnames or [])
@@ -2372,130 +3468,154 @@ def parse_annotations_csv(path: Path, expected_row_ids: list[str]) -> dict[str, 
     return seen
 
 
-def _batch_context(band: str, batch: int) -> tuple[dict, dict, dict]:
-    """Active commitment + validated batch record for one (band, batch)."""
+def _next_annotation_version(state: HarnessState, band: str, batch: int) -> int:
+    versions = [
+        int(ev.get("annotation_version", 0))
+        for ev in state.events
+        if str(ev.get("band")) == band and int(ev.get("batch", -1)) == batch
+    ]
+    return (max(versions) if versions else 0) + 1
+
+
+def _batch_record(state: HarnessState, band: str, batch: int) -> dict:
     if band not in BAND_NAMES:
         raise HarnessError(f"unknown band {band!r}")
-    _, commitment_sha = require_active_commitment()
-    verify_committed_digest(POOLS_PATH, DRAWS_PATH, COMMITMENT_JSON)
-    pools = _read_json(POOLS_PATH, "candidate pools")
-    records = validate_batch_records(band, _sequence_row_ids(pools, band))
+    records = validate_batch_records(state.generation, band, state.sequence_row_ids(band))
     if batch < 0 or batch >= len(records):
         raise HarnessError(
             f"batch {batch} for {band} has no validated record (records: {len(records)})"
         )
-    return {"sha": commitment_sha}, pools, records[batch]
+    return records[batch]
+
+
+def _assert_transition(state: HarnessState, band: str, batch: int, nxt: str) -> str | None:
+    current = latest_by_batch(state.events).get((band, batch))
+    status = None if current is None else str(current.get("status"))
+    allowed = EVENT_TRANSITIONS.get(status, frozenset())
+    if nxt not in allowed:
+        raise HarnessError(
+            f"transition {status!r} -> {nxt!r} for {band}/batch-{batch:03d} is not allowed "
+            f"(permitted: {sorted(allowed) or 'none - terminal state'})"
+        )
+    return status
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
     batch = int(args.batch)
-    ctx, pools, record = _batch_context(args.band, batch)
-    commitment_sha = ctx["sha"]
-    failures = verify_ledger(commitment_sha)
-    if failures:
+    state = load_state()
+    require_valid_state(state, "before ingest")
+    record = _batch_record(state, args.band, batch)
+    gen = state.generation
+
+    prior_status = latest_by_batch(state.events).get((args.band, batch))
+    if prior_status is not None and not args.force:
         raise HarnessError(
-            "annotation ledger does not verify; refusing to ingest:\n  " + "\n  ".join(failures)
+            f"annotation record for {args.band}/batch-{batch:03d} is already anchored in "
+            "the ledger; re-ingest requires --force (a replacement event and a NEW "
+            "immutable record version are appended, and no prior record is overwritten)"
         )
-    active = active_ledger_events()
-    prior = active.get((args.band, batch))
-    if prior is not None and prior.get("status") == LEDGER_ABANDONED:
+    status = LEDGER_REPLACEMENT if prior_status is not None else LEDGER_COMPLETED
+    _assert_transition(state, args.band, batch, status)
+
+    # Validate the worklist BEFORE accepting annotations. Verifying only the
+    # digest recorded AT ingest is too late: a worklist altered beforehand has
+    # its altered digest anchored as the reference.
+    worklist_failures = validate_worklist(
+        gen, args.band, batch, record, state.by_row_id, require_audio=True
+    )
+    if worklist_failures:
         raise HarnessError(
-            f"batch {batch} for {args.band} is recorded ABANDONED; an abandoned batch "
-            "yields no members and cannot be ingested."
+            "refusing to accept annotations - the batch worklist does not validate:\n  "
+            + "\n  ".join(worklist_failures)
         )
 
     annotations = parse_annotations_csv(Path(args.annotations), list(record["rowIds"]))
-    record_path = ANNOTATIONS_DIR / args.band / f"batch-{batch:03d}.json"
-    meta: dict[str, Any] = {"band": args.band, "batch": batch}
-    status = LEDGER_COMPLETED
-    if prior is not None:
-        if not args.force:
-            raise HarnessError(
-                f"annotation record for {args.band}/batch-{batch:03d} is already anchored in "
-                "the ledger; re-ingest requires --force (a replacement event is appended, "
-                "the prior event is never overwritten)"
-            )
-        meta["replaced_sha256"] = str(prior.get("annotation_sha256"))
-        status = LEDGER_REPLACEMENT
-    _write_json(record_path, {"_meta": meta, "rows": annotations})
+    version = _next_annotation_version(state, args.band, batch)
+    record_path = annotations_dir(gen) / args.band / f"batch-{batch:03d}.v{version}.json"
+    meta: dict[str, Any] = {"band": args.band, "batch": batch, "version": version}
+    if prior_status is not None:
+        meta["supersedes_sha256"] = str(prior_status.get("annotation_sha256"))
+    _write_json_immutable(record_path, {"_meta": meta, "rows": annotations})
 
     keepers = sum(1 for rid in record["rowIds"] if keep_or_reject(annotations[rid], args.band)[0])
-    batch_record_path = BATCHES_DIR / args.band / f"batch-{batch:03d}.json"
-    worklist_path = BATCHES_DIR / args.band / f"batch-{batch:03d}-worklist.csv"
-    append_ledger_event(
+    append_event(
+        ledger_path(gen),
         {
-            "commitment_sha256": commitment_sha,
+            "commitment_sha256": state.commitment_sha,
             "band": args.band,
             "batch": batch,
             "status": status,
             "recorded": date.today().isoformat(),
-            "batch_record_sha256": sha256_file(batch_record_path),
-            "work_order_sha256": (
-                sha256_file(worklist_path) if worklist_path.exists() else GENESIS_DIGEST
+            "batch_record_sha256": sha256_file(
+                batches_dir(gen) / args.band / f"batch-{batch:03d}.json"
             ),
+            "work_order_sha256": sha256_file(worklist_path_for(gen, args.band, batch)),
+            "annotation_version": version,
+            "annotation_path": _rel(record_path, generation_root(gen)),
             "annotation_sha256": sha256_file(record_path),
             "counts": {"rows": len(annotations), "keepers": keepers},
-        }
+        },
     )
-    write_ledger_head(commitment_sha)
-
-    membership = _recompute_membership(pools, _n_band())
-    _write_json(MEMBERSHIP_PATH, membership)
+    write_ledger_head(state.commitment_sha, gen)
+    state = load_state()
+    require_valid_state(state, "after ingest")
+    membership = recompute_membership(state)
+    _write_json(membership_path(gen), membership)
     m = membership[args.band]
     print(
-        f"ingested batch {batch} for {args.band}: members {len(m['members'])}/{_n_band()}, "
-        f"surplus {len(m['surplus'])}, rejects {len(m['rejects'])}, annotated {m['annotated']}"
+        f"ingested batch {batch} for {args.band} as record version {version}: members "
+        f"{len(m['members'])}/{state.n_band}, surplus {len(m['surplus'])}, rejects "
+        f"{len(m['rejects'])}, annotated {m['annotated']}"
     )
     return 0
 
 
 def cmd_abandon(args: argparse.Namespace) -> int:
     """Signed rule: an abandoned batch yields no members and its partial work is
-    discarded. Recorded as an append-only ledger event (finding 13)."""
+    discarded from MEMBERSHIP. It is not discarded from disk: prior annotation
+    records stay, immutable and still referenced by their own events. Round 1
+    unlinked them under --force, destroying labels that cannot be regenerated."""
     batch = int(args.batch)
-    ctx, pools, _record = _batch_context(args.band, batch)
-    commitment_sha = ctx["sha"]
-    failures = verify_ledger(commitment_sha)
-    if failures:
+    state = load_state()
+    require_valid_state(state, "before abandon")
+    _batch_record(state, args.band, batch)
+    gen = state.generation
+    prior = latest_by_batch(state.events).get((args.band, batch))
+    if prior is not None and prior.get("status") != LEDGER_ABANDONED and not args.force:
         raise HarnessError(
-            "annotation ledger does not verify; refusing to abandon:\n  " + "\n  ".join(failures)
+            f"batch {batch} for {args.band} already has an annotation record; abandoning "
+            "removes it from MEMBERSHIP (the record itself is retained, immutable) - pass "
+            "--force to confirm"
         )
-    ann_path = ANNOTATIONS_DIR / args.band / f"batch-{batch:03d}.json"
-    if ann_path.exists():
-        if not args.force:
-            raise HarnessError(
-                f"batch {batch} for {args.band} already has an annotation record; "
-                "abandoning discards it - pass --force to confirm"
-            )
-        ann_path.unlink()
-    batch_record_path = BATCHES_DIR / args.band / f"batch-{batch:03d}.json"
-    append_ledger_event(
+    _assert_transition(state, args.band, batch, LEDGER_ABANDONED)
+    append_event(
+        ledger_path(gen),
         {
-            "commitment_sha256": commitment_sha,
+            "commitment_sha256": state.commitment_sha,
             "band": args.band,
             "batch": batch,
             "status": LEDGER_ABANDONED,
             "recorded": date.today().isoformat(),
-            "batch_record_sha256": sha256_file(batch_record_path),
+            "batch_record_sha256": sha256_file(
+                batches_dir(gen) / args.band / f"batch-{batch:03d}.json"
+            ),
             "work_order_sha256": GENESIS_DIGEST,
+            "annotation_version": None,
+            "annotation_path": None,
             "annotation_sha256": None,
             "counts": {"rows": 0, "keepers": 0},
             "reason": str(args.reason),
-        }
+        },
     )
-    write_ledger_head(commitment_sha)
-    membership = _recompute_membership(pools, _n_band())
-    _write_json(MEMBERSHIP_PATH, membership)
-    print(f"abandoned batch {batch} for {args.band}: contributes no annotations and no members")
+    write_ledger_head(state.commitment_sha, gen)
+    state = load_state()
+    require_valid_state(state, "after abandon")
+    _write_json(membership_path(gen), recompute_membership(state))
+    print(
+        f"abandoned batch {batch} for {args.band}: contributes no annotations and no "
+        "members; any prior annotation record is retained and remains verifiable"
+    )
     return 0
-
-
-def _n_band() -> int:
-    if COMMITMENT_JSON.exists():
-        doc = read_commitment()
-        if isinstance(doc, dict) and isinstance(doc.get("n_band_target"), int):
-            return int(doc["n_band_target"])
-    return N_BAND
 
 
 # ---------------------------------------------------------------------------
@@ -2504,15 +3624,10 @@ def _n_band() -> int:
 
 
 def cmd_status(_args: argparse.Namespace) -> int:
-    require_active_commitment()
-    if not POOLS_PATH.exists():
-        print("pools not committed; run commit-pools first")
-        return 0
-    pools = _read_json(POOLS_PATH, "candidate pools")
-    for name in BAND_NAMES:
-        validate_batch_records(name, _sequence_row_ids(pools, name))
-    n_band = _n_band()
-    membership = _recompute_membership(pools, n_band)
+    state = load_state()
+    require_valid_state(state, "before reporting status")
+    n_band = state.n_band
+    membership = recompute_membership(state)
     print(f"{'band':10s} {'members':>8s} {'annotated':>10s} {'rate':>6s} {'est-reviews':>12s}")
     for name in BAND_NAMES:
         m = membership[name]
@@ -2552,26 +3667,19 @@ def _load_dispositions_for_audit() -> dict[str, dict]:
 
 def run_audit() -> tuple[list[str], list[str], list[str]]:
     """The shared fail-closed audit. Returns (failures, warnings, report)."""
-    failures: list[str] = []
     warnings: list[str] = []
     report: list[str] = []
 
-    _, commitment_sha = require_active_commitment()
-    verify_committed_digest(POOLS_PATH, DRAWS_PATH, COMMITMENT_JSON)
-    pools = _read_json(POOLS_PATH, "candidate pools")
-
-    failures.extend(verify_ledger(commitment_sha))
+    state = load_state()
+    failures = validate_state(state)
+    gen = state.generation
+    pools = state.pools
 
     # 1. FR-59a.1: membership inputs read only verified tempi + the draw
     # sequence. Allowlist every annotation record, candidate row, and worklist
-    # header; an unexpected key fails, whatever it is called. Batch records are
-    # validated by the canonical validator at every consumer, this one included.
+    # header; an unexpected key fails, whatever it is called.
     for name in BAND_NAMES:
-        try:
-            validate_batch_records(name, _sequence_row_ids(pools, name))
-        except HarnessError as exc:
-            failures.append(f"batch records for {name}: {exc}")
-        ann_dir = ANNOTATIONS_DIR / name
+        ann_dir = annotations_dir(gen) / name
         if ann_dir.exists():
             for p in sorted(ann_dir.glob("batch-*.json")):
                 doc = _read_json(p, "annotation record")
@@ -2592,28 +3700,18 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
                 f"candidate pool {name}/{entry.get('rowId')}",
                 failures,
             )
-        band_dir = BATCHES_DIR / name
-        if band_dir.exists():
-            for wl in sorted(band_dir.glob("*-worklist.csv")):
-                with open(wl, newline="", encoding="utf-8") as fh:
-                    header = next(csv.reader(fh), [])
-                if header != ["row_id", "audio"]:
-                    failures.append(
-                        f"worklist {wl.name} carries columns beyond row_id+audio: {header}"
-                    )
 
     # 2. FR-59a.2 residual overlap over EVERY candidate, member or not.
     inputs = load_inputs()
-    n_band = _n_band()
     try:
-        membership = _recompute_membership(pools, n_band)
+        membership = recompute_membership(state)
     except HarnessError as exc:
-        # A ledger-detected annotation problem must be REPORTED as an audit
-        # failure, not raised past the caller: emit-manifest and signoff decide
-        # on this list, and an exception would skip the remaining checks.
+        # A detected annotation problem must be REPORTED as an audit failure,
+        # not raised past the caller: emit-manifest and signoff decide on this
+        # list, and an exception would skip the remaining checks.
         failures.append(f"membership cannot be recomputed: {exc}")
         membership = {name: {"members": [], "surplus": [], "rejects": {}} for name in BAND_NAMES}
-    by_row_id = {e["rowId"]: e for name in BAND_NAMES for e in pools["bands"][name]}
+    by_row_id = state.by_row_id
     member_entries = [by_row_id[rid] for name in BAND_NAMES for rid in membership[name]["members"]]
     all_candidates = [e for name in BAND_NAMES for e in pools["bands"][name]]
     for entry in all_candidates:
@@ -2644,7 +3742,7 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
             if not nk or nk not in gs_titles:
                 continue
             hits += 1
-            key = f"{entry['source']}:{entry['identity']}"
+            key = candidate_key(entry)
             fid = flag_id(FLAG_KIND_GIANTSTEPS, key, nk)
             disp = dispositions.get(fid, {}).get("disposition")
             if disp is None:
@@ -2664,13 +3762,18 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
             "(all candidates, not only members)."
         )
 
-    # 3. Duplicate check among members (cross-band, by identity + normalized title
-    # + audio content digest).
+    # 3. Duplicate check among members. The recording-GROUP check is the one the
+    # `audit-fails-on-cross-band-duplicate` policy promises: a confirmed
+    # cross-band re-encode differs in identity AND in bytes by definition, so
+    # identity, content digest and normalized title all miss it. The groups come
+    # from the transitive components persisted at mint.
+    policy = state.commitment.get("operator_decisions", {}).get("cross_band_duplicate_rule")
     seen_ids: dict[str, str] = {}
     seen_titles: dict[str, str] = {}
     seen_content: dict[str, str] = {}
+    seen_groups: dict[str, str] = {}
     for entry in member_entries:
-        ident = f"{entry['source']}:{entry['identity']}"
+        ident = candidate_key(entry)
         if ident in seen_ids:
             failures.append(f"duplicate member identity: {entry['rowId']} vs {seen_ids[ident]}")
         seen_ids[ident] = entry["rowId"]
@@ -2682,6 +3785,15 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
                     f"{seen_content[content]} (same bytes in two bands)"
                 )
             seen_content[content] = entry["rowId"]
+        group = str(entry.get("recordingGroup") or "")
+        if group:
+            if group in seen_groups:
+                failures.append(
+                    f"cross-band duplicate member RECORDING: {entry['rowId']} vs "
+                    f"{seen_groups[group]} share confirmed same-recording group {group} "
+                    f"(cross-band duplicate rule in force: {policy})"
+                )
+            seen_groups[group] = entry["rowId"]
         nk = cc.normalize_track_key(entry.get("title", ""))
         if nk:
             if nk in seen_titles:
@@ -2689,6 +3801,10 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
                     f"duplicate member title (normalized): {entry['rowId']} vs {seen_titles[nk]}"
                 )
             seen_titles[nk] = entry["rowId"]
+    report.append(
+        f"cross-band duplicate rule in force: {policy}; "
+        f"{len(seen_groups)} confirmed recording group(s) among members."
+    )
 
     # 4. oa300 18-vs-14 row-basis reconciliation (report).
     for r in inputs["oa300_rows"]:
@@ -2724,7 +3840,8 @@ def cmd_audit(_args: argparse.Namespace) -> int:
             print(f"AUDIT FAIL: {f}", file=sys.stderr)
         return 1
     print(
-        "audit clean: ledger integrity, batch-record validation, FR-59a.1 assertion, "
+        "audit clean: state validation (commitment chain, generation-scoped row files, "
+        "event store, immutable annotation records, worklists), FR-59a.1 assertion, "
         "residual-overlap (all candidates, GiantSteps included), and duplicate checks all pass"
     )
     return 0
@@ -2840,11 +3957,9 @@ def member_legacy_labels(
 
 
 def cmd_emit_manifest(_args: argparse.Namespace) -> int:
-    require_active_commitment()
-    verify_committed_digest(POOLS_PATH, DRAWS_PATH, COMMITMENT_JSON)
-    pools = _read_json(POOLS_PATH, "candidate pools")
-    n_band = _n_band()
-    membership = _recompute_membership(pools, n_band)
+    state = load_state()
+    n_band = state.n_band
+    membership = recompute_membership(state)
     incomplete = [n for n in BAND_NAMES if len(membership[n]["members"]) < n_band]
     if incomplete:
         print("emit-manifest refused: corpus incomplete. Per-band progress:")
@@ -2861,17 +3976,17 @@ def cmd_emit_manifest(_args: argparse.Namespace) -> int:
 
     inputs = load_inputs()
     index = _sentinel_label_index(inputs)
-    by_row_id = {e["rowId"]: e for name in BAND_NAMES for e in pools["bands"][name]}
+    by_row_id = state.by_row_id
 
     entries = []
     sentinel_per_band = {name: 0 for name in BAND_NAMES}
     for name in BAND_NAMES:
-        annotations = _load_all_annotations(name)
+        annotations = load_annotations(state, name)
         for rid in membership[name]["members"]:
             entry = by_row_id[rid]
             ann = annotations[rid]
             verified = float(ann["verified_bpm"])
-            labels = member_legacy_labels(entry, index, pools.get("pool_audio_root"))
+            labels = member_legacy_labels(entry, index, state.pools.get("pool_audio_root"))
             sentinel = is_octave_sentinel(verified, labels)
             if sentinel:
                 sentinel_per_band[name] += 1
@@ -2911,16 +4026,394 @@ def cmd_emit_manifest(_args: argparse.Namespace) -> int:
         "sentinel_per_band": sentinel_per_band,
         "entries": entries,
     }
-    _write_json(MANIFEST_PATH, manifest)
+    _write_json(generation_root(state.generation) / "258-corpus.jams.json", manifest)
     print(
-        f"manifest written: {MANIFEST_PATH} ({len(entries)} tracks; sentinel per band "
-        f"{sentinel_per_band})"
+        f"manifest written: {generation_root(state.generation) / '258-corpus.jams.json'} "
+        f"({len(entries)} tracks; sentinel per band {sentinel_per_band})"
     )
     return 0
 
 
 # ---------------------------------------------------------------------------
-# signoff (finding 14): an audit-bound attestation, not a hand-editable marker
+# Section-6 10 percent blind re-pass (signed 2026-08-08; two-tier disagreement
+# per the operator clarification of 2026-08-11).
+#
+# The re-pass MEASURES REPEATABILITY. It does not relabel: a disagreement is
+# data, resolved only by a dated amendment. It never feeds `compute_membership`,
+# never replaces a primary annotation, and never appends an ordinary batch
+# event - it has its own record, validator, and state machine.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RepassPlan:
+    version: int
+    seed: int
+    population: list[str]
+    population_sha256: str
+    sample: list[str]
+    aliases: dict[str, str]
+    order: list[str]
+    sample_sha256: str
+    primary_labels: dict[str, float | None]
+    ledger_head: str
+
+
+def plan_repass(state: HarnessState, version: int, membership: dict) -> RepassPlan:
+    """Independent, domain-separated draw over a SEPARATE permutation.
+
+    Not a continuation or reuse of any membership sequence: the 258-member
+    roster is frozen, sorted canonically, shuffled with `Random(repass_seed)`,
+    and truncated to the sample size without replacement. The seed is derived by
+    domain-separated hashing of the commitment digest and the annotation-ledger
+    head, so it is reproducible and cannot collide with a band seed.
+    """
+    population = sorted(rid for name in BAND_NAMES for rid in membership[name]["members"])
+    if not population:
+        raise HarnessError("re-pass sampling requires a complete corpus; the roster is empty")
+    head, _count = head_of(ledger_path(state.generation))
+    seed = int(
+        hashlib.sha256(f"12.7-repass|{state.commitment_sha}|{head}|{version}".encode()).hexdigest()[
+            :16
+        ],
+        16,
+    )
+    rng = random.Random(seed)
+    shuffled = list(population)
+    rng.shuffle(shuffled)
+    size = max(1, math.ceil(REPASS_FRACTION * len(population)))
+    sample = shuffled[:size]
+    # Fresh aliases, independently randomized order. Reusing the original row
+    # ids would forfeit the only within-annotator blinding available: the
+    # annotator cannot forget prior exposure, so "blind" here means blinded to
+    # the first-pass BPM and flags, to membership position, and to the row id.
+    aliases: dict[str, str] = {}
+    used: set[str] = set()
+    for rid in sample:
+        while True:
+            alias = f"x{version}-{rng.getrandbits(48):012x}"
+            if alias not in used:
+                break
+        used.add(alias)
+        aliases[rid] = alias
+    order = [aliases[rid] for rid in sample]
+    rng.shuffle(order)
+
+    primary: dict[str, float | None] = {}
+    for name in BAND_NAMES:
+        annotations = load_annotations(state, name)
+        for rid in membership[name]["members"]:
+            if rid in aliases:
+                value = annotations.get(rid, {}).get("verified_bpm")
+                primary[rid] = None if value is None else float(value)
+    return RepassPlan(
+        version=version,
+        seed=seed,
+        population=population,
+        population_sha256=sha256_bytes(_json_bytes({"population": population})),
+        sample=sample,
+        aliases=aliases,
+        order=order,
+        sample_sha256=sha256_bytes(_json_bytes({"sample": sorted(sample)})),
+        primary_labels=primary,
+        ledger_head=head,
+    )
+
+
+def repass_record_path(generation: str, version: int) -> Path:
+    return repass_dir(generation) / f"repass-sample.v{version}.json"
+
+
+def repass_annotation_path(generation: str, version: int) -> Path:
+    return repass_dir(generation) / f"repass-annotations.v{version}.json"
+
+
+def repass_worklist_path(generation: str, version: int) -> Path:
+    return repass_dir(generation) / f"repass-worklist.v{version}.csv"
+
+
+def latest_repass(state: HarnessState) -> tuple[int, str | None, dict | None]:
+    """(version, status, event) of the newest re-pass generation."""
+    if not state.repass_events:
+        return 0, None, None
+    newest = max(state.repass_events, key=lambda ev: (int(ev.get("version", 0)), int(ev["index"])))
+    version = int(newest.get("version", 0))
+    status = str(newest.get("status"))
+    return version, status, newest
+
+
+def cmd_repass_sample(_args: argparse.Namespace) -> int:
+    state = load_state()
+    require_valid_state(state, "before re-pass sampling")
+    failures, _w, _r = run_audit()
+    if failures:
+        print("re-pass sampling refused: the shared audit is not clean.", file=sys.stderr)
+        for f in failures:
+            print(f"AUDIT FAIL: {f}", file=sys.stderr)
+        return 1
+    membership = recompute_membership(state)
+    short = [n for n in BAND_NAMES if len(membership[n]["members"]) < state.n_band]
+    if short:
+        print(
+            "re-pass sampling refused: the signed mitigation runs AFTER the corpus is "
+            f"complete; bands below {state.n_band}: {short}",
+            file=sys.stderr,
+        )
+        return 1
+
+    version, status, event = latest_repass(state)
+    if status == REPASS_SAMPLED:
+        raise HarnessError(
+            f"re-pass version {version} is already sampled and awaiting annotations; "
+            "ingest it before drawing another sample."
+        )
+    if status == REPASS_INGESTED and event is not None:
+        head, _count = head_of(ledger_path(state.generation))
+        prior = _read_json(
+            generation_root(state.generation) / str(event["record_path"]), "re-pass record"
+        )
+        if prior.get("annotation_ledger_head") == head:
+            raise HarnessError(
+                f"re-pass version {version} is complete and the primary annotation ledger "
+                "has not moved since it was drawn. A new sample is warranted only when a "
+                "dated amendment changed a sampled primary label."
+            )
+    version += 1
+
+    plan = plan_repass(state, version, membership)
+    by_row_id = state.by_row_id
+    span = [by_row_id[rid] for rid in plan.sample]
+    stage = repass_dir(state.generation) / f"staging-v{version}"
+    rows = stage_copies(
+        span, stage, state.pools.get("pool_audio_root"), plan.order, alias=plan.aliases
+    )
+    write_worklist(repass_worklist_path(state.generation, version), rows)
+
+    record = {
+        "schema_version": 1,
+        "story": "12.7",
+        "version": version,
+        "drawn": date.today().isoformat(),
+        "protocol": "12-6-metrical-level-convention.md section 6 (10 percent blind re-pass)",
+        "seed": plan.seed,
+        "seed_derivation": "sha256('12.7-repass|<commitment>|<ledger head>|<version>')[:16]",
+        "seed_algorithm": SEED_ALGORITHM,
+        "fraction": REPASS_FRACTION,
+        "population_size": len(plan.population),
+        "population_sha256": plan.population_sha256,
+        "sample_size": len(plan.sample),
+        "sample_sha256": plan.sample_sha256,
+        "commitment_sha256": state.commitment_sha,
+        "annotation_ledger_head": plan.ledger_head,
+        "aliases": plan.aliases,
+        "presentation_order": plan.order,
+        "primary_labels": plan.primary_labels,
+    }
+    # Written BEFORE any re-pass annotation exists, and immutable thereafter.
+    _write_json_immutable(repass_record_path(state.generation, version), record)
+    append_event(
+        repass_ledger_path(state.generation),
+        {
+            "commitment_sha256": state.commitment_sha,
+            "version": version,
+            "status": REPASS_SAMPLED,
+            "recorded": date.today().isoformat(),
+            "record_path": _rel(
+                repass_record_path(state.generation, version), generation_root(state.generation)
+            ),
+            "record_sha256": sha256_file(repass_record_path(state.generation, version)),
+            "annotation_ledger_head": plan.ledger_head,
+        },
+    )
+    require_valid_state(load_state(), "after re-pass sampling")
+    print(
+        f"re-pass v{version} sampled: {len(plan.sample)} of {len(plan.population)} members "
+        f"({REPASS_FRACTION:.0%}), seed {plan.seed}\n"
+        f"worklist: {repass_worklist_path(state.generation, version)} (fresh aliases, "
+        "independently randomized order; stage a FRESH DAW project per the signed SOP)"
+    )
+    return 0
+
+
+def summarize_repass(record: dict, annotations: dict[str, dict]) -> dict[str, Any]:
+    """Two-tier disagreement plus the CONTINUOUS absolute differences.
+
+    Thresholding without the underlying distribution discards information, so
+    median, maximum, and every paired value are recorded (the paired values stay
+    in the private record; only the summary statistics reach the attestation).
+    """
+    aliases: dict[str, str] = record["aliases"]
+    primary: dict[str, Any] = record["primary_labels"]
+    rows: list[dict[str, Any]] = []
+    counts = dict.fromkeys((REPASS_AGREE, REPASS_FINE, REPASS_METRICAL, REPASS_NON_COMPARABLE), 0)
+    crossed = 0
+    diffs: list[float] = []
+    for row_id, alias in sorted(aliases.items()):
+        ann = annotations.get(alias, {})
+        second = ann.get("verified_bpm")
+        if ann.get("tempo_unstable") or ann.get("irresolvable") or ann.get("audio_defect"):
+            second = None
+        first = primary.get(row_id)
+        first_value = None if first is None else float(first)
+        second_value = None if second is None else float(second)
+        verdict = classify_repass(first_value, second_value)
+        counts[verdict] += 1
+        row: dict[str, Any] = {"row_id": row_id, "alias": alias, "verdict": verdict}
+        if (
+            verdict != REPASS_NON_COMPARABLE
+            and first_value is not None
+            and second_value is not None
+        ):
+            diff = abs(second_value - first_value)
+            diffs.append(diff)
+            row["abs_diff_bpm"] = round(diff, 4)
+            if band_of(first_value) != band_of(second_value):
+                row["crossed_band"] = True
+                crossed += 1
+        rows.append(row)
+    comparable = len(aliases) - counts[REPASS_NON_COMPARABLE]
+    return {
+        "schema_version": 1,
+        "sample_size": len(aliases),
+        "comparable": comparable,
+        "counts": counts,
+        "crossed_band": crossed,
+        "metrical_level_disagreement_rate": (
+            round(counts[REPASS_METRICAL] / comparable, 6) if comparable else None
+        ),
+        "fine_disagreement_rate": (
+            round(counts[REPASS_FINE] / comparable, 6) if comparable else None
+        ),
+        "median_abs_diff_bpm": round(statistics.median(diffs), 4) if diffs else None,
+        "max_abs_diff_bpm": round(max(diffs), 4) if diffs else None,
+        "paired_abs_diffs_bpm": [round(d, 4) for d in diffs],
+        "rows": rows,
+    }
+
+
+def cmd_repass_ingest(args: argparse.Namespace) -> int:
+    state = load_state()
+    require_valid_state(state, "before re-pass ingest")
+    version, status, event = latest_repass(state)
+    if status != REPASS_SAMPLED or event is None:
+        raise HarnessError(
+            "no re-pass sample is awaiting annotations "
+            f"(latest version {version}, status {status!r}). Run `repass-sample` first."
+        )
+    gen = state.generation
+    record = _read_json(generation_root(gen) / str(event["record_path"]), "re-pass record")
+    order = list(record["presentation_order"])
+    worklist = repass_worklist_path(gen, version)
+    rows = read_worklist(worklist)
+    if [alias for alias, _ in rows] != order:
+        raise HarnessError(
+            "refusing to accept re-pass annotations: the worklist aliases are not the "
+            "recorded presentation order - it was edited, reordered, or re-pointed"
+        )
+    stage = (repass_dir(gen) / f"staging-v{version}").resolve()
+    by_alias = {alias: rid for rid, alias in record["aliases"].items()}
+    for alias, audio in rows:
+        path = Path(audio)
+        if not _under(path, stage):
+            raise HarnessError(f"re-pass worklist row {alias} points outside the staging directory")
+        if not path.exists():
+            raise HarnessError(f"staged re-pass audio for {alias} is missing")
+        committed = str(state.by_row_id[by_alias[alias]].get("contentSha256") or "")
+        actual = sha256_file(path)
+        if committed and actual != committed:
+            raise HarnessError(
+                f"staged re-pass audio for {alias} hashes to {actual}, the commitment "
+                f"records {committed} - this alias was pointed at different audio"
+            )
+
+    annotations = parse_annotations_csv(Path(args.annotations), order)
+    summary = summarize_repass(record, annotations)
+    doc = {
+        "schema_version": 1,
+        "story": "12.7",
+        "version": version,
+        "recorded": date.today().isoformat(),
+        "sample_sha256": record["sample_sha256"],
+        "rows": annotations,
+        "summary": summary,
+    }
+    path = repass_annotation_path(gen, version)
+    _write_json_immutable(path, doc)
+    append_event(
+        repass_ledger_path(gen),
+        {
+            "commitment_sha256": state.commitment_sha,
+            "version": version,
+            "status": REPASS_INGESTED,
+            "recorded": date.today().isoformat(),
+            "record_path": _rel(path, generation_root(gen)),
+            "record_sha256": sha256_file(path),
+            "annotation_ledger_head": record["annotation_ledger_head"],
+        },
+    )
+    require_valid_state(load_state(), "after re-pass ingest")
+    print(
+        f"re-pass v{version} ingested: {summary['counts']} over {summary['sample_size']} "
+        f"sampled tracks; metrical-level rate {summary['metrical_level_disagreement_rate']}, "
+        f"fine rate {summary['fine_disagreement_rate']}, median |diff| "
+        f"{summary['median_abs_diff_bpm']} BPM, max {summary['max_abs_diff_bpm']} BPM. "
+        "Recorded, not gated: a disagreement is data, resolved only by a dated amendment."
+    )
+    return 0
+
+
+def repass_status_for_signoff(state: HarnessState) -> tuple[dict, dict, Path]:
+    """The validated, ingested re-pass this signoff will bind, or a hard error."""
+    version, status, event = latest_repass(state)
+    if status is None:
+        raise HarnessError(
+            "SIGNOFF REFUSED: no blind re-pass exists. The 2026-08-08 signoff bound a "
+            "10 percent blind re-pass as the mitigation for 'independence, not "
+            "correctness' (12-6 section 6, lines 484-492): a corpus may not receive the "
+            "training-enabling attestation without it. Run `repass-sample`, annotate the "
+            "worklist blind under the same DAW SOP, then `repass-ingest`."
+        )
+    if status != REPASS_INGESTED or event is None:
+        raise HarnessError(
+            f"SIGNOFF REFUSED: blind re-pass v{version} is sampled but not annotated."
+        )
+    gen = state.generation
+    annotation_doc = _read_json(
+        generation_root(gen) / str(event["record_path"]), "re-pass annotations"
+    )
+    sample_event = next(
+        ev
+        for ev in state.repass_events
+        if int(ev.get("version", 0)) == version and ev.get("status") == REPASS_SAMPLED
+    )
+    sample_path = generation_root(gen) / str(sample_event["record_path"])
+    sample = _read_json(sample_path, "re-pass record")
+
+    head, _count = head_of(ledger_path(gen))
+    if sample.get("annotation_ledger_head") != head:
+        # A dated amendment that changes a sampled primary label invalidates the
+        # comparison; the summary must regenerate against the amended head.
+        current: dict[str, Any] = {}
+        for name in BAND_NAMES:
+            annotations = load_annotations(state, name)
+            for rid in sample["aliases"]:
+                if rid in annotations:
+                    current[rid] = annotations[rid].get("verified_bpm")
+        changed = [
+            rid for rid, value in sample["primary_labels"].items() if current.get(rid) != value
+        ]
+        if changed:
+            raise HarnessError(
+                f"SIGNOFF REFUSED: the primary annotation ledger moved since blind re-pass "
+                f"v{version} was drawn AND {len(changed)} sampled primary label(s) changed, "
+                "so the recorded comparison no longer describes the corpus. Draw a new "
+                "sample with `repass-sample` and re-annotate; the prior record is retained."
+            )
+    return sample, annotation_doc, generation_root(gen) / str(event["record_path"])
+
+
+# ---------------------------------------------------------------------------
+# signoff (an audit-bound attestation, not a hand-editable marker)
 # ---------------------------------------------------------------------------
 
 
@@ -2930,10 +4423,21 @@ def attestation_digest(doc: dict) -> str:
 
 
 def validate_attestation(
-    attestation_path: Path, commitment_path: Path, ledger_head_path: Path, n_band: int
+    attestation_path: Path,
+    commitment_path: Path,
+    ledger_head_path: Path,
+    n_band: int,
+    state_root: Path | None = None,
 ) -> list[str]:
     """Shared with `train.py`: the training gate validates THIS, not the
-    human-editable REVIEWER_SIGNOFF marker text."""
+    human-editable REVIEWER_SIGNOFF marker text.
+
+    The validator READS AND HASHES every referenced artifact. Comparing the
+    attestation's ledger-head STRING against the tracked head JSON validated a
+    self-consistent set of copied fields rather than the artifacts themselves:
+    it never recomputed the actual ledger head, never verified the head
+    artifact's commitment binding, and never hashed the re-pass record.
+    """
     failures: list[str] = []
     if not attestation_path.exists():
         return [f"signoff attestation {attestation_path.name} is absent"]
@@ -2949,6 +4453,8 @@ def validate_attestation(
         return [f"signoff attestation schema: {exc}"]
     if doc.get("attestation_sha256") != attestation_digest(doc):
         failures.append("signoff attestation digest does not match its contents (hand-edited)")
+
+    generation = None
     if not commitment_path.exists():
         failures.append("signoff attestation references a commitment that is absent")
     else:
@@ -2959,6 +4465,8 @@ def validate_attestation(
             failures.append(
                 "signoff attestation is bound to a different commitment than the one on disk"
             )
+        generation = commitment.get("generation")
+
     if not ledger_head_path.exists():
         failures.append("signoff attestation references a ledger head artifact that is absent")
     else:
@@ -2967,6 +4475,56 @@ def validate_attestation(
             failures.append(
                 "signoff attestation ledger head does not match the tracked ledger head"
             )
+        if head_doc.get("commitment_sha256") != doc.get("commitment_sha256"):
+            failures.append(
+                "the tracked ledger head is bound to a different commitment than the attestation"
+            )
+        # Recompute the head from the event store itself rather than trusting
+        # the tracked copy of it.
+        root = state_root if state_root is not None else EVAL_CORPUS_DIR
+        if generation:
+            actual_head, _count = head_of(
+                root / "generations" / str(generation) / "annotation-ledger.jsonl"
+            )
+            if actual_head != head_doc.get("head_sha256"):
+                failures.append(
+                    f"the ACTUAL annotation-ledger head is {actual_head}, the tracked head "
+                    f"artifact records {head_doc.get('head_sha256')} - the event store and "
+                    "the committed head disagree"
+                )
+
+    repass = doc.get("repass") or {}
+    root = state_root if state_root is not None else EVAL_CORPUS_DIR
+    if not generation:
+        failures.append(
+            "the commitment records no generation, so the re-pass record is unlocatable"
+        )
+    else:
+        matches = [
+            p
+            for p in sorted((root / "generations" / str(generation) / "repass").glob("*.json"))
+            if sha256_file(p) == repass.get("record_sha256")
+        ]
+        if not matches:
+            failures.append(
+                "no re-pass annotation record hashes to the digest the attestation records; "
+                "the section-6 blind re-pass cannot be verified"
+            )
+        else:
+            record = json.loads(matches[0].read_text(encoding="utf-8"))
+            summary = record.get("summary", {})
+            if record.get("sample_sha256") != repass.get("sample_sha256"):
+                failures.append("the re-pass record adjudicates a different sample")
+            for key, field_name in (
+                ("sample_size", "sample_size"),
+                ("metrical_level_disagreement_rate", "metrical_level_disagreement_rate"),
+                ("fine_disagreement_rate", "fine_disagreement_rate"),
+            ):
+                if summary.get(key) != repass.get(field_name):
+                    failures.append(
+                        f"the attestation's re-pass {field_name} does not match the record"
+                    )
+
     if doc.get("audit_result") != "clean":
         failures.append(f"signoff attestation records audit_result {doc.get('audit_result')!r}")
     members = doc.get("members_per_band", {})
@@ -2977,38 +4535,66 @@ def validate_attestation(
 
 
 def cmd_signoff(_args: argparse.Namespace) -> int:
-    _, commitment_sha = require_active_commitment()
-    n_band = _n_band()
+    state = load_state()
+    n_band = state.n_band
     failures, _warnings, _report = run_audit()
     if failures:
         print("signoff refused: the shared audit is not clean.", file=sys.stderr)
         for f in failures:
             print(f"AUDIT FAIL: {f}", file=sys.stderr)
         return 1
-    pools = _read_json(POOLS_PATH, "candidate pools")
-    membership = _recompute_membership(pools, n_band)
+    membership = recompute_membership(state)
     members_per_band = {name: len(membership[name]["members"]) for name in BAND_NAMES}
     short = [name for name in BAND_NAMES if members_per_band[name] < n_band]
     if short:
         print(f"signoff refused: bands below {n_band} verified members: {short}", file=sys.stderr)
         return 1
-    head, _count = ledger_head()
+
+    sample, annotation_doc, record_path = repass_status_for_signoff(state)
+    summary = annotation_doc["summary"]
+    head, _count = head_of(ledger_path(state.generation))
     doc = {
-        "schema_version": 1,
+        "schema_version": 2,
         "story": "12.7",
         "attested": date.today().isoformat(),
-        "commitment_sha256": commitment_sha,
+        "commitment_sha256": state.commitment_sha,
         "annotation_ledger_head": head,
         "audit_result": "clean",
         "members_per_band": members_per_band,
+        "repass": {
+            "record_sha256": sha256_file(record_path),
+            "population_sha256": sample["population_sha256"],
+            "sample_sha256": sample["sample_sha256"],
+            "sample_size": summary["sample_size"],
+            "population_size": sample["population_size"],
+            "seed": sample["seed"],
+            "metrical_level_disagreements": summary["counts"][REPASS_METRICAL],
+            "fine_disagreements": summary["counts"][REPASS_FINE],
+            "non_comparable": summary["counts"][REPASS_NON_COMPARABLE],
+            "crossed_band": summary["crossed_band"],
+            "metrical_level_disagreement_rate": summary["metrical_level_disagreement_rate"],
+            "fine_disagreement_rate": summary["fine_disagreement_rate"],
+            "median_abs_diff_bpm": summary["median_abs_diff_bpm"],
+            "max_abs_diff_bpm": summary["max_abs_diff_bpm"],
+            "note": (
+                "Section-6 10 percent blind re-pass, recorded not gated. Two-tier per the "
+                "operator clarification of 2026-08-11: a metrical-level disagreement is a "
+                "second reading within 4 percent of 2x or 0.5x the first; a fine "
+                "disagreement is a same-level difference above 0.5 BPM. No pass/fail "
+                "threshold exists - the signed text records the rate, and a gate would be "
+                "a new bound item requiring its own signature."
+            ),
+        },
     }
     doc["attestation_sha256"] = attestation_digest(doc)
     gate_committed(doc, assert_attestation_schema)
     _write_json(ATTESTATION_JSON, doc)
     print(
-        f"signoff attestation written: {ATTESTATION_JSON} (commitment {commitment_sha}, "
-        f"ledger head {head}). The training gate validates this attestation, not the "
-        "REVIEWER_SIGNOFF marker text."
+        f"signoff attestation written: {ATTESTATION_JSON} (commitment {state.commitment_sha}, "
+        f"ledger head {head}, re-pass v{sample['version']} metrical-level rate "
+        f"{summary['metrical_level_disagreement_rate']}, fine rate "
+        f"{summary['fine_disagreement_rate']}). The training gate validates this "
+        "attestation and every artifact it references, not the REVIEWER_SIGNOFF marker text."
     )
     return 0
 
@@ -3028,6 +4614,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_commit.set_defaults(func=cmd_commit_pools)
 
+    p_remint = sub.add_parser("remint", help="mint a successor to a superseded commitment")
+    p_remint.add_argument("--seed", type=int, default=None, help="master seed for the successor")
+    p_remint.set_defaults(func=cmd_remint)
+
     p_review = sub.add_parser(
         "prepare-review", help="generate the mandatory pre-commitment fingerprint review flags"
     )
@@ -3046,7 +4636,7 @@ def main(argv: list[str] | None = None) -> int:
     p_ingest.add_argument(
         "--force",
         action="store_true",
-        help="append a replacement ledger event for an already-anchored batch",
+        help="append a replacement event + a new immutable record version",
     )
     p_ingest.set_defaults(func=cmd_ingest)
 
@@ -3055,7 +4645,7 @@ def main(argv: list[str] | None = None) -> int:
     p_abandon.add_argument("--batch", type=int, required=True)
     p_abandon.add_argument("--reason", default="operator-abandoned")
     p_abandon.add_argument(
-        "--force", action="store_true", help="discard an existing annotation record"
+        "--force", action="store_true", help="abandon a batch that already carries annotations"
     )
     p_abandon.set_defaults(func=cmd_abandon)
 
@@ -3063,7 +4653,7 @@ def main(argv: list[str] | None = None) -> int:
     p_status.set_defaults(func=cmd_status)
 
     p_audit = sub.add_parser(
-        "audit", help="fail-closed FR-59a.1 / residual-overlap / duplicate / ledger audit"
+        "audit", help="fail-closed state / FR-59a.1 / residual-overlap / duplicate audit"
     )
     p_audit.set_defaults(func=cmd_audit)
 
@@ -3071,6 +4661,15 @@ def main(argv: list[str] | None = None) -> int:
         "emit-manifest", help="emit the JAMS corpus manifest (refuses if incomplete or dirty)"
     )
     p_emit.set_defaults(func=cmd_emit_manifest)
+
+    p_rs = sub.add_parser(
+        "repass-sample", help="draw the section-6 10 percent blind re-pass sample"
+    )
+    p_rs.set_defaults(func=cmd_repass_sample)
+
+    p_ri = sub.add_parser("repass-ingest", help="ingest the blind re-pass annotations")
+    p_ri.add_argument("--annotations", required=True, help="operator-filled CSV, keyed by alias")
+    p_ri.set_defaults(func=cmd_repass_ingest)
 
     p_signoff = sub.add_parser(
         "signoff", help="record the audit-bound signoff attestation the training gate validates"
