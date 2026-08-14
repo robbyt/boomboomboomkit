@@ -1641,6 +1641,53 @@ def test_a_deleted_must_drop_record_does_not_fail_a_non_repartition_audit(ws):
     assert bec.main(["audit"]) == 0
 
 
+def test_a_rejected_restore_leaves_the_missing_file_missing(ws, monkeypatch):
+    # The restore wrote the re-derived bytes and only THEN compared digests, so
+    # a mismatch installed the wrong file and raised an error claiming it was
+    # "refusing to install" it. The next invocation found the file present,
+    # classified it as tamper, and refused to overwrite - turning recoverable
+    # missing state into permanently corrupt state.
+    ws.inputs["manifest_hashes"] = {ws.inputs["pool_rows"][0]["audioHash"]}
+    assert _mint_repartition(monkeypatch) == 0
+    gen = _gen()
+    bec.must_drop_path(gen).unlink()
+    commitment = json.loads(bec.COMMITMENT_JSON.read_text())
+    commitment["partition_obligation"]["must_drop_sha256"] = "0" * 64
+    bec._write_json(bec.COMMITMENT_JSON, commitment)
+    with pytest.raises(bec.DriftError, match="cannot restore"):
+        bec.cmd_commit_pools(bec.argparse.Namespace(seed=None))
+    # The rejected bytes were never installed, so the state stays repairable.
+    assert not bec.must_drop_path(gen).exists()
+
+
+def test_a_non_hex_ledger_head_on_a_repass_event_is_not_a_usable_digest(ws):
+    # A length-only check accepted "x" * 64, which can never equal a real head,
+    # so the sentinel read as "the ledger moved" and authorized a redraw.
+    assert bec.is_sha256_hex("a" * 64)
+    assert not bec.is_sha256_hex("x" * 64)
+    assert not bec.is_sha256_hex("A" * 64)  # canonical digests are lowercase
+    assert not bec.is_sha256_hex("a" * 63)
+    assert not bec.is_sha256_hex(None)
+
+
+def test_a_repass_event_with_a_non_hex_head_refuses_the_redraw(ws):
+    # The LAST ledger line has no successor, so nothing checks its digest: an
+    # in-place edit of one field survives chain validation. Prior lines are kept
+    # byte-for-byte and the harness's own compact serialization is reused, or the
+    # re-encoding itself would break the chain and mask what is under test.
+    assert _mint() == 0
+    _complete_corpus()
+    assert _repass() == 0
+    path = bec.repass_ledger_path(_gen())
+    lines = path.read_bytes().splitlines()
+    last = json.loads(lines[-1])
+    last["annotation_ledger_head"] = "x" * 64
+    lines[-1] = json.dumps(last, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    path.write_bytes(b"\n".join(lines) + b"\n")
+    with pytest.raises(bec.HarnessError, match="usable `annotation_ledger_head`"):
+        bec.cmd_repass_sample(bec.argparse.Namespace())
+
+
 def test_commit_pools_restores_a_missing_must_drop_record(ws, monkeypatch):
     # `_write_plan` writes THREE digest-pinned row-level files; the restore loop
     # in `cmd_commit_pools` covered only pools and draws. Under the signed

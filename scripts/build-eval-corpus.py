@@ -1618,6 +1618,18 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def is_sha256_hex(value: object) -> bool:
+    """A 64-character LOWERCASE HEX digest, not merely a 64-character string.
+
+    Length-only checks accept `"x" * 64`, which can never equal a real digest -
+    so a guard comparing a recorded head against the live one reads the sentinel
+    as "moved" and fails open in the permissive direction.
+    """
+    return (
+        isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value)
+    )
+
+
 def _write_bytes_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -3677,19 +3689,24 @@ def cmd_commit_pools(args: argparse.Namespace) -> int:
                         "tampered with; refusing to overwrite."
                     )
             else:
-                _write_bytes_atomic(path, _json_bytes(doc))
-                written = sha256_file(path)
+                # Hash the candidate bytes BEFORE writing them. Writing first and
+                # checking after installed the mismatching file and only then
+                # raised, so the next invocation found it present, classified it
+                # as tamper, and refused to overwrite - turning recoverable
+                # missing state into permanently corrupt state, with an error
+                # that claimed to be "refusing to install" a file it had already
+                # written. `verify_input_drift` covers pools and draws only, so
+                # this is the sole guard for the must-drop sidecar.
+                payload = _json_bytes(doc)
+                written = sha256_bytes(payload)
                 if written != recorded:
-                    # `verify_input_drift` covers pools and draws only. Restoring
-                    # from a re-derivation that no longer reproduces the pinned
-                    # digest would silently install a WRONG row-level file under
-                    # a commitment that claims to pin it.
                     raise DriftError(
                         f"cannot restore {path.name}: the re-derived document hashes to "
                         f"{written}, but the commitment pins {key} {recorded}. The mint "
                         "inputs have changed; refusing to install a file the commitment "
-                        "does not describe."
+                        "does not describe. The missing file is left missing."
                     )
+                _write_bytes_atomic(path, payload)
                 restored = True
         state = "restored" if restored else "verified"
         print(
@@ -5257,7 +5274,7 @@ def cmd_repass_sample(_args: argparse.Namespace) -> int:
         # binds the latest ingested version. That turns the one bound mitigation
         # for annotation repeatability into a number that can be re-rolled.
         prior_head = event.get("annotation_ledger_head")
-        if not isinstance(prior_head, str) or len(prior_head) != 64:
+        if not is_sha256_hex(prior_head):
             raise HarnessError(
                 f"re-pass version {version} is ingested but its ledger event carries no "
                 "usable `annotation_ledger_head`, so whether the primary annotation ledger "
