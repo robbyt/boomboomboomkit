@@ -80,7 +80,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -307,7 +307,10 @@ FLAG_KIND_CROSS_BAND = "cross-band-recording"
 # shrinking. It is the ONLY value that changes candidate construction.
 SHORT_BAND_REPARTITION = "repartition"
 SHORT_BAND_POLICIES = ("fallback-addendum", "shrink-corpus", SHORT_BAND_REPARTITION)
-CROSS_BAND_POLICIES = ("pre-commitment-recording-dedup", "audit-fails-on-cross-band-duplicate")
+CROSS_BAND_POLICIES = (
+    "pre-commitment-recording-dedup",
+    "audit-fails-on-cross-band-duplicate",
+)
 
 # Training-row key namespaces, as `fingerprint_coverage` mints them. Only the
 # `manifest` namespace is affected by the amendment.
@@ -819,7 +822,11 @@ def dedup_across_bands(
 
 
 def draw_sequence(
-    band_index: int, rows: list[dict], seed: int, offset: int = 0, origin: str = "primary"
+    band_index: int,
+    rows: list[dict],
+    seed: int,
+    offset: int = 0,
+    origin: str = "primary",
 ) -> list[dict]:
     """One global per-band permutation from `random.Random(seed)`.
 
@@ -1115,7 +1122,9 @@ FINGERPRINT_METHOD = cc.FINGERPRINT_METHOD
 MIN_STANDARDIZATION_COHORT = 3
 
 
-def cohort_stats(vectors: list[list[float]]) -> dict[int, tuple[list[float], list[float]]]:
+def cohort_stats(
+    vectors: list[list[float]],
+) -> dict[int, tuple[list[float], list[float]]]:
     """Per-dimension mean and standard deviation, grouped by vector length.
 
     `scripts/audit-corpus-splits.py` standardizes across the cohort before
@@ -1396,7 +1405,12 @@ _COVERAGE_KEYS = frozenset(
     }
 )
 _OPERATOR_DECISIONS_KEYS = frozenset(
-    {"decisions_sha256", "decided", "short_band_allocation", "cross_band_duplicate_rule"}
+    {
+        "decisions_sha256",
+        "decided",
+        "short_band_allocation",
+        "cross_band_duplicate_rule",
+    }
 )
 _FALLBACK_KEYS = frozenset(
     {
@@ -1460,7 +1474,9 @@ def assert_commitment_schema(doc: dict) -> None:
     )
     if status == STATUS_ACTIVE:
         review = _assert_keys(
-            doc["fingerprint_review"], _FINGERPRINT_REVIEW_KEYS, "commitment/fingerprint_review"
+            doc["fingerprint_review"],
+            _FINGERPRINT_REVIEW_KEYS,
+            "commitment/fingerprint_review",
         )
         _assert_keys(review["coverage"], _COVERAGE_KEYS, "commitment/fingerprint_review/coverage")
         _assert_keys(
@@ -1469,7 +1485,9 @@ def assert_commitment_schema(doc: dict) -> None:
             "commitment/fingerprint_review/training_input_digests",
         )
         _assert_keys(
-            doc["operator_decisions"], _OPERATOR_DECISIONS_KEYS, "commitment/operator_decisions"
+            doc["operator_decisions"],
+            _OPERATOR_DECISIONS_KEYS,
+            "commitment/operator_decisions",
         )
         obligation = _assert_keys(
             doc["partition_obligation"],
@@ -1492,7 +1510,15 @@ def assert_commitment_schema(doc: dict) -> None:
 
 
 _LEDGER_HEAD_KEYS = frozenset(
-    {"schema_version", "story", "head_sha256", "event_count", "commitment_sha256", "bands", "note"}
+    {
+        "schema_version",
+        "story",
+        "head_sha256",
+        "event_count",
+        "commitment_sha256",
+        "bands",
+        "note",
+    }
 )
 _ATTESTATION_KEYS = frozenset(
     {
@@ -1578,7 +1604,9 @@ def assert_attestation_schema(doc: dict) -> None:
     _assert_keys(doc["members_per_band"], frozenset(BAND_NAMES), "attestation/members_per_band")
     _assert_keys(doc["repass"], _ATTESTATION_REPASS_KEYS, "attestation/repass")
     _assert_keys(
-        doc["partition_closure"], _ATTESTATION_CLOSURE_KEYS, "attestation/partition_closure"
+        doc["partition_closure"],
+        _ATTESTATION_CLOSURE_KEYS,
+        "attestation/partition_closure",
     )
 
 
@@ -1644,24 +1672,185 @@ def _write_json(path: Path, doc: dict) -> None:
     _write_bytes_atomic(path, _json_bytes(doc))
 
 
-def _write_json_immutable(path: Path, doc: dict) -> None:
-    """Write a record that may never be overwritten with different bytes.
+def pending_record_path(path: Path) -> Path:
+    """The sidecar a record waits in until the event naming it is on the ledger.
 
-    Re-writing identical bytes is allowed so an interrupted run is resumable;
-    anything else raises. Annotation records, re-pass records, and commitment
-    archives all go through this: these labels are one annotator's DAW work and
-    cannot be regenerated.
+    Deliberately not a `.json` name: the orphan scans that look for records no
+    event references glob `*.json`, and a record still waiting to be anchored is
+    not an orphan.
+    """
+    return path.with_suffix(path.suffix + ".pending")
+
+
+def stage_immutable_record(path: Path, doc: dict) -> str:
+    """Write a record an event is about to anchor; return its digest.
+
+    The record goes to a `.pending` sidecar and is installed at `path` only
+    AFTER that event is appended. Writing it at `path` first, as the previous
+    version did, opens a window where a crash leaves a record no event
+    references. `validate_state` reads that as tampering and refuses on every
+    command afterwards, and the file holds one annotator's DAW work, so deleting
+    it is not an available fix. The window is unrecoverable in both directions.
+
+    The FINAL path keeps its immutability: identical bytes are a no-op, and
+    different bytes raise. The pending sidecar does not, because a record no
+    event has anchored was never certified, so re-running an interrupted write
+    may replace it.
     """
     data = _json_bytes(doc)
     if path.exists():
-        if path.read_bytes() == data:
+        if path.read_bytes() != data:
+            raise HarnessError(
+                f"IMMUTABLE RECORD: {path.name} already exists with different content. "
+                "Records are versioned and never overwritten; a correction appends a new "
+                "version and a new event."
+            )
+        return sha256_bytes(data)
+    _write_bytes_atomic(pending_record_path(path), data)
+    return sha256_bytes(data)
+
+
+def install_pending_record(path: Path, digest: str) -> None:
+    """Move a staged record into place once its event is on the ledger.
+
+    The digest is re-verified immediately before the move rather than trusted
+    from the earlier staging call, and an occupied final path is never silently
+    replaced: the final path's immutability has to survive this step too, or the
+    sidecar becomes a way around it.
+    """
+    pending = pending_record_path(path)
+    if not pending.exists():
+        return
+    actual = sha256_file(pending)
+    if actual != digest:
+        raise HarnessError(
+            f"staged record {pending.name} hashes to {actual}, the event anchoring it "
+            f"records {digest}. Refusing to install a record its own event does not name."
+        )
+    if path.exists():
+        if path.read_bytes() == pending.read_bytes():
+            pending.unlink()
             return
         raise HarnessError(
-            f"IMMUTABLE RECORD: {path.name} already exists with different content. "
-            "Records are versioned and never overwritten; a correction appends a new "
-            "version and a new event."
+            f"IMMUTABLE RECORD: {path.name} appeared with different content while its "
+            "replacement was staged. Records are versioned and never overwritten."
         )
-    _write_bytes_atomic(path, data)
+    os.replace(pending, path)
+
+
+def replay_pending_records(
+    generation: str, ledgers: list[tuple[list[dict], str, str, Path]]
+) -> list[str]:
+    """Finish an install interrupted between the event append and the move.
+
+    Idempotent and digest-verified: a sidecar is installed only when the event
+    naming it is already on the ledger and its bytes hash to the digest that
+    event recorded.
+
+    The path an event names is NOT trusted at this point. Replay runs before the
+    chain walk, the commitment binding, and the transition check, so the event
+    is still just parsed JSON: an absolute or traversing `annotation_path` would
+    otherwise steer a write anywhere on disk. Every candidate is required to be
+    relative and to land under the root that ledger's records belong to, so a
+    forged event can at worst move a file it already had the exact bytes of,
+    inside the directory it was already confined to.
+    """
+    installed: list[str] = []
+    for events, path_key, digest_key, root in ledgers:
+        for ev in events:
+            rel = ev.get(path_key)
+            if not isinstance(rel, str) or not rel or PurePosixPath(rel).is_absolute():
+                continue
+            final = generation_root(generation) / rel
+            if not _under(final, root) or final.exists():
+                continue
+            pending = pending_record_path(final)
+            recorded = ev.get(digest_key)
+            if not pending.exists() or not is_sha256_hex(recorded):
+                continue
+            if sha256_file(pending) != recorded:
+                continue
+            install_pending_record(final, str(recorded))
+            installed.append(_rel(final, generation_root(generation)))
+    return installed
+
+
+def unanchored_records(generation: str, events: list[dict], repass_events: list[dict]) -> list[str]:
+    """Staged records no event names yet.
+
+    A sidecar is deliberately invisible to the `*.json` scans that look for
+    records no event references, because an unanchored record is not an orphan.
+    That invisibility must not extend to the operator: a sidecar holds a real
+    annotation pass, so it is named in `status`, refuses certification in the
+    audit, blocks a re-mint, and makes `abandon` ask for confirmation.
+    """
+    anchored = {
+        generation_root(generation) / str(ev[key])
+        for evs, key in ((events, "annotation_path"), (repass_events, "record_path"))
+        for ev in evs
+        if isinstance(ev.get(key), str) and ev.get(key)
+    }
+    out: list[str] = []
+    for root, pattern in (
+        (annotations_dir(generation), "*/*.json.pending"),
+        (repass_dir(generation), "*.json.pending"),
+    ):
+        if not root.exists():
+            continue
+        for p in sorted(root.glob(pattern)):
+            final = Path(str(p)[: -len(".pending")])
+            if final not in anchored:
+                out.append(_rel(final, generation_root(generation)))
+    return out
+
+
+def ledger_head_is_a_verified_prefix(path: Path, head_doc: dict) -> bool:
+    """Is the ledger an append-only extension of what the tracked head records?
+
+    The tracked head is git-committed evidence that the ledger held N events
+    ending in a named digest. Two states look alike and are not: a head written
+    before the last append is BEHIND the ledger and is completing work that was
+    interrupted; a head that names a count the ledger no longer reaches, or a
+    digest the ledger no longer produces at that count, means the ledger was
+    truncated or rewritten behind that evidence. Only the first is repairable,
+    and only after re-deriving the recorded digest from the ledger's own bytes.
+    """
+    recorded = head_doc.get("head_sha256")
+    count = head_doc.get("event_count")
+    if not is_sha256_hex(recorded) or not isinstance(count, int) or count < 0:
+        return False
+    lines = _ledger_lines(path)
+    if count > len(lines):
+        return False
+    expected = GENESIS_DIGEST if count == 0 else sha256_bytes(lines[count - 1])
+    return expected == recorded
+
+
+def repair_stale_ledger_head(generation: str, commitment_sha: str) -> bool:
+    """Re-derive a tracked head left behind by an interrupted append.
+
+    `cmd_ingest` and `cmd_abandon` append the event and then write the head; a
+    crash between the two left the head stale, and every command refused on it
+    with no way forward, on a ledger whose events were already durable. The head
+    is derived from the ledger, so completing the write is a repair rather than
+    a judgement - but only when the ledger genuinely extends what the head
+    recorded, and only under the same commitment.
+    """
+    if not LEDGER_HEAD_JSON.exists():
+        return False
+    try:
+        head_doc = _read_json(LEDGER_HEAD_JSON, "annotation ledger head")
+    except HarnessError:
+        return False
+    if not isinstance(head_doc, dict) or head_doc.get("commitment_sha256") != commitment_sha:
+        return False
+    path = ledger_path(generation)
+    if int(head_doc.get("event_count", -1)) == len(_ledger_lines(path)):
+        return False
+    if not ledger_head_is_a_verified_prefix(path, head_doc):
+        return False
+    write_ledger_head(commitment_sha, generation)
+    return True
 
 
 def _write_text_atomic(path: Path, text: str) -> None:
@@ -1882,7 +2071,15 @@ def verify_input_drift(commitment: dict, pools_doc: dict, draws_doc: dict) -> No
 # Batch records + worklists
 # ---------------------------------------------------------------------------
 
-_BATCH_RECORD_KEYS = ("band", "batch", "size", "start", "rowIds", "work_order_seed", "work_order")
+_BATCH_RECORD_KEYS = (
+    "band",
+    "batch",
+    "size",
+    "start",
+    "rowIds",
+    "work_order_seed",
+    "work_order",
+)
 
 
 def validate_batch_records(generation: str, band: str, sequence_row_ids: list[str]) -> list[dict]:
@@ -1973,6 +2170,7 @@ def validate_worklist(
     record: dict,
     by_row_id: dict[str, dict],
     require_audio: bool,
+    worklist_required: bool = True,
 ) -> list[str]:
     """Structural worklist validation, run BEFORE annotations are accepted.
 
@@ -1982,11 +2180,19 @@ def validate_worklist(
     against the batch record itself - the full row set in work order, every path
     confined to this batch's staging directory, and every staged file hashed
     against that row's committed `contentSha256`.
+
+    `worklist_required` is false for a batch no annotation event has accepted:
+    either staging was interrupted between the batch record and the worklist, or
+    the batch was abandoned. Neither has labels behind it, and the worklist
+    regenerates deterministically from the committed record, so an absent one is
+    a state to recover from rather than evidence of tampering. Requiring it
+    unconditionally made every command refuse and stranded the resume path in
+    `plan_batch`, which is the only way out.
     """
     failures: list[str] = []
     path = worklist_path_for(generation, band, batch)
     if not path.exists():
-        return [f"worklist for {band}/batch-{batch:03d} is missing"]
+        return [f"worklist for {band}/batch-{batch:03d} is missing"] if worklist_required else []
     try:
         rows = read_worklist(path)
     except HarnessError as exc:
@@ -2059,13 +2265,38 @@ def load_state() -> HarnessState:
     commitment, sha = require_active_commitment()
     generation = str(_require(commitment, "generation", "commitment artifact"))
     pools = _read_json(pools_path(generation), "candidate pools")
+    events = read_events(ledger_path(generation))
+    repass_events = read_events(repass_ledger_path(generation))
+    installed = replay_pending_records(
+        generation,
+        [
+            (
+                events,
+                "annotation_path",
+                "annotation_sha256",
+                annotations_dir(generation),
+            ),
+            (repass_events, "record_path", "record_sha256", repass_dir(generation)),
+        ],
+    )
+    if installed:
+        print(
+            "completed an interrupted record install: " + ", ".join(installed),
+            file=sys.stderr,
+        )
+    if repair_stale_ledger_head(generation, sha):
+        print(
+            "re-derived a tracked annotation-ledger head left behind by an interrupted "
+            "append; the ledger's own bytes were the source",
+            file=sys.stderr,
+        )
     return HarnessState(
         commitment=commitment,
         commitment_sha=sha,
         generation=generation,
         pools=pools,
-        events=read_events(ledger_path(generation)),
-        repass_events=read_events(repass_ledger_path(generation)),
+        events=events,
+        repass_events=repass_events,
     )
 
 
@@ -2182,13 +2413,35 @@ def validate_state(state: HarnessState, require_audio: bool = False) -> list[str
                 )
 
     # 6. Worklists: structural validation plus the recorded digest.
+    #
+    # A worklist is required exactly when some event for that batch anchored a
+    # real one. `abandon` records the genesis digest, so a batch abandoned
+    # straight out of interrupted staging never had a worklist and must not be
+    # required to produce one - but a batch abandoned AFTER an ingest did anchor
+    # one, and that worklist stays evidence for the retained record. Keying off
+    # the latest event alone would have let the second case go unchecked.
+    anchored_worklist: set[tuple[str, int]] = {
+        (str(ev.get("band")), int(ev.get("batch", -1)))
+        for ev in events
+        if is_sha256_hex(ev.get("work_order_sha256"))
+        and ev.get("work_order_sha256") != GENESIS_DIGEST
+    }
     by_row_id = state.by_row_id
     latest = latest_by_batch(events)
     for (band, batch), rec in sorted(records.items()):
-        failures.extend(
-            validate_worklist(gen, band, batch, rec, by_row_id, require_audio=require_audio)
-        )
         ev = latest.get((band, batch))
+        required = (band, batch) in anchored_worklist
+        failures.extend(
+            validate_worklist(
+                gen,
+                band,
+                batch,
+                rec,
+                by_row_id,
+                require_audio=require_audio,
+                worklist_required=required,
+            )
+        )
         if ev is None or ev.get("status") == LEDGER_ABANDONED:
             continue
         wl = worklist_path_for(gen, band, batch)
@@ -2236,6 +2489,31 @@ def validate_state(state: HarnessState, require_audio: bool = False) -> list[str
         elif sha256_file(path) != ev.get("record_sha256"):
             failures.append(f"re-pass record {path.name} does not match its event digest")
     return failures
+
+
+def interrupted_staging(state: HarnessState) -> list[str]:
+    """Batches whose record exists, whose worklist does not, and which no ledger
+    event has touched: staging stopped between those two writes.
+
+    This is a recoverable state, not a failure - re-stage that batch, or abandon
+    it - so `validate_state` does not refuse on it. It is still incomplete work,
+    so the audit refuses to certify a corpus while one is outstanding and
+    `status` names it.
+    """
+    outstanding: list[str] = []
+    latest = latest_by_batch(state.events)
+    for band in BAND_NAMES:
+        try:
+            records = validate_batch_records(state.generation, band, state.sequence_row_ids(band))
+        except HarnessError:
+            continue
+        for rec in records:
+            batch = int(rec["batch"])
+            if latest.get((band, batch)) is not None:
+                continue
+            if not worklist_path_for(state.generation, band, batch).exists():
+                outstanding.append(f"{band}/batch-{batch:03d}")
+    return outstanding
 
 
 def require_valid_state(state: HarnessState, when: str, require_audio: bool = False) -> None:
@@ -2485,7 +2763,12 @@ def load_operator_decisions() -> dict:
             f"{list(CROSS_BAND_POLICIES)}."
         )
     doc = _read_json(DECISIONS_PATH, "operator decisions")
-    for key in ("schema_version", "decided", "short_band_allocation", "cross_band_duplicate_rule"):
+    for key in (
+        "schema_version",
+        "decided",
+        "short_band_allocation",
+        "cross_band_duplicate_rule",
+    ):
         _require(doc, key, "operator decisions")
     short = _require(doc["short_band_allocation"], "policy", "short_band_allocation")
     if short not in SHORT_BAND_POLICIES:
@@ -2506,7 +2789,9 @@ def load_operator_decisions() -> dict:
         )
     if cross == "pre-commitment-recording-dedup":
         prio = _require(
-            doc["cross_band_duplicate_rule"], "band_priority", "cross_band_duplicate_rule"
+            doc["cross_band_duplicate_rule"],
+            "band_priority",
+            "cross_band_duplicate_rule",
         )
         if sorted(prio) != sorted(BAND_NAMES):
             raise HarnessError(
@@ -3326,7 +3611,9 @@ def plan_commit(
     flags, same_file = build_review_flags(bands, cand_vectors, train_vectors)
     assert_same_file_obligations(same_file, accounting["partition_obligations"])
     dispositions = load_dispositions(
-        universe_digest, {f["flag_id"] for f in flags}, partition_order_label(retain_manifest)
+        universe_digest,
+        {f["flag_id"] for f in flags},
+        partition_order_label(retain_manifest),
     )
     bands = drop_uncoverable(bands, exclusions, coverage)
     outcome = apply_dispositions(bands, exclusions, dispositions, flags, retain_manifest)
@@ -3604,7 +3891,10 @@ def _write_plan(plan: CommitPlan) -> None:
         )
     _write_json(pools_path(gen), plan.pools_doc)
     _write_json(draws_path(gen), plan.draws_doc)
-    for path, key in ((pools_path(gen), "pool_file_sha256"), (draws_path(gen), "draw_file_sha256")):
+    for path, key in (
+        (pools_path(gen), "pool_file_sha256"),
+        (draws_path(gen), "draw_file_sha256"),
+    ):
         if sha256_file(path) != plan.commitment[key]:
             raise HarnessError(f"{path.name} does not hash to the planned {key} after writing")
     if plan.addendum is not None:
@@ -3686,6 +3976,17 @@ def prior_generation_annotation_state(commitment: dict) -> list[str]:
     rp = read_events(repass_ledger_path(str(gen)))
     if rp:
         blockers.append(f"{len(rp)} re-pass event(s) in generation {gen}")
+    # A record staged but not yet anchored is annotation state too. It is
+    # invisible to the `*.json` scans by design, and a successor minted over one
+    # would strand an annotation pass the operator has already done.
+    staged = unanchored_records(str(gen), events, rp)
+    if staged:
+        blockers.append(f"{len(staged)} staged but unanchored annotation record(s): {staged}")
+    rp_records = (
+        sorted(repass_dir(str(gen)).glob("*.json")) if repass_dir(str(gen)).exists() else []
+    )
+    if rp_records:
+        blockers.append(f"{len(rp_records)} re-pass record(s) in generation {gen}")
     return blockers
 
 
@@ -3726,7 +4027,10 @@ def cmd_commit_pools(args: argparse.Namespace) -> int:
             )
         print(f"existing commitment found; verifying with recorded master seed {master_seed}")
         plan = plan_commit(
-            inputs, master_seed, existing.get("supersedes_sha256"), str(existing["generated"])
+            inputs,
+            master_seed,
+            existing.get("supersedes_sha256"),
+            str(existing["generated"]),
         )
         # A minted commitment is immutable: never regenerate-and-overwrite.
         # Check BOTH directions - today's regenerated documents against the
@@ -3928,7 +4232,10 @@ def render_commitment_md(c: dict) -> str:
         "",
     ]
     if c.get("generation"):
-        lines += [f"Generation: `{c['generation']}` (every row-level path is scoped to it).", ""]
+        lines += [
+            f"Generation: `{c['generation']}` (every row-level path is scoped to it).",
+            "",
+        ]
     if c.get("supersedes_sha256"):
         lines += [
             f"Supersedes commitment `{c['supersedes_sha256']}`, archived byte-for-byte "
@@ -4225,7 +4532,8 @@ def plan_batch(state: HarnessState, band: str, batch: int | None, size: int) -> 
         raise HarnessError(
             f"batch(es) {unanchored} for {band} are staged but not anchored in the "
             "annotation ledger. Ingest or abandon them before staging another; several "
-            "unanchored batches cannot accumulate behind illusory tamper evidence."
+            "unanchored batches cannot accumulate behind illusory tamper evidence. "
+            f"If staging was interrupted, re-stage it with --batch {next_index - 1}."
         )
     if batch is not None and int(batch) != next_index:
         raise HarnessError(
@@ -4422,7 +4730,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     meta: dict[str, Any] = {"band": args.band, "batch": batch, "version": version}
     if prior_status is not None:
         meta["supersedes_sha256"] = str(prior_status.get("annotation_sha256"))
-    _write_json_immutable(record_path, {"_meta": meta, "rows": annotations})
+    record_digest = stage_immutable_record(record_path, {"_meta": meta, "rows": annotations})
 
     keepers = sum(1 for rid in record["rowIds"] if keep_or_reject(annotations[rid], args.band)[0])
     append_event(
@@ -4439,10 +4747,11 @@ def cmd_ingest(args: argparse.Namespace) -> int:
             "work_order_sha256": sha256_file(worklist_path_for(gen, args.band, batch)),
             "annotation_version": version,
             "annotation_path": _rel(record_path, generation_root(gen)),
-            "annotation_sha256": sha256_file(record_path),
+            "annotation_sha256": record_digest,
             "counts": {"rows": len(annotations), "keepers": keepers},
         },
     )
+    install_pending_record(record_path, record_digest)
     write_ledger_head(state.commitment_sha, gen)
     state = load_state()
     require_valid_state(state, "after ingest")
@@ -4473,6 +4782,18 @@ def cmd_abandon(args: argparse.Namespace) -> int:
             f"batch {batch} for {args.band} already has an annotation record; abandoning "
             "removes it from MEMBERSHIP (the record itself is retained, immutable) - pass "
             "--force to confirm"
+        )
+    staged = [
+        label
+        for label in unanchored_records(gen, state.events, state.repass_events)
+        if label.startswith(f"annotations/{args.band}/batch-{batch:03d}.")
+    ]
+    if staged and not args.force:
+        raise HarnessError(
+            f"batch {batch} for {args.band} has a staged annotation record that no event "
+            f"anchored yet ({staged}): an ingest was interrupted, and abandoning now would "
+            "make an annotation pass the operator has already done permanently unusable. "
+            "Re-run that ingest with the same annotations, or pass --force to discard it."
         )
     _assert_transition(state, args.band, batch, LEDGER_ABANDONED)
     append_event(
@@ -4526,6 +4847,18 @@ def cmd_status(_args: argparse.Namespace) -> int:
             f"{name:10s} {len(m['members']):>5d}/{n_band} {annotated:>10d} "
             f"{('%.2f' % rate) if rate is not None else '-':>6s} "
             f"{(str(est) if est is not None else '-'):>12s}"
+        )
+    for label in interrupted_staging(state):
+        print(
+            f"staging for {label} was interrupted: batch record written, worklist absent. "
+            "Re-stage that batch with --batch, or abandon it.",
+            file=sys.stderr,
+        )
+    for label in unanchored_records(state.generation, state.events, state.repass_events):
+        print(
+            f"a staged annotation record at {label} is not named by any ledger event: an "
+            "ingest was interrupted before it anchored. Re-run it with the same annotations.",
+            file=sys.stderr,
         )
     return 0
 
@@ -4783,6 +5116,18 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
     failures = validate_state(state)
     gen = state.generation
     pools = state.pools
+    for label in interrupted_staging(state):
+        failures.append(
+            f"staging for {label} was interrupted: its batch record exists but its worklist "
+            "does not. Re-stage that batch (`stage-batch --band <band> --batch <n>`) or "
+            "abandon it before the corpus is certified."
+        )
+    for label in unanchored_records(gen, state.events, state.repass_events):
+        failures.append(
+            f"a staged annotation record at {label} is not named by any ledger event: an "
+            "ingest was interrupted before it anchored. Re-run that ingest with the same "
+            "annotations, or abandon the batch, before the corpus is certified."
+        )
 
     # 1. FR-59a.1: membership inputs read only verified tempi + the draw
     # sequence. Allowlist every annotation record, candidate row, and worklist
@@ -4796,7 +5141,10 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
                 meta = doc.get("_meta", {})
                 if isinstance(meta, dict):
                     _check_allowed_keys(
-                        meta, ALLOWED_ANNOTATION_META_KEYS, f"{name}/{p.name}:_meta", failures
+                        meta,
+                        ALLOWED_ANNOTATION_META_KEYS,
+                        f"{name}/{p.name}:_meta",
+                        failures,
                     )
                 for rid, ann in doc.get("rows", {}).items():
                     _check_allowed_keys(
@@ -5086,7 +5434,12 @@ def _sentinel_label_index(inputs: dict) -> dict[str, Any]:
         by_basename.setdefault(str(r["filename"]), []).append(v)
         add_fingerprint(
             _safe_resolve(
-                {"source": "oa300", "filename": r["filename"], "subdir": r.get("subdir")}, root
+                {
+                    "source": "oa300",
+                    "filename": r["filename"],
+                    "subdir": r.get("subdir"),
+                },
+                root,
             ),
             v,
         )
@@ -5199,7 +5552,12 @@ def cmd_emit_manifest(_args: argparse.Namespace) -> int:
                         {
                             "namespace": "tempo",
                             "data": [
-                                {"time": 0.0, "duration": 0.0, "value": verified, "confidence": 1.0}
+                                {
+                                    "time": 0.0,
+                                    "duration": 0.0,
+                                    "value": verified,
+                                    "confidence": 1.0,
+                                }
                             ],
                             "annotation_metadata": {
                                 "annotation_version": ANNOTATION_VERSION_TAG,
@@ -5329,7 +5687,10 @@ def latest_repass(state: HarnessState) -> tuple[int, str | None, dict | None]:
     """(version, status, event) of the newest re-pass generation."""
     if not state.repass_events:
         return 0, None, None
-    newest = max(state.repass_events, key=lambda ev: (int(ev.get("version", 0)), int(ev["index"])))
+    newest = max(
+        state.repass_events,
+        key=lambda ev: (int(ev.get("version", 0)), int(ev["index"])),
+    )
     version = int(newest.get("version", 0))
     status = str(newest.get("status"))
     return version, status, newest
@@ -5418,7 +5779,8 @@ def cmd_repass_sample(_args: argparse.Namespace) -> int:
         "primary_labels": plan.primary_labels,
     }
     # Written BEFORE any re-pass annotation exists, and immutable thereafter.
-    _write_json_immutable(repass_record_path(state.generation, version), record)
+    record_path = repass_record_path(state.generation, version)
+    record_digest = stage_immutable_record(record_path, record)
     append_event(
         repass_ledger_path(state.generation),
         {
@@ -5426,13 +5788,12 @@ def cmd_repass_sample(_args: argparse.Namespace) -> int:
             "version": version,
             "status": REPASS_SAMPLED,
             "recorded": date.today().isoformat(),
-            "record_path": _rel(
-                repass_record_path(state.generation, version), generation_root(state.generation)
-            ),
-            "record_sha256": sha256_file(repass_record_path(state.generation, version)),
+            "record_path": _rel(record_path, generation_root(state.generation)),
+            "record_sha256": record_digest,
             "annotation_ledger_head": plan.ledger_head,
         },
     )
+    install_pending_record(record_path, record_digest)
     require_valid_state(load_state(), "after re-pass sampling")
     print(
         f"re-pass v{version} sampled: {len(plan.sample)} of {len(plan.population)} members "
@@ -5546,7 +5907,7 @@ def cmd_repass_ingest(args: argparse.Namespace) -> int:
         "summary": summary,
     }
     path = repass_annotation_path(gen, version)
-    _write_json_immutable(path, doc)
+    record_digest = stage_immutable_record(path, doc)
     append_event(
         repass_ledger_path(gen),
         {
@@ -5555,10 +5916,11 @@ def cmd_repass_ingest(args: argparse.Namespace) -> int:
             "status": REPASS_INGESTED,
             "recorded": date.today().isoformat(),
             "record_path": _rel(path, generation_root(gen)),
-            "record_sha256": sha256_file(path),
+            "record_sha256": record_digest,
             "annotation_ledger_head": record["annotation_ledger_head"],
         },
     )
+    install_pending_record(path, record_digest)
     require_valid_state(load_state(), "after re-pass ingest")
     print(
         f"re-pass v{version} ingested: {summary['counts']} over {summary['sample_size']} "
@@ -5725,7 +6087,10 @@ def validate_attestation(
                 failures.append("the re-pass record adjudicates a different sample")
             for key, field_name in (
                 ("sample_size", "sample_size"),
-                ("metrical_level_disagreement_rate", "metrical_level_disagreement_rate"),
+                (
+                    "metrical_level_disagreement_rate",
+                    "metrical_level_disagreement_rate",
+                ),
                 ("fine_disagreement_rate", "fine_disagreement_rate"),
             ):
                 if summary.get(key) != repass.get(field_name):
@@ -5795,7 +6160,10 @@ def cmd_signoff(_args: argparse.Namespace) -> int:
     members_per_band = {name: len(membership[name]["members"]) for name in BAND_NAMES}
     short = [name for name in BAND_NAMES if members_per_band[name] < n_band]
     if short:
-        print(f"signoff refused: bands below {n_band} verified members: {short}", file=sys.stderr)
+        print(
+            f"signoff refused: bands below {n_band} verified members: {short}",
+            file=sys.stderr,
+        )
         return 1
 
     # FR-59a.2 closure, fail-closed. Under the signed repartition order the eval
@@ -5890,7 +6258,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p_commit = sub.add_parser("commit-pools", help="build + commit the banded candidate pools")
     p_commit.add_argument(
-        "--seed", type=int, default=None, help="master seed (recorded; random if omitted)"
+        "--seed",
+        type=int,
+        default=None,
+        help="master seed (recorded; random if omitted)",
     )
     p_commit.set_defaults(func=cmd_commit_pools)
 
@@ -5899,7 +6270,8 @@ def main(argv: list[str] | None = None) -> int:
     p_remint.set_defaults(func=cmd_remint)
 
     p_review = sub.add_parser(
-        "prepare-review", help="generate the mandatory pre-commitment fingerprint review flags"
+        "prepare-review",
+        help="generate the mandatory pre-commitment fingerprint review flags",
     )
     p_review.set_defaults(func=cmd_prepare_review)
 
@@ -5925,7 +6297,9 @@ def main(argv: list[str] | None = None) -> int:
     p_abandon.add_argument("--batch", type=int, required=True)
     p_abandon.add_argument("--reason", default="operator-abandoned")
     p_abandon.add_argument(
-        "--force", action="store_true", help="abandon a batch that already carries annotations"
+        "--force",
+        action="store_true",
+        help="abandon a batch that already carries annotations",
     )
     p_abandon.set_defaults(func=cmd_abandon)
 
@@ -5933,12 +6307,14 @@ def main(argv: list[str] | None = None) -> int:
     p_status.set_defaults(func=cmd_status)
 
     p_audit = sub.add_parser(
-        "audit", help="fail-closed state / FR-59a.1 / residual-overlap / duplicate audit"
+        "audit",
+        help="fail-closed state / FR-59a.1 / residual-overlap / duplicate audit",
     )
     p_audit.set_defaults(func=cmd_audit)
 
     p_emit = sub.add_parser(
-        "emit-manifest", help="emit the JAMS corpus manifest (refuses if incomplete or dirty)"
+        "emit-manifest",
+        help="emit the JAMS corpus manifest (refuses if incomplete or dirty)",
     )
     p_emit.set_defaults(func=cmd_emit_manifest)
 
@@ -5952,7 +6328,8 @@ def main(argv: list[str] | None = None) -> int:
     p_ri.set_defaults(func=cmd_repass_ingest)
 
     p_signoff = sub.add_parser(
-        "signoff", help="record the audit-bound signoff attestation the training gate validates"
+        "signoff",
+        help="record the audit-bound signoff attestation the training gate validates",
     )
     p_signoff.set_defaults(func=cmd_signoff)
 

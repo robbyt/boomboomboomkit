@@ -435,6 +435,50 @@ post-ingest edits are caught too.
 deletion, and stale-file reuse. It cannot restore a lost annotation, and these
 labels cannot be regenerated: they are one annotator's DAW work.
 
+**An interrupted write is a state to recover from, not tamper evidence.** Three
+crash windows were terminal until 2026-08-15, all three created by the integrity
+checks above rather than by the work they guard. Staging writes the batch record
+before copying audio, so an interrupted copy leaves a record rather than orphan
+files, and `plan_batch` documents a resume for exactly that state; but the state
+validation ran first and read the absent worklist as tampering, so every command
+refused and the documented resume was unreachable. A worklist is now required
+only for a batch whose annotations an event has accepted, which is the case
+where it is evidence. The batch is re-stageable from its committed record, the
+audit still refuses to certify a corpus while one is outstanding, and `status`
+names it. Separately, ingest wrote the annotation record at its final path and
+then appended the event, so a crash between the two left a record no event
+referenced, which reads as an added or moved record and refuses forever, on a
+file holding labels that cannot be regenerated. Records now wait in a `.pending`
+sidecar and are installed only after the event naming them is on the ledger; if
+the process stops between the append and the install, the next run completes it,
+but only when the sidecar's bytes hash to the digest that event recorded. The
+final path stays immutable in both directions: an install re-verifies the digest
+immediately before the move and refuses an occupied final path outright, so the
+sidecar cannot become a way around the immutability it sits behind. Nothing is
+deleted and nothing is guessed.
+
+Two things follow from a sidecar existing at all. The path an event names is not
+trusted when the replay reads it, because the replay runs before the chain walk,
+the commitment binding, and the transition check, so every candidate must be a
+relative path landing under the root that ledger's records belong to. And a
+sidecar is deliberately invisible to the scans that look for records no event
+references, since an unanchored record is not an orphan; that invisibility stops
+at the operator. A staged record no event names is printed by `status`, refuses
+certification in the audit, blocks a re-mint, and makes `abandon` ask before
+discarding it, because it is a real annotation pass someone has already done.
+
+The third window was the tracked annotation-ledger head. `ingest` and `abandon`
+append the event and then write the head, so a crash between the two left the
+head recording fewer events than the ledger held, and the staleness check refused
+on every command over a ledger whose events were already durable. The head is
+derived from the ledger, so completing that write is a repair rather than a
+judgement, but only in one direction: the ledger's own bytes must still produce
+the digest the head recorded at the count it recorded. A head naming a count the
+ledger no longer reaches, or a digest it no longer produces at that count, means
+the ledger was truncated or rewritten behind git-committed evidence, and that
+still refuses. This third window was found while fixing the first two, by asking
+what else shared their shape.
+
 ## The signed 10 percent blind re-pass
 
 The 2026-08-08 signoff bound a mitigation for "independence, not correctness"
