@@ -27,7 +27,9 @@ import csv
 import hashlib
 import importlib.util
 import json
+import os
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -928,10 +930,28 @@ def test_annotation_csv_rejects_non_finite_bpm(tmp_path):
 
 def test_immutable_write_refuses_a_differing_overwrite(tmp_path):
     path = tmp_path / "record.json"
-    bec._write_json_immutable(path, {"a": 1})
-    bec._write_json_immutable(path, {"a": 1})  # identical bytes: resumable
+    pending = bec.pending_record_path(path)
+    # A staged record waits in the sidecar; the final path stays untouched until
+    # the event naming it is on the ledger.
+    digest = bec.stage_immutable_record(path, {"a": 1})
+    assert pending.exists() and not path.exists()
+    bec.install_pending_record(path, digest)
+    assert path.exists() and not pending.exists()
+
+    bec.stage_immutable_record(path, {"a": 1})  # identical bytes: resumable
     with pytest.raises(bec.HarnessError, match="IMMUTABLE RECORD"):
-        bec._write_json_immutable(path, {"a": 2})
+        bec.stage_immutable_record(path, {"a": 2})
+
+
+def test_an_unanchored_staged_record_may_be_replaced(tmp_path):
+    # The final path is immutable; the pending sidecar is not. A record no event
+    # has anchored was never certified, so an interrupted write is re-runnable
+    # even if the annotator supplies a corrected CSV.
+    path = tmp_path / "record.json"
+    bec.stage_immutable_record(path, {"a": 1})
+    bec.stage_immutable_record(path, {"a": 2})
+    assert json.loads(bec.pending_record_path(path).read_text()) == {"a": 2}
+    assert not path.exists()
 
 
 # ===========================================================================
@@ -2049,7 +2069,17 @@ def test_audit_fails_on_a_cross_band_re_encode_under_the_promising_policy(ws, mo
         }
         csv_path = _annotate(band, 0, overrides=overrides)
         assert (
-            bec.main(["ingest", "--band", band, "--batch", "0", "--annotations", str(csv_path)])
+            bec.main(
+                [
+                    "ingest",
+                    "--band",
+                    band,
+                    "--batch",
+                    "0",
+                    "--annotations",
+                    str(csv_path),
+                ]
+            )
             == 0
         )
     failures, _w, _r = bec.run_audit()
@@ -2299,7 +2329,12 @@ def test_tampered_batch_record_rejected_by_every_consumer(ws, capsys):
         bec.validate_batch_records(
             _gen(), "sub-100", [e["rowId"] for e in _pools()["bands"]["sub-100"]]
         )
-    for argv in (["stage-batch", "--band", "sub-100"], ["status"], ["audit"], ["emit-manifest"]):
+    for argv in (
+        ["stage-batch", "--band", "sub-100"],
+        ["status"],
+        ["audit"],
+        ["emit-manifest"],
+    ):
         capsys.readouterr()
         assert bec.main(argv) != 0, argv
 
@@ -2322,6 +2357,423 @@ def test_stage_batch_refuses_a_second_unanchored_batch(ws):
     assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
     with pytest.raises(bec.HarnessError, match="not anchored in the annotation ledger"):
         bec.cmd_stage_batch(bec.argparse.Namespace(band="sub-100", batch=None, size=3))
+
+
+# --- a crash between the record and the worklist must not strand the harness --
+
+
+def _interrupt_staging(band, batch=0):
+    """The state a crash inside stage_copies leaves: batch record on disk, no
+    worklist, staging directory incomplete or absent."""
+    worklist = bec.worklist_path_for(_gen(), band, batch)
+    worklist.unlink()
+    shutil.rmtree(bec.staging_dir(_gen()) / band / f"batch-{batch:03d}", ignore_errors=True)
+
+
+def test_interrupted_staging_is_recoverable_rather_than_a_deadlock(ws):
+    # The batch record is written BEFORE the audio copy so an interrupted copy
+    # leaves a record instead of orphan audio, and plan_batch documents a resume
+    # for exactly that state. But validate_state read the absent worklist as
+    # tampering and ran BEFORE plan_batch, so every command refused and the
+    # documented resume was unreachable. Nothing recoverable may be terminal.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    _interrupt_staging("sub-100")
+
+    assert bec.interrupted_staging(bec.load_state()) == ["sub-100/batch-000"]
+    assert bec.main(["status"]) == 0
+
+    # The resume path is reachable, regenerates the worklist from the committed
+    # record, and the batch ingests normally afterwards.
+    assert bec.main(["stage-batch", "--band", "sub-100", "--batch", "0", "--size", "3"]) == 0
+    assert bec.worklist_path_for(_gen(), "sub-100", 0).exists()
+    assert bec.interrupted_staging(bec.load_state()) == []
+    csv_path = _annotate("sub-100", 0)
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+
+def test_the_audit_refuses_to_certify_while_staging_is_interrupted(ws):
+    # Recoverable is not the same as finished: an unstaged batch is incomplete
+    # work, so the shared audit still fails closed on it.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    _interrupt_staging("sub-100")
+    failures, _w, _r = bec.run_audit()
+    assert any("staging for sub-100/batch-000 was interrupted" in f for f in failures)
+
+
+def test_a_missing_worklist_on_an_ingested_batch_is_still_tamper(ws):
+    # The narrowing is exactly "no event has accepted annotations for this
+    # batch". Once one has, the worklist is evidence and its absence is not.
+    assert _mint() == 0
+    _complete_band("sub-100", size=3)
+    bec.worklist_path_for(_gen(), "sub-100", 0).unlink()
+    assert bec.interrupted_staging(bec.load_state()) == []
+    failures = bec.validate_state(bec.load_state())
+    assert any("worklist for sub-100/batch-000 is missing" in f for f in failures)
+
+
+def test_a_batch_abandoned_after_ingest_still_requires_its_worklist(ws):
+    # Keying off the LATEST event alone would exempt this: the batch reads as
+    # abandoned, so the worklist that its retained annotation record was
+    # produced against could be deleted unnoticed. The rule is instead "some
+    # event anchored a real work order", which this batch's ingest did.
+    assert _mint() == 0
+    _complete_band("sub-100", size=3)
+    assert bec.main(["abandon", "--band", "sub-100", "--batch", "0", "--force"]) == 0
+    bec.worklist_path_for(_gen(), "sub-100", 0).unlink()
+
+    failures = bec.validate_state(bec.load_state())
+    assert any("worklist for sub-100/batch-000 is missing" in f for f in failures)
+
+
+def test_a_batch_abandoned_straight_out_of_interrupted_staging_needs_no_worklist(ws):
+    # The other direction: abandoning is a legitimate way out of an interrupted
+    # stage, and it must not land in a state that refuses forever.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    _interrupt_staging("sub-100")
+    assert bec.main(["abandon", "--band", "sub-100", "--batch", "0"]) == 0
+    assert bec.validate_state(bec.load_state()) == []
+    assert bec.main(["status"]) == 0
+
+
+def test_an_unanchored_staged_record_is_visible_and_blocks(ws, monkeypatch):
+    # A sidecar is invisible to the orphan scans by design. That invisibility
+    # must not extend to the operator: it is a real annotation pass.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    csv_path = _annotate("sub-100", 0)
+    _crash_after_append(monkeypatch)
+    monkeypatch.setattr(
+        bec,
+        "append_event",
+        lambda *_a, **_k: (_ for _ in ()).throw(bec.HarnessError("simulated crash")),
+    )
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+            ]
+        )
+        != 0
+    )
+    monkeypatch.undo()
+
+    state = bec.load_state()
+    staged = bec.unanchored_records(_gen(), state.events, state.repass_events)
+    assert staged == ["annotations/sub-100/batch-000.v1.json"]
+    failures, _w, _r = bec.run_audit()
+    assert any("is not named by any ledger event" in f for f in failures)
+    # A re-mint over it would strand the pass.
+    assert any(
+        "unanchored annotation record" in b
+        for b in bec.prior_generation_annotation_state(bec.read_commitment())
+    )
+    # And abandoning it asks first.
+    with pytest.raises(bec.HarnessError, match="staged annotation record that no event"):
+        bec.cmd_abandon(bec.argparse.Namespace(band="sub-100", batch=0, reason="test", force=False))
+
+
+def test_installing_over_an_occupied_final_path_is_refused(ws, tmp_path):
+    # The sidecar must not become a way around the final path's immutability.
+    path = tmp_path / "record.json"
+    digest = bec.stage_immutable_record(path, {"a": 1})
+    bec._write_bytes_atomic(path, b'{"a":2}')
+    with pytest.raises(bec.HarnessError, match="IMMUTABLE RECORD"):
+        bec.install_pending_record(path, digest)
+
+
+def test_a_replay_will_not_write_outside_its_own_root(ws, tmp_path):
+    # Replay runs BEFORE the chain walk, the commitment binding, and the
+    # transition check, so the path an event names is still untrusted JSON. Both
+    # an absolute path and a traversal that genuinely resolves outside the root
+    # must steer nothing. The traversal is computed against the real generation
+    # root, not written by hand: a `..` chain that does not actually escape
+    # would let this test pass against an unconfined implementation.
+    escape = tmp_path / "escaped.json"
+    pending = bec.pending_record_path(escape)
+    pending.write_bytes(b'{"rows":{}}')
+    digest = bec.sha256_file(pending)
+    # The generation root has to exist, or the traversal fails to resolve for a
+    # reason that has nothing to do with the guard under test.
+    bec.annotations_dir("gdeadbeef").mkdir(parents=True, exist_ok=True)
+    traversal = os.path.relpath(escape, bec.generation_root("gdeadbeef"))
+    assert traversal.startswith("..")
+    assert (bec.generation_root("gdeadbeef") / traversal).resolve() == escape.resolve()
+    assert bec.pending_record_path(bec.generation_root("gdeadbeef") / traversal).exists()
+
+    for rel in (str(escape), traversal):
+        assert (
+            bec.replay_pending_records(
+                "gdeadbeef",
+                [
+                    (
+                        [{"annotation_path": rel, "annotation_sha256": digest}],
+                        "annotation_path",
+                        "annotation_sha256",
+                        bec.annotations_dir("gdeadbeef"),
+                    )
+                ],
+            )
+            == []
+        )
+    assert pending.exists() and not escape.exists()
+
+
+# --- a crash between the annotation record and its event must not strand it --
+
+
+def test_an_annotation_record_written_without_its_event_does_not_deadlock(ws, monkeypatch):
+    # Round 2 wrote the record at its final path and THEN appended the event. A
+    # crash between the two left a record no event referenced, which
+    # validate_state reads as an added or moved record and refuses on forever.
+    # The record holds one annotator's DAW work, so deleting it is not a fix.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    csv_path = _annotate("sub-100", 0)
+
+    def _die(*_a, **_k):
+        raise bec.HarnessError("simulated crash before the event was appended")
+
+    monkeypatch.setattr(bec, "append_event", _die)
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+            ]
+        )
+        != 0
+    )
+    monkeypatch.undo()
+
+    # The staged record is in its sidecar, holding the submitted labels, so no
+    # orphan exists and the state is coherent; re-running the ingest completes
+    # it. Asserting the sidecar's CONTENT matters: an implementation that wrote
+    # nothing at all before the append would satisfy the orphan check alone.
+    assert list((bec.annotations_dir(_gen()) / "sub-100").glob("*.json")) == []
+    pending = bec.pending_record_path(bec.annotations_dir(_gen()) / "sub-100" / "batch-000.v1.json")
+    assert pending.exists()
+    staged_rows = json.loads(pending.read_text())["rows"]
+    assert sorted(staged_rows) == sorted(_batch_record("sub-100", 0)["work_order"])
+    assert bec.validate_state(bec.load_state()) == []
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+    assert bec.validate_state(bec.load_state()) == []
+
+
+def test_a_crash_between_the_append_and_the_install_is_recovered(ws, monkeypatch):
+    # The real append-then-install ordering, not a record moved after the fact:
+    # the event lands, the install does not, and the tracked head write that
+    # follows it does not either.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    csv_path = _annotate("sub-100", 0)
+    monkeypatch.setattr(bec, "install_pending_record", lambda *_a, **_k: None)
+    _crash_after_append(monkeypatch)
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+            ]
+        )
+        != 0
+    )
+    monkeypatch.undo()
+
+    record = bec.annotations_dir(_gen()) / "sub-100" / "batch-000.v1.json"
+    assert not record.exists() and bec.pending_record_path(record).exists()
+    # One load_state repairs both halves: the record installs and the head
+    # re-derives, in that order.
+    assert bec.validate_state(bec.load_state()) == []
+    assert record.exists()
+    assert bec.main(["status"]) == 0
+
+
+def test_a_repass_crash_between_the_append_and_the_install_is_recovered(ws, monkeypatch):
+    # The re-pass writers carry the same ordering and the same recovery. A
+    # re-run there would additionally hit IMMUTABLE RECORD on the changed date
+    # stamp, so the sidecar is what keeps it re-runnable at all.
+    assert _mint() == 0
+    _complete_corpus()
+    monkeypatch.setattr(bec, "install_pending_record", lambda *_a, **_k: None)
+    # The event lands, the install does not, and the post-mutation validation
+    # then refuses - which is the crash window, observed from the inside.
+    assert bec.main(["repass-sample"]) != 0
+    monkeypatch.undo()
+
+    version = 1
+    record = bec.repass_record_path(_gen(), version)
+    assert not record.exists() and bec.pending_record_path(record).exists()
+    assert bec.validate_state(bec.load_state()) == []
+    assert record.exists()
+
+
+def test_a_record_staged_but_never_installed_is_replayed_from_its_event(ws):
+    # The other half of the window: the event is on the ledger and the move did
+    # not happen. The sidecar's bytes hash to the digest the event recorded, so
+    # completing the install is a verified replay, not a guess.
+    assert _mint() == 0
+    _complete_band("sub-100", size=3)
+    ev = bec.latest_by_batch(bec.load_state().events)[("sub-100", 0)]
+    record = bec.generation_root(_gen()) / str(ev["annotation_path"])
+    record.rename(bec.pending_record_path(record))
+    assert not record.exists()
+
+    assert bec.validate_state(bec.load_state()) == []
+    assert record.exists()
+    assert not bec.pending_record_path(record).exists()
+
+
+def test_a_pending_record_that_does_not_match_its_event_is_left_alone(ws):
+    # A digest-verified replay, or none. Bytes that are not the ones the event
+    # anchored are never installed under that event's name.
+    assert _mint() == 0
+    _complete_band("sub-100", size=3)
+    ev = bec.latest_by_batch(bec.load_state().events)[("sub-100", 0)]
+    record = bec.generation_root(_gen()) / str(ev["annotation_path"])
+    pending = bec.pending_record_path(record)
+    record.rename(pending)
+    pending.write_text('{"rows":{}}', encoding="utf-8")
+
+    failures = bec.validate_state(bec.load_state())
+    assert any("recorded in the event store is missing" in f for f in failures)
+    assert pending.exists() and not record.exists()
+
+
+# --- a crash between the event append and the tracked head must not strand it -
+
+
+def _crash_after_append(monkeypatch):
+    monkeypatch.setattr(
+        bec,
+        "write_ledger_head",
+        lambda *_a, **_k: (_ for _ in ()).throw(bec.HarnessError("simulated crash")),
+    )
+
+
+def test_a_head_left_behind_by_an_interrupted_append_is_re_derived(ws, monkeypatch):
+    # ingest and abandon append the event and THEN write the tracked head. A
+    # crash between the two left the head stale, and every command refused on it
+    # with no way forward, over a ledger whose events were already durable.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    csv_path = _annotate("sub-100", 0)
+    _crash_after_append(monkeypatch)
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+            ]
+        )
+        != 0
+    )
+    monkeypatch.undo()
+
+    head = json.loads(bec.LEDGER_HEAD_JSON.read_text())
+    assert head["event_count"] == 0  # behind the ledger, which now holds one event
+    assert bec.validate_state(bec.load_state()) == []
+    assert json.loads(bec.LEDGER_HEAD_JSON.read_text())["event_count"] == 1
+    assert bec.main(["status"]) == 0
+
+
+def test_a_head_ahead_of_the_ledger_is_still_tamper(ws):
+    # The repair runs in one direction only. A head naming a count the ledger no
+    # longer reaches means the ledger was truncated behind committed evidence,
+    # which is exactly what the tracked head exists to catch.
+    assert _mint() == 0
+    _complete_band("sub-100", size=3)
+    ledger = bec.ledger_path(_gen())
+    ledger.write_bytes(b"")
+
+    failures = bec.validate_state(bec.load_state())
+    assert any("tracked annotation-ledger head is stale" in f for f in failures)
+
+
+def test_a_rewritten_ledger_under_a_behind_head_is_not_repaired(ws, monkeypatch):
+    # Behind-in-count is not sufficient: the recorded digest must still be what
+    # the ledger produces at that count, or the ledger was rewritten rather than
+    # merely extended.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
+    csv_path = _annotate("sub-100", 0)
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+    ledger = bec.ledger_path(_gen())
+    original = ledger.read_bytes()
+
+    # A head that records one event, over a ledger whose first event is no
+    # longer the one that digest names.
+    _crash_after_append(monkeypatch)
+    ledger.write_bytes(original + original)
+    monkeypatch.undo()
+    head = json.loads(bec.LEDGER_HEAD_JSON.read_text())
+    head["head_sha256"] = "b" * 64
+    bec._write_json(bec.LEDGER_HEAD_JSON, head)
+
+    assert bec.repair_stale_ledger_head(_gen(), bec.load_state().commitment_sha) is False
+    assert json.loads(bec.LEDGER_HEAD_JSON.read_text())["head_sha256"] == "b" * 64
 
 
 # --- the worklist is validated BEFORE annotations are accepted (finding D) --
@@ -2472,7 +2924,10 @@ def test_forced_re_ingest_preserves_the_prior_annotation_record(ws):
     assert len(after) == 2  # versioned, never overwritten
     assert before[0].read_bytes() == first_bytes
     events = bec.read_events(bec.ledger_path(_gen()))
-    assert [e["status"] for e in events] == [bec.LEDGER_COMPLETED, bec.LEDGER_REPLACEMENT]
+    assert [e["status"] for e in events] == [
+        bec.LEDGER_COMPLETED,
+        bec.LEDGER_REPLACEMENT,
+    ]
     assert events[1]["annotation_path"] != events[0]["annotation_path"]
     assert events[1]["annotation_version"] == 2
     assert bec.main(["audit"]) == 0
@@ -3101,8 +3556,18 @@ def _write_training_inputs(root: Path, first: str | None, second: str | None = .
     if second is ...:
         second = first
     for name, key, path_key, digest in (
-        ("non-rekordbox-secondary-supervised-manifest.json", "secondarySupervised", first, "a"),
-        ("non-rekordbox-unsupervised-pretrain-manifest.json", "unsupervisedPool", second, "b"),
+        (
+            "non-rekordbox-secondary-supervised-manifest.json",
+            "secondarySupervised",
+            first,
+            "a",
+        ),
+        (
+            "non-rekordbox-unsupervised-pretrain-manifest.json",
+            "unsupervisedPool",
+            second,
+            "b",
+        ),
     ):
         row: dict[str, object] = {"audioHash": digest * 64}
         if path_key is not None:
@@ -3115,10 +3580,14 @@ def _write_training_inputs(root: Path, first: str | None, second: str | None = .
 
 def _patch_training_inputs(monkeypatch, root: Path) -> None:
     monkeypatch.setattr(
-        bec, "SECONDARY_MANIFEST", root / "non-rekordbox-secondary-supervised-manifest.json"
+        bec,
+        "SECONDARY_MANIFEST",
+        root / "non-rekordbox-secondary-supervised-manifest.json",
     )
     monkeypatch.setattr(
-        bec, "UNSUPERVISED_MANIFEST", root / "non-rekordbox-unsupervised-pretrain-manifest.json"
+        bec,
+        "UNSUPERVISED_MANIFEST",
+        root / "non-rekordbox-unsupervised-pretrain-manifest.json",
     )
     monkeypatch.setattr(bec, "CORPUS_SPLITS", root / "corpus_splits.json")
 
