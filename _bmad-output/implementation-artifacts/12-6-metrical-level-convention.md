@@ -649,3 +649,75 @@ section-5 tag names the rule.
 > and carry no gate, but the subset rule references the declared convention and so
 > also floats until signing fixes it. Per epics.md Story 12.6's final AC, this story
 > cannot close on agent work alone; its run status is `blocked` on this signoff.
+
+### Amendment 2026-08-14: same-file duplicate results are recorded, not adjudicated (operator, re-signed)
+
+This amends a BOUND item and carries its own signoff. It narrows WHICH
+possible-duplicate results require a human decision. It does not relax the
+partition invariant, the coverage rule, or the rule that a human decision is
+what excludes a candidate.
+
+**Why.** The 2026-08-11 re-partition deliberately draws eval candidates FROM
+the training-manifest pool, so a candidate is now routinely the very training
+row it is compared against. Measured on the first run under that order
+(2026-08-13): the fingerprint pass emitted 2,731 results, and 2,550 of them
+were a candidate compared with ITSELF, at identical `audioHash` and cosine
+exactly 1.0. All 2,550 already carried a removal obligation derived from the
+manifest-hash route at candidate construction, with no human decision involved
+(measured: 2,550 of 2,550 already obligated, none uncovered). A human decision
+on those cannot change the pools, the membership, or the obligation set. The
+prior sentence therefore demanded 2,550 judgments that could not affect any
+outcome, while the 176 cross-row and 5 cross-band results that CAN affect an
+outcome sat behind them.
+
+**What changes.** In consequence 3 above, the clause "and every flag still
+needs a human disposition before minting" is superseded by:
+
+> Every possible duplicate that turns on a judgment still needs a human
+> decision before the song list is frozen. A result where the evaluation
+> candidate and the training-list entry are THE SAME FILE (identical audio
+> hash) is not put to a person: a file cannot differ from itself, and the
+> requirement to remove that training entry is derived from the hash, not from
+> the answer. These are recorded automatically, with their count and a
+> checksum, and stay fully auditable. Only genuine same-recording questions
+> between DIFFERENT files reach a human.
+
+**What does NOT change.** Every candidate and every training row must still be
+fingerprinted. Uncoverable candidate audio stays excluded. An uncoverable
+training row still blocks certification. A confirmed same-recording match
+between two DIFFERENT files still requires a recorded human decision, and that
+decision still excludes (or, for a training-manifest peer under the 2026-08-11
+order, enumerates the removal obligation) exactly as before. The exemption is
+machine-verifiable identity ONLY: high fingerprint similarity is never
+sufficient, because that is precisely the uncertain case a human exists to
+resolve.
+
+**Bound with this signature.** The automatic record carries the same evidentiary
+weight as a recorded decision: the count and a digest of the exempted set are
+written into the frozen record, and a test asserts that every exempted case is
+still present in the removal obligation set. An exemption that failed to
+produce an obligation would be a silent partition breach, so it is asserted
+rather than assumed.
+
+- [x] **Operator signoff on this amendment.** Signed 2026-08-14 by the operator
+  (robbyt), recorded via the structured decision elicitation in the development
+  session, the same mechanism as the 2026-08-08 and 2026-08-11 signoffs. The
+  operator was shown the superseded clause and the replacement text verbatim,
+  side by side, together with the measured effect (2,731 reviews reduced to
+  181) and the statement that the song list, the selected songs, and the set of
+  training songs to be removed are all unchanged. This re-signature replaces an
+  earlier approval taken the same day that the operator stated they did not
+  understand; that approval is withdrawn and is not the basis for this change.
+
+**Recorded, not amended: the fingerprint window (2026-08-14).** The same run
+found two training rows that could not be fingerprinted, both because the
+method read 60 seconds starting at a hardcoded 10.0 second offset and neither
+file has audio at 10 seconds. One is a corrupt MP3 handled as a training-data
+defect; the other is a legitimate 9.4 second interlude. Making the method read
+short audio SERVES the standing coverage rule rather than amending it, so it
+needs no signature. It is recorded here because the method identifier is
+pinned: the window becomes zero-offset for EVERY file under a new method
+version. A short copy read from 0:00 while a long copy of the same recording is
+read from 0:10 would be compared across different musical material and could
+fail to match, which would let a genuine duplicate reach both corpora. One
+comparable rule for all files is therefore required, not an adaptive one.

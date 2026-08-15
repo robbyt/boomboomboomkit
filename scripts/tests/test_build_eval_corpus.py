@@ -784,6 +784,8 @@ def _schema_commitment():
         "fingerprint_review": {
             "method": bec.FINGERPRINT_METHOD,
             "flags": 0,
+            "same_file_exempt": 0,
+            "same_file_sha256": "7" * 64,
             "confirmed_same_recording": 0,
             "cleared": 0,
             "recording_groups": 0,
@@ -1546,27 +1548,33 @@ def test_the_content_route_enumerates_non_pool_candidates(ws, monkeypatch):
     assert [r["row_id"] for r in listing["must_drop"]] == [entry["rowId"]]
 
 
-def test_one_obligation_per_pair_when_both_routes_find_it(ws, monkeypatch):
+def test_a_self_match_is_exempt_and_still_carries_its_obligation(ws, monkeypatch):
     # A retained manifest-hash candidate IS the training row, so it fingerprints
-    # against itself at cosine 1.0 and the confirmed flag records the same pair a
-    # second time. Undeduplicated that doubled the pinned `must_drop_count`.
+    # against itself at cosine 1.0. Signed 2026-08-14: that identity match is
+    # recorded automatically rather than put to a human, because a file cannot
+    # differ from itself. The safety argument is the assertion below: the
+    # obligation to drop that training row survives WITHOUT the human answer,
+    # derived from the audio hash. If it did not, the song would sit in both
+    # corpora unreviewed.
     row = ws.inputs["pool_rows"][0]
     ws.inputs["manifest_hashes"] = {row["audioHash"]}
     ws.inputs["manifest_paths"] = {row["audioHash"]: row["path"]}
     assert _mint_repartition(monkeypatch, disposition=bec.DISPOSITION_SAME) == 0
     review = json.loads(bec.REVIEW_FLAGS_PATH.read_text())
-    assert [f["kind"] for f in review["flags"]].count(bec.FLAG_KIND_FINGERPRINT) == 1
+    assert [f["kind"] for f in review["flags"]].count(bec.FLAG_KIND_FINGERPRINT) == 0
+    assert len(review["same_file_exempt"]) == 1
+    assert review["same_file_exempt"][0]["candidate_key"] == f"pool:{row['audioHash']}"
     doc = json.loads(bec.COMMITMENT_JSON.read_text())
+    assert doc["fingerprint_review"]["same_file_exempt"] == 1
     po = doc["partition_obligation"]
-    assert po["must_drop_count"] == 1  # not 2
+    assert po["must_drop_count"] == 1
     assert po["retained_manifest_matches"] == 1
-    assert po["enumerated_fingerprint_matches"] == 1
+    assert po["enumerated_fingerprint_matches"] == 0  # no human answer involved
     sidecar = json.loads(bec.must_drop_path(_gen()).read_text())
     assert len(sidecar["obligations"]) == 1
-    assert sidecar["obligations"][0]["routes"] == [
-        bec.OBLIGATION_ROUTE_MANIFEST,
-        bec.OBLIGATION_ROUTE_FINGERPRINT,
-    ]
+    routes = sidecar["obligations"][0]["routes"]
+    assert bec.OBLIGATION_ROUTE_MANIFEST in routes
+    assert bec.OBLIGATION_ROUTE_FINGERPRINT not in routes
 
 
 def test_a_failing_audit_does_not_clobber_the_member_listing(ws, monkeypatch, capsys):
@@ -1639,6 +1647,37 @@ def test_a_deleted_must_drop_record_does_not_fail_a_non_repartition_audit(ws):
     assert _mint() == 0
     bec.must_drop_path(_gen()).unlink()
     assert bec.main(["audit"]) == 0
+
+
+def test_same_file_identity_is_narrow():
+    # Signed 2026-08-14. Only a pool candidate against a manifest training row
+    # can be exempted, because only there does an equal key prove an equal audio
+    # hash. Rekordbox-id namespaces still reach a human.
+    assert bec.is_same_file_identity("pool:abc", "manifest:abc")
+    assert not bec.is_same_file_identity("pool:abc", "manifest:def")
+    assert not bec.is_same_file_identity("tony:123", "tony-split:123")
+    assert not bec.is_same_file_identity("oa300:x.aiff", "manifest:x.aiff")
+    assert not bec.is_same_file_identity("pool:", "manifest:")
+
+
+def test_an_exemption_without_an_obligation_is_refused():
+    # The whole safety argument for the exemption is that the removal
+    # obligation is derived from the audio hash instead of from a human answer.
+    # An exemption carrying no obligation would leave the song in both corpora
+    # unreviewed, so it is asserted rather than assumed.
+    same_file = [{"candidate_key": "pool:h1", "training_key": {"key": "manifest:h1"}}]
+    bec.assert_same_file_obligations(same_file, [{"candidate_key": "pool:h1"}])
+    with pytest.raises(bec.HarnessError, match="WITHOUT AN OBLIGATION"):
+        bec.assert_same_file_obligations(same_file, [])
+
+
+def test_same_file_digest_is_order_stable():
+    rows = [
+        {"candidate_key": "pool:b", "training_key": {"key": "manifest:b"}},
+        {"candidate_key": "pool:a", "training_key": {"key": "manifest:a"}},
+    ]
+    assert bec.same_file_digest(rows) == bec.same_file_digest(list(reversed(rows)))
+    assert bec.same_file_digest([]) != bec.same_file_digest(rows)
 
 
 def test_a_rejected_restore_leaves_the_missing_file_missing(ws, monkeypatch):

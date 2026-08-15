@@ -1255,6 +1255,7 @@ _DIGEST_PATHS = frozenset(
         "/repass/population_sha256",
         "/repass/sample_sha256",
         "/fingerprint_review/dispositions_sha256",
+        "/fingerprint_review/same_file_sha256",
         "/fingerprint_review/candidate_universe_sha256",
         "/fingerprint_review/training_input_sha256",
         "/fingerprint_review/coverage_sha256",
@@ -1355,6 +1356,8 @@ _FINGERPRINT_REVIEW_KEYS = frozenset(
     {
         "method",
         "flags",
+        "same_file_exempt",
+        "same_file_sha256",
         "confirmed_same_recording",
         "cleared",
         "recording_groups",
@@ -2983,12 +2986,80 @@ def assert_training_coverage(coverage: dict, accepted: set[str]) -> list[str]:
     return [k for k in uncovered if k in accepted]
 
 
+CANDIDATE_SOURCE_POOL = "pool"
+
+
+def same_file_digest(same_file: list[dict]) -> str:
+    """Digest over the exempted identity matches, sorted so it is order-stable.
+
+    The rows themselves are private (a candidate id joined to a training row
+    id), so only this digest and the count reach the frozen record.
+    """
+    rows = sorted((str(r["candidate_key"]), str(r["training_key"]["key"])) for r in same_file)
+    return sha256_bytes(_json_bytes({"same_file": [list(r) for r in rows]}))
+
+
+def assert_same_file_obligations(same_file: list[dict], obligations: list[dict]) -> None:
+    """Every exempted identity match must still carry a removal obligation.
+
+    This is the whole safety argument for the signed 2026-08-14 exemption: those
+    rows skip human review ONLY because the obligation to drop them from
+    training is derived from the audio hash instead. An exemption that produced
+    no obligation would be a silent partition breach, so it is asserted here
+    rather than assumed to follow from the derivation.
+    """
+    obligated = {str(o["candidate_key"]) for o in obligations}
+    missing = sorted({str(r["candidate_key"]) for r in same_file} - obligated)
+    if missing:
+        raise HarnessError(
+            f"SAME-FILE EXEMPTION WITHOUT AN OBLIGATION: {len(missing)} candidate(s) were "
+            "exempted from human review because they ARE their training-list entry, but "
+            "carry no obligation to remove that entry from training. The exemption is only "
+            "safe while the obligation is derived independently; without it the song would "
+            f"sit in both corpora unreviewed. First few: {missing[:5]}"
+        )
+
+
+def is_same_file_identity(candidate: str, training: str) -> bool:
+    """The signed 2026-08-14 exemption: the candidate IS the training row.
+
+    Narrow by construction. BOTH sides must be keyed by the same AUDIO HASH -
+    a `pool:` candidate against a `manifest:` training row - because that is the
+    only pairing where equal keys prove the same file. High fingerprint
+    similarity is never sufficient: that is precisely the uncertain case a human
+    exists to resolve. The Rekordbox-id namespaces (`tony:` / `tony-split:`) are
+    deliberately NOT exempted, so such a pair still reaches a person even though
+    equal track ids would also indicate one recording; the tony-split route
+    excludes rather than enumerates, so a wrong call there is not recoverable
+    from the obligation list.
+    """
+    cand_ns, _, cand_id = candidate.partition(":")
+    train_ns, _, train_id = training.partition(":")
+    return (
+        cand_ns == CANDIDATE_SOURCE_POOL
+        and train_ns == TRAINING_SOURCE_MANIFEST
+        and bool(cand_id)
+        and cand_id == train_id
+    )
+
+
 def build_review_flags(
     bands: dict[str, list[dict]],
     candidates: list[tuple[str, str, list[float]]],
     training: list[tuple[str, list[float]]],
-) -> list[dict]:
+) -> tuple[list[dict], list[dict]]:
     """Generate the pre-commitment review flag set from covered vectors.
+
+    Returns `(flags, same_file)`. `same_file` holds the machine-verifiable
+    identity matches the signed 2026-08-14 amendment exempts from human review:
+    the 2026-08-11 re-partition draws candidates FROM the training-manifest
+    pool, so a candidate is routinely compared with itself at cosine 1.0, and
+    2,550 of the first run's 2,731 results were that. A file cannot differ from
+    itself, and the removal obligation for those rows is derived from the
+    manifest-hash route at candidate construction rather than from any answer,
+    so a human decision could not change the pools, the membership, or the
+    obligation set. They are recorded with a count and a digest instead, and
+    `assert_same_file_obligations` proves each one still carries its obligation.
 
     Three kinds, all ADVISORY signals a human disposition must resolve:
       - `training-fingerprint`: candidate audio matching a training-manifest or
@@ -3008,6 +3079,7 @@ def build_review_flags(
         recording; these pairs are the evidence the cross-band decision needs.
     """
     flags: list[dict] = []
+    same_file: list[dict] = []
     gs_titles = _giantsteps_titles()
     for name in BAND_NAMES:
         for entry in bands[name]:
@@ -3033,19 +3105,30 @@ def build_review_flags(
     for name, key, vec in candidates_z:
         for train_key, train_vec in training_z:
             score = cosine(vec, train_vec)
-            if score >= FINGERPRINT_REVIEW_COSINE:
-                flags.append(
+            if score < FINGERPRINT_REVIEW_COSINE:
+                continue
+            if is_same_file_identity(key, train_key):
+                same_file.append(
                     {
-                        "flag_id": flag_id(FLAG_KIND_FINGERPRINT, key, train_key),
-                        "kind": FLAG_KIND_FINGERPRINT,
                         "band": name,
                         "candidate_key": key,
-                        "peer_key": None,
                         "training_key": training_row_key(train_key),
-                        "evidence": f"standardized cosine {score:.4f} vs {train_key}",
                         "score": round(score, 6),
                     }
                 )
+                continue
+            flags.append(
+                {
+                    "flag_id": flag_id(FLAG_KIND_FINGERPRINT, key, train_key),
+                    "kind": FLAG_KIND_FINGERPRINT,
+                    "band": name,
+                    "candidate_key": key,
+                    "peer_key": None,
+                    "training_key": training_row_key(train_key),
+                    "evidence": f"standardized cosine {score:.4f} vs {train_key}",
+                    "score": round(score, 6),
+                }
+            )
 
     cross_stats = cohort_stats([v for _, _, v in candidates])
     cross = [(b, k, standardize(v, cross_stats)) for b, k, v in candidates]
@@ -3074,7 +3157,8 @@ def build_review_flags(
                 }
             )
     flags.sort(key=lambda f: f["flag_id"])
-    return flags
+    same_file.sort(key=lambda r: (r["candidate_key"], r["training_key"]["key"]))
+    return flags, same_file
 
 
 def build_pool_universe(
@@ -3239,7 +3323,8 @@ def plan_commit(
     amended = assert_training_coverage(coverage, accepted_uncovered_training_rows(decisions))
     coverage["amended_uncovered_training_rows"] = len(amended)
 
-    flags = build_review_flags(bands, cand_vectors, train_vectors)
+    flags, same_file = build_review_flags(bands, cand_vectors, train_vectors)
+    assert_same_file_obligations(same_file, accounting["partition_obligations"])
     dispositions = load_dispositions(
         universe_digest, {f["flag_id"] for f in flags}, partition_order_label(retain_manifest)
     )
@@ -3406,6 +3491,11 @@ def plan_commit(
         "fingerprint_review": {
             "method": FINGERPRINT_METHOD,
             "flags": len(flags),
+            # Signed 2026-08-14: same-file identity matches are recorded with a
+            # count and a digest instead of being put to a human. Counted apart
+            # from `flags` so the two can never be confused for one another.
+            "same_file_exempt": len(same_file),
+            "same_file_sha256": same_file_digest(same_file),
             "confirmed_same_recording": confirmed,
             "cleared": len(flags) - confirmed,
             "recording_groups": len(set(recording_groups.values())),
@@ -3978,12 +4068,13 @@ def cmd_prepare_review(_args: argparse.Namespace) -> int:
     decisions = load_operator_decisions_if_present()
     retain_manifest = retain_training_manifest_matches(decisions)
     inputs = load_inputs()
-    bands, _accounting, universe = build_pool_universe(inputs, retain_manifest)
+    bands, accounting, universe = build_pool_universe(inputs, retain_manifest)
     coverage, cand_vectors, train_vectors = fingerprint_coverage(inputs, bands)
-    flags = build_review_flags(bands, cand_vectors, train_vectors)
+    flags, same_file = build_review_flags(bands, cand_vectors, train_vectors)
+    assert_same_file_obligations(same_file, accounting["partition_obligations"])
     _write_json(COVERAGE_PATH, coverage)
     review = {
-        "schema_version": 3,
+        "schema_version": 4,
         "candidate_universe_sha256": universe,
         "fingerprint_method": FINGERPRINT_METHOD,
         "review_cosine": FINGERPRINT_REVIEW_COSINE,
@@ -3992,6 +4083,11 @@ def cmd_prepare_review(_args: argparse.Namespace) -> int:
         "partition_order": partition_order_label(retain_manifest),
         "coverage_sha256": sha256_bytes(_json_bytes(coverage)),
         "flags": flags,
+        # Recorded, not adjudicated (signed 2026-08-14). Kept in this gitignored
+        # sidecar so the exempted set stays auditable row by row; only the count
+        # and the digest reach the frozen record.
+        "same_file_exempt": same_file,
+        "same_file_sha256": same_file_digest(same_file),
     }
     _write_json(REVIEW_FLAGS_PATH, review)
     template = {
@@ -4028,6 +4124,8 @@ def cmd_prepare_review(_args: argparse.Namespace) -> int:
         by_kind[f["kind"]] = by_kind.get(f["kind"], 0) + 1
     print(
         f"review flags: {len(flags)} ({by_kind}); candidate universe {universe}\n"
+        f"same-file matches recorded automatically, not for review: {len(same_file)} "
+        f"(digest {same_file_digest(same_file)[:16]})\n"
         f"partition order: {partition_order_label(retain_manifest)}\n"
         f"coverage: candidates {coverage['candidates_covered']}/{coverage['candidates_total']} "
         f"{coverage['candidates_by_reason']}; training {coverage['training_covered']}/"
