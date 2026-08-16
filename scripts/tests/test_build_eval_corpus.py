@@ -883,8 +883,11 @@ def test_commitment_key_schema_rejects_an_unknown_status():
 
 
 def test_committed_commitment_artifact_passes_its_own_gate():
+    # Asserts the invariant, not the moment. This previously pinned
+    # `status == superseded`, which was simply the state on the day it was
+    # written; the first legitimate re-mint turned it red for no defect.
     doc = json.loads(_ORIGINAL_PATHS[1].joinpath("12-7-candidate-commitment.json").read_text())
-    assert doc["status"] == bec.STATUS_SUPERSEDED
+    assert doc["status"] in {bec.STATUS_ACTIVE, bec.STATUS_SUPERSEDED}
     bec.gate_committed(doc, bec.assert_commitment_schema)
 
 
