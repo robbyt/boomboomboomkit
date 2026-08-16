@@ -321,6 +321,34 @@ supplies the recording group that `pre-commitment-recording-dedup` collapses on,
 which is the only mechanism that can see a half-tempo and a full-tempo encode of
 one recording, since the two files differ byte for byte.
 
+## Continuous DJ mixes are not candidates (2026-08-15)
+
+A continuous DJ set has no single verified tempo, so it cannot be annotated: put
+in front of the annotator it asks for a number that does not exist, and answered
+anyway it puts a meaningless label in the corpus. The training manifests already
+exclude these at emission. The evaluation candidate pool did not, and 18 of them
+were in it, up to 95 minutes long, most sitting in a `Drum and Bass/Mixes/`
+directory. Nine were in `175-plus`, which is 8 percent of the second-scarcest
+band.
+
+The exclusion now runs inside `build_pool_universe`, so `prepare-review` and
+every mint see the same pool, and it runs before content binding and long before
+the fingerprint route, because there is nothing to gain by hashing or decoding a
+set that is not a candidate. The predicate is `corpus_common.is_continuous_mix`,
+the same function the training side excludes on, rather than a second definition
+that could drift from it. Duration comes from each file's own header: reading all
+2,838 takes 0.6 seconds, so the `pool-durations.json` sidecar would buy nothing
+here while adding a staleness question, since it covers only the pool rows.
+
+**An unknown duration is not read as "not a mix".** Duration is half the
+predicate, so a resolvable file whose length cannot be established is one this
+rule cannot answer for, and it refuses rather than guessing. Rows whose audio
+does not resolve at all are left to the exclusions that already own them.
+
+Effect on the pool: 2,838 candidates to 2,820, and `175-plus` from 113 to 104
+against a 43-member target. That is the tightest ratio in the corpus and is worth
+watching once a real keeper rate exists.
+
 ## The pre-commitment fingerprint review
 
 The signed route is mandatory and runs before commitment, so it is a two-stage
