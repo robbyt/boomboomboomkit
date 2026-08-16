@@ -1,0 +1,34 @@
+{
+ "bands": {
+  "100-120": {
+   "abandoned": 0,
+   "completed": 0
+  },
+  "120-140": {
+   "abandoned": 0,
+   "completed": 0
+  },
+  "140-160": {
+   "abandoned": 0,
+   "completed": 1
+  },
+  "160-175": {
+   "abandoned": 0,
+   "completed": 0
+  },
+  "175-plus": {
+   "abandoned": 0,
+   "completed": 0
+  },
+  "sub-100": {
+   "abandoned": 0,
+   "completed": 0
+  }
+ },
+ "commitment_sha256": "665cff28755c8af2425e8e6db54cb764274bf1c22ebfcaffa671666f8c5849be",
+ "event_count": 1,
+ "head_sha256": "46e9e76676769e9f267ac7b7f366afe2056e71e52f2bfc687e212e4f93317db4",
+ "note": "The annotation ledger provides INTEGRITY, not backup or recovery. It detects editing, deletion, reordering, and stale-file reuse of annotation state; it cannot restore a lost annotation, and these labels cannot be regenerated. Annotation records are immutable and versioned: no command overwrites or unlinks one.",
+ "schema_version": 2,
+ "story": "12.7"
+}
