@@ -362,6 +362,7 @@ EXCLUSION_REASONS = (
     "fingerprint-uncoverable",
     "fingerprint-confirmed",
     "cross-band-duplicate",
+    "continuous-mix",
 )
 
 # Reason-stratified fingerprint coverage (finding B). `decode-failed`,
@@ -786,6 +787,89 @@ def bind_content_hashes(
     return out
 
 
+def container_duration_seconds(path: Path) -> float | None:
+    """Length from the container header. Never decodes.
+
+    The `is None` checks are load-bearing and must not be shortened to a
+    truthiness test. A `mutagen` file object is dict-like over its tags, so a
+    file carrying no tags is FALSY while still holding a perfectly good
+    `info.length` - and untagged WAV is common in this collection. Writing
+    `if parsed:` silently reports "no duration" for those, which this rule then
+    cannot answer for. That mistake is how a first pass over this pool
+    miscounted 42 candidates as having no duration at all.
+    """
+    try:
+        import mutagen  # noqa: PLC0415  (only needed on this path)
+
+        parsed = mutagen.File(path)
+    except Exception:
+        return None
+    if parsed is None or parsed.info is None:
+        return None
+    length = float(getattr(parsed.info, "length", 0.0) or 0.0)
+    return length or None
+
+
+def drop_continuous_mixes(
+    bands: dict[str, list[dict]],
+    exclusions: dict[str, dict[str, int]],
+    resolver: Callable[[dict], Path | None],
+    duration_of: Callable[[dict, Path], float | None],
+) -> dict[str, list[dict]]:
+    """Exclude continuous DJ mixes, which have no single verified tempo.
+
+    A 40-minute set cannot carry one true BPM, so it is not annotatable: drawn
+    into a batch it would ask the annotator for a number that does not exist,
+    and answered anyway it would put a meaningless label in the corpus. The
+    training manifests already exclude these at emission; the evaluation
+    candidate pool did not, which is how 18 of them reached the pool, 9 of them
+    in the scarcest band.
+
+    The predicate is `corpus_common.is_continuous_mix`, the same function the
+    training side excludes on, rather than a second definition that could drift
+    from it. It reads a path (a `Mixes/` directory is decisive on its own) and a
+    duration, so both are supplied here.
+
+    Duration comes from each file's own header rather than from the
+    `pool-durations.json` sidecar the training side uses. Reading all 2,838
+    headers takes 0.6 seconds, so the sidecar buys nothing here and would add a
+    staleness question: it covers only the pool rows, and a sidecar built
+    against an older survey would answer confidently and wrongly.
+
+    An unknown duration is NOT read as "not a mix". Duration is half the
+    predicate, so a resolvable file whose length cannot be established is one
+    this rule cannot answer for, and it raises rather than guessing - the
+    discipline `corpus_manifests._partition` already applies on the training
+    side. Rows whose audio does not resolve at all are left to the exclusions
+    that already own them.
+    """
+    out: dict[str, list[dict]] = {name: [] for name in BAND_NAMES}
+    unknown: list[str] = []
+    for name in BAND_NAMES:
+        for entry in bands[name]:
+            path = resolver(entry)
+            if path is None or not path.exists():
+                out[name].append(entry)
+                continue
+            seconds = duration_of(entry, path)
+            if seconds is None:
+                unknown.append(f"{name}/{candidate_key(entry)} at {path.name}")
+                continue
+            if cc.is_continuous_mix(str(path), seconds):
+                exclusions[name]["continuous-mix"] += 1
+                continue
+            out[name].append(entry)
+    if unknown:
+        raise HarnessError(
+            "candidate duration could not be established for "
+            f"{len(unknown)} resolvable file(s), and duration is half the "
+            "continuous-mix predicate, so treating them as 'not a mix' would let a "
+            "DJ set into a corpus that has to carry one verified tempo per track. "
+            "Fix or remove the audio, then re-run:\n  " + "\n  ".join(unknown[:20])
+        )
+    return out
+
+
 def dedup_across_bands(
     bands: dict[str, list[dict]],
     exclusions: dict[str, dict[str, int]],
@@ -1116,6 +1200,10 @@ def _default_fingerprint(path: str) -> list[float] | None:
 
 FINGERPRINT_FN: Callable[[str], list[float] | None] = _default_fingerprint
 FINGERPRINT_REASON_FN: Callable[[str], str] = _default_fingerprint_reason
+# Same injection seam as the fingerprint above: the synthetic corpus in the test
+# suite writes stub bytes with audio extensions, so a real header read there
+# would fail for a reason that has nothing to do with what is under test.
+DURATION_FN: Callable[[Path], float | None] = container_duration_seconds
 FINGERPRINT_METHOD = cc.FINGERPRINT_METHOD
 
 
@@ -3468,6 +3556,15 @@ def build_pool_universe(
         inputs["tony_split_ids"],
         inputs["training_artist_keys"],
         retain_manifest_matches=retain_manifest_matches,
+    )
+    # Continuous mixes go BEFORE content binding and long before the fingerprint
+    # route: a set that cannot carry one verified tempo is not a candidate, so
+    # there is nothing to gain by hashing or decoding it first.
+    bands = drop_continuous_mixes(
+        bands,
+        accounting["exclusions"],
+        lambda entry: _safe_resolve(entry, inputs["pool_audio_root"]),
+        lambda entry, path: DURATION_FN(path),
     )
     bands = bind_content_hashes(
         bands,

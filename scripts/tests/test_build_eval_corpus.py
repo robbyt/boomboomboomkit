@@ -31,6 +31,7 @@ import os
 import re
 import shutil
 import sys
+import wave
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -928,6 +929,96 @@ def test_annotation_csv_rejects_non_finite_bpm(tmp_path):
         bec.parse_annotations_csv(p, ["r1"])
 
 
+# --- continuous DJ mixes are not annotatable and must never be candidates ---
+
+
+def _wav(path: Path, seconds: float, rate: int = 8000) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(b"\x00\x00" * int(seconds * rate))
+    return path
+
+
+def test_a_tagless_file_still_reports_its_duration(tmp_path):
+    # A mutagen file object is dict-like over its tags, so an untagged file is
+    # FALSY while still carrying a good info.length. Reading it with `if parsed:`
+    # instead of `if parsed is None:` reports "no duration" for every untagged
+    # WAV in the collection, and this rule then cannot answer for them.
+    p = _wav(tmp_path / "untagged.wav", 12.5)
+    import mutagen
+
+    parsed = mutagen.File(p)
+    assert not parsed, "fixture must be untagged for this test to mean anything"
+    assert parsed is not None
+    assert bec.container_duration_seconds(p) == pytest.approx(12.5, abs=0.05)
+    assert bec.container_duration_seconds(tmp_path / "absent.wav") is None
+
+
+def test_a_long_set_and_a_mixes_directory_are_both_excluded(tmp_path):
+    # The predicate is corpus_common.is_continuous_mix, which ORs two signals:
+    # a Mixes/ directory is decisive on its own, and a long file outside one is
+    # still a set. Both paths must reach the exclusion.
+    long_set = _wav(tmp_path / "audio" / "Andy C - Nightlife.wav", 1.0)
+    in_mixes = _wav(tmp_path / "audio" / "Mixes" / "short-but-a-set.wav", 1.0)
+    a_track = _wav(tmp_path / "audio" / "Real Track.wav", 1.0)
+    entries = {
+        str(long_set): 40 * 60.0,  # long, not under Mixes/
+        str(in_mixes): 300.0,  # short, but under Mixes/
+        str(a_track): 300.0,  # neither
+    }
+    bands = {name: [] for name in bec.BAND_NAMES}
+    bands["sub-100"] = [{"source": "pool", "identity": p, "relPath": p} for p in entries]
+    exclusions = {n: dict.fromkeys(bec.EXCLUSION_REASONS, 0) for n in bec.BAND_NAMES}
+
+    out = bec.drop_continuous_mixes(
+        bands,
+        exclusions,
+        lambda e: Path(e["identity"]),
+        lambda e, path: entries[str(path)],
+    )
+    assert [e["identity"] for e in out["sub-100"]] == [str(a_track)]
+    assert exclusions["sub-100"]["continuous-mix"] == 2
+
+
+def test_an_unknown_duration_is_not_read_as_not_a_mix(tmp_path):
+    # Duration is half the predicate. Defaulting an unreadable file to "not a
+    # mix" is exactly how 18 sets reached the pool, so this refuses instead.
+    p = _wav(tmp_path / "unreadable.wav", 1.0)
+    bands = {name: [] for name in bec.BAND_NAMES}
+    bands["sub-100"] = [{"source": "pool", "identity": "x", "relPath": str(p)}]
+    exclusions = {n: dict.fromkeys(bec.EXCLUSION_REASONS, 0) for n in bec.BAND_NAMES}
+    with pytest.raises(bec.HarnessError, match="duration could not be established"):
+        bec.drop_continuous_mixes(bands, exclusions, lambda e: p, lambda e, path: None)
+
+
+def test_a_row_whose_audio_does_not_resolve_is_left_to_its_own_exclusion(tmp_path):
+    # Unresolvable audio already has owners downstream (audio-unresolved,
+    # audio-unhashable). This rule must not claim it and must not raise on it.
+    bands = {name: [] for name in bec.BAND_NAMES}
+    bands["sub-100"] = [{"source": "tony", "identity": "gone"}]
+    exclusions = {n: dict.fromkeys(bec.EXCLUSION_REASONS, 0) for n in bec.BAND_NAMES}
+    out = bec.drop_continuous_mixes(bands, exclusions, lambda e: None, lambda e, path: None)
+    assert [e["identity"] for e in out["sub-100"]] == ["gone"]
+    assert exclusions["sub-100"]["continuous-mix"] == 0
+
+
+def test_the_mix_exclusion_is_counted_in_the_committed_accounting(ws, monkeypatch):
+    # The count has to reach the committed accounting, not be a silent drop.
+    # One file is a set; every other candidate stays a normal track.
+    monkeypatch.setattr(
+        bec, "DURATION_FN", lambda path: 40 * 60.0 if "pool-0-0" in str(path) else 300.0
+    )
+    assert _mint() == 0
+    commitment = json.loads(bec.COMMITMENT_JSON.read_text())
+    counted = sum(
+        band["exclusions"].get("continuous-mix", 0) for band in commitment["bands"].values()
+    )
+    assert counted == 1
+
+
 def test_immutable_write_refuses_a_differing_overwrite(tmp_path):
     path = tmp_path / "record.json"
     pending = bec.pending_record_path(path)
@@ -1054,6 +1145,10 @@ def ws(tmp_path, monkeypatch):
     monkeypatch.setattr(bec.cc, "resolve_giantsteps_gt_path", lambda: Path(__file__))
     monkeypatch.setattr(bec, "FINGERPRINT_FN", _unique_fingerprint)
     monkeypatch.setattr(bec, "FINGERPRINT_REASON_FN", lambda p: "decode-failed")
+    # The synthetic corpus writes stub bytes, so header reads cannot work here.
+    # Every fixture file reports a plain track length; the mix rule gets its own
+    # tests against real durations below.
+    monkeypatch.setattr(bec, "DURATION_FN", lambda path: 300.0)
     # No test decodes audio, so the real backend probe is stubbed; the probe
     # itself has its own test above.
     monkeypatch.setattr(bec, "assert_fingerprint_backend", lambda: None)
