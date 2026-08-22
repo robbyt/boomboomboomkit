@@ -293,6 +293,21 @@ REPASS_FINE_TOLERANCE_BPM = 0.5
 # what the training rebuild must drop, while a confirmed match against a
 # tony.train or tony.val row still excludes.
 FINGERPRINT_REVIEW_COSINE = 0.97
+
+# How far apart two lengths can be and still be the same recording.
+#
+# Measured from the 182 operator-adjudicated fingerprint pairs: two copies of one
+# recording differ by at most 4.21s of lead-in, fade and encoder padding, and the
+# closest pair of genuinely different tracks in that set differs by 26.94s.
+#
+# That 22-second gap is NOT as empty as it first looked, and the margin here is
+# thinner than the sample implied. Two members of this corpus, `Out Of My Head
+# (Original 93 Mix)` and its Skin Teeth remix, are different recordings 8.36s
+# apart - inside the supposed gap. So the real headroom above this threshold is
+# about 3s, not 22s. It still separates every known case, and erring low is the
+# safe direction (a false duplicate is reported, a missed one is silent), but a
+# pair closer than this will need evidence beyond length.
+SAME_RECORDING_MAX_SECONDS_APART = 5.0
 SENTINEL_SAME_RECORDING_COSINE = 0.97
 
 DISPOSITION_SAME = "same-recording"
@@ -5402,6 +5417,16 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
     # identity, content digest and normalized title all miss it. The groups come
     # from the transitive components persisted at mint.
     policy = state.commitment.get("operator_decisions", {}).get("cross_band_duplicate_rule")
+    member_by_row = {e["rowId"]: e for e in member_entries}
+    _member_seconds: dict[str, float | None] = {}
+
+    def member_duration(entry: dict) -> float | None:
+        rid = entry["rowId"]
+        if rid not in _member_seconds:
+            path = _safe_resolve(entry, pools.get("pool_audio_root"))
+            _member_seconds[rid] = DURATION_FN(path) if path is not None and path.exists() else None
+        return _member_seconds[rid]
+
     seen_ids: dict[str, str] = {}
     seen_titles: dict[str, str] = {}
     seen_content: dict[str, str] = {}
@@ -5430,10 +5455,44 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
             seen_groups[group] = entry["rowId"]
         nk = cc.normalize_track_key(entry.get("title", ""))
         if nk:
-            if nk in seen_titles:
-                failures.append(
-                    f"duplicate member title (normalized): {entry['rowId']} vs {seen_titles[nk]}"
+            prior = seen_titles.get(nk)
+            if prior is not None:
+                # A title match alone is not a duplicate. `normalize_track_key`
+                # strips everything from the first bracket, which is what makes
+                # it catch a re-encode tagged as a different version - and also
+                # what makes it collide three distinct remixes of one track, or
+                # `Feel The Vibe` with `Feel The Vibe (Again)`. Those are
+                # different recordings with different tempos and belong in the
+                # corpus (operator, 2026-08-22).
+                #
+                # Duration is what separates the two cases, on the same measured
+                # boundary used elsewhere: across 182 operator-adjudicated pairs
+                # two copies of one recording differ by at most 4.21s while
+                # different tracks differ by at least 26.94s. So a title
+                # collision fails only when the lengths also agree; otherwise it
+                # is reported and certification proceeds.
+                here = member_duration(entry)
+                there = member_duration(member_by_row[prior])
+                same_length = (
+                    here is not None
+                    and there is not None
+                    and abs(here - there) <= SAME_RECORDING_MAX_SECONDS_APART
                 )
+                if same_length or here is None or there is None:
+                    failures.append(
+                        f"duplicate member title (normalized): {entry['rowId']} vs {prior}"
+                        + (
+                            f" and their lengths agree to {abs(here - there):.2f}s"
+                            if same_length
+                            else " and at least one length could not be read"
+                        )
+                    )
+                else:
+                    warnings.append(
+                        f"members {entry['rowId']} and {prior} share the normalized title "
+                        f"{nk!r} but differ by {abs(here - there):.0f}s, so they are "
+                        "different recordings under one title, not duplicates"
+                    )
             seen_titles[nk] = entry["rowId"]
     report.append(
         f"cross-band duplicate rule in force: {policy}; "
