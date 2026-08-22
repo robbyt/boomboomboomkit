@@ -3772,3 +3772,70 @@ def test_committed_manifests_actually_carry_relpath():
             f"{manifest.name} rows no longer carry 'relPath'; load_inputs reads "
             "relPath-then-path and would silently stop covering the training side"
         )
+
+
+# --- a shared title is not a duplicate unless the lengths agree too ----------
+
+
+def _collide_titles(ws, band="sub-100"):
+    """Make every candidate in one band share a normalized title.
+
+    Every candidate, and across all three sources: the synthetic band holds only
+    N_BAND_TEST members and one of them is the OA300 row, so renaming pool rows
+    alone can never put two colliding titles in the member set. Done BEFORE the
+    mint so the commitment, pools file and ledger stay consistent.
+    """
+    root = Path(ws.inputs["pool_audio_root"])
+    titles = []
+    for i, row in enumerate(ws.inputs["pool_rows"]):
+        if bec.band_of(row["fileMetadataBPM"]) != band:
+            continue
+        name = f"Out Of My Head (Variant p{i}).mp3"
+        (root / name).write_bytes((root / row["path"]).read_bytes())
+        row["path"] = name
+        titles.append(Path(name).stem)
+    for i, row in enumerate(ws.inputs["tony_rows"]):
+        if bec.band_of(row.get("average_bpm")) == band:
+            row["name"] = f"Out Of My Head (Variant t{i})"
+            titles.append(row["name"])
+    for i, row in enumerate(ws.inputs["oa300_rows"]):
+        if bec.band_of(row.get("bpm")) == band:
+            row["title"] = f"Out Of My Head (Variant o{i})"
+            titles.append(row["title"])
+    keys = {bec.cc.normalize_track_key(t) for t in titles}
+    assert len(titles) >= 2 and len(keys) == 1, (titles, keys)
+    return titles
+
+
+def test_a_shared_title_with_differing_lengths_is_not_a_duplicate(ws, monkeypatch):
+    # Three remixes of one track, and `Feel The Vibe` against `Feel The Vibe
+    # (Again)`, all normalize to one string while being different recordings
+    # with different tempos. They belong in the corpus (operator, 2026-08-22).
+    _collide_titles(ws)
+    assert _mint() == 0
+    _complete_corpus()
+    monkeypatch.setattr(bec, "DURATION_FN", lambda p: 300.0 + 40.0 * len(p.name))
+    failures, warnings, _r = bec.run_audit()
+    assert not [f for f in failures if "duplicate member title" in f], failures
+    assert any("different recordings under one title" in w for w in warnings), warnings
+
+
+def test_a_shared_title_with_matching_lengths_still_fails(ws, monkeypatch):
+    # The check's original purpose: a re-encode tagged as a different version,
+    # which differs in bytes so the content digest misses it. Length catches it.
+    _collide_titles(ws)
+    assert _mint() == 0
+    _complete_corpus()
+    monkeypatch.setattr(bec, "DURATION_FN", lambda p: 300.0)
+    failures, _w, _r = bec.run_audit()
+    assert any("duplicate member title" in f and "lengths agree" in f for f in failures), failures
+
+
+def test_a_shared_title_with_an_unreadable_length_fails_closed(ws, monkeypatch):
+    # Length is what decides, so a length that cannot be read cannot clear it.
+    _collide_titles(ws)
+    assert _mint() == 0
+    _complete_corpus()
+    monkeypatch.setattr(bec, "DURATION_FN", lambda p: None)
+    failures, _w, _r = bec.run_audit()
+    assert any("length could not be read" in f for f in failures), failures
