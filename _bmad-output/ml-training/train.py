@@ -451,7 +451,46 @@ def parse_args(argv: list[str]) -> TrainArgs:
 ML_TRAINING_DIR = Path(__file__).resolve().parent
 REPO_ROOT = ML_TRAINING_DIR.parent.parent
 DIAGNOSTICS_MD = ML_TRAINING_DIR / "corpus-diagnostics-v1.md"
+# Story 12.7: the 258-track band-balanced evaluation corpus artifact. Its
+# signoff gates ANY substrate-v2 training run (epic decision: the fail-closed
+# gate is wired before any training story runs).
+_ARTIFACTS_DIR = REPO_ROOT / "_bmad-output" / "implementation-artifacts"
+EVAL_CORPUS_MD = _ARTIFACTS_DIR / "12-7-eval-corpus.md"
+# The marker text above is human-editable, so it is a courtesy gate only. The
+# BINDING gate is the attestation `build-eval-corpus.py signoff` writes: it is
+# produced only after the shared fail-closed audit passes and it is bound to the
+# active commitment digest and the annotation-ledger head, so a hand edit of the
+# marker cannot buy a training run.
+EVAL_CORPUS_ATTESTATION = _ARTIFACTS_DIR / "12-7-signoff-attestation.json"
+EVAL_CORPUS_COMMITMENT = _ARTIFACTS_DIR / "12-7-candidate-commitment.json"
+EVAL_CORPUS_LEDGER_HEAD = _ARTIFACTS_DIR / "12-7-annotation-ledger-head.json"
+EVAL_CORPUS_HARNESS = REPO_ROOT / "scripts" / "build-eval-corpus.py"
 _SIGNOFF_RE = re.compile(r"REVIEWER_SIGNOFF:\s*(signed|pending)")
+
+
+def _load_eval_corpus_harness():
+    """Import the develop-only harness by path (its filename is hyphenated), so
+    the attestation contract has ONE implementation rather than a copy here that
+    can drift from the writer."""
+    import importlib.util  # noqa: PLC0415  (path-based import, gate-local)
+
+    if not EVAL_CORPUS_HARNESS.exists():
+        raise SubstratePreconditionError(
+            f"Story 12.7 gate: {EVAL_CORPUS_HARNESS.name} is absent - the signoff "
+            "attestation cannot be validated. Fails CLOSED."
+        )
+    spec = importlib.util.spec_from_file_location("build_eval_corpus", EVAL_CORPUS_HARNESS)
+    if spec is None or spec.loader is None:
+        raise SubstratePreconditionError(
+            f"Story 12.7 gate: cannot load {EVAL_CORPUS_HARNESS.name}. Fails CLOSED."
+        )
+    module = importlib.util.module_from_spec(spec)
+    # Register BEFORE executing: the harness defines dataclasses, and
+    # `dataclasses` resolves annotations through `sys.modules[cls.__module__]`,
+    # which is absent for a path-loaded module that was never registered.
+    sys.modules.setdefault("build_eval_corpus", module)
+    spec.loader.exec_module(module)
+    return module
 
 
 class SubstratePreconditionError(RuntimeError):
@@ -512,6 +551,56 @@ def check_substrate_preconditions() -> None:
             f"operator transcribes what they verified in {DIAGNOSTICS_MD.name} and flips "
             "REVIEWER_SIGNOFF -> signed (the same gate `audit-corpus-splits.py --check-gate` "
             "enforces). Story 7.1 'done' = evidence assembled, NOT corpus-safe-to-train."
+        )
+
+    # (d) Story 12.7: the 258-track band-balanced evaluation-corpus signoff.
+    # Unconditional for every substrate-v2 run (epic decision: "wired before any
+    # training story runs"). Same fail-closed contract as (c): exactly one
+    # REVIEWER_SIGNOFF marker, and it must read `signed`.
+    if not EVAL_CORPUS_MD.exists():
+        raise SubstratePreconditionError(
+            f"Story 12.7 gate: {EVAL_CORPUS_MD.name} not found - the 258-track "
+            "band-balanced evaluation corpus artifact must exist before any "
+            "substrate-v2 training run. Fails CLOSED."
+        )
+    markers_258 = _SIGNOFF_RE.findall(EVAL_CORPUS_MD.read_text(encoding="utf-8"))
+    if len(markers_258) != 1:
+        raise SubstratePreconditionError(
+            f"Story 12.7 gate: expected exactly ONE REVIEWER_SIGNOFF marker in "
+            f"{EVAL_CORPUS_MD.name}, found {len(markers_258)} - fails CLOSED."
+        )
+    if markers_258[0] != "signed":
+        raise SubstratePreconditionError(
+            "Story 12.7 gate: the 258-corpus signoff is `pending`. Training is BLOCKED "
+            "until the 43x6 corpus completes - which may be stalled on operator "
+            "hand-verification OR on the precommitted fallback addendum for bands whose "
+            "committed pools cannot reach 43 (see the commitment artifact's short-bands "
+            f"record) - and the operator flips REVIEWER_SIGNOFF -> signed in "
+            f"{EVAL_CORPUS_MD.name}."
+        )
+
+    # (d2) The binding half: an attestation the signoff command produced after a
+    # clean shared audit, bound to the active commitment digest and the
+    # annotation-ledger head. Editing the marker above does not produce one.
+    bec = _load_eval_corpus_harness()
+    n_band = bec.N_BAND
+    if EVAL_CORPUS_COMMITMENT.exists():
+        commitment = json.loads(EVAL_CORPUS_COMMITMENT.read_text(encoding="utf-8"))
+        if isinstance(commitment.get("n_band_target"), int):
+            n_band = int(commitment["n_band_target"])
+    attestation_failures = bec.validate_attestation(
+        EVAL_CORPUS_ATTESTATION,
+        EVAL_CORPUS_COMMITMENT,
+        EVAL_CORPUS_LEDGER_HEAD,
+        n_band,
+    )
+    if attestation_failures:
+        raise SubstratePreconditionError(
+            "Story 12.7 gate: the 258-corpus signoff ATTESTATION does not validate, so "
+            "the `signed` marker is not evidence of anything. Run "
+            "`scripts/build-eval-corpus.py signoff` (it refuses unless the shared audit "
+            "is clean and every band holds "
+            f"{n_band} verified members). Failures: " + "; ".join(attestation_failures)
         )
 
 

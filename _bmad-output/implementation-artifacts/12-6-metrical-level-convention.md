@@ -491,8 +491,145 @@ Accepted risks, stated plainly and bound with the signoff:
   roughly 26 verifications to the budget. It measures repeatability; it does
   not relabel -- a disagreement is data, resolved only by a dated amendment.
 
+### Clarification 2026-08-11: what counts as a disagreement (operator)
+
+The blind re-pass above says "the disagreement rate is recorded" without
+defining a disagreement. The operator resolved that on 2026-08-11. This is a
+CLARIFICATION of an underdefined term, not a change to a bound item, and it
+lands before any verification begins, so it requires no re-signoff. Recorded
+here because this is the binding document.
+
+The metric is **two-tier**, and the categories are exhaustive:
+
+- **Metrical-level disagreement.** The second reading lies within plus or minus
+  4 percent of 2x or 0.5x the first. This is an octave-RATIO criterion, not the
+  phrase "half or double", so nothing rests on an example.
+- **Fine disagreement.** Same metrical level, absolute difference above 0.5 BPM.
+  0.5 BPM is deliberately conservative: two-decimal RECORDING precision does not
+  imply two-decimal measurement accuracy after a manual 32-beat lock.
+- **Agreement.** Same metrical level, absolute difference at or below 0.5 BPM.
+- **Non-comparable.** Reserved for NO USABLE NUMERIC RESULT on either pass:
+  tempo-unstable, metrically irresolvable, or an audio defect. A stable numeric
+  second reading that falls outside the track's original band is still
+  comparable; it is classified as metrical-level or fine and additionally
+  flagged `crossed_band`.
+
+Both rates are recorded, and alongside them the CONTINUOUS absolute differences:
+median, maximum, and every paired value. Thresholding without the underlying
+distribution discards information that cannot be recovered later.
+
+**No pass/fail threshold exists.** The signed text says the rate is RECORDED. A
+gate on it would be a new bound item requiring its own signature. A disagreement
+remains data, resolved only by a dated amendment; if such an amendment changes a
+sampled primary label it invalidates the comparison, and the re-pass summary is
+regenerated against the amended ledger head.
+
 Changing any of the bound items mid-verification requires a dated amendment to
 this document and re-signoff before verification continues.
+
+### Amendment 2026-08-11: FR-59a.2 partition ORDER (operator, re-signed)
+
+This amends a BOUND item, so it carries its own signoff. It changes the ORDER in
+which the eval and training corpora are partitioned. It does NOT change the
+invariant they are partitioned for.
+
+**Why.** Under the original order the four short bands cannot be built. Measured
+2026-08-10 against the committed pools: 100-120 held 3 candidates of 43 needed,
+175-plus 9, 120-140 28, 160-175 41. The cause is that the two committed training
+manifests already cover nearly the whole tag-carrying non-Rekordbox pool, so
+excluding training material from the eval draw empties the bands. The signed
+exhaustion fallback does not help: its sources (Tony as-entered, then OA300) are
+already inside the primary pools, and its measured net-new set is zero for every
+band. Restoring Tony's unresolved audio was investigated and abandoned on
+2026-08-11: of 373 unresolved rows only 19 were recoverable from the shared
+folder and none of those sat in a short band, and the operator judged the
+remainder to be mislabelled drum and bass, clips, or bad files.
+
+**What changes, stated narrowly.** ONE of the three exclusion routes reverses
+direction: matching a row in the two non-Rekordbox TRAINING MANIFESTS by audio
+content (`audioHash`) no longer removes a candidate from the eval draw. Instead
+the eval corpus draws it, and the training rebuild drops it.
+
+**The other two routes are UNCHANGED and still exclude at candidate
+construction:** `corpus_splits.json` `tony.train`/`tony.val` recording identity,
+and artist-string overlap with a training row.
+
+That narrow scope is deliberate, and it is sufficient. Measured against the
+committed pools, lifting the manifest route alone takes the worst band to 80
+candidates, and every band clears 43 with margin: 100-120 from 3 to 265,
+175-plus from 9 to 113, 120-140 to 80, 140-160 to 102, 160-175 to 143, sub-100
+to 2,194. Lifting the other two routes as well would add more headroom that is
+not needed, so they are left alone. (These counts are pre-dedup; the
+cross-band recording dedup below collapses some rows, so the final committed
+pools are re-checked against 43 at mint rather than assumed from these figures.)
+
+**What does NOT change.** FR-59a.2's invariant stands exactly as the PRD states
+it (prd.md FR-59a.2): no track, no remix, and no artist appears in both corpora.
+An earlier draft of this amendment described the invariant as "share no
+recording", which would have quietly narrowed the partition unit from artist to
+recording while claiming nothing changed. That draft was wrong and is not what
+is signed here. Artist-level disjointness survives intact, and nothing in this
+amendment relaxes it.
+
+**Consequences, bound with this signature.**
+
+1. **The audit becomes two gates, not one.**
+   - *Mint-time obligation gate:* every eval member that appears in a current
+     training manifest must be named on a recorded must-drop list, with the
+     training row identified STRUCTURALLY (row id and hash), never as prose
+     evidence. This is an obligation audit. It does not assert that FR-59a.2
+     currently holds, and it must be labelled as such.
+   - *Signoff-time closure gate:* a fresh audit against the REBUILT training
+     corpus must find zero overlap. It re-runs the full comparison rather than
+     merely confirming the listed rows disappeared, because a rebuild can
+     introduce a re-encode that was never on the list.
+2. **The must-drop list is generated from the final MEMBER roster, not from all
+   candidates.** Dropping training rows for candidates that were rejected or
+   ended up surplus would starve training for nothing. Because membership
+   evolves during annotation the list is provisional, regenerated against the
+   annotation-ledger head, and bound to the final member set at signoff. It also
+   binds the eval commitment digest, the digests of the training inputs it was
+   computed against, and the fingerprint method and dispositions.
+3. **The fingerprint review changes purpose, not rigour.** A confirmed
+   same-recording match between an eval candidate and a training-manifest row no
+   longer excludes the candidate; it enumerates what the rebuild must drop, and
+   the training peer is recorded structurally so the list is machine-checkable.
+   Coverage rules are untouched: every candidate and every training row must be
+   fingerprinted, uncoverable candidate audio stays excluded, an uncoverable
+   training row still blocks, and every flag still needs a human disposition
+   before minting.
+4. **The mint-time training inputs are preserved as immutable provenance.** The
+   rebuild changes those manifests, and without pinning the originals that change
+   would read as illegal input drift and make the eval commitment unauditable.
+5. **The rebuild is permitted before eval signoff; model training is not.** The
+   two must not deadlock: the rebuild has to be able to land so the closure gate
+   can pass, while the existing gate keeps training blocked until signoff.
+6. **Every accuracy figure produced by a model trained before the rebuild is
+   contaminated against this corpus and must be discarded.** No such figure has
+   passed a gate, so nothing is lost; the Epic 12 bundle gate will use a model
+   trained after the rebuild.
+7. The rebuild itself is FR-59d work, out of scope for Story 12.7, whose intent
+   contract forbids modifying the training manifests. Story 12.7 commits the eval
+   corpus and the must-drop list; a later story performs the rebuild and closes
+   the second gate.
+
+**Also decided 2026-08-11, and bound here:** when one recording qualifies for two
+bands, it is resolved BEFORE annotation rather than at the audit, so no track is
+ever verified twice; and the band that keeps it is chosen scarcest-first, in the
+order 175-plus, 100-120, 120-140, 160-175, 140-160, sub-100. Scarcest-first also
+happens to favour the faster band, which is where a half-tagged track actually
+verifies under the full-tempo convention.
+
+- [x] **Operator signoff on this amendment.** Signed 2026-08-11 by the operator
+  (robbyt), recorded via the structured decision elicitation in the development
+  session, the same mechanism as the 2026-08-08 signoff above. The operator was
+  shown the per-band candidate counts under both orders, the requirement for
+  this amendment and re-signoff, and the contamination consequence, and chose the
+  re-partition over shrinking the corpus. The scope was narrowed AFTER that
+  choice, on the same day, from all three exclusion routes to the manifest route
+  alone, once it was measured that the narrow lift already clears 43 in every
+  band. The narrowing is strictly more conservative than what was approved and
+  preserves the artist rule the approved version would have weakened.
 
 Dependency risk carried into signing: the section-5 tag validates against Story
 12.3's scheme as committed on this stacked branch via PR #195, squash-merged
@@ -512,3 +649,75 @@ section-5 tag names the rule.
 > and carry no gate, but the subset rule references the declared convention and so
 > also floats until signing fixes it. Per epics.md Story 12.6's final AC, this story
 > cannot close on agent work alone; its run status is `blocked` on this signoff.
+
+### Amendment 2026-08-14: same-file duplicate results are recorded, not adjudicated (operator, re-signed)
+
+This amends a BOUND item and carries its own signoff. It narrows WHICH
+possible-duplicate results require a human decision. It does not relax the
+partition invariant, the coverage rule, or the rule that a human decision is
+what excludes a candidate.
+
+**Why.** The 2026-08-11 re-partition deliberately draws eval candidates FROM
+the training-manifest pool, so a candidate is now routinely the very training
+row it is compared against. Measured on the first run under that order
+(2026-08-13): the fingerprint pass emitted 2,731 results, and 2,550 of them
+were a candidate compared with ITSELF, at identical `audioHash` and cosine
+exactly 1.0. All 2,550 already carried a removal obligation derived from the
+manifest-hash route at candidate construction, with no human decision involved
+(measured: 2,550 of 2,550 already obligated, none uncovered). A human decision
+on those cannot change the pools, the membership, or the obligation set. The
+prior sentence therefore demanded 2,550 judgments that could not affect any
+outcome, while the 176 cross-row and 5 cross-band results that CAN affect an
+outcome sat behind them.
+
+**What changes.** In consequence 3 above, the clause "and every flag still
+needs a human disposition before minting" is superseded by:
+
+> Every possible duplicate that turns on a judgment still needs a human
+> decision before the song list is frozen. A result where the evaluation
+> candidate and the training-list entry are THE SAME FILE (identical audio
+> hash) is not put to a person: a file cannot differ from itself, and the
+> requirement to remove that training entry is derived from the hash, not from
+> the answer. These are recorded automatically, with their count and a
+> checksum, and stay fully auditable. Only genuine same-recording questions
+> between DIFFERENT files reach a human.
+
+**What does NOT change.** Every candidate and every training row must still be
+fingerprinted. Uncoverable candidate audio stays excluded. An uncoverable
+training row still blocks certification. A confirmed same-recording match
+between two DIFFERENT files still requires a recorded human decision, and that
+decision still excludes (or, for a training-manifest peer under the 2026-08-11
+order, enumerates the removal obligation) exactly as before. The exemption is
+machine-verifiable identity ONLY: high fingerprint similarity is never
+sufficient, because that is precisely the uncertain case a human exists to
+resolve.
+
+**Bound with this signature.** The automatic record carries the same evidentiary
+weight as a recorded decision: the count and a digest of the exempted set are
+written into the frozen record, and a test asserts that every exempted case is
+still present in the removal obligation set. An exemption that failed to
+produce an obligation would be a silent partition breach, so it is asserted
+rather than assumed.
+
+- [x] **Operator signoff on this amendment.** Signed 2026-08-14 by the operator
+  (robbyt), recorded via the structured decision elicitation in the development
+  session, the same mechanism as the 2026-08-08 and 2026-08-11 signoffs. The
+  operator was shown the superseded clause and the replacement text verbatim,
+  side by side, together with the measured effect (2,731 reviews reduced to
+  181) and the statement that the song list, the selected songs, and the set of
+  training songs to be removed are all unchanged. This re-signature replaces an
+  earlier approval taken the same day that the operator stated they did not
+  understand; that approval is withdrawn and is not the basis for this change.
+
+**Recorded, not amended: the fingerprint window (2026-08-14).** The same run
+found two training rows that could not be fingerprinted, both because the
+method read 60 seconds starting at a hardcoded 10.0 second offset and neither
+file has audio at 10 seconds. One is a corrupt MP3 handled as a training-data
+defect; the other is a legitimate 9.4 second interlude. Making the method read
+short audio SERVES the standing coverage rule rather than amending it, so it
+needs no signature. It is recorded here because the method identifier is
+pinned: the window becomes zero-offset for EVERY file under a new method
+version. A short copy read from 0:00 while a long copy of the same recording is
+read from 0:10 would be compared across different musical material and could
+fail to match, which would let a genuine duplicate reach both corpora. One
+comparable rule for all files is therefore required, not an adaptive one.
