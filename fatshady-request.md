@@ -247,3 +247,71 @@ Causal SuperFlux + online peak picking with a short post-window (≤ 20 ms). Lis
 ## Timeline
 
 TheRealFatShady v1 is being built now against `develop` at `35c6bed` with the interim plan above, so nothing here is blocking. Priorities 1–4 would let v1.1 delete the consumer-side feature extractor and beat-phase code; 5–7 are quality-of-life; 8–10 are optional. Priority 6 (timestamp convention) is the one we would most like settled early, because any constant offset we compensate for now becomes a breaking change for us later.
+
+---
+
+## Measurement (2026-08-23): the Priority 6 timestamp offset, measured
+
+TheRealFatShady now has a `BoomBoomBoomKit`-backed `BeatSyncProvider` behind its
+beat-sync seam (`AudioAnalysisService.analyze(url:options:)` with `maxSeconds =
+duration + 1`, `beatGridCoverage = .fullTrack`, `detectDownbeats = true`,
+`refineBeatGridTempo = true`; `gridOrigin.presentationTime` → anchor,
+`estimatedTempo` → bpm). It is off by default, and the reason it exists at all
+today is this number.
+
+**Exactly what was measured.** Not `develop`. The SSH agent on the measuring
+machine was locked, so SwiftPM could not fetch anything and the package was
+consumed as a **local path reference to a working checkout at `e864cf7`, on
+branch `rterhaar/12-7-eval-corpus-harness`** — 29 commits ahead of `develop`'s
+`35c6bed`, which is a strict ancestor of it. The diff over `Sources/` is
+additive (`TempoScanRange`, `PerceptualTempoWindow`, and BPM-analyzer work in
+`AudioAnalysisService.swift` / `BPMAnalyzer.swift`), and nothing in the beat-grid
+or anchor path changed, so we expect these numbers to hold on `35c6bed` — but we
+did not run them there, and `AudioAnalysisService` is one of the files that
+differs. To reproduce exactly, check out `e864cf7`. The API surface used is
+present and identical on both.
+
+**The grid runs one full FFT window early — not half a window.**
+
+Fixture: 30 s of the 20 ms / 1 kHz click burst with a 5 ms decay, first click at
+0.25 s, written as 16-bit mono WAV. Measured as the mean of `(anchor + round((click
+− anchor) / period) · period) − click` over every click in the track, so the number
+is the bias of the whole extrapolated grid and not one beat's quantization.
+
+| Sample rate | BPM | Measured grid − click | `2048 / sampleRate` | `1024 / sampleRate` |
+|---|---|---|---|---|
+| 44 100 Hz | 128 | **−47.05 ms** | 46.44 ms | 23.22 ms |
+| 48 000 Hz | 128 | **−43.27 ms** | 42.67 ms | 21.33 ms |
+| 96 000 Hz | 128 | **−21.19 ms** | 21.33 ms | 10.67 ms |
+| 44 100 Hz | 120 | **−51.09 ms** | 46.44 ms | 23.22 ms |
+
+Negative is early. The offset tracks `2048 / sampleRate` across a 2.2× range of
+sample rates, so it is a fixed **2048-sample** (one full `fftSize`) bias, not a
+fixed time and not the half-window §Priority 6 assumed. The 120 BPM row is ~4.6 ms
+looser than its siblings; its anchor sat at 6.7 s rather than 1.61 s, so some of
+that is end-of-track drift folded into the mean rather than pure origin bias.
+
+Tempo, for context, was excellent throughout: 128.008 / 127.993 / 128.002 against
+a true 128, and 120.016 against a true 120 — well inside ±1 BPM. Grid confidence
+0.86–0.98. Wall time for the full-track pass on 30 s of 44.1 kHz audio was ~0.27 s
+(Debug), so the cost is the second decode, not the DSP.
+
+**What this changes in the request.** Priority 6 stands as written, with the
+correction that the fix is `+ fftSize / sampleRate`, not `+ fftSize / 2 /
+sampleRate`, if the intent is that a reported time names the transient rather than
+the window that contains it. (If the intended convention turns out to be window
+*center*, the remaining discrepancy is still a half window.) The 46 ms at 44.1 kHz
+is ~2.8 frames at 60 fps and ~5.6 at 120 fps — squarely in the range this document
+calls "floaty".
+
+**What TheRealFatShady does about it meanwhile:** nothing. The offset is passed
+through uncorrected and the provider is off by default, precisely so that a fix
+upstream is a straight improvement here rather than a double correction. The
+`±40 ms` anchor budget the provider's own test was specified with was widened to
+60 ms to admit this bias, with the reason written at the assertion; it will be
+tightened when the convention is settled.
+
+The click-track assertion offered under "What We Will Contribute Back" is
+implemented on our side as `BoomBoomBoomKitProviderTests` in TheRealFatShady and
+can be ported to `Tests/BoomBoomBoomKitTests` against
+`BoomBoomBoomKitTestSupport.generateClickTrack` whenever that is wanted.
