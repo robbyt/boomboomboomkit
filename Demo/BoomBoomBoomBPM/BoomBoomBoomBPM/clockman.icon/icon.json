@@ -7,19 +7,19 @@
     {
       "layers" : [
         {
-          "blend-mode" : "normal",
           "glass" : false,
-          "image-name" : "clock-man.png",
-          "name" : "clock-man",
+          "image-name" : "sprite-fusion-pixel-art-generator-1024x1024.png",
+          "name" : "sprite-fusion-pixel-art-generator-1024x1024",
           "position" : {
-            "scale" : 0.3,
+            "scale" : 1,
             "translation-in-points" : [
-              4.9811799023091226,
-              15.228968580322999
+              0,
+              60.51920711375499
             ]
           }
         }
       ],
+      "lighting" : "combined",
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
