@@ -40,12 +40,48 @@ Hopper queries can be re-run against a fresh database loaded from the
 inspected rekordbox binary, but the saved `evidence/hopper/*.json` records
 suffice to re-derive every claim in `FINDINGS.md` without the database.
 
-## Epic 13 (working name) — multi-phased plan derived from `FINDINGS.md`
+## Epic 15 — multi-phased plan derived from `FINDINGS.md`
 
-The guidance in `FINDINGS.md` section "Recommended order for a DJ library" and
-section 10 of the handoff describe nine phases. The repository tracks them as
-BMAD stories; the plan below is the project-level view. Each phase lands as a
-small, reviewable branch; nothing opens a PR without explicit instruction.
+Epic 15 is chartered in `_bmad-output/planning-artifacts/epics.md` (added
+2026-10-17). Epic 13 (DSP accuracy experiments) and Epic 14 (model retrain and
+delivery) already hold those slots. The guidance in `FINDINGS.md` section
+"Recommended order for a DJ library" and section 10 of the handoff describe
+nine phases. The repository tracks them as BMad stories 15.1 through 15.9. Each
+phase lands as a small, reviewable commit; nothing opens a PR without explicit
+instruction.
+
+## Coordination with Epic 12 and Epic 14 (standing rule)
+
+**Epic 15 pins invariants, builds enablers, and runs harnesses; Epic 12 ranks
+levers, picks variants, and gates retrains; Epic 14 bundles weights under Epic
+12's gate.** Once Epic 15 pins a frame-time convention (Story 15.3), a waveform
+channel policy (15.4), or an observation-path identity (15.6), Epic 12 retrains
+inherit them. Epic 12 cannot change those invariants unilaterally; a change
+requires an Epic 15 revision.
+
+Ownership matrix:
+
+| Lever / artifact | Builds | Decides to ship | Owns the gate |
+|---|---|---|---|
+| Phase 2 timing-baseline probe (15.2) | Epic 15 | — | — |
+| Phase 3 frame-time convention + fix (15.3) | Epic 15 | Epic 15 (public API doc + regression test) | Epic 15 |
+| Phase 4 waveform data types (15.4) | Epic 15 | Epic 15 (new namespace, additive) | Epic 15 |
+| Phase 5 fixed-time ML input *harness* (15.5) | Epic 15 | — | — |
+| Phase 5 input-representation *variant pick* | — | Epic 12 Story 12.5 | Epic 12 FR-58 |
+| Phase 5 retrain under the picked variant | — | Epic 14 (gated on Epic 12 Gate 1) | Epic 14 |
+| Phase 6 framewise observation path + 4/4 decoder (15.6) | Epic 15 (stub producer only) | Epic 15 (internal infra) | Epic 15 |
+| Phase 6 trained observation weight bundle | — | Epic 14 | Epic 14 |
+| Phase 6 fusion into `SignalSource.beatGrid` vote | — | Epic 12 corrected-ranking item 7(b) | Epic 12 |
+| Phase 7 joint tempo+phase fit (15.7) | Epic 15 | Epic 15 (additive diagnostic) | Epic 15 |
+| Phase 8 supplementary `.dawproject` annotations (15.8) | Epic 15 | Epic 15 (evaluation reference) | Epic 15 |
+| Phase 8 Story 12-7 signed-corpus membership | — | Epic 12 Story 12-7 (unchanged) | Epic 12 |
+| Phase 9 matched-evaluation harness (15.9) | Epic 15 | Epic 15 | Epic 15 |
+| Any "meets or exceeds rekordbox" claim | — | 15.9 report body only | 15.9 report body only |
+
+Escalation: Epic 15 reports evidence; Epic 12 holds the gate. If an Epic 12
+ranking round accepts a variant that Epic 15 harness flags as regressive on a
+sub-band, that disagreement is a Story 12.5 acceptance-criterion decision, not
+an Epic 15 veto.
 
 | Phase | Deliverable | Depends on |
 |---|---|---|
@@ -61,15 +97,10 @@ small, reviewable branch; nothing opens a PR without explicit instruction.
 
 ## For the planning agent
 
-The next step after Phase 1 is a planning workflow (`bmad-architecture` +
-`bmad-create-epics-and-stories`) that reads `FINDINGS.md`, `../../CLAUDE.md`,
-`../../_bmad-output/planning-artifacts/`, and this file, and emits:
-
-1. An Epic 13 charter + PRD under
-   `_bmad-output/planning-artifacts/`.
-2. A story breakdown per phase under
-   `_bmad-output/implementation-artifacts/13-*.md`.
-3. An entry in `_bmad-output/implementation-artifacts/sprint-status.yaml`.
+The Epic 15 charter is at `_bmad-output/planning-artifacts/epics.md` and the
+eight phase-planner story skeletons are at
+`_bmad-output/implementation-artifacts/15-{2..9}-*.md`. The sprint-status
+entry is logged at `_bmad-output/implementation-artifacts/sprint-status.yaml`.
 
 The planning workflow is NOT the right place to make engineering decisions
 about ML representation, grid timing, or waveform shape. It gathers them as
