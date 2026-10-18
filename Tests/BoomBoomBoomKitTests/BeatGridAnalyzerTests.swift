@@ -28,6 +28,26 @@ struct BeatGridAnalyzerTests {
 
   // MARK: - Helpers
 
+  /// Inverse of `BeatGridAnalyzer`'s frame-to-time conversion (Story 15.3):
+  /// a beat emitted from envelope index `f` has
+  /// `presentationTime = ((f + 1) * hopSize + fftSize/2) / sampleRate`,
+  /// so the envelope index is
+  /// `f = (presentationTime * sampleRate - fftSize/2) / hopSize - 1`,
+  /// rounded. Used by the deterministic-DP tests below to assert which
+  /// envelope index a reported beat came from, without re-running the
+  /// tracker. `fftSize` defaults to `BPMAnalyzer.fftSize` so these helpers
+  /// stay in lock-step with the STFT frontend.
+  private static func envelopeIndex(
+    for presentationTime: Double,
+    sampleRate: Double,
+    hopSize: Int,
+    fftSize: Int = BPMAnalyzer.fftSize
+  ) -> Int {
+    let hop = Double(hopSize)
+    let fftHalf = Double(fftSize) / 2.0
+    return Int(((presentationTime * sampleRate - fftHalf) / hop - 1).rounded())
+  }
+
   /// Onset envelope at 100 Hz with unit impulses every `periodFrames` frames.
   private static func impulseEnvelope(frames: Int, periodFrames: Int) -> [Float] {
     var env = [Float](repeating: 0, count: frames)
@@ -360,7 +380,7 @@ struct BeatGridAnalyzerTests {
 
     // Beats land on (or within one frame of) the impulse positions.
     for b in grid.beats {
-      let frame = Int((b.presentationTime * sr / Double(hop)).rounded())
+      let frame = Self.envelopeIndex(for: b.presentationTime, sampleRate: sr, hopSize: hop)
       let phase = frame % period
       #expect(phase <= 1 || phase >= period - 1)
     }
@@ -389,7 +409,8 @@ struct BeatGridAnalyzerTests {
     // No beat in the silent tail: every detected beat has real onset strength.
     #expect(grid.beats.allSatisfy { $0.strength > 0 })
     // The last beat is the last real onset (frame 200), not a ghost past it.
-    let lastFrame = Int((grid.beats.last!.presentationTime * sr / Double(hop)).rounded())
+    let lastFrame = Self.envelopeIndex(
+      for: grid.beats.last!.presentationTime, sampleRate: sr, hopSize: hop)
     #expect(
       lastFrame == 200, "last beat at frame \(lastFrame) — expected the last real onset (200)")
   }
@@ -413,7 +434,9 @@ struct BeatGridAnalyzerTests {
         onsetEnvelope: env, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
         acf: env, tempoBPM: 120, windowStartSample: 0))
 
-    let frames = grid.beats.map { Int(($0.presentationTime * sr / Double(hop)).rounded()) }
+    let frames = grid.beats.map {
+      Self.envelopeIndex(for: $0.presentationTime, sampleRate: sr, hopSize: hop)
+    }
     #expect(frames.first == 0, "quiet first beat (frame 0) must be kept, got \(frames)")
     #expect(frames.last == 200, "quiet last beat (frame 200) must be kept, got \(frames)")
   }
@@ -435,7 +458,8 @@ struct BeatGridAnalyzerTests {
         onsetEnvelope: env, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
         acf: env, tempoBPM: 120, windowStartSample: 0))
 
-    let lastFrame = Int((grid.beats.last!.presentationTime * sr / Double(hop)).rounded())
+    let lastFrame = Self.envelopeIndex(
+      for: grid.beats.last!.presentationTime, sampleRate: sr, hopSize: hop)
     #expect(lastFrame == 150, "a zeroed-onset last beat is trimmed; last real onset is 150")
   }
 
@@ -456,7 +480,8 @@ struct BeatGridAnalyzerTests {
         onsetEnvelope: env, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
         acf: env, tempoBPM: 120, windowStartSample: 0))
 
-    let lastFrame = Int((grid.beats.last!.presentationTime * sr / Double(hop)).rounded())
+    let lastFrame = Self.envelopeIndex(
+      for: grid.beats.last!.presentationTime, sampleRate: sr, hopSize: hop)
     #expect(
       lastFrame > 200, "noisy tail (> silenceEps) retains a ghost past frame 200, got \(lastFrame)")
   }
@@ -481,7 +506,9 @@ struct BeatGridAnalyzerTests {
         BeatGridAnalyzer.estimateBeatGrid(
           onsetEnvelope: scaled, onsetRate: onsetRate, hopSize: hop, sampleRate: sr,
           acf: scaled, tempoBPM: 120, windowStartSample: 0))
-      let frames = grid.beats.map { Int(($0.presentationTime * sr / Double(hop)).rounded()) }
+      let frames = grid.beats.map {
+        Self.envelopeIndex(for: $0.presentationTime, sampleRate: sr, hopSize: hop)
+      }
       return (frames.first!, frames.last!)
     }
 
@@ -843,9 +870,14 @@ struct BeatGridAnalyzerTests {
       fraction >= 0.9,
       "only \(Int(fraction * 100))% of beats sit on the constant-latency grid (median phase \(medianPhase))"
     )
+    // Story 15.3 tightened the pre-15.3 ~10-hop bound (~100 ms) to a ~3-hop
+    // bound (~30 ms). Post-15.3 the Hann-window-centered frame-time convention
+    // brings the measured onset latency to roughly 7-17 ms (0.3-0.8 hops) on
+    // these fixtures; the 3-hop ceiling leaves headroom for the within-window
+    // peak-position bias that Phase 7 is intended to tighten further.
     #expect(
-      abs(medianPhase) <= Double(10 * hopSize),
-      "onset latency \(medianPhase) samples exceeds the ~10-hop bound — unexpectedly large detection delay"
+      abs(medianPhase) <= Double(3 * hopSize),
+      "onset latency \(medianPhase) samples exceeds the ~3-hop bound — unexpectedly large detection delay"
     )
   }
 
@@ -1037,15 +1069,17 @@ struct BeatGridAnalyzerTests {
       "estimatedTempo \(grid.estimatedTempo) is not the true tempo \(trueTempo)")
 
     // (2) Anchor accuracy: the anchor is a real beat sitting within the bounded
-    // onset latency (~10 hops) of a true impulse. An auto anchor is always coupled.
+    // onset latency of a true impulse. An auto anchor is always coupled.
+    // Story 15.3 tightened the pre-15.3 ~10-hop bound to ~3 hops after the
+    // Hann-window-centered frame-time convention landed.
     let anchorIndex = try #require(anchor.beatIndex)
     #expect(anchor.presentationTime == grid.beats[anchorIndex].presentationTime)
     let anchorPos = anchor.presentationTime * sampleRate
     let anchorImpulseDist = Self.distanceToNearestImpulse(
       samplePos: anchorPos, period: samplesPerBeat)
     #expect(
-      anchorImpulseDist <= Double(10 * hopSize),
-      "anchor at sample \(anchorPos) is \(anchorImpulseDist) samples from the nearest impulse (> 10 hops)"
+      anchorImpulseDist <= Double(3 * hopSize),
+      "anchor at sample \(anchorPos) is \(anchorImpulseDist) samples from the nearest impulse (> 3 hops)"
     )
 
     // (3) Drift: accumulated spacing error from the anchor out to minute 5.

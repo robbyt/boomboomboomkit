@@ -236,7 +236,12 @@ struct DownbeatStrategyContainmentTests {
     let origin = try #require(grid.gridOrigin)
     #expect(origin.beatIndex == 12)
     #expect(origin.source == .medianConsistentBeat)
-    #expect(NumericTestHelpers.approxEqual(origin.presentationTime, 5.95, tol: timeTol))
+    // Story 15.3: the pre-15.3 origin.presentationTime was 5.95 s (envelope frame 595
+    // mapped through the old `f * hopSize / sampleRate` convention). The new frame-time
+    // convention (Hann-windowed STFT, `(f + 1) * hopSize + fftSize/2`) shifts every
+    // committed time by exactly `(441 + 1024) / 44100 = 0.033219954648526...` s.
+    #expect(
+      NumericTestHelpers.approxEqual(origin.presentationTime, 5.983219954648527, tol: timeTol))
     #expect(NumericTestHelpers.approxEqual(origin.confidence, 1.0, tol: confTolF))
     #expect(NumericTestHelpers.approxEqual(origin.strength, 1.0, tol: confTolF))
 
@@ -244,9 +249,13 @@ struct DownbeatStrategyContainmentTests {
     // detection). Contingency: if a runner ever shows beat SELECTION differs (a time off by ≥ one
     // hop ≈ 11ms, or a count change), that is host-sensitive beat tracking, not float noise — widen
     // to count + monotonicity + endpoints and record it; expected stable for clean click fixtures.
+    //
+    // Story 15.3: shifted uniformly by +0.033219954648526... s = (441 + 1024) / 44100 vs the
+    // pre-15.3 committed array, which lived under the `f * hopSize / sampleRate` frame-to-time
+    // convention. The underlying envelope frames are unchanged.
     let expectedBeatTimes: [Double] = [
-      0.0, 0.48, 0.96, 1.45, 1.95, 2.45, 2.95, 3.45, 3.95, 4.45,
-      4.95, 5.45, 5.95, 6.45, 6.95, 7.45, 7.95, 8.45, 8.95, 9.45,
+      0.03322, 0.51322, 0.99322, 1.48322, 1.98322, 2.48322, 2.98322, 3.48322, 3.98322, 4.48322,
+      4.98322, 5.48322, 5.98322, 6.48322, 6.98322, 7.48322, 7.98322, 8.48322, 8.98322, 9.48322,
     ]
     try #require(grid.beats.count == expectedBeatTimes.count)
     for (i, expT) in expectedBeatTimes.enumerated() {

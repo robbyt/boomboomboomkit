@@ -331,11 +331,20 @@ struct DownbeatAnalyzerTests {
     let anchorIndex = try #require(anchor.beatIndex)
     #expect(anchor.presentationTime == grid.beats[anchorIndex].presentationTime)
     // Independent ground truth: the first downbeat sits on a planted phase-0 frame
-    // (frame ≡ 0 mod 200 → presentationTime a multiple of 2.0 s within one hop).
+    // (envelope index ≡ 0 mod 200). Under Story 15.3's Hann-window-centered
+    // frame-time convention, envelope index `f` maps to
+    // `((f + 1) * hopSize + fftSize/2) / sampleRate` seconds — so a planted
+    // phase-0 downbeat lands at an offset of
+    // `(hopSize + fftSize/2) / sampleRate ≈ 33.2 ms at 44.1 kHz` past the
+    // mathematical bar boundary. Subtract that offset before snapping to the
+    // nearest bar, then assert the residual is within one hop.
     let firstDownbeatTime = try #require(estimate.beats.first).presentationTime
     let barSeconds = 60.0 / 120.0 * Double(beatsPerBar)  // 2.0 s
-    let nearestBar = (firstDownbeatTime / barSeconds).rounded() * barSeconds
-    #expect(abs(firstDownbeatTime - nearestBar) <= Double(441) / 44100.0)
+    let conventionOffsetSeconds =
+      (Double(441) + Double(BPMAnalyzer.fftSize) / 2.0) / 44100.0
+    let alignedTime = firstDownbeatTime - conventionOffsetSeconds
+    let nearestBar = (alignedTime / barSeconds).rounded() * barSeconds
+    #expect(abs(alignedTime - nearestBar) <= Double(441) / 44100.0)
   }
 
   @Test func abstainPreservesPhaseConsistencyAnchor() throws {

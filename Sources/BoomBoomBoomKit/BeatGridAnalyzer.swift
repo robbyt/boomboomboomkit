@@ -130,6 +130,14 @@ enum BeatGridAnalyzer {
     acf: [Float],
     tempoBPM: Double,
     windowStartSample: Int,
+    // Story 15.3 (Epic 15, Phase 3): the STFT framing in
+    // BPMAnalyzer.computeLogMelFramesAndRetention is a Hann-windowed FFT of
+    // `fftSize` samples at a stride of `hopSize`. The spectral-difference
+    // envelope index `f` is the rise entering STFT frame `f + 1`, whose
+    // Hann-windowed energy centers at sample `(f + 1) * hopSize + fftSize/2`.
+    // The default matches `BPMAnalyzer.fftSize` and the pre-15.3 behaviour
+    // for every call site that does not override it.
+    fftSize: Int = BPMAnalyzer.fftSize,
     coverage: BeatGridCoverage = .analysisWindow,
     subBands: [[Float]] = [],
     detectDownbeats: Bool = false,
@@ -311,6 +319,24 @@ enum BeatGridAnalyzer {
     // salience at the (window-relative) beat frame; presentationTime is offset by
     // windowStartSample to be track-relative (DD #6). Per-beat confidence measures
     // how close the interval to the previous beat is to the known period.
+    //
+    // Frame-to-time convention (Story 15.3, Epic 15, Phase 3). The onset envelope
+    // is produced by half-wave-rectifying `logMel[i] - logMel[i - 1]` and storing
+    // the result at `envelope[i - 1]`. The STFT that produced `logMel` is a
+    // Hann-windowed FFT of `fftSize` samples, so frame `i`'s energy centers at
+    // the window-center sample `i * hopSize + fftSize/2`. Envelope index `f`
+    // therefore marks the energy rise entering STFT frame `f + 1`, whose
+    // window-center sits at sample `(f + 1) * hopSize + fftSize/2`. That is the
+    // physical playback instant to report as `BeatTimestamp.presentationTime`.
+    //
+    // Pre-15.3 this call used `f * hopSize` (start-of-window of frame `f`),
+    // producing a constant `-(hopSize + fftSize/2)` sample bias (~33 ms at
+    // 44.1 kHz / hopSize 441 / fftSize 2048, as the preserved Phase 2 probe
+    // measured). The correction is applied at this single boundary; the
+    // envelope's own indexing is unchanged, so the DP tracker's `frames` array
+    // (which indexes `onsetEnvelope`) still means the same thing it has always
+    // meant.
+    let fftHalfSamples = Double(fftSize) / 2.0
     var beats: [BeatTimestamp] = []
     beats.reserveCapacity(frames.count)
     // The window-relative beat frames, kept parallel to `beats` so the downbeat
@@ -328,7 +354,8 @@ enum BeatGridAnalyzer {
       let strength = onsetEnvelope[f] / envMax
       strengthSum += strength
       let presentationTime =
-        (Double(windowStartSample) + Double(f) * Double(hopSize)) / sampleRate
+        (Double(windowStartSample) + Double(f + 1) * Double(hopSize) + fftHalfSamples)
+        / sampleRate
       let beatConfidence: Float
       if let prevFrame = beatFrames.last {
         let interval = Double(f - prevFrame)

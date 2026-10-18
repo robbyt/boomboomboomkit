@@ -30,13 +30,17 @@ struct BeatGridTimingBaselineTests {
 
   // MARK: - Reproduction bounds
 
-  /// Observed signed anchor error on `rterhaar/12-7-eval-corpus-harness` HEAD
-  /// `0f90ed8de52a9626cd47d3a263bed5af90a6c80e`: the 24 rows in
-  /// `docs/rekordbox-analysis/evidence/timing/results.json` all fall in
-  /// [-50.00, -39.98] ms. A half-ms margin on each side keeps the band stable
-  /// against small post-HEAD drift that does not materially affect the bug.
-  private static let reproductionLowerBoundMs: Double = -50.5
-  private static let reproductionUpperBoundMs: Double = -39.5
+  /// Post-fix observed signed anchor error on this branch after Story 15.3
+  /// (frame-time convention). The 24 rows cluster in [-16.78, -6.76] ms,
+  /// with the residual dominated by a within-window peak-position bias that
+  /// depends on waveform shape (single impulse vs 64-sample exp decay) and
+  /// hop phase. Half-ms margins keep the band stable against small toolchain
+  /// drift. Pre-15.3 numbers (preserved at
+  /// `docs/rekordbox-analysis/evidence/timing/results.json`) sat at
+  /// [-50.00, -39.98] ms; the Hann-windowed STFT's `hopSize + fftSize/2`
+  /// correction accounts for the ~33 ms shift.
+  private static let reproductionLowerBoundMs: Double = -17.5
+  private static let reproductionUpperBoundMs: Double = -6.0
 
   // MARK: - Fixture matrix
 
@@ -370,11 +374,17 @@ struct BeatGridTimingBaselineTests {
   }
 
   private func resolveCommitSHA(repoRoot: URL) -> (short: String, full: String) {
+    // Dirty working trees stamp the baseline with a `-dirty` suffix on both the
+    // short and full SHA. Baselines are a per-SHA reproducibility artifact; a
+    // dirty-tree run cannot be reproduced from the committed tree, so the
+    // suffix is a load-bearing signal to anyone reading the file later.
+    let dirtySuffix = isWorkingTreeDirty(repoRoot: repoRoot) ? "-dirty" : ""
     if let override = ProcessInfo.processInfo.environment["BBB_COMMIT_SHA"],
       !override.isEmpty
     {
-      let short = String(override.prefix(10))
-      return (short, override)
+      let full = override + dirtySuffix
+      let short = String(override.prefix(10)) + dirtySuffix
+      return (short, full)
     }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -388,11 +398,34 @@ struct BeatGridTimingBaselineTests {
       let output =
         String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
       let full = output.trimmingCharacters(in: .whitespacesAndNewlines)
-      if full.isEmpty { return ("unknown", "unknown") }
-      let short = String(full.prefix(10))
-      return (short, full)
+      if full.isEmpty { return ("unknown" + dirtySuffix, "unknown" + dirtySuffix) }
+      let short = String(full.prefix(10)) + dirtySuffix
+      return (short, full + dirtySuffix)
     } catch {
-      return ("unknown", "unknown")
+      return ("unknown" + dirtySuffix, "unknown" + dirtySuffix)
+    }
+  }
+
+  private func isWorkingTreeDirty(repoRoot: URL) -> Bool {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    // --porcelain filters to tracked-but-modified or indexed changes; new
+    // untracked files are excluded because they do not affect reproducibility
+    // of the measured code path.
+    process.arguments = [
+      "git", "-C", repoRoot.path, "status", "--porcelain", "--untracked-files=no",
+    ]
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = Pipe()
+    do {
+      try process.run()
+      process.waitUntilExit()
+      let output =
+        String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+      return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    } catch {
+      return false
     }
   }
 

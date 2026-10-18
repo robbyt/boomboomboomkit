@@ -22,7 +22,15 @@ step (Phase 1) to everything downstream.
    that establishes display precision only.
 5. **No parity claims without a matched evaluation.** Agreement with rekordbox
    output is not independent truth. The matched-evaluation harness in Phase 9
-   is the gate for any "meets or exceeds rekordbox" statement.
+   is the gate for any "meets or exceeds rekordbox" statement. Rekordbox's own
+   beat-grid algorithm is not perfect: on syncopated DJ material its grid can
+   lag a true kick transient by several ms, and its octave decisions miss on
+   drum-and-bass / downtempo as often as our DSP path does. "Match or exceed
+   rekordbox" is the Phase 9 scoring bar, specifically for kick-transient
+   alignment on 4/4 EDM, correct musical tempo level, and stable constant-tempo
+   grids. Phase 7's joint tempo/phase fit with sub-frame interpolation and the
+   optional Story 15.3a oversampling knob are the two live levers for tightening
+   phase accuracy; both report into Phase 9.
 6. **Develop-only.** This directory stays on `develop`. Do not add it to
    `scripts/promote-to-main.py` or ship any part of it in the open-source
    release.
@@ -87,7 +95,8 @@ an Epic 15 veto.
 |---|---|---|
 | 1 | Preserve research (this directory) | — |
 | 2 | Port the probe at `evidence/timing/TimingProbeTests.swift` into a reproducible target in-tree; confirm the 40–50 ms early-anchor measurement; publish a baseline tagged in `_bmad-output/perf-baselines/` | 1 |
-| 3 | Define the frame-time convention; trace `BPMAnalyzer.swift:1181`, `:916`, `BeatGridAnalyzer.swift:330`; fix at the appropriate boundary; add permanent regression tests across BPMs, sample rates, hop phases, leading silence, nonzero analysis-window offsets. **No universal +40/50 ms correction.** | 2 |
+| 3 | Define the frame-time convention; trace `BPMAnalyzer.swift:1181`, `:916`, `BeatGridAnalyzer.swift:330`; fix at the appropriate boundary (`presentationTime = ((f + 1) * hopSize + fftSize/2) / sampleRate`); add permanent regression tests across BPMs, sample rates, hop phases, leading silence, nonzero analysis-window offsets. **No universal +40/50 ms correction.** | 2 |
+| 3a | Caller-configurable oversampling (`Options.beatGridOversamplingFactor` in {1, 2, 4}) for the STFT envelope; expands the Phase 3 regression bounds to assert tighter numbers at higher levels; measures the wall-clock impact. Opt-in, develop-only knob at first; folds into the public API once Phase 9 confirms the accuracy gain is reproducible. | 3 |
 | 4 | Independent waveform-analysis objects: amplitude envelope + peak-preserving overview + low/mid/high energy with explicit per-bin timing (150 columns/second default, rational-safe), channel-aware stereo policy, bounded-memory streaming decode, cancellation + progress. **Do not depend on `RekordboxReader`.** Test matrix per handoff section 8 | 3 (reuses the fixed timing convention) |
 | 5 | Fixed-time ML input experiments: fixed seconds/frame, fixed-duration crops, matched train/infer preprocessing, multi-crop at inference with explicit sequence-level aggregation; versioned frontend/window/padding/feature/normalization/crop/tensor/output-classes/model identity. Preserve the existing model path. | 2 (baseline) |
 | 6 | Framewise beat/downbeat observation path, **not** on `MLTechnique`: decoded audio → timed observations (with explicit frame timing, origin, model+frontend identity, coverage) → structured 4/4 decoder → candidate beat sequence → constant-tempo refinement. Keep DSP as baseline. Avoid circular confidence; `SignalSource.beatGrid` stays a placeholder | 2 |
