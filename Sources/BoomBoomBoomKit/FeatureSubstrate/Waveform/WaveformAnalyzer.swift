@@ -6,9 +6,8 @@
 //  waveform outputs for a decoded mono audio buffer.
 //
 //  Phase 1 of Story 15.4 ships the mono / in-memory path. Streaming decode
-//  (Story 15.4a) and multi-channel policies (Story 15.4b) are reserved
-//  follow-ups; a caller invoking those cases today receives a thrown
-//  `WaveformAnalyzerError`.
+//  (Story 15.4a) and multi-channel input (Story 15.4b) are follow-ups; their
+//  options are added when they work, not reserved ahead of time.
 //
 
 import Accelerate
@@ -22,6 +21,10 @@ import Foundation
 /// at the requested columns-per-second cadence.
 public enum WaveformAnalyzer {
 
+  /// Number of bins processed between cancellation checks and progress
+  /// reports inside each per-bin pass.
+  internal static let progressChunkBins = 256
+
   // MARK: - Public API
 
   /// Analyzes a decoded mono buffer and returns the three waveform outputs.
@@ -29,25 +32,33 @@ public enum WaveformAnalyzer {
   /// - Parameters:
   ///   - decoded: Mono PCM samples (``FeatureSubstrate/DecodedAudio``).
   ///   - options: ``WaveformOptions``. Default cadence 150 cps,
-  ///     ``WaveformChannelPolicy/mono``, 250 / 4000 Hz band crossovers.
+  ///     250 / 4000 Hz band crossovers.
   /// - Returns: The three outputs sharing the same bin grid.
-  /// - Throws: ``WaveformAnalyzerError/cancelled`` when
-  ///   ``WaveformOptions/isCancelled`` returns `true` before the pass starts;
-  ///   ``WaveformAnalyzerError/channelPolicyNotImplemented`` for any policy
-  ///   other than ``WaveformChannelPolicy/mono`` (reserved API).
+  /// - Throws: ``WaveformAnalyzerError/columnsPerSecondOutOfRange(columnsPerSecond:sampleRate:)``
+  ///   when ``WaveformOptions/columnsPerSecond`` is not between 1 and the
+  ///   sample rate;
+  ///   ``WaveformAnalyzerError/midHighCutoffOutOfRange(midHighCutoffHz:nyquistHz:)``
+  ///   when ``WaveformOptions/midHighCutoffHz`` is not finite, not positive,
+  ///   or at or above `sampleRate / 2` (the default 4000 Hz crossover throws
+  ///   at 8 kHz);
+  ///   ``WaveformAnalyzerError/lowMidCutoffOutOfRange(lowMidCutoffHz:midHighCutoffHz:)``
+  ///   when ``WaveformOptions/lowMidCutoffHz`` is not finite, not positive,
+  ///   or not below the mid / high crossover;
+  ///   ``WaveformAnalyzerError/cancelled`` when ``WaveformOptions/isCancelled``
+  ///   returns `true` at any check (before the pass, before each filter
+  ///   pass, and before each 256-bin chunk). A cancelled run returns no
+  ///   partial result.
   public static func analyze(
     decoded: FeatureSubstrate.DecodedAudio,
     options: WaveformOptions = .init()
   ) throws -> WaveformAnalysisResult {
+    let samples = decoded.samples
+    let sampleRate = decoded.sampleRate
+    try validate(options: options, sampleRate: sampleRate)
     if options.isCancelled() { throw WaveformAnalyzerError.cancelled }
-    guard options.channelPolicy.isImplemented else {
-      throw WaveformAnalyzerError.channelPolicyNotImplemented(options.channelPolicy)
-    }
 
     options.onProgress?(0.0)
 
-    let samples = decoded.samples
-    let sampleRate = decoded.sampleRate
     let frameCount = samples.count
     let coveredSampleRange = 0..<frameCount
 
@@ -59,30 +70,37 @@ public enum WaveformAnalyzer {
     )
     let binCount = binStartSamples.count
 
-    // Shared iteration: compute each output's per-bin reduction in one pass
-    // over the sample buffer. The three loops are independent per bin, so
-    // we expose each via its own helper to keep the top-level readable.
+    // Progress is measured in bins processed: one detail / overview pass
+    // plus three per-band RMS passes over the same bin grid.
+    var progress = PassProgress(
+      totalUnits: 4 * binCount,
+      isCancelled: options.isCancelled,
+      onProgress: options.onProgress
+    )
+
     var magnitudes = [Float](repeating: 0, count: binCount)
     var signedMins = [Float](repeating: 0, count: binCount)
     var signedMaxes = [Float](repeating: 0, count: binCount)
-    computeDetailAndOverview(
+    try computeDetailAndOverview(
       samples: samples,
       frameCount: frameCount,
       binStartSamples: binStartSamples,
       magnitudes: &magnitudes,
       signedMins: &signedMins,
-      signedMaxes: &signedMaxes
+      signedMaxes: &signedMaxes,
+      progress: &progress
     )
 
-    // Band-split energy. Three biquad filters produce band-limited copies
-    // of the input; per-bin energy is RMS over the bin's sample range.
-    let (lowBand, midBand, highBand) = computeThreeBandEnergy(
+    // Band-split energy. Biquad filters produce band-limited copies of the
+    // input; per-bin energy is RMS over the bin's sample range.
+    let (lowBand, midBand, highBand) = try computeThreeBandEnergy(
       samples: samples,
       sampleRate: sampleRate,
       lowMidCutoffHz: options.lowMidCutoffHz,
       midHighCutoffHz: options.midHighCutoffHz,
       binStartSamples: binStartSamples,
-      frameCount: frameCount
+      frameCount: frameCount,
+      progress: &progress
     )
 
     let detail = WaveformDetailEnvelope(
@@ -112,8 +130,39 @@ public enum WaveformAnalyzer {
       highBand: highBand
     )
 
-    options.onProgress?(1.0)
+    // An empty input has no chunks, so the per-chunk reports never reach 1.0.
+    if binCount == 0 { options.onProgress?(1.0) }
     return WaveformAnalysisResult(detail: detail, overview: overview, energy: energy)
+  }
+
+  // MARK: - Option validation
+
+  /// Rejects options the analyzer cannot honor at `sampleRate`. Checked in
+  /// this order: cadence, mid / high crossover, low / mid crossover.
+  internal static func validate(options: WaveformOptions, sampleRate: Double) throws {
+    // Compared as `Double`: `Int(sampleRate)` would trap for a finite rate
+    // above `Int.max`.
+    guard options.columnsPerSecond >= 1, Double(options.columnsPerSecond) <= sampleRate else {
+      throw WaveformAnalyzerError.columnsPerSecondOutOfRange(
+        columnsPerSecond: options.columnsPerSecond, sampleRate: sampleRate)
+    }
+    let nyquistHz = sampleRate / 2
+    guard
+      options.midHighCutoffHz.isFinite,
+      options.midHighCutoffHz > 0,
+      options.midHighCutoffHz < nyquistHz
+    else {
+      throw WaveformAnalyzerError.midHighCutoffOutOfRange(
+        midHighCutoffHz: options.midHighCutoffHz, nyquistHz: nyquistHz)
+    }
+    guard
+      options.lowMidCutoffHz.isFinite,
+      options.lowMidCutoffHz > 0,
+      options.lowMidCutoffHz < options.midHighCutoffHz
+    else {
+      throw WaveformAnalyzerError.lowMidCutoffOutOfRange(
+        lowMidCutoffHz: options.lowMidCutoffHz, midHighCutoffHz: options.midHighCutoffHz)
+    }
   }
 
   // MARK: - Bin boundaries (integer math)
@@ -122,6 +171,12 @@ public enum WaveformAnalyzer {
   /// value is `< frameCount`; last bin covers through `frameCount - 1`.
   /// Uses rational integer math so repeated floating-point `+= 1/cps` drift
   /// is impossible.
+  ///
+  /// The bin count is capped at `frameCount` so every bin holds at least one
+  /// sample and the result stays strictly increasing even when
+  /// `columnsPerSecond` exceeds `sampleRate` (``analyze(decoded:options:)``
+  /// rejects that cadence before reaching here; the cap keeps this helper
+  /// safe on its own).
   internal static func computeBinStartSamples(
     frameCount: Int,
     sampleRate: Double,
@@ -130,19 +185,20 @@ public enum WaveformAnalyzer {
     // Expected bin count: ceil(frameCount * columnsPerSecond / sampleRate).
     // Using Double once for the computation keeps the formula explicit; the
     // integer sample positions below are exact and monotonic by construction.
+    guard frameCount > 0, columnsPerSecond > 0 else { return [] }
     let cps = Double(columnsPerSecond)
-    guard frameCount > 0 else { return [] }
-    let binCount = max(1, Int((Double(frameCount) * cps / sampleRate).rounded(.up)))
+    let uncappedBinCount = max(1, Int((Double(frameCount) * cps / sampleRate).rounded(.up)))
+    let binCount = min(frameCount, uncappedBinCount)
     var bins = [Int](repeating: 0, count: binCount)
     for i in 0..<binCount {
       // start = floor(i * sampleRate / cps)
       let position = Double(i) * sampleRate / cps
       bins[i] = min(frameCount - 1, Int(position.rounded(.down)))
     }
-    // Ensure strict monotonicity: if a repeat occurs at very high cps vs
-    // sampleRate, nudge forward by one sample.
+    // Enforce strict monotonicity when cps exceeds sampleRate (floor repeats).
+    // With binCount <= frameCount the nudged value never passes frameCount - 1.
     for i in 1..<binCount where bins[i] <= bins[i - 1] {
-      bins[i] = min(frameCount - 1, bins[i - 1] + 1)
+      bins[i] = bins[i - 1] + 1
     }
     return bins
   }
@@ -155,31 +211,37 @@ public enum WaveformAnalyzer {
     binStartSamples: [Int],
     magnitudes: inout [Float],
     signedMins: inout [Float],
-    signedMaxes: inout [Float]
-  ) {
+    signedMaxes: inout [Float],
+    progress: inout PassProgress
+  ) throws {
     let binCount = binStartSamples.count
     guard binCount > 0 else { return }
-    samples.withUnsafeBufferPointer { buf in
+    try samples.withUnsafeBufferPointer { buf in
       let base = buf.baseAddress!
-      for i in 0..<binCount {
-        let start = binStartSamples[i]
-        let end = i + 1 < binCount ? binStartSamples[i + 1] : frameCount
-        let count = end - start
-        guard count > 0 else {
-          magnitudes[i] = 0
-          signedMins[i] = 0
-          signedMaxes[i] = 0
-          continue
+      for chunkStart in stride(from: 0, to: binCount, by: progressChunkBins) {
+        try progress.checkCancellation()
+        let chunkEnd = min(binCount, chunkStart + progressChunkBins)
+        for i in chunkStart..<chunkEnd {
+          let start = binStartSamples[i]
+          let end = i + 1 < binCount ? binStartSamples[i + 1] : frameCount
+          let count = end - start
+          guard count > 0 else {
+            magnitudes[i] = 0
+            signedMins[i] = 0
+            signedMaxes[i] = 0
+            continue
+          }
+          var minValue: Float = 0
+          var maxValue: Float = 0
+          vDSP_minv(base + start, 1, &minValue, vDSP_Length(count))
+          vDSP_maxv(base + start, 1, &maxValue, vDSP_Length(count))
+          var absMax: Float = 0
+          vDSP_maxmgv(base + start, 1, &absMax, vDSP_Length(count))
+          signedMins[i] = minValue
+          signedMaxes[i] = maxValue
+          magnitudes[i] = absMax
         }
-        var minValue: Float = 0
-        var maxValue: Float = 0
-        vDSP_minv(base + start, 1, &minValue, vDSP_Length(count))
-        vDSP_maxv(base + start, 1, &maxValue, vDSP_Length(count))
-        var absMax: Float = 0
-        vDSP_maxmgv(base + start, 1, &absMax, vDSP_Length(count))
-        signedMins[i] = minValue
-        signedMaxes[i] = maxValue
-        magnitudes[i] = absMax
+        progress.report(completed: chunkEnd - chunkStart)
       }
     }
   }
@@ -190,8 +252,9 @@ public enum WaveformAnalyzer {
     lowMidCutoffHz: Double,
     midHighCutoffHz: Double,
     binStartSamples: [Int],
-    frameCount: Int
-  ) -> (low: [Float], mid: [Float], high: [Float]) {
+    frameCount: Int,
+    progress: inout PassProgress
+  ) throws -> (low: [Float], mid: [Float], high: [Float]) {
     let binCount = binStartSamples.count
     var lowBand = [Float](repeating: 0, count: binCount)
     var midBand = [Float](repeating: 0, count: binCount)
@@ -210,21 +273,28 @@ public enum WaveformAnalyzer {
     let highPassMidHigh = BiquadCoefficients.highPass(
       cutoffHz: midHighCutoffHz, sampleRate: sampleRate)
 
+    // Each filter pass runs over the whole buffer, so cancellation is
+    // checked before each one as well as per chunk inside the RMS passes.
+    try progress.checkCancellation()
     let lowBandSignal = lowPassCoefficients.apply(to: samples)
-    // Mid band = high-pass @ lowMid, then low-pass @ midHigh.
-    let midPreHigh = highPassLowMid.apply(to: samples)
-    let midBandSignal = lowPassMidHigh.apply(to: midPreHigh)
-    let highBandSignal = highPassMidHigh.apply(to: samples)
-
-    computeRMSPerBin(
+    try computeRMSPerBin(
       signal: lowBandSignal, frameCount: frameCount, binStartSamples: binStartSamples,
-      output: &lowBand)
-    computeRMSPerBin(
+      output: &lowBand, progress: &progress)
+
+    // Mid band = high-pass @ lowMid, then low-pass @ midHigh.
+    try progress.checkCancellation()
+    let midPreHigh = highPassLowMid.apply(to: samples)
+    try progress.checkCancellation()
+    let midBandSignal = lowPassMidHigh.apply(to: midPreHigh)
+    try computeRMSPerBin(
       signal: midBandSignal, frameCount: frameCount, binStartSamples: binStartSamples,
-      output: &midBand)
-    computeRMSPerBin(
+      output: &midBand, progress: &progress)
+
+    try progress.checkCancellation()
+    let highBandSignal = highPassMidHigh.apply(to: samples)
+    try computeRMSPerBin(
       signal: highBandSignal, frameCount: frameCount, binStartSamples: binStartSamples,
-      output: &highBand)
+      output: &highBand, progress: &progress)
 
     return (lowBand, midBand, highBand)
   }
@@ -233,24 +303,61 @@ public enum WaveformAnalyzer {
     signal: [Float],
     frameCount: Int,
     binStartSamples: [Int],
-    output: inout [Float]
-  ) {
+    output: inout [Float],
+    progress: inout PassProgress
+  ) throws {
     let binCount = binStartSamples.count
-    signal.withUnsafeBufferPointer { buf in
+    try signal.withUnsafeBufferPointer { buf in
       let base = buf.baseAddress!
-      for i in 0..<binCount {
-        let start = binStartSamples[i]
-        let end = i + 1 < binCount ? binStartSamples[i + 1] : frameCount
-        let count = end - start
-        guard count > 0 else {
-          output[i] = 0
-          continue
+      for chunkStart in stride(from: 0, to: binCount, by: progressChunkBins) {
+        try progress.checkCancellation()
+        let chunkEnd = min(binCount, chunkStart + progressChunkBins)
+        for i in chunkStart..<chunkEnd {
+          let start = binStartSamples[i]
+          let end = i + 1 < binCount ? binStartSamples[i + 1] : frameCount
+          let count = end - start
+          guard count > 0 else {
+            output[i] = 0
+            continue
+          }
+          var rms: Float = 0
+          vDSP_rmsqv(base + start, 1, &rms, vDSP_Length(count))
+          output[i] = rms
         }
-        var rms: Float = 0
-        vDSP_rmsqv(base + start, 1, &rms, vDSP_Length(count))
-        output[i] = rms
+        progress.report(completed: chunkEnd - chunkStart)
       }
     }
+  }
+}
+
+// MARK: - Progress and cancellation
+
+/// Tracks bins processed across the analyzer's per-bin passes, consults the
+/// caller's cancellation closure, and reports a monotonic `[0, 1]` fraction.
+private struct PassProgress {
+  let totalUnits: Int
+  let isCancelled: @Sendable () -> Bool
+  let onProgress: (@Sendable (Double) -> Void)?
+  private(set) var completedUnits = 0
+
+  init(
+    totalUnits: Int,
+    isCancelled: @escaping @Sendable () -> Bool,
+    onProgress: (@Sendable (Double) -> Void)?
+  ) {
+    self.totalUnits = totalUnits
+    self.isCancelled = isCancelled
+    self.onProgress = onProgress
+  }
+
+  func checkCancellation() throws {
+    if isCancelled() { throw WaveformAnalyzerError.cancelled }
+  }
+
+  mutating func report(completed units: Int) {
+    completedUnits = min(totalUnits, completedUnits + units)
+    guard totalUnits > 0 else { return }
+    onProgress?(Double(completedUnits) / Double(totalUnits))
   }
 }
 
@@ -276,13 +383,21 @@ public struct WaveformAnalysisResult: Sendable, Hashable, Codable {
 // MARK: - Errors
 
 /// Errors emitted by ``WaveformAnalyzer``.
+///
+/// The payloads carry the rejected `Double` values, so an error built from a
+/// NaN input never equals itself; tests on non-finite inputs must match on
+/// the case, not compare whole values.
 public enum WaveformAnalyzerError: Error, Sendable, Equatable {
   /// ``WaveformOptions/isCancelled`` returned `true`.
   case cancelled
-  /// The caller requested a ``WaveformChannelPolicy`` that is reserved for a
-  /// follow-up story (Story 15.4b). Only ``WaveformChannelPolicy/mono`` is
-  /// implemented in Phase 1 of Story 15.4.
-  case channelPolicyNotImplemented(WaveformChannelPolicy)
+  /// ``WaveformOptions/columnsPerSecond`` is not between 1 and the sample rate.
+  case columnsPerSecondOutOfRange(columnsPerSecond: Int, sampleRate: Double)
+  /// ``WaveformOptions/midHighCutoffHz`` is not finite, not positive, or at
+  /// or above the Nyquist frequency (`sampleRate / 2`) of the input.
+  case midHighCutoffOutOfRange(midHighCutoffHz: Double, nyquistHz: Double)
+  /// ``WaveformOptions/lowMidCutoffHz`` is not finite, not positive, or not
+  /// below ``WaveformOptions/midHighCutoffHz``.
+  case lowMidCutoffOutOfRange(lowMidCutoffHz: Double, midHighCutoffHz: Double)
 }
 
 // MARK: - Biquad helper (second-order IIR, Double precision)

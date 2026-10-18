@@ -17,12 +17,11 @@
 /// preserved for the renderer to interpret.
 ///
 /// ## Filter contract (algorithm `three-band-biquad.v1`)
-/// Three biquad filters (second-order IIR) are applied to the signal:
-///
-/// - **Low band**: low-pass at ``lowMidCutoffHz`` (default 250 Hz).
-/// - **Mid band**: band-pass between ``lowMidCutoffHz`` and
-///   ``midHighCutoffHz`` (default 250–4000 Hz).
-/// - **High band**: high-pass at ``midHighCutoffHz`` (default 4000 Hz).
+/// Four second-order Butterworth biquad passes: the low band is one low-pass
+/// at ``lowMidCutoffHz``; the mid band is a high-pass at ``lowMidCutoffHz``
+/// cascaded with a low-pass at ``midHighCutoffHz`` (a fourth-order band-pass
+/// response); the high band is one high-pass at ``midHighCutoffHz``. The
+/// default crossovers are 250 Hz and 4000 Hz.
 ///
 /// Each filter runs in Double precision for pole stability near the
 /// crossovers, matching ``LUFSAnalyzer``'s K-weighting precedent. Per-bin
@@ -74,6 +73,10 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
   /// High-band RMS per bin.
   public let highBand: [Float]
 
+  /// Creates a record. The crossover preconditions are programmer guards:
+  /// ``WaveformAnalyzer/analyze(decoded:options:)`` validates the options
+  /// and throws a ``WaveformAnalyzerError`` before constructing a record, so
+  /// they are unreachable through the analyzer.
   public init(
     sampleRate: Double,
     columnsPerSecond: Int,

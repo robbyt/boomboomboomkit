@@ -3,8 +3,8 @@
 //  BoomBoomBoomKit
 //
 //  Story 15.4 (Epic 15, Phase 4) — public namespace for independent waveform
-//  analysis. Covers the detail envelope, peak-preserving overview, three-band
-//  energy channels, and the channel policy that governs stereo handling.
+//  analysis. Covers the detail envelope, peak-preserving overview, and
+//  three-band energy channels.
 //
 //  Rekordbox-independent: no on-disk mimicry (PWV4 chunk tags, byte layouts,
 //  etc.), no dependency on `RekordboxReader`, and no SwiftUI consumer. Each

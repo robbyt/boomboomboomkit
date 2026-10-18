@@ -7,9 +7,9 @@
 //  of the story: silence, pure tones per band, impulse peak preservation,
 //  short-file bin arithmetic, and sample-rate invariance.
 //
-//  The streaming path (Story 15.4a) and the multi-channel policies
-//  (Story 15.4b) are reserved; their ACs are covered in follow-ups. One
-//  guard in this suite confirms the not-yet-implemented policies throw.
+//  The streaming path (Story 15.4a) and multi-channel input (Story 15.4b)
+//  are follow-ups with their own ACs. This suite also covers option
+//  validation, per-chunk cancellation, and per-chunk progress reporting.
 //
 
 import Foundation
@@ -208,22 +208,156 @@ struct WaveformAnalyzerTests {
     }
   }
 
-  // MARK: - Not-yet-implemented policies throw cleanly
+  // MARK: - Option validation
 
-  @Test func reservedChannelPoliciesThrow() {
+  @Test func defaultCrossoverThrowsAtEightKilohertz() {
+    // Default midHighCutoffHz is 4000 Hz, which equals Nyquist at 8 kHz.
+    let decoded = Self.silentDecoded(seconds: 1, sampleRate: 8_000)
+    #expect(
+      throws: WaveformAnalyzerError.midHighCutoffOutOfRange(
+        midHighCutoffHz: 4_000, nyquistHz: 4_000)
+    ) {
+      _ = try WaveformAnalyzer.analyze(decoded: decoded)
+    }
+  }
+
+  @Test func crossoverBelowNyquistAnalyzesEightKilohertz() throws {
+    var options = WaveformOptions()
+    options.midHighCutoffHz = 3_000
+    let result = try WaveformAnalyzer.analyze(
+      decoded: Self.sineDecoded(frequency: 1_000, seconds: 2, sampleRate: 8_000),
+      options: options)
+    #expect(result.energy.midHighCutoffHz == 3_000)
+    #expect(result.detail.magnitudes.count == 300)
+  }
+
+  @Test func lowMidCutoffOutOfRangeThrows() {
     let decoded = Self.silentDecoded(seconds: 1)
-    for policy: WaveformChannelPolicy in [
-      .leftOnly, .rightOnly, .perChannel, .mixDownRespectingPhase,
-    ] {
+    for lowMid: Double in [0, -10, 4_000, 5_000] {
       var options = WaveformOptions()
-      options.channelPolicy = policy
-      #expect(throws: WaveformAnalyzerError.self) {
+      options.lowMidCutoffHz = lowMid
+      #expect(
+        throws: WaveformAnalyzerError.lowMidCutoffOutOfRange(
+          lowMidCutoffHz: lowMid, midHighCutoffHz: 4_000),
+        "lowMidCutoffHz \(lowMid)"
+      ) {
         _ = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
       }
     }
   }
 
-  // MARK: - Cancellation at the start of the pass
+  @Test func nonPositiveMidHighCutoffThrowsMidHighError() {
+    // A zero or negative mid / high crossover is the mid / high guard's
+    // error, not the low / mid one.
+    let decoded = Self.silentDecoded(seconds: 1)
+    for midHigh: Double in [0, -100] {
+      var options = WaveformOptions()
+      options.midHighCutoffHz = midHigh
+      #expect(
+        throws: WaveformAnalyzerError.midHighCutoffOutOfRange(
+          midHighCutoffHz: midHigh, nyquistHz: 22_050),
+        "midHighCutoffHz \(midHigh)"
+      ) {
+        _ = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
+      }
+    }
+  }
+
+  @Test func nonFiniteCutoffsThrowTheirOwnCase() {
+    // NaN payloads never compare equal, so match on the case.
+    let decoded = Self.silentDecoded(seconds: 1)
+    for value in [Double.nan, .infinity, -.infinity] {
+      var lowMid = WaveformOptions()
+      lowMid.lowMidCutoffHz = value
+      #expect(throws: WaveformAnalyzerError.self) {
+        _ = try WaveformAnalyzer.analyze(decoded: decoded, options: lowMid)
+      }
+      do {
+        _ = try WaveformAnalyzer.analyze(decoded: decoded, options: lowMid)
+        Issue.record("lowMidCutoffHz \(value) did not throw")
+      } catch WaveformAnalyzerError.lowMidCutoffOutOfRange {
+      } catch {
+        Issue.record("lowMidCutoffHz \(value) threw \(error)")
+      }
+
+      var midHigh = WaveformOptions()
+      midHigh.midHighCutoffHz = value
+      #expect(throws: WaveformAnalyzerError.self) {
+        _ = try WaveformAnalyzer.analyze(decoded: decoded, options: midHigh)
+      }
+      do {
+        _ = try WaveformAnalyzer.analyze(decoded: decoded, options: midHigh)
+        Issue.record("midHighCutoffHz \(value) did not throw")
+      } catch WaveformAnalyzerError.midHighCutoffOutOfRange {
+      } catch {
+        Issue.record("midHighCutoffHz \(value) threw \(error)")
+      }
+    }
+  }
+
+  @Test func columnsPerSecondOutOfRangeThrows() {
+    let decoded = Self.silentDecoded(seconds: 1, sampleRate: 8_000)
+    for cps in [0, -1, 8_001, 16_000] {
+      var options = WaveformOptions()
+      options.columnsPerSecond = cps
+      #expect(
+        throws: WaveformAnalyzerError.columnsPerSecondOutOfRange(
+          columnsPerSecond: cps, sampleRate: 8_000),
+        "columnsPerSecond \(cps)"
+      ) {
+        _ = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
+      }
+    }
+  }
+
+  /// The cadence bound is compared as `Double`, so a finite sample rate above
+  /// `Int.max` validates instead of trapping in `Int(sampleRate)`, and a
+  /// cadence above a small rate still throws.
+  @Test func validateDoesNotTrapOnHugeSampleRate() throws {
+    try WaveformAnalyzer.validate(options: .init(), sampleRate: 1e300)
+
+    var options = WaveformOptions()
+    options.columnsPerSecond = 150
+    #expect(
+      throws: WaveformAnalyzerError.columnsPerSecondOutOfRange(
+        columnsPerSecond: 150, sampleRate: 100)
+    ) {
+      try WaveformAnalyzer.validate(options: options, sampleRate: 100)
+    }
+  }
+
+  @Test func columnsPerSecondAtSampleRateIsAccepted() throws {
+    var options = WaveformOptions()
+    options.columnsPerSecond = 8_000
+    options.midHighCutoffHz = 3_000
+    let result = try WaveformAnalyzer.analyze(
+      decoded: Self.silentDecoded(seconds: 0.1, sampleRate: 8_000), options: options)
+    #expect(result.detail.binStartSamples == Array(0..<800))
+  }
+
+  // MARK: - Bin boundaries above one column per sample
+
+  @Test func binStartSamplesCapAtFrameCountAndStayStrictlyIncreasing() {
+    // cps twice the sample rate would ask for 2 * frameCount bins; the
+    // helper caps the count at frameCount so every bin holds one sample.
+    let frameCount = 1_000
+    let bins = WaveformAnalyzer.computeBinStartSamples(
+      frameCount: frameCount, sampleRate: 8_000, columnsPerSecond: 16_000)
+    #expect(bins.count == frameCount)
+    #expect(bins == Array(0..<frameCount))
+    for i in 1..<bins.count {
+      #expect(bins[i] > bins[i - 1], "not strictly increasing at \(i)")
+    }
+  }
+
+  @Test func binStartSamplesEmptyForZeroColumnsPerSecond() {
+    #expect(
+      WaveformAnalyzer.computeBinStartSamples(
+        frameCount: 1_000, sampleRate: 8_000, columnsPerSecond: 0
+      ).isEmpty)
+  }
+
+  // MARK: - Cancellation
 
   @Test func cancellationAtStartThrows() {
     let decoded = Self.silentDecoded(seconds: 1)
@@ -232,5 +366,115 @@ struct WaveformAnalyzerTests {
     #expect(throws: WaveformAnalyzerError.cancelled) {
       _ = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
     }
+  }
+
+  @Test func cancellationMidPassThrowsAndStopsProgress() {
+    // 20 s at 150 cps -> 3000 bins -> 12 chunks per pass. Flip cancellation
+    // on after a handful of checks so it lands inside the first pass.
+    let decoded = Self.silentDecoded(seconds: 20)
+    let calls = LockedCounter()
+    let reports = LockedRecorder()
+    let cancelAfter = 5
+    var options = WaveformOptions()
+    options.isCancelled = { calls.increment() > cancelAfter }
+    options.onProgress = { reports.append($0) }
+    #expect(throws: WaveformAnalyzerError.cancelled) {
+      _ = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
+    }
+    // The flip was observed, and checking stopped at that call.
+    #expect(calls.value == cancelAfter + 1)
+    let values = reports.values
+    #expect(!values.isEmpty)
+    #expect(values.last! < 1.0, "a cancelled run must not report completion")
+    // 1 start report + one per completed chunk before the cancelling check.
+    #expect(values.count == cancelAfter)
+  }
+
+  @Test func cancellationBetweenFilterPassesThrows() {
+    // Cancel at the check that precedes the first filter pass: 1 start
+    // check + 12 detail chunks, so the 14th call is the pre-filter check.
+    let decoded = Self.silentDecoded(seconds: 20)
+    let calls = LockedCounter()
+    var options = WaveformOptions()
+    options.isCancelled = { calls.increment() >= 14 }
+    #expect(throws: WaveformAnalyzerError.cancelled) {
+      _ = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
+    }
+    #expect(calls.value == 14)
+  }
+
+  // MARK: - Progress
+
+  @Test func progressIsMonotonicPerChunkAndEndsAtOne() throws {
+    let decoded = Self.silentDecoded(seconds: 20)
+    let reports = LockedRecorder()
+    var options = WaveformOptions()
+    options.onProgress = { reports.append($0) }
+    let result = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
+    let binCount = result.detail.magnitudes.count
+    let chunksPerPass =
+      (binCount + WaveformAnalyzer.progressChunkBins - 1) / WaveformAnalyzer.progressChunkBins
+    let values = reports.values
+    #expect(values.first == 0.0)
+    #expect(values.last == 1.0)
+    #expect(values.count == 1 + 4 * chunksPerPass)
+    for i in 1..<values.count {
+      #expect(values[i] >= values[i - 1], "progress decreased at report \(i)")
+    }
+    #expect(values.allSatisfy { (0.0...1.0).contains($0) })
+  }
+
+  @Test func emptyInputReportsStartAndCompletionOnly() throws {
+    let reports = LockedRecorder()
+    var options = WaveformOptions()
+    options.onProgress = { reports.append($0) }
+    let result = try WaveformAnalyzer.analyze(
+      decoded: Self.silentDecoded(seconds: 0), options: options)
+    #expect(result.detail.binStartSamples.isEmpty)
+    #expect(result.detail.magnitudes.isEmpty)
+    #expect(result.overview.signedMins.isEmpty)
+    #expect(result.overview.signedMaxes.isEmpty)
+    #expect(result.energy.lowBand.isEmpty)
+    #expect(result.energy.midBand.isEmpty)
+    #expect(result.energy.highBand.isEmpty)
+    #expect(reports.values == [0.0, 1.0])
+  }
+}
+
+// MARK: - Thread-safe test recorders
+
+private final class LockedCounter: @unchecked Sendable {
+  private let lock = NSLock()
+  private var count = 0
+
+  /// Increments and returns the new count.
+  func increment() -> Int {
+    lock.lock()
+    defer { lock.unlock() }
+    count += 1
+    return count
+  }
+
+  var value: Int {
+    lock.lock()
+    defer { lock.unlock() }
+    return count
+  }
+}
+
+private final class LockedRecorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var recorded: [Double] = []
+
+  func append(_ value: Double) {
+    lock.lock()
+    defer { lock.unlock() }
+    recorded.append(value)
+  }
+
+  var values: [Double] {
+    lock.lock()
+    defer { lock.unlock() }
+    return recorded
   }
 }
