@@ -1,11 +1,17 @@
 # Story 15.4: Independent waveform data types with per-bin timing and channel-aware stereo
 
-Status: backlog
+Status: review (Phase 1 of 3 landed)
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
 Phase: 4 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Add typed Sendable waveform data (detail envelope, peak overview, low/mid/high energy) with explicit per-bin timing, channel-aware stereo policy, bounded-memory streaming decode, cancellation and progress, in-tree and independent of RekordboxReader.
+
+## Shipped vs deferred
+
+- **Phase 1 (shipped on this commit):** the five public types (`WaveformDetailEnvelope`, `WaveformPeakOverview`, `WaveformEnergyChannels`, `WaveformChannelPolicy`, `WaveformOptions`, `WaveformAnalysisResult`), the `Waveform` namespace, and `WaveformAnalyzer.analyze(decoded:options:)` covering the mono in-memory path (AC #1, #2, #4, #7, #8 and the cancellation + reserved-policy ACs via `WaveformAnalyzerError`).
+- **Phase 2 — Story 15.4a (deferred):** bounded-memory streaming decode (AC #5, #6). Needs an `AVAudioFile`-backed block reader and the block-boundary cancellation checkpoint. The `WaveformOptions.blockSize` field is reserved in Phase 1 so no API churn is needed when 15.4a lands.
+- **Phase 3 — Story 15.4b (deferred):** `DecodedStereoAudio` carrier + the four non-mono `WaveformChannelPolicy` cases (AC #3). The enum ships with all five cases from Phase 1; the reserved cases throw `WaveformAnalyzerError.channelPolicyNotImplemented` until this story lands.
 
 ## Key Design Decisions
 
