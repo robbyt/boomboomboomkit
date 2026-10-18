@@ -1,0 +1,233 @@
+{
+  "evidence_id": "local-hopper-observation-state-space",
+  "provider": "Hopper public API through installed REA adapter",
+  "target": "/Applications/rekordbox 7/rekordbox.app/Contents/MacOS/rekordbox",
+  "sha256": "07dcecbaf304f777e435539c83c7dcc02e41de1eaf2e0a75e8a9852e4411a244",
+  "architecture": "arm64",
+  "observed_at": "2026-10-18T01:35:22.899253+00:00",
+  "address": "0x102316950",
+  "limitations": [
+    "Static decompilation; not original source.",
+    "Direct REA adapter invocation; not an MCP Evidence envelope.",
+    "No runtime audio experiment."
+  ],
+  "procedure_info": {
+    "name": "__ZN6madmom35RNNDownBeatTrackingObservationModelC2ERKNS_13BarStateSpaceEi",
+    "entrypoint": "0x102316950",
+    "basicblock_count": 27,
+    "length": 916,
+    "signature": "int __ZN6madmom35RNNDownBeatTrackingObservationModelC2ERKNS_13BarStateSpaceEi(void * arg0, int arg1)",
+    "locals": [
+      {
+        "description": "saved_fp (stack displacement 0)",
+        "name": "saved_fp",
+        "stack_displacement": "0",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_10 (stack displacement -16)",
+        "name": "var_10",
+        "stack_displacement": "-16",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_20 (stack displacement -32)",
+        "name": "var_20",
+        "stack_displacement": "-32",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_30 (stack displacement -48)",
+        "name": "var_30",
+        "stack_displacement": "-48",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_40 (stack displacement -64)",
+        "name": "var_40",
+        "stack_displacement": "-64",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_50 (stack displacement -80)",
+        "name": "var_50",
+        "stack_displacement": "-80",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_60 (stack displacement -96)",
+        "name": "var_60",
+        "stack_displacement": "-96",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_68 (stack displacement -104)",
+        "name": "var_68",
+        "stack_displacement": "-104",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_70 (stack displacement -112)",
+        "name": "var_70",
+        "stack_displacement": "-112",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_78 (stack displacement -120)",
+        "name": "var_78",
+        "stack_displacement": "-120",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_84 (stack displacement -132)",
+        "name": "var_84",
+        "stack_displacement": "-132",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_8C (stack displacement -140)",
+        "name": "var_8C",
+        "stack_displacement": "-140",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_98 (stack displacement -152)",
+        "name": "var_98",
+        "stack_displacement": "-152",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_A0 (stack displacement -160)",
+        "name": "var_A0",
+        "stack_displacement": "-160",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_AC (stack displacement -172)",
+        "name": "var_AC",
+        "stack_displacement": "-172",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_B4 (stack displacement -180)",
+        "name": "var_B4",
+        "stack_displacement": "-180",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_B8 (stack displacement -184)",
+        "name": "var_B8",
+        "stack_displacement": "-184",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_C0 (stack displacement -192)",
+        "name": "var_C0",
+        "stack_displacement": "-192",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_C8 (stack displacement -200)",
+        "name": "var_C8",
+        "stack_displacement": "-200",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_D4 (stack displacement -212)",
+        "name": "var_D4",
+        "stack_displacement": "-212",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_DC (stack displacement -220)",
+        "name": "var_DC",
+        "stack_displacement": "-220",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_E0 (stack displacement -224)",
+        "name": "var_E0",
+        "stack_displacement": "-224",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_E8 (stack displacement -232)",
+        "name": "var_E8",
+        "stack_displacement": "-232",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_F0 (stack displacement -240)",
+        "name": "var_F0",
+        "stack_displacement": "-240",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_FC (stack displacement -252)",
+        "name": "var_FC",
+        "stack_displacement": "-252",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_100 (stack displacement -256)",
+        "name": "var_100",
+        "stack_displacement": "-256",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_104 (stack displacement -260)",
+        "name": "var_104",
+        "stack_displacement": "-260",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_120 (stack displacement -288)",
+        "name": "var_120",
+        "stack_displacement": "-288",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_130 (stack displacement -304)",
+        "name": "var_130",
+        "stack_displacement": "-304",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_140 (stack displacement -320)",
+        "name": "var_140",
+        "stack_displacement": "-320",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_150 (stack displacement -336)",
+        "name": "var_150",
+        "stack_displacement": "-336",
+        "provenance": "hopper-public-python-api"
+      },
+      {
+        "description": "var_160 (stack displacement -352)",
+        "name": "var_160",
+        "stack_displacement": "-352",
+        "provenance": "hopper-public-python-api"
+      }
+    ],
+    "classification": null,
+    "body": {
+      "available": false,
+      "reason": "Hopper's public Python API does not expose complete function body ranges"
+    }
+  },
+  "procedure_pseudo_code": "    r31 = r31 - 0x170;\n    var_60 = d9;\n    decomp_var_58 = d8;\n    var_50 = r28;\n    decomp_var_48 = r27;\n    var_40 = r26;\n    decomp_var_38 = r25;\n    var_30 = r24;\n    decomp_var_28 = r23;\n    var_20 = r22;\n    decomp_var_18 = r21;\n    var_10 = r20;\n    decomp_var_8 = r19;\n    saved_fp = r29;\n    decomp_var_m8 = r30;\n    r21 = r2;\n    r20 = arg1;\n    r19 = arg0;\n    arg0[0x4] = 0x0;\n    arg0[0x28] = 0x0;\n    *(arg0 + 0x14) = 0x0;\n    *(arg0 + 0xc) = 0x0;\n    *arg0 = 0x1052f7970;\n    arg0[0xc] = r2;\n    r24 = arg1[0x16];\n    var_78 = 0x0;\n    var_70 = 0x0;\n    if (r24 != 0x0) {\n            r0 = operator new(r24 << 0x2);\n            r22 = r0;\n            var_78 = r0;\n            var_70 = 0x1;\n    }\n    else {\n            r22 = 0x0;\n    }\n    nc::NdArrayConstIterator<unsigned int, unsigned int*, long>::NdArrayConstIterator(&var_B8);\n    r23 = var_B8;\n    r0 = nc::NdArrayConstIterator<unsigned int, unsigned int*, long>::NdArrayConstIterator(&var_B8);\n    r8 = var_B8 + r24 * 0x4 - r23;\n    if (r8 >= 0x1) {\n            r9 = r8 >> 0x2;\n            if (r8 > 0x3) {\n                    r8 = 0x1;\n            }\n            bzero(r23, (r9 - r8 << 0x2) + 0x4);\n    }\n    r20 = r20 + 0x8;\n    nc::NdArray<double, std::__1::allocator<double> >::NdArray(&decomp_var_108);\n    nc::NdArrayConstIterator<double, double*, long>::NdArrayConstIterator(&var_68);\n    r25 = var_68;\n    r1 = var_F0;\n    nc::NdArrayConstIterator<double, double*, long>::NdArrayConstIterator(&var_68);\n    d8 = 0x3ff0000000000000 / r21;\n    r21 = var_68 + var_FC * 0x8;\n    if (r25 != r21) {\n            r8 = r21 - r25 - 0x8;\n            r22 = r25;\n            if (r8 >= 0x38) {\n                    r23 = (r8 >> 0x3) + 0x1;\n                    r24 = r23 & 0x3ffffffffffffff8;\n                    r22 = r25 + r24 * 0x8;\n                    r25 = r25 + 0x20;\n                    r26 = r24;\n                    do {\n                            var_120 = r25[0x1];\n                            fmod(s0, s1);\n                            fmod(s0, s1);\n                            var_150 = q0;\n                            fmod(s0, s1);\n                            fmod(s0, s1);\n                            var_140 = q0;\n                            fmod(s0, s1);\n                            fmod(s0, s1);\n                            var_130 = q0;\n                            fmod(s0, s1);\n                            q0 = var_120;\n                            fmod(s0, s1);\n                            r25[0xfffffffffffffffc] = var_150;\n                            r25[0xfffffffffffffffe] = var_140;\n                            *r25 = var_130;\n                            r25[0x2] = q0;\n                            r25 = r25 + 0x40;\n                            r26 = r26 - 0x8;\n                    } while (r26 != 0x0);\n                    if (r23 != r24) {\n                            fmod(s0, s1);\n                            *r22 = d0;\n                            r22 = r22 + 0x8;\n                            if (r22 != r21) {\n                                    do {\n                                            fmod(s0, s1);\n                                            *r22 = d0;\n                                            r22 = r22 + 0x8;\n                                    } while (r22 != r21);\n                            }\n                    }\n            }\n            else {\n                    do {\n                            fmod(s0, s1);\n                            *r22 = d0;\n                            r22 = r22 + 0x8;\n                    } while (r22 != r21);\n            }\n    }\n    var_C8 = var_F0;\n    var_C0 = var_E8;\n    var_E8 = 0x0;\n    var_F0 = 0x0;\n    nc::NdArray<bool, std::__1::allocator<bool> > nc::operator< <double>(&var_E0, r1);\n    r1 = &var_B8;\n    r0 = nc::NdArray<unsigned int, std::__1::allocator<unsigned int> >::putMask(&decomp_var_90, r1);\n    if (var_98 != 0x0) {\n            r0 = var_A0;\n            if (r0 != 0x0) {\n                    operator delete(r0);\n            }\n    }\n    var_A0 = 0x0;\n    var_98 = 0x0;\n    if (var_C0 != 0x0) {\n            r0 = var_C8;\n            if (r0 != 0x0) {\n                    operator delete(r0);\n            }\n    }\n    if (var_E8 != 0x0) {\n            r0 = var_F0;\n            if (r0 != 0x0) {\n                    operator delete(r0);\n            }\n    }\n    nc::NdArray<bool, std::__1::allocator<bool> > nc::operator< <double>(r20, r1);\n    r0 = nc::NdArray<unsigned int, std::__1::allocator<unsigned int> >::putMask(&decomp_var_90, &var_B8);\n    if (var_98 != 0x0) {\n            r0 = var_A0;\n            if (r0 != 0x0) {\n                    operator delete(r0);\n            }\n    }\n    nc::NdArray<unsigned int, std::__1::allocator<unsigned int> >::operator=(r19 + 0x8);\n    if (var_70 != 0x0) {\n            r0 = var_78;\n            if (r0 != 0x0) {\n                    operator delete(r0);\n            }\n    }\n    r0 = r19;\n    return r0;\n",
+  "procedure_callees": [
+    "0x1008abdcc",
+    "0x1008b7d34",
+    "0x1008b9580",
+    "0x1023120d8",
+    "0x102316dc4",
+    "0x102317010",
+    "0x1034d1ab8",
+    "0x1034d1ad0",
+    "0x1034d1dd0",
+    "0x1034d20f4"
+  ]
+}

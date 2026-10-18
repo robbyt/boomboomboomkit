@@ -1,0 +1,29 @@
+{
+  "evidence_id": "local-hopper-bpm-focus",
+  "provider": "Hopper public API through installed REA adapter",
+  "target": "/Applications/rekordbox 7/rekordbox.app/Contents/MacOS/rekordbox",
+  "sha256": "07dcecbaf304f777e435539c83c7dcc02e41de1eaf2e0a75e8a9852e4411a244",
+  "architecture": "arm64",
+  "observed_at": "2026-10-18T01:34:44.630662+00:00",
+  "address": "0x1011820d4",
+  "limitations": [
+    "Static decompilation; not original source.",
+    "Direct REA adapter invocation; not an MCP Evidence envelope.",
+    "No runtime audio experiment."
+  ],
+  "procedure_info": {
+    "name": "__ZN16BeatAnalyzer_2_08Analyzer12getBpm_FocusEv",
+    "entrypoint": "0x1011820d4",
+    "basicblock_count": 1,
+    "length": 28,
+    "signature": "int __ZN16BeatAnalyzer_2_08Analyzer12getBpm_FocusEv()",
+    "locals": [],
+    "classification": null,
+    "body": {
+      "available": false,
+      "reason": "Hopper's public Python API does not expose complete function body ranges"
+    }
+  },
+  "procedure_pseudo_code": "    asm { fmadd      s0, s0, s1, s2 };\n    asm { fcvtzs     w0, s0 };\n    return r0;\n",
+  "procedure_callees": []
+}

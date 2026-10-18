@@ -43,6 +43,10 @@
 - [Deferred Work](../_bmad-output/implementation-artifacts/deferred-work.md) -- Known issues and future work
 - [Sprint Status](../_bmad-output/implementation-artifacts/sprint-status.yaml) -- Epic/story tracking
 
+### Reverse-engineering research (develop-only)
+
+- [Rekordbox analysis](./rekordbox-analysis/README.md) -- Preserved 2026-10-17 investigation of rekordbox 7.2.19.0342: findings, Hopper queries, ARM64 disassembly, model protobuf inspection, and a current-HEAD Swift timing probe. See `AGENT_GUIDANCE.md` for the Epic 13 plan it feeds into.
+
 ### AI Agent Context
 
 - [Project Context](../_bmad-output/project-context.md) -- 60 critical implementation rules for AI agents

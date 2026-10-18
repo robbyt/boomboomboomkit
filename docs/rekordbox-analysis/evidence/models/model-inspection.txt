@@ -1,0 +1,426 @@
+
+MODEL model7
+SHA256 saved_model.pb ea7b5e7c3567525bb9b0eff1238c13b9d4ab8336399e0f2dd3301528a9dc936a
+SHA256 keras_metadata.pb 41b7d1c17876465b4bbe240e999d9d1e3e0687ff467a42488654f1e87bcc6b55
+SHA256 variables/variables.data-00000-of-00001 7ddbbfaf22feab99687d8fdc6e1f72b46e3937b7a4e006e320be8888d85b2e4c
+SHA256 variables/variables.index 8c5864c2e5ae076117ac7fbbe2fe090d0983801238b837525425a5233a9804af
+SERVING_SIGNATURE inputs {
+  key: "fltp"
+  value {
+    name: "serving_default_fltp:0"
+    dtype: DT_FLOAT
+    tensor_shape {
+      dim {
+        size: -1
+      }
+      dim {
+        size: -1
+      }
+    }
+  }
+}
+outputs {
+  key: "output_2"
+  value {
+    name: "StatefulPartitionedCall:1"
+    dtype: DT_FLOAT
+    tensor_shape {
+      dim {
+        size: -1
+      }
+      dim {
+        size: 2
+      }
+    }
+  }
+}
+outputs {
+  key: "output_1"
+  value {
+    name: "StatefulPartitionedCall:0"
+    dtype: DT_FLOAT
+    tensor_shape {
+      dim {
+        size: -1
+      }
+      dim {
+        size: -1
+      }
+    }
+  }
+}
+method_name: "tensorflow/serving/predict"
+
+PARAMETER_COUNT 99003
+VARIABLE dense_7/bias [3]
+VARIABLE dense_7/kernel [50, 3]
+VARIABLE bidirectional_23/backward_rnn_23/peephole_lstm_cell_23/output_gate_peephole_weights [25]
+VARIABLE bidirectional_23/backward_rnn_23/peephole_lstm_cell_23/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_23/backward_rnn_23/peephole_lstm_cell_23/input_gate_peephole_weights [25]
+VARIABLE bidirectional_23/backward_rnn_23/peephole_lstm_cell_23/bias [100]
+VARIABLE bidirectional_23/backward_rnn_23/peephole_lstm_cell_23/recurrent_kernel [25, 100]
+VARIABLE bidirectional_23/backward_rnn_23/peephole_lstm_cell_23/kernel [50, 100]
+VARIABLE bidirectional_23/forward_rnn_23/peephole_lstm_cell_23/output_gate_peephole_weights [25]
+VARIABLE bidirectional_23/forward_rnn_23/peephole_lstm_cell_23/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_23/forward_rnn_23/peephole_lstm_cell_23/input_gate_peephole_weights [25]
+VARIABLE bidirectional_23/forward_rnn_23/peephole_lstm_cell_23/bias [100]
+VARIABLE bidirectional_23/forward_rnn_23/peephole_lstm_cell_23/recurrent_kernel [25, 100]
+VARIABLE bidirectional_23/forward_rnn_23/peephole_lstm_cell_23/kernel [50, 100]
+VARIABLE bidirectional_22/backward_rnn_22/peephole_lstm_cell_22/output_gate_peephole_weights [25]
+VARIABLE bidirectional_22/backward_rnn_22/peephole_lstm_cell_22/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_22/backward_rnn_22/peephole_lstm_cell_22/input_gate_peephole_weights [25]
+VARIABLE bidirectional_22/backward_rnn_22/peephole_lstm_cell_22/bias [100]
+VARIABLE bidirectional_22/backward_rnn_22/peephole_lstm_cell_22/recurrent_kernel [25, 100]
+VARIABLE bidirectional_22/backward_rnn_22/peephole_lstm_cell_22/kernel [50, 100]
+VARIABLE bidirectional_22/forward_rnn_22/peephole_lstm_cell_22/output_gate_peephole_weights [25]
+VARIABLE bidirectional_22/forward_rnn_22/peephole_lstm_cell_22/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_22/forward_rnn_22/peephole_lstm_cell_22/input_gate_peephole_weights [25]
+VARIABLE bidirectional_22/forward_rnn_22/peephole_lstm_cell_22/bias [100]
+VARIABLE bidirectional_22/forward_rnn_22/peephole_lstm_cell_22/recurrent_kernel [25, 100]
+VARIABLE bidirectional_22/forward_rnn_22/peephole_lstm_cell_22/kernel [50, 100]
+VARIABLE bidirectional_21/backward_rnn_21/peephole_lstm_cell_21/output_gate_peephole_weights [25]
+VARIABLE bidirectional_21/backward_rnn_21/peephole_lstm_cell_21/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_21/backward_rnn_21/peephole_lstm_cell_21/input_gate_peephole_weights [25]
+VARIABLE bidirectional_21/backward_rnn_21/peephole_lstm_cell_21/bias [100]
+VARIABLE bidirectional_21/backward_rnn_21/peephole_lstm_cell_21/recurrent_kernel [25, 100]
+VARIABLE bidirectional_21/backward_rnn_21/peephole_lstm_cell_21/kernel [314, 100]
+VARIABLE bidirectional_21/forward_rnn_21/peephole_lstm_cell_21/output_gate_peephole_weights [25]
+VARIABLE bidirectional_21/forward_rnn_21/peephole_lstm_cell_21/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_21/forward_rnn_21/peephole_lstm_cell_21/input_gate_peephole_weights [25]
+VARIABLE bidirectional_21/forward_rnn_21/peephole_lstm_cell_21/bias [100]
+VARIABLE bidirectional_21/forward_rnn_21/peephole_lstm_cell_21/recurrent_kernel [25, 100]
+VARIABLE bidirectional_21/forward_rnn_21/peephole_lstm_cell_21/kernel [314, 100]
+ENTRY_GRAPH __inference_signature_wrapper_1679385 -> __inference__wrapped_model_1678150 RETURNS {'identity': 'Identity:output:0', 'identity_1': 'Identity_1:output:0'}
+NODE test_layer_model_8/zeros Const SHAPE (0, 0) VALUE []
+NODE test_layer_model_8/Size Const SHAPE () VALUE 0
+NODE test_layer_model_8/Greater/y Const SHAPE () VALUE 0
+NODE test_layer_model_8/Greater Greater ['test_layer_model_8/Size:output:0', 'test_layer_model_8/Greater/y:output:0']
+NODE test_layer_model_8/cond StatelessIf ['test_layer_model_8/Greater:z:0', 'test_layer_model_8/zeros:output:0', 'fltp']
+BRANCH then_branch test_layer_model_8_cond_true_1677311 RETURNS {'test_layer_model_8_cond_identity': 'test_layer_model_8/cond/Identity:output:0'}
+ BRANCH_NODE test_layer_model_8/cond/Identity Identity ['test_layer_model_8_cond_identity_test_layer_model_8_zeros']
+BRANCH else_branch test_layer_model_8_cond_false_1677312 RETURNS {'test_layer_model_8_cond_identity': 'test_layer_model_8/cond/Identity:output:0'}
+ BRANCH_NODE test_layer_model_8/cond/zeros Const []
+ BRANCH_NODE test_layer_model_8/cond/zeros_1 Const []
+ BRANCH_NODE test_layer_model_8/cond/Size Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater Greater ['test_layer_model_8/cond/Size:output:0', 'test_layer_model_8/cond/Greater/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/cond StatelessIf ['test_layer_model_8/cond/Greater:z:0']
+ BRANCH_NODE test_layer_model_8/cond/zeros_2 Const []
+ BRANCH_NODE test_layer_model_8/cond/Size_1 Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_1/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_1 Greater ['test_layer_model_8/cond/Size_1:output:0', 'test_layer_model_8/cond/Greater_1/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/cond_1 StatelessIf ['test_layer_model_8/cond/Greater_1:z:0']
+ BRANCH_NODE test_layer_model_8/cond/zeros_3 Const []
+ BRANCH_NODE test_layer_model_8/cond/Size_2 Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_2/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_2 Greater ['test_layer_model_8/cond/Size_2:output:0', 'test_layer_model_8/cond/Greater_2/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/cond_2 StatelessIf ['test_layer_model_8/cond/Greater_2:z:0']
+ BRANCH_NODE test_layer_model_8/cond/Size_3 Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_3/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_3 Greater ['test_layer_model_8/cond/Size_3:output:0', 'test_layer_model_8/cond/Greater_3/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/cond_3 StatelessIf ['test_layer_model_8/cond/Greater_3:z:0', 'test_layer_model_8/cond/zeros_1:output:0', 'test_layer_model_8_cond_cond_3_fltp']
+ BRANCH_NODE test_layer_model_8/cond/cond_3/Identity Identity ['test_layer_model_8/cond/cond_3:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Abs ComplexAbs ['test_layer_model_8/cond/cond_3/Identity:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Squeeze Squeeze ['test_layer_model_8/cond/Abs:y:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/Const Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/Rank Rank ['test_layer_model_8/cond/Squeeze:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/Equal/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/Equal Equal ['test_layer_model_8/cond/filtered_spectrogram_24/Rank:output:0', 'test_layer_model_8/cond/filtered_spectrogram_24/Equal/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/Rank_1 Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/Equal_1/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/Equal_1 Equal ['test_layer_model_8/cond/filtered_spectrogram_24/Rank_1:output:0', 'test_layer_model_8/cond/filtered_spectrogram_24/Equal_1/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/or/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/or LogicalOr ['test_layer_model_8/cond/filtered_spectrogram_24/Equal:z:0', 'test_layer_model_8/cond/filtered_spectrogram_24/or/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/cond StatelessIf ['test_layer_model_8/cond/filtered_spectrogram_24/or:z:0', 'test_layer_model_8/cond/Squeeze:output:0', 'test_layer_model_8/cond/filtered_spectrogram_24/Const:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_24/cond/Identity Identity ['test_layer_model_8/cond/filtered_spectrogram_24/cond:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Mul/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Mul Mul ['test_layer_model_8/cond/filtered_spectrogram_24/cond/Identity:output:0', 'test_layer_model_8/cond/Mul/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Add/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Add AddV2 ['test_layer_model_8/cond/Mul:z:0', 'test_layer_model_8/cond/Add/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Log Log ['test_layer_model_8/cond/Add:z:0']
+ BRANCH_NODE test_layer_model_8/cond/truediv/y Const []
+ BRANCH_NODE test_layer_model_8/cond/truediv RealDiv ['test_layer_model_8/cond/Log:y:0', 'test_layer_model_8/cond/truediv/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/PartitionedCall PartitionedCall ['test_layer_model_8/cond/truediv:z:0']
+ BRANCH_NODE test_layer_model_8/cond/Size_4 Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_4/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_4 Greater ['test_layer_model_8/cond/Size_4:output:0', 'test_layer_model_8/cond/Greater_4/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/cond_4 StatelessIf ['test_layer_model_8/cond/Greater_4:z:0', 'test_layer_model_8/cond/zeros_2:output:0', 'test_layer_model_8_cond_cond_3_fltp']
+ BRANCH_NODE test_layer_model_8/cond/cond_4/Identity Identity ['test_layer_model_8/cond/cond_4:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Abs_1 ComplexAbs ['test_layer_model_8/cond/cond_4/Identity:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Squeeze_1 Squeeze ['test_layer_model_8/cond/Abs_1:y:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/Const Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/Rank Rank ['test_layer_model_8/cond/Squeeze_1:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/Equal/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/Equal Equal ['test_layer_model_8/cond/filtered_spectrogram_25/Rank:output:0', 'test_layer_model_8/cond/filtered_spectrogram_25/Equal/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/Rank_1 Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/Equal_1/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/Equal_1 Equal ['test_layer_model_8/cond/filtered_spectrogram_25/Rank_1:output:0', 'test_layer_model_8/cond/filtered_spectrogram_25/Equal_1/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/or/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/or LogicalOr ['test_layer_model_8/cond/filtered_spectrogram_25/Equal:z:0', 'test_layer_model_8/cond/filtered_spectrogram_25/or/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/cond StatelessIf ['test_layer_model_8/cond/filtered_spectrogram_25/or:z:0', 'test_layer_model_8/cond/Squeeze_1:output:0', 'test_layer_model_8/cond/filtered_spectrogram_25/Const:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_25/cond/Identity Identity ['test_layer_model_8/cond/filtered_spectrogram_25/cond:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Mul_1/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Mul_1 Mul ['test_layer_model_8/cond/filtered_spectrogram_25/cond/Identity:output:0', 'test_layer_model_8/cond/Mul_1/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Add_1/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Add_1 AddV2 ['test_layer_model_8/cond/Mul_1:z:0', 'test_layer_model_8/cond/Add_1/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Log_1 Log ['test_layer_model_8/cond/Add_1:z:0']
+ BRANCH_NODE test_layer_model_8/cond/truediv_1/y Const []
+ BRANCH_NODE test_layer_model_8/cond/truediv_1 RealDiv ['test_layer_model_8/cond/Log_1:y:0', 'test_layer_model_8/cond/truediv_1/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/PartitionedCall_1 PartitionedCall ['test_layer_model_8/cond/truediv_1:z:0']
+ BRANCH_NODE test_layer_model_8/cond/Size_5 Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_5/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Greater_5 Greater ['test_layer_model_8/cond/Size_5:output:0', 'test_layer_model_8/cond/Greater_5/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/cond_5 StatelessIf ['test_layer_model_8/cond/Greater_5:z:0', 'test_layer_model_8/cond/zeros_3:output:0', 'test_layer_model_8_cond_cond_3_fltp']
+ BRANCH_NODE test_layer_model_8/cond/cond_5/Identity Identity ['test_layer_model_8/cond/cond_5:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Abs_2 ComplexAbs ['test_layer_model_8/cond/cond_5/Identity:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Squeeze_2 Squeeze ['test_layer_model_8/cond/Abs_2:y:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/Const Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/Rank Rank ['test_layer_model_8/cond/Squeeze_2:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/Equal/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/Equal Equal ['test_layer_model_8/cond/filtered_spectrogram_26/Rank:output:0', 'test_layer_model_8/cond/filtered_spectrogram_26/Equal/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/Rank_1 Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/Equal_1/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/Equal_1 Equal ['test_layer_model_8/cond/filtered_spectrogram_26/Rank_1:output:0', 'test_layer_model_8/cond/filtered_spectrogram_26/Equal_1/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/or/y Const []
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/or LogicalOr ['test_layer_model_8/cond/filtered_spectrogram_26/Equal:z:0', 'test_layer_model_8/cond/filtered_spectrogram_26/or/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/cond StatelessIf ['test_layer_model_8/cond/filtered_spectrogram_26/or:z:0', 'test_layer_model_8/cond/Squeeze_2:output:0', 'test_layer_model_8/cond/filtered_spectrogram_26/Const:output:0']
+ BRANCH_NODE test_layer_model_8/cond/filtered_spectrogram_26/cond/Identity Identity ['test_layer_model_8/cond/filtered_spectrogram_26/cond:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Mul_2/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Mul_2 Mul ['test_layer_model_8/cond/filtered_spectrogram_26/cond/Identity:output:0', 'test_layer_model_8/cond/Mul_2/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Add_2/y Const []
+ BRANCH_NODE test_layer_model_8/cond/Add_2 AddV2 ['test_layer_model_8/cond/Mul_2:z:0', 'test_layer_model_8/cond/Add_2/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Log_2 Log ['test_layer_model_8/cond/Add_2:z:0']
+ BRANCH_NODE test_layer_model_8/cond/truediv_2/y Const []
+ BRANCH_NODE test_layer_model_8/cond/truediv_2 RealDiv ['test_layer_model_8/cond/Log_2:y:0', 'test_layer_model_8/cond/truediv_2/y:output:0']
+ BRANCH_NODE test_layer_model_8/cond/PartitionedCall_2 PartitionedCall ['test_layer_model_8/cond/truediv_2:z:0']
+ BRANCH_NODE test_layer_model_8/cond/concat/axis Const []
+ BRANCH_NODE test_layer_model_8/cond/concat ConcatV2 ['test_layer_model_8/cond/PartitionedCall:output:0', 'test_layer_model_8/cond/PartitionedCall_1:output:0', 'test_layer_model_8/cond/PartitionedCall_2:output:0', 'test_layer_model_8/cond/concat/axis:output:0']
+ BRANCH_NODE test_layer_model_8/cond/Identity Identity ['test_layer_model_8/cond/concat:output:0']
+NODE test_layer_model_8/cond/Identity Identity ['test_layer_model_8/cond:output:0']
+NODE test_layer_model_8/StatefulPartitionedCall StatefulPartitionedCall ['test_layer_model_8/cond/Identity:output:0', 'test_layer_model_8_1678068', 'test_layer_model_8_1678070', 'test_layer_model_8_1678072', 'test_layer_model_8_1678074', 'test_layer_model_8_1678076', 'test_layer_model_8_1678078', 'test_layer_model_8_1678080', 'test_layer_model_8_1678082', 'test_layer_model_8_1678084', 'test_layer_model_8_1678086', 'test_layer_model_8_1678088', 'test_layer_model_8_1678090', 'test_layer_model_8_1678092', 'test_layer_model_8_1678094', 'test_layer_model_8_1678096', 'test_layer_model_8_1678098', 'test_layer_model_8_1678100', 'test_layer_model_8_1678102', 'test_layer_model_8_1678104', 'test_layer_model_8_1678106', 'test_layer_model_8_1678108', 'test_layer_model_8_1678110', 'test_layer_model_8_1678112', 'test_layer_model_8_1678114', 'test_layer_model_8_1678116', 'test_layer_model_8_1678118', 'test_layer_model_8_1678120', 'test_layer_model_8_1678122', 'test_layer_model_8_1678124', 'test_layer_model_8_1678126', 'test_layer_model_8_1678128', 'test_layer_model_8_1678130', 'test_layer_model_8_1678132', 'test_layer_model_8_1678134', 'test_layer_model_8_1678136', 'test_layer_model_8_1678138', 'test_layer_model_8_1678140', 'test_layer_model_8_1678142']
+NODE test_layer_model_8/Slice/begin Const SHAPE (2,) VALUE [0, 1]
+NODE test_layer_model_8/Slice/size Const SHAPE (2,) VALUE [-1, 2]
+NODE test_layer_model_8/Slice Slice ['test_layer_model_8/StatefulPartitionedCall:output:0', 'test_layer_model_8/Slice/begin:output:0', 'test_layer_model_8/Slice/size:output:0']
+NODE Identity Identity ['test_layer_model_8/cond/Identity:output:0', '^NoOp']
+NODE Identity_1 Identity ['test_layer_model_8/Slice:output:0', '^NoOp']
+NODE NoOp NoOp ['^test_layer_model_8/StatefulPartitionedCall']
+KERAS_LAYER TestLayerModel {} INPUT {'fltp': {'class_name': 'TensorShape', 'items': [None, None]}}
+KERAS_LAYER STFTLayer {'frame_length': 1024, 'frame_step': 441} INPUT {'class_name': 'TensorShape', 'items': [None, None]}
+KERAS_LAYER STFTLayer {'frame_length': 2048, 'frame_step': 441} INPUT {'class_name': 'TensorShape', 'items': [None, None]}
+KERAS_LAYER STFTLayer {'frame_length': 4096, 'frame_step': 441} INPUT {'class_name': 'TensorShape', 'items': [None, None]}
+KERAS_LAYER FilteredSpectrogram {'name': 'filtered_spectrogram_24', 'trainable': True, 'dtype': 'float32'} INPUT {'class_name': 'TensorShape', 'items': None}
+KERAS_LAYER FilteredSpectrogram {'name': 'filtered_spectrogram_25', 'trainable': True, 'dtype': 'float32'} INPUT {'class_name': 'TensorShape', 'items': None}
+KERAS_LAYER FilteredSpectrogram {'name': 'filtered_spectrogram_26', 'trainable': True, 'dtype': 'float32'} INPUT {'class_name': 'TensorShape', 'items': None}
+
+MODEL model8
+SHA256 saved_model.pb 09baf025fb561d27264a6f26522e12037fd2f37bf1db378c7edf9366116c49dd
+SHA256 keras_metadata.pb 89d63710656f1858bd78266e6449e14ef740f03046186f8926a0bb8acc4528cf
+SHA256 variables/variables.data-00000-of-00001 ec2cef99d55076b46ec54dd4f51c0bd2d8e8344aeaf96a85166e9062b014604e
+SHA256 variables/variables.index f3041d936e049d5cb4c206c58f9298ba131e247dcac4f2e696255a706df34fa1
+SERVING_SIGNATURE inputs {
+  key: "fltp"
+  value {
+    name: "serving_default_fltp:0"
+    dtype: DT_FLOAT
+    tensor_shape {
+      dim {
+        size: -1
+      }
+      dim {
+        size: -1
+      }
+    }
+  }
+}
+outputs {
+  key: "output_2"
+  value {
+    name: "StatefulPartitionedCall:1"
+    dtype: DT_FLOAT
+    tensor_shape {
+      dim {
+        size: -1
+      }
+      dim {
+        size: 2
+      }
+    }
+  }
+}
+outputs {
+  key: "output_1"
+  value {
+    name: "StatefulPartitionedCall:0"
+    dtype: DT_FLOAT
+    tensor_shape {
+      dim {
+        size: -1
+      }
+      dim {
+        size: -1
+      }
+    }
+  }
+}
+method_name: "tensorflow/serving/predict"
+
+PARAMETER_COUNT 99003
+VARIABLE dense_8/bias [3]
+VARIABLE dense_8/kernel [50, 3]
+VARIABLE bidirectional_26/backward_rnn_26/peephole_lstm_cell_26/output_gate_peephole_weights [25]
+VARIABLE bidirectional_26/backward_rnn_26/peephole_lstm_cell_26/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_26/backward_rnn_26/peephole_lstm_cell_26/input_gate_peephole_weights [25]
+VARIABLE bidirectional_26/backward_rnn_26/peephole_lstm_cell_26/bias [100]
+VARIABLE bidirectional_26/backward_rnn_26/peephole_lstm_cell_26/recurrent_kernel [25, 100]
+VARIABLE bidirectional_26/backward_rnn_26/peephole_lstm_cell_26/kernel [50, 100]
+VARIABLE bidirectional_26/forward_rnn_26/peephole_lstm_cell_26/output_gate_peephole_weights [25]
+VARIABLE bidirectional_26/forward_rnn_26/peephole_lstm_cell_26/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_26/forward_rnn_26/peephole_lstm_cell_26/input_gate_peephole_weights [25]
+VARIABLE bidirectional_26/forward_rnn_26/peephole_lstm_cell_26/bias [100]
+VARIABLE bidirectional_26/forward_rnn_26/peephole_lstm_cell_26/recurrent_kernel [25, 100]
+VARIABLE bidirectional_26/forward_rnn_26/peephole_lstm_cell_26/kernel [50, 100]
+VARIABLE bidirectional_25/backward_rnn_25/peephole_lstm_cell_25/output_gate_peephole_weights [25]
+VARIABLE bidirectional_25/backward_rnn_25/peephole_lstm_cell_25/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_25/backward_rnn_25/peephole_lstm_cell_25/input_gate_peephole_weights [25]
+VARIABLE bidirectional_25/backward_rnn_25/peephole_lstm_cell_25/bias [100]
+VARIABLE bidirectional_25/backward_rnn_25/peephole_lstm_cell_25/recurrent_kernel [25, 100]
+VARIABLE bidirectional_25/backward_rnn_25/peephole_lstm_cell_25/kernel [50, 100]
+VARIABLE bidirectional_25/forward_rnn_25/peephole_lstm_cell_25/output_gate_peephole_weights [25]
+VARIABLE bidirectional_25/forward_rnn_25/peephole_lstm_cell_25/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_25/forward_rnn_25/peephole_lstm_cell_25/input_gate_peephole_weights [25]
+VARIABLE bidirectional_25/forward_rnn_25/peephole_lstm_cell_25/bias [100]
+VARIABLE bidirectional_25/forward_rnn_25/peephole_lstm_cell_25/recurrent_kernel [25, 100]
+VARIABLE bidirectional_25/forward_rnn_25/peephole_lstm_cell_25/kernel [50, 100]
+VARIABLE bidirectional_24/backward_rnn_24/peephole_lstm_cell_24/output_gate_peephole_weights [25]
+VARIABLE bidirectional_24/backward_rnn_24/peephole_lstm_cell_24/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_24/backward_rnn_24/peephole_lstm_cell_24/input_gate_peephole_weights [25]
+VARIABLE bidirectional_24/backward_rnn_24/peephole_lstm_cell_24/bias [100]
+VARIABLE bidirectional_24/backward_rnn_24/peephole_lstm_cell_24/recurrent_kernel [25, 100]
+VARIABLE bidirectional_24/backward_rnn_24/peephole_lstm_cell_24/kernel [314, 100]
+VARIABLE bidirectional_24/forward_rnn_24/peephole_lstm_cell_24/output_gate_peephole_weights [25]
+VARIABLE bidirectional_24/forward_rnn_24/peephole_lstm_cell_24/forget_gate_peephole_weights [25]
+VARIABLE bidirectional_24/forward_rnn_24/peephole_lstm_cell_24/input_gate_peephole_weights [25]
+VARIABLE bidirectional_24/forward_rnn_24/peephole_lstm_cell_24/bias [100]
+VARIABLE bidirectional_24/forward_rnn_24/peephole_lstm_cell_24/recurrent_kernel [25, 100]
+VARIABLE bidirectional_24/forward_rnn_24/peephole_lstm_cell_24/kernel [314, 100]
+ENTRY_GRAPH __inference_signature_wrapper_1757490 -> __inference__wrapped_model_1756255 RETURNS {'identity': 'Identity:output:0', 'identity_1': 'Identity_1:output:0'}
+NODE test_layer_model_9/zeros Const SHAPE (0, 0) VALUE []
+NODE test_layer_model_9/Size Const SHAPE () VALUE 0
+NODE test_layer_model_9/Greater/y Const SHAPE () VALUE 0
+NODE test_layer_model_9/Greater Greater ['test_layer_model_9/Size:output:0', 'test_layer_model_9/Greater/y:output:0']
+NODE test_layer_model_9/cond StatelessIf ['test_layer_model_9/Greater:z:0', 'test_layer_model_9/zeros:output:0', 'fltp']
+BRANCH then_branch test_layer_model_9_cond_true_1755416 RETURNS {'test_layer_model_9_cond_identity': 'test_layer_model_9/cond/Identity:output:0'}
+ BRANCH_NODE test_layer_model_9/cond/Identity Identity ['test_layer_model_9_cond_identity_test_layer_model_9_zeros']
+BRANCH else_branch test_layer_model_9_cond_false_1755417 RETURNS {'test_layer_model_9_cond_identity': 'test_layer_model_9/cond/Identity:output:0'}
+ BRANCH_NODE test_layer_model_9/cond/zeros Const []
+ BRANCH_NODE test_layer_model_9/cond/zeros_1 Const []
+ BRANCH_NODE test_layer_model_9/cond/Size Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater Greater ['test_layer_model_9/cond/Size:output:0', 'test_layer_model_9/cond/Greater/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/cond StatelessIf ['test_layer_model_9/cond/Greater:z:0']
+ BRANCH_NODE test_layer_model_9/cond/zeros_2 Const []
+ BRANCH_NODE test_layer_model_9/cond/Size_1 Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_1/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_1 Greater ['test_layer_model_9/cond/Size_1:output:0', 'test_layer_model_9/cond/Greater_1/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/cond_1 StatelessIf ['test_layer_model_9/cond/Greater_1:z:0']
+ BRANCH_NODE test_layer_model_9/cond/zeros_3 Const []
+ BRANCH_NODE test_layer_model_9/cond/Size_2 Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_2/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_2 Greater ['test_layer_model_9/cond/Size_2:output:0', 'test_layer_model_9/cond/Greater_2/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/cond_2 StatelessIf ['test_layer_model_9/cond/Greater_2:z:0']
+ BRANCH_NODE test_layer_model_9/cond/Size_3 Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_3/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_3 Greater ['test_layer_model_9/cond/Size_3:output:0', 'test_layer_model_9/cond/Greater_3/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/cond_3 StatelessIf ['test_layer_model_9/cond/Greater_3:z:0', 'test_layer_model_9/cond/zeros_1:output:0', 'test_layer_model_9_cond_cond_3_fltp']
+ BRANCH_NODE test_layer_model_9/cond/cond_3/Identity Identity ['test_layer_model_9/cond/cond_3:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Abs ComplexAbs ['test_layer_model_9/cond/cond_3/Identity:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Squeeze Squeeze ['test_layer_model_9/cond/Abs:y:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/Const Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/Rank Rank ['test_layer_model_9/cond/Squeeze:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/Equal/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/Equal Equal ['test_layer_model_9/cond/filtered_spectrogram_27/Rank:output:0', 'test_layer_model_9/cond/filtered_spectrogram_27/Equal/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/Rank_1 Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/Equal_1/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/Equal_1 Equal ['test_layer_model_9/cond/filtered_spectrogram_27/Rank_1:output:0', 'test_layer_model_9/cond/filtered_spectrogram_27/Equal_1/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/or/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/or LogicalOr ['test_layer_model_9/cond/filtered_spectrogram_27/Equal:z:0', 'test_layer_model_9/cond/filtered_spectrogram_27/or/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/cond StatelessIf ['test_layer_model_9/cond/filtered_spectrogram_27/or:z:0', 'test_layer_model_9/cond/Squeeze:output:0', 'test_layer_model_9/cond/filtered_spectrogram_27/Const:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_27/cond/Identity Identity ['test_layer_model_9/cond/filtered_spectrogram_27/cond:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Mul/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Mul Mul ['test_layer_model_9/cond/filtered_spectrogram_27/cond/Identity:output:0', 'test_layer_model_9/cond/Mul/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Add/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Add AddV2 ['test_layer_model_9/cond/Mul:z:0', 'test_layer_model_9/cond/Add/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Log Log ['test_layer_model_9/cond/Add:z:0']
+ BRANCH_NODE test_layer_model_9/cond/truediv/y Const []
+ BRANCH_NODE test_layer_model_9/cond/truediv RealDiv ['test_layer_model_9/cond/Log:y:0', 'test_layer_model_9/cond/truediv/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/PartitionedCall PartitionedCall ['test_layer_model_9/cond/truediv:z:0']
+ BRANCH_NODE test_layer_model_9/cond/Size_4 Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_4/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_4 Greater ['test_layer_model_9/cond/Size_4:output:0', 'test_layer_model_9/cond/Greater_4/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/cond_4 StatelessIf ['test_layer_model_9/cond/Greater_4:z:0', 'test_layer_model_9/cond/zeros_2:output:0', 'test_layer_model_9_cond_cond_3_fltp']
+ BRANCH_NODE test_layer_model_9/cond/cond_4/Identity Identity ['test_layer_model_9/cond/cond_4:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Abs_1 ComplexAbs ['test_layer_model_9/cond/cond_4/Identity:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Squeeze_1 Squeeze ['test_layer_model_9/cond/Abs_1:y:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/Const Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/Rank Rank ['test_layer_model_9/cond/Squeeze_1:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/Equal/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/Equal Equal ['test_layer_model_9/cond/filtered_spectrogram_28/Rank:output:0', 'test_layer_model_9/cond/filtered_spectrogram_28/Equal/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/Rank_1 Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/Equal_1/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/Equal_1 Equal ['test_layer_model_9/cond/filtered_spectrogram_28/Rank_1:output:0', 'test_layer_model_9/cond/filtered_spectrogram_28/Equal_1/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/or/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/or LogicalOr ['test_layer_model_9/cond/filtered_spectrogram_28/Equal:z:0', 'test_layer_model_9/cond/filtered_spectrogram_28/or/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/cond StatelessIf ['test_layer_model_9/cond/filtered_spectrogram_28/or:z:0', 'test_layer_model_9/cond/Squeeze_1:output:0', 'test_layer_model_9/cond/filtered_spectrogram_28/Const:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_28/cond/Identity Identity ['test_layer_model_9/cond/filtered_spectrogram_28/cond:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Mul_1/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Mul_1 Mul ['test_layer_model_9/cond/filtered_spectrogram_28/cond/Identity:output:0', 'test_layer_model_9/cond/Mul_1/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Add_1/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Add_1 AddV2 ['test_layer_model_9/cond/Mul_1:z:0', 'test_layer_model_9/cond/Add_1/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Log_1 Log ['test_layer_model_9/cond/Add_1:z:0']
+ BRANCH_NODE test_layer_model_9/cond/truediv_1/y Const []
+ BRANCH_NODE test_layer_model_9/cond/truediv_1 RealDiv ['test_layer_model_9/cond/Log_1:y:0', 'test_layer_model_9/cond/truediv_1/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/PartitionedCall_1 PartitionedCall ['test_layer_model_9/cond/truediv_1:z:0']
+ BRANCH_NODE test_layer_model_9/cond/Size_5 Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_5/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Greater_5 Greater ['test_layer_model_9/cond/Size_5:output:0', 'test_layer_model_9/cond/Greater_5/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/cond_5 StatelessIf ['test_layer_model_9/cond/Greater_5:z:0', 'test_layer_model_9/cond/zeros_3:output:0', 'test_layer_model_9_cond_cond_3_fltp']
+ BRANCH_NODE test_layer_model_9/cond/cond_5/Identity Identity ['test_layer_model_9/cond/cond_5:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Abs_2 ComplexAbs ['test_layer_model_9/cond/cond_5/Identity:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Squeeze_2 Squeeze ['test_layer_model_9/cond/Abs_2:y:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/Const Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/Rank Rank ['test_layer_model_9/cond/Squeeze_2:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/Equal/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/Equal Equal ['test_layer_model_9/cond/filtered_spectrogram_29/Rank:output:0', 'test_layer_model_9/cond/filtered_spectrogram_29/Equal/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/Rank_1 Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/Equal_1/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/Equal_1 Equal ['test_layer_model_9/cond/filtered_spectrogram_29/Rank_1:output:0', 'test_layer_model_9/cond/filtered_spectrogram_29/Equal_1/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/or/y Const []
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/or LogicalOr ['test_layer_model_9/cond/filtered_spectrogram_29/Equal:z:0', 'test_layer_model_9/cond/filtered_spectrogram_29/or/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/cond StatelessIf ['test_layer_model_9/cond/filtered_spectrogram_29/or:z:0', 'test_layer_model_9/cond/Squeeze_2:output:0', 'test_layer_model_9/cond/filtered_spectrogram_29/Const:output:0']
+ BRANCH_NODE test_layer_model_9/cond/filtered_spectrogram_29/cond/Identity Identity ['test_layer_model_9/cond/filtered_spectrogram_29/cond:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Mul_2/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Mul_2 Mul ['test_layer_model_9/cond/filtered_spectrogram_29/cond/Identity:output:0', 'test_layer_model_9/cond/Mul_2/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Add_2/y Const []
+ BRANCH_NODE test_layer_model_9/cond/Add_2 AddV2 ['test_layer_model_9/cond/Mul_2:z:0', 'test_layer_model_9/cond/Add_2/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Log_2 Log ['test_layer_model_9/cond/Add_2:z:0']
+ BRANCH_NODE test_layer_model_9/cond/truediv_2/y Const []
+ BRANCH_NODE test_layer_model_9/cond/truediv_2 RealDiv ['test_layer_model_9/cond/Log_2:y:0', 'test_layer_model_9/cond/truediv_2/y:output:0']
+ BRANCH_NODE test_layer_model_9/cond/PartitionedCall_2 PartitionedCall ['test_layer_model_9/cond/truediv_2:z:0']
+ BRANCH_NODE test_layer_model_9/cond/concat/axis Const []
+ BRANCH_NODE test_layer_model_9/cond/concat ConcatV2 ['test_layer_model_9/cond/PartitionedCall:output:0', 'test_layer_model_9/cond/PartitionedCall_1:output:0', 'test_layer_model_9/cond/PartitionedCall_2:output:0', 'test_layer_model_9/cond/concat/axis:output:0']
+ BRANCH_NODE test_layer_model_9/cond/Identity Identity ['test_layer_model_9/cond/concat:output:0']
+NODE test_layer_model_9/cond/Identity Identity ['test_layer_model_9/cond:output:0']
+NODE test_layer_model_9/StatefulPartitionedCall StatefulPartitionedCall ['test_layer_model_9/cond/Identity:output:0', 'test_layer_model_9_1756173', 'test_layer_model_9_1756175', 'test_layer_model_9_1756177', 'test_layer_model_9_1756179', 'test_layer_model_9_1756181', 'test_layer_model_9_1756183', 'test_layer_model_9_1756185', 'test_layer_model_9_1756187', 'test_layer_model_9_1756189', 'test_layer_model_9_1756191', 'test_layer_model_9_1756193', 'test_layer_model_9_1756195', 'test_layer_model_9_1756197', 'test_layer_model_9_1756199', 'test_layer_model_9_1756201', 'test_layer_model_9_1756203', 'test_layer_model_9_1756205', 'test_layer_model_9_1756207', 'test_layer_model_9_1756209', 'test_layer_model_9_1756211', 'test_layer_model_9_1756213', 'test_layer_model_9_1756215', 'test_layer_model_9_1756217', 'test_layer_model_9_1756219', 'test_layer_model_9_1756221', 'test_layer_model_9_1756223', 'test_layer_model_9_1756225', 'test_layer_model_9_1756227', 'test_layer_model_9_1756229', 'test_layer_model_9_1756231', 'test_layer_model_9_1756233', 'test_layer_model_9_1756235', 'test_layer_model_9_1756237', 'test_layer_model_9_1756239', 'test_layer_model_9_1756241', 'test_layer_model_9_1756243', 'test_layer_model_9_1756245', 'test_layer_model_9_1756247']
+NODE test_layer_model_9/Slice/begin Const SHAPE (2,) VALUE [0, 1]
+NODE test_layer_model_9/Slice/size Const SHAPE (2,) VALUE [-1, 2]
+NODE test_layer_model_9/Slice Slice ['test_layer_model_9/StatefulPartitionedCall:output:0', 'test_layer_model_9/Slice/begin:output:0', 'test_layer_model_9/Slice/size:output:0']
+NODE Identity Identity ['test_layer_model_9/cond/Identity:output:0', '^NoOp']
+NODE Identity_1 Identity ['test_layer_model_9/Slice:output:0', '^NoOp']
+NODE NoOp NoOp ['^test_layer_model_9/StatefulPartitionedCall']
+KERAS_LAYER TestLayerModel {} INPUT {'fltp': {'class_name': 'TensorShape', 'items': [None, None]}}
+KERAS_LAYER STFTLayer {'frame_length': 1024, 'frame_step': 441} INPUT {'class_name': 'TensorShape', 'items': [None, None]}
+KERAS_LAYER STFTLayer {'frame_length': 2048, 'frame_step': 441} INPUT {'class_name': 'TensorShape', 'items': [None, None]}
+KERAS_LAYER STFTLayer {'frame_length': 4096, 'frame_step': 441} INPUT {'class_name': 'TensorShape', 'items': [None, None]}
+KERAS_LAYER FilteredSpectrogram {'name': 'filtered_spectrogram_27', 'trainable': True, 'dtype': 'float32'} INPUT {'class_name': 'TensorShape', 'items': None}
+KERAS_LAYER FilteredSpectrogram {'name': 'filtered_spectrogram_28', 'trainable': True, 'dtype': 'float32'} INPUT {'class_name': 'TensorShape', 'items': None}
+KERAS_LAYER FilteredSpectrogram {'name': 'filtered_spectrogram_29', 'trainable': True, 'dtype': 'float32'} INPUT {'class_name': 'TensorShape', 'items': None}

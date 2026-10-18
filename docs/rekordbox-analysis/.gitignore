@@ -1,0 +1,2 @@
+# Local Hopper analysis databases; retain on disk.
+/artifacts/*.hop
