@@ -217,7 +217,7 @@ struct DownbeatStrategyContainmentTests {
     }
 
     // Grid structure — host-independent, pinned exactly.
-    #expect(grid.schemaVersion == 2)
+    #expect(grid.schemaVersion == 3)
     #expect(grid.downbeats == .notAttempted)
     #expect(grid.tempoAgreement == .notCompared)
     #expect(grid.coverage == .analysisWindow)
@@ -265,10 +265,12 @@ struct DownbeatStrategyContainmentTests {
     }
 
     // Idempotence guard (NOT a history check — that role is the snapshot assertions above). Re-stamp
-    // the v2 grid down to v1 and back to v2 through the memberwise init; `BeatGrid` is `Equatable`,
-    // so `restamped == grid` proves the schemaVersion stamp is the ONLY field the 3-rule `gridOrigin`
-    // memberwise init differs on (the version flip perturbs no other field — the init is idempotent
-    // on an already-valid grid).
+    // the v3 grid down to v1 and back to v3 through the memberwise init; `BeatGrid` is `Equatable`,
+    // so `restamped == grid` proves the round trip through the 3-rule `gridOrigin` memberwise init
+    // perturbs no field other than the stamp (the init is idempotent on an already-valid grid). The
+    // version flip is no longer the only change since the snapshot was first committed: Story 15.3
+    // also shifted every presentationTime, and that shift is checked by the `expectedBeatTimes`
+    // block above, not here.
     let downgraded = BeatGrid(
       beats: grid.beats, downbeats: grid.downbeats, estimatedTempo: grid.estimatedTempo,
       confidence: grid.confidence, tempoAgreement: grid.tempoAgreement,
@@ -278,7 +280,7 @@ struct DownbeatStrategyContainmentTests {
       beats: downgraded.beats, downbeats: downgraded.downbeats,
       estimatedTempo: downgraded.estimatedTempo, confidence: downgraded.confidence,
       tempoAgreement: downgraded.tempoAgreement, gridOrigin: downgraded.gridOrigin,
-      coverage: downgraded.coverage, schemaVersion: 2)
+      coverage: downgraded.coverage, schemaVersion: 3)
     #expect(restamped == grid, "memberwise init perturbed a non-version field")
   }
 }

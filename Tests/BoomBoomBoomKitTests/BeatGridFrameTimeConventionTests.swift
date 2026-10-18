@@ -31,6 +31,11 @@
 //  tightening it below ~5 ms is Phase 7 (joint tempo+phase fit with sub-frame
 //  interpolation).
 //
+//  Coverage checks run before the six metrics. The interior window is bounded
+//  by the signal, not by the grid, and the grid must hold nearly every planted
+//  interior beat and reach within one second of both signal edges, so a
+//  truncated or shifted grid cannot pass on an empty or partial slice.
+//
 
 import Foundation
 import Testing
@@ -78,6 +83,15 @@ struct BeatGridFrameTimeConventionTests {
   /// drive the ceiling to approximately 30 ms (3 hops at 44.1 kHz).
   private static let longDriftBoundMs: Double = 35.0
 
+  /// Edge-coverage slack in seconds: the first grid beat must sit no later
+  /// than `plantedOffsetSeconds + coverageSlackSeconds`, and the last grid
+  /// beat no earlier than `signalEndSeconds - coverageSlackSeconds`. One
+  /// second is two 120 BPM periods. The last planted click sits about 0.5 s
+  /// before the signal end at 120 BPM and about 0.24 s at 126 BPM, and the
+  /// longest waveform is 11.3 ms, so a grid that tracks the whole signal clears
+  /// both edges with room to spare.
+  private static let coverageSlackSeconds: Double = 1.0
+
   // MARK: - Fixture matrix
 
   private static let tempoBPMs: [Double] = [120.0, 126.0]
@@ -112,6 +126,16 @@ struct BeatGridFrameTimeConventionTests {
     case publicFacade = "public-facade"
   }
 
+  /// One planted click track: everything `synthesize`, `plantedBeatPositions`
+  /// and `measure` need to place or score the clicks.
+  struct PlantedClicks {
+    let sampleRate: Double
+    let beatSamples: Int
+    let offsetSamples: Int
+    let leadingSilenceSeconds: Double
+    let waveform: Waveform
+  }
+
   // MARK: - AC #2 full matrix
 
   @Test func phaseBiasAndJitterStayInsideTightBoundAcrossFullMatrix() throws {
@@ -127,14 +151,14 @@ struct BeatGridFrameTimeConventionTests {
                 let fixtureName =
                   "sr=\(Int(sampleRate)) bpm=\(tempoBPM) wave=\(waveform.rawValue) offset=\(offset) silence=\(leadingSilenceSeconds)s path=\(path.rawValue)"
 
-                let samples = synthesize(
+                let clicks = PlantedClicks(
                   sampleRate: sampleRate,
-                  tempoBPM: tempoBPM,
                   beatSamples: beatSamples,
                   offsetSamples: offset,
                   leadingSilenceSeconds: leadingSilenceSeconds,
                   waveform: waveform
                 )
+                let samples = synthesize(clicks)
 
                 let grid = try estimateGrid(
                   samples: samples,
@@ -144,13 +168,41 @@ struct BeatGridFrameTimeConventionTests {
                   path: path
                 )
 
+                let signalEndSeconds = Double(samples.count) / sampleRate
+                let plantedBeatSeconds = plantedBeatPositions(
+                  sampleCount: samples.count, clicks: clicks
+                ).map { Double($0) / sampleRate }
+
                 let metrics = measure(
                   grid: grid,
                   tempoBPM: tempoBPM,
-                  beatSamples: beatSamples,
-                  offsetSamples: offset,
-                  leadingSilenceSeconds: leadingSilenceSeconds,
-                  sampleRate: sampleRate
+                  clicks: clicks,
+                  signalEndSeconds: signalEndSeconds,
+                  plantedBeatSeconds: plantedBeatSeconds
+                )
+
+                // (0a) Interior beat count. Every metric below falls back to 0
+                // on an empty interior slice, so before this check a grid that
+                // stopped early, or one shifted outside the window, passed all
+                // six checks on all-zero metrics. The window is bounded by the
+                // signal, and the grid must hold every planted interior beat
+                // less one hop of slack at each edge.
+                #expect(
+                  metrics.interiorBeatCount >= metrics.expectedInteriorCount - 2,
+                  "interior beat count \(metrics.interiorBeatCount) is below the planted \(metrics.expectedInteriorCount) minus 2 at \(fixtureName)"
+                )
+
+                // (0b) Leading-edge coverage.
+                #expect(
+                  metrics.firstBeatSeconds
+                    <= metrics.plantedOffsetSeconds + Self.coverageSlackSeconds,
+                  "first beat \(metrics.firstBeatSeconds) s is later than the planted offset \(metrics.plantedOffsetSeconds) s plus \(Self.coverageSlackSeconds) s at \(fixtureName)"
+                )
+
+                // (0c) Trailing-edge coverage.
+                #expect(
+                  metrics.lastBeatSeconds >= signalEndSeconds - Self.coverageSlackSeconds,
+                  "last beat \(metrics.lastBeatSeconds) s is earlier than the signal end \(signalEndSeconds) s minus \(Self.coverageSlackSeconds) s at \(fixtureName)"
                 )
 
                 // (1) Constant phase bias — the headline metric.
@@ -198,43 +250,107 @@ struct BeatGridFrameTimeConventionTests {
     }
   }
 
-  // MARK: - AC #4 facade doc contract
+  // MARK: - Coverage-check regressions
 
-  @Test func publicFacadeReportsConventionInDocComment() {
-    // This test guards the "the convention is documented on the public API"
-    // AC #4. The doc on AudioAnalysisService.analyzeBeatGrid must name
-    // (a) that presentationTime is decoded-PCM-relative, and
-    // (b) that codec priming has already been subtracted and callers must not
-    //     subtract it again.
-    // We rely on build-time doc audits elsewhere; this test exists so that if
-    // the doc is deleted or its subject sentence drifts, a reader lands here
-    // via grep and finds the pointer.
+  /// Measures a hand-built grid against the 120 BPM, 44.1 kHz, offset 0,
+  /// no-silence planted set (`beatSamples = 22050`, 15 s of signal).
+  private func measureAgainst120BPMPlantedSet(beatTimes: [Double]) -> (
+    metrics: Metrics, signalEndSeconds: Double
+  ) {
+    let sampleRate = 44_100.0
+    let clicks = PlantedClicks(
+      sampleRate: sampleRate,
+      beatSamples: 22_050,
+      offsetSamples: 0,
+      leadingSilenceSeconds: 0.0,
+      waveform: .singleImpulse
+    )
+    let sampleCount = Int(sampleRate * 15.0)
+    let signalEndSeconds = Double(sampleCount) / sampleRate
+    let plantedBeatSeconds = plantedBeatPositions(sampleCount: sampleCount, clicks: clicks)
+      .map { Double($0) / sampleRate }
+    let grid = BeatGrid(
+      beats: beatTimes.map {
+        BeatTimestamp(presentationTime: $0, confidence: 0.9, strength: 0.5)
+      },
+      downbeats: .notAttempted,
+      estimatedTempo: 120.0,
+      confidence: 0.9,
+      tempoAgreement: .notCompared,
+      gridOrigin: nil,
+      coverage: .analysisWindow
+    )
+    let metrics = measure(
+      grid: grid,
+      tempoBPM: 120.0,
+      clicks: clicks,
+      signalEndSeconds: signalEndSeconds,
+      plantedBeatSeconds: plantedBeatSeconds
+    )
+    return (metrics, signalEndSeconds)
+  }
+
+  /// A grid that stops at 9 s. Before the coverage checks, the interior
+  /// window's upper bound was `0.5 * 18 - 0.5 = 8.5` s, derived from the
+  /// grid's own beat count, so 15 beats with a constant -10 ms residual
+  /// survived and all six metrics passed.
+  @Test func tailTruncatedGridFailsCoverage() {
+    let beatTimes = (1...18).map { 0.5 * Double($0) - 0.01 }
+    let (metrics, signalEndSeconds) = measureAgainst120BPMPlantedSet(beatTimes: beatTimes)
+    #expect(metrics.interiorBeatCount == 17)
+    #expect(metrics.interiorBeatCount < metrics.expectedInteriorCount - 2)
+    #expect(metrics.lastBeatSeconds < signalEndSeconds - Self.coverageSlackSeconds)
+  }
+
+  /// A grid holding only the beats from 6.0 s to 14.5 s. Before the coverage
+  /// checks, the self-derived upper bound of 8.5 s kept 5 beats with zero
+  /// residual and all six metrics passed. A fixed minimum beat count plus a
+  /// tail check would also pass it; the planted-relative count floor and the
+  /// leading-edge check each reject it.
+  @Test func prefixTruncatedGridFailsCoverage() {
+    let beatTimes = (12...29).map { 0.5 * Double($0) }
+    let (metrics, _) = measureAgainst120BPMPlantedSet(beatTimes: beatTimes)
     #expect(
-      Bool(true),
-      "see BeatTimestamp.presentationTime + AudioAnalysisService.analyzeBeatGrid doc blocks")
+      metrics.firstBeatSeconds > metrics.plantedOffsetSeconds + Self.coverageSlackSeconds)
+    #expect(metrics.interiorBeatCount < metrics.expectedInteriorCount - 2)
+  }
+
+  /// A full-span grid with the beats in 4.0...8.0 s removed. Both edge
+  /// checks hold, so only the count floor catches it. Before the coverage
+  /// checks, the self-derived upper bound of 9.5 s kept 8 zero-residual beats,
+  /// the median spacing stayed at 500 ms, and all six metrics passed.
+  @Test func internalGapFailsCountWhileEdgesHold() {
+    let beatTimes = (1...29).map { 0.5 * Double($0) }.filter { !(4.0...8.0).contains($0) }
+    let (metrics, signalEndSeconds) = measureAgainst120BPMPlantedSet(beatTimes: beatTimes)
+    #expect(metrics.interiorBeatCount < metrics.expectedInteriorCount - 2)
+    #expect(
+      metrics.firstBeatSeconds <= metrics.plantedOffsetSeconds + Self.coverageSlackSeconds)
+    #expect(metrics.lastBeatSeconds >= signalEndSeconds - Self.coverageSlackSeconds)
   }
 
   // MARK: - Fixture synthesis
 
-  private func synthesize(
-    sampleRate: Double,
-    tempoBPM: Double,
-    beatSamples: Int,
-    offsetSamples: Int,
-    leadingSilenceSeconds: Double,
-    waveform: Waveform
-  ) -> [Float] {
+  /// Sample positions of every planted click. Shared by `synthesize` and the
+  /// coverage checks so the planted set the metrics compare against is the
+  /// set actually written into the signal.
+  private func plantedBeatPositions(sampleCount: Int, clicks: PlantedClicks) -> [Int] {
+    let silenceOffset = Int(clicks.leadingSilenceSeconds * clicks.sampleRate)
+    return Array(
+      stride(
+        from: silenceOffset + clicks.beatSamples + clicks.offsetSamples,
+        to: sampleCount - clicks.waveform.sampleCount,
+        by: clicks.beatSamples
+      ))
+  }
+
+  private func synthesize(_ clicks: PlantedClicks) -> [Float] {
     // 15 seconds of signal is enough room for ~30 beats at 120 BPM and gives
     // a long-drift measurement that spans at least a few bars.
-    let totalSeconds = 15.0 + leadingSilenceSeconds
-    let count = Int(sampleRate * totalSeconds)
+    let totalSeconds = 15.0 + clicks.leadingSilenceSeconds
+    let count = Int(clicks.sampleRate * totalSeconds)
     var samples = [Float](repeating: 0, count: count)
-    let silenceOffset = Int(leadingSilenceSeconds * sampleRate)
-    for position in stride(
-      from: silenceOffset + beatSamples + offsetSamples,
-      to: count - waveform.sampleCount,
-      by: beatSamples
-    ) {
+    let waveform = clicks.waveform
+    for position in plantedBeatPositions(sampleCount: count, clicks: clicks) {
       for j in 0..<waveform.sampleCount {
         samples[position + j] = Float(exp(-Double(j) / waveform.decayTauSamples))
       }
@@ -293,26 +409,39 @@ struct BeatGridFrameTimeConventionTests {
     let recoveredPeriodMs: Double
     let plantedPeriodMs: Double
     let metricalLevelCorrect: Bool
+    /// Grid beats inside the signal-bounded interior window.
+    let interiorBeatCount: Int
+    /// Planted clicks inside the same interior window.
+    let expectedInteriorCount: Int
+    /// First grid beat's presentation time, or `.infinity` for an empty grid.
+    let firstBeatSeconds: Double
+    /// Last grid beat's presentation time, or `-.infinity` for an empty grid.
+    let lastBeatSeconds: Double
+    /// Leading silence plus the sub-beat offset: the phase reference every
+    /// residual is measured against.
+    let plantedOffsetSeconds: Double
   }
 
   private func measure(
     grid: BeatGrid,
     tempoBPM: Double,
-    beatSamples: Int,
-    offsetSamples: Int,
-    leadingSilenceSeconds: Double,
-    sampleRate: Double
+    clicks: PlantedClicks,
+    signalEndSeconds: Double,
+    plantedBeatSeconds: [Double]
   ) -> Metrics {
-    let periodSeconds = Double(beatSamples) / sampleRate
-    let plantedOffsetSeconds = leadingSilenceSeconds + Double(offsetSamples) / sampleRate
+    let sampleRate = clicks.sampleRate
+    let periodSeconds = Double(clicks.beatSamples) / sampleRate
+    let plantedOffsetSeconds =
+      clicks.leadingSilenceSeconds + Double(clicks.offsetSamples) / sampleRate
     let periodMs = periodSeconds * 1000.0
     // Interior slice: strip 0.5 s off each end so edge-of-window beats do not
-    // perturb median / jitter / drift.
-    let interior = grid.beats.filter {
-      $0.presentationTime > plantedOffsetSeconds + 0.5
-        && $0.presentationTime < plantedOffsetSeconds + periodSeconds * Double(grid.beats.count)
-          - 0.5
+    // perturb median / jitter / drift. Both bounds come from the signal, never
+    // from the grid, so a grid that stops early cannot shrink its own window.
+    let isInterior: (Double) -> Bool = {
+      $0 > plantedOffsetSeconds + 0.5 && $0 < signalEndSeconds - 0.5
     }
+    let interior = grid.beats.filter { isInterior($0.presentationTime) }
+    let expectedInteriorCount = plantedBeatSeconds.filter(isInterior).count
     let residualsMs: [Double] = interior.map {
       let phase = ($0.presentationTime - plantedOffsetSeconds) / periodSeconds
       return (phase - phase.rounded()) * periodSeconds * 1000.0
@@ -345,7 +474,12 @@ struct BeatGridFrameTimeConventionTests {
       longDriftMs: longDrift,
       recoveredPeriodMs: recoveredPeriodMs,
       plantedPeriodMs: periodMs,
-      metricalLevelCorrect: metricalLevelCorrect
+      metricalLevelCorrect: metricalLevelCorrect,
+      interiorBeatCount: interior.count,
+      expectedInteriorCount: expectedInteriorCount,
+      firstBeatSeconds: grid.beats.first?.presentationTime ?? .infinity,
+      lastBeatSeconds: grid.beats.last?.presentationTime ?? -.infinity,
+      plantedOffsetSeconds: plantedOffsetSeconds
     )
   }
 }

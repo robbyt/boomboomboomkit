@@ -52,7 +52,21 @@ public struct BeatTimestamp: Sendable, Hashable, Codable, CustomStringConvertibl
   /// is applied there and nowhere else. Pre-Story-15.3 the convention was
   /// `f * hopSize / sampleRate` (start of the earlier frame), which produced
   /// a constant `hopSize + fftSize / 2`-sample negative bias (~33 ms at
-  /// 44.1 kHz / `hopSize=441` / `fftSize=2048`).
+  /// 44.1 kHz / `hopSize=441` / `fftSize=2048`). The change bumped
+  /// ``BeatGrid/currentSchemaVersion`` to 3.
+  ///
+  /// ### Residual after the convention fix
+  /// The convention removes the `hopSize + fftSize / 2` term, not the whole
+  /// offset. On synthetic click fixtures at 44.1 and 48 kHz the remaining
+  /// anchor error is early by about 6.8 to 16.8 ms, depending on the click
+  /// waveform and where the onset falls inside a hop. Within one fixture the
+  /// error is the same for every beat (interior minimum and maximum agree to
+  /// well under a microsecond), so it is a constant offset rather than
+  /// per-beat jitter. Sub-frame peak interpolation moves each beat inside its
+  /// own frame and cannot remove an offset shared by every beat.
+  /// On single-impulse clicks the offset is one hop: measured -10.7 ms at
+  /// 120 BPM and -11.4 ms at 128 BPM (44.1 kHz, `hopSize=441`), measured on
+  /// the same onset envelope and frame-time convention.
   ///
   /// Always `≥ 0`; non-finite or negative inputs clamp to `0.0` at
   /// construction.

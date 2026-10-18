@@ -8,9 +8,11 @@
 //  Phase 3's frame-time-convention fix has a reproducible, in-tree reference
 //  measurement to regress against.
 //
-//  This suite ASSERTS reproduction, not correctness. Each of the 24 rows must
-//  report gridOriginSignedErrorMs in [-50.5, -39.5] ms and interiorMedianSignedErrorMs
-//  in the same band. Flipping to a tight tolerance belongs to Story 15.3.
+//  This suite ASSERTS reproduction, not correctness. Since Story 15.3 (the
+//  frame-time convention fix) each of the 24 rows must report
+//  gridOriginSignedErrorMs in [-17.5, -6.0] ms and interiorMedianSignedErrorMs
+//  in the same band. The residual is constant within a fixture and depends on
+//  waveform shape and hop phase. The pre-15.3 band was [-50.5, -39.5] ms.
 //
 //  Default-off env gate (BBB_BEATGRID_TIMING_BASELINE != "1"); mirrors the
 //  SuperFluxImpactTests / BNNSImpactTests convention. make test runs the
