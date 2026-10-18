@@ -1,2 +1,8 @@
 # Local Hopper analysis databases; retain on disk.
 /artifacts/*.hop
+# Rekordbox disassembly, decompiled pseudocode, and model inspection output.
+# Held locally at these paths so FINDINGS.md citations and manifest.json rows
+# stay valid for anyone with the local files; not tracked in git.
+/evidence/native/
+/evidence/hopper/
+/evidence/models/

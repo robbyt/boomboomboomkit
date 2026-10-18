@@ -45,7 +45,7 @@
 
 ### Reverse-engineering research (develop-only)
 
-- [Rekordbox analysis](./rekordbox-analysis/README.md) -- Preserved 2026-10-17 investigation of rekordbox 7.2.19.0342: findings, Hopper queries, ARM64 disassembly, model protobuf inspection, and a current-HEAD Swift timing probe. See `AGENT_GUIDANCE.md` for the Epic 13 plan it feeds into.
+- [Rekordbox analysis](./rekordbox-analysis/README.md) -- Preserved 2026-10-17 investigation of rekordbox 7.2.19.0342: findings and a current-HEAD Swift timing probe in the repository; the Hopper query output, ARM64 disassembly, and model protobuf inspection it cites are held locally and gitignored. See `AGENT_GUIDANCE.md` for the Epic 13 plan it feeds into.
 
 ### AI Agent Context
 

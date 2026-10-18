@@ -3,8 +3,8 @@
     {
       "path": "FINDINGS.md",
       "source_path": "/private/tmp/rekordbox-dj-analysis-guidance.md",
-      "bytes": 12461,
-      "sha256": "92685a80aec15a8dbd39eb88ac30b5e418b55b69e76b8fb45a131c7ab111f946"
+      "bytes": 12986,
+      "sha256": "da105d1bbd64cf5534f3464ae03e1c3eed18d66d3173b39fba8cac89d4f54b8b"
     },
     {
       "path": "artifacts/rekordbox-bpm-analysis.hop",
