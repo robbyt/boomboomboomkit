@@ -310,6 +310,14 @@ beat-grid-impact-report:
 	) \
 	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridImpactGateTests
 
+## beatgrid-timing-baseline: Story 15.2 (Epic 15, Phase 2) — reproduce the 40 to 50 ms early-anchor measurement in-tree and write a per-SHA baseline under _bmad-output/perf-baselines/beatgrid-timing/. Synthetic click fixtures only (no corpus required). Env-gated; make test runs the pre-story count unchanged.
+.PHONY: beatgrid-timing-baseline
+beatgrid-timing-baseline:
+	@mkdir -p "$(CURDIR)/_bmad-output/perf-baselines/beatgrid-timing"
+	BBB_BEATGRID_TIMING_BASELINE=1 \
+	BBB_COMMIT_SHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.BeatGridTimingBaselineTests
+
 ## tempo-refine-impact-report: Story 8-10 AC9 — per-track beat-grid tempo-error + predicted last-beat drift, refinement ON vs OFF, scored against the DAW-verified oracle over .fullTrack coverage. JSON to _bmad-output/implementation-artifacts/8-10-tempo-refine-impact.json. Accuracy metric (config-agnostic); asserts the monotonic reject-guard (improved >= worsened, mean drift not increased).
 .PHONY: tempo-refine-impact-report
 tempo-refine-impact-report:
