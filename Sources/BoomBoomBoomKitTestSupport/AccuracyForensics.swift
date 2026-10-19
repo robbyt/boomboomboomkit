@@ -320,14 +320,23 @@ public enum AccuracyForensics {
         lower: confidenceEdges[i], upper: min(confidenceEdges[i + 1], 1.0),
         count: binCounts[i], acc1: binAcc1[i])
     }
-    let perGenre =
-      genreAcc
-      .map {
-        GenreForensic(
-          genre: $0.key, total: $0.value.total, acc1: $0.value.acc1, acc2: $0.value.acc2,
-          errorTypeHistogram: $0.value.hist)
-      }
-      .sorted { $0.total > $1.total || ($0.total == $1.total && $0.genre < $1.genre) }
+    // Break the chained .map/.sorted into two statements with an explicit element
+    // type on the intermediate array. The one-expression form hit the Swift 6.0
+    // type-checker's solver limit ("unable to type-check this expression in
+    // reasonable time") on macOS SDK 27 toolchains; naming the intermediate type
+    // short-circuits the inference work.
+    let perGenreUnsorted: [GenreForensic] = genreAcc.map { entry in
+      GenreForensic(
+        genre: entry.key,
+        total: entry.value.total,
+        acc1: entry.value.acc1,
+        acc2: entry.value.acc2,
+        errorTypeHistogram: entry.value.hist
+      )
+    }
+    let perGenre = perGenreUnsorted.sorted {
+      $0.total > $1.total || ($0.total == $1.total && $0.genre < $1.genre)
+    }
 
     return ForensicCorpusReport(
       corpus: corpus, total: tracks.count, analyzed: tracks.count - nilCount, nilCount: nilCount,
