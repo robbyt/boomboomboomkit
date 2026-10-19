@@ -71,3 +71,13 @@ and the investigation's prose findings.
 Not preserved and intentionally so: the Rekordbox executable itself, any
 proprietary model weights, authentication tokens, Python virtualenvs, build
 caches, or the full `/private/tmp` tree.
+
+## 2026-10-19 beat-evidence review
+
+`beat-strength-review-2026-10-19/` holds the rekordbox-analysis effort's answer to
+`beat-strength-question.md` (how the Story 15.6 decoder should decide "no beat
+here"), the question itself, the Bitwig notes it links to, and the evidence it
+cites. Its `README.md` lists what is tracked. The same local-only policy applies:
+the rekordbox pseudocode and disassembly under `beat-strength-evidence-2026-10-19/
+{hopper,native}/` and the whole `logic-pro-analysis-2026-10-19/` directory (a
+static Logic Pro 12.4 inspection) are gitignored and verified by their manifests.

@@ -1,0 +1,127 @@
+{
+  "captured_date": "2026-10-19",
+  "reviewed_bbbk_commit": "a2d213c54d9a5a4ab68bf96bbaf8101bc7b8573a",
+  "scope": "Static Hopper/REA adapter evidence and unchanged-source synthetic decoder probe; no matched Rekordbox audio benchmark.",
+  "files": [
+    {
+      "path": "hopper/bar-viterbi.c",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/bar-viterbi.c",
+      "bytes": 12838,
+      "sha256": "ee9419b4cfcc4a8ae3fe4cc4a573a3a2b07f40253f9c0cf4574df7555eeec519"
+    },
+    {
+      "path": "hopper/bar-viterbi.json",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/bar-viterbi.json",
+      "bytes": 33618,
+      "sha256": "92002fc9167468c3c030847a6d4a8cff78caf936db84d2216bf13323ca7dbd2a"
+    },
+    {
+      "path": "hopper/observation-likelihoods.c",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/observation-likelihoods.c",
+      "bytes": 4832,
+      "sha256": "06e699a2360ef94cfcc6bb27f7806b6c09b1b472a25b154d247e98f4570e3bb7"
+    },
+    {
+      "path": "hopper/observation-likelihoods.json",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/observation-likelihoods.json",
+      "bytes": 18629,
+      "sha256": "911753c6857c1be4264231c5ab24d79a7d90da1e101034633851657130c78a0e"
+    },
+    {
+      "path": "hopper/observation-state-space.c",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/observation-state-space.c",
+      "bytes": 4963,
+      "sha256": "89ac464b5377c4733c5d2a684d746c7e159847a29a3e90f93e2a01f8197571e4"
+    },
+    {
+      "path": "hopper/observation-state-space.json",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/observation-state-space.json",
+      "bytes": 20877,
+      "sha256": "1eee039c8b196391adcb405c472d29313b093ccb95f0fbf8be08274ac3e9cd47"
+    },
+    {
+      "path": "hopper/threshold-activations.c",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/threshold-activations.c",
+      "bytes": 8531,
+      "sha256": "bd88a889b50abfa518c421640bdd5edc0aeb14934c2b01c0b19db0aeb0f83fca"
+    },
+    {
+      "path": "hopper/threshold-activations.json",
+      "source_path": "/private/tmp/rea-beat-strength-evidence/threshold-activations.json",
+      "bytes": 19874,
+      "sha256": "cbdf5e50e1b3c0e199d713f34b68cbd75024d3570356f9b2f7e12b96c759076a"
+    },
+    {
+      "path": "native/rb-threshold-activations.asm",
+      "source_path": "/private/tmp/rb-threshold-activations.asm",
+      "bytes": 8635,
+      "sha256": "f395c146335fc8a24764aaf737d9ceaf01e838ea18baf69f52a4ddc94ead8958"
+    },
+    {
+      "path": "native/rb-beat-1.asm",
+      "source_path": "/Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/docs/rekordbox-analysis/evidence/native/rb-beat-1.asm",
+      "bytes": 116481,
+      "sha256": "7009b37a9815150395fc828b734c177131d2893019de500615d34fb45df9efe6"
+    },
+    {
+      "path": "scripts/rea-beat-strength-query.py",
+      "source_path": "/private/tmp/rea-beat-strength-query.py",
+      "bytes": 1324,
+      "sha256": "cc04a98d878859879f336cba28144c86cb10f5271f04d507c0f76de96d1e2e48"
+    },
+    {
+      "path": "probe/Package.swift",
+      "source_path": "/private/tmp/bbbk-beat-strength-review/Package.swift",
+      "bytes": 176,
+      "sha256": "2d3dc2fe0f2932baa9e784373e6dfd862c6c7ebe22dbf0137da0a24fe080e64d"
+    },
+    {
+      "path": "probe/Sources/Probe/BarStateDecoder.swift",
+      "source_path": "/private/tmp/bbbk-beat-strength-review/Sources/Probe/BarStateDecoder.swift",
+      "bytes": 11744,
+      "sha256": "ef78a0dd40e851c858573a5f28d4d6716cadaf88e6f45fe832739508d0ecb275"
+    },
+    {
+      "path": "probe/Sources/Probe/FramewiseObservations.swift",
+      "source_path": "/private/tmp/bbbk-beat-strength-review/Sources/Probe/FramewiseObservations.swift",
+      "bytes": 5958,
+      "sha256": "9319379e5a80d139087e1b2f15db8ac962158c2e96eb43cff8ba45c877e0a9bd"
+    },
+    {
+      "path": "probe/Sources/Probe/JointTempoPhaseFit.swift",
+      "source_path": "/private/tmp/bbbk-beat-strength-review/Sources/Probe/JointTempoPhaseFit.swift",
+      "bytes": 11292,
+      "sha256": "b338537fa3519fdf79fed86f1ab7f7309b8ec87a40a037a2552c192642208a39"
+    },
+    {
+      "path": "probe/Sources/Probe/MetricalLevelSelector.swift",
+      "source_path": "/private/tmp/bbbk-beat-strength-review/Sources/Probe/MetricalLevelSelector.swift",
+      "bytes": 4013,
+      "sha256": "3e4a58788159c0d33e8c1e667e94758e6b624133fa56dd678eb87fdb99719216"
+    },
+    {
+      "path": "probe/Sources/Probe/UnusedProducerType.swift",
+      "source_path": "/private/tmp/bbbk-beat-strength-review/Sources/Probe/UnusedProducerType.swift",
+      "bytes": 214,
+      "sha256": "1f7a0f3d25879c11f63730ee022baa21aa0c6566585fdfac9d8fcbfc55251793"
+    },
+    {
+      "path": "probe/Sources/Probe/main.swift",
+      "source_path": "/private/tmp/bbbk-beat-strength-review/Sources/Probe/main.swift",
+      "bytes": 1282,
+      "sha256": "21e6adaf5de027080d9cbb7b60b1c10389da93584df3a903b6bcbd200514c320"
+    },
+    {
+      "path": "probe-results.jsonl",
+      "source_path": "generated by preserved Swift probe",
+      "bytes": 830,
+      "sha256": "8c3769a07e6be8fa835e5a926a4c0ea9b9b6f7a52b856e1f5311393cde5aa8a3"
+    },
+    {
+      "path": "probe-build.log",
+      "source_path": "generated by preserved Swift probe",
+      "bytes": 431,
+      "sha256": "3eba510308c999052f17d541bf5a9932d07aec7e71d2eb56ed6aa3fa5019fe34"
+    }
+  ]
+}

@@ -6,3 +6,8 @@
 /evidence/native/
 /evidence/hopper/
 /evidence/models/
+# 2026-10-19 beat-evidence review: same policy. Rekordbox pseudocode and
+# disassembly stay local; the Logic Pro inspection is held locally in full.
+/beat-strength-review-2026-10-19/beat-strength-evidence-2026-10-19/hopper/
+/beat-strength-review-2026-10-19/beat-strength-evidence-2026-10-19/native/
+/beat-strength-review-2026-10-19/logic-pro-analysis-2026-10-19/
