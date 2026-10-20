@@ -295,6 +295,40 @@ struct WaveformAnalyzerTests {
     }
   }
 
+  // MARK: - Non-finite samples
+
+  /// A 1 s, 44.1 kHz sine with `planted` values written over the given indices.
+  private static func sineDecoded(planting planted: [Int: Float]) -> FeatureSubstrate.DecodedAudio {
+    let base = sineDecoded(frequency: 440, seconds: 1)
+    var samples = base.samples
+    for (index, value) in planted { samples[index] = value }
+    return FeatureSubstrate.DecodedAudio(
+      samples: samples,
+      sampleRate: base.sampleRate,
+      codecPriming: FeatureSubstrate.PrimingInfo(codec: .linearPCM, trimState: .knownNone)
+    )
+  }
+
+  @Test func nanSampleThrowsFirstNonFiniteIndex() {
+    let decoded = Self.sineDecoded(planting: [1_000: .nan, 2_000: .infinity])
+    #expect(throws: WaveformAnalyzerError.nonFiniteSample(index: 1_000)) {
+      _ = try WaveformAnalyzer.analyze(decoded: decoded)
+    }
+  }
+
+  @Test func negativeInfinitySampleThrowsItsIndex() {
+    let decoded = Self.sineDecoded(planting: [3_210: -.infinity])
+    #expect(throws: WaveformAnalyzerError.nonFiniteSample(index: 3_210)) {
+      _ = try WaveformAnalyzer.analyze(decoded: decoded)
+    }
+  }
+
+  @Test func finiteControlSignalAnalyzesWithoutThrowing() throws {
+    let result = try WaveformAnalyzer.analyze(decoded: Self.sineDecoded(planting: [:]))
+    #expect(result.detail.magnitudes.count == 150)
+    #expect(result.detail.magnitudes.allSatisfy { $0.isFinite })
+  }
+
   @Test func columnsPerSecondOutOfRangeThrows() {
     let decoded = Self.silentDecoded(seconds: 1, sampleRate: 8_000)
     for cps in [0, -1, 8_001, 16_000] {

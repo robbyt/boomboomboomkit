@@ -44,6 +44,8 @@ public enum WaveformAnalyzer {
   ///   ``WaveformAnalyzerError/lowMidCutoffOutOfRange(lowMidCutoffHz:midHighCutoffHz:)``
   ///   when ``WaveformOptions/lowMidCutoffHz`` is not finite, not positive,
   ///   or not below the mid / high crossover;
+  ///   ``WaveformAnalyzerError/nonFiniteSample(index:)`` when a decoded
+  ///   sample is NaN or infinite, before any filter pass runs;
   ///   ``WaveformAnalyzerError/cancelled`` when ``WaveformOptions/isCancelled``
   ///   returns `true` at any check (before the pass, before each filter
   ///   pass, and before each 256-bin chunk). A cancelled run returns no
@@ -55,6 +57,14 @@ public enum WaveformAnalyzer {
     let samples = decoded.samples
     let sampleRate = decoded.sampleRate
     try validate(options: options, sampleRate: sampleRate)
+    // Scalar early-exit scan on purpose, for the same reason as the ingress
+    // guard in PCMBufferReader (spec-gh-167-item2-pcm-ingress-guards): vDSP has
+    // no non-finite detection primitive, and deferred-work W4 treats vDSP
+    // non-finite behaviour as platform-defined. This is the one exemption from
+    // the vDSP-for-bulk-numerics rule in this file.
+    if let index = samples.firstIndex(where: { !$0.isFinite }) {
+      throw WaveformAnalyzerError.nonFiniteSample(index: index)
+    }
     if options.isCancelled() { throw WaveformAnalyzerError.cancelled }
 
     options.onProgress?(0.0)
@@ -408,6 +418,10 @@ public enum WaveformAnalyzerError: Error, Sendable, Equatable {
   /// ``WaveformOptions/lowMidCutoffHz`` is not finite, not positive, or not
   /// below ``WaveformOptions/midHighCutoffHz``.
   case lowMidCutoffOutOfRange(lowMidCutoffHz: Double, midHighCutoffHz: Double)
+  /// A decoded sample at `index` is NaN or infinite. The library's decoder
+  /// zeroes such samples before they reach the analyzer, so this fires only
+  /// for a carrier built from a consumer's own samples.
+  case nonFiniteSample(index: Int)
 }
 
 // MARK: - Biquad helper (second-order IIR, Double precision)
