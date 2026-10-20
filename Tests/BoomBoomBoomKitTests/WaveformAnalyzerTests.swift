@@ -2,7 +2,7 @@
 //  WaveformAnalyzerTests.swift
 //  BoomBoomBoomKitTests
 //
-//  Story 15.4 (Epic 15, Phase 4) — regression tests for the public
+//  Story 15.4 (Epic 15, Phase 4): regression tests for the public
 //  waveform surface. Covers the mono in-memory path shipped in Phase 1
 //  of the story: silence, pure tones per band, impulse peak preservation,
 //  short-file bin arithmetic, and sample-rate invariance.

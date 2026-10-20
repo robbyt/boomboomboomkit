@@ -2,7 +2,7 @@
 //  Waveform.swift
 //  BoomBoomBoomKit
 //
-//  Story 15.4 (Epic 15, Phase 4) — public namespace for independent waveform
+//  Story 15.4 (Epic 15, Phase 4): public namespace for independent waveform
 //  analysis. Covers the detail envelope, peak-preserving overview, and
 //  three-band energy channels.
 //

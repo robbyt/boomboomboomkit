@@ -2,7 +2,7 @@
 //  WaveformOptions.swift
 //  BoomBoomBoomKit
 //
-//  Story 15.4 — configuration for ``WaveformAnalyzer``.
+//  Story 15.4: configuration for ``WaveformAnalyzer``.
 //
 
 import Foundation

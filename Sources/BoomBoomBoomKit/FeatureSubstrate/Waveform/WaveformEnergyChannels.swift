@@ -2,7 +2,7 @@
 //  WaveformEnergyChannels.swift
 //  BoomBoomBoomKit
 //
-//  Story 15.4 — three-band spectral energy, one magnitude per bin per band.
+//  Story 15.4: three-band spectral energy, one magnitude per bin per band.
 //
 
 /// Low / mid / high spectral energy per bin, computed from biquad-filtered
@@ -13,7 +13,7 @@
 /// a renderer may map `low -> R`, `mid -> G`, `high -> B` as a presentation
 /// choice, but this type carries no implied color or display vocabulary.
 /// Each band carries its own `[0, 1+]` magnitude; no silent per-band
-/// normalization is applied — the relative balance between bands is
+/// normalization is applied. The relative balance between bands is
 /// preserved for the renderer to interpret.
 ///
 /// ## Filter contract (algorithm `three-band-biquad.v1`)
@@ -31,6 +31,13 @@
 /// Same convention as ``WaveformDetailEnvelope``: `binStartSamples[i]` is
 /// the first sample included in bin `i`. The three outputs share the bin
 /// grid for alignment.
+///
+/// ## NaN-free by construction
+/// Every ``lowBand``, ``midBand`` and ``highBand`` value is finite: the
+/// memberwise initializer traps on a `NaN` or infinity and ``init(from:)``
+/// throws. The synthesized `Hashable`/`Equatable` conformance relies on
+/// this; see ``BeatTimestamp`` for the rule. Values above `1.0` (clipping)
+/// are allowed.
 public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringConvertible {
 
   /// Pinned schema version.
@@ -73,7 +80,8 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
   /// High-band RMS per bin.
   public let highBand: [Float]
 
-  /// Creates a record. The crossover preconditions are programmer guards:
+  /// Creates a record. Every band array must have one finite value per bin.
+  /// The crossover preconditions are programmer guards:
   /// ``WaveformAnalyzer/analyze(decoded:options:)`` validates the options
   /// and throws a ``WaveformAnalyzerError`` before constructing a record, so
   /// they are unreachable through the analyzer.
@@ -91,14 +99,94 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
     precondition(binStartSamples.count == lowBand.count, "bin array lengths disagree")
     precondition(binStartSamples.count == midBand.count, "bin array lengths disagree")
     precondition(binStartSamples.count == highBand.count, "bin array lengths disagree")
-    precondition(sampleRate > 0, "sampleRate must be positive")
+    precondition(sampleRate.isFinite && sampleRate > 0, "sampleRate must be finite and positive")
     precondition(columnsPerSecond > 0, "columnsPerSecond must be positive")
+    precondition(lowBand.allSatisfy(\.isFinite), "lowBand must be finite")
+    precondition(midBand.allSatisfy(\.isFinite), "midBand must be finite")
+    precondition(highBand.allSatisfy(\.isFinite), "highBand must be finite")
     precondition(
       lowMidCutoffHz > 0 && lowMidCutoffHz < midHighCutoffHz,
       "lowMidCutoffHz must be positive and below midHighCutoffHz")
     precondition(midHighCutoffHz < sampleRate / 2, "midHighCutoffHz must be below Nyquist")
     self.schemaVersion = Self.schemaVersion
     self.algorithmIdentifier = Self.algorithmIdentifier
+    self.sampleRate = sampleRate
+    self.columnsPerSecond = columnsPerSecond
+    self.lowMidCutoffHz = lowMidCutoffHz
+    self.midHighCutoffHz = midHighCutoffHz
+    self.coveredSampleRange = coveredSampleRange
+    self.binStartSamples = binStartSamples
+    self.lowBand = lowBand
+    self.midBand = midBand
+    self.highBand = highBand
+  }
+
+  // MARK: Codable
+
+  /// Decodes every stored property and validates it before assigning, so a
+  /// persisted or corrupted payload that breaks the record's contract throws
+  /// `DecodingError.dataCorrupted` instead of decoding into an invalid
+  /// record (the synthesized decoder assigned fields directly and skipped
+  /// these checks). It throws when the array lengths disagree, `sampleRate`
+  /// is not finite or not positive, `columnsPerSecond` is below 1, a band
+  /// value is not finite, ``lowMidCutoffHz`` is not finite, not positive or
+  /// not below ``midHighCutoffHz``, or ``midHighCutoffHz`` is not below
+  /// Nyquist, matching the memberwise preconditions. It also throws when
+  /// ``coveredSampleRange`` starts below sample 0; an inverted range is
+  /// already rejected by the standard library's `Range` decoding.
+  ///
+  /// The stored ``schemaVersion`` and ``algorithmIdentifier`` strings are
+  /// kept exactly as encoded rather than replaced by the static constants,
+  /// so a consumer can see which version produced the payload. That is also
+  /// why this initializer assigns fields itself instead of delegating to the
+  /// memberwise initializer, which stamps the current constants.
+  /// `encode(to:)` and `CodingKeys` are compiler-synthesized, so the encoded
+  /// JSON shape is unchanged.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let schemaVersion = try container.decode(String.self, forKey: .schemaVersion)
+    let algorithmIdentifier = try container.decode(String.self, forKey: .algorithmIdentifier)
+    let sampleRate = try container.decode(Double.self, forKey: .sampleRate)
+    let columnsPerSecond = try container.decode(Int.self, forKey: .columnsPerSecond)
+    let lowMidCutoffHz = try container.decode(Double.self, forKey: .lowMidCutoffHz)
+    let midHighCutoffHz = try container.decode(Double.self, forKey: .midHighCutoffHz)
+    let coveredSampleRange = try container.decode(Range<Int>.self, forKey: .coveredSampleRange)
+    let binStartSamples = try container.decode([Int].self, forKey: .binStartSamples)
+    let lowBand = try container.decode([Float].self, forKey: .lowBand)
+    let midBand = try container.decode([Float].self, forKey: .midBand)
+    let highBand = try container.decode([Float].self, forKey: .highBand)
+
+    try WaveformRecordDecoding.requireSampleRate(sampleRate, forKey: .sampleRate, in: container)
+    try WaveformRecordDecoding.requireCadence(
+      columnsPerSecond, forKey: .columnsPerSecond, in: container)
+    guard lowMidCutoffHz.isFinite, lowMidCutoffHz > 0, lowMidCutoffHz < midHighCutoffHz else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .lowMidCutoffHz, in: container,
+        debugDescription:
+          "lowMidCutoffHz must be finite, positive and below midHighCutoffHz "
+          + "(got \(lowMidCutoffHz) and \(midHighCutoffHz))")
+    }
+    guard midHighCutoffHz < sampleRate / 2 else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .midHighCutoffHz, in: container,
+        debugDescription:
+          "midHighCutoffHz must be below Nyquist (got \(midHighCutoffHz) at \(sampleRate) Hz)")
+    }
+    try WaveformRecordDecoding.requireNonNegativeStart(
+      coveredSampleRange, forKey: .coveredSampleRange, in: container)
+    let binCount = binStartSamples.count
+    try WaveformRecordDecoding.requireBinCount(
+      lowBand.count, binCount: binCount, forKey: .lowBand, in: container)
+    try WaveformRecordDecoding.requireBinCount(
+      midBand.count, binCount: binCount, forKey: .midBand, in: container)
+    try WaveformRecordDecoding.requireBinCount(
+      highBand.count, binCount: binCount, forKey: .highBand, in: container)
+    try WaveformRecordDecoding.requireFinite(lowBand, forKey: .lowBand, in: container)
+    try WaveformRecordDecoding.requireFinite(midBand, forKey: .midBand, in: container)
+    try WaveformRecordDecoding.requireFinite(highBand, forKey: .highBand, in: container)
+
+    self.schemaVersion = schemaVersion
+    self.algorithmIdentifier = algorithmIdentifier
     self.sampleRate = sampleRate
     self.columnsPerSecond = columnsPerSecond
     self.lowMidCutoffHz = lowMidCutoffHz

@@ -2,7 +2,7 @@
 //  WaveformAnalyzer.swift
 //  BoomBoomBoomKit
 //
-//  Story 15.4 — public analyzer that produces the three independent
+//  Story 15.4: public analyzer that produces the three independent
 //  waveform outputs for a decoded mono audio buffer.
 //
 //  Phase 1 of Story 15.4 ships the mono / in-memory path. Streaming decode

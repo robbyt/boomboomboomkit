@@ -1,0 +1,287 @@
+//
+//  WaveformRecordCodingTests.swift
+//  BoomBoomBoomKitTests
+//
+//  Story 15.4: Codable round trip and decode-time validation for the three
+//  public waveform records. A corrupt payload must throw DecodingError, never
+//  decode into a record that breaks its own contract, and never trap.
+//
+
+import Foundation
+import Testing
+
+@testable import BoomBoomBoomKit
+
+@Suite("Waveform record coding (Story 15.4)")
+struct WaveformRecordCodingTests {
+
+  // MARK: - Helpers
+
+  /// One second of a two-tone signal, so every record carries non-zero,
+  /// non-trivial values in each array.
+  private static func analyzed() throws -> WaveformAnalysisResult {
+    let sampleRate = 44_100.0
+    let count = Int(sampleRate)
+    var samples = [Float](repeating: 0, count: count)
+    for i in 0..<count {
+      let t = Double(i) / sampleRate
+      samples[i] = Float(0.4 * sin(2 * .pi * 80 * t) + 0.3 * sin(2 * .pi * 6_000 * t))
+    }
+    let decoded = FeatureSubstrate.DecodedAudio(
+      samples: samples,
+      sampleRate: sampleRate,
+      codecPriming: FeatureSubstrate.PrimingInfo(codec: .linearPCM, trimState: .knownNone)
+    )
+    return try WaveformAnalyzer.analyze(decoded: decoded)
+  }
+
+  private static func encode<T: Encodable>(_ value: T) throws -> Data {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    return try encoder.encode(value)
+  }
+
+  /// Decoder that reads the string `"NaN"` as `Float.nan`, so a hand-built
+  /// NaN reaches the record's validation instead of failing JSON parsing.
+  private static func nonConformingDecoder() -> JSONDecoder {
+    let decoder = JSONDecoder()
+    decoder.nonConformingFloatDecodingStrategy = .convertFromString(
+      positiveInfinity: "+Inf", negativeInfinity: "-Inf", nan: "NaN")
+    return decoder
+  }
+
+  private static func object(_ data: Data) throws -> [String: Any] {
+    try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+  }
+
+  private static func data(_ object: [String: Any]) throws -> Data {
+    try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+  }
+
+  /// Returns `data` with the last element of the array at `key` removed.
+  private static func droppingLast(_ key: String, from data: Data) throws -> Data {
+    var object = try object(data)
+    var array = try #require(object[key] as? [Any])
+    try #require(!array.isEmpty)
+    array.removeLast()
+    object[key] = array
+    return try Self.data(object)
+  }
+
+  /// Returns `data` with the first element of the array at `key` replaced by
+  /// the non-conforming string `"NaN"`.
+  private static func replacingFirstWithNaN(_ key: String, in data: Data) throws -> Data {
+    var object = try object(data)
+    var array = try #require(object[key] as? [Any])
+    try #require(!array.isEmpty)
+    array[0] = "NaN"
+    object[key] = array
+    return try Self.data(object)
+  }
+
+  /// Returns `data` with the top-level `key` set to `value`.
+  private static func setting(_ key: String, to value: Any, in data: Data) throws -> Data {
+    var object = try object(data)
+    object[key] = value
+    return try Self.data(object)
+  }
+
+  /// Rewrites both stored version strings to `"v0"` in the JSON text.
+  private static func rewritingVersionStrings(in data: Data, algorithm: String) throws -> Data {
+    let text = try #require(String(data: data, encoding: .utf8))
+    let schemaField = "\"schemaVersion\":\"v1\""
+    let algorithmField = "\"algorithmIdentifier\":\"\(algorithm)\""
+    try #require(text.contains(schemaField))
+    try #require(text.contains(algorithmField))
+    let edited =
+      text
+      .replacingOccurrences(of: schemaField, with: "\"schemaVersion\":\"v0\"")
+      .replacingOccurrences(of: algorithmField, with: "\"algorithmIdentifier\":\"v0\"")
+    return Data(edited.utf8)
+  }
+
+  // MARK: - Round trip
+
+  @Test func detailEnvelopeRoundTrips() throws {
+    let original = try Self.analyzed().detail
+    #expect(!original.magnitudes.isEmpty)
+    let decoded = try JSONDecoder().decode(
+      WaveformDetailEnvelope.self, from: Self.encode(original))
+    #expect(decoded == original)
+  }
+
+  @Test func peakOverviewRoundTrips() throws {
+    let original = try Self.analyzed().overview
+    #expect(!original.signedMins.isEmpty)
+    let decoded = try JSONDecoder().decode(
+      WaveformPeakOverview.self, from: Self.encode(original))
+    #expect(decoded == original)
+  }
+
+  @Test func energyChannelsRoundTrip() throws {
+    let original = try Self.analyzed().energy
+    #expect(!original.lowBand.isEmpty)
+    let decoded = try JSONDecoder().decode(
+      WaveformEnergyChannels.self, from: Self.encode(original))
+    #expect(decoded == original)
+  }
+
+  // MARK: - Control
+
+  /// The rejection tests below re-serialize through `JSONSerialization`.
+  /// An untouched re-serialized payload must still decode, so a rejection is
+  /// caused by the edit and not by the re-serialization.
+  @Test func reserializedPayloadsStillDecode() throws {
+    let result = try Self.analyzed()
+    let detail = try Self.setting("schemaVersion", to: "v1", in: Self.encode(result.detail))
+    let overview = try Self.setting("schemaVersion", to: "v1", in: Self.encode(result.overview))
+    let energy = try Self.setting("schemaVersion", to: "v1", in: Self.encode(result.energy))
+    #expect(try JSONDecoder().decode(WaveformDetailEnvelope.self, from: detail) == result.detail)
+    #expect(try JSONDecoder().decode(WaveformPeakOverview.self, from: overview) == result.overview)
+    #expect(try JSONDecoder().decode(WaveformEnergyChannels.self, from: energy) == result.energy)
+  }
+
+  // MARK: - Array length mismatch
+
+  @Test func detailEnvelopeRejectsMismatchedArrayLengths() throws {
+    let data = try Self.encode(Self.analyzed().detail)
+    for key in ["binStartSamples", "magnitudes"] {
+      let corrupt = try Self.droppingLast(key, from: data)
+      #expect(throws: DecodingError.self, "dropped from \(key)") {
+        try JSONDecoder().decode(WaveformDetailEnvelope.self, from: corrupt)
+      }
+    }
+  }
+
+  @Test func peakOverviewRejectsMismatchedArrayLengths() throws {
+    let data = try Self.encode(Self.analyzed().overview)
+    for key in ["binStartSamples", "signedMins", "signedMaxes"] {
+      let corrupt = try Self.droppingLast(key, from: data)
+      #expect(throws: DecodingError.self, "dropped from \(key)") {
+        try JSONDecoder().decode(WaveformPeakOverview.self, from: corrupt)
+      }
+    }
+  }
+
+  @Test func energyChannelsRejectMismatchedArrayLengths() throws {
+    let data = try Self.encode(Self.analyzed().energy)
+    for key in ["binStartSamples", "lowBand", "midBand", "highBand"] {
+      let corrupt = try Self.droppingLast(key, from: data)
+      #expect(throws: DecodingError.self, "dropped from \(key)") {
+        try JSONDecoder().decode(WaveformEnergyChannels.self, from: corrupt)
+      }
+    }
+  }
+
+  // MARK: - Non-finite values
+
+  @Test func detailEnvelopeRejectsNaN() throws {
+    let data = try Self.encode(Self.analyzed().detail)
+    // The non-conforming decoder alone must not be what rejects the payload.
+    _ = try Self.nonConformingDecoder().decode(WaveformDetailEnvelope.self, from: data)
+    let corrupt = try Self.replacingFirstWithNaN("magnitudes", in: data)
+    #expect(throws: DecodingError.self) {
+      try Self.nonConformingDecoder().decode(WaveformDetailEnvelope.self, from: corrupt)
+    }
+  }
+
+  @Test func peakOverviewRejectsNaN() throws {
+    let data = try Self.encode(Self.analyzed().overview)
+    _ = try Self.nonConformingDecoder().decode(WaveformPeakOverview.self, from: data)
+    for key in ["signedMins", "signedMaxes"] {
+      let corrupt = try Self.replacingFirstWithNaN(key, in: data)
+      #expect(throws: DecodingError.self, "NaN in \(key)") {
+        try Self.nonConformingDecoder().decode(WaveformPeakOverview.self, from: corrupt)
+      }
+    }
+  }
+
+  @Test func energyChannelsRejectNaN() throws {
+    let data = try Self.encode(Self.analyzed().energy)
+    _ = try Self.nonConformingDecoder().decode(WaveformEnergyChannels.self, from: data)
+    for key in ["lowBand", "midBand", "highBand"] {
+      let corrupt = try Self.replacingFirstWithNaN(key, in: data)
+      #expect(throws: DecodingError.self, "NaN in \(key)") {
+        try Self.nonConformingDecoder().decode(WaveformEnergyChannels.self, from: corrupt)
+      }
+    }
+  }
+
+  // MARK: - Scalar fields
+
+  @Test func detailEnvelopeRejectsBadScalars() throws {
+    let data = try Self.encode(Self.analyzed().detail)
+    let corrupt = [
+      try Self.setting("columnsPerSecond", to: 0, in: data),
+      try Self.setting("sampleRate", to: 0, in: data),
+      try Self.setting("coveredSampleRange", to: [-1, 44_100], in: data),
+      try Self.setting("coveredSampleRange", to: [44_100, 0], in: data),
+    ]
+    for payload in corrupt {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(WaveformDetailEnvelope.self, from: payload)
+      }
+    }
+  }
+
+  @Test func peakOverviewRejectsBadScalars() throws {
+    let data = try Self.encode(Self.analyzed().overview)
+    let corrupt = [
+      try Self.setting("columnsPerSecond", to: 0, in: data),
+      try Self.setting("sampleRate", to: -44_100, in: data),
+    ]
+    for payload in corrupt {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(WaveformPeakOverview.self, from: payload)
+      }
+    }
+  }
+
+  @Test func energyChannelsRejectBadScalarsAndCrossovers() throws {
+    let data = try Self.encode(Self.analyzed().energy)
+    let corrupt = [
+      try Self.setting("columnsPerSecond", to: 0, in: data),
+      try Self.setting("sampleRate", to: 0, in: data),
+      try Self.setting("lowMidCutoffHz", to: 0, in: data),
+      try Self.setting("lowMidCutoffHz", to: 5_000, in: data),
+      try Self.setting("midHighCutoffHz", to: 30_000, in: data),
+    ]
+    for payload in corrupt {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(WaveformEnergyChannels.self, from: payload)
+      }
+    }
+  }
+
+  // MARK: - Version strings carried as encoded
+
+  @Test func detailEnvelopeCarriesEncodedVersionStrings() throws {
+    let original = try Self.analyzed().detail
+    let edited = try Self.rewritingVersionStrings(
+      in: Self.encode(original), algorithm: WaveformDetailEnvelope.algorithmIdentifier)
+    let decoded = try JSONDecoder().decode(WaveformDetailEnvelope.self, from: edited)
+    #expect(decoded.schemaVersion == "v0")
+    #expect(decoded.algorithmIdentifier == "v0")
+    #expect(decoded.magnitudes == original.magnitudes)
+  }
+
+  @Test func peakOverviewCarriesEncodedVersionStrings() throws {
+    let original = try Self.analyzed().overview
+    let edited = try Self.rewritingVersionStrings(
+      in: Self.encode(original), algorithm: WaveformPeakOverview.algorithmIdentifier)
+    let decoded = try JSONDecoder().decode(WaveformPeakOverview.self, from: edited)
+    #expect(decoded.schemaVersion == "v0")
+    #expect(decoded.algorithmIdentifier == "v0")
+    #expect(decoded.signedMaxes == original.signedMaxes)
+  }
+
+  @Test func energyChannelsCarryEncodedVersionStrings() throws {
+    let original = try Self.analyzed().energy
+    let edited = try Self.rewritingVersionStrings(
+      in: Self.encode(original), algorithm: WaveformEnergyChannels.algorithmIdentifier)
+    let decoded = try JSONDecoder().decode(WaveformEnergyChannels.self, from: edited)
+    #expect(decoded.schemaVersion == "v0")
+    #expect(decoded.algorithmIdentifier == "v0")
+    #expect(decoded.highBand == original.highBand)
+  }
+}
