@@ -154,7 +154,8 @@ struct BeatGridTimingBaselineTests {
   /// known-tempo path on the planted click track, derives the signed anchor
   /// and interior-beat residuals in milliseconds against the planted-impulse
   /// phase, and returns a fixture row that matches Story 15.2 DD #3's schema.
-  private func measure(
+  /// Fixture-row builder: the parameters are the row's columns.
+  private func measure(  // swiftlint:disable:this function_parameter_count
     samples: [Float],
     sampleRate: Double,
     hopSize: Int,

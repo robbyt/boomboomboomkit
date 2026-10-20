@@ -69,6 +69,8 @@ public enum WaveformAnalyzer {
       columnsPerSecond: options.columnsPerSecond
     )
     let binCount = binStartSamples.count
+    let layout = BinLayout(
+      samples: samples, frameCount: frameCount, binStartSamples: binStartSamples)
 
     // Progress is measured in bins processed: one detail / overview pass
     // plus three per-band RMS passes over the same bin grid.
@@ -82,9 +84,7 @@ public enum WaveformAnalyzer {
     var signedMins = [Float](repeating: 0, count: binCount)
     var signedMaxes = [Float](repeating: 0, count: binCount)
     try computeDetailAndOverview(
-      samples: samples,
-      frameCount: frameCount,
-      binStartSamples: binStartSamples,
+      layout: layout,
       magnitudes: &magnitudes,
       signedMins: &signedMins,
       signedMaxes: &signedMaxes,
@@ -94,12 +94,10 @@ public enum WaveformAnalyzer {
     // Band-split energy. Biquad filters produce band-limited copies of the
     // input; per-bin energy is RMS over the bin's sample range.
     let (lowBand, midBand, highBand) = try computeThreeBandEnergy(
-      samples: samples,
+      layout: layout,
       sampleRate: sampleRate,
       lowMidCutoffHz: options.lowMidCutoffHz,
       midHighCutoffHz: options.midHighCutoffHz,
-      binStartSamples: binStartSamples,
-      frameCount: frameCount,
       progress: &progress
     )
 
@@ -206,14 +204,15 @@ public enum WaveformAnalyzer {
   // MARK: - Per-bin reductions
 
   private static func computeDetailAndOverview(
-    samples: [Float],
-    frameCount: Int,
-    binStartSamples: [Int],
+    layout: BinLayout,
     magnitudes: inout [Float],
     signedMins: inout [Float],
     signedMaxes: inout [Float],
     progress: inout PassProgress
   ) throws {
+    let samples = layout.samples
+    let frameCount = layout.frameCount
+    let binStartSamples = layout.binStartSamples
     let binCount = binStartSamples.count
     guard binCount > 0 else { return }
     try samples.withUnsafeBufferPointer { buf in
@@ -247,14 +246,15 @@ public enum WaveformAnalyzer {
   }
 
   private static func computeThreeBandEnergy(
-    samples: [Float],
+    layout: BinLayout,
     sampleRate: Double,
     lowMidCutoffHz: Double,
     midHighCutoffHz: Double,
-    binStartSamples: [Int],
-    frameCount: Int,
     progress: inout PassProgress
   ) throws -> (low: [Float], mid: [Float], high: [Float]) {
+    let samples = layout.samples
+    let frameCount = layout.frameCount
+    let binStartSamples = layout.binStartSamples
     let binCount = binStartSamples.count
     var lowBand = [Float](repeating: 0, count: binCount)
     var midBand = [Float](repeating: 0, count: binCount)
@@ -328,6 +328,16 @@ public enum WaveformAnalyzer {
       }
     }
   }
+}
+
+// MARK: - Bin layout
+
+/// The input samples and the bin grid laid over them, built once in
+/// `analyze(decoded:options:)` and shared by the per-bin reductions.
+private struct BinLayout {
+  let samples: [Float]
+  let frameCount: Int
+  let binStartSamples: [Int]
 }
 
 // MARK: - Progress and cancellation

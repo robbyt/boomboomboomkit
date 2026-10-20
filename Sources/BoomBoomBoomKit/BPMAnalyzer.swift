@@ -59,10 +59,10 @@ struct BPMAnalyzer {
   // MARK: - Constants
 
   /// FFT size: 2048 samples (~46ms at 44.1kHz). Power of 2 for vDSP radix-2 FFT.
-  // Visible to BeatGridAnalyzer so the frame-to-time conversion at
-  // BeatGridAnalyzer.swift:presentationTimeForFrame can account for the
-  // Hann-windowed STFT's window-center offset (Story 15.3). Internal to the
-  // BoomBoomBoomKit target.
+  /// Visible to BeatGridAnalyzer so the frame-to-time conversion at
+  /// BeatGridAnalyzer.swift:presentationTimeForFrame can account for the
+  /// Hann-windowed STFT's window-center offset (Story 15.3). Internal to the
+  /// BoomBoomBoomKit target.
   static let fftSize = 2048
 
   /// log2(2048) = 11 for vDSP.FFT
