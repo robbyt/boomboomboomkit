@@ -45,7 +45,7 @@
 
 ### Reverse-engineering research (develop-only)
 
-- [Rekordbox analysis](./rekordbox-analysis/README.md) -- Preserved 2026-10-17 investigation of rekordbox 7.2.19.0342: findings and a current-HEAD Swift timing probe in the repository; the Hopper query output, ARM64 disassembly, and model protobuf inspection it cites are held locally and gitignored. See `AGENT_GUIDANCE.md` for the Epic 13 plan it feeds into. `beat-strength-review-2026-10-19/` adds the 2026-10-19 beat-evidence guidance for the Story 15.6 decoder; its rekordbox pseudocode and the whole Logic Pro inspection are likewise local-only.
+- Rekordbox analysis -- The rekordbox analysis research (the 2026-10-17 investigation of rekordbox 7.2.19.0342 and the 2026-10-19 beat-evidence review) is held in the rekordboxReader repository under `docs/` (sibling path `../rekordboxReader/docs/rekordbox-analysis/`), not in this repository.
 
 ### AI Agent Context
 

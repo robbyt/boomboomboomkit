@@ -4,9 +4,10 @@
 //
 //  Story 15.2 (Epic 15, Phase 2) — reproduce the absolute grid-timing
 //  discrepancy in-tree with a recorded baseline. Ports the standalone SPM
-//  probe at docs/rekordbox-analysis/evidence/timing/TimingProbeTests.swift so
-//  Phase 3's frame-time-convention fix has a reproducible, in-tree reference
-//  measurement to regress against.
+//  probe, which lives in the rekordboxReader repository at
+//  ../rekordboxReader/docs/rekordbox-analysis/evidence/timing/TimingProbeTests.swift,
+//  so Phase 3's frame-time-convention fix has a reproducible, in-tree
+//  reference measurement to regress against.
 //
 //  This suite ASSERTS reproduction, not correctness. Since Story 15.3 (the
 //  frame-time convention fix) each of the 24 rows must report
@@ -37,9 +38,9 @@ struct BeatGridTimingBaselineTests {
   /// with the residual dominated by a within-window peak-position bias that
   /// depends on waveform shape (single impulse vs 64-sample exp decay) and
   /// hop phase. Half-ms margins keep the band stable against small toolchain
-  /// drift. Pre-15.3 numbers (preserved at
-  /// `docs/rekordbox-analysis/evidence/timing/results.json`) sat at
-  /// [-50.00, -39.98] ms; the Hann-windowed STFT's `hopSize + fftSize/2`
+  /// drift. Pre-15.3 numbers (held in the rekordboxReader repository at
+  /// `../rekordboxReader/docs/rekordbox-analysis/evidence/timing/results.json`)
+  /// sat at [-50.00, -39.98] ms; the Hann-windowed STFT's `hopSize + fftSize/2`
   /// correction accounts for the ~33 ms shift.
   private static let reproductionLowerBoundMs: Double = -17.5
   private static let reproductionUpperBoundMs: Double = -6.0
@@ -294,8 +295,8 @@ struct BeatGridTimingBaselineTests {
       gridOriginSignedErrorMs \(gridOrigin) ms outside the reproduction band \
       [\(Self.reproductionLowerBoundMs), \(Self.reproductionUpperBoundMs)] at \(location). \
       If this fails, Phase 3 may have landed or Phase 2's measurement regressed; \
-      update docs/rekordbox-analysis/evidence/timing/results.json and the bounds \
-      above together.
+      update the bounds above and \
+      ../rekordboxReader/docs/rekordbox-analysis/evidence/timing/results.json together.
       """
     )
     #expect(

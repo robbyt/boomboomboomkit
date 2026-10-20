@@ -3,7 +3,7 @@
 Status: backlog
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
-Phase: 8 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
+Phase: 8 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Investigate what the saved .dawproject actually retains beyond tempo, then emit a develop-only supplementary annotations file next to daw-oracle.json that carries reference-downbeat time, verified BPM, declared metrical level, bar position, verified stable span, and uncertainty, without extrapolating across the track.
 
@@ -63,7 +63,7 @@ so that Phase 9's matched evaluation can score absolute phase and downbeat phase
 - `scripts/tests/test_promote_to_main.py`
 - `_bmad-output/implementation-artifacts/15-8-notes.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`
-- `docs/rekordbox-analysis/AGENT_GUIDANCE.md:67`
+- `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md:67`
 
 ## Overlap with Epic 12
 

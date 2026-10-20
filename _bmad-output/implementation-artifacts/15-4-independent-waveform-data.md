@@ -3,7 +3,7 @@
 Status: review (Phase 1 of 3 landed)
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
-Phase: 4 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
+Phase: 4 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Add typed Sendable waveform data (detail envelope, peak overview, low/mid/high energy) with explicit per-bin timing, channel-aware stereo policy, bounded-memory streaming decode, cancellation and progress, in-tree and independent of RekordboxReader.
 

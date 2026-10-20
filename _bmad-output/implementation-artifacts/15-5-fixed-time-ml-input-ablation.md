@@ -3,7 +3,7 @@
 Status: backlog
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
-Phase: 5 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
+Phase: 5 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Build the develop-only ablation harness that scores an arbitrary fixed-time ML input variant against the legacy `BNNSTechnique` input and the recorded tempo-CNN reference, with paired per-track diffs stratified by DJ tempo band and error category. The variant selection for a lever-ranking read is Epic 12 Story 12.5's decision; Epic 15 ships the harness and runs one infrastructure-smoke parameterization to prove the end-to-end path works.
 
@@ -69,8 +69,8 @@ so that Epic 12 Story 12.5's FR-58 ranking has a measurement surface to rate the
 - `_bmad-output/ml-training/parity_signals/`
 - `_bmad-output/ml-training/fixtures/`
 - `_bmad-output/implementation-artifacts/15-5-fixed-time-ml-input.md`
-- `docs/rekordbox-analysis/AGENT_GUIDANCE.md`
-- `docs/rekordbox-analysis/FINDINGS.md`
+- `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`
+- `../rekordboxReader/docs/rekordbox-analysis/FINDINGS.md`
 
 ## Overlap with Epic 12
 

@@ -3,7 +3,7 @@
 Status: backlog
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
-Phase: 9 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
+Phase: 9 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Build a reproducible, develop-only harness that scores BoomBoomBoomKit, each Epic 15 proposed change, a named rekordbox analysis mode, and independent DAW/hand-annotation references on identical audio across separated metric families, with paired per-track differences, stratification by DJ style and tempo band, and uncertainty estimates before any parity claim is made.
 
@@ -15,7 +15,7 @@ Summary: Build a reproducible, develop-only harness that scores BoomBoomBoomKit,
 4. **Paired per-track differences with uncertainty.** The report emits per-track rows (`track_id`, metric, system A value, system B value, signed diff, oracle value) plus a paired summary per pairing with bootstrap confidence intervals and the paired Wilcoxon p-value, so a claim that variant X beats baseline on fine BPM error is backed by a stated effect size and interval, not a mean-of-means. Any `A beats B` statement in the report must cite the pairing, interval, and n.
 5. **Rekordbox-generated grids are not independent evidence.** When the harness notes agreement between BoomBoomBoomKit and rekordbox it labels the comparison `system-vs-system`, never `system-vs-truth`. An independent reference requires a DAW-verified entry or a Phase 8 hand-annotation. `SignalSource.beatGrid` and `SignalWeights.beatGrid` remain placeholders inside the pipeline; the harness never promotes a derived grid to an independent voter.
 6. **Report by DJ style and tempo band.** Every metric family is reported overall and stratified into tempo bands (open question KQ-2 proposes 60-89, 90-109, 110-129, 130-149, 150-179, 180-210 BPM) and DJ style tags carried in the fixture JAMS files. A single corpus-wide number hides the drum-and-bass / downtempo asymmetry the handoff already called out.
-7. **Deterministic, develop-only, versioned outputs.** The harness runs as `make matched-eval` and emits `_bmad-output/implementation-artifacts/15-9-matched-eval-<git-sha>.json` plus a sibling Markdown summary. Rekordbox binary version, named analysis mode, BoomBoomBoomKit git SHA (dirty flag included), corpus manifest SHA, and per-variant `TechniqueSet` identity are recorded in every row. Nothing under `docs/rekordbox-analysis/`, `_bmad-output/`, or the new harness is added to `scripts/promote-to-main.py` or the `SHIPS_TO_MAIN` allowlist in `CLAUDE.md`.
+7. **Deterministic, develop-only, versioned outputs.** The harness runs as `make matched-eval` and emits `_bmad-output/implementation-artifacts/15-9-matched-eval-<git-sha>.json` plus a sibling Markdown summary. Rekordbox binary version, named analysis mode, BoomBoomBoomKit git SHA (dirty flag included), corpus manifest SHA, and per-variant `TechniqueSet` identity are recorded in every row. Nothing under `../rekordboxReader/docs/rekordbox-analysis/`, `_bmad-output/`, or the new harness is added to `scripts/promote-to-main.py` or the `SHIPS_TO_MAIN` allowlist in `CLAUDE.md`.
 8. **Retrain, do not re-preprocess, to compare under a new contract.** If a proposed variant changes frame-time convention (Phase 3), waveform-feature contract (Phase 4), or ML input shape (Phase 5), the variant row loads weights trained under the new contract or runs the matching retrain; it does not reuse the existing bundled weights with altered runtime preprocessing. Rows whose weights do not yet exist appear in the report as `abstained-pending-retrain`, not as a win.
 
 ## Story
@@ -54,9 +54,9 @@ so that a change can be accepted or rejected on evidence against an independent 
    **When** `make benchmark`, `make benchmark-giantsteps`, `make oracle`, and `make ablation` are run after this story
    **Then** the OA300 Acc1 >= 57/82 and Acc2 >= 73/82 floors, the GiantSteps Acc1 >= 536/661 and Acc2 >= 545/661 floors, and the beat-grid-accuracy floor from Story 8.7 are all held, confirming no existing regression gate was weakened to make the new harness pass
 
-8. **Given** the matched-evaluation outputs under `_bmad-output/implementation-artifacts/` and `docs/rekordbox-analysis/`
+8. **Given** the matched-evaluation outputs under `_bmad-output/implementation-artifacts/` and `../rekordboxReader/docs/rekordbox-analysis/`
    **When** `scripts/promote-to-main.py --dry-run` is run
-   **Then** none of the matched-eval scripts, corpus manifests, JSON reports, Markdown summaries, or `docs/rekordbox-analysis/` files are listed in the main-bound diff, and `scripts/tests/test_promote_to_main.py` still passes
+   **Then** none of the matched-eval scripts, corpus manifests, JSON reports, Markdown summaries, or `../rekordboxReader/docs/rekordbox-analysis/` files are listed in the main-bound diff, and `scripts/tests/test_promote_to_main.py` still passes
 
 ## Affected files
 
@@ -67,7 +67,7 @@ so that a change can be accepted or rejected on evidence against an independent 
 - `_bmad-output/ml-training/eval-corpus/matched_eval_report.py`
 - `_bmad-output/implementation-artifacts/15-9-matched-evaluation-harness.md`
 - `_bmad-output/planning-artifacts/epics.md`
-- `docs/rekordbox-analysis/AGENT_GUIDANCE.md:68`
+- `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md:68`
 - `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift:103`
 - `Tests/BoomBoomBoomKitBenchmarkTests/GiantStepsBenchmarkTests.swift`
 - `Tests/BoomBoomBoomKitBenchmarkTests/BeatGridBenchmarkTests.swift`
@@ -96,6 +96,6 @@ Epic 12 continues to own model-quality lever ranking and any retrain gate. This 
 - Do not alter runtime preprocessing of existing bundled weights to produce a new matched-eval row; retrain under the new contract or report `abstained-pending-retrain`.
 - Do not count learned evidence twice: `SignalSource.beatGrid` and `SignalWeights.beatGrid` remain placeholders, and a derived beat-grid never acts as independent evidence for the BPM selection that fed it.
 - Do not modify Story 12-7 corpus membership or the signed-corpus protocol as a side effect; the matched-eval corpus is a separate manifest.
-- Do not add any file under `docs/rekordbox-analysis/`, `_bmad-output/ml-training/eval-corpus/`, or the new matched-eval harness paths to `scripts/promote-to-main.py` or the `SHIPS_TO_MAIN` allowlist in `CLAUDE.md`.
+- Do not add any file under `../rekordboxReader/docs/rekordbox-analysis/`, `_bmad-output/ml-training/eval-corpus/`, or the new matched-eval harness paths to `scripts/promote-to-main.py` or the `SHIPS_TO_MAIN` allowlist in `CLAUDE.md`.
 - Do not collapse the nine metric families into a composite score in any emitted artifact.
 

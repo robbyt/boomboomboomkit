@@ -1,8 +1,0 @@
-warning: /Users/rterhaar/Library/org.swift.swiftpm/configuration is not accessible or not writable, disabling user-level cache features.
-warning: /Users/rterhaar/Library/org.swift.swiftpm/security is not accessible or not writable, disabling user-level cache features.
-Building for debugging...
-[Planning deferred tasks]
-[9 / 14] Probe-product
-[16 / 21] Probe-product
-[19 / 21] Probe-product
-Build complete! (0.76 sec)

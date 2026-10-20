@@ -3,7 +3,7 @@
 Status: done
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
-Phase: 3 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
+Phase: 3 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Trace the STFT framing, spectral-difference indexing, and onset-to-time conversion; define the public frame-time convention; apply the `hopSize + fftSize/2` correction at exactly one boundary (`BeatGridAnalyzer.estimateBeatGrid`); replace the permissive `BeatGridAnalyzerTests.swift` 10-hop bound with a 3-hop bound; land a formal `BeatGridFrameTimeConventionTests` regression suite covering five failure-mode metrics across the AC #2 matrix.
 
@@ -63,7 +63,7 @@ so that downstream auto-sync and visual overlays align without a hand-tuned per-
    **When** a consumer reads their doc comments
    **Then** the doc states exactly what `presentationTime` means (Hann-window-center of STFT frame `f + 1` on the decoded-PCM timeline), explicitly notes that AVFoundation has already subtracted declared codec priming and callers must not subtract it again, and names the single boundary where the frame-time convention is applied.
 
-5. **Given** the preserved SPM probe at `docs/rekordbox-analysis/evidence/timing/`
+5. **Given** the preserved SPM probe at `../rekordboxReader/docs/rekordbox-analysis/evidence/timing/`
    **When** it is re-run against this story's branch
    **Then** its canonical-anchor and interior-median errors are inside [-17.5, -6.0] ms across all 24 preserved cases; the preserved `results.json` produced on the pre-15.3 HEAD is not altered.
 

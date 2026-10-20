@@ -310,7 +310,7 @@ beat-grid-impact-report:
 	) \
 	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BeatGridImpactGateTests
 
-## beatgrid-timing-baseline: Story 15.2 and 15.3 (Epic 15): measure the absolute beat-grid anchor residual on 24 synthetic click fixtures and write a per-SHA baseline under _bmad-output/perf-baselines/beatgrid-timing/. Asserts the post-15.3 band [-17.5, -6.0] ms. The pre-fix 40 to 50 ms early measurement is preserved in the standalone probe under docs/rekordbox-analysis/evidence/timing/ and in the suite header of Tests/BoomBoomBoomKitBenchmarkTests/BeatGridTimingBaselineTests.swift. Synthetic fixtures only (no corpus required). Env-gated; make test runs the pre-story count unchanged.
+## beatgrid-timing-baseline: Story 15.2 and 15.3 (Epic 15): measure the absolute beat-grid anchor residual on 24 synthetic click fixtures and write a per-SHA baseline under _bmad-output/perf-baselines/beatgrid-timing/. Asserts the post-15.3 band [-17.5, -6.0] ms. The pre-fix 40 to 50 ms early measurement is recorded in the suite header of Tests/BoomBoomBoomKitBenchmarkTests/BeatGridTimingBaselineTests.swift. Synthetic fixtures only (no corpus required). Env-gated; make test runs the pre-story count unchanged.
 .PHONY: beatgrid-timing-baseline
 beatgrid-timing-baseline:
 	@mkdir -p "$(CURDIR)/_bmad-output/perf-baselines/beatgrid-timing"

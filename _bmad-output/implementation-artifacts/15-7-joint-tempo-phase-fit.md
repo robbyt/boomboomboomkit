@@ -3,7 +3,7 @@
 Status: backlog
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
-Phase: 7 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
+Phase: 7 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Fit a tempo and phase pair jointly from the Phase 6 observation stream, validate it on grid timestamps across separated stable regions, and expose the fitted pair as a wrapped additive output without changing BeatGrid or BeatTimestamp.
 
@@ -65,7 +65,7 @@ so that the final playable grid holds phase through breaks and weak passages wit
 - `Sources/BoomBoomBoomKit/BeatTimestamp.swift:31`
 - `Sources/BoomBoomBoomKit/BPMDiagnosticTrace.swift`
 - `Tests/BoomBoomBoomKitTests/BeatGridAnalyzerTests.swift`
-- `docs/rekordbox-analysis/evidence/timing/TimingProbeTests.swift`
+- `../rekordboxReader/docs/rekordbox-analysis/evidence/timing/TimingProbeTests.swift`
 - `_bmad-output/perf-baselines/`
 - `_bmad-output/implementation-artifacts/15-6-joint-tempo-phase-fit.md`
 - `_bmad-output/implementation-artifacts/sprint-status.yaml`

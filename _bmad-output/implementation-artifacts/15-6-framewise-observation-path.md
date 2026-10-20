@@ -3,7 +3,7 @@
 Status: backlog
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
-Phase: 6 of the handoff in `docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
+Phase: 6 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
 
 Summary: Internal framewise observation and 4/4 decoder infrastructure for Epic 12 corrected-ranking item 7(b). A decoded audio span becomes timed beat and downbeat observations, a bar-state 4/4 decoder returns a candidate beat sequence, and a constant-tempo refinement locks the grid. All kept separate from `MLTechnique` and from the `SignalSource.beatGrid` placeholder. Epic 15 ships the plumbing and a DSP-derived stub producer; Epic 14 (gated on Epic 12 Gate 1) owns bundling a trained observation weight.
 
@@ -57,7 +57,7 @@ so that later phases can refine a constant-tempo grid against framewise evidence
 
 8. **Given** the Epic 15 ground rule that nothing new ships to `main` unless already allowlisted
    **When** the final diff is prepared for review
-   **Then** no file touched by this story appears in `scripts/promote-to-main.py`'s `SHIPS_TO_MAIN` or in the CLAUDE.md allowlist, except where it is already there (`Sources/`, `Tests/`); no file is added to `EXCLUDED_FROM_MAIN`; and `docs/rekordbox-analysis/` is not referenced from any shipped file.
+   **Then** no file touched by this story appears in `scripts/promote-to-main.py`'s `SHIPS_TO_MAIN` or in the CLAUDE.md allowlist, except where it is already there (`Sources/`, `Tests/`); no file is added to `EXCLUDED_FROM_MAIN`; and `../rekordboxReader/docs/rekordbox-analysis/` is not referenced from any shipped file.
 
 ## Affected files
 
@@ -76,7 +76,7 @@ so that later phases can refine a constant-tempo grid against framewise evidence
 
 ## Overlap with Epic 12
 
-Overlaps Epic 12 corrected-ranking item 7(b) at `_bmad-output/planning-artifacts/epics.md:2393`, which names a multi-task beat and tempo head as a candidate octave arbiter. This story builds the compact independent observation and decoder path with a stub producer and no trained head, keeps the derived grid out of BPM voting, and leaves `SignalSource.beatGrid` and `SignalWeights.beatGrid` as placeholders. Any decision to fuse the derived tempo into primary BPM selection, either by producing a `SignalSource.beatGrid` vote or by shipping a multi-task tempo head, stays with Epic 12. The project-level coordination rule from `docs/rekordbox-analysis/AGENT_GUIDANCE.md` applies: Epic 15 does the measurement, representation, and decoder work; Epic 12 owns the model-quality lever ranking and any retrain or fusion gate.
+Overlaps Epic 12 corrected-ranking item 7(b) at `_bmad-output/planning-artifacts/epics.md:2393`, which names a multi-task beat and tempo head as a candidate octave arbiter. This story builds the compact independent observation and decoder path with a stub producer and no trained head, keeps the derived grid out of BPM voting, and leaves `SignalSource.beatGrid` and `SignalWeights.beatGrid` as placeholders. Any decision to fuse the derived tempo into primary BPM selection, either by producing a `SignalSource.beatGrid` vote or by shipping a multi-task tempo head, stays with Epic 12. The project-level coordination rule from `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md` applies: Epic 15 does the measurement, representation, and decoder work; Epic 12 owns the model-quality lever ranking and any retrain or fusion gate.
 
 ## Open questions for the PRD
 
