@@ -384,16 +384,70 @@ private struct PassProgress {
 // MARK: - Result
 
 /// Combined output of ``WaveformAnalyzer/analyze(decoded:options:)``.
+///
+/// The three records share one bin grid: ``overview`` and ``energy`` carry
+/// the same `sampleRate`, `columnsPerSecond`, `coveredSampleRange` and
+/// `binStartSamples` as ``detail``. The memberwise initializer traps when
+/// they differ and ``init(from:)`` throws `DecodingError.dataCorrupted`.
 public struct WaveformAnalysisResult: Sendable, Hashable, Codable {
   public let detail: WaveformDetailEnvelope
   public let overview: WaveformPeakOverview
   public let energy: WaveformEnergyChannels
 
+  /// Creates a result. The precondition is a programmer guard: the three
+  /// records share one bin grid.
   public init(
     detail: WaveformDetailEnvelope,
     overview: WaveformPeakOverview,
     energy: WaveformEnergyChannels
   ) {
+    precondition(
+      WaveformRecordDecoding.sharesGrid(
+        sampleRate: overview.sampleRate, columnsPerSecond: overview.columnsPerSecond,
+        coveredSampleRange: overview.coveredSampleRange,
+        binStartSamples: overview.binStartSamples, with: detail)
+        && WaveformRecordDecoding.sharesGrid(
+          sampleRate: energy.sampleRate, columnsPerSecond: energy.columnsPerSecond,
+          coveredSampleRange: energy.coveredSampleRange,
+          binStartSamples: energy.binStartSamples, with: detail),
+      "detail, overview and energy must share one bin grid")
+    self.detail = detail
+    self.overview = overview
+    self.energy = energy
+  }
+
+  /// Decodes the three records, each validated by its own `init(from:)`,
+  /// then throws `DecodingError.dataCorrupted` on the ``overview`` or
+  /// ``energy`` key when that record's grid differs from ``detail``'s.
+  /// `encode(to:)` and `CodingKeys` are compiler-synthesized, so the encoded
+  /// JSON shape is unchanged.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let detail = try container.decode(WaveformDetailEnvelope.self, forKey: .detail)
+    let overview = try container.decode(WaveformPeakOverview.self, forKey: .overview)
+    let energy = try container.decode(WaveformEnergyChannels.self, forKey: .energy)
+
+    guard
+      WaveformRecordDecoding.sharesGrid(
+        sampleRate: overview.sampleRate, columnsPerSecond: overview.columnsPerSecond,
+        coveredSampleRange: overview.coveredSampleRange,
+        binStartSamples: overview.binStartSamples, with: detail)
+    else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .overview, in: container,
+        debugDescription: "overview does not share the detail envelope's bin grid")
+    }
+    guard
+      WaveformRecordDecoding.sharesGrid(
+        sampleRate: energy.sampleRate, columnsPerSecond: energy.columnsPerSecond,
+        coveredSampleRange: energy.coveredSampleRange,
+        binStartSamples: energy.binStartSamples, with: detail)
+    else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .energy, in: container,
+        debugDescription: "energy does not share the detail envelope's bin grid")
+    }
+
     self.detail = detail
     self.overview = overview
     self.energy = energy

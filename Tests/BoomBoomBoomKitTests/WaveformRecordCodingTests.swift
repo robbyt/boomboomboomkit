@@ -86,6 +86,30 @@ struct WaveformRecordCodingTests {
     return try Self.data(object)
   }
 
+  /// Returns `data` with `edit` applied to the `binStartSamples` array.
+  private static func editingBinStarts(
+    in data: Data, _ edit: (inout [Int]) -> Void
+  ) throws -> Data {
+    var object = try object(data)
+    var starts = try #require(object["binStartSamples"] as? [Int])
+    try #require(starts.count >= 3)
+    edit(&starts)
+    object["binStartSamples"] = starts
+    return try Self.data(object)
+  }
+
+  /// Returns `data` with `key` inside the nested record `record` set to
+  /// `value`.
+  private static func setting(
+    _ key: String, to value: Any, inRecord record: String, of data: Data
+  ) throws -> Data {
+    var object = try object(data)
+    var nested = try #require(object[record] as? [String: Any])
+    nested[key] = value
+    object[record] = nested
+    return try Self.data(object)
+  }
+
   /// Rewrites both stored version strings to `"v0"` in the JSON text.
   private static func rewritingVersionStrings(in data: Data, algorithm: String) throws -> Data {
     let text = try #require(String(data: data, encoding: .utf8))
@@ -249,6 +273,67 @@ struct WaveformRecordCodingTests {
     for payload in corrupt {
       #expect(throws: DecodingError.self) {
         try JSONDecoder().decode(WaveformEnergyChannels.self, from: payload)
+      }
+    }
+  }
+
+  // MARK: - Bin starts
+
+  @Test func detailEnvelopeRejectsBadBinStarts() throws {
+    let original = try Self.analyzed().detail
+    let data = try Self.encode(original)
+    let upperBound = original.coveredSampleRange.upperBound
+    let corrupt = [
+      try Self.editingBinStarts(in: data) { $0[1] = $0[0] },
+      try Self.editingBinStarts(in: data) { $0.swapAt(1, 2) },
+      try Self.editingBinStarts(in: data) { $0[$0.count - 1] = upperBound },
+    ]
+    for payload in corrupt {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(WaveformDetailEnvelope.self, from: payload)
+      }
+    }
+  }
+
+  @Test func peakOverviewRejectsDescendingBinStarts() throws {
+    let data = try Self.encode(Self.analyzed().overview)
+    let corrupt = try Self.editingBinStarts(in: data) { $0.swapAt(1, 2) }
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(WaveformPeakOverview.self, from: corrupt)
+    }
+  }
+
+  @Test func energyChannelsRejectDuplicatedBinStart() throws {
+    let data = try Self.encode(Self.analyzed().energy)
+    let corrupt = try Self.editingBinStarts(in: data) { $0[1] = $0[0] }
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(WaveformEnergyChannels.self, from: corrupt)
+    }
+  }
+
+  // MARK: - Combined result shares one bin grid
+
+  @Test func analysisResultRoundTrips() throws {
+    let original = try Self.analyzed()
+    let decoded = try JSONDecoder().decode(
+      WaveformAnalysisResult.self, from: Self.encode(original))
+    #expect(decoded == original)
+  }
+
+  @Test func analysisResultRejectsRecordsOffTheSharedGrid() throws {
+    let original = try Self.analyzed()
+    let data = try Self.encode(original)
+    // Control: an untouched re-serialized payload still decodes.
+    let control = try Self.setting("columnsPerSecond", to: 150, inRecord: "energy", of: data)
+    #expect(try JSONDecoder().decode(WaveformAnalysisResult.self, from: control) == original)
+    let shiftedStarts = original.energy.binStartSamples.map { $0 + 1 }
+    let corrupt = [
+      try Self.setting("columnsPerSecond", to: 100, inRecord: "energy", of: data),
+      try Self.setting("binStartSamples", to: shiftedStarts, inRecord: "energy", of: data),
+    ]
+    for payload in corrupt {
+      #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(WaveformAnalysisResult.self, from: payload)
       }
     }
   }

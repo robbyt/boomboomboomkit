@@ -65,7 +65,8 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
 
   /// Creates a record. The preconditions are programmer guards: every
   /// array has one value per bin, `sampleRate` is finite and positive,
-  /// `columnsPerSecond` is positive, and every sample value is finite.
+  /// `columnsPerSecond` is positive, every sample value is finite, and
+  /// `binStartSamples` is strictly increasing within `coveredSampleRange`.
   public init(
     sampleRate: Double,
     columnsPerSecond: Int,
@@ -80,6 +81,9 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
     precondition(columnsPerSecond > 0, "columnsPerSecond must be positive")
     precondition(signedMins.allSatisfy(\.isFinite), "signedMins must be finite")
     precondition(signedMaxes.allSatisfy(\.isFinite), "signedMaxes must be finite")
+    precondition(
+      WaveformRecordDecoding.binStartsAreValid(binStartSamples, within: coveredSampleRange),
+      "binStartSamples must be strictly increasing within coveredSampleRange")
     self.schemaVersion = Self.schemaVersion
     self.algorithmIdentifier = Self.algorithmIdentifier
     self.sampleRate = sampleRate
@@ -97,8 +101,9 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
   /// `DecodingError.dataCorrupted` instead of decoding into an invalid
   /// record (the synthesized decoder assigned fields directly and skipped
   /// these checks). It throws when the array lengths disagree, `sampleRate`
-  /// is not finite or not positive, `columnsPerSecond` is below 1, or a
-  /// sample value is not finite, matching the memberwise preconditions. It
+  /// is not finite or not positive, `columnsPerSecond` is below 1, a sample
+  /// value is not finite, or ``binStartSamples`` is not strictly increasing
+  /// within ``coveredSampleRange``, matching the memberwise preconditions. It
   /// also throws when ``coveredSampleRange`` starts below sample 0; an
   /// inverted range is already rejected by the standard library's `Range`
   /// decoding.
@@ -132,6 +137,8 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
       signedMaxes.count, binCount: binStartSamples.count, forKey: .signedMaxes, in: container)
     try WaveformRecordDecoding.requireFinite(signedMins, forKey: .signedMins, in: container)
     try WaveformRecordDecoding.requireFinite(signedMaxes, forKey: .signedMaxes, in: container)
+    try WaveformRecordDecoding.requireBinStarts(
+      binStartSamples, within: coveredSampleRange, forKey: .binStartSamples, in: container)
 
     self.schemaVersion = schemaVersion
     self.algorithmIdentifier = algorithmIdentifier

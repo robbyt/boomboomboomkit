@@ -7,7 +7,8 @@
 //
 
 /// Throwing checks used by the `init(from:)` of ``WaveformDetailEnvelope``,
-/// ``WaveformPeakOverview`` and ``WaveformEnergyChannels``.
+/// ``WaveformPeakOverview``, ``WaveformEnergyChannels`` and
+/// ``WaveformAnalysisResult``.
 ///
 /// Each check mirrors a `precondition` in the matching memberwise
 /// initializer, but throws `DecodingError.dataCorrupted` instead of trapping:
@@ -72,5 +73,52 @@ enum WaveformRecordDecoding {
         debugDescription:
           "\(key.stringValue)[\(index)] is not finite (got \(values[index]))")
     }
+  }
+
+  /// True when `binStartSamples` is empty, or when every element is strictly
+  /// greater than the previous one, the first is at or after
+  /// `range.lowerBound`, and the last is below `range.upperBound`. The
+  /// memberwise initializers check this with `precondition` and
+  /// ``requireBinStarts(_:within:forKey:in:)`` checks it on decode.
+  static func binStartsAreValid(_ binStartSamples: [Int], within range: Range<Int>) -> Bool {
+    guard let first = binStartSamples.first, let last = binStartSamples.last else {
+      return true
+    }
+    guard first >= range.lowerBound, last < range.upperBound else { return false }
+    return zip(binStartSamples, binStartSamples.dropFirst()).allSatisfy { $0 < $1 }
+  }
+
+  /// Rejects bin starts that are not strictly increasing within `range`
+  /// (see ``binStartsAreValid(_:within:)``). The error names the first
+  /// offending index.
+  static func requireBinStarts<Key: CodingKey>(
+    _ binStartSamples: [Int], within range: Range<Int>, forKey key: Key,
+    in container: KeyedDecodingContainer<Key>
+  ) throws {
+    guard !binStartsAreValid(binStartSamples, within: range) else { return }
+    let index =
+      binStartSamples.indices.first { index in
+        !range.contains(binStartSamples[index])
+          || (index > 0 && binStartSamples[index] <= binStartSamples[index - 1])
+      } ?? 0
+    throw DecodingError.dataCorruptedError(
+      forKey: key, in: container,
+      debugDescription:
+        "\(key.stringValue)[\(index)] breaks the strictly increasing order within "
+        + "coveredSampleRange \(range) (got \(binStartSamples[index]))")
+  }
+
+  /// True when a record's bin grid matches `detail`'s: the same
+  /// `sampleRate`, `columnsPerSecond`, `coveredSampleRange` and
+  /// `binStartSamples`. ``WaveformAnalysisResult`` checks the overview and
+  /// the energy record against the detail envelope with it, in both the
+  /// memberwise `precondition` and ``WaveformAnalysisResult/init(from:)``.
+  static func sharesGrid(
+    sampleRate: Double, columnsPerSecond: Int, coveredSampleRange: Range<Int>,
+    binStartSamples: [Int], with detail: WaveformDetailEnvelope
+  ) -> Bool {
+    sampleRate == detail.sampleRate && columnsPerSecond == detail.columnsPerSecond
+      && coveredSampleRange == detail.coveredSampleRange
+      && binStartSamples == detail.binStartSamples
   }
 }

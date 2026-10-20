@@ -2,7 +2,7 @@
 //  BeatGridTimingBaselineTests.swift
 //  BoomBoomBoomKitBenchmarkTests
 //
-//  Story 15.2 (Epic 15, Phase 2) — reproduce the absolute grid-timing
+//  Story 15.2 (Epic 15, Phase 2): reproduce the absolute grid-timing
 //  discrepancy in-tree with a recorded baseline. Ports the standalone SPM
 //  probe, which lives in the rekordboxReader repository at
 //  ../rekordboxReader/docs/rekordbox-analysis/evidence/timing/TimingProbeTests.swift,
@@ -413,11 +413,15 @@ struct BeatGridTimingBaselineTests {
   private func isWorkingTreeDirty(repoRoot: URL) -> Bool {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    // --porcelain filters to tracked-but-modified or indexed changes; new
-    // untracked files are excluded because they do not affect reproducibility
-    // of the measured code path.
+    // Reports modified, staged and untracked files under Sources/, Tests/ and
+    // Package.swift, the paths SwiftPM compiles into the measured binary. An
+    // untracked Swift file there changes the probe, so it marks the tree
+    // dirty. The scope excludes the per-SHA baseline JSON this suite writes
+    // under _bmad-output/perf-baselines/beatgrid-timing/, so a fresh baseline
+    // does not mark the tree dirty.
     process.arguments = [
-      "git", "-C", repoRoot.path, "status", "--porcelain", "--untracked-files=no",
+      "git", "-C", repoRoot.path, "status", "--porcelain", "--", "Sources", "Tests",
+      "Package.swift",
     ]
     let pipe = Pipe()
     process.standardOutput = pipe

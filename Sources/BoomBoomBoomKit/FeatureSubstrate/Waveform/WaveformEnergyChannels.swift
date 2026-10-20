@@ -80,7 +80,9 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
   /// High-band RMS per bin.
   public let highBand: [Float]
 
-  /// Creates a record. Every band array must have one finite value per bin.
+  /// Creates a record. Every band array must have one finite value per bin,
+  /// and `binStartSamples` must be strictly increasing within
+  /// `coveredSampleRange`.
   /// The crossover preconditions are programmer guards:
   /// ``WaveformAnalyzer/analyze(decoded:options:)`` validates the options
   /// and throws a ``WaveformAnalyzerError`` before constructing a record, so
@@ -104,6 +106,9 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
     precondition(lowBand.allSatisfy(\.isFinite), "lowBand must be finite")
     precondition(midBand.allSatisfy(\.isFinite), "midBand must be finite")
     precondition(highBand.allSatisfy(\.isFinite), "highBand must be finite")
+    precondition(
+      WaveformRecordDecoding.binStartsAreValid(binStartSamples, within: coveredSampleRange),
+      "binStartSamples must be strictly increasing within coveredSampleRange")
     precondition(
       lowMidCutoffHz > 0 && lowMidCutoffHz < midHighCutoffHz,
       "lowMidCutoffHz must be positive and below midHighCutoffHz")
@@ -130,10 +135,11 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
   /// these checks). It throws when the array lengths disagree, `sampleRate`
   /// is not finite or not positive, `columnsPerSecond` is below 1, a band
   /// value is not finite, ``lowMidCutoffHz`` is not finite, not positive or
-  /// not below ``midHighCutoffHz``, or ``midHighCutoffHz`` is not below
-  /// Nyquist, matching the memberwise preconditions. It also throws when
-  /// ``coveredSampleRange`` starts below sample 0; an inverted range is
-  /// already rejected by the standard library's `Range` decoding.
+  /// not below ``midHighCutoffHz``, ``midHighCutoffHz`` is not below
+  /// Nyquist, or ``binStartSamples`` is not strictly increasing within
+  /// ``coveredSampleRange``, matching the memberwise preconditions. It also
+  /// throws when ``coveredSampleRange`` starts below sample 0; an inverted
+  /// range is already rejected by the standard library's `Range` decoding.
   ///
   /// The stored ``schemaVersion`` and ``algorithmIdentifier`` strings are
   /// kept exactly as encoded rather than replaced by the static constants,
@@ -184,6 +190,8 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
     try WaveformRecordDecoding.requireFinite(lowBand, forKey: .lowBand, in: container)
     try WaveformRecordDecoding.requireFinite(midBand, forKey: .midBand, in: container)
     try WaveformRecordDecoding.requireFinite(highBand, forKey: .highBand, in: container)
+    try WaveformRecordDecoding.requireBinStarts(
+      binStartSamples, within: coveredSampleRange, forKey: .binStartSamples, in: container)
 
     self.schemaVersion = schemaVersion
     self.algorithmIdentifier = algorithmIdentifier
