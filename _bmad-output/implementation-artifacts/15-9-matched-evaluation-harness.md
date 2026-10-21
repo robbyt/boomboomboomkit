@@ -7,6 +7,10 @@ Phase: 9 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUI
 
 Summary: Build a reproducible, develop-only harness that scores BoomBoomBoomKit, each Epic 15 proposed change, a named rekordbox analysis mode, and independent DAW/hand-annotation references on identical audio across separated metric families, with paired per-track differences, stratification by DJ style and tempo band, and uncertainty estimates before any parity claim is made.
 
+## Inherited from Story 15.7
+
+- The twelve-fixture comparison of the Story 15.7 joint tempo and phase fit against the `BeatGridAnalyzer` comb path on actual grid timestamps (the synthetic click fixtures of `evidence/timing/TimingProbeTests.swift`, Phase 3 absolute-phase convention, per-fixture numbers under `_bmad-output/perf-baselines/`) moved here from Story 15.7 AC #5. Story 15.7 records only the fit's own anchor residual on clean clicks (about one hop early).
+
 ## Key Design Decisions
 
 1. **New harness, no edits to existing accuracy floors.** Add a new matched-evaluation harness alongside `make benchmark` / `make benchmark-giantsteps` / `make oracle` rather than retargeting them. The 2% Acc1 / 4% Acc2 regression floors in `Tests/BoomBoomBoomKitBenchmarkTests/OA300BenchmarkTests.swift` and the GiantSteps equivalents stay unchanged, so a change that trades corpus accuracy for a new matched-eval win is still blocked by the committed floor.
