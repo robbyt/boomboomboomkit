@@ -23,9 +23,10 @@
 /// response); the high band is one high-pass at ``midHighCutoffHz``. The
 /// default crossovers are 250 Hz and 4000 Hz.
 ///
-/// Each filter runs in Double precision for pole stability near the
-/// crossovers, matching ``LUFSAnalyzer``'s K-weighting precedent. Per-bin
-/// energy is the RMS of the filtered band over the bin's sample range.
+/// Each filter runs as a `vDSP.Biquad` in Double precision for pole stability
+/// near the crossovers, matching ``LUFSAnalyzer``'s K-weighting precedent.
+/// Per-bin energy is the RMS of the filtered band over the bin's sample
+/// range.
 ///
 /// ## Bin timing
 /// Same convention as ``WaveformDetailEnvelope``: `binStartSamples[i]` is

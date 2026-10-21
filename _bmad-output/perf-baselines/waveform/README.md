@@ -47,7 +47,7 @@ untracked changes. The timestamp is UTC, with colons replaced by hyphens.
 ```
 
 `filterImplementation` is `WaveformAnalyzer.bandFilterImplementation`. It names
-the implementation of the four band filter passes, so two files with different
+the implementation of the band filter passes, so two files with different
 values measure different filter code. Compare `medianMs` across files with the
 same `configuration` and `platform`.
 
@@ -63,8 +63,21 @@ Without `BBB_WAVEFORM_PERF=1` the suite is skipped, so `make test` is unchanged.
 
 ## Band filter implementations
 
-The baselines recorded so far use `scalar-biquad-double.v1`: a per-sample
-biquad loop in Double (`BiquadCoefficients.apply(to:)`).
+| `filterImplementation` | Filter code | 30 s min / median (ms) | 300 s min / median (ms) | 600 s min / median (ms) | Files |
+|---|---|---|---|---|---|
+| `scalar-biquad-double.v1` | Per-sample Double loop, four passes, Float output per pass, Float RMS | 10.6 / 10.6 to 10.7 | 105.9 to 106.6 / 106.4 to 106.8 | 211.8 to 214.0 / 212.1 to 227.4 | `d9066ed0b0-2026-10-21T01-58-22Z.json`, `d9066ed0b0-2026-10-21T01-58-26Z.json` |
+| `vdsp-biquad-double.v1` | `vDSP.Biquad` in Double, three passes, Double RMS | 4.1 / 4.2 | 41.0 to 41.3 / 41.4 | 82.2 to 82.3 / 83.4 | `d9066ed0b0-dirty-2026-10-21T02-02-13Z.json`, `d9066ed0b0-dirty-2026-10-21T02-02-15Z.json` |
+
+Both rows are release config on the same arm64 host. The `vdsp-biquad-double.v1`
+files carry `d9066ed0b0-dirty` because they were recorded from the uncommitted
+change; the code they measure lands in the commit after `d9066ed`. The minimum
+drops by a factor of 2.6 at every duration.
+
+Mechanism: the input is converted to Double once with `vDSP_vspdp`, each band
+runs through a vectorised `vDSP.Biquad` IIR in Double, the mid band's high-pass
+and low-pass run as one two-section cascade instead of two passes, and per-bin
+RMS is taken on the Double output with `vDSP_rmsqvD`, so no pass converts the
+filtered signal back to Float. Transient peak memory at 600 s rises from about 320 MB to about 530 MB, because the shared Double input copy and the one live Double band output are 8 bytes per sample; band outputs are temporaries released before the next band runs.
 
 Nothing in this directory is promoted to `main` (see `_bmad-output/` entry in
 CLAUDE.md Release Process).

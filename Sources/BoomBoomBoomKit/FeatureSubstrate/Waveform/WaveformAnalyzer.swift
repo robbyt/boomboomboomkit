@@ -25,13 +25,16 @@ public enum WaveformAnalyzer {
   /// reports inside each per-bin pass.
   internal static let progressChunkBins = 256
 
-  /// Identifies the implementation of the four band filter passes in
+  /// Identifies the implementation of the band filter passes in
   /// `computeThreeBandEnergy`. `WaveformAnalyzerPerfTests` records it in each
   /// wall-clock baseline so a timing change can be attributed to a filter
-  /// change. `"scalar-biquad-double.v1"` is the per-sample Double loop in
-  /// `BiquadCoefficients.apply(to:)`. Change the value whenever that
-  /// implementation changes.
-  internal static let bandFilterImplementation = "scalar-biquad-double.v1"
+  /// change. `"vdsp-biquad-double.v1"` is `vDSP.Biquad` in Double over one
+  /// Float-to-Double copy of the input: one section each for the low and high
+  /// bands, one two-section cascade for the mid band, and per-bin RMS taken on
+  /// the Double output. The previous value, `"scalar-biquad-double.v1"`, was a
+  /// per-sample Double loop with Float output per section. Change the value
+  /// whenever this implementation changes.
+  internal static let bandFilterImplementation = "vdsp-biquad-double.v1"
 
   // MARK: - Public API
 
@@ -280,10 +283,11 @@ public enum WaveformAnalyzer {
     var highBand = [Float](repeating: 0, count: binCount)
     guard binCount > 0 else { return (lowBand, midBand, highBand) }
 
-    // Second-order Butterworth-ish biquads in Double for stability. The
-    // crossovers are the band boundaries; each band is a cascade (one
-    // low-pass + one high-pass for the band-pass mid band).
-    let lowPassCoefficients = BiquadCoefficients.lowPass(
+    // Second-order Butterworth biquads in Double for pole stability near the
+    // crossovers. The low and high bands are one section each; the mid band
+    // is a two-section cascade (high-pass at lowMid, then low-pass at
+    // midHigh) applied in one `vDSP.Biquad` pass.
+    let lowPassLowMid = BiquadCoefficients.lowPass(
       cutoffHz: lowMidCutoffHz, sampleRate: sampleRate)
     let highPassLowMid = BiquadCoefficients.highPass(
       cutoffHz: lowMidCutoffHz, sampleRate: sampleRate)
@@ -292,34 +296,52 @@ public enum WaveformAnalyzer {
     let highPassMidHigh = BiquadCoefficients.highPass(
       cutoffHz: midHighCutoffHz, sampleRate: sampleRate)
 
+    // One Float to Double conversion, shared by the three filter passes.
+    var input = [Double](repeating: 0, count: frameCount)
+    vDSP_vspdp(samples, 1, &input, 1, vDSP_Length(frameCount))
+
     // Each filter pass runs over the whole buffer, so cancellation is
     // checked before each one as well as per chunk inside the RMS passes.
     try progress.checkCancellation()
-    let lowBandSignal = lowPassCoefficients.apply(to: samples)
     try computeRMSPerBin(
-      signal: lowBandSignal, frameCount: frameCount, binStartSamples: binStartSamples,
+      signal: filter(input, sections: [lowPassLowMid]),
+      frameCount: frameCount, binStartSamples: binStartSamples,
       output: &lowBand, progress: &progress)
 
-    // Mid band = high-pass @ lowMid, then low-pass @ midHigh.
     try progress.checkCancellation()
-    let midPreHigh = highPassLowMid.apply(to: samples)
-    try progress.checkCancellation()
-    let midBandSignal = lowPassMidHigh.apply(to: midPreHigh)
     try computeRMSPerBin(
-      signal: midBandSignal, frameCount: frameCount, binStartSamples: binStartSamples,
+      signal: filter(input, sections: [highPassLowMid, lowPassMidHigh]),
+      frameCount: frameCount, binStartSamples: binStartSamples,
       output: &midBand, progress: &progress)
 
     try progress.checkCancellation()
-    let highBandSignal = highPassMidHigh.apply(to: samples)
     try computeRMSPerBin(
-      signal: highBandSignal, frameCount: frameCount, binStartSamples: binStartSamples,
+      signal: filter(input, sections: [highPassMidHigh]),
+      frameCount: frameCount, binStartSamples: binStartSamples,
       output: &highBand, progress: &progress)
 
     return (lowBand, midBand, highBand)
   }
 
+  /// Runs `input` through the cascade of `sections` with one `vDSP.Biquad`
+  /// pass in Double, starting from zero filter state.
+  private static func filter(_ input: [Double], sections: [BiquadCoefficients]) -> [Double] {
+    guard
+      var biquad = vDSP.Biquad(
+        coefficients: sections.flatMap(\.vDSPCoefficients),
+        channelCount: 1,
+        sectionCount: vDSP_Length(sections.count),
+        ofType: Double.self
+      )
+    else {
+      preconditionFailure("vDSP.Biquad rejected \(sections.count) biquad section(s)")
+    }
+    return biquad.apply(input: input)
+  }
+
+  /// Per-bin RMS of a Double band signal, stored as Float.
   private static func computeRMSPerBin(
-    signal: [Float],
+    signal: [Double],
     frameCount: Int,
     binStartSamples: [Int],
     output: inout [Float],
@@ -339,9 +361,9 @@ public enum WaveformAnalyzer {
             output[i] = 0
             continue
           }
-          var rms: Float = 0
-          vDSP_rmsqv(base + start, 1, &rms, vDSP_Length(count))
-          output[i] = rms
+          var rms: Double = 0
+          vDSP_rmsqvD(base + start, 1, &rms, vDSP_Length(count))
+          output[i] = Float(rms)
         }
         progress.report(completed: chunkEnd - chunkStart)
       }
@@ -489,9 +511,10 @@ public enum WaveformAnalyzerError: Error, Sendable, Equatable {
 
 // MARK: - Biquad helper (second-order IIR, Double precision)
 
-/// Direct-form-II transposed biquad coefficients. Double precision keeps the
-/// poles stable near the low crossover (same reason ``LUFSAnalyzer`` uses
-/// `vDSP.Biquad` in Double).
+/// Second-order section coefficients normalised to `a0 = 1`, for the
+/// difference equation `y[n] = b0 x[n] + b1 x[n-1] + b2 x[n-2] - a1 y[n-1] -
+/// a2 y[n-2]`. Double precision keeps the poles stable near the low crossover
+/// (same reason ``LUFSAnalyzer`` uses `vDSP.Biquad` in Double).
 private struct BiquadCoefficients {
   let b0: Double
   let b1: Double
@@ -531,22 +554,6 @@ private struct BiquadCoefficients {
     return BiquadCoefficients(b0: b0, b1: b1, b2: b2, a1: a1, a2: a2)
   }
 
-  /// Applies the filter sample-by-sample in Double, returning Float output.
-  func apply(to samples: [Float]) -> [Float] {
-    var output = [Float](repeating: 0, count: samples.count)
-    var x1 = 0.0
-    var x2 = 0.0
-    var y1 = 0.0
-    var y2 = 0.0
-    for i in 0..<samples.count {
-      let x0 = Double(samples[i])
-      let y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
-      output[i] = Float(y0)
-      x2 = x1
-      x1 = x0
-      y2 = y1
-      y1 = y0
-    }
-    return output
-  }
+  /// The section in `vDSP.Biquad` order: `[b0, b1, b2, a1, a2]`.
+  var vDSPCoefficients: [Double] { [b0, b1, b2, a1, a2] }
 }
