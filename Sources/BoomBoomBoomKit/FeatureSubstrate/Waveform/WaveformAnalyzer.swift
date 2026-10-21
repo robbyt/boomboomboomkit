@@ -25,6 +25,14 @@ public enum WaveformAnalyzer {
   /// reports inside each per-bin pass.
   internal static let progressChunkBins = 256
 
+  /// Identifies the implementation of the four band filter passes in
+  /// `computeThreeBandEnergy`. `WaveformAnalyzerPerfTests` records it in each
+  /// wall-clock baseline so a timing change can be attributed to a filter
+  /// change. `"scalar-biquad-double.v1"` is the per-sample Double loop in
+  /// `BiquadCoefficients.apply(to:)`. Change the value whenever that
+  /// implementation changes.
+  internal static let bandFilterImplementation = "scalar-biquad-double.v1"
+
   // MARK: - Public API
 
   /// Analyzes a decoded mono buffer and returns the three waveform outputs.

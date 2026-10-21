@@ -318,6 +318,14 @@ beatgrid-timing-baseline:
 	BBB_COMMIT_SHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown) \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.BeatGridTimingBaselineTests
 
+## waveform-perf-baseline: Story 15.4: measure WaveformAnalyzer.analyze wall-clock (warm-up plus 5 timed calls, min/median/max ms) on synthetic 30 s, 300 s and 600 s mono fixtures at 44.1 kHz and write a per-SHA JSON baseline under _bmad-output/perf-baselines/waveform/. Release config (timing-honest). Synthetic fixtures only (no corpus required). Records, asserts nothing about speed. Env-gated; make test runs the pre-story count unchanged.
+.PHONY: waveform-perf-baseline
+waveform-perf-baseline:
+	@mkdir -p "$(CURDIR)/_bmad-output/perf-baselines/waveform"
+	BBB_WAVEFORM_PERF=1 \
+	BBB_COMMIT_SHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.WaveformAnalyzerPerfTests
+
 ## tempo-refine-impact-report: Story 8-10 AC9 — per-track beat-grid tempo-error + predicted last-beat drift, refinement ON vs OFF, scored against the DAW-verified oracle over .fullTrack coverage. JSON to _bmad-output/implementation-artifacts/8-10-tempo-refine-impact.json. Accuracy metric (config-agnostic); asserts the monotonic reject-guard (improved >= worsened, mean drift not increased).
 .PHONY: tempo-refine-impact-report
 tempo-refine-impact-report:
