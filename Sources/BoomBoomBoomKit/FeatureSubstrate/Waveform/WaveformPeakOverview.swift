@@ -16,7 +16,8 @@
 ///
 /// ## Peak preservation contract
 /// `signedMins[i]` is `samples.min()` and `signedMaxes[i]` is
-/// `samples.max()` over the bin's sample range. For a bin containing a
+/// `samples.max()` over the bin's sample range, with
+/// `signedMins[i] <= signedMaxes[i]`. For a bin containing a
 /// single-sample `+1.0` impulse against a zero background,
 /// `signedMaxes[i] == 1.0` and `signedMins[i] == 0.0`: the impulse's full
 /// amplitude is preserved. This differs from ``WaveformDetailEnvelope``'s
@@ -65,8 +66,10 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
 
   /// Creates a record. The preconditions are programmer guards: every
   /// array has one value per bin, `sampleRate` is finite and positive,
-  /// `columnsPerSecond` is positive, every sample value is finite, and
-  /// `binStartSamples` is strictly increasing within `coveredSampleRange`.
+  /// `columnsPerSecond` is positive, every sample value is finite,
+  /// `signedMins[i] <= signedMaxes[i]`, `coveredSampleRange` starts at or
+  /// after sample 0, and `binStartSamples` starts `coveredSampleRange` and is
+  /// strictly increasing within it (empty exactly when the range is empty).
   public init(
     sampleRate: Double,
     columnsPerSecond: Int,
@@ -82,8 +85,13 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
     precondition(signedMins.allSatisfy(\.isFinite), "signedMins must be finite")
     precondition(signedMaxes.allSatisfy(\.isFinite), "signedMaxes must be finite")
     precondition(
+      zip(signedMins, signedMaxes).allSatisfy { $0 <= $1 },
+      "signedMins must not exceed signedMaxes")
+    precondition(
+      coveredSampleRange.lowerBound >= 0, "coveredSampleRange must start at or after sample 0")
+    precondition(
       WaveformRecordDecoding.binStartsAreValid(binStartSamples, within: coveredSampleRange),
-      "binStartSamples must be strictly increasing within coveredSampleRange")
+      "binStartSamples must start coveredSampleRange and be strictly increasing within it")
     self.schemaVersion = Self.schemaVersion
     self.algorithmIdentifier = Self.algorithmIdentifier
     self.sampleRate = sampleRate
@@ -102,11 +110,12 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
   /// record (the synthesized decoder assigned fields directly and skipped
   /// these checks). It throws when the array lengths disagree, `sampleRate`
   /// is not finite or not positive, `columnsPerSecond` is below 1, a sample
-  /// value is not finite, or ``binStartSamples`` is not strictly increasing
-  /// within ``coveredSampleRange``, matching the memberwise preconditions. It
-  /// also throws when ``coveredSampleRange`` starts below sample 0; an
-  /// inverted range is already rejected by the standard library's `Range`
-  /// decoding.
+  /// value is not finite, a ``signedMins`` value exceeds the matching
+  /// ``signedMaxes`` value, ``coveredSampleRange`` starts below sample 0, or
+  /// ``binStartSamples`` does not start ``coveredSampleRange`` and increase
+  /// strictly within it (empty exactly when the range is empty), matching
+  /// the memberwise preconditions. An inverted range is already rejected by
+  /// the standard library's `Range` decoding.
   ///
   /// The stored ``schemaVersion`` and ``algorithmIdentifier`` strings are
   /// kept exactly as encoded rather than replaced by the static constants,
@@ -137,6 +146,8 @@ public struct WaveformPeakOverview: Sendable, Hashable, Codable, CustomStringCon
       signedMaxes.count, binCount: binStartSamples.count, forKey: .signedMaxes, in: container)
     try WaveformRecordDecoding.requireFinite(signedMins, forKey: .signedMins, in: container)
     try WaveformRecordDecoding.requireFinite(signedMaxes, forKey: .signedMaxes, in: container)
+    try WaveformRecordDecoding.requireOrderedPairs(
+      mins: signedMins, maxes: signedMaxes, forKey: .signedMaxes, in: container)
     try WaveformRecordDecoding.requireBinStarts(
       binStartSamples, within: coveredSampleRange, forKey: .binStartSamples, in: container)
 

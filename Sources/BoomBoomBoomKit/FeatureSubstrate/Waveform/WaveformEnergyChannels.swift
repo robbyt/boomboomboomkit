@@ -80,9 +80,10 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
   /// High-band RMS per bin.
   public let highBand: [Float]
 
-  /// Creates a record. Every band array must have one finite value per bin,
-  /// and `binStartSamples` must be strictly increasing within
-  /// `coveredSampleRange`.
+  /// Creates a record. Every band array must have one finite, non-negative
+  /// value per bin, `coveredSampleRange` must start at or after sample 0, and
+  /// `binStartSamples` must start `coveredSampleRange` and be strictly
+  /// increasing within it (empty exactly when the range is empty).
   /// The crossover preconditions are programmer guards:
   /// ``WaveformAnalyzer/analyze(decoded:options:)`` validates the options
   /// and throws a ``WaveformAnalyzerError`` before constructing a record, so
@@ -103,12 +104,17 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
     precondition(binStartSamples.count == highBand.count, "bin array lengths disagree")
     precondition(sampleRate.isFinite && sampleRate > 0, "sampleRate must be finite and positive")
     precondition(columnsPerSecond > 0, "columnsPerSecond must be positive")
-    precondition(lowBand.allSatisfy(\.isFinite), "lowBand must be finite")
-    precondition(midBand.allSatisfy(\.isFinite), "midBand must be finite")
-    precondition(highBand.allSatisfy(\.isFinite), "highBand must be finite")
+    precondition(
+      lowBand.allSatisfy { $0.isFinite && $0 >= 0 }, "lowBand must be finite and non-negative")
+    precondition(
+      midBand.allSatisfy { $0.isFinite && $0 >= 0 }, "midBand must be finite and non-negative")
+    precondition(
+      highBand.allSatisfy { $0.isFinite && $0 >= 0 }, "highBand must be finite and non-negative")
+    precondition(
+      coveredSampleRange.lowerBound >= 0, "coveredSampleRange must start at or after sample 0")
     precondition(
       WaveformRecordDecoding.binStartsAreValid(binStartSamples, within: coveredSampleRange),
-      "binStartSamples must be strictly increasing within coveredSampleRange")
+      "binStartSamples must start coveredSampleRange and be strictly increasing within it")
     precondition(
       lowMidCutoffHz > 0 && lowMidCutoffHz < midHighCutoffHz,
       "lowMidCutoffHz must be positive and below midHighCutoffHz")
@@ -134,12 +140,13 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
   /// record (the synthesized decoder assigned fields directly and skipped
   /// these checks). It throws when the array lengths disagree, `sampleRate`
   /// is not finite or not positive, `columnsPerSecond` is below 1, a band
-  /// value is not finite, ``lowMidCutoffHz`` is not finite, not positive or
-  /// not below ``midHighCutoffHz``, ``midHighCutoffHz`` is not below
-  /// Nyquist, or ``binStartSamples`` is not strictly increasing within
-  /// ``coveredSampleRange``, matching the memberwise preconditions. It also
-  /// throws when ``coveredSampleRange`` starts below sample 0; an inverted
-  /// range is already rejected by the standard library's `Range` decoding.
+  /// value is not finite or is negative, ``lowMidCutoffHz`` is not finite,
+  /// not positive or not below ``midHighCutoffHz``, ``midHighCutoffHz`` is
+  /// not below Nyquist, ``coveredSampleRange`` starts below sample 0, or
+  /// ``binStartSamples`` does not start ``coveredSampleRange`` and increase
+  /// strictly within it (empty exactly when the range is empty), matching
+  /// the memberwise preconditions. An inverted range is already rejected by
+  /// the standard library's `Range` decoding.
   ///
   /// The stored ``schemaVersion`` and ``algorithmIdentifier`` strings are
   /// kept exactly as encoded rather than replaced by the static constants,
@@ -187,9 +194,10 @@ public struct WaveformEnergyChannels: Sendable, Hashable, Codable, CustomStringC
       midBand.count, binCount: binCount, forKey: .midBand, in: container)
     try WaveformRecordDecoding.requireBinCount(
       highBand.count, binCount: binCount, forKey: .highBand, in: container)
-    try WaveformRecordDecoding.requireFinite(lowBand, forKey: .lowBand, in: container)
-    try WaveformRecordDecoding.requireFinite(midBand, forKey: .midBand, in: container)
-    try WaveformRecordDecoding.requireFinite(highBand, forKey: .highBand, in: container)
+    try WaveformRecordDecoding.requireFiniteNonNegative(lowBand, forKey: .lowBand, in: container)
+    try WaveformRecordDecoding.requireFiniteNonNegative(midBand, forKey: .midBand, in: container)
+    try WaveformRecordDecoding.requireFiniteNonNegative(
+      highBand, forKey: .highBand, in: container)
     try WaveformRecordDecoding.requireBinStarts(
       binStartSamples, within: coveredSampleRange, forKey: .binStartSamples, in: container)
 

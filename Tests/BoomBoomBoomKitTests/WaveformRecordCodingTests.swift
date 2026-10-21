@@ -231,6 +231,53 @@ struct WaveformRecordCodingTests {
     }
   }
 
+  // MARK: - Negative magnitudes and inverted peak pairs
+
+  @Test func detailEnvelopeRejectsNegativeMagnitude() throws {
+    let original = try Self.analyzed().detail
+    let data = try Self.encode(original)
+    var magnitudes = original.magnitudes.map(Double.init)
+    // Control: a positive replacement still decodes.
+    magnitudes[0] = 0.25
+    let control = try Self.setting("magnitudes", to: magnitudes, in: data)
+    _ = try JSONDecoder().decode(WaveformDetailEnvelope.self, from: control)
+    magnitudes[0] = -0.25
+    let corrupt = try Self.setting("magnitudes", to: magnitudes, in: data)
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(WaveformDetailEnvelope.self, from: corrupt)
+    }
+  }
+
+  @Test func energyChannelsRejectNegativeBand() throws {
+    let original = try Self.analyzed().energy
+    let data = try Self.encode(original)
+    var midBand = original.midBand.map(Double.init)
+    // Control: a positive replacement still decodes.
+    midBand[0] = 0.1
+    let control = try Self.setting("midBand", to: midBand, in: data)
+    _ = try JSONDecoder().decode(WaveformEnergyChannels.self, from: control)
+    midBand[0] = -0.1
+    let corrupt = try Self.setting("midBand", to: midBand, in: data)
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(WaveformEnergyChannels.self, from: corrupt)
+    }
+  }
+
+  @Test func peakOverviewRejectsInvertedPair() throws {
+    let original = try Self.analyzed().overview
+    let index = try #require(
+      original.signedMins.indices.first { original.signedMins[$0] < original.signedMaxes[$0] })
+    #expect(original.signedMins[index] != original.signedMaxes[index])
+    var mins = original.signedMins.map(Double.init)
+    var maxes = original.signedMaxes.map(Double.init)
+    swap(&mins[index], &maxes[index])
+    let swappedMins = try Self.setting("signedMins", to: mins, in: Self.encode(original))
+    let corrupt = try Self.setting("signedMaxes", to: maxes, in: swappedMins)
+    #expect(throws: DecodingError.self, "signedMins[\(index)] > signedMaxes[\(index)]") {
+      try JSONDecoder().decode(WaveformPeakOverview.self, from: corrupt)
+    }
+  }
+
   // MARK: - Scalar fields
 
   @Test func detailEnvelopeRejectsBadScalars() throws {
@@ -295,6 +342,27 @@ struct WaveformRecordCodingTests {
     }
   }
 
+  @Test func detailEnvelopeRejectsBinGridNotStartingTheRange() throws {
+    let original = try Self.analyzed().detail
+    try #require(original.coveredSampleRange.lowerBound == 0)
+    // Keep the grid strictly increasing so only the start check can fail.
+    try #require(original.binStartSamples[1] > 10)
+    let corrupt = try Self.editingBinStarts(in: Self.encode(original)) { $0[0] = 10 }
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(WaveformDetailEnvelope.self, from: corrupt)
+    }
+  }
+
+  @Test func detailEnvelopeRejectsEmptyBinGridOverNonEmptyRange() throws {
+    let original = try Self.analyzed().detail
+    try #require(!original.coveredSampleRange.isEmpty)
+    let emptyStarts = try Self.setting("binStartSamples", to: [Int](), in: Self.encode(original))
+    let corrupt = try Self.setting("magnitudes", to: [Double](), in: emptyStarts)
+    #expect(throws: DecodingError.self) {
+      try JSONDecoder().decode(WaveformDetailEnvelope.self, from: corrupt)
+    }
+  }
+
   @Test func peakOverviewRejectsDescendingBinStarts() throws {
     let data = try Self.encode(Self.analyzed().overview)
     let corrupt = try Self.editingBinStarts(in: data) { $0.swapAt(1, 2) }
@@ -320,13 +388,34 @@ struct WaveformRecordCodingTests {
     #expect(decoded == original)
   }
 
+  @Test func zeroSampleResultRoundTrips() throws {
+    let decoded = FeatureSubstrate.DecodedAudio(
+      samples: [],
+      sampleRate: 44_100,
+      codecPriming: FeatureSubstrate.PrimingInfo(codec: .linearPCM, trimState: .knownNone)
+    )
+    let original = try WaveformAnalyzer.analyze(decoded: decoded)
+    #expect(original.detail.coveredSampleRange.isEmpty)
+    #expect(original.detail.binStartSamples.isEmpty)
+    let roundTripped = try JSONDecoder().decode(
+      WaveformAnalysisResult.self, from: Self.encode(original))
+    #expect(roundTripped == original)
+  }
+
   @Test func analysisResultRejectsRecordsOffTheSharedGrid() throws {
     let original = try Self.analyzed()
     let data = try Self.encode(original)
     // Control: an untouched re-serialized payload still decodes.
     let control = try Self.setting("columnsPerSecond", to: 150, inRecord: "energy", of: data)
     #expect(try JSONDecoder().decode(WaveformAnalysisResult.self, from: control) == original)
-    let shiftedStarts = original.energy.binStartSamples.map { $0 + 1 }
+    // Bin 0 stays at the range's lower bound so the energy record is valid on
+    // its own and only the shared-grid check can reject it.
+    let shiftedStarts = original.energy.binStartSamples.enumerated().map {
+      $0.offset == 0 ? $0.element : $0.element + 1
+    }
+    _ = try JSONDecoder().decode(
+      WaveformEnergyChannels.self,
+      from: Self.setting("binStartSamples", to: shiftedStarts, in: Self.encode(original.energy)))
     let corrupt = [
       try Self.setting("columnsPerSecond", to: 100, inRecord: "energy", of: data),
       try Self.setting("binStartSamples", to: shiftedStarts, inRecord: "energy", of: data),
