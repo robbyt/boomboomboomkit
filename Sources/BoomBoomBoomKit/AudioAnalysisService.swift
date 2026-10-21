@@ -1678,6 +1678,14 @@ public struct AudioAnalysisService {
   ///   variable-tempo material the beats drift out of phase. Supply
   ///   constant-tempo audio for a meaningful grid.
   ///
+  /// - Note: Each ``BeatTimestamp/presentationTime`` is reported on the
+  ///   decoded-PCM timeline. AVFoundation has already subtracted any declared
+  ///   codec priming during decode (see ``BeatGrid`` doc), so callers must
+  ///   NOT subtract priming again. The physical instant a beat time refers
+  ///   to is the Hann window-center of the STFT frame the onset detector
+  ///   fired on; the full frame-to-time convention is pinned in
+  ///   ``BeatTimestamp/presentationTime`` (Story 15.3).
+  ///
   /// - Parameters:
   ///   - url: Path to the audio file.
   ///   - options: Analysis options; ``Options/intensity``,

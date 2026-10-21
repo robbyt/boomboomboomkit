@@ -43,6 +43,10 @@
 - [Deferred Work](../_bmad-output/implementation-artifacts/deferred-work.md) -- Known issues and future work
 - [Sprint Status](../_bmad-output/implementation-artifacts/sprint-status.yaml) -- Epic/story tracking
 
+### Reverse-engineering research (develop-only)
+
+- Rekordbox analysis -- The rekordbox analysis research (the 2026-10-17 investigation of rekordbox 7.2.19.0342 and the 2026-10-19 beat-evidence review) is held in the rekordboxReader repository under `docs/` (sibling path `../rekordboxReader/docs/rekordbox-analysis/`), not in this repository.
+
 ### AI Agent Context
 
 - [Project Context](../_bmad-output/project-context.md) -- 60 critical implementation rules for AI agents

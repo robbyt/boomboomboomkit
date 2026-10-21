@@ -8,6 +8,9 @@ disabled_rules:
   - large_tuple
   - line_length
   - opening_brace
+  # The Demo tests decode bookmark data that is UTF-8 by construction; the
+  # rule's suggested optional initializer would only add force-unwraps.
+  - optional_data_string_conversion
   - trailing_comma
   - type_body_length
 
@@ -16,3 +19,5 @@ excluded:
   - _bmad-output/ml-training/swift_feature_extractor/.build
   - tools/coreml-convert/.venv
   - _bmad-output/ml-training/.venv
+  - .claude/worktrees
+  - build

@@ -33,8 +33,43 @@ public struct BeatTimestamp: Sendable, Hashable, Codable, CustomStringConvertibl
   // MARK: Stored
 
   /// Playback time of the beat, in seconds from the start of the analyzed
-  /// audio. Always `≥ 0` — playback time is non-negative by definition;
-  /// non-finite or negative inputs clamp to `0.0` at construction.
+  /// audio on the decoded-PCM timeline (AVFoundation has already removed any
+  /// declared codec priming, so callers must not subtract it again).
+  ///
+  /// ## Frame-time convention (Story 15.3)
+  /// Each ``BPMAnalyzer`` STFT frame `k` is a Hann-windowed FFT of `fftSize`
+  /// samples at sample position `[k * hopSize, k * hopSize + fftSize)`, so
+  /// the frame's energy centers on its Hann peak at
+  /// `k * hopSize + fftSize / 2`. The onset envelope at index `f` records
+  /// the half-wave-rectified rise `logMel[f + 1] - logMel[f]`, so an energy
+  /// jump the DP tracker emits at envelope index `f` physically occurs at
+  /// the window-center of STFT frame `f + 1`. ``presentationTime`` reports
+  /// that instant:
+  /// `((f + 1) * hopSize + fftSize / 2) / sampleRate` plus any
+  /// `windowStartSample` offset the analysis window carries.
+  ///
+  /// This is the single frame-to-time boundary in the pipeline; the correction
+  /// is applied there and nowhere else. Pre-Story-15.3 the convention was
+  /// `f * hopSize / sampleRate` (start of the earlier frame), which produced
+  /// a constant `hopSize + fftSize / 2`-sample negative bias (~33 ms at
+  /// 44.1 kHz / `hopSize=441` / `fftSize=2048`). The change bumped
+  /// ``BeatGrid/currentSchemaVersion`` to 3.
+  ///
+  /// ### Residual after the convention fix
+  /// The convention removes the `hopSize + fftSize / 2` term, not the whole
+  /// offset. On synthetic click fixtures at 44.1 and 48 kHz the remaining
+  /// anchor error is early by about 6.8 to 16.8 ms, depending on the click
+  /// waveform and where the onset falls inside a hop. Within one fixture the
+  /// error is the same for every beat (interior minimum and maximum agree to
+  /// well under a microsecond), so it is a constant offset rather than
+  /// per-beat jitter. Sub-frame peak interpolation moves each beat inside its
+  /// own frame and cannot remove an offset shared by every beat.
+  /// On single-impulse clicks the offset is one hop: measured -10.7 ms at
+  /// 120 BPM and -11.4 ms at 128 BPM (44.1 kHz, `hopSize=441`), measured on
+  /// the same onset envelope and frame-time convention.
+  ///
+  /// Always `≥ 0`; non-finite or negative inputs clamp to `0.0` at
+  /// construction.
   public let presentationTime: Double
 
   /// Tracker confidence in this beat, in `[0.0, 1.0]`. Non-finite or

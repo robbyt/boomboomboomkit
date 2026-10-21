@@ -998,17 +998,18 @@ struct BeatGridTypesTests {
 
   // MARK: - Story 8.5a: BeatGrid.schemaVersion semantic-contract stamp (AC9 / DD #9)
 
-  /// The current version is pinned to `2` (bumped from `1` by Story 8.12's
-  /// `BeatGridAnchor.beatIndex: Int?` persisted-contract change) so a future bump is
-  /// a visible diff against this test (the closest an inert field gets to
-  /// enforcement), and a default-constructed grid auto-stamps it.
-  @Test func schemaVersionCurrentIsTwoAndDefaultStamped() {
-    #expect(BeatGrid.currentSchemaVersion == 2)
-    #expect(Self.noRunSentinel.schemaVersion == 2)
+  /// The current version is pinned to `3` (bumped from `1` to `2` by Story 8.12's
+  /// `BeatGridAnchor.beatIndex: Int?` persisted-contract change, then to `3` by
+  /// Story 15.3's `BeatTimestamp.presentationTime` frame-time convention change) so a
+  /// future bump is a visible diff against this test (the closest an inert field gets
+  /// to enforcement), and a default-constructed grid auto-stamps it.
+  @Test func schemaVersionCurrentIsThreeAndDefaultStamped() {
+    #expect(BeatGrid.currentSchemaVersion == 3)
+    #expect(Self.noRunSentinel.schemaVersion == 3)
     let grid = BeatGrid(
       beats: [], downbeats: .notAttempted, estimatedTempo: 120, confidence: 0.5,
       tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
-    #expect(grid.schemaVersion == 2)
+    #expect(grid.schemaVersion == 3)
   }
 
   /// A legacy payload WITHOUT the key decodes to `schemaVersion == 1` (absent → 1),
@@ -1026,7 +1027,7 @@ struct BeatGridTypesTests {
       tempoAgreement: .notCompared, gridOrigin: nil, coverage: .analysisWindow)
     let obj = try #require(
       try JSONSerialization.jsonObject(with: JSONEncoder().encode(grid)) as? [String: Any])
-    #expect(obj["schemaVersion"] as? Int == 2)
+    #expect(obj["schemaVersion"] as? Int == 3)
   }
 
   /// An unknown FUTURE version decodes faithfully (stored as-is, no throw) — the

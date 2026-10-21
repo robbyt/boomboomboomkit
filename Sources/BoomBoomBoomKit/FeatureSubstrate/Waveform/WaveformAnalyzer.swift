@@ -1,0 +1,559 @@
+//
+//  WaveformAnalyzer.swift
+//  BoomBoomBoomKit
+//
+//  Story 15.4: public analyzer that produces the three independent
+//  waveform outputs for a decoded mono audio buffer.
+//
+//  Phase 1 of Story 15.4 ships the mono / in-memory path. Streaming decode
+//  (Story 15.4a) and multi-channel input (Story 15.4b) are follow-ups; their
+//  options are added when they work, not reserved ahead of time.
+//
+
+import Accelerate
+import Foundation
+
+/// Public entry point for waveform analysis.
+///
+/// Produces three parallel outputs that share a bin grid:
+/// ``WaveformDetailEnvelope``, ``WaveformPeakOverview``, and
+/// ``WaveformEnergyChannels``. All three use integer-sample bin boundaries
+/// at the requested columns-per-second cadence.
+public enum WaveformAnalyzer {
+
+  /// Number of bins processed between cancellation checks and progress
+  /// reports inside each per-bin pass.
+  internal static let progressChunkBins = 256
+
+  /// Identifies the implementation of the band filter passes in
+  /// `computeThreeBandEnergy`. `WaveformAnalyzerPerfTests` records it in each
+  /// wall-clock baseline so a timing change can be attributed to a filter
+  /// change. `"vdsp-biquad-double.v1"` is `vDSP.Biquad` in Double over one
+  /// Float-to-Double copy of the input: one section each for the low and high
+  /// bands, one two-section cascade for the mid band, and per-bin RMS taken on
+  /// the Double output. The previous value, `"scalar-biquad-double.v1"`, was a
+  /// per-sample Double loop with Float output per section. Change the value
+  /// whenever this implementation changes.
+  internal static let bandFilterImplementation = "vdsp-biquad-double.v1"
+
+  // MARK: - Public API
+
+  /// Analyzes a decoded mono buffer and returns the three waveform outputs.
+  ///
+  /// - Parameters:
+  ///   - decoded: Mono PCM samples (``FeatureSubstrate/DecodedAudio``).
+  ///   - options: ``WaveformOptions``. Default cadence 150 cps,
+  ///     250 / 4000 Hz band crossovers.
+  /// - Returns: The three outputs sharing the same bin grid.
+  /// - Throws: ``WaveformAnalyzerError/columnsPerSecondOutOfRange(columnsPerSecond:sampleRate:)``
+  ///   when ``WaveformOptions/columnsPerSecond`` is not between 1 and the
+  ///   sample rate;
+  ///   ``WaveformAnalyzerError/midHighCutoffOutOfRange(midHighCutoffHz:nyquistHz:)``
+  ///   when ``WaveformOptions/midHighCutoffHz`` is not finite, not positive,
+  ///   or at or above `sampleRate / 2` (the default 4000 Hz crossover throws
+  ///   at 8 kHz);
+  ///   ``WaveformAnalyzerError/lowMidCutoffOutOfRange(lowMidCutoffHz:midHighCutoffHz:)``
+  ///   when ``WaveformOptions/lowMidCutoffHz`` is not finite, not positive,
+  ///   or not below the mid / high crossover;
+  ///   ``WaveformAnalyzerError/nonFiniteSample(index:)`` when a decoded
+  ///   sample is NaN or infinite, before any filter pass runs;
+  ///   ``WaveformAnalyzerError/cancelled`` when ``WaveformOptions/isCancelled``
+  ///   returns `true` at any check (before the sample scan, before each filter
+  ///   pass, and before each 256-bin chunk; the first check precedes the scan,
+  ///   so a cancelled call does not touch the buffer). A cancelled run returns no
+  ///   partial result.
+  public static func analyze(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: WaveformOptions = .init()
+  ) throws -> WaveformAnalysisResult {
+    let samples = decoded.samples
+    let sampleRate = decoded.sampleRate
+    try validate(options: options, sampleRate: sampleRate)
+    if options.isCancelled() { throw WaveformAnalyzerError.cancelled }
+    // Scalar early-exit scan on purpose, for the same reason as the ingress
+    // guard in PCMBufferReader (spec-gh-167-item2-pcm-ingress-guards): vDSP has
+    // no non-finite detection primitive, and deferred-work W4 treats vDSP
+    // non-finite behaviour as platform-defined. This is the one exemption from
+    // the vDSP-for-bulk-numerics rule in this file.
+    if let index = samples.firstIndex(where: { !$0.isFinite }) {
+      throw WaveformAnalyzerError.nonFiniteSample(index: index)
+    }
+
+    options.onProgress?(0.0)
+
+    let frameCount = samples.count
+    let coveredSampleRange = 0..<frameCount
+
+    // Rational-integer bin boundaries so a short tail is sized correctly.
+    let binStartSamples = computeBinStartSamples(
+      frameCount: frameCount,
+      sampleRate: sampleRate,
+      columnsPerSecond: options.columnsPerSecond
+    )
+    let binCount = binStartSamples.count
+    let layout = BinLayout(
+      samples: samples, frameCount: frameCount, binStartSamples: binStartSamples)
+
+    // Progress is measured in bins processed: one detail / overview pass
+    // plus three per-band RMS passes over the same bin grid.
+    var progress = PassProgress(
+      totalUnits: 4 * binCount,
+      isCancelled: options.isCancelled,
+      onProgress: options.onProgress
+    )
+
+    var magnitudes = [Float](repeating: 0, count: binCount)
+    var signedMins = [Float](repeating: 0, count: binCount)
+    var signedMaxes = [Float](repeating: 0, count: binCount)
+    try computeDetailAndOverview(
+      layout: layout,
+      magnitudes: &magnitudes,
+      signedMins: &signedMins,
+      signedMaxes: &signedMaxes,
+      progress: &progress
+    )
+
+    // Band-split energy. Biquad filters produce band-limited copies of the
+    // input; per-bin energy is RMS over the bin's sample range.
+    let (lowBand, midBand, highBand) = try computeThreeBandEnergy(
+      layout: layout,
+      sampleRate: sampleRate,
+      lowMidCutoffHz: options.lowMidCutoffHz,
+      midHighCutoffHz: options.midHighCutoffHz,
+      progress: &progress
+    )
+
+    let detail = WaveformDetailEnvelope(
+      sampleRate: sampleRate,
+      columnsPerSecond: options.columnsPerSecond,
+      coveredSampleRange: coveredSampleRange,
+      binStartSamples: binStartSamples,
+      magnitudes: magnitudes
+    )
+    let overview = WaveformPeakOverview(
+      sampleRate: sampleRate,
+      columnsPerSecond: options.columnsPerSecond,
+      coveredSampleRange: coveredSampleRange,
+      binStartSamples: binStartSamples,
+      signedMins: signedMins,
+      signedMaxes: signedMaxes
+    )
+    let energy = WaveformEnergyChannels(
+      sampleRate: sampleRate,
+      columnsPerSecond: options.columnsPerSecond,
+      lowMidCutoffHz: options.lowMidCutoffHz,
+      midHighCutoffHz: options.midHighCutoffHz,
+      coveredSampleRange: coveredSampleRange,
+      binStartSamples: binStartSamples,
+      lowBand: lowBand,
+      midBand: midBand,
+      highBand: highBand
+    )
+
+    // An empty input has no chunks, so the per-chunk reports never reach 1.0.
+    if binCount == 0 { options.onProgress?(1.0) }
+    return WaveformAnalysisResult(detail: detail, overview: overview, energy: energy)
+  }
+
+  // MARK: - Option validation
+
+  /// Rejects options the analyzer cannot honor at `sampleRate`. Checked in
+  /// this order: cadence, mid / high crossover, low / mid crossover.
+  internal static func validate(options: WaveformOptions, sampleRate: Double) throws {
+    // Compared as `Double`: `Int(sampleRate)` would trap for a finite rate
+    // above `Int.max`.
+    guard options.columnsPerSecond >= 1, Double(options.columnsPerSecond) <= sampleRate else {
+      throw WaveformAnalyzerError.columnsPerSecondOutOfRange(
+        columnsPerSecond: options.columnsPerSecond, sampleRate: sampleRate)
+    }
+    let nyquistHz = sampleRate / 2
+    guard
+      options.midHighCutoffHz.isFinite,
+      options.midHighCutoffHz > 0,
+      options.midHighCutoffHz < nyquistHz
+    else {
+      throw WaveformAnalyzerError.midHighCutoffOutOfRange(
+        midHighCutoffHz: options.midHighCutoffHz, nyquistHz: nyquistHz)
+    }
+    guard
+      options.lowMidCutoffHz.isFinite,
+      options.lowMidCutoffHz > 0,
+      options.lowMidCutoffHz < options.midHighCutoffHz
+    else {
+      throw WaveformAnalyzerError.lowMidCutoffOutOfRange(
+        lowMidCutoffHz: options.lowMidCutoffHz, midHighCutoffHz: options.midHighCutoffHz)
+    }
+  }
+
+  // MARK: - Bin boundaries (integer math)
+
+  /// Returns one `Int` per bin: the first sample index in that bin. Last
+  /// value is `< frameCount`; last bin covers through `frameCount - 1`.
+  /// Uses rational integer math so repeated floating-point `+= 1/cps` drift
+  /// is impossible.
+  ///
+  /// The bin count is capped at `frameCount` so every bin holds at least one
+  /// sample and the result stays strictly increasing even when
+  /// `columnsPerSecond` exceeds `sampleRate` (``analyze(decoded:options:)``
+  /// rejects that cadence before reaching here; the cap keeps this helper
+  /// safe on its own).
+  internal static func computeBinStartSamples(
+    frameCount: Int,
+    sampleRate: Double,
+    columnsPerSecond: Int
+  ) -> [Int] {
+    // Expected bin count: ceil(frameCount * columnsPerSecond / sampleRate).
+    // Using Double once for the computation keeps the formula explicit; the
+    // integer sample positions below are exact and monotonic by construction.
+    guard frameCount > 0, columnsPerSecond > 0 else { return [] }
+    let cps = Double(columnsPerSecond)
+    let uncappedBinCount = max(1, Int((Double(frameCount) * cps / sampleRate).rounded(.up)))
+    let binCount = min(frameCount, uncappedBinCount)
+    var bins = [Int](repeating: 0, count: binCount)
+    for i in 0..<binCount {
+      // start = floor(i * sampleRate / cps)
+      let position = Double(i) * sampleRate / cps
+      bins[i] = min(frameCount - 1, Int(position.rounded(.down)))
+    }
+    // Enforce strict monotonicity when cps exceeds sampleRate (floor repeats).
+    // With binCount <= frameCount the nudged value never passes frameCount - 1.
+    for i in 1..<binCount where bins[i] <= bins[i - 1] {
+      bins[i] = bins[i - 1] + 1
+    }
+    return bins
+  }
+
+  // MARK: - Per-bin reductions
+
+  private static func computeDetailAndOverview(
+    layout: BinLayout,
+    magnitudes: inout [Float],
+    signedMins: inout [Float],
+    signedMaxes: inout [Float],
+    progress: inout PassProgress
+  ) throws {
+    let samples = layout.samples
+    let frameCount = layout.frameCount
+    let binStartSamples = layout.binStartSamples
+    let binCount = binStartSamples.count
+    guard binCount > 0 else { return }
+    try samples.withUnsafeBufferPointer { buf in
+      let base = buf.baseAddress!
+      for chunkStart in stride(from: 0, to: binCount, by: progressChunkBins) {
+        try progress.checkCancellation()
+        let chunkEnd = min(binCount, chunkStart + progressChunkBins)
+        for i in chunkStart..<chunkEnd {
+          let start = binStartSamples[i]
+          let end = i + 1 < binCount ? binStartSamples[i + 1] : frameCount
+          let count = end - start
+          guard count > 0 else {
+            magnitudes[i] = 0
+            signedMins[i] = 0
+            signedMaxes[i] = 0
+            continue
+          }
+          var minValue: Float = 0
+          var maxValue: Float = 0
+          vDSP_minv(base + start, 1, &minValue, vDSP_Length(count))
+          vDSP_maxv(base + start, 1, &maxValue, vDSP_Length(count))
+          var absMax: Float = 0
+          vDSP_maxmgv(base + start, 1, &absMax, vDSP_Length(count))
+          signedMins[i] = minValue
+          signedMaxes[i] = maxValue
+          magnitudes[i] = absMax
+        }
+        progress.report(completed: chunkEnd - chunkStart)
+      }
+    }
+  }
+
+  private static func computeThreeBandEnergy(
+    layout: BinLayout,
+    sampleRate: Double,
+    lowMidCutoffHz: Double,
+    midHighCutoffHz: Double,
+    progress: inout PassProgress
+  ) throws -> (low: [Float], mid: [Float], high: [Float]) {
+    let samples = layout.samples
+    let frameCount = layout.frameCount
+    let binStartSamples = layout.binStartSamples
+    let binCount = binStartSamples.count
+    var lowBand = [Float](repeating: 0, count: binCount)
+    var midBand = [Float](repeating: 0, count: binCount)
+    var highBand = [Float](repeating: 0, count: binCount)
+    guard binCount > 0 else { return (lowBand, midBand, highBand) }
+
+    // Second-order Butterworth biquads in Double for pole stability near the
+    // crossovers. The low and high bands are one section each; the mid band
+    // is a two-section cascade (high-pass at lowMid, then low-pass at
+    // midHigh) applied in one `vDSP.Biquad` pass.
+    let lowPassLowMid = BiquadCoefficients.lowPass(
+      cutoffHz: lowMidCutoffHz, sampleRate: sampleRate)
+    let highPassLowMid = BiquadCoefficients.highPass(
+      cutoffHz: lowMidCutoffHz, sampleRate: sampleRate)
+    let lowPassMidHigh = BiquadCoefficients.lowPass(
+      cutoffHz: midHighCutoffHz, sampleRate: sampleRate)
+    let highPassMidHigh = BiquadCoefficients.highPass(
+      cutoffHz: midHighCutoffHz, sampleRate: sampleRate)
+
+    // One Float to Double conversion, shared by the three filter passes.
+    var input = [Double](repeating: 0, count: frameCount)
+    vDSP_vspdp(samples, 1, &input, 1, vDSP_Length(frameCount))
+
+    // Each filter pass runs over the whole buffer, so cancellation is
+    // checked before each one as well as per chunk inside the RMS passes.
+    try progress.checkCancellation()
+    try computeRMSPerBin(
+      signal: filter(input, sections: [lowPassLowMid]),
+      frameCount: frameCount, binStartSamples: binStartSamples,
+      output: &lowBand, progress: &progress)
+
+    try progress.checkCancellation()
+    try computeRMSPerBin(
+      signal: filter(input, sections: [highPassLowMid, lowPassMidHigh]),
+      frameCount: frameCount, binStartSamples: binStartSamples,
+      output: &midBand, progress: &progress)
+
+    try progress.checkCancellation()
+    try computeRMSPerBin(
+      signal: filter(input, sections: [highPassMidHigh]),
+      frameCount: frameCount, binStartSamples: binStartSamples,
+      output: &highBand, progress: &progress)
+
+    return (lowBand, midBand, highBand)
+  }
+
+  /// Runs `input` through the cascade of `sections` with one `vDSP.Biquad`
+  /// pass in Double, starting from zero filter state.
+  private static func filter(_ input: [Double], sections: [BiquadCoefficients]) -> [Double] {
+    guard
+      var biquad = vDSP.Biquad(
+        coefficients: sections.flatMap(\.vDSPCoefficients),
+        channelCount: 1,
+        sectionCount: vDSP_Length(sections.count),
+        ofType: Double.self
+      )
+    else {
+      preconditionFailure("vDSP.Biquad rejected \(sections.count) biquad section(s)")
+    }
+    return biquad.apply(input: input)
+  }
+
+  /// Per-bin RMS of a Double band signal, stored as Float.
+  private static func computeRMSPerBin(
+    signal: [Double],
+    frameCount: Int,
+    binStartSamples: [Int],
+    output: inout [Float],
+    progress: inout PassProgress
+  ) throws {
+    let binCount = binStartSamples.count
+    try signal.withUnsafeBufferPointer { buf in
+      let base = buf.baseAddress!
+      for chunkStart in stride(from: 0, to: binCount, by: progressChunkBins) {
+        try progress.checkCancellation()
+        let chunkEnd = min(binCount, chunkStart + progressChunkBins)
+        for i in chunkStart..<chunkEnd {
+          let start = binStartSamples[i]
+          let end = i + 1 < binCount ? binStartSamples[i + 1] : frameCount
+          let count = end - start
+          guard count > 0 else {
+            output[i] = 0
+            continue
+          }
+          var rms: Double = 0
+          vDSP_rmsqvD(base + start, 1, &rms, vDSP_Length(count))
+          output[i] = Float(rms)
+        }
+        progress.report(completed: chunkEnd - chunkStart)
+      }
+    }
+  }
+}
+
+// MARK: - Bin layout
+
+/// The input samples and the bin grid laid over them, built once in
+/// `analyze(decoded:options:)` and shared by the per-bin reductions.
+private struct BinLayout {
+  let samples: [Float]
+  let frameCount: Int
+  let binStartSamples: [Int]
+}
+
+// MARK: - Progress and cancellation
+
+/// Tracks bins processed across the analyzer's per-bin passes, consults the
+/// caller's cancellation closure, and reports a monotonic `[0, 1]` fraction.
+private struct PassProgress {
+  let totalUnits: Int
+  let isCancelled: @Sendable () -> Bool
+  let onProgress: (@Sendable (Double) -> Void)?
+  private(set) var completedUnits = 0
+
+  init(
+    totalUnits: Int,
+    isCancelled: @escaping @Sendable () -> Bool,
+    onProgress: (@Sendable (Double) -> Void)?
+  ) {
+    self.totalUnits = totalUnits
+    self.isCancelled = isCancelled
+    self.onProgress = onProgress
+  }
+
+  func checkCancellation() throws {
+    if isCancelled() { throw WaveformAnalyzerError.cancelled }
+  }
+
+  mutating func report(completed units: Int) {
+    completedUnits = min(totalUnits, completedUnits + units)
+    guard totalUnits > 0 else { return }
+    onProgress?(Double(completedUnits) / Double(totalUnits))
+  }
+}
+
+// MARK: - Result
+
+/// Combined output of ``WaveformAnalyzer/analyze(decoded:options:)``.
+///
+/// The three records share one bin grid: ``overview`` and ``energy`` carry
+/// the same `sampleRate`, `columnsPerSecond`, `coveredSampleRange` and
+/// `binStartSamples` as ``detail``. The memberwise initializer traps when
+/// they differ and ``init(from:)`` throws `DecodingError.dataCorrupted`.
+public struct WaveformAnalysisResult: Sendable, Hashable, Codable {
+  public let detail: WaveformDetailEnvelope
+  public let overview: WaveformPeakOverview
+  public let energy: WaveformEnergyChannels
+
+  /// Creates a result. The precondition is a programmer guard: the three
+  /// records share one bin grid.
+  public init(
+    detail: WaveformDetailEnvelope,
+    overview: WaveformPeakOverview,
+    energy: WaveformEnergyChannels
+  ) {
+    precondition(
+      WaveformRecordDecoding.sharesGrid(
+        sampleRate: overview.sampleRate, columnsPerSecond: overview.columnsPerSecond,
+        coveredSampleRange: overview.coveredSampleRange,
+        binStartSamples: overview.binStartSamples, with: detail)
+        && WaveformRecordDecoding.sharesGrid(
+          sampleRate: energy.sampleRate, columnsPerSecond: energy.columnsPerSecond,
+          coveredSampleRange: energy.coveredSampleRange,
+          binStartSamples: energy.binStartSamples, with: detail),
+      "detail, overview and energy must share one bin grid")
+    self.detail = detail
+    self.overview = overview
+    self.energy = energy
+  }
+
+  /// Decodes the three records, each validated by its own `init(from:)`,
+  /// then throws `DecodingError.dataCorrupted` on the ``overview`` or
+  /// ``energy`` key when that record's grid differs from ``detail``'s.
+  /// `encode(to:)` and `CodingKeys` are compiler-synthesized, so the encoded
+  /// JSON shape is unchanged.
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let detail = try container.decode(WaveformDetailEnvelope.self, forKey: .detail)
+    let overview = try container.decode(WaveformPeakOverview.self, forKey: .overview)
+    let energy = try container.decode(WaveformEnergyChannels.self, forKey: .energy)
+
+    guard
+      WaveformRecordDecoding.sharesGrid(
+        sampleRate: overview.sampleRate, columnsPerSecond: overview.columnsPerSecond,
+        coveredSampleRange: overview.coveredSampleRange,
+        binStartSamples: overview.binStartSamples, with: detail)
+    else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .overview, in: container,
+        debugDescription: "overview does not share the detail envelope's bin grid")
+    }
+    guard
+      WaveformRecordDecoding.sharesGrid(
+        sampleRate: energy.sampleRate, columnsPerSecond: energy.columnsPerSecond,
+        coveredSampleRange: energy.coveredSampleRange,
+        binStartSamples: energy.binStartSamples, with: detail)
+    else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .energy, in: container,
+        debugDescription: "energy does not share the detail envelope's bin grid")
+    }
+
+    self.detail = detail
+    self.overview = overview
+    self.energy = energy
+  }
+}
+
+// MARK: - Errors
+
+/// Errors emitted by ``WaveformAnalyzer``.
+///
+/// The payloads carry the rejected `Double` values, so an error built from a
+/// NaN input never equals itself; tests on non-finite inputs must match on
+/// the case, not compare whole values.
+public enum WaveformAnalyzerError: Error, Sendable, Equatable {
+  /// ``WaveformOptions/isCancelled`` returned `true`.
+  case cancelled
+  /// ``WaveformOptions/columnsPerSecond`` is not between 1 and the sample rate.
+  case columnsPerSecondOutOfRange(columnsPerSecond: Int, sampleRate: Double)
+  /// ``WaveformOptions/midHighCutoffHz`` is not finite, not positive, or at
+  /// or above the Nyquist frequency (`sampleRate / 2`) of the input.
+  case midHighCutoffOutOfRange(midHighCutoffHz: Double, nyquistHz: Double)
+  /// ``WaveformOptions/lowMidCutoffHz`` is not finite, not positive, or not
+  /// below ``WaveformOptions/midHighCutoffHz``.
+  case lowMidCutoffOutOfRange(lowMidCutoffHz: Double, midHighCutoffHz: Double)
+  /// A decoded sample at `index` is NaN or infinite. The library's decoder
+  /// zeroes such samples before they reach the analyzer, so this fires only
+  /// for a carrier built from a consumer's own samples.
+  case nonFiniteSample(index: Int)
+}
+
+// MARK: - Biquad helper (second-order IIR, Double precision)
+
+/// Second-order section coefficients normalised to `a0 = 1`, for the
+/// difference equation `y[n] = b0 x[n] + b1 x[n-1] + b2 x[n-2] - a1 y[n-1] -
+/// a2 y[n-2]`. Double precision keeps the poles stable near the low crossover
+/// (same reason ``LUFSAnalyzer`` uses `vDSP.Biquad` in Double).
+private struct BiquadCoefficients {
+  let b0: Double
+  let b1: Double
+  let b2: Double
+  let a1: Double
+  let a2: Double
+
+  /// Second-order Butterworth low-pass via bilinear transform.
+  static func lowPass(cutoffHz: Double, sampleRate: Double) -> BiquadCoefficients {
+    let omega = 2.0 * .pi * cutoffHz / sampleRate
+    let cosOmega = cos(omega)
+    let sinOmega = sin(omega)
+    let qInv = sqrt(2.0)  // Butterworth Q = 1 / sqrt(2) → qInv = sqrt(2)
+    let alpha = sinOmega / 2.0 * qInv
+    let a0 = 1.0 + alpha
+    let b0 = ((1.0 - cosOmega) / 2.0) / a0
+    let b1 = (1.0 - cosOmega) / a0
+    let b2 = ((1.0 - cosOmega) / 2.0) / a0
+    let a1 = (-2.0 * cosOmega) / a0
+    let a2 = (1.0 - alpha) / a0
+    return BiquadCoefficients(b0: b0, b1: b1, b2: b2, a1: a1, a2: a2)
+  }
+
+  /// Second-order Butterworth high-pass via bilinear transform.
+  static func highPass(cutoffHz: Double, sampleRate: Double) -> BiquadCoefficients {
+    let omega = 2.0 * .pi * cutoffHz / sampleRate
+    let cosOmega = cos(omega)
+    let sinOmega = sin(omega)
+    let qInv = sqrt(2.0)
+    let alpha = sinOmega / 2.0 * qInv
+    let a0 = 1.0 + alpha
+    let b0 = ((1.0 + cosOmega) / 2.0) / a0
+    let b1 = -(1.0 + cosOmega) / a0
+    let b2 = ((1.0 + cosOmega) / 2.0) / a0
+    let a1 = (-2.0 * cosOmega) / a0
+    let a2 = (1.0 - alpha) / a0
+    return BiquadCoefficients(b0: b0, b1: b1, b2: b2, a1: a1, a2: a2)
+  }
+
+  /// The section in `vDSP.Biquad` order: `[b0, b1, b2, a1, a2]`.
+  var vDSPCoefficients: [Double] { [b0, b1, b2, a1, a2] }
+}

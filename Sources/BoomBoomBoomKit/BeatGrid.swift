@@ -80,7 +80,12 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// where a `nil` index now carries the "free-standing ``BeatGridAnchorSource/manual``
   /// origin" meaning and a free-standing grid omits the `beatIndex` key — a payload
   /// shape a v1 decoder's `decode(Int.self)` would have thrown on.
-  public static let currentSchemaVersion = 2
+  ///
+  /// `3` since Story 15.3: ``BeatTimestamp/presentationTime`` moved from the
+  /// start of STFT frame `f` to the Hann-window centre of frame `f + 1`
+  /// (`+ hopSize + fftSize / 2`, about 33 ms at 44.1 kHz); a grid cached under
+  /// version 2 is on the old timeline.
+  public static let currentSchemaVersion = 3
 
   // MARK: Stored
 
