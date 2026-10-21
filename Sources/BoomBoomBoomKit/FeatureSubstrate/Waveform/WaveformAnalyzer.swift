@@ -47,8 +47,9 @@ public enum WaveformAnalyzer {
   ///   ``WaveformAnalyzerError/nonFiniteSample(index:)`` when a decoded
   ///   sample is NaN or infinite, before any filter pass runs;
   ///   ``WaveformAnalyzerError/cancelled`` when ``WaveformOptions/isCancelled``
-  ///   returns `true` at any check (before the pass, before each filter
-  ///   pass, and before each 256-bin chunk). A cancelled run returns no
+  ///   returns `true` at any check (before the sample scan, before each filter
+  ///   pass, and before each 256-bin chunk; the first check precedes the scan,
+  ///   so a cancelled call does not touch the buffer). A cancelled run returns no
   ///   partial result.
   public static func analyze(
     decoded: FeatureSubstrate.DecodedAudio,
@@ -57,6 +58,7 @@ public enum WaveformAnalyzer {
     let samples = decoded.samples
     let sampleRate = decoded.sampleRate
     try validate(options: options, sampleRate: sampleRate)
+    if options.isCancelled() { throw WaveformAnalyzerError.cancelled }
     // Scalar early-exit scan on purpose, for the same reason as the ingress
     // guard in PCMBufferReader (spec-gh-167-item2-pcm-ingress-guards): vDSP has
     // no non-finite detection primitive, and deferred-work W4 treats vDSP
@@ -65,7 +67,6 @@ public enum WaveformAnalyzer {
     if let index = samples.firstIndex(where: { !$0.isFinite }) {
       throw WaveformAnalyzerError.nonFiniteSample(index: index)
     }
-    if options.isCancelled() { throw WaveformAnalyzerError.cancelled }
 
     options.onProgress?(0.0)
 

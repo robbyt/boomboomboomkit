@@ -402,6 +402,15 @@ struct WaveformAnalyzerTests {
     }
   }
 
+  @Test func cancellationPrecedesNonFiniteSampleScan() {
+    let decoded = Self.sineDecoded(planting: [1_000: .nan])
+    var options = WaveformOptions()
+    options.isCancelled = { true }
+    #expect(throws: WaveformAnalyzerError.cancelled) {
+      _ = try WaveformAnalyzer.analyze(decoded: decoded, options: options)
+    }
+  }
+
   @Test func cancellationMidPassThrowsAndStopsProgress() {
     // 20 s at 150 cps -> 3000 bins -> 12 chunks per pass. Flip cancellation
     // on after a handful of checks so it lands inside the first pass.

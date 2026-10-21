@@ -25,7 +25,7 @@ The file is a single JSON object:
   "platform": "...",
   "probeSource": "Tests/BoomBoomBoomKitBenchmarkTests/BeatGridTimingBaselineTests.swift",
   "intensityLevel": "level3",
-  "reproductionBoundsMs": {"lower": -50.5, "upper": -39.5},
+  "reproductionBoundsMs": {"lower": -17.5, "upper": -6.0},
   "fixtures": [
     { "path": "known-tempo" | "public-facade",
       "sampleRate": 44100 | 48000,
@@ -36,8 +36,8 @@ The file is a single JSON object:
       "beatCount": 24,
       "interiorCount": ~22,
       "meanBeatConfidence": 0...1,
-      "gridOriginSignedErrorMs": -50.5...-39.5,
-      "interiorMedianSignedErrorMs": -50.5...-39.5,
+      "gridOriginSignedErrorMs": -17.5...-6.0,
+      "interiorMedianSignedErrorMs": -17.5...-6.0,
       "interiorMinSignedErrorMs": ...,
       "interiorMaxSignedErrorMs": ... },
     ...
@@ -57,13 +57,23 @@ BBB_BEATGRID_TIMING_BASELINE=1 swift test --filter BeatGridTimingBaselineTests
 
 or `make beatgrid-timing-baseline`.
 
-## When these baselines move
+## Pre-fix and post-fix baselines
 
-Phase 3 (Story 15.3) will land the frame-time convention fix. When it does,
-the next baseline on that SHA records the tight new error band (expected to
-be single-digit milliseconds). At that point the reproduction bounds in
-`BeatGridTimingBaselineTests.swift` must be updated to the tight band and the
-old baselines are kept here as the pre-fix record.
+`9fd205546a-2026-10-18T02-36-19Z.json` is the pre-fix snapshot. It is kept as
+the historical record of the 40 to 50 ms early measurement taken before the
+frame-time convention fix.
+
+Story 15.3 (frame-time convention, landed) moved the error to the band the suite
+now asserts: `[-17.5, -6.0]` ms for both `gridOriginSignedErrorMs` and
+`interiorMedianSignedErrorMs`. `f117ea37a8-2026-10-18T02-55-06Z.json` is the
+post-fix snapshot. The 24 rows cluster in `[-16.78, -6.76]` ms.
+
+The remaining residual is a constant offset per fixture of about one hop (10 ms)
+early. It depends on waveform shape (single impulse vs 64-sample exp decay) and
+hop phase, and sub-frame interpolation cannot remove it.
+
+A new baseline recorded on a later SHA is expected to fall inside the current
+band.
 
 Nothing in this directory is promoted to `main` (see `_bmad-output/` entry in
 CLAUDE.md Release Process).
