@@ -424,6 +424,14 @@ oracle-generate:
 		--match Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
 		> "$(OA300_CORPUS_PATH)/daw-oracle.json"
 
+## oracle-generate-annotations: Story 15.8: write daw-oracle-annotations.json (reference downbeat, verified span, verified BPM, declared metrical level, uncertainty) from the bar-line warp markers in the corpus dawproject. Clips without the convention are skipped with one stderr line each; exit 0 on partial or zero coverage. Operator-local next to daw-oracle.json, never committed. Develop-only; fails on a main-only checkout (the extractor lives in scripts/).
+.PHONY: oracle-generate-annotations
+oracle-generate-annotations:
+	uv run scripts/dawproject-annotations.py \
+		--dawproject "$(OA300_CORPUS_PATH)/corpus/corpus.dawproject" \
+		--match Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
+		--out "$(OA300_CORPUS_PATH)/daw-oracle-annotations.json"
+
 ## oracle-generate-beats: Story 8.7 — build the JAMS beat oracle from Tony's Rekordbox XML grid (develop-only; story DD-13). Per-beat positions + Battito bar-phase from <TEMPO> markers. Writes $(BEAT_ORACLE_JAMS) (develop-only, NOT committed — mirrors daw-oracle.json). Fails loudly on a main-only checkout (the Python generator is develop-only — the ml-* convention; consumers don't run it).
 .PHONY: oracle-generate-beats
 oracle-generate-beats:
@@ -478,7 +486,7 @@ py-lint:
 	fi; \
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
 	uv run ruff format --check . ../../scripts/ && \
-	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py corpus_manifests.py
+	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/dawproject-annotations.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py corpus_manifests.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
