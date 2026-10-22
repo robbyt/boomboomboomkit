@@ -97,6 +97,7 @@ def test_partition_is_total():
         "TODO.md",
         "hilbert-request.md",
         "scripts/promote-to-main.py",
+        "scripts/dawproject-annotations.py",
         ".github/workflows/ci.yml",
         "codex-review.diff",
     ],
