@@ -2,7 +2,9 @@
 
 Every `.dawproject` here is synthetic: a zip holding only a hand-built
 `project.xml`, written into pytest's `tmp_path` together with a synthetic OA300
-ground-truth JAMS file. Logic rows call the extractor in-process; the
+ground-truth JAMS file. The real-export replay rebuilds one clip from the
+Bitwig 6.1.4 export inspected for W102 with its exact offset, warp and duration
+values. Logic rows call the extractor in-process; the
 repository-walk test runs it as a subprocess so the protected-path assertion
 covers a real invocation.
 """
@@ -15,6 +17,7 @@ import math
 import os
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from xml.sax.saxutils import quoteattr
@@ -51,12 +54,69 @@ annotations = _load()
 
 # --- synthetic inputs ---------------------------------------------------------
 
+# 128 BPM: one beat is 0.46875 s, so arrangement bar N at zero offset is 1.875 * (N - 1) s.
+SEC_PER_BEAT = 60.0 / 128.0
 DURATION = 120.0
-END = (256.0, DURATION)  # end-of-file warp: never an anchor
+END = (256.0, DURATION)  # end-of-file warp at bar line 65, exactly the end of the audio
+ANNOTATED = [(0.0, 0.0), END]  # the tempo warp alone, as every corpus clip has it
+DECLARED = "bar=5-21"
+
+# The real Bitwig 6.1.4 export (W102): track e3-22fffe3b2c53, 140 BPM, drop on bar 49.
+REAL_WARPS = [(0.0, 0.0), (789.6455583572388, 338.419525)]
+REAL_DURATION = 338.419525
+REAL_OFFSET = 62.3652  # 0 + 0 - (-62.3652) - 0
 
 
-def clip(name: str, warps, *, comment: str = "", duration: float | str = DURATION) -> dict:
-    return {"file": f"audio/{name}", "warps": warps, "comment": comment, "duration": duration}
+def clip(
+    name: str,
+    warps,
+    *,
+    comment: str = "",
+    duration: float | str = DURATION,
+    outer_time: float | str | None = 0.0,
+    outer_play_start: float | str | None = 0.0,
+    inner_time: float | str | None = 0.0,
+    inner_play_start: float | str | None = 0.0,
+    track: str | None = None,
+) -> dict:
+    """One clip. A `None` offset attribute is left out of the XML.
+
+    Clips given the same `track` share one track and one lane, in the order given,
+    and the first one's comment is the track Comment; by default each clip gets its own.
+    """
+    return {
+        "track": track,
+        "file": f"audio/{name}",
+        "warps": warps,
+        "comment": comment,
+        "duration": duration,
+        "outer": {"time": outer_time, "playStart": outer_play_start},
+        "inner": {"time": inner_time, "playStart": inner_play_start},
+    }
+
+
+def real_clip(comment: str, **kwargs) -> dict:
+    kwargs.setdefault("outer_play_start", -REAL_OFFSET)
+    return clip(
+        "e3-22fffe3b2c53.mp3", REAL_WARPS, comment=comment, duration=REAL_DURATION, **kwargs
+    )
+
+
+def _attrs(values: dict) -> str:
+    return "".join(f' {k}="{v}"' for k, v in values.items() if v is not None)
+
+
+def _clip_xml(i: int, c: dict, warps_units: tuple[str, str]) -> str:
+    """The outer clip, its inner clip and the warps, as Bitwig nests them."""
+    warp_xml = "".join(f'<Warp time="{t}" contentTime="{ct}"/>' for t, ct in c["warps"])
+    return (
+        f'<Clip{_attrs(c["outer"])} duration="900.0" name="clip {i}"><Clips id="ic{i}">'
+        f'<Clip{_attrs(c["inner"])} duration="900.0" contentTimeUnit="beats">'
+        f'<Warps contentTimeUnit="{warps_units[1]}" timeUnit="{warps_units[0]}" id="w{i}">'
+        f'<Audio algorithm="repitch" channels="2" sampleRate="44100" duration="{c["duration"]}" id="a{i}">'
+        f"<File path={quoteattr(c['file'])}/></Audio>{warp_xml}</Warps>"
+        f"</Clip></Clips></Clip>"
+    )
 
 
 def project_xml(
@@ -67,22 +127,17 @@ def project_xml(
     application: bool = True,
     warps_units: tuple[str, str] = ("beats", "seconds"),
 ) -> str:
-    tracks, lanes = [], []
+    groups: dict[str, list[tuple[int, dict]]] = {}
     for i, c in enumerate(clips):
-        tid = f"t{i}"
+        groups.setdefault(c["track"] or f"t{i}", []).append((i, c))
+    tracks, lanes = [], []
+    for n, (tid, members) in enumerate(groups.items()):
+        comment = members[0][1]["comment"]
         tracks.append(
-            f'<Track contentType="audio" id="{tid}" name="track {i}" comment={quoteattr(c["comment"])}/>'
+            f'<Track contentType="audio" id="{tid}" name="track {n}" comment={quoteattr(comment)}/>'
         )
-        warp_xml = "".join(f'<Warp time="{t}" contentTime="{ct}"/>' for t, ct in c["warps"])
-        lanes.append(
-            f'<Lanes track="{tid}" id="l{i}"><Clips id="c{i}">'
-            f'<Clip time="0.0" duration="300.0" playStart="0.0" name="clip {i}"><Clips id="ic{i}">'
-            f'<Clip time="0.0" duration="300.0" contentTimeUnit="beats" playStart="0.0">'
-            f'<Warps contentTimeUnit="{warps_units[1]}" timeUnit="{warps_units[0]}" id="w{i}">'
-            f'<Audio algorithm="repitch" channels="2" sampleRate="44100" duration="{c["duration"]}" id="a{i}">'
-            f"<File path={quoteattr(c['file'])}/></Audio>{warp_xml}</Warps>"
-            f"</Clip></Clips></Clip></Clips></Lanes>"
-        )
+        clip_xml = "".join(_clip_xml(i, c, warps_units) for i, c in members)
+        lanes.append(f'<Lanes track="{tid}" id="l{n}"><Clips id="c{n}">{clip_xml}</Clips></Lanes>')
     automation = '<TimeSignatureAutomation id="tsa"/>' if ts_automation else ""
     app = '<Application name="Bitwig Studio" version="6.0.11"/>' if application else ""
     return (
@@ -158,23 +213,23 @@ def run(tmp_path, capsys):
         *,
         gt: list[str] | None = None,
         subdirs: dict[str, str] | None = None,
+        match: bool = True,
         extra: tuple[str, ...] = (),
         **xml_kwargs,
     ) -> Run:
         dawproject = write_dawproject(
             tmp_path / "corpus.dawproject", project_xml(clips, **xml_kwargs)
         )
-        names = gt if gt is not None else [os.path.basename(c["file"]) for c in clips]
-        match = write_ground_truth(tmp_path / "gt.json", names, subdirs)
         out = tmp_path / "daw-oracle-annotations.json"
-        argv = ["--dawproject", str(dawproject), "--match", str(match), "--out", str(out), *extra]
+        argv = ["--dawproject", str(dawproject), "--out", str(out), *extra]
+        if match:
+            names = gt if gt is not None else [os.path.basename(c["file"]) for c in clips]
+            gt_path = write_ground_truth(tmp_path / "gt.json", names, subdirs)
+            argv += ["--match", str(gt_path)]
         code = annotations.main(argv)
         return Run(code, capsys.readouterr().err, out)
 
     return _run
-
-
-ANNOTATED = [(0.0, 0.0), (16.0, 7.5), (80.0, 37.5), END]
 
 
 def _sandbox(entry: dict) -> dict:
@@ -184,6 +239,16 @@ def _sandbox(entry: dict) -> dict:
 def _annotation(entry: dict, namespace: str) -> dict:
     (ann,) = [a for a in entry["annotations"] if a["namespace"] == namespace]
     return ann
+
+
+def _measures(entry: dict) -> list[int]:
+    return [b["value"]["measure"] for b in _annotation(entry, "beat_position")["data"]]
+
+
+def _real_seconds(bar: int, offset: float = REAL_OFFSET) -> float:
+    """Content seconds of arrangement bar `bar` on the real clip's single warp segment."""
+    content_beat = 4 * (bar - 1) - offset
+    return content_beat / REAL_WARPS[1][0] * REAL_WARPS[1][1]
 
 
 def _assert_inside_span(entry: dict) -> None:
@@ -216,7 +281,7 @@ def _assert_inside_span(entry: dict) -> None:
 
 
 def test_annotated_clip(run):
-    r = run([clip("x.wav", ANNOTATED, comment="level=half; unc=low; checked at bar 21")])
+    r = run([clip("x.wav", ANNOTATED, comment="level=half; unc=low; bar=5-21; checked at 21")])
     assert r.code == 0
     assert r.skips == []
     (entry,) = r.entries
@@ -236,9 +301,9 @@ def test_annotated_clip(run):
         "verified_span_start_sec": 7.5,
         "verified_span_end_sec": 37.5,
         "distant_alignment_checks": [],
-        "uncertainty": {"level": "low", "note": "checked at bar 21"},
-        "annotation_version": "15.8.v1",
-        "source": "bitwig-warp-bar-line-pair",
+        "uncertainty": {"level": "low", "note": "checked at 21"},
+        "annotation_version": "15.8.v2",
+        "source": "bitwig-clip-offset-bar-comment",
         "dawproject_application": {"name": "Bitwig Studio", "version": "6.0.11"},
     }
     tempo = _annotation(entry, "tempo")["data"]
@@ -252,83 +317,214 @@ def test_annotated_clip(run):
     _assert_inside_span(entry)
 
 
-def test_interior_check(run):
-    warps = [(0.0, 0.0), (16.0, 7.5), (80.0, 37.49), (144.0, 67.5), END]
-    r = run([clip("x.wav", warps)])
+def test_real_export_replay(run):
+    r = run([real_clip("level=quarter; unc=low; bar=49; bass drops on 49")])
+    assert r.skips == []
     (entry,) = r.entries
     sb = _sandbox(entry)
-    assert (sb["verified_span_start_sec"], sb["verified_span_end_sec"]) == (7.5, 67.5)
+    assert sb["reference_downbeat_time_sec"] == pytest.approx(55.558, abs=1e-3)
+    assert sb["verified_span_start_sec"] == sb["reference_downbeat_time_sec"]
+    assert sb["verified_bpm"] == pytest.approx(140.0, abs=1e-6)
+    assert sb["bar_position"] == 49
+    assert sb["declared_metrical_level"] == "quarter"
+    assert sb["uncertainty"] == {"level": "low", "note": "bass drops on 49"}
+    # Defaulted end: the last arrangement bar line whose content beat is still on the warp
+    # map, floor((last warp beat + offset) / 4) + 1, which here also lands before the
+    # end-of-file second.
+    last_beat = REAL_WARPS[-1][0]
+    end_bar = math.floor((last_beat + REAL_OFFSET) / 4) + 1
+    assert 4 * (end_bar - 1) - REAL_OFFSET < last_beat
+    assert _real_seconds(end_bar) < REAL_DURATION
+    assert sb["verified_span_end_sec"] == pytest.approx(_real_seconds(end_bar), abs=1e-6)
+    assert _measures(entry) == [49, end_bar]
+    assert sb["distant_alignment_checks"] == []
+    _assert_inside_span(entry)
+
+
+def test_outer_time_and_outer_play_start_agree(run):
+    comment = "level=quarter; unc=low; bar=49; bass drops on 49"
+    slid = run([real_clip(comment)]).entries
+    moved = run([real_clip(comment, outer_time=REAL_OFFSET, outer_play_start=0.0)]).entries
+    assert [_sandbox(e) for e in moved] == [_sandbox(e) for e in slid]
+
+
+def test_missing_offset_attributes_count_as_zero(run):
+    explicit = run([clip("x.wav", ANNOTATED, comment=DECLARED)]).entries
+    omitted = run(
+        [
+            clip(
+                "x.wav",
+                ANNOTATED,
+                comment=DECLARED,
+                outer_time=None,
+                outer_play_start=None,
+                inner_time=None,
+                inner_play_start=None,
+            )
+        ]
+    ).entries
+    assert omitted == explicit
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"inner_time": -0.1341}, {"inner_play_start": 0.1341}],
+    ids=["inner-time", "inner-play-start"],
+)
+def test_inner_clip_offset_shifts_the_mapping(run, kwargs):
+    # offset = -0.1341, so bar 5 (arrangement beat 16) is content beat 16.1341.
+    (entry,) = run([clip("x.wav", ANNOTATED, comment=DECLARED, **kwargs)]).entries
+    sb = _sandbox(entry)
+    assert sb["verified_span_start_sec"] == pytest.approx(16.1341 * SEC_PER_BEAT, abs=1e-6)
+    assert sb["verified_span_end_sec"] == pytest.approx(80.1341 * SEC_PER_BEAT, abs=1e-6)
     assert sb["verified_bpm"] == 128.0
+    assert sb["bar_position"] == 5
+    _assert_inside_span(entry)
+
+
+def test_explicit_span_end(run):
+    (entry,) = run([real_clip("bar=49-113")]).entries
+    sb = _sandbox(entry)
+    assert sb["verified_span_start_sec"] == pytest.approx(_real_seconds(49), abs=1e-6)
+    assert sb["verified_span_end_sec"] == pytest.approx(_real_seconds(113), abs=1e-6)
+    assert _measures(entry) == [49, 113]
+    _assert_inside_span(entry)
+
+
+def test_zero_offset_bar_two(run):
+    (entry,) = run([clip("x.wav", ANNOTATED, comment="bar=2")]).entries
+    sb = _sandbox(entry)
+    assert sb["bar_position"] == 2
+    assert sb["verified_span_start_sec"] == 1.875
+    # Bar 65 sits on the end-of-file second, so the defaulted end is bar 64.
+    assert sb["verified_span_end_sec"] == 63 * 4 * SEC_PER_BEAT
+    assert _measures(entry) == [2, 64]
+    _assert_inside_span(entry)
+
+
+def test_bar_line_warp_inside_span_is_a_check(run):
+    r = run([clip("x.wav", [(0.0, 0.0), (80.0, 37.5), END], comment="bar=5-41")])
+    (entry,) = r.entries
+    sb = _sandbox(entry)
     (check,) = sb["distant_alignment_checks"]
     assert check["bar_position"] == 21
-    assert check["time_sec"] == 37.49
-    assert check["residual_ms"] == pytest.approx(-10.0, abs=1e-6)
-    assert len(_annotation(entry, "beat_position")["data"]) == 3
+    assert check["time_sec"] == 37.5
+    assert check["residual_ms"] == pytest.approx(0.0, abs=1e-6)
+    assert _measures(entry) == [5, 21, 41]
     _assert_inside_span(entry)
 
 
-def test_bar_two_lower_bound(run):
-    r = run([clip("x.wav", [(0.0, 0.0), (4.0, 1.875), (36.0, 16.875), END])])
-    (entry,) = r.entries
-    assert _sandbox(entry)["bar_position"] == 2
-    measures = [b["value"]["measure"] for b in _annotation(entry, "beat_position")["data"]]
-    assert measures == [2, 10]
+def test_bar_line_warp_off_the_line_reports_a_residual(run):
+    # The warp sits 10 ms early. The start and end bar seconds come from the same warp map,
+    # so the moved point pulls them too and the residual is smaller than 10 ms, not zero.
+    warps = [(0.0, 0.0), (80.0, 37.49), END]
+    (entry,) = run([clip("x.wav", warps, comment="bar=5-41")]).entries
+    start = 16.0 / 80.0 * 37.49
+    end = 37.49 + (160.0 - 80.0) / (256.0 - 80.0) * (DURATION - 37.49)
+    bpm = 144.0 / (end - start) * 60.0
+    expected_ms = (37.49 - (start + 64.0 * 60.0 / bpm)) * 1000.0
+    (check,) = _sandbox(entry)["distant_alignment_checks"]
+    assert check["bar_position"] == 21
+    assert check["residual_ms"] == pytest.approx(expected_ms, abs=1e-5)
+    assert check["residual_ms"] < -5.0
     _assert_inside_span(entry)
 
 
-def test_bar_two_just_below_the_integer_is_accepted(run):
-    r = run([clip("x.wav", [(0.0, 0.0), (3.99994, 1.875), (36.0, 16.875), END])])
-    (entry,) = r.entries
-    assert _sandbox(entry)["bar_position"] == 2
+def test_warp_within_tolerance_of_the_start_bar_is_that_bar_line(run):
+    warps = [(0.0, 0.0), (16.01, 16.01 * SEC_PER_BEAT), END]
+    (entry,) = run([clip("x.wav", warps, comment=DECLARED)]).entries
+    assert _sandbox(entry)["distant_alignment_checks"] == []
+    assert _measures(entry) == [5, 21]
 
 
-def test_bar_two_outside_the_tolerance_is_rejected(run):
-    r = run([clip("x.wav", [(0.0, 0.0), (3.9, 1.875), (36.0, 16.875), END])])
-    assert r.entries == []
-    assert r.skips == ["skip x.wav: no-declared-downbeat-anchor"]
-
-
-def test_non_beat_warp_timeline_has_no_anchor(run):
-    r = run([clip("x.wav", ANNOTATED)], warps_units=("seconds", "seconds"))
-    assert r.code == 0
-    assert r.entries == []
-    assert r.skips == ["skip x.wav: no-declared-downbeat-anchor"]
-
-
-def test_rounded_bar_gap_is_accepted(run):
-    r = run([clip("x.wav", [(0.0, 0.0), (16.01, 7.5), (48.0, 22.5), END])])
-    (entry,) = r.entries
-    assert _sandbox(entry)["bar_position"] == 5
-    measures = [b["value"]["measure"] for b in _annotation(entry, "beat_position")["data"]]
-    assert measures == [5, 13]
+def test_origin_nudge_before_the_span_is_accepted(run):
+    # The corpus shape: a collinear second warp under one beat, left over from placing beat 1.
+    warps = [(0.0, 0.0), (0.986, 0.986 * SEC_PER_BEAT), END]
+    (entry,) = run([clip("x.wav", warps, comment="bar=5")]).entries
+    sb = _sandbox(entry)
+    assert sb["distant_alignment_checks"] == []
+    assert sb["verified_span_start_sec"] == pytest.approx(7.5, abs=1e-6)
+    assert sb["verified_bpm"] == pytest.approx(128.0, abs=1e-6)
     _assert_inside_span(entry)
 
 
 def test_default_comment_values(run):
-    (entry,) = run([clip("x.wav", ANNOTATED)]).entries
+    (entry,) = run([clip("x.wav", ANNOTATED, comment="bar=5")]).entries
     sb = _sandbox(entry)
     assert sb["declared_metrical_level"] == "unspecified"
     assert sb["uncertainty"] == {
         "level": "medium",
-        "note": "derived from bar-line warp pair; no operator comment",
+        "note": "derived from clip offset and bar comment; no free text",
     }
 
 
 def test_comment_keys_are_case_insensitive(run):
-    (entry,) = run([clip("x.wav", ANNOTATED, comment=" LEVEL = double ;Unc=high")]).entries
+    comment = " LEVEL = double ;Unc=high; BAR = 5 - 21"
+    (entry,) = run([clip("x.wav", ANNOTATED, comment=comment)]).entries
     sb = _sandbox(entry)
     assert sb["declared_metrical_level"] == "double"
     assert sb["uncertainty"]["level"] == "high"
+    assert _measures(entry) == [5, 21]
 
 
 def test_unsorted_warps_are_sorted(run):
-    r = run([clip("x.wav", [(0.0, 0.0), (80.0, 37.5), (16.0, 7.5), END])])
+    r = run([clip("x.wav", [(80.0, 37.5), (0.0, 0.0), END], comment="bar=5-41")])
     (entry,) = r.entries
     assert _sandbox(entry)["verified_span_start_sec"] == 7.5
+    assert len(_sandbox(entry)["distant_alignment_checks"]) == 1
+
+
+def test_two_clips_on_one_track_skip_together(run):
+    r = run(
+        [
+            clip("x.wav", ANNOTATED, comment=DECLARED, track="shared"),
+            clip("y.wav", ANNOTATED, track="shared"),
+            clip("z.wav", ANNOTATED, comment=DECLARED),
+        ]
+    )
+    assert r.code == 0
+    assert [e["file_metadata"]["identifiers"]["basename"] for e in r.entries] == ["z.wav"]
+    assert r.skips == [
+        "skip x.wav: multiple-clips-on-track",
+        "skip y.wav: multiple-clips-on-track",
+    ]
+
+
+def test_nested_track_lanes_visit_each_clip_once(tmp_path):
+    # A group lane holding a child lane. The Clip wrapped around the child lane is not
+    # one of the child clip's own enclosing clips, so its offset must not be counted.
+    inner = _clip_xml(0, clip("x.wav", ANNOTATED, inner_time=-0.1341), ("beats", "seconds"))
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Project version="1.0"><Application name="Bitwig Studio" version="6.0.11"/>'
+        '<Transport><TimeSignature denominator="4" numerator="4" id="ts"/></Transport>'
+        "<Structure>"
+        '<Track contentType="tracks" id="group" name="group" comment="bar=9; group comment"/>'
+        '<Track contentType="audio" id="child" name="child" comment="bar=5; child comment"/>'
+        "</Structure>"
+        '<Arrangement id="arr"><Lanes timeUnit="beats" id="root">'
+        '<Lanes track="group" id="lg"><Clips id="gc"><Clip time="99.0" playStart="0.0">'
+        f'<Lanes track="child" id="lc"><Clips id="cc">{inner}</Clips></Lanes>'
+        "</Clip></Clips></Lanes>"
+        "</Lanes></Arrangement></Project>"
+    )
+    (only,) = annotations.collect_clips(ET.fromstring(xml))
+    assert only.track_id == "child"
+    assert only.comment == "bar=5; child comment"
+    assert only.clip_offsets_raw == (("0.0", "0.0"), ("-0.1341", "0.0"))
+
+    dawproject = write_dawproject(tmp_path / "nested.dawproject", xml)
+    out = tmp_path / "nested.json"
+    assert annotations.main(["--dawproject", str(dawproject), "--out", str(out)]) == 0
+    (entry,) = json.loads(out.read_text())["entries"]
+    assert _sandbox(entry)["uncertainty"]["note"] == "child comment"
+    assert _sandbox(entry)["verified_span_start_sec"] == pytest.approx(
+        16.1341 * SEC_PER_BEAT, abs=1e-6
+    )
 
 
 def test_identifiers_follow_the_oracle_shape(run):
-    r = run([clip("x.wav", ANNOTATED)], subdirs={"x.wav": "Bad BPM"})
+    r = run([clip("x.wav", ANNOTATED, comment=DECLARED)], subdirs={"x.wav": "Bad BPM"})
     (entry,) = r.entries
     assert entry["file_metadata"]["identifiers"] == {
         "basename": "x.wav",
@@ -340,42 +536,32 @@ def test_identifiers_follow_the_oracle_shape(run):
 # --- I/O matrix: omitted clips ------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "warps,reason",
-    [
-        ([(0.0, 0.0), (928.00006, 327.53)], "no-declared-downbeat-anchor"),
-        ([(0.0, 0.0), (0.986, 0.46), (928.00006, 327.53)], "no-declared-downbeat-anchor"),
-        ([(0.0, 0.0), (16.0, 7.5), END], "no-declared-downbeat-anchor"),
-        ([(0.0, 0.5), (32.0, 15.5), END], "no-declared-downbeat-anchor"),
-        ([(0.0, 0.0), (16.0, 7.5), (40.0, 18.75), END], "verified-span-shorter-than-8-bars"),
-        ([(16.0, 7.5), (33.3, 15.6), (80.0, 37.5), END], "unverified-warp-inside-span"),
-        ([(0.0, 0.0), (16.0, 7.5), (80.0, 7.5), END], "warps-not-monotonic"),
-        ([(0.0, 0.0), (16.0, "nan"), (80.0, 37.5), END], "warps-not-monotonic"),
-    ],
-    ids=[
-        "origin-and-end-only",
-        "three-point-legacy",
-        "single-anchor",
-        "origin-warp-with-offset",
-        "pair-too-close",
-        "nudge-inside-span",
-        "equal-content-time",
-        "non-finite",
-    ],
-)
-def test_omitted_clip(run, warps, reason):
-    r = run([clip("x.wav", warps, duration=327.53 if warps[-1][0] == 928.00006 else DURATION)])
+@pytest.mark.parametrize("comment", ["", "level=half; unc=low; verified by ear"])
+def test_no_bar_token_is_not_annotated(run, comment):
+    r = run([clip("x.wav", ANNOTATED, comment=comment)])
     assert r.code == 0
     assert r.entries == []
-    assert r.skips == [f"skip x.wav: {reason}"]
+    assert r.skips == ["skip x.wav: no-declared-downbeat-bar"]
 
 
-def test_non_finite_duration_is_rejected(run):
-    r = run([clip("x.wav", ANNOTATED, duration="inf")])
-    assert r.skips == ["skip x.wav: warps-not-monotonic"]
-
-
-@pytest.mark.parametrize("comment", ["level=triplet", "unc=certain", "level=half; level=double"])
+@pytest.mark.parametrize(
+    "comment",
+    [
+        "level=triplet; bar=5",
+        "unc=certain; bar=5",
+        "level=half; level=double; bar=5",
+        "bar=0",
+        "bar=x",
+        "bar=10-10",
+        "bar=10-9",
+        "bar=5; bar=6",
+        "bar=",
+        "bar=5-",
+        "bar=1234567",
+        pytest.param("bar=" + "9" * 5000, id="bar-5000-digits"),
+        pytest.param("bar=5-" + "9" * 5000, id="span-end-5000-digits"),
+    ],
+)
 def test_bad_comment_token(run, comment):
     r = run([clip("x.wav", ANNOTATED, comment=comment)])
     assert r.code == 0
@@ -384,47 +570,155 @@ def test_bad_comment_token(run, comment):
 
 
 @pytest.mark.parametrize(
+    "factory,reason",
+    [
+        (lambda: clip("x.wav", ANNOTATED, comment="bar=1"), "declared-bar-outside-audio"),
+        (lambda: clip("x.wav", ANNOTATED, comment="bar=65"), "declared-bar-outside-audio"),
+        (lambda: clip("x.wav", ANNOTATED, comment="bar=200"), "declared-bar-outside-audio"),
+        (lambda: clip("x.wav", ANNOTATED, comment="bar=5-65"), "declared-bar-outside-audio"),
+        (lambda: real_clip("bar=16"), "declared-bar-outside-audio"),
+        (lambda: real_clip("bar=49-56"), "verified-span-shorter-than-8-bars"),
+        (lambda: clip("x.wav", ANNOTATED, comment="bar=60"), "verified-span-shorter-than-8-bars"),
+        (
+            lambda: clip("x.wav", [(0.0, 0.0), (33.3, 15.6), END], comment="bar=5"),
+            "unverified-warp-inside-span",
+        ),
+        (
+            lambda: clip(
+                "x.wav",
+                [(0.0, 0.0), (80.0, 37.5), (80.01, 80.01 * SEC_PER_BEAT), END],
+                comment="bar=5-41",
+            ),
+            "unverified-warp-inside-span",
+        ),
+        (
+            lambda: clip("x.wav", [(0.0, 0.0), (16.0, 7.5), (80.0, 7.5), END], comment="bar=5"),
+            "warps-not-monotonic",
+        ),
+        (
+            lambda: clip("x.wav", [(0.0, 0.0), (16.0, "nan"), END], comment="bar=5"),
+            "warps-not-monotonic",
+        ),
+        (
+            lambda: clip("x.wav", ANNOTATED, comment="bar=5", outer_play_start="nan"),
+            "clip-offset-not-finite",
+        ),
+        (
+            lambda: clip("x.wav", ANNOTATED, comment="bar=5", inner_time="x"),
+            "clip-offset-not-finite",
+        ),
+    ],
+    ids=[
+        "bar-one-at-audio-start",
+        "bar-on-end-of-file",
+        "bar-past-the-end",
+        "span-end-on-end-of-file",
+        "real-bar-before-audio",
+        "explicit-span-too-short",
+        "defaulted-span-too-short",
+        "nudge-inside-span",
+        "two-warps-on-one-bar-line",
+        "equal-content-time",
+        "non-finite-warp",
+        "non-finite-offset",
+        "unparseable-offset",
+    ],
+)
+def test_omitted_clip(run, factory, reason):
+    c = factory()
+    r = run([c])
+    assert r.code == 0
+    assert r.entries == []
+    assert r.skips == [f"skip {os.path.basename(c['file'])}: {reason}"]
+
+
+def test_non_finite_duration_is_rejected(run):
+    r = run([clip("x.wav", ANNOTATED, comment=DECLARED, duration="inf")])
+    assert r.skips == ["skip x.wav: warps-not-monotonic"]
+
+
+def test_non_beat_warp_timeline_is_rejected(run):
+    r = run([clip("x.wav", ANNOTATED, comment=DECLARED)], warps_units=("seconds", "seconds"))
+    assert r.code == 0
+    assert r.entries == []
+    assert r.skips == ["skip x.wav: warps-not-beats-seconds"]
+
+
+@pytest.mark.parametrize(
     "kwargs", [{"ts": (3, 4)}, {"ts_automation": True}], ids=["three-four", "automation"]
 )
 def test_not_four_four_skips_every_clip(run, kwargs):
-    r = run([clip("x.wav", ANNOTATED), clip("y.wav", ANNOTATED)], **kwargs)
+    clips = [clip("x.wav", ANNOTATED, comment=DECLARED), clip("y.wav", ANNOTATED, comment=DECLARED)]
+    r = run(clips, **kwargs)
     assert r.code == 0
     assert r.entries == []
     assert r.skips == ["skip x.wav: time-signature-not-4-4", "skip y.wav: time-signature-not-4-4"]
 
 
 def test_unmatched_ground_truth(run):
-    r = run([clip("x.wav", ANNOTATED), clip("other.wav", ANNOTATED)], gt=["x.wav"])
+    clips = [
+        clip("x.wav", ANNOTATED, comment=DECLARED),
+        clip("other.wav", ANNOTATED, comment=DECLARED),
+    ]
+    r = run(clips, gt=["x.wav"])
     assert [e["file_metadata"]["identifiers"]["basename"] for e in r.entries] == ["x.wav"]
     assert r.skips == ["skip other.wav: unmatched-ground-truth"]
 
 
 def test_duplicate_match_keeps_first_in_document_order(run):
     r = run(
-        [clip("x.mp3", ANNOTATED, comment="first"), clip("x.wav", ANNOTATED, comment="second")],
+        [
+            clip("x.mp3", ANNOTATED, comment=f"{DECLARED}; first"),
+            clip("x.wav", ANNOTATED, comment=f"{DECLARED}; second"),
+        ],
         gt=["x.mp3"],
     )
     (entry,) = r.entries
     assert entry["sandbox"]["uncertainty"]["note"] == "first"
-    assert r.skips == ["skip x.wav: duplicate-ground-truth-match"]
+    assert r.skips == ["skip x.wav: duplicate-basename"]
 
 
 def test_duplicate_match_is_reserved_by_a_skipped_clip(run):
-    r = run([clip("x.mp3", [(0.0, 0.0), END]), clip("x.wav", ANNOTATED)], gt=["x.mp3"])
+    r = run([clip("x.mp3", ANNOTATED), clip("x.wav", ANNOTATED, comment=DECLARED)], gt=["x.mp3"])
     assert r.entries == []
     assert r.skips == [
-        "skip x.mp3: no-declared-downbeat-anchor",
-        "skip x.wav: duplicate-ground-truth-match",
+        "skip x.mp3: no-declared-downbeat-bar",
+        "skip x.wav: duplicate-basename",
     ]
 
 
+def test_without_match_identifiers_are_the_audio_basename(run):
+    r = run(
+        [
+            clip("x.wav", ANNOTATED, comment=f"{DECLARED}; first"),
+            clip("x.wav", ANNOTATED, comment=f"{DECLARED}; second"),
+            clip("not-in-any-ground-truth.wav", ANNOTATED, comment=DECLARED),
+        ],
+        match=False,
+    )
+    assert r.code == 0
+    assert [e["file_metadata"]["identifiers"] for e in r.entries] == [
+        {
+            "basename": "not-in-any-ground-truth.wav",
+            "local_path": "not-in-any-ground-truth.wav",
+            "track_id": "not-in-any-ground-truth.wav",
+        },
+        {"basename": "x.wav", "local_path": "x.wav", "track_id": "x.wav"},
+    ]
+    assert r.entries[1]["sandbox"]["uncertainty"]["note"] == "first"
+    assert r.skips == ["skip x.wav: duplicate-basename"]
+    assert "unmatched-ground-truth" not in r.stderr
+
+
 def test_entries_sorted_by_ground_truth_filename(run):
-    r = run([clip("b.wav", ANNOTATED), clip("a.wav", ANNOTATED)])
+    r = run(
+        [clip("b.wav", ANNOTATED, comment=DECLARED), clip("a.wav", ANNOTATED, comment=DECLARED)]
+    )
     assert [e["file_metadata"]["identifiers"]["basename"] for e in r.entries] == ["a.wav", "b.wav"]
 
 
 def test_zero_records_writes_empty_document(run):
-    r = run([clip("x.wav", [(0.0, 0.0), END])])
+    r = run([clip("x.wav", ANNOTATED)])
     assert r.code == 0
     assert r.out.read_bytes() == b'{\n  "entries": []\n}\n'
 
@@ -433,13 +727,10 @@ def test_zero_records_writes_empty_document(run):
 
 
 def test_rerun_is_byte_identical_and_check_passes(run):
-    clips = [
-        clip(
-            "x.wav", [(0.0, 0.0), (16.0, 7.5), (80.0, 37.49), (144.0, 67.5), END], comment="unc=low"
-        )
-    ]
+    clips = [clip("x.wav", [(0.0, 0.0), (80.0, 37.49), END], comment="unc=low; bar=5-41")]
     first = run(clips)
     first_bytes = first.out.read_bytes()
+    assert len(first.entries) == 1
     second = run(clips)
     assert second.out.read_bytes() == first_bytes
     checked = run(clips, extra=("--check",))
@@ -448,7 +739,7 @@ def test_rerun_is_byte_identical_and_check_passes(run):
 
 
 def test_check_missing_output(run):
-    r = run([clip("x.wav", ANNOTATED)], extra=("--check",))
+    r = run([clip("x.wav", ANNOTATED, comment=DECLARED)], extra=("--check",))
     assert r.code == 1
     assert not r.out.exists()
     assert r.stderr.splitlines()[-1].endswith("is missing")
@@ -457,7 +748,7 @@ def test_check_missing_output(run):
 def test_check_entry_count_mismatch(run, tmp_path):
     seeded = b'{\n  "entries": []\n}\n'
     (tmp_path / "daw-oracle-annotations.json").write_bytes(seeded)
-    checked = run([clip("x.wav", ANNOTATED)], extra=("--check",))
+    checked = run([clip("x.wav", ANNOTATED, comment=DECLARED)], extra=("--check",))
     assert checked.code == 1
     assert checked.stderr.splitlines()[-1].endswith("differs at entry x.wav")
     assert checked.out.read_bytes() == seeded
@@ -466,19 +757,19 @@ def test_check_entry_count_mismatch(run, tmp_path):
 def test_check_non_document_output(run, tmp_path):
     seeded = b'"seeded"\n'
     (tmp_path / "daw-oracle-annotations.json").write_bytes(seeded)
-    checked = run([clip("x.wav", ANNOTATED)], extra=("--check",))
+    checked = run([clip("x.wav", ANNOTATED, comment=DECLARED)], extra=("--check",))
     assert checked.code == 1
     assert checked.stderr.splitlines()[-1].endswith("is not an annotations document")
     assert checked.out.read_bytes() == seeded
 
 
 def test_check_changed_output(run):
-    r = run([clip("x.wav", ANNOTATED)])
+    r = run([clip("x.wav", ANNOTATED, comment=DECLARED)])
     doc = r.doc
     doc["entries"][0]["sandbox"]["verified_bpm"] = 127.0
     stale = (json.dumps(doc, sort_keys=True, indent=2) + "\n").encode()
     r.out.write_bytes(stale)
-    checked = run([clip("x.wav", ANNOTATED)], extra=("--check",))
+    checked = run([clip("x.wav", ANNOTATED, comment=DECLARED)], extra=("--check",))
     assert checked.code == 1
     assert checked.stderr.splitlines()[-1].endswith("differs at entry x.wav")
     assert checked.out.read_bytes() == stale
@@ -524,10 +815,14 @@ def test_unreadable_dawproject(tmp_path, capsys, case):
     elif case == "parse-error":
         write_dawproject(dawproject, "<Project><Unclosed></Project>")
     elif case == "missing-attribute":
-        xml = project_xml([clip("x.wav", ANNOTATED)]).replace('contentTime="7.5"', "")
+        xml = project_xml([clip("x.wav", ANNOTATED, comment=DECLARED)]).replace(
+            'contentTime="120.0"', ""
+        )
         write_dawproject(dawproject, xml)
     elif case == "missing-application":
-        write_dawproject(dawproject, project_xml([clip("x.wav", ANNOTATED)], application=False))
+        write_dawproject(
+            dawproject, project_xml([clip("x.wav", ANNOTATED, comment=DECLARED)], application=False)
+        )
     code, err = _call(capsys, dawproject, match, out)
     assert code == 2
     assert len(err.splitlines()) == 1
@@ -549,7 +844,7 @@ def test_unreadable_dawproject(tmp_path, capsys, case):
 def test_invalid_match_file(tmp_path, capsys, payload):
     out, seeded = _seed_output(tmp_path)
     dawproject = write_dawproject(
-        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED)])
+        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED, comment=DECLARED)])
     )
     match = tmp_path / "gt.json"
     if payload is not None:
@@ -562,7 +857,7 @@ def test_invalid_match_file(tmp_path, capsys, payload):
 
 def test_output_directory_missing(tmp_path, capsys):
     dawproject = write_dawproject(
-        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED)])
+        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED, comment=DECLARED)])
     )
     match = write_ground_truth(tmp_path / "gt.json", ["x.wav"])
     code, err = _call(capsys, dawproject, match, tmp_path / "absent" / "out.json")
@@ -575,7 +870,7 @@ def test_output_directory_missing(tmp_path, capsys):
 )
 def test_unwritable_output_leaves_nothing_behind(tmp_path, capsys):
     dawproject = write_dawproject(
-        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED)])
+        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED, comment=DECLARED)])
     )
     match = write_ground_truth(tmp_path / "gt.json", ["x.wav"])
     locked = tmp_path / "locked"
@@ -630,7 +925,7 @@ def test_subprocess_run_touches_no_protected_path(tmp_path):
     corpus.mkdir()
     dawproject = write_dawproject(
         tmp_path / "corpus.dawproject",
-        project_xml([clip("x.wav", ANNOTATED), clip("y.wav", [(0.0, 0.0), END])]),
+        project_xml([clip("x.wav", ANNOTATED, comment=DECLARED), clip("y.wav", ANNOTATED)]),
     )
     match = write_ground_truth(tmp_path / "gt.json", ["x.wav", "y.wav"])
     out = corpus / "daw-oracle-annotations.json"
@@ -658,7 +953,7 @@ def test_subprocess_run_touches_no_protected_path(tmp_path):
     after = _snapshot()
 
     assert proc.returncode == 0, proc.stderr
-    assert proc.stderr.splitlines() == ["skip y.wav: no-declared-downbeat-anchor"]
+    assert proc.stderr.splitlines() == ["skip y.wav: no-declared-downbeat-bar"]
     assert len(json.loads(out.read_text())["entries"]) == 1
     assert sorted(p.name for p in corpus.iterdir()) == ["daw-oracle-annotations.json"]
     assert after == before
@@ -676,7 +971,7 @@ def test_run_writes_no_bytecode_without_the_environment_flag(tmp_path):
     for name in ("dawproject-annotations.py", "dawproject-bpm.py"):
         (bin_dir / name).write_bytes((REPO_ROOT / "scripts" / name).read_bytes())
     dawproject = write_dawproject(
-        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED)])
+        tmp_path / "corpus.dawproject", project_xml([clip("x.wav", ANNOTATED, comment=DECLARED)])
     )
     match = write_ground_truth(tmp_path / "gt.json", ["x.wav"])
     env = {

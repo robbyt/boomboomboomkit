@@ -424,7 +424,7 @@ oracle-generate:
 		--match Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json \
 		> "$(OA300_CORPUS_PATH)/daw-oracle.json"
 
-## oracle-generate-annotations: Story 15.8: write daw-oracle-annotations.json (reference downbeat, verified span, verified BPM, declared metrical level, uncertainty) from the bar-line warp markers in the corpus dawproject. Clips without the convention are skipped with one stderr line each; exit 0 on partial or zero coverage. Operator-local next to daw-oracle.json, never committed. Develop-only; fails on a main-only checkout (the extractor lives in scripts/).
+## oracle-generate-annotations: Story 15.8: write daw-oracle-annotations.json (reference downbeat, verified span, verified BPM, declared metrical level, uncertainty) from the clip offsets and `bar=<N>` track comments in the corpus dawproject, where a clip is slid so a verified downbeat sits on arrangement bar N. Clips without a bar comment are skipped with one stderr line each; exit 0 on partial or zero coverage. Operator-local next to daw-oracle.json, never committed. Develop-only; fails on a main-only checkout (the extractor lives in scripts/).
 .PHONY: oracle-generate-annotations
 oracle-generate-annotations:
 	uv run scripts/dawproject-annotations.py \
