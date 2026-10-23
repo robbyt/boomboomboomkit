@@ -345,7 +345,7 @@ development_status:
   epic-11-retrospective: done
 
   # Epic 15: Rekordbox-informed accuracy improvements (charter only; earlier Epic 15 stories are tracked in their story files).
-  15-10-beat-grid-analyzed-span-and-grid-queries: review
+  15-10-beat-grid-analyzed-span-and-grid-queries: done
 
 action_items:
   - epic: 9
