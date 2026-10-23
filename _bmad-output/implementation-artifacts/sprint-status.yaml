@@ -1,5 +1,5 @@
 # generated: 2026-03-31
-# last_updated: 2026-07-21
+# last_updated: 2026-08-02
 # project: BoomBoomBoomKit
 # project_key: NOKEY
 # tracking_system: file-system
@@ -343,6 +343,21 @@ development_status:
   11-5-docc-catalog-with-transclude-generator-and-articles: done
   11-6-demo-strategy-popovers-wired-to-documentedcase-docs: review
   epic-11-retrospective: done
+  epic-12: in-progress
+  12-1-consumer-specifiable-tempo-search-range: done
+  12-2-style-classifier-scope-or-defer-decision: done
+  12-3-annotation-version-tagging-and-octave-error-metric: done
+  12-4-tempocnn-reference-baseline-gate-0: done
+  12-5-pipeline-differential-and-cause-ranking: done
+  12-6-metrical-level-convention-and-ground-truth-rule: done
+  12-7-band-balanced-258-track-corpus: backlog
+  12-8-bin-schema-public-contract: backlog
+  12-9-bundle-gate-definition: backlog
+  epic-12-retrospective: optional
+  epic-13: backlog
+  epic-13-retrospective: optional
+  epic-14: backlog
+  epic-14-retrospective: optional
 
   # Epic 15: Rekordbox-informed accuracy improvements (charter only; earlier Epic 15 stories are tracked in their story files).
   15-10-beat-grid-analyzed-span-and-grid-queries: done

@@ -1,0 +1,27 @@
+{
+  "story": "12.4",
+  "purpose": "Gate 0 reference-baseline weights provenance (PRD section 6). Weights live OUTSIDE git in TEMPOCNN_WEIGHTS_DIR; this committed record pins their identity. The harness (tempocnn_baseline.py) refuses to run on a checksum mismatch.",
+  "model_variant": {
+    "file": "ismir2018.h5",
+    "paper_name": "The single-step tempo CNN of Schreiber and Mueller, ISMIR 2018 ('A Single-Step Approach to Musical Tempo Estimation Using a Convolutional Neural Network'), the network of Section 3.2 / Figure 2 (2,921,042 trainable parameters, 256 tempo classes covering integer BPM 30 to 285).",
+    "why_this_variant": "It is the variant whose GiantSteps figure is traced to primary text on BOTH annotation sets: Acc1 73.0 on the original Knees et al. 2015 annotations (2018 paper, Table 1b) and Acc1 82.5 on the revised crowd-sourced annotations (Schreiber and Mueller 2019, arXiv:1903.10839, Table 4a 'Literature' row, 661 tracks). Our ground truth derives from the revised annotations, so 82.5 is the aligned P input."
+  },
+  "source": {
+    "repository_url": "https://github.com/hendriks73/tempo-cnn",
+    "note": "Author's AGPL-3.0 reference implementation repository (develop-only naming; public-facing surfaces cite the academic papers instead).",
+    "commit": "482c64ad2e01b61d39bc161b796e3c2a1afaf67e",
+    "path_in_repository": "tempocnn/models/ismir2018.h5",
+    "latest_release_tag_at_retrieval": "v0.0.8",
+    "license": "AGPL-3.0",
+    "retrieval_date": "2026-08-07",
+    "retrieval_method": "curl of the raw file at the pinned commit URL (raw.githubusercontent.com/.../482c64ad2e01b61d39bc161b796e3c2a1afaf67e/tempocnn/models/ismir2018.h5); SHA-256 and git blob SHA-1 both verified against the commit's tree entry"
+  },
+  "files": {
+    "ismir2018.h5": {
+      "sha256": "622751f2c5395028dee0554be8c9292081191b167135eac35de7ff160fdd8973",
+      "size_bytes": 11868088,
+      "git_blob_sha1": "ad6a6d7a81afe80f485002b270ab812e0cab4228"
+    }
+  },
+  "model_file": "ismir2018.h5"
+}
