@@ -274,13 +274,14 @@ struct DownbeatStrategyContainmentTests {
     let downgraded = BeatGrid(
       beats: grid.beats, downbeats: grid.downbeats, estimatedTempo: grid.estimatedTempo,
       confidence: grid.confidence, tempoAgreement: grid.tempoAgreement,
-      gridOrigin: grid.gridOrigin, coverage: grid.coverage, schemaVersion: 1)
+      gridOrigin: grid.gridOrigin, coverage: grid.coverage, schemaVersion: 1,
+      analysisSpan: grid.analysisSpan)
     #expect(downgraded.schemaVersion == 1)
     let restamped = BeatGrid(
       beats: downgraded.beats, downbeats: downgraded.downbeats,
       estimatedTempo: downgraded.estimatedTempo, confidence: downgraded.confidence,
       tempoAgreement: downgraded.tempoAgreement, gridOrigin: downgraded.gridOrigin,
-      coverage: downgraded.coverage, schemaVersion: 3)
+      coverage: downgraded.coverage, schemaVersion: 3, analysisSpan: downgraded.analysisSpan)
     #expect(restamped == grid, "memberwise init perturbed a non-version field")
   }
 }

@@ -13,7 +13,7 @@ imperative voice; trailing `(reference: Story X-Y)` where origin matters.
 
 **Public value types** (`Sources/BoomBoomBoomKit/`): `BeatGrid`, `BeatGridAnchor`,
 `BeatGridAnchorSource`, `BeatGridAnchorRepositionMode`, `BeatGridTempoLock`,
-`BeatGridCoverage`, `BeatTimestamp`, `DownbeatResult`, `DownbeatEstimate`,
+`BeatGridCoverage`, `BeatGridAnalysisSpan`, `PlayableBeatGrid`, `BeatTimestamp`, `DownbeatResult`, `DownbeatEstimate`,
 `MeterEstimate`, `MeterSource`, `DownbeatStrategy`, `TempoAgreement`,
 `CombinedAnalysisResult`, plus the two typed-evidence structs below and the public
 `LUFSReport`. **Internal analyzers** (do NOT promote without a named story):
@@ -67,9 +67,20 @@ flip is documented future work with a concrete gate (Epic 8 retro AI-1); do not 
   is always `gridOrigin.presentationTime + (60/estimatedTempo)*n`, NEVER the spacing of
   `BeatGrid.beats` (the DP tracker can drop/double a beat). This is load-bearing after a
   tempo lock (`BeatGridTempoLock` / `Options.beatGridTempoLock`) or auto-refine
-  (`Options.refineBeatGridTempo`): both override `estimatedTempo` and re-anchor
-  `gridOrigin` while leaving `beats` at their originally-tracked spacing, so `beats` and
-  `estimatedTempo` intentionally describe different tempos.
+  (`Options.refineBeatGridTempo`): both override `estimatedTempo` while leaving `beats` at
+  their originally-tracked spacing, so `beats` and `estimatedTempo` intentionally describe
+  different tempos. A tempo lock does NOT re-anchor `gridOrigin` (it keeps the anchor time
+  and changes only the period, `AudioAnalysisService.applyTempoLock`); only refinement
+  selects the origin at the new tempo. Query the playable grid through
+  `BeatGrid.playableGrid` (`PlayableBeatGrid`, Story 15.10), the one library
+  implementation of the formula; do not re-implement it in a consumer.
+- **Gate bar-snap on `BeatGrid.hasTrustedBarOrigin`**: a `.manual` origin, or a
+  `.downbeat` origin with `downbeats == .detected`. Never `source == .downbeat` alone.
+- **`coverage` is the request, `analysisSpan` is the realized window** (Story 15.10):
+  integer decoded-sample bounds from the energy transition, plus the `maxSeconds`-capped
+  decoded length. Both producers populate it; it is `nil` for hand-built and legacy grids
+  and folds to `nil` on any unreadable payload. `offset(by:)` leaves it unchanged; every
+  other `BeatGrid` rebuild forwards it (W52).
 - **Timestamps are decoded-PCM-relative and already playback-aligned** (AVFoundation
   removes codec priming on decode). Apply device-latency or manual nudges via
   `BeatGrid.offset(by:)`, never by subtracting priming yourself.

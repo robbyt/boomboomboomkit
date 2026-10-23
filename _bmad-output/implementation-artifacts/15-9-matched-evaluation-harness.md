@@ -10,6 +10,8 @@ Summary: Build a reproducible, develop-only harness that scores BoomBoomBoomKit,
 ## Inherited from Story 15.7
 
 - The twelve-fixture comparison of the Story 15.7 joint tempo and phase fit against the `BeatGridAnalyzer` comb path on actual grid timestamps (the synthetic click fixtures of `evidence/timing/TimingProbeTests.swift`, Phase 3 absolute-phase convention, per-fixture numbers under `_bmad-output/perf-baselines/`) moved here from Story 15.7 AC #5. Story 15.7 records only the fit's own anchor residual on clean clicks (about one hop early).
+- From Story 15.10 (2026-10-23): the comb refit's best phase as an optional comparison variant: a grid anchored at that phase rather than at the selected raw beat. `BeatGridAnalyzer.combSupport` (the best-phase-bin loop at the end of the function) finds the best phase bin and returns only its mean support; the bin itself is discarded, and Story 15.10 left it so.
+- From Story 15.10: per-track rows may split timing error by `BeatGrid.analysisSpan`, separating error inside `[startSeconds, endSeconds)` (measured) from error in the extrapolated regions before and after it.
 
 ## Key Design Decisions
 

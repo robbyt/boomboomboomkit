@@ -171,6 +171,9 @@ public struct AudioAnalysisService {
     /// Callers computing a dynamic budget must not let it underflow to 0
     /// expecting a cheap call: pre-8.2 a non-positive cap read zero frames,
     /// post-8.2 it reads (and analyzes) the entire file.
+    ///
+    /// The realized cap is observable on a beat grid as
+    /// ``BeatGridAnalysisSpan/decodedSampleCount`` (``BeatGrid/analysisSpan``).
     public var maxSeconds: Double = 120
 
     /// Analysis intensity level (default: `.default`, which is level 7).
@@ -371,6 +374,9 @@ public struct AudioAnalysisService {
     /// trigger a second, coverage-length onset pass (O(track)); use them for
     /// waveform display or QA, not for sync math. ``BeatGridCoverage/fullTrack``
     /// is bounded by ``maxSeconds`` like every decode.
+    ///
+    /// The realized window is observable as `startSample..<endSample` on the
+    /// grid's ``BeatGrid/analysisSpan``.
     public var beatGridCoverage: BeatGridCoverage = .analysisWindow
 
     /// Opt-in downbeat (bar-start) detection (Story 8.5a). Default `false` keeps
@@ -383,7 +389,8 @@ public struct AudioAnalysisService {
     /// ``BeatGridAnchorSource/downbeat``), or ``DownbeatResult/noneDetected`` — an
     /// honest abstain — when the rhythmic evidence is weak. A wrong downbeat on a
     /// live deck is worse than no downbeat, so the estimator abstains rather than
-    /// guess; gate bar-snap on `gridOrigin.source == .downbeat`. Ignored by
+    /// guess; gate bar-snap on ``BeatGrid/hasTrustedBarOrigin``, which holds for a
+    /// `.manual` origin, or a `.downbeat` origin when `downbeats` is `.detected`. Ignored by
     /// ``analyzeBPM(url:options:)`` / ``analyzeLUFS(url:options:)``.
     public var detectDownbeats: Bool = false
 

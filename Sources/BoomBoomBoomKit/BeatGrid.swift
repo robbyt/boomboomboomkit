@@ -31,9 +31,18 @@
 /// or **auto-refined** (`AudioAnalysisService.Options.refineBeatGridTempo`): both
 /// replace ``estimatedTempo`` with an independently-derived value while leaving the
 /// raw ``beats`` at their originally-tracked spacing, so ``beats`` and
-/// ``estimatedTempo`` deliberately describe *different* tempos. ``gridOrigin`` is
-/// re-anchored to the new tempo; ``beats`` are not. The canonical playable grid is
-/// always ``gridOrigin`` + ``estimatedTempo`` — never the spacing of ``beats``.
+/// ``estimatedTempo`` deliberately describe *different* tempos. A tempo lock keeps
+/// ``gridOrigin`` where it was and changes only the period; auto-refinement selects
+/// ``gridOrigin`` at the refined tempo. Neither re-spaces ``beats``. The canonical
+/// playable grid is always ``gridOrigin`` + ``estimatedTempo``, never the spacing
+/// of ``beats``. ``playableGrid`` builds it as a ``PlayableBeatGrid`` with pure
+/// ordinal and time queries.
+///
+/// ## What was analyzed
+/// ``coverage`` records the span that was requested; ``analysisSpan`` records the
+/// decoded-sample window the onset analysis actually covered and the length of the
+/// decoded buffer, so a consumer can tell a measured beat position from an
+/// extrapolated one.
 ///
 /// ## Applying a presentation offset
 /// Timestamps are decoded-PCM-relative; AVFoundation already removes declared AAC/MP3
@@ -155,6 +164,10 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// What span the detected ``beats`` cover (always the ``BeatGridCoverage/sanitized``
   /// form). The mid-track contract is ``gridOrigin`` + ``estimatedTempo``
   /// regardless of this; ``coverage`` only describes the detected-beat array.
+  ///
+  /// This is the *request*. The window the analysis actually covered (which starts
+  /// at the energy transition and is capped by the decoded buffer) is
+  /// ``analysisSpan``.
   public let coverage: BeatGridCoverage
 
   /// The persisted-shape **semantic** contract version this grid was produced
@@ -221,6 +234,34 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// is derivable from `CombinedAnalysisResult.bpm.bpm` and ``estimatedTempo``.
   public let tempoLockOctaveFactor: Int
 
+  /// The decoded-sample window the onset analysis covered and the decoded buffer
+  /// length, or `nil` when unknown (Story 15.10).
+  ///
+  /// Both producers populate it: the default ``BeatGridCoverage/analysisWindow``
+  /// pass and the ``BeatGridCoverage/window(seconds:)`` /
+  /// ``BeatGridCoverage/fullTrack`` coverage pass. It is `nil` for a hand-built grid,
+  /// for a grid decoded from a payload written before this field existed, and for a
+  /// payload whose span is unreadable. In analyzer output, on the decoded-PCM
+  /// timeline before any ``offset(by:)``, detected ``beats`` lie inside the span,
+  /// and a ``playableGrid`` time outside it is extrapolated, not measured. After an
+  /// ``offset(by:)`` (which leaves the span alone), subtract the applied offset from
+  /// a presentation time before comparing it with the span.
+  ///
+  /// ## Lenient decode
+  /// ``init(from:)`` folds **any** unreadable span to `nil` and decodes the rest of
+  /// the grid: a wrong JSON type, a missing nested key, an out-of-range integer, or
+  /// values that fail the ``BeatGridAnalysisSpan`` coherence rules. This is broader
+  /// than the ``gridOrigin`` policy (a structurally malformed anchor throws) because
+  /// the span is optional provenance: losing it costs a consumer the
+  /// measured-versus-extrapolated distinction, never the grid. A value is never
+  /// clamped into range. An absent key decodes as `nil`, and a `nil` span is not
+  /// encoded, so a grid without one serializes exactly as it did before this field
+  /// existed (no ``schemaVersion`` bump: the field is additive and optional).
+  ///
+  /// ``offset(by:)`` leaves the span unchanged: it shifts presentation times, and
+  /// the analyzed audio did not move. Every other forwarder carries it.
+  public let analysisSpan: BeatGridAnalysisSpan?
+
   // MARK: Init
 
   /// Creates a beat grid, clamping its float fields finite and recording the
@@ -259,7 +300,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///     only because a `.manual` origin is inherited from whoever wrote the payload
   ///     (typically the consumer's own cache), unlike `.downbeat` which is
   ///     cross-checked against detection. That asymmetry is why rule (c) admits a
-  ///     decoded free-standing `.manual` origin.
+  ///     decoded free-standing `.manual` origin. ``hasTrustedBarOrigin`` implements
+  ///     this gate.
   ///   - coverage: What span `beats` cover (sanitized on the way in).
   ///   - schemaVersion: The persisted semantic-contract version. Defaulted to
   ///     ``currentSchemaVersion`` so every producer auto-stamps the current
@@ -268,6 +310,10 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   ///     to the lock target (`1` no shift / `2` doubled / `-2` halved). Defaulted
   ///     to `1` so every non-lock producer is byte-identical; stored faithfully
   ///     (not range-validated — like ``schemaVersion``).
+  ///   - analysisSpan: The decoded-sample window the onset analysis covered, or
+  ///     `nil` when unknown. Defaulted to `nil` (a hand-built grid has no analyzed
+  ///     span). Already coherent by construction (``BeatGridAnalysisSpan`` is
+  ///     failable), so it is stored as given.
   public init(
     beats: [BeatTimestamp],
     downbeats: DownbeatResult,
@@ -277,10 +323,12 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     gridOrigin: BeatGridAnchor?,
     coverage: BeatGridCoverage,
     schemaVersion: Int = BeatGrid.currentSchemaVersion,
-    tempoLockOctaveFactor: Int = 1
+    tempoLockOctaveFactor: Int = 1,
+    analysisSpan: BeatGridAnalysisSpan? = nil
   ) {
     self.schemaVersion = schemaVersion
     self.tempoLockOctaveFactor = tempoLockOctaveFactor
+    self.analysisSpan = analysisSpan
     self.beats = beats
     self.downbeats = downbeats
     self.estimatedTempo = BeatGridClamp.clampNonNegative(estimatedTempo)
@@ -350,7 +398,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       // decoded-then-restamped grid keeps its original version, not the current
       // one.
       schemaVersion: schemaVersion,
-      tempoLockOctaveFactor: tempoLockOctaveFactor)
+      tempoLockOctaveFactor: tempoLockOctaveFactor,
+      analysisSpan: analysisSpan)
   }
 
   /// Returns a copy of this grid with both ``estimatedTempo`` and
@@ -374,7 +423,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       gridOrigin: gridOrigin,
       coverage: coverage,
       schemaVersion: schemaVersion,
-      tempoLockOctaveFactor: newFactor)
+      tempoLockOctaveFactor: newFactor,
+      analysisSpan: analysisSpan)
   }
 
   // MARK: Codable
@@ -398,7 +448,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   /// (absent → 1; it cannot retroactively distinguish a true v1 — the field only
   /// versions forward). The synthesized encoder always writes the non-optional
   /// fields, so round-trips are exact; the decode is merely lenient about a
-  /// partial payload.
+  /// partial payload. ``analysisSpan`` is the most lenient field: absent, `null`,
+  /// or unreadable in any way, it decodes as `nil` and never throws.
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let beats = try container.decode([BeatTimestamp].self, forKey: .beats)
@@ -428,6 +479,14 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
     // folded here (it is inert diagnostic provenance, not auto-sync input).
     let tempoLockOctaveFactor =
       try container.decodeIfPresent(Int.self, forKey: .tempoLockOctaveFactor) ?? 1
+    // Story 15.10: optional provenance, decoded leniently. `try?` folds EVERY
+    // failure (wrong type, missing nested key, integer overflow, or the span's
+    // own coherence throw) to `nil` so the rest of the grid still decodes; an
+    // absent key or explicit `null` is `nil` too. Broader than the `gridOrigin`
+    // policy above by design (see ``analysisSpan``). Additive optional field: no
+    // `schemaVersion` bump, mirroring `tempoLockOctaveFactor`.
+    let analysisSpan = try? container.decodeIfPresent(
+      BeatGridAnalysisSpan.self, forKey: .analysisSpan)
     self.init(
       beats: beats,
       downbeats: downbeats,
@@ -437,7 +496,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       gridOrigin: gridOrigin,
       coverage: coverage,
       schemaVersion: schemaVersion,
-      tempoLockOctaveFactor: tempoLockOctaveFactor)
+      tempoLockOctaveFactor: tempoLockOctaveFactor,
+      analysisSpan: analysisSpan)
   }
 
   // MARK: CustomStringConvertible
@@ -449,7 +509,8 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
       ?? "none"
     return "BeatGrid(beats: \(beats.count), downbeats: \(downbeats), "
       + "tempo: \(estimatedTempo), conf: \(confidence), "
-      + "agreement: \(tempoAgreement), origin: \(origin), coverage: \(coverage))"
+      + "agreement: \(tempoAgreement), origin: \(origin), coverage: \(coverage), "
+      + "span: \(analysisSpan.map { "\($0)" } ?? "none"))"
   }
 }
 
@@ -472,8 +533,10 @@ extension BeatGrid {
   /// anchor), or a shift that nets to zero after clamping is a no-op.
   ///
   /// ``estimatedTempo``, ``confidence``, ``tempoAgreement``, ``coverage`` (which describes
-  /// the analyzed *span length*, not an absolute start time), ``schemaVersion``, and
-  /// ``tempoLockOctaveFactor`` are unchanged — `offset` shifts presentation coordinates only.
+  /// the analyzed *span length*, not an absolute start time), ``schemaVersion``,
+  /// ``tempoLockOctaveFactor``, and ``analysisSpan`` (integer decoded-sample bounds:
+  /// the analyzed audio did not move) are unchanged: `offset` shifts presentation
+  /// coordinates only.
   ///
   /// Use for output-device latency compensation (e.g. `AVAudioEngine.outputLatency`) or a
   /// manual nudge. Do **not** use it for codec encoder priming: AVFoundation already
@@ -572,7 +635,8 @@ extension BeatGrid {
       gridOrigin: shiftedOrigin,
       coverage: coverage,
       schemaVersion: schemaVersion,
-      tempoLockOctaveFactor: tempoLockOctaveFactor)
+      tempoLockOctaveFactor: tempoLockOctaveFactor,
+      analysisSpan: analysisSpan)
   }
 }
 
@@ -683,7 +747,8 @@ extension BeatGrid {
       gridOrigin: newOrigin,
       coverage: coverage,
       schemaVersion: schemaVersion,
-      tempoLockOctaveFactor: tempoLockOctaveFactor)
+      tempoLockOctaveFactor: tempoLockOctaveFactor,
+      analysisSpan: analysisSpan)
   }
 
   /// Index of the detected beat nearest `time` (`argmin |beat.presentationTime − time|`),
@@ -702,5 +767,47 @@ extension BeatGrid {
       }
     }
     return bestIdx
+  }
+}
+
+// MARK: - Playable grid and bar-origin trust (Story 15.10)
+
+extension BeatGrid {
+
+  /// The canonical playable grid,
+  /// `gridOrigin.presentationTime + (60.0 / estimatedTempo) * n`, as a
+  /// ``PlayableBeatGrid`` with ordinal `0` at ``gridOrigin``.
+  ///
+  /// `nil` when there is no ``gridOrigin`` or ``estimatedTempo`` is the `0.0`
+  /// "no valid estimate" sentinel. Use it instead of iterating ``beats`` for beat
+  /// math (see "Extrapolate from the anchor" above). An ordinal on this grid is not
+  /// ``BeatGridAnchor/beatIndex``; a time outside ``analysisSpan`` is extrapolated.
+  public var playableGrid: PlayableBeatGrid? {
+    guard let origin = gridOrigin else { return nil }
+    return PlayableBeatGrid(originTime: origin.presentationTime, bpm: estimatedTempo)
+  }
+
+  /// Whether ``gridOrigin`` may be treated as a bar line (beat 1).
+  ///
+  /// `true` when the origin is ``BeatGridAnchorSource/manual`` (a human asserted
+  /// it), or when it is ``BeatGridAnchorSource/downbeat`` AND ``downbeats`` is
+  /// ``DownbeatResult/detected(estimate:)``. A `.downbeat` source alone is not
+  /// enough: on a decoded payload `source` is untrusted provenance and is
+  /// corroborated by the detection outcome. Every other origin (phase-consistency,
+  /// strongest, or first beat) marks a beat, not a bar, and so does a missing one.
+  ///
+  /// Pair it with ``PlayableBeatGrid/beatInBar(ofBeat:beatsPerBar:)``; the meter
+  /// comes from the caller (``MeterEstimate/beatsPerBar`` for a detected downbeat).
+  public var hasTrustedBarOrigin: Bool {
+    guard let origin = gridOrigin else { return false }
+    switch origin.source {
+    case .manual:
+      return true
+    case .downbeat:
+      if case .detected = downbeats { return true }
+      return false
+    case .medianConsistentBeat, .strongestBeat, .firstBeat:
+      return false
+    }
   }
 }
