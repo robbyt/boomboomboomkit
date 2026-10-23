@@ -1,6 +1,6 @@
 # Story 15.2: Reproduce absolute grid-timing discrepancy in-tree with a recorded baseline
 
-Status: backlog
+Status: done (the env-gated baseline test landed in 6992589)
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
 Phase: 2 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.

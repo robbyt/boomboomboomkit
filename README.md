@@ -235,6 +235,7 @@ public struct BeatGrid: Sendable, Hashable, Codable, CustomStringConvertible {
   public let gridOrigin: BeatGridAnchor?     // the Rekordbox-style extrapolation anchor (nil if no beats)
   public let coverage: BeatGridCoverage      // .analysisWindow / .window(seconds:) / .fullTrack
   public let schemaVersion: Int              // persisted-shape semantic-contract version (currentSchemaVersion)
+  public let analysisSpan: BeatGridAnalysisSpan?  // decoded-sample window the analysis covered (nil if unknown)
 }
 ```
 
@@ -249,7 +250,36 @@ For beat math (continuous sync, sub-beat quantize), anchor on `gridOrigin` and e
 let t = anchor.presentationTime + (60.0 / grid.estimatedTempo) * Double(n)
 ```
 
+`grid.playableGrid` returns that grid as a `PlayableBeatGrid`, the library's one implementation of the formula, with ordinal `0` at `gridOrigin`. Its queries are pure and total: they return `nil` instead of trapping on non-finite input or ordinals beyond 2^53.
+
+```swift
+if let playable = grid.playableGrid {
+    let t = playable.time(ofBeat: 16)                 // originTime + (60.0 / bpm) * 16
+    let n = playable.nearestBeat(to: playheadSeconds)  // ties go to the earlier beat
+    let visible = playable.beats(in: 30.0...45.0)      // ordinal range, nil when empty or unresolved
+}
+
+// A consumer that stored only the origin time and tempo rebuilds the same grid:
+if let stored = PlayableBeatGrid(originTime: 1.337, bpm: 124.0) {
+    let firstBar = stored.time(ofBeat: 4)
+}
+```
+
+The initializer is failable: it returns `nil` for a non-finite origin, or for a `bpm` that is non-finite, non-positive, or so small (below about 3.3e-307) that `60.0 / bpm` overflows to infinity.
+
+An ordinal is a position on the playable grid. It is not `gridOrigin.beatIndex`, which indexes the raw `beats` array, and it is not a bar number: `beatInBar(ofBeat:beatsPerBar:)` maps it into a bar when the caller supplies the meter.
+
 `gridOrigin` is the single most-trustworthy reference beat, chosen by **phase consistency** (how well its neighbors line up to `time + k·period`), not by raw onset strength or "first beat". The dynamic-programming tracker can occasionally drop or double a beat, which corrupts sub-beat midpoints and accumulates sync error if you trust the whole array; the anchor + tempo is drift-free by construction on constant tempo. This is why `coverage` defaults to `.analysisWindow` (the beats span only the analysis window, at zero extra cost) — the anchor + tempo already covers mid-track positions. Request `.window(seconds:)` or `.fullTrack` (a second, O(track) onset pass) only when you actually need the detected-beat array across the file, e.g. for a waveform overlay.
+
+### Analyzed span
+
+`coverage` records the span that was requested. `analysisSpan` records what was analyzed: the decoded-sample window the onset analysis covered (`startSample` inclusive, `endSample` exclusive), the length of the decoded buffer (`decodedSampleCount`), and the `sampleRate`, with `startSeconds`, `endSeconds` and `decodedDurationSeconds` computed from them.
+
+- The window starts at the energy transition the analyzer found, not at `t = 0`. The default `.analysisWindow` covers `Options.analysisWindowSeconds` (default 30 s) from there; `.window(seconds:)` covers the requested seconds; `.fullTrack` runs to the end of the decoded buffer. Every window is capped at the end of the decoded buffer.
+- The decoded buffer is capped by `Options.maxSeconds` (default 120 s), so `.fullTrack` on a long file ends at the cap. Compare `decodedDurationSeconds` with `PCMBufferReader.fileDuration(url:)` to detect a truncated decode.
+- In analyzer output, on the decoded-PCM timeline before any `offset(by:)`, detected `beats` lie inside `[startSeconds, endSeconds)`. A playable-grid time outside that interval is extrapolated from the anchor and tempo, not measured. `offset(by:)` shifts presentation times and leaves the span alone, so after an offset subtract the applied offset from a presentation time before comparing it with the span.
+
+`analysisSpan` is `nil` for a hand-built grid, for a grid decoded from a payload written before the field existed, and for a payload whose span is unreadable or incoherent; decoding such a payload never throws, and the rest of the grid decodes. A grid with no span encodes exactly as before, and `schemaVersion` is unchanged. `offset(by:)` leaves the span unchanged, because the analyzed audio did not move.
 
 ### Tempo agreement
 
@@ -293,7 +323,7 @@ let grid = try AudioAnalysisService.analyzeBeatGrid(url: fileURL)   // pays its 
 
 ### Downbeats (opt-in)
 
-Downbeat detection is **off by default** (`downbeats` is `.notAttempted`). Set `Options.detectDownbeats = true` and `analyzeBeatGrid` / `analyze` run a conservative, fixed-4/4 downbeat-**phase** estimator: it estimates *which* beat-in-bar is beat 1 for percussive, constant-tempo, common-time music, and **abstains** (`.noneDetected`) when the rhythmic evidence is weak. A wrong downbeat on a live deck is worse than no downbeat, so it would rather say nothing than guess — gate bar-snap on `gridOrigin.source == .downbeat`.
+Downbeat detection is **off by default** (`downbeats` is `.notAttempted`). Set `Options.detectDownbeats = true` and `analyzeBeatGrid` / `analyze` run a conservative, fixed-4/4 downbeat-**phase** estimator: it estimates *which* beat-in-bar is beat 1 for percussive, constant-tempo, common-time music, and **abstains** (`.noneDetected`) when the rhythmic evidence is weak. A wrong downbeat on a live deck is worse than no downbeat, so it would rather say nothing than guess. Gate bar-snap on `grid.hasTrustedBarOrigin`, which is `true` for a `.manual` origin, or for a `.downbeat` origin when `downbeats` is `.detected`. A `.downbeat` source alone is not enough: on a decoded payload it is unverified provenance, and the detection outcome corroborates it.
 
 ```swift
 public struct DownbeatEstimate: Sendable, Hashable, Codable {

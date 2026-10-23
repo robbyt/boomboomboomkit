@@ -93,6 +93,11 @@ enum BeatGridAnalyzer {
   ///     adding this offset (Story 8.5: the resulting ``BeatTimestamp/presentationTime``
   ///     is decoded-PCM-relative — `t=0` is the decoded file start, with no
   ///     codec-priming subtraction).
+  ///   - windowSampleCount: Number of samples in the analysis window the caller cut
+  ///     at `windowStartSample` (Story 15.10). With `decodedSampleCount`, recorded
+  ///     on ``BeatGrid/analysisSpan``; `nil` (default) leaves the span `nil`.
+  ///   - decodedSampleCount: Number of samples in the decoded, `maxSeconds`-capped
+  ///     buffer the window was cut from (Story 15.10). See `windowSampleCount`.
   ///   - coverage: What span the supplied `onsetEnvelope` represents, recorded
   ///     verbatim on ``BeatGrid/coverage``. Defaults to
   ///     ``BeatGridCoverage/analysisWindow`` (the step-11 fan-out reuses the BPM
@@ -138,6 +143,11 @@ enum BeatGridAnalyzer {
     // The default matches `BPMAnalyzer.fftSize` and the pre-15.3 behaviour
     // for every call site that does not override it.
     fftSize: Int = BPMAnalyzer.fftSize,
+    // Story 15.10: the exact sample counts the caller holds, recorded on the grid as
+    // its `analysisSpan` when BOTH are supplied. Output-inert for every timing field.
+    // `nil` (default) for direct unit-level calls, which then carry no span.
+    windowSampleCount: Int? = nil,
+    decodedSampleCount: Int? = nil,
     coverage: BeatGridCoverage = .analysisWindow,
     subBands: [[Float]] = [],
     detectDownbeats: Bool = false,
@@ -457,6 +467,19 @@ enum BeatGridAnalyzer {
       downbeats = .notAttempted
     }
 
+    // Story 15.10: record the realized analysis window. Built from the caller's
+    // exact counts, never re-derived from the envelope length (which depends on the
+    // STFT framing). `nil` when either count is absent, or when the counts are
+    // incoherent (the span's failable init rejects them).
+    let analysisSpan: BeatGridAnalysisSpan? = {
+      guard let windowSampleCount, let decodedSampleCount else { return nil }
+      let (endSample, overflow) = windowStartSample.addingReportingOverflow(windowSampleCount)
+      guard !overflow else { return nil }
+      return BeatGridAnalysisSpan(
+        sampleRate: sampleRate, startSample: windowStartSample, endSample: endSample,
+        decodedSampleCount: decodedSampleCount)
+    }()
+
     return BeatGrid(
       beats: beats,
       downbeats: downbeats,
@@ -464,7 +487,8 @@ enum BeatGridAnalyzer {
       confidence: confidence,
       tempoAgreement: .notCompared,
       gridOrigin: gridOrigin,
-      coverage: coverage)
+      coverage: coverage,
+      analysisSpan: analysisSpan)
   }
 
   // MARK: - Downbeat-strategy dispatch (Story 8.11)
