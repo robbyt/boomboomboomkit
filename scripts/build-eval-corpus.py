@@ -155,8 +155,14 @@ def batches_dir(generation: str) -> Path:
     return generation_root(generation) / "batches"
 
 
+# File names inside one generation directory. Named once so the validator,
+# which takes its own state root, finds the same files as the global helpers.
+ANNOTATIONS_DIR_NAME = "annotations"
+ANNOTATION_LEDGER_NAME = "annotation-ledger.jsonl"
+
+
 def annotations_dir(generation: str) -> Path:
-    return generation_root(generation) / "annotations"
+    return generation_root(generation) / ANNOTATIONS_DIR_NAME
 
 
 def staging_dir(generation: str) -> Path:
@@ -168,7 +174,7 @@ def membership_path(generation: str) -> Path:
 
 
 def ledger_path(generation: str) -> Path:
-    return generation_root(generation) / "annotation-ledger.jsonl"
+    return generation_root(generation) / ANNOTATION_LEDGER_NAME
 
 
 def repass_dir(generation: str) -> Path:
@@ -213,6 +219,11 @@ def archive_path(digest: str, generated: str) -> Path:
 
 SURVEY_PATH = ML_TRAINING_DIR / "non-rekordbox-survey.json"
 TONY_SURVEY_PATH = ML_TRAINING_DIR / "tony-corpus" / "tony-survey.json"
+# The file training reads its tony.train/tony.val audio from. It carries tracks
+# the survey does not (the DAW-labelled files `ingest-dawproject-labels.py`
+# adds), so training paths come from here and the survey is only an artist
+# fallback.
+TONY_TRUTH_LABELS_PATH = ML_TRAINING_DIR / "tony-corpus" / "tony-truth-labels.json"
 OA300_GT_PATH = cc.OA300_GT_PATH
 SECONDARY_MANIFEST = ML_TRAINING_DIR / "non-rekordbox-secondary-supervised-manifest.json"
 UNSUPERVISED_MANIFEST = ML_TRAINING_DIR / "non-rekordbox-unsupervised-pretrain-manifest.json"
@@ -2064,10 +2075,24 @@ def _chain_failures(
     for i, line in enumerate(_ledger_lines(path)):
         try:
             ev = json.loads(line)
-        except json.JSONDecodeError as exc:
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             failures.append(f"{path.name} line {i} is not valid JSON: {exc}")
             return failures, events
-        if int(ev.get("index", -1)) != i:
+        # A malformed event is reported and left out of `events`, so the callers'
+        # own `int(...)` reads never see it. Raising here would escape through
+        # the training gate instead of failing it.
+        if not isinstance(ev, dict):
+            failures.append(f"{path.name} line {i} is not a JSON object")
+            prev = sha256_bytes(line)
+            continue
+        try:
+            index = int(ev.get("index", -1))
+            k = key(ev)
+        except (TypeError, ValueError, OverflowError) as exc:
+            failures.append(f"{path.name} event {i}: a numeric field is not a number ({exc})")
+            prev = sha256_bytes(line)
+            continue
+        if index != i:
             failures.append(f"{path.name} event {i} carries index {ev.get('index')!r}")
         if ev.get("prev") != prev:
             failures.append(
@@ -2078,7 +2103,6 @@ def _chain_failures(
         if status not in statuses:
             failures.append(f"{path.name} event {i}: unknown status {status!r}")
         else:
-            k = key(ev)
             allowed = transitions.get(current.get(k))
             if allowed is None or status not in allowed:
                 failures.append(
@@ -2413,10 +2437,89 @@ def load_state() -> HarnessState:
 
 
 def annotation_record_path(generation: str, ev: dict) -> Path | None:
+    return _annotation_record_path_in(generation_root(generation), ev)
+
+
+def _annotation_record_path_in(gen_dir: Path, ev: dict) -> Path | None:
     rel = ev.get("annotation_path")
     if not rel:
         return None
-    return generation_root(generation) / str(rel)
+    return gen_dir / str(rel)
+
+
+def _annotation_event_key(ev: dict) -> tuple[str, int]:
+    return str(ev.get("band")), int(ev.get("batch", -1))
+
+
+def annotation_ledger_failures(gen_dir: Path, commitment_sha: str) -> tuple[list[str], list[dict]]:
+    """Walk every event in the annotation event store under `gen_dir`, and check
+    every annotation record the events name.
+
+    Shared by `validate_state` and `validate_attestation`. The signoff check used
+    to recompute only the digest of the last line, so deleting or editing an
+    earlier event passed it. Paths come from `gen_dir` rather than the global
+    state root, so a caller that passes its own root is honored. The batch-record
+    check needs the committed draw sequence and stays in `validate_state`.
+
+    Returns (failures, the well-formed events in order).
+    """
+    failures, events = _chain_failures(
+        gen_dir / ANNOTATION_LEDGER_NAME,
+        LEDGER_STATUSES,
+        EVENT_TRANSITIONS,
+        commitment_sha,
+        _annotation_event_key,
+    )
+
+    # Records are immutable and versioned, so EVERY event's record (not only the
+    # latest) must still be present and intact.
+    ann_root = gen_dir / ANNOTATIONS_DIR_NAME
+    referenced: set[Path] = set()
+    for ev in events:
+        band, batch = _annotation_event_key(ev)
+        path = _annotation_record_path_in(gen_dir, ev)
+        if ev.get("status") == LEDGER_ABANDONED:
+            if path is not None:
+                failures.append(
+                    f"abandoned event for {band}/{batch} names an annotation record; an "
+                    "abandoned batch yields no members and contributes no annotations"
+                )
+            continue
+        if path is None:
+            failures.append(f"event for {band}/{batch} carries no annotation_path")
+            continue
+        if not _under(path, ann_root):
+            failures.append(f"annotation record for {band}/{batch} is outside {ann_root.name}/")
+            continue
+        if path in referenced:
+            failures.append(
+                f"annotation record {path.name} is referenced by two events; each event "
+                "carries its own immutable record path"
+            )
+        referenced.add(path)
+        if not path.exists():
+            failures.append(f"annotation record {path.name} recorded in the event store is missing")
+            continue
+        # A record replaced by a directory, or one that cannot be read, is a
+        # failure to report, not an error to raise through the training gate.
+        try:
+            digest = sha256_file(path)
+        except OSError as exc:
+            failures.append(f"annotation record {path.name} cannot be read: {exc}")
+            continue
+        if digest != ev.get("annotation_sha256"):
+            failures.append(
+                f"annotation record {path.name} does not match its event digest - it was "
+                "edited after ingest"
+            )
+    if ann_root.exists():
+        for p in sorted(ann_root.glob("*/*.json")):
+            if p not in referenced:
+                failures.append(
+                    f"annotation record {p.parent.name}/{p.name} is not referenced by any "
+                    "event - it was added, duplicated, or moved"
+                )
+    return failures, events
 
 
 def validate_state(state: HarnessState, require_audio: bool = False) -> list[str]:
@@ -2463,23 +2566,15 @@ def validate_state(state: HarnessState, require_audio: bool = False) -> list[str
         except HarnessError as exc:
             failures.append(f"batch records for {band}: {exc}")
 
-    # 4. Event store: chain, transitions, commitment binding.
-    chain_failures, events = _chain_failures(
-        ledger_path(gen),
-        LEDGER_STATUSES,
-        EVENT_TRANSITIONS,
-        state.commitment_sha,
-        lambda ev: (str(ev.get("band")), int(ev.get("batch", -1))),
-    )
-    failures.extend(chain_failures)
+    # 4 and 5. Event store (chain, transitions, commitment binding) and the
+    # annotation records it names (allowed root, uniqueness, digests, and the
+    # abandoned-batch rule). Shared with `validate_attestation`.
+    ledger_failures, events = annotation_ledger_failures(generation_root(gen), state.commitment_sha)
+    failures.extend(ledger_failures)
 
-    # 5. Annotation records: allowed root, uniqueness, digests, and the
-    # abandoned-batch invariant. Records are immutable and versioned, so EVERY
-    # event's record (not only the latest) must still be present and intact.
-    ann_root = annotations_dir(gen)
-    referenced: set[Path] = set()
+    # 5b. Every event's batch record, against the committed sequence (step 3).
     for ev in events:
-        band, batch = str(ev.get("band")), int(ev.get("batch", -1))
+        band, batch = _annotation_event_key(ev)
         rec = records.get((band, batch))
         if rec is None:
             failures.append(f"event references a missing batch record {band}/batch-{batch:03d}")
@@ -2489,40 +2584,6 @@ def validate_state(state: HarnessState, require_audio: bool = False) -> list[str
             failures.append(
                 f"batch record {band}/batch-{batch:03d} does not match its event digest"
             )
-        path = annotation_record_path(gen, ev)
-        if ev.get("status") == LEDGER_ABANDONED:
-            if path is not None:
-                failures.append(
-                    f"abandoned event for {band}/{batch} names an annotation record; an "
-                    "abandoned batch yields no members and contributes no annotations"
-                )
-            continue
-        if path is None:
-            failures.append(f"event for {band}/{batch} carries no annotation_path")
-            continue
-        if not _under(path, ann_root):
-            failures.append(f"annotation record for {band}/{batch} is outside {ann_root.name}/")
-            continue
-        if path in referenced:
-            failures.append(
-                f"annotation record {path.name} is referenced by two events; each event "
-                "carries its own immutable record path"
-            )
-        referenced.add(path)
-        if not path.exists():
-            failures.append(f"annotation record {path.name} recorded in the event store is missing")
-        elif sha256_file(path) != ev.get("annotation_sha256"):
-            failures.append(
-                f"annotation record {path.name} does not match its event digest - it was "
-                "edited after ingest"
-            )
-    if ann_root.exists():
-        for p in sorted(ann_root.glob("*/*.json")):
-            if p not in referenced:
-                failures.append(
-                    f"annotation record {p.parent.name}/{p.name} is not referenced by any "
-                    "event - it was added, duplicated, or moved"
-                )
 
     # 6. Worklists: structural validation plus the recorded digest.
     #
@@ -2733,17 +2794,45 @@ def load_inputs() -> dict[str, Any]:
         raise HarnessError("corpus_splits.json: schema drift - expected tony.train/tony.val")
     tony_split_ids = {str(t) for t in tony_ns["train"]} | {str(t) for t in tony_ns["val"]}
 
-    by_id = {str(r.get("track_id")): r for r in tony["tracks"]}
+    labels = _read_json(TONY_TRUTH_LABELS_PATH, "tony truth labels")
+    if not isinstance(labels, dict) or not isinstance(labels.get("tracks"), list):
+        raise HarnessError(
+            f"{TONY_TRUTH_LABELS_PATH.name}: schema drift - expected dict with a 'tracks' list"
+        )
+    if not all(isinstance(r, dict) for r in labels["tracks"]):
+        raise HarnessError(
+            f"{TONY_TRUTH_LABELS_PATH.name}: schema drift - every 'tracks' entry must be an object"
+        )
+
+    # Paths come from the truth labels, which is what training reads. Reading
+    # them from the survey alone skipped every split track the survey does not
+    # carry, without a trace, so those tracks were never fingerprinted and never
+    # counted. A split track with no usable path is kept as unresolved, so
+    # `assert_training_coverage` blocks on it instead of never seeing it.
+    survey_by_id = {str(r.get("track_id")): r for r in tony["tracks"]}
+    label_by_id = {str(r.get("track_id")): r for r in labels["tracks"]}
     training_artist_keys = set()
     training_local_paths: dict[str, str] = {}
-    for tid in tony_split_ids:
-        row = by_id.get(tid)
-        if row is not None:
-            key = cc.canonical_artist_key(row.get("artist"))
-            if key:
-                training_artist_keys.add(key)
-            if row.get("local_path"):
-                training_local_paths[tid] = str(row["local_path"])
+    training_unresolved_ids: set[str] = set()
+    for tid in sorted(tony_split_ids):
+        label_row = label_by_id.get(tid) or {}
+        survey_row = survey_by_id.get(tid) or {}
+        key = cc.canonical_artist_key(label_row.get("artist") or survey_row.get("artist"))
+        if key:
+            training_artist_keys.add(key)
+        label_path = label_row.get("local_path")
+        survey_path = survey_row.get("local_path")
+        if label_path and survey_path and str(label_path) != str(survey_path):
+            raise HarnessError(
+                f"tony track {tid}: {TONY_TRUTH_LABELS_PATH.name} and {TONY_SURVEY_PATH.name} "
+                f"give different audio paths ({label_path!r} vs {survey_path!r}). The "
+                "fingerprint check would compare against a file training may not read. "
+                "Fix the inputs so they agree."
+            )
+        if label_path:
+            training_local_paths[tid] = str(label_path)
+        else:
+            training_unresolved_ids.add(tid)
 
     return {
         "pool_rows": survey["tracks"],
@@ -2756,6 +2845,7 @@ def load_inputs() -> dict[str, Any]:
         "tony_split_ids": tony_split_ids,
         "training_artist_keys": training_artist_keys,
         "training_local_paths": training_local_paths,
+        "training_unresolved_ids": training_unresolved_ids,
     }
 
 
@@ -3369,6 +3459,12 @@ def training_fingerprints(
         train_roster[key] = reason
         if vec:
             training.append((key, vec))
+    # A split track with no path in the truth labels: same reasoning as the
+    # path-less manifest rows above.
+    for tid in sorted(inputs.get("training_unresolved_ids", set())):
+        key = f"{TRAINING_SOURCE_TONY_SPLIT}:{tid}"
+        train_reasons["unresolved-path"] += 1
+        train_roster[key] = "unresolved-path"
     return training, train_reasons, train_roster
 
 
@@ -5626,7 +5722,10 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
         return _member_seconds[rid]
 
     seen_ids: dict[str, str] = {}
-    seen_titles: dict[str, str] = {}
+    # Every earlier member per title, not only the latest: the length rule is
+    # not transitive (300, 400 and 301 s never compared 300 with 301 when only
+    # the latest member was kept).
+    seen_titles: dict[str, list[str]] = {}
     seen_content: dict[str, str] = {}
     seen_groups: dict[str, str] = {}
     for entry in member_entries:
@@ -5653,8 +5752,7 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
             seen_groups[group] = entry["rowId"]
         nk = cc.normalize_track_key(entry.get("title", ""))
         if nk:
-            prior = seen_titles.get(nk)
-            if prior is not None:
+            for prior in seen_titles.get(nk, []):
                 # A title match alone is not a duplicate. `normalize_track_key`
                 # strips everything from the first bracket, which is what makes
                 # it catch a re-encode tagged as a different version - and also
@@ -5691,7 +5789,7 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
                         f"{nk!r} but differ by {abs(here - there):.0f}s, so they are "
                         "different recordings under one title, not duplicates"
                     )
-            seen_titles[nk] = entry["rowId"]
+            seen_titles.setdefault(nk, []).append(entry["rowId"])
     report.append(
         f"cross-band duplicate rule in force: {policy}; "
         f"{len(seen_groups)} confirmed recording group(s) among members."
@@ -6812,15 +6910,26 @@ def validate_attestation(
         # the tracked copy of it.
         root = state_root if state_root is not None else EVAL_CORPUS_DIR
         if generation:
-            actual_head, _count = head_of(
-                root / "generations" / str(generation) / "annotation-ledger.jsonl"
-            )
+            gen_dir = root / "generations" / str(generation)
+            actual_head, actual_count = head_of(gen_dir / ANNOTATION_LEDGER_NAME)
             if actual_head != head_doc.get("head_sha256"):
                 failures.append(
                     f"the ACTUAL annotation-ledger head is {actual_head}, the tracked head "
                     f"artifact records {head_doc.get('head_sha256')} - the event store and "
                     "the committed head disagree"
                 )
+            # The head digest covers only the last line, so the count and the
+            # full walk are what catch a deleted or edited earlier event.
+            if head_doc.get("event_count") != actual_count:
+                failures.append(
+                    f"the annotation ledger holds {actual_count} events, the tracked head "
+                    f"artifact records {head_doc.get('event_count')!r} - events were added "
+                    "or removed since the head was recorded"
+                )
+            ledger_failures, _events = annotation_ledger_failures(
+                gen_dir, str(doc.get("commitment_sha256"))
+            )
+            failures.extend(ledger_failures)
 
     repass = doc.get("repass") or {}
     root = state_root if state_root is not None else EVAL_CORPUS_DIR

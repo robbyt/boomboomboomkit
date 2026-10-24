@@ -3406,6 +3406,162 @@ def test_attestation_rejected_on_a_stale_ledger_head(ws):
     assert any("ACTUAL annotation-ledger head" in f for f in failures)
 
 
+# The head digest covers only the last ledger line, so these edits leave it
+# unchanged. The validator has to walk every event and every annotation record.
+
+
+def _rewrite_ledger(ledger: Path, edit) -> None:
+    lines = ledger.read_bytes().splitlines()
+    ledger.write_bytes(b"\n".join(edit(lines)) + b"\n")
+
+
+def _edit_event(lines: list[bytes], i: int) -> list[bytes]:
+    ev = json.loads(lines[i])
+    ev["verified_note"] = "edited"
+    lines[i] = json.dumps(ev, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return lines
+
+
+def _replace_line(lines: list[bytes], i: int, raw: bytes) -> list[bytes]:
+    lines[i] = raw
+    return lines
+
+
+def test_attestation_rejected_when_the_first_ledger_event_is_deleted(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    assert _validate() == []
+    _rewrite_ledger(bec.ledger_path(_gen()), lambda lines: lines[1:])
+    failures = _validate()
+    assert not any("ACTUAL annotation-ledger head" in f for f in failures), failures
+    assert any("the tracked head artifact records" in f for f in failures), failures
+    assert any("chain break at event 0" in f for f in failures), failures
+
+
+def test_attestation_rejected_when_a_middle_ledger_event_is_edited(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    ledger = bec.ledger_path(_gen())
+    middle = len(ledger.read_bytes().splitlines()) // 2
+    assert 0 < middle
+    _rewrite_ledger(ledger, lambda lines: _edit_event(lines, middle))
+    failures = _validate()
+    assert any(f"chain break at event {middle + 1}" in f for f in failures), failures
+
+
+def test_attestation_rejected_when_an_annotation_record_is_edited(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    record = _annotation_files("sub-100")[0]
+    doc = json.loads(record.read_text())
+    doc["edited"] = True
+    bec._write_json(record, doc)
+    failures = _validate()
+    assert any("does not match its event digest" in f for f in failures), failures
+
+
+@pytest.mark.parametrize("raw", [b"[]", b"5"])
+def test_attestation_reports_a_non_object_ledger_line_without_raising(ws, raw):
+    assert _mint() == 0
+    assert _sign() == 0
+    _rewrite_ledger(bec.ledger_path(_gen()), lambda lines: _replace_line(lines, 1, raw))
+    failures = _validate()
+    assert any("line 1 is not a JSON object" in f for f in failures), failures
+
+
+def test_attestation_rejects_a_non_numeric_batch_without_raising(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+
+    def bad_batch(lines):
+        ev = json.loads(lines[1])
+        ev["batch"] = "first"
+        lines[1] = json.dumps(ev, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return lines
+
+    _rewrite_ledger(bec.ledger_path(_gen()), bad_batch)
+    failures = _validate()
+    assert any("event 1: a numeric field is not a number" in f for f in failures), failures
+
+
+def _set_raw_field(lines: list[bytes], i: int, field: str, raw: bytes) -> list[bytes]:
+    """Write `raw` verbatim as one field's JSON value, e.g. `1e999`, which
+    `json.loads` reads as a float infinity that `int()` cannot convert."""
+    ev = json.loads(lines[i])
+    ev[field] = "__RAW__"
+    text = json.dumps(ev, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    lines[i] = text.replace(b'"__RAW__"', raw)
+    return lines
+
+
+@pytest.mark.parametrize("field", ["index", "batch"])
+def test_attestation_reports_an_overflowing_number_without_raising(ws, field):
+    assert _mint() == 0
+    assert _sign() == 0
+    _rewrite_ledger(
+        bec.ledger_path(_gen()), lambda lines: _set_raw_field(lines, 1, field, b"1e999")
+    )
+    failures = _validate()
+    assert any("event 1: a numeric field is not a number" in f for f in failures), failures
+
+
+def test_attestation_reports_an_invalid_utf8_ledger_line_without_raising(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    # Starts with `{`, so json reads it as UTF-8 and the stray byte raises
+    # UnicodeDecodeError rather than JSONDecodeError.
+    raw = b'{"band":"\xff"}'
+    _rewrite_ledger(bec.ledger_path(_gen()), lambda lines: _replace_line(lines, 1, raw))
+    failures = _validate()
+    assert any("line 1 is not valid JSON" in f for f in failures), failures
+
+
+def test_attestation_reports_an_unreadable_annotation_record_without_raising(ws):
+    assert _mint() == 0
+    assert _sign() == 0
+    record = _annotation_files("sub-100")[0]
+    record.unlink()
+    record.mkdir()
+    failures = _validate()
+    assert any(f"annotation record {record.name} cannot be read" in f for f in failures), failures
+
+
+def test_attestation_ledger_walk_reads_the_passed_state_root(ws, tmp_path):
+    # The global ledger helpers read EVAL_CORPUS_DIR. The validator takes its own
+    # state root, so a broken copy elsewhere must fail while the original passes.
+    assert _mint() == 0
+    assert _sign() == 0
+    copy = tmp_path / "copied-state"
+    shutil.copytree(bec.EVAL_CORPUS_DIR, copy)
+    args = (bec.ATTESTATION_JSON, bec.COMMITMENT_JSON, bec.LEDGER_HEAD_JSON, N_BAND_TEST)
+    assert bec.validate_attestation(*args, state_root=copy) == []
+    copied_ledger = copy / "generations" / _gen() / bec.ANNOTATION_LEDGER_NAME
+    _rewrite_ledger(copied_ledger, lambda lines: _edit_event(lines, 0))
+    failures = bec.validate_attestation(*args, state_root=copy)
+    assert any("chain break at event 1" in f for f in failures), failures
+    assert bec.validate_attestation(*args, state_root=bec.EVAL_CORPUS_DIR) == []
+
+
+def test_attestation_record_check_reads_the_passed_state_root(ws, tmp_path):
+    # Same as above for the annotation records: an edited record in the copy
+    # fails there, while the untouched original still passes.
+    assert _mint() == 0
+    assert _sign() == 0
+    copy = tmp_path / "copied-state"
+    shutil.copytree(bec.EVAL_CORPUS_DIR, copy)
+    args = (bec.ATTESTATION_JSON, bec.COMMITMENT_JSON, bec.LEDGER_HEAD_JSON, N_BAND_TEST)
+    original = _annotation_files("sub-100")[0]
+    copied = copy / original.relative_to(bec.EVAL_CORPUS_DIR)
+    doc = json.loads(copied.read_text())
+    doc["edited"] = True
+    bec._write_json(copied, doc)
+    failures = bec.validate_attestation(*args, state_root=copy)
+    assert any(
+        f"annotation record {copied.name} does not match its event digest" in f for f in failures
+    ), failures
+    assert bec.validate_attestation(*args, state_root=bec.EVAL_CORPUS_DIR) == []
+
+
 def test_attestation_rejected_when_the_repass_record_is_replaced(ws):
     assert _mint() == 0
     assert _sign() == 0
@@ -3604,7 +3760,9 @@ def test_training_gate_accepts_a_valid_attestation(ws, gate, monkeypatch):
     )
 
 
-@pytest.mark.parametrize("state", ["missing", "malformed", "stale-ledger", "wrong-repass"])
+@pytest.mark.parametrize(
+    "state", ["missing", "malformed", "stale-ledger", "deleted-first-event", "wrong-repass"]
+)
 def test_training_gate_rejects_every_broken_attestation_state(ws, gate, monkeypatch, state):
     assert _mint() == 0
     assert _sign() == 0
@@ -3617,6 +3775,9 @@ def test_training_gate_rejects_every_broken_attestation_state(ws, gate, monkeypa
         ledger = bec.ledger_path(_gen())
         lines = ledger.read_bytes().splitlines()
         ledger.write_bytes(b"\n".join(lines[:-1]) + b"\n")
+    elif state == "deleted-first-event":
+        # Leaves the last line, and so the head digest, unchanged.
+        _rewrite_ledger(bec.ledger_path(_gen()), lambda lines: lines[1:])
     else:
         record = bec.repass_dir(_gen()) / "repass-annotations.v1.json"
         doc = json.loads(record.read_text())
@@ -3690,7 +3851,7 @@ def _patch_training_inputs(monkeypatch, root: Path) -> None:
     monkeypatch.setattr(bec, "CORPUS_SPLITS", root / "corpus_splits.json")
 
 
-def _call_load_inputs(root: Path, monkeypatch):
+def _call_load_inputs(root: Path, monkeypatch, tony_rows=(), label_rows=(), labels_doc=None):
     """Drive the REAL `load_inputs`, not a re-implementation of its logic.
 
     Re-implementing the relPath-then-path read inline tests a copy and would not
@@ -3701,9 +3862,14 @@ def _call_load_inputs(root: Path, monkeypatch):
     survey = root / "survey.json"
     survey.write_text(json.dumps({"tracks": [], "audio_root": str(root)}), encoding="utf-8")
     tony = root / "tony-survey.json"
-    tony.write_text(json.dumps({"tracks": []}), encoding="utf-8")
+    tony.write_text(json.dumps({"tracks": list(tony_rows)}), encoding="utf-8")
+    labels = root / "tony-truth-labels.json"
+    if labels_doc is None:
+        labels_doc = {"tracks": list(label_rows)}
+    labels.write_text(json.dumps(labels_doc), encoding="utf-8")
     monkeypatch.setattr(bec, "SURVEY_PATH", survey)
     monkeypatch.setattr(bec, "TONY_SURVEY_PATH", tony)
+    monkeypatch.setattr(bec, "TONY_TRUTH_LABELS_PATH", labels)
     return bec.load_inputs()
 
 
@@ -3744,6 +3910,87 @@ def test_a_pathless_row_becomes_an_uncovered_training_row(tmp_path, monkeypatch)
     assert coverage["training_roster"][f"manifest:{'c' * 64}"] == "no-path"
     with pytest.raises(bec.OperatorHalt, match="COVERAGE INCOMPLETE ON THE TRAINING SIDE"):
         bec.assert_training_coverage(coverage, set())
+
+
+def _write_tony_splits(root: Path, train: list[str], val: list[str] = ()) -> None:
+    (root / "corpus_splits.json").write_text(
+        json.dumps({"tony": {"train": list(train), "val": list(val)}}), encoding="utf-8"
+    )
+
+
+def test_a_split_track_only_in_the_truth_labels_is_fingerprinted(tmp_path, monkeypatch):
+    # The DAW-labelled tracks are in the truth labels (what training reads) but
+    # not in the tony survey. Reading paths from the survey alone skipped them
+    # without a trace, so they were never fingerprinted or counted.
+    _write_training_inputs(tmp_path, "relPath")
+    _write_tony_splits(tmp_path, ["only-labels"], ["both"])
+    labelled = tmp_path / "labelled.mp3"
+    labelled.write_bytes(b"labelled audio " * 8)
+    shared = tmp_path / "shared.mp3"
+    shared.write_bytes(b"shared audio " * 8)
+    inputs = _call_load_inputs(
+        tmp_path,
+        monkeypatch,
+        tony_rows=[{"track_id": "both", "artist": "Survey Artist", "local_path": str(shared)}],
+        label_rows=[
+            {"track_id": "only-labels", "artist": "", "local_path": str(labelled)},
+            {"track_id": "both", "artist": "", "local_path": str(shared)},
+        ],
+    )
+    assert inputs["training_local_paths"] == {
+        "only-labels": str(labelled),
+        "both": str(shared),
+    }
+    assert inputs["training_unresolved_ids"] == set()
+    # A blank label artist falls back to the survey's.
+    assert inputs["training_artist_keys"] == {bec.cc.canonical_artist_key("Survey Artist")}
+    monkeypatch.setattr(bec, "FINGERPRINT_FN", _unique_fingerprint)
+    vectors, reasons, roster = bec.training_fingerprints(inputs)
+    assert roster["tony-split:only-labels"] == "resolved"
+    assert "tony-split:only-labels" in {key for key, _vec in vectors}
+    assert reasons["unresolved-path"] == 0
+
+
+def test_a_split_track_without_a_usable_path_blocks_coverage(tmp_path, monkeypatch):
+    # One split track has a label row with no local_path; another is in neither
+    # file. Both must be counted as unresolved so coverage blocks on them.
+    _write_training_inputs(tmp_path, "relPath")
+    _write_tony_splits(tmp_path, ["no-path"], ["nowhere"])
+    inputs = _call_load_inputs(
+        tmp_path,
+        monkeypatch,
+        tony_rows=[{"track_id": "no-path", "artist": "", "local_path": "/survey/only.mp3"}],
+        label_rows=[{"track_id": "no-path", "artist": ""}],
+    )
+    assert inputs["training_local_paths"] == {}
+    assert inputs["training_unresolved_ids"] == {"no-path", "nowhere"}
+    coverage, _cands, _train = bec.fingerprint_coverage(
+        {**inputs, "manifest_paths": {}}, {name: [] for name in bec.BAND_NAMES}
+    )
+    assert coverage["training_roster"]["tony-split:no-path"] == "unresolved-path"
+    assert coverage["training_roster"]["tony-split:nowhere"] == "unresolved-path"
+    assert coverage["training_by_reason"]["unresolved-path"] == 2
+    with pytest.raises(bec.OperatorHalt, match="COVERAGE INCOMPLETE ON THE TRAINING SIDE"):
+        bec.assert_training_coverage(coverage, set())
+
+
+def test_conflicting_tony_paths_refuse(tmp_path, monkeypatch):
+    _write_training_inputs(tmp_path, "relPath")
+    _write_tony_splits(tmp_path, ["t1"])
+    with pytest.raises(bec.HarnessError, match="different audio paths"):
+        _call_load_inputs(
+            tmp_path,
+            monkeypatch,
+            tony_rows=[{"track_id": "t1", "local_path": "/a/one.mp3"}],
+            label_rows=[{"track_id": "t1", "local_path": "/b/one.mp3"}],
+        )
+
+
+@pytest.mark.parametrize("labels_doc", [[{"track_id": "t1"}], {"tracks": ["t1"]}, {}])
+def test_truth_labels_schema_drift_halts(tmp_path, monkeypatch, labels_doc):
+    _write_training_inputs(tmp_path, "relPath")
+    with pytest.raises(bec.HarnessError, match="schema drift"):
+        _call_load_inputs(tmp_path, monkeypatch, labels_doc=labels_doc)
 
 
 def test_training_input_digests_follow_a_redirected_manifest_path(tmp_path, monkeypatch):
@@ -3829,6 +4076,32 @@ def test_a_shared_title_with_matching_lengths_still_fails(ws, monkeypatch):
     monkeypatch.setattr(bec, "DURATION_FN", lambda p: 300.0)
     failures, _w, _r = bec.run_audit()
     assert any("duplicate member title" in f and "lengths agree" in f for f in failures), failures
+
+
+def test_a_shared_title_is_compared_against_every_earlier_member(ws, monkeypatch):
+    # The 5 s rule is not transitive. Lengths 300, 400 and 301 s compared only
+    # each member with the latest one before it (300-400, 400-301), so the
+    # same-length pair 300-301 was never compared.
+    _collide_titles(ws)
+    assert _mint(short={"policy": "shrink-corpus", "n_band": 3}) == 0
+    _complete_corpus()
+    state = bec.load_state()
+    members = bec.recompute_membership(state)["sub-100"]["members"]
+    assert len(members) == 3, members
+    root = state.pools.get("pool_audio_root")
+    seconds = {
+        bec._safe_resolve(state.by_row_id[rid], root): length
+        for rid, length in zip(members, (300.0, 400.0, 301.0), strict=True)
+    }
+    monkeypatch.setattr(bec, "DURATION_FN", lambda p: seconds.get(p, 300.0))
+    failures, warnings, _r = bec.run_audit()
+    title_failures = [f for f in failures if "duplicate member title" in f]
+    title_warnings = [w for w in warnings if "different recordings under one title" in w]
+    assert title_failures == [
+        f"duplicate member title (normalized): {members[2]} vs {members[0]} and their "
+        "lengths agree to 1.00s"
+    ], failures
+    assert len(title_warnings) == 2, warnings
 
 
 def test_a_shared_title_with_an_unreadable_length_fails_closed(ws, monkeypatch):
