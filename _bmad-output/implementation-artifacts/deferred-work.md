@@ -1486,3 +1486,19 @@ Stopping rule (operator, 2026-10-24): fix a corpus-harness review finding only w
 - source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
   summary: The octave-sentinel join in `member_legacy_labels` always adds labels from legacy rows with the same filename, even when both recordings have fingerprints that disagree. 12-6 section 3 allows a filename match only where no fingerprint is available. Planned fix: index filenames only for legacy rows that did not get a fingerprint.
   evidence: PR 197 comment r4366207011. Simulated on today's 172 members, the fix leaves the count at 1 sentinel, with 0 changed. That sentinel (`e4-620e8b654f8b`, an OA300 track) gets its 80 BPM label from a Tony row that has no audio path, which is the case section 3 allows. **Re-open trigger:** before the sentinel subset feeds any figure.
+
+## Deferred from: PR 197 Codex review triage, round 4 (2026-10-24)
+
+Same stopping rule as round 3: none of these changes today's corpus output.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `apply_dispositions` does not extend a confirmed training or GiantSteps exclusion through a confirmed same-recording group. If A and B are confirmed as one recording and only B is confirmed against a Tony training recording, A stays eligible. Planned fix: after `union_recording_groups`, exclude every key in a group that holds an excluded key. Apply the same treatment to manifest-route removal lists under the repartition order.
+  evidence: PR 197 comment r4366299550. Today's decisions confirm 6 candidate-to-candidate same-recording pairs, covering 12 candidates. In each of the 4 pool pairs both sides carry their own confirmed training match. In the 2 OA300-to-Tony pairs, neither does. No group has an excluded side and an eligible side, so the members are unchanged. **Re-open trigger:** the next remint, or any new same-recording decision.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: If `repass-sample` stops after staging its pending sample record but before appending the event, a retry fails its own opening audit on that same pending record. `repass-ingest` needs a sampled event, and `abandon` handles only primary batches, so no command recovers. Planned fix: let `repass-sample` resume from a pending sample whose digest verifies, or add an explicit command to set it aside, as `abandon --force` does since `a359c42`.
+  evidence: PR 197 comment r4366299552. The re-listen has not run. **Re-open trigger:** before `repass-sample`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: After a completed re-listen, a forced re-ingest that excludes a sampled member without changing its BPM (for example `audio_defect=1`) changes membership. Signoff still accepts the old sample, because the check compares BPMs only. Planned fix: compare the current member roster with the sample's `population_sha256`, and require a fresh re-listen when membership has changed. Do this together with the redraw rule from round 3.
+  evidence: PR 197 comment r4366299555. The re-listen has not run. **Re-open trigger:** before `repass-sample`.
