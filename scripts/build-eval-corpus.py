@@ -205,11 +205,14 @@ def must_drop_members_path(generation: str) -> Path:
     return generation_root(generation) / "must-drop-members.json"
 
 
+PARTITION_CLOSURE_NAME = "partition-closure.json"
+
+
 def partition_closure_path(generation: str) -> Path:
     """The FR-59d closure record. Absent until a later story writes it; it is the
     forward path out of the signoff refusal and is deliberately NOT a mutation of
     the minted commitment, which is immutable."""
-    return generation_root(generation) / "partition-closure.json"
+    return generation_root(generation) / PARTITION_CLOSURE_NAME
 
 
 def archive_path(digest: str, generated: str) -> Path:
@@ -1859,6 +1862,27 @@ def install_pending_record(path: Path, digest: str) -> None:
             "replacement was staged. Records are versioned and never overwritten."
         )
     os.replace(pending, path)
+
+
+def discard_staged_record(path: Path) -> Path:
+    """Rename the staged sidecar of `path` to a `.discarded` name; return the new path.
+
+    Used by `abandon --force` on a batch whose ingest was interrupted. Leaving
+    the sidecar in place kept it on the staged-record list forever, and the
+    audit and `remint` both refuse while that list is not empty, so the
+    recovery the abandon error recommends blocked the generation for good. The
+    bytes are kept, because an annotation pass is never deleted. The new name
+    matches neither `*.json.pending` nor `*.json`, so no scan picks it up. A name
+    already taken gets a numeric suffix rather than being overwritten.
+    """
+    pending = pending_record_path(path)
+    target = path.with_name(f"{path.name}.discarded")
+    n = 1
+    while target.exists():
+        target = path.with_name(f"{path.name}.discarded.{n}")
+        n += 1
+    pending.rename(target)
+    return target
 
 
 def replay_pending_records(
@@ -5176,7 +5200,12 @@ def cmd_abandon(args: argparse.Namespace) -> int:
     """Signed rule: an abandoned batch yields no members and its partial work is
     discarded from MEMBERSHIP. It is not discarded from disk: prior annotation
     records stay, immutable and still referenced by their own events. Round 1
-    unlinked them under --force, destroying labels that cannot be regenerated."""
+    unlinked them under --force, destroying labels that cannot be regenerated.
+
+    A staged record from an interrupted ingest is likewise kept under --force,
+    renamed to a `.discarded` name before the event is appended. Renaming first
+    means a crash between the two steps leaves a state that running the same
+    `abandon --force` again completes."""
     batch = int(args.batch)
     state = load_state()
     require_valid_state(state, "before abandon")
@@ -5199,9 +5228,16 @@ def cmd_abandon(args: argparse.Namespace) -> int:
             f"batch {batch} for {args.band} has a staged annotation record that no event "
             f"anchored yet ({staged}): an ingest was interrupted, and abandoning now would "
             "make an annotation pass the operator has already done permanently unusable. "
-            "Re-run that ingest with the same annotations, or pass --force to discard it."
+            "Re-run that ingest with the same annotations, or pass --force to set it "
+            "aside under a .discarded name (its bytes are kept)."
         )
     _assert_transition(state, args.band, batch, LEDGER_ABANDONED)
+    for label in staged:
+        moved = discard_staged_record(generation_root(gen) / label)
+        print(
+            f"kept the staged annotation file for {args.band}/batch-{batch:03d} as "
+            f"{_rel(moved, generation_root(gen))}"
+        )
     append_event(
         ledger_path(gen),
         {
@@ -5350,19 +5386,63 @@ def read_mint_obligations(
     return by_key, []
 
 
+def _closure_training_input_failures(recorded: object) -> list[str]:
+    """Compare the training-list digests a closure record carries with the files today.
+
+    A closure record certifies zero residual overlap against the training lists
+    it was written over. If those lists change afterwards, the claim no longer
+    describes them, and a stale "zero overlap" would unlock training against
+    lists that overlap the corpus again. Never raises: every problem here is a
+    failure to report through signoff and the training gate.
+    """
+    rerun = "; rerun the FR-59d closure audit against the current training lists"
+    if not isinstance(recorded, dict):
+        return [
+            "the partition closure record carries no training_input_digests object, so "
+            "the training lists it was checked against cannot be compared" + rerun
+        ]
+    try:
+        actual = training_input_digests()
+    except (HarnessError, OSError) as exc:
+        return [
+            "the training lists the partition closure record was checked against cannot "
+            f"be read: {exc}" + rerun
+        ]
+    was = {str(name): str(digest) for name, digest in recorded.items()}
+    moved = sorted(name for name in set(was) | set(actual) if was.get(name) != actual.get(name))
+    if not moved:
+        return []
+    return [
+        "the training lists changed after the partition closure record was written: "
+        + ", ".join(
+            f"{name} {was.get(name, 'absent')[:12]} to {actual.get(name, 'absent')[:12]}"
+            for name in moved
+        )
+        + rerun
+        + " and write a fresh closure record"
+    ]
+
+
 def read_closure_record(
-    commitment: dict, generation: str
+    commitment: dict, commitment_sha: str, gen_dir: Path
 ) -> tuple[dict | None, str | None, list[str]]:
     """The FR-59d closure record, if a later story has written one.
 
     Returns (record, digest, failures). Absent is NOT a failure: it is the
     ordinary state of a corpus whose training rebuild has not happened yet, and
     the refusal that follows is the point. A record that is present but does not
-    bind THIS commitment, this mint-time obligation set, or a zero residual
-    overlap IS a failure, because a closure claim that does not verify is worse
+    bind THIS commitment, this mint-time obligation set, a zero residual overlap,
+    the training lists as they are today, and the annotation log as it ends
+    today IS a failure, because a closure claim that does not verify is worse
     than none.
+
+    `commitment_sha` is the digest of the commitment file the caller read, passed
+    in rather than recomputed, so a caller holding a commitment at another path
+    is checked against that file. `gen_dir` is the generation directory, taken
+    from the caller rather than the global state root for the same reason as in
+    `annotation_ledger_failures`.
     """
-    path = partition_closure_path(generation)
+    path = gen_dir / PARTITION_CLOSURE_NAME
     if not path.exists():
         return None, None, []
     doc = _read_json(path, "partition closure record")
@@ -5384,16 +5464,45 @@ def read_closure_record(
             "the partition closure record closes a different must-drop list than the one "
             "this commitment pinned"
         )
+    if doc.get("commitment_sha256") != commitment_sha:
+        failures.append(
+            f"the partition closure record was written for commitment "
+            f"{doc.get('commitment_sha256')!r}, but the commitment in force is {commitment_sha}"
+        )
+    # Any annotation event after the closure changes what the corpus holds, so
+    # the closure has to be written again. Read from `gen_dir`, never the
+    # global root, so the training gate checks the log it was pointed at.
+    try:
+        head, _count = head_of(gen_dir / ANNOTATION_LEDGER_NAME)
+    except OSError as exc:
+        failures.append(f"the annotation log cannot be read: {exc}")
+    else:
+        if doc.get("annotation_ledger_head") != head:
+            failures.append(
+                "the partition closure record was written when the annotation log ended "
+                f"at {doc.get('annotation_ledger_head')!r}, but it now ends at {head}: "
+                "annotation events were recorded after the closure; rerun the FR-59d "
+                "closure audit and write a fresh closure record"
+            )
+    failures.extend(_closure_training_input_failures(doc.get("training_input_digests")))
     return doc, sha256_file(path), failures
 
 
 def partition_closure_state(
-    commitment: dict, generation: str | None = None
+    commitment: dict,
+    commitment_sha: str,
+    generation: str | None = None,
+    state_root: Path | None = None,
 ) -> tuple[dict, list[str]]:
     """The FR-59a.2 closure block an attestation must carry, plus any failures.
 
     ONE function, consulted by `cmd_signoff` and by `validate_attestation` alike,
     so the two can never disagree about whether a corpus is closed.
+
+    `commitment_sha` is the digest of the commitment file `commitment` was read
+    from, and `state_root` the root to find the generation under (default: the
+    global state root). Both come from the caller, so `validate_attestation`,
+    which is given its own paths, checks the files it was given.
 
     Three ways to be certified, and one way to stay open:
 
@@ -5424,8 +5533,9 @@ def partition_closure_state(
         certified, basis = True, "obligation-vacuous"
     else:
         gen = generation or str(commitment.get("generation") or "")
+        gen_dir = generation_root(gen) if state_root is None else state_root / "generations" / gen
         record, record_digest, failures = (
-            read_closure_record(commitment, gen) if gen else (None, None, [])
+            read_closure_record(commitment, commitment_sha, gen_dir) if gen else (None, None, [])
         )
         certified = record is not None and not failures
         basis = "closure-record" if certified else "open"
@@ -5629,10 +5739,14 @@ def run_audit() -> tuple[list[str], list[str], list[str]]:
                     "today's training inputs."
                 )
         listing_digest = sha256_bytes(_json_bytes(listing))
-        closure, closure_failures = partition_closure_state(state.commitment, gen)
+        closure, closure_failures = partition_closure_state(
+            state.commitment, state.commitment_sha, gen
+        )
         failures.extend(closure_failures)
         if closure["basis"] == "closure-record":
-            record, _digest, _f = read_closure_record(state.commitment, gen)
+            record, _digest, _f = read_closure_record(
+                state.commitment, state.commitment_sha, generation_root(gen)
+            )
             recorded_members = (record or {}).get("member_must_drop_sha256")
             if recorded_members != listing_digest:
                 failures.append(
@@ -6986,14 +7100,12 @@ def validate_attestation(
     elif commitment_path.exists():
         recorded = json.loads(commitment_path.read_text(encoding="utf-8"))
         root = state_root if state_root is not None else EVAL_CORPUS_DIR
-        previous = EVAL_CORPUS_DIR
-        try:
-            globals()["EVAL_CORPUS_DIR"] = root
-            actual, closure_failures = partition_closure_state(
-                recorded, str(recorded.get("generation") or "")
-            )
-        finally:
-            globals()["EVAL_CORPUS_DIR"] = previous
+        actual, closure_failures = partition_closure_state(
+            recorded,
+            sha256_file(commitment_path),
+            str(recorded.get("generation") or ""),
+            state_root=root,
+        )
         if not actual["certified"]:
             failures.append(
                 "signoff attestation claims a certified FR-59a.2 partition closure, but "
@@ -7041,7 +7153,9 @@ def cmd_signoff(_args: argparse.Namespace) -> int:
     # and that audit are FR-59d work in a later story, so nothing here can
     # certify closure and signoff must refuse rather than issue an attestation
     # `train.py` would accept.
-    closure, closure_failures = partition_closure_state(state.commitment, state.generation)
+    closure, closure_failures = partition_closure_state(
+        state.commitment, state.commitment_sha, state.generation
+    )
     if not closure["certified"]:
         digest = closure["must_drop_sha256"]
         print(

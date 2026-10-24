@@ -1903,8 +1903,12 @@ def test_a_vacuous_obligation_is_certifiable_rather_than_a_deadlock(ws, monkeypa
     assert _validate() == []
 
 
-def _write_closure_record(residual=0, member_digest=None, must_drop=None):
-    """What the FR-59d story will write once the rebuild lands."""
+def _write_closure_record(residual=0, member_digest=None, must_drop=None, training=None):
+    """What the FR-59d story will write once the rebuild lands.
+
+    The training digests default to the files as they are now, which is what
+    that story records after it rebuilds the lists.
+    """
     commitment = json.loads(bec.COMMITMENT_JSON.read_text())
     gen = commitment["generation"]
     if member_digest is None:
@@ -1925,7 +1929,9 @@ def _write_closure_record(residual=0, member_digest=None, must_drop=None):
         ),
         "member_must_drop_sha256": member_digest,
         "residual_overlap": residual,
-        "training_input_digests": dict.fromkeys(bec.TRAINING_INPUT_NAMES, "b" * 64),
+        "training_input_digests": (
+            training if training is not None else bec.training_input_digests()
+        ),
         "note": "rebuilt training corpus; zero residual overlap",
     }
     bec._write_json(bec.partition_closure_path(gen), doc)
@@ -1999,6 +2005,140 @@ def test_attestation_binding_a_vanished_closure_record_is_rejected(ws, monkeypat
     assert _validate() == []
     bec.partition_closure_path(_gen()).unlink()
     assert any("do not support it" in f for f in _validate())
+
+
+# A closure record certifies zero overlap against the training lists, the
+# commitment, and the annotation log as they were when it was written. Each of
+# those can change afterwards, and a record that no longer matches them must
+# stop certifying, as a reported failure rather than an exception.
+
+
+def _redirect_training_lists(ws, monkeypatch) -> Path:
+    """Point the three training-list files at copies this test may change."""
+    root = ws.root / "training-lists"
+    root.mkdir()
+    _write_training_inputs(root, "relPath")
+    _patch_training_inputs(monkeypatch, root)
+    return root
+
+
+def _signed_with_a_closure_record(ws, monkeypatch) -> Path:
+    lists = _redirect_training_lists(ws, monkeypatch)
+    _repartition_with_one_obligation(ws, monkeypatch)
+    _write_closure_record()
+    assert _repass() == 0
+    assert bec.main(["signoff"]) == 0
+    assert _validate() == []
+    return lists
+
+
+@pytest.mark.parametrize(
+    ("flaw", "reason"),
+    [
+        ("wrong-digests", "corpus_splits.json"),
+        ("list-changed", "non-rekordbox-unsupervised-pretrain-manifest.json"),
+        ("list-missing", "corpus_splits.json not found"),
+        ("map-null", "carries no training_input_digests object"),
+        ("map-malformed", "carries no training_input_digests object"),
+        ("map-absent", "missing ['training_input_digests']"),
+        ("wrong-commitment", "but the commitment in force is"),
+    ],
+)
+def test_a_closure_record_that_no_longer_matches_is_rejected(ws, monkeypatch, capsys, flaw, reason):
+    lists = _signed_with_a_closure_record(ws, monkeypatch)
+    path = bec.partition_closure_path(_gen())
+    doc = json.loads(path.read_text())
+    if flaw == "wrong-digests":
+        doc["training_input_digests"] = dict.fromkeys(bec.TRAINING_INPUT_NAMES, "b" * 64)
+    elif flaw == "list-changed":
+        (lists / "non-rekordbox-unsupervised-pretrain-manifest.json").write_text(
+            json.dumps({"unsupervisedPool": []}), encoding="utf-8"
+        )
+    elif flaw == "list-missing":
+        (lists / "corpus_splits.json").unlink()
+    elif flaw == "map-null":
+        doc["training_input_digests"] = None
+    elif flaw == "map-malformed":
+        doc["training_input_digests"] = ["not", "an", "object"]
+    elif flaw == "map-absent":
+        del doc["training_input_digests"]
+    else:
+        doc["commitment_sha256"] = "e" * 64
+    bec._write_json(path, doc)
+
+    failures = _validate()
+    assert any("do not support it" in f and reason in f for f in failures), failures
+    capsys.readouterr()
+    assert bec.main(["audit"]) == 1
+    assert reason in capsys.readouterr().err
+    assert bec.main(["signoff"]) == 1
+
+
+def test_an_annotation_event_after_the_closure_record_is_rejected(ws, monkeypatch, capsys):
+    # A re-ingest with the same annotations leaves the members, and so the
+    # member must-drop digest, unchanged. Only the log head shows the change.
+    _signed_with_a_closure_record(ws, monkeypatch)
+    csv_path = _annotate("sub-100", 0)
+    assert (
+        bec.main(
+            [
+                "ingest",
+                "--band",
+                "sub-100",
+                "--batch",
+                "0",
+                "--annotations",
+                str(csv_path),
+                "--force",
+            ]
+        )
+        == 0
+    )
+    reason = "annotation events were recorded after the closure"
+    assert any(reason in f for f in _validate())
+    capsys.readouterr()
+    assert bec.main(["audit"]) == 1
+    assert reason in capsys.readouterr().err
+
+
+def test_a_fresh_closure_record_after_the_training_rebuild_unblocks_signoff(ws, monkeypatch):
+    # The FR-59d flow: the list is frozen, the rebuild changes the training
+    # lists, and the closure record written afterwards binds the rebuilt files.
+    # The commitment keeps its freeze-time digests and is never rewritten.
+    lists = _redirect_training_lists(ws, monkeypatch)
+    _repartition_with_one_obligation(ws, monkeypatch)
+    frozen = bec.COMMITMENT_JSON.read_bytes()
+    (lists / "non-rekordbox-unsupervised-pretrain-manifest.json").write_text(
+        json.dumps({"unsupervisedPool": []}), encoding="utf-8"
+    )
+    _write_closure_record()
+    assert bec.main(["audit"]) == 0
+    assert _repass() == 0
+    assert bec.main(["signoff"]) == 0
+    assert _validate() == []
+    assert bec.COMMITMENT_JSON.read_bytes() == frozen
+
+
+def test_the_closure_check_reads_the_state_root_it_was_given(ws, monkeypatch, tmp_path):
+    # `validate_attestation` is given its own state root by `train.py`. With the
+    # global root pointing at an empty directory, every closure check still has
+    # to find the record and the annotation log under the root it was given.
+    _signed_with_a_closure_record(ws, monkeypatch)
+    moved = tmp_path / "moved-state"
+    ws.state.rename(moved)
+    empty = tmp_path / "empty-state"
+    empty.mkdir()
+    bec.configure_paths(empty, ws.artifacts)
+    assert (
+        bec.validate_attestation(
+            bec.ATTESTATION_JSON,
+            bec.COMMITMENT_JSON,
+            bec.LEDGER_HEAD_JSON,
+            N_BAND_TEST,
+            state_root=moved,
+        )
+        == []
+    )
 
 
 # --- the mandatory fingerprint route fails CLOSED ---------------------------
@@ -3046,6 +3186,111 @@ def test_abandon_force_preserves_the_prior_annotation_record(ws):
     assert bec.main(["audit"]) == 0
 
 
+def _interrupt_ingest(monkeypatch, band="sub-100") -> Path:
+    """Stage a batch and ingest it, crashing after the `.pending` write and
+    before the event append. Returns the staged file."""
+    assert bec.main(["stage-batch", "--band", band, "--size", "3"]) == 0
+    csv_path = _annotate(band, 0)
+    with monkeypatch.context() as m:
+        m.setattr(
+            bec,
+            "append_event",
+            lambda *_a, **_k: (_ for _ in ()).throw(bec.HarnessError("simulated crash")),
+        )
+        assert (
+            bec.main(["ingest", "--band", band, "--batch", "0", "--annotations", str(csv_path)])
+            != 0
+        )
+    pending = bec.pending_record_path(bec.annotations_dir(_gen()) / band / "batch-000.v1.json")
+    assert pending.exists()
+    return pending
+
+
+def _force_abandon(band="sub-100") -> int:
+    return bec.main(["abandon", "--band", band, "--batch", "0", "--force"])
+
+
+def _no_staged_records() -> bool:
+    state = bec.load_state()
+    return bec.unanchored_records(_gen(), state.events, state.repass_events) == []
+
+
+def test_force_abandon_keeps_an_interrupted_ingest_under_a_discarded_name(ws, monkeypatch, capsys):
+    # The staged file used to stay on the staged-record list forever, and the
+    # audit refuses while that list is not empty, so the recovery the abandon
+    # error recommends blocked the generation for good.
+    assert _mint() == 0
+    pending = _interrupt_ingest(monkeypatch)
+    payload = pending.read_bytes()
+    capsys.readouterr()
+    assert _force_abandon() == 0
+    discarded = pending.with_name("batch-000.v1.json.discarded")
+    assert not pending.exists()
+    assert discarded.read_bytes() == payload
+    assert "annotations/sub-100/batch-000.v1.json.discarded" in capsys.readouterr().out
+    assert _no_staged_records()
+    assert bec.main(["audit"]) == 0
+
+
+def test_abandon_without_force_still_refuses_an_interrupted_ingest(ws, monkeypatch):
+    assert _mint() == 0
+    pending = _interrupt_ingest(monkeypatch)
+    assert bec.main(["abandon", "--band", "sub-100", "--batch", "0"]) != 0
+    assert pending.exists()
+    assert not pending.with_name("batch-000.v1.json.discarded").exists()
+
+
+def test_a_crash_between_the_rename_and_the_append_is_finished_by_abandon_again(ws, monkeypatch):
+    assert _mint() == 0
+    pending = _interrupt_ingest(monkeypatch)
+    payload = pending.read_bytes()
+    with monkeypatch.context() as m:
+        m.setattr(
+            bec,
+            "append_event",
+            lambda *_a, **_k: (_ for _ in ()).throw(bec.HarnessError("simulated crash")),
+        )
+        assert _force_abandon() != 0
+    discarded = pending.with_name("batch-000.v1.json.discarded")
+    assert not pending.exists() and discarded.read_bytes() == payload
+    assert bec.latest_by_batch(bec.load_state().events).get(("sub-100", 0)) is None
+
+    assert _force_abandon() == 0
+    assert bec.latest_by_batch(bec.load_state().events)[("sub-100", 0)]["status"] == (
+        bec.LEDGER_ABANDONED
+    )
+    assert discarded.read_bytes() == payload
+    assert _no_staged_records()
+    assert bec.main(["audit"]) == 0
+
+
+def test_a_crash_after_the_abandon_append_is_repaired_by_load_state(ws, monkeypatch):
+    assert _mint() == 0
+    pending = _interrupt_ingest(monkeypatch)
+    with monkeypatch.context() as m:
+        _crash_after_append(m)
+        assert _force_abandon() != 0
+    assert json.loads(bec.LEDGER_HEAD_JSON.read_text())["event_count"] == 0
+    assert bec.validate_state(bec.load_state()) == []
+    assert json.loads(bec.LEDGER_HEAD_JSON.read_text())["event_count"] == 1
+    assert pending.with_name("batch-000.v1.json.discarded").exists()
+    assert _no_staged_records()
+    assert bec.main(["audit"]) == 0
+
+
+def test_force_abandon_never_overwrites_an_existing_discarded_file(ws, monkeypatch):
+    assert _mint() == 0
+    pending = _interrupt_ingest(monkeypatch)
+    payload = pending.read_bytes()
+    taken = pending.with_name("batch-000.v1.json.discarded")
+    taken.write_bytes(b"an earlier pass")
+    assert _force_abandon() == 0
+    assert taken.read_bytes() == b"an earlier pass"
+    assert pending.with_name("batch-000.v1.json.discarded.1").read_bytes() == payload
+    assert not pending.exists()
+    assert bec.main(["audit"]) == 0
+
+
 def test_abandoned_batch_contributes_nothing(ws):
     assert _mint() == 0
     assert bec.main(["stage-batch", "--band", "sub-100", "--size", "3"]) == 0
@@ -3621,7 +3866,9 @@ def test_non_numeric_must_drop_count_does_not_traceback(ws):
     assert _mint() == 0
     doc = json.loads(bec.COMMITMENT_JSON.read_text())
     doc["partition_obligation"]["must_drop_count"] = "many"
-    state, failures = bec.partition_closure_state(doc, doc["generation"])
+    state, failures = bec.partition_closure_state(
+        doc, bec.sha256_file(bec.COMMITMENT_JSON), doc["generation"]
+    )
     assert state["must_drop_count"] == 0
     assert failures == []
 
