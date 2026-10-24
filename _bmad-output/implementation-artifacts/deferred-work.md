@@ -1450,3 +1450,39 @@ evidence live in `12-5-pipeline-differential.md`; nothing here is acted on insid
 - source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
   summary: Make `validate_attestation` return a failure entry, rather than raise, on unreadable or malformed commitment, head, ledger-file, re-pass and closure artifacts, and on non-numeric band counts.
   evidence: Codex review of the PR 197 fix. The ledger walk and the annotation records now return failures. Unchanged code can still raise elsewhere: on an unreadable or non-object commitment or head JSON, on a ledger path that is a directory, in re-pass record reads, and in the band-count arithmetic. `train.py` calls the validator and does not catch the error, so each of these still stops training. Training stays blocked either way; what is missing is a readable failure message. **Re-open trigger:** the first time signoff can succeed.
+
+## Deferred from: PR 197 Codex review triage, round 3 (2026-10-24)
+
+Stopping rule (operator, 2026-10-24): fix a corpus-harness review finding only when it changes today's corpus output, and defer the rest with the step that would expose it. Each entry below was checked against the code and today's private data without writing anything, and none changes current output.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Bind the signoff file to the training lists for every closure route. Today the `no-obligation` and `obligation-vacuous` routes in `partition_closure_state` keep certifying after the training lists change, and `train.py` would accept that signoff. Planned fix: record `training_input_digests` in the signoff file and compare it with the current files in `validate_attestation`, which covers all three routes.
+  evidence: PR 197 comment r4366206991. Not reachable today: the frozen list was made with the repartition order and has 2,684 open obligations, so only the closure-record route applies, and that route has been bound since `a359c42`. **Re-open trigger:** before signoff can succeed.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Under `fallback-addendum`, `build_fallback_candidates` can re-admit recordings that `build_pool_universe` had excluded for cause (continuous DJ mixes). It only receives `universe_keys - kept_keys`, and that set is computed after those exclusions. Planned fix: carry the exclusions made for cause into the fallback build.
+  evidence: PR 197 comment r4366206995. Not reachable today: the recorded short-band policy is `repartition`, and all 2,785 pool rows have `origin=primary`. **Re-open trigger:** any move to `fallback-addendum`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `write_worklist` writes the CSV in place. A staging run interrupted mid-write leaves a header-only or partial worklist, which `require_valid_state` rejects, and that blocks both resuming `stage-batch` and `abandon --force`. Planned fix: write through `_write_text_atomic`.
+  evidence: PR 197 comment r4366206998. No staging is interrupted today, and every worklist passes the audit. **Re-open trigger:** the next `stage-batch`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: A forced re-ingest of unchanged annotations moves the annotation log head. That gets past the `repass-sample` check meant to stop redrawing a completed re-listen sample, so the repeatability figure could be redrawn without any label changing. Planned fix: allow a redraw only when the member roster or a sampled row's primary label differs from what the previous sample recorded.
+  evidence: PR 197 comment r4366207000. The 10 percent re-listen has not run. **Re-open trigger:** before `repass-sample`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `validate_attestation` compares only the copied `sample_sha256` strings for the re-listen. It does not check the re-pass log or whether the sample record and annotation records still exist and hash correctly; the audit does. Planned fix: a re-pass counterpart of `annotation_ledger_failures` (added in `1a33a49`), shared by the audit and the validator.
+  evidence: PR 197 comment r4366207003. There is no re-pass and no signoff file today. **Re-open trigger:** before `repass-sample`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: The review-universe digest leaves out each candidate's `contentSha256`. If a Tony or OA300 file is replaced between `prepare-review` and `commit-pools`, old fingerprint decisions can then apply to different audio. Planned fix: include the content hashes in the digest.
+  evidence: PR 197 comment r4366207004. Adding them changes the digest recorded in the active frozen list and forces a re-freeze, so this lands with the next freeze, together with binding `tony-truth-labels.json` into the training-input digests (entry above, 2026-10-24). **Re-open trigger:** the next remint.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `compute_membership` does not follow `duplicate_of` links transitively. With links A to B and B to C in draw order A, B, C, it keeps both A and C. Planned fix: group linked rows with union-find before choosing members. A row rejected for its own reasons must still never suppress a clean copy.
+  evidence: PR 197 comment r4366207010. The annotations hold one link (140-160 `e3-63178f2f475c` to `e3-824f4b73e616`) and no chain, so membership is unchanged. **Re-open trigger:** the next ingest that records a `duplicate_of`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: The octave-sentinel join in `member_legacy_labels` always adds labels from legacy rows with the same filename, even when both recordings have fingerprints that disagree. 12-6 section 3 allows a filename match only where no fingerprint is available. Planned fix: index filenames only for legacy rows that did not get a fingerprint.
+  evidence: PR 197 comment r4366207011. Simulated on today's 172 members, the fix leaves the count at 1 sentinel, with 0 changed. That sentinel (`e4-620e8b654f8b`, an OA300 track) gets its 80 BPM label from a Tony row that has no audio path, which is the case section 3 allows. **Re-open trigger:** before the sentinel subset feeds any figure.
