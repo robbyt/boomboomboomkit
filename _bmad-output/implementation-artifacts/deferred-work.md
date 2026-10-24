@@ -1390,3 +1390,49 @@ evidence live in `12-5-pipeline-differential.md`; nothing here is acted on insid
 - source_spec: `_bmad-output/implementation-artifacts/spec-12-7-repartition-and-must-drop-gates.md`
   summary: One row of the LABELLED training pool holds a single tempo label for a track whose tempo is not constant. Drop it in the FR-59d manifest rebuild, alongside the damaged Noisia row above. Not fixed here for the same reason: both 12.7 intent contracts forbid modifying the training manifests.
   evidence: The row is `Drum and Bass/Commix - The Divide (Original Mix).mp3` in `non-rekordbox-secondary-supervised-manifest.json`, the pool that carries `bpm_truth`. It reached the evaluation corpus as candidate `e4-ed5ed2a4ce49` in the `160-175` band and the annotator rejected it as tempo-unstable on 2026-08-23: the tempo is inconsistent across the track, so no single value describes it. A supervised training row in that state is not merely weak material, it is a wrong label. **The file itself is intact and was verified so before the reject was recorded** (zero decode errors, full 298.67 s, no dropped or silent sections, peak 1.0876 from ordinary intersample overshoot with no clipped run longer than one sample, crest factor 3.23 indicating a loud limited master rather than damage). The operator's first description was "corrupt"; measurement did not support that, and `audio_defect` was deliberately NOT recorded so the corpus does not carry a false defect claim against a healthy file. `tempo_unstable` is the recorded reason and it is the true one. Note the contrast with the `Underspawn - Bookworm` row rejected on 2026-08-17 for the same audible reason: that one sits in `unsupervisedPool`, which is label-free masked-mel material where an unstable tempo carries no wrong label, so it has no equivalent training consequence and is not filed here. **Re-open trigger:** the FR-59d training-manifest rebuild.
+
+- source_spec: none
+  summary: Story 12.8, declare the model's output bin schema a public contract (FR-67), run as its own bmad-build after the 12.7 close.
+  evidence: Split from the 2026-10-23 "bring Epic 12 back on track" request; independently shippable, documentation and doc-comment only, depends on nothing.
+
+- source_spec: none
+  summary: Story 12.9 part one, define the bundle gate (FR-68 to FR-71: the ensemble-lift rule in tracks, ALPHA 0.05, 12 net tracks, the FR-69c risk answers, the calibration floor, the per-band tripwire, the Epic 7 negative-control check) and leave the final run on the full corpus to a later story.
+  evidence: Split from the same request; the definition can start now, while the final run needs a corpus that 12.7 closes only partially.
+
+- source_spec: none
+  summary: Epic 12 close-out: refresh the PR 189 and PR 197 descriptions, fix the stale status lines (12-6 header, epics.md frontmatter, 12-2 OUTCOME, 12-7 progress text), add the eval-corpus/ ignore rule to develop and the epic branch, split unrelated files out of PR 197, then squash PR 189 into develop.
+  evidence: Split from the same request; listed in the 2026-10-23 Epic 12 review as stale or risky text that should be fixed before the epic lands.
+
+## Deferred from: Story 12.7 close at current coverage (2026-10-23)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Fill 100-120 and sub-100 to 43 members each. Sub-100 batch 0 is staged and was deliberately not abandoned, so that band resumes with an ordinary annotate-and-ingest. 100-120 needs a different source: its face-value pool measured 0 keepers in 40.
+  evidence: 100-120 batch 0 verified 39 of 40 tracks at 140 BPM or faster and one at 85; the pool's file tags for the band read about two-thirds of the true tempo, so the face-value pool is mostly drum and bass tagged a third low. Continuing along that draw sequence is unlikely to reach 43. The operator's remaining 93 `x1-` files (132 in `/Users/rterhaar/Music/2026-08-29-to-annotate/`, 39 already in the DAW project) are a source once admitted, but they sit outside the committed pool and the operator may have seen the detector's estimates for them, so admitting them to membership needs a dated 12-6 amendment that settles both points. The short-band declaration (`12-7-short-bands.json`) must be updated or removed as each band fills, since `emit-manifest` refuses a full band that is still declared short. **Re-open trigger:** the operator resumes annotation, or a story is opened to source slow tracks.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Run the signed 10 percent blind re-listen (`repass-sample`, `repass-ingest`) once the member set is final.
+  evidence: 12-6 section 6 binds it as the mitigation for "independence, not correctness". It samples the final member roster, and with two bands short the roster is not final. `signoff` refuses without it, unchanged. **Re-open trigger:** both slow bands full, or a dated amendment that fixes the member set at its current size.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Training-overlap sign-off: the FR-59d rebuild of the two training manifests without the members on the list of training songs to remove, then the check against the rebuilt training lists.
+  evidence: Unchanged from the 2026-08-11 amendment; `signoff` and `train.py` refuse until that check has run and its result is recorded. Note for the rebuild: the slow-tempo supplement's one blinded track (the 100-120 reject verified at 85 BPM) was left out because its file is a training-list row, and only members are put on that list. If the supplement should hold gate-eligible slow tracks, the rebuild has to drop those rows too, or they have to come from audio no training list contains. **Re-open trigger:** the FR-59d rebuild story.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Restate Story 12.9's bundle-gate figures for the corpus that exists: the 12-net-track margin at 10 percent discordance, the "258-track corpus" wording, and the per-band "30 of 43" handled rule, for 172 tracks in four full bands plus two declared short bands and a supplement that holds no gate-eligible track.
+  evidence: epic-12-context.md (Bundle gate, 12.9) and the 12-6 amendment of 2026-10-23. A margin sized for 258 paired tracks is not the margin for 172, and the slow range where the model fails most has no gate-eligible track at all today. **Re-open trigger:** Story 12.9 part one (the bundle-gate definition).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Two `x1-` tracks in the DAW project hold two clips that read different tempos, so neither has a single verified tempo and both were left out of the slow-tempo supplement. The operator deletes the stale clip in the project, or states which reading stands.
+  evidence: `x1-0fb9a45aed91` reads 112.0 and 127.98; `x1-51e8f1c983e2` reads 51.0 and 123.93. In both the slow reading sits on a sliver left by a clip split (0.56 beats, and 0.0004 beats), and the clip that plays reads 127.98 and 123.93, outside the slow range. The spec counted 13 slow `x1-` tracks from the first clip of each track; reading every clip gives 11. `project_tracks` in the harness refuses to pick a winner when readings differ by more than 0.5 BPM. **Re-open trigger:** the next edit of that DAW project.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Decide whether the three blinded 160-175 rejects verified at 85 to 87 BPM join the slow-tempo supplement. The 2026-10-23 spec named only the 100-120 rejects, so `SUPPLEMENT_REJECT_BANDS` holds only that band.
+  evidence: `membership.json` 160-175 rejects: two at 85.0 and one at 87.0, all out-of-band from blinded worklists. They are pool rows, so they will likely meet the same training-list match that left out the 100-120 reject (see the overlap entry above). **Re-open trigger:** the 12.9 gate definition, if it wants sub-100 coverage.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: 59 of the 82 OA300 audio files do not resolve under `$OA300_CORPUS_PATH/corpus` on the operator's machine, so `emit-manifest`'s octave-sentinel join falls back to exact-filename matching for those rows instead of the fingerprint match first.
+  evidence: Measured 2026-10-23 while running `make eval-corpus-manifest`: `/Users/rterhaar/Dropbox/OA300_OnsetAudio300/corpus` holds a DAW project and its folders, not the corpus audio. The run had crashed on this with a KeyError (the not-found message evaluated `entry['identity']` as a `dict.get` default on a lookup entry that has none); that is fixed, and an unresolvable row now reads as "no audio". The fallback is the documented one in 12-6 section 3, so the manifest is valid, but a re-encode of an OA300 sentinel track would be missed. **Re-open trigger:** before the corpus file is used for a sentinel-subset figure.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Strengthen the slow-tempo supplement's overlap check before the supplement feeds any pass or fail gate: compare against the corpus members and within each band, hash Tony train/val files as well as the training-list files, standardize against the training cohort only, and cover GiantSteps for untitled tracks; also tag supplement entries in the octave-sentinel window and test the carried `ambiguous` flag.
+  evidence: 2026-10-23 review of the 12.7 close. As built the check is narrower than the pre-commitment review, which is acceptable only because every supplement track is report-only (`detector-visible`).

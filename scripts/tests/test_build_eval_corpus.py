@@ -3839,3 +3839,440 @@ def test_a_shared_title_with_an_unreadable_length_fails_closed(ws, monkeypatch):
     monkeypatch.setattr(bec, "DURATION_FN", lambda p: None)
     failures, _w, _r = bec.run_audit()
     assert any("length could not be read" in f for f in failures), failures
+
+
+# ===========================================================================
+# Closing the corpus at its current coverage (spec-12-7-close-corpus-at-
+# current-coverage.md): DAW export, the short-band declaration, and the
+# slow-tempo supplement.
+# ===========================================================================
+
+SLOW_BANDS = ("sub-100", "100-120")
+
+
+def _write_dawproject(path: Path, tracks: dict[str, list[float]], ext: str = ".mp3") -> Path:
+    """A minimal .dawproject: one DAW track per name, one warped clip per reading.
+
+    Each clip covers 60 seconds of audio, so `bpm` beats over 60 s reads back as
+    exactly `bpm` through `dawproject-bpm.py --json`.
+    """
+    import zipfile
+
+    structure = []
+    lanes = []
+    for i, (name, readings) in enumerate(tracks.items()):
+        structure.append(f'<Track id="t{i}" name="{name}"/>')
+        clips = "".join(
+            "<Clip><Warps>"
+            f'<Audio><File path="audio/{name}{ext}"/></Audio>'
+            '<Warp time="0.0" contentTime="0.0"/>'
+            f'<Warp time="{bpm}" contentTime="60.0"/>'
+            "</Warps></Clip>"
+            for bpm in readings
+        )
+        lanes.append(
+            f'<Lanes track="t{i}"><Clips><Clip><Clips>{clips}</Clips></Clip></Clips></Lanes>'
+        )
+    xml = (
+        '<Project><Transport><Tempo value="120.0"/></Transport>'
+        f"<Structure>{''.join(structure)}</Structure>"
+        f"<Arrangement><Lanes>{''.join(lanes)}</Lanes></Arrangement></Project>"
+    )
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("project.xml", xml)
+    return path
+
+
+def _export(band, batch, project, out=None) -> int:
+    argv = [
+        "export-dawproject",
+        "--band",
+        band,
+        "--batch",
+        str(batch),
+        "--dawproject",
+        str(project),
+    ]
+    if out is not None:
+        argv += ["--out", str(out)]
+    return bec.main(argv)
+
+
+def _write_short_bands(bands=None, **overrides):
+    doc = {
+        "schema_version": 1,
+        "declared": "2026-10-23",
+        "operator": "robbyt",
+        "bands": bands
+        if bands is not None
+        else {
+            "100-120": "pool tags read two-thirds of the true tempo",
+            "sub-100": "batch 0 staged, not annotated",
+        },
+    }
+    doc.update(overrides)
+    bec._write_json(bec.SHORT_BANDS_JSON, doc)
+
+
+def _complete_fast_bands():
+    for band in bec.BAND_NAMES:
+        if band not in SLOW_BANDS:
+            _complete_band(band)
+
+
+def test_project_tracks_reads_one_tempo_per_track():
+    clips = [
+        {"track": "a", "bpm": 176.12, "file": "audio/a.mp3"},
+        {"track": "a", "bpm": 176.16, "file": "audio/a.mp3"},
+        {"track": "b", "bpm": 51.0, "file": "audio/b.flac"},
+        {"track": "b", "bpm": 123.93, "file": "audio/b.flac"},
+        {"track": "c", "bpm": 110.0, "file": "audio/other.flac"},
+    ]
+    tracks = bec.project_tracks(clips)
+    assert tracks["a"].bpm == 176.14 and tracks["a"].audio == "a.mp3"
+    # A stale clip left by a split reads a different tempo; nobody guesses which.
+    assert tracks["b"].bpm is None and "different tempos" in str(tracks["b"].problem)
+    assert tracks["c"].bpm is None and "not a file named after the track" in str(
+        tracks["c"].problem
+    )
+
+
+def test_project_tracks_marks_unusable_and_two_file_tracks():
+    clips = [
+        {"track": "x1-missing", "file": "audio/x1-missing.flac"},
+        {"track": "x1-text", "bpm": "fast", "file": "audio/x1-text.flac"},
+        {"track": "x1-song", "bpm": 110.0, "file": "audio/A/x1-song.flac"},
+        {"track": "x1-song", "bpm": 110.0, "file": "audio/B/x1-song.flac"},
+    ]
+    tracks = bec.project_tracks(clips)
+    for name in ("x1-missing", "x1-text"):
+        assert tracks[name].bpm is None
+        assert tracks[name].problem == "a clip on the track has no usable tempo"
+    # Same basename, two different files: not one track's audio.
+    assert tracks["x1-song"].bpm is None
+    assert "more than one file" in str(tracks["x1-song"].problem)
+
+
+def test_export_dawproject_writes_the_ingest_csv(ws):
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "100-120", "--size", "6"]) == 0
+    order = _batch_record("100-120")["work_order"]
+    tempos = {rid: [170.0 + i] for i, rid in enumerate(order)}
+    project = _write_dawproject(ws.root / "p.dawproject", {**tempos, "unrelated": [90.0]})
+    assert _export("100-120", 0, project) == 0
+    out = bec.EVAL_CORPUS_DIR / "ingest-100-120-batch-000.csv"
+    with open(out, newline="", encoding="utf-8") as fh:
+        rows = list(csv.reader(fh))
+    assert rows[0] == CSV_HEADER.split(",")
+    assert [r[0] for r in rows[1:]] == order
+    for rid, row in zip(order, rows[1:], strict=True):
+        assert row[1] == f"{tempos[rid][0]:.2f}"
+        assert row[2:6] == ["0", "0", "0", "0"] and row[6] == ""
+    # An ingest file the operator may have edited is never overwritten.
+    assert _export("100-120", 0, project) == 1
+
+
+def test_export_dawproject_refuses_an_existing_out_file(ws, capsys):
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "100-120", "--size", "6"]) == 0
+    order = _batch_record("100-120")["work_order"]
+    project = _write_dawproject(ws.root / "p.dawproject", {rid: [170.0] for rid in order})
+    out = ws.root / "hand-edited.csv"
+    out.write_text("operator edits\n")
+    assert _export("100-120", 0, project, out) == 1
+    assert "already exists" in capsys.readouterr().err
+    assert out.read_text() == "operator edits\n"
+
+
+def test_export_dawproject_refuses_a_row_missing_from_the_project(ws, capsys):
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "100-120", "--size", "6"]) == 0
+    order = _batch_record("100-120")["work_order"]
+    project = _write_dawproject(ws.root / "p.dawproject", {rid: [170.0] for rid in order[1:]})
+    assert _export("100-120", 0, project) == 1
+    err = capsys.readouterr().err
+    assert f"not in the project: {order[0]}" in err
+    assert not (bec.EVAL_CORPUS_DIR / "ingest-100-120-batch-000.csv").exists()
+
+
+def test_export_dawproject_refuses_a_row_without_one_tempo(ws, capsys):
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "100-120", "--size", "6"]) == 0
+    order = _batch_record("100-120")["work_order"]
+    tracks = {rid: [170.0] for rid in order}
+    tracks[order[-1]] = [112.0, 127.98]
+    project = _write_dawproject(ws.root / "p.dawproject", tracks)
+    assert _export("100-120", 0, project) == 1
+    assert f"{order[-1]}: its clips read different tempos" in capsys.readouterr().err
+
+
+def test_an_exported_out_of_band_batch_ingests_with_no_members(ws):
+    # The 100-120 batch-0 shape: every track verified outside its pool's band,
+    # so the batch yields no members and every tempo is kept as data.
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "100-120", "--size", "6"]) == 0
+    order = _batch_record("100-120")["work_order"]
+    tempos = {rid: [172.0] for rid in order}
+    tempos[order[0]] = [85.0]
+    project = _write_dawproject(ws.root / "p.dawproject", tempos)
+    out = ws.root / "export.csv"
+    assert _export("100-120", 0, project, out) == 0
+    before = len(bec.read_events(bec.ledger_path(_gen())))
+    assert bec.main(["ingest", "--band", "100-120", "--batch", "0", "--annotations", str(out)]) == 0
+    events = bec.read_events(bec.ledger_path(_gen()))
+    assert len(events) == before + 1 and events[-1]["band"] == "100-120"
+    membership = json.loads(bec.membership_path(_gen()).read_text())["100-120"]
+    assert membership["members"] == [] and membership["surplus"] == []
+    assert set(membership["rejects"]) == set(order)
+    assert all(r["reason"] == "out-of-band" for r in membership["rejects"].values())
+    assert membership["rejects"][order[0]]["verified_bpm"] == 85.0
+    assert membership["rejects"][order[1]]["verified_bpm"] == 172.0
+
+
+def test_emit_manifest_with_declared_short_bands(ws, capsys):
+    assert _mint() == 0
+    _complete_fast_bands()
+    _write_short_bands()
+    assert bec.main(["emit-manifest"]) == 0
+    assert "short bands sub-100, 100-120" in capsys.readouterr().out
+    manifest = json.loads((bec.generation_root(_gen()) / "258-corpus.jams.json").read_text())
+    assert len(manifest["entries"]) == N_BAND_TEST * 4
+    assert manifest["annotation_version"] == bec.ANNOTATION_VERSION_TAG
+    for name in bec.BAND_NAMES:
+        block = manifest["bands"][name]
+        assert block["target"] == N_BAND_TEST
+        if name in SLOW_BANDS:
+            assert block["members"] == 0 and block["short_reason"]
+        else:
+            assert block["members"] == N_BAND_TEST and block["short_reason"] is None
+    assert manifest["bands"]["100-120"]["short_reason"].startswith("pool tags read")
+    assert manifest["short_band_declaration"]["declared"] == "2026-10-23"
+    assert manifest["short_band_declaration"]["sha256"] == bec.sha256_file(bec.SHORT_BANDS_JSON)
+    for entry in manifest["entries"]:
+        tempo = entry["annotations"][0]
+        assert tempo["annotation_metadata"]["annotation_version"] == bec.ANNOTATION_VERSION_TAG
+        assert set(entry["file_metadata"]["identifiers"]) == {"row_id"}
+        assert entry["sandbox"]["band"] not in SLOW_BANDS
+
+
+def test_emit_manifest_refuses_a_short_band_that_is_not_declared(ws, capsys):
+    assert _mint() == 0
+    _complete_fast_bands()
+    _write_short_bands({"100-120": "pool tags read two-thirds of the true tempo"})
+    assert bec.main(["emit-manifest"]) == 1
+    out = capsys.readouterr().out
+    assert "corpus incomplete" in out
+    assert "not declared short in 12-7-short-bands.json: sub-100" in out
+    assert not (bec.generation_root(_gen()) / "258-corpus.jams.json").exists()
+
+
+def test_emit_manifest_refuses_a_full_band_declared_short(ws, capsys):
+    assert _mint() == 0
+    _complete_fast_bands()
+    _write_short_bands(
+        {
+            "100-120": "pool tags read two-thirds of the true tempo",
+            "sub-100": "batch 0 staged, not annotated",
+            "120-140": "declared by mistake",
+        }
+    )
+    assert bec.main(["emit-manifest"]) == 1
+    assert "A full band cannot be declared short" in capsys.readouterr().out
+    assert not (bec.generation_root(_gen()) / "258-corpus.jams.json").exists()
+
+
+def test_emit_manifest_refuses_a_malformed_declaration(ws, capsys):
+    assert _mint() == 0
+    _complete_fast_bands()
+    _write_short_bands({"90-100": "not a band"})
+    assert bec.main(["emit-manifest"]) == 1
+    assert "'90-100' is not a band" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("bands", "overrides"),
+    [
+        ({"100-120": "  ", "sub-100": "batch 0 staged"}, {}),
+        ({}, {}),
+        (None, {"operator": ""}),
+        (None, {"declared": "last tuesday"}),
+        (None, {"schema_version": 2}),
+        (None, {"extra": "an unexpected key"}),
+    ],
+    ids=["blank-reason", "empty-bands", "empty-operator", "bad-date", "schema-2", "extra-key"],
+)
+def test_emit_manifest_refuses_each_malformed_declaration(ws, bands, overrides):
+    assert _mint() == 0
+    _complete_fast_bands()
+    _write_short_bands(bands, **overrides)
+    assert bec.main(["emit-manifest"]) == 1
+    assert not (bec.generation_root(_gen()) / "258-corpus.jams.json").exists()
+
+
+def test_signoff_still_refuses_with_declared_short_bands(ws, capsys):
+    assert _mint() == 0
+    _complete_fast_bands()
+    _write_short_bands()
+    assert bec.main(["emit-manifest"]) == 0
+    capsys.readouterr()
+    assert bec.main(["signoff"]) == 1
+    captured = capsys.readouterr()
+    assert (
+        f"bands below {N_BAND_TEST} verified members: ['sub-100', '100-120']"
+        in captured.out + captured.err
+    )
+    assert not bec.ATTESTATION_JSON.exists()
+
+
+def _supplement_setup(ws, x1_tracks: dict[str, list[float]]):
+    """Freeze the candidate list, annotate 100-120 batch 0 with one row verified at 85 BPM, and write
+    a DAW project plus audio for operator-collection tracks."""
+    assert _mint() == 0
+    assert bec.main(["stage-batch", "--band", "100-120", "--size", "6"]) == 0
+    order = _batch_record("100-120")["work_order"]
+    overrides = {rid: {"verified_bpm": 172.0} for rid in order}
+    overrides[order[0]] = {"verified_bpm": 85.0}
+    csv_path = _annotate("100-120", 0, overrides)
+    assert (
+        bec.main(["ingest", "--band", "100-120", "--batch", "0", "--annotations", str(csv_path)])
+        == 0
+    )
+    audio_dir = ws.root / "x1-audio"
+    for name in x1_tracks:
+        _write_audio(audio_dir / f"{name}.flac", f"collection audio {name} ".encode() * 8)
+    project = _write_dawproject(ws.root / "p.dawproject", x1_tracks, ext=".flac")
+    return order[0], audio_dir, project
+
+
+def _supplement(project, audio_dir) -> int:
+    return bec.main(
+        ["slow-supplement", "--dawproject", str(project), "--audio-dir", str(audio_dir)]
+    )
+
+
+def _read_supplement() -> dict:
+    return json.loads((bec.generation_root(_gen()) / bec.SUPPLEMENT_FILE_NAME).read_text())
+
+
+def test_slow_supplement_keeps_clean_tracks_with_their_source(ws):
+    reject_row, audio_dir, project = _supplement_setup(
+        ws,
+        {"x1-slow": [104.5], "x1-slower": [96.6], "x1-fast": [126.0]},
+    )
+    membership_before = bec.membership_path(_gen()).read_bytes()
+    assert _supplement(project, audio_dir) == 0
+    doc = _read_supplement()
+    by_row = {e["file_metadata"]["identifiers"]["row_id"]: e for e in doc["entries"]}
+    assert set(by_row) == {"x1-slow", "x1-slower", reject_row}
+    assert by_row["x1-slow"]["sandbox"] == {
+        "band": "100-120",
+        "source": bec.SOURCE_OPERATOR_COLLECTION,
+        "tags": [bec.TAG_DETECTOR_VISIBLE],
+    }
+    assert by_row["x1-slower"]["sandbox"]["band"] == "sub-100"
+    assert by_row["x1-slow"]["annotations"][0]["data"][0]["value"] == 104.5
+    assert by_row[reject_row]["sandbox"] == {
+        "band": "sub-100",
+        "source": bec.SOURCE_POOL_REJECT,
+        "tags": [],
+    }
+    assert doc["per_band"] == {"sub-100": 2, "100-120": 1}
+    assert doc["detector_visible"] == 2
+    # The supplement never touches membership.
+    assert bec.membership_path(_gen()).read_bytes() == membership_before
+
+
+def test_slow_supplement_leaves_out_a_training_match(ws, monkeypatch, capsys):
+    _reject, audio_dir, project = _supplement_setup(
+        ws, {"x1-match": [104.5], "x1-copy": [110.0], "x1-clean": [115.0]}
+    )
+    train_path = ws.inputs["training_local_paths"]["train-0"]
+    match_path = str(audio_dir / "x1-match.flac")
+    monkeypatch.setattr(
+        bec,
+        "FINGERPRINT_FN",
+        lambda p: _unique_fingerprint(train_path) if p == match_path else _unique_fingerprint(p),
+    )
+    # A byte-identical copy of a training-list file is caught by its hash alone.
+    ws.inputs["manifest_hashes"] = {bec.sha256_file(audio_dir / "x1-copy.flac")}
+    assert _supplement(project, audio_dir) == 0
+    out = capsys.readouterr().out
+    assert "left out x1-match: matches training or another track" in out
+    assert "left out x1-copy: the same file is in a training list" in out
+    rows = {e["file_metadata"]["identifiers"]["row_id"] for e in _read_supplement()["entries"]}
+    assert "x1-clean" in rows and not rows & {"x1-match", "x1-copy"}
+    assert {r["row_id"] for r in _read_supplement()["left_out"]} == {"x1-match", "x1-copy"}
+
+
+def test_slow_supplement_leaves_out_a_track_whose_clips_disagree(ws, capsys):
+    _reject, audio_dir, project = _supplement_setup(
+        ws, {"x1-split": [51.0, 123.93], "x1-clean": [115.0]}
+    )
+    assert _supplement(project, audio_dir) == 0
+    assert "left out x1-split: its clips read different tempos" in capsys.readouterr().out
+    rows = {e["file_metadata"]["identifiers"]["row_id"] for e in _read_supplement()["entries"]}
+    assert "x1-split" not in rows and "x1-clean" in rows
+
+
+def test_an_unresolvable_oa300_lookup_without_an_identity_is_skipped(tmp_path, monkeypatch):
+    # The sentinel label index resolves OA300 rows from bare {source, filename,
+    # subdir} entries. An unresolvable one must read as "no audio", not crash
+    # emit-manifest with a KeyError.
+    monkeypatch.setenv("OA300_CORPUS_PATH", str(tmp_path))
+    (tmp_path / "corpus").mkdir()
+    entry = {"source": "oa300", "filename": "absent.mp3", "subdir": None}
+    assert bec._safe_resolve(entry, None) is None
+
+
+def test_slow_supplement_leaves_out_two_tracks_sharing_a_fingerprint_across_bands(
+    ws, monkeypatch, capsys
+):
+    _reject, audio_dir, project = _supplement_setup(
+        ws, {"x1-a": [104.5], "x1-b": [96.6], "x1-clean": [115.0]}
+    )
+    shared = {str(audio_dir / "x1-a.flac"), str(audio_dir / "x1-b.flac")}
+    monkeypatch.setattr(
+        bec,
+        "FINGERPRINT_FN",
+        lambda p: _unique_fingerprint("shared") if p in shared else _unique_fingerprint(p),
+    )
+    assert _supplement(project, audio_dir) == 0
+    out = capsys.readouterr().out
+    assert "left out x1-a: matches training or another track" in out
+    assert "left out x1-b: matches training or another track" in out
+    rows = {e["file_metadata"]["identifiers"]["row_id"] for e in _read_supplement()["entries"]}
+    assert "x1-clean" in rows and not rows & {"x1-a", "x1-b"}
+
+
+def test_slow_supplement_refuses_an_unreadable_unapproved_training_row(ws, monkeypatch):
+    _reject, audio_dir, project = _supplement_setup(ws, {"x1-clean": [115.0]})
+    train_path = ws.inputs["training_local_paths"]["train-0"]
+    monkeypatch.setattr(
+        bec, "FINGERPRINT_FN", lambda p: None if p == train_path else _unique_fingerprint(p)
+    )
+    assert _supplement(project, audio_dir) == 4
+    assert not (bec.generation_root(_gen()) / bec.SUPPLEMENT_FILE_NAME).exists()
+
+
+def test_slow_supplement_records_the_project_it_read(ws):
+    _reject, audio_dir, project = _supplement_setup(ws, {"x1-clean": [115.0]})
+    assert _supplement(project, audio_dir) == 0
+    assert _read_supplement()["dawproject"] == {
+        "name": project.name,
+        "bytes": project.stat().st_size,
+        "sha256": bec.sha256_file(project),
+    }
+
+
+def test_supplement_from_project_uses_the_unrounded_mean_and_lists_unreadable_tracks(
+    tmp_path,
+):
+    tracks = {
+        # 119.99 and 120.00 round to 120.00 but are a slow track.
+        "x1-edge": bec.ProjectTrack("x1-edge", (119.99, 120.0), "x1-edge.flac", None),
+        "x1-none": bec.ProjectTrack("x1-none", (), "", "a clip on the track has no usable tempo"),
+        "x1-fast": bec.ProjectTrack("x1-fast", (126.0,), "x1-fast.flac", None),
+    }
+    kept, left_out = bec.supplement_from_project(tracks, tmp_path)
+    assert [(t.row_id, t.band) for t in kept] == [("x1-edge", "100-120")]
+    assert left_out == [("x1-none", "a clip on the track has no usable tempo")]

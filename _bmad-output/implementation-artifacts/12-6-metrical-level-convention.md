@@ -721,3 +721,108 @@ version. A short copy read from 0:00 while a long copy of the same recording is
 read from 0:10 would be compared across different musical material and could
 fail to match, which would let a genuine duplicate reach both corpora. One
 comparable rule for all files is therefore required, not an adaptive one.
+
+### Amendment 2026-10-23: close the corpus at its current coverage (operator, re-signed)
+
+This amends BOUND items and carries its own signoff line. It changes when the
+corpus may be used and what it holds. It does not change how any track is
+verified, kept, or rejected.
+
+**Why.** 172 of 258 tracks are verified, all at 120 BPM or faster: 120-140,
+140-160, 160-175 and 175-plus hold 43 each, and 100-120 and sub-100 hold none.
+The harness would not write the corpus file until every band held 43, so
+nothing downstream (Story 12.9) could use the verified tracks, and the slow
+tempos where the tempo model fails most had no representation at all. The
+operator does not want to annotate more tracks to unblock this.
+
+**What 100-120 batch 0 showed.** The operator had already set the tempo of all 40
+batch-0 tracks in the DAW. Recorded through the unchanged `ingest` command on
+2026-10-23, every one verified outside the band: 39 at 140 BPM or faster and one
+at 85. The pool's file tags for this band read about two-thirds of the verified
+tempo. Under the signed keep/reject rule the batch yields no member, and its 40
+tempos are kept as out-of-band rejects, never moved to another band. The
+section-2 budget carried a one-keeper-in-four scenario for this band; the first
+batch measured zero in forty.
+
+**What changes.**
+
+1. **The corpus closes at the four full bands, 172 tracks, plus two bands
+   declared short.** The declaration is a dated, committed file,
+   `_bmad-output/implementation-artifacts/12-7-short-bands.json`, naming 100-120
+   (its pool tags read two-thirds of the true tempo; batch 0 yielded no in-band
+   track) and sub-100 (batch 0 staged, not annotated). The harness writes the
+   corpus file only when every band under 43 is named there, refuses if a full
+   band is named, and records each band's members, target and short reason in
+   the file itself. The target stays 43 per band; the file states the shortfall
+   rather than hiding it.
+2. **Verified slow tempos are admitted in a separate supplement, outside
+   membership.** Two sources: 100-120 batch-0 rejects verified under 120 BPM,
+   and the `x1-` files from the operator's own collection whose tempos were set
+   in the same DAW project. The supplement never adds members and the 172
+   figure does not count it. Any track that matches in these checks is left
+   out:
+   - its file hash against the two non-Rekordbox training lists (Tony
+     train/val files are not hash-checked);
+   - its audio fingerprint against every training-list and Tony train/val file
+     at the 0.97 review cosine;
+   - a GiantSteps title collision, which needs a title, so it cannot fire for
+     the untitled `x1-` tracks;
+   - supplement tracks against each other across bands, standardized over the
+     supplement alone.
+
+   Not checked: the 172 corpus members, and supplement tracks against each other
+   within one band. This is narrower than the pre-commitment review, and it is
+   acceptable only because every kept track is report-only and enters no pass
+   or fail gate.
+
+   **The pool-reject source cannot yield a track until the training lists are
+   rebuilt.** Under the 2026-08-11 order the candidate pool is drawn from the
+   training lists, so every pool row is a training-list row, and only members
+   are put on the list of training songs to remove. A non-member reject matches
+   its own training-list file and is left out. The one candidate, the 100-120
+   reject verified at 85 BPM, was left out for that reason.
+3. **The `x1-` tracks are tagged `detector-visible`.** The operator saw, or cannot
+   rule out having seen, BoomBoomBoomKit's per-track estimates for those files
+   before setting their tempos. They are listed and reported so failures in that
+   range stay visible, and they are excluded from any pass or fail gate. A track
+   annotated from a blinded worklist carries no such tag.
+4. **Three items move to later work:** filling 100-120 and sub-100 to 43, the 10
+   percent blind re-pass (it samples the final member set, and the member set is
+   not final), and the training-overlap sign-off (the FR-59d rebuild and the
+   check against the rebuilt training lists).
+5. **Training stays blocked.** `make eval-corpus-signoff` still refuses, so no
+   signoff file is written and `train.py`'s precondition check refuses. The
+   short-band file is read by `emit-manifest` alone; signoff and the training
+   gate never read it. REVIEWER_SIGNOFF in `12-7-eval-corpus.md` stays `pending`.
+
+**What does NOT change.** The keep/reject criteria, the face-value pools, the
+frozen candidate list and its draw sequences, the operator decisions file, the
+blinding of all 172 members, the annotation-version tag, the 2026-08-11
+partition order, and the rule that an out-of-band track is rejected and never
+moved. Sub-100 batch 0 is not abandoned; it stays staged so the band can resume.
+
+**Measured on 2026-10-23, recorded here so the signature is taken against the
+real outcome.**
+
+- Corpus file: 172 tracks, four bands at 43, 100-120 and sub-100 at 0 and named
+  short.
+- Supplement: 11 tracks, 10 in 100-120 and 1 under 100, all `x1-` and all
+  tagged `detector-visible`. **No supplement track is eligible for a pass or
+  fail gate.** The one blinded slow track, the 100-120 reject verified at 85 BPM,
+  was left out because the same file is a row of a training list: under the
+  2026-08-11 order the eval pool is drawn from the training lists, and only
+  members are put on the list of training songs to remove.
+- Two `x1-` tracks were left out because their DAW tracks hold two clips that
+  read different tempos (112.0 and 127.98; 51.0 and 123.93). In both, the
+  disagreeing reading sits on a leftover sliver from a clip split, and the clip
+  that plays reads 127.98 and 123.93, outside the slow range. The spec drafted
+  for this change counted 13 slow `x1-` tracks from the first clip of each
+  track; reading every clip gives 11. Which reading stands is the operator's
+  call.
+
+**Consequence for Story 12.9.** The bundle gate was written against a 258-track
+corpus: 12 net tracks at 10 percent discordance, and a band counts as handled
+when DSP gets 30 of 43. Both must be restated for 172 tracks in four bands plus
+the declared short bands before 12.9 relies on them.
+
+- [x] **Operator signoff on this amendment.** Signed 2026-10-23 by the operator (robbyt), recorded via the structured decision elicitation after reading the measured outcome above, including that the supplement holds no gate-eligible track.

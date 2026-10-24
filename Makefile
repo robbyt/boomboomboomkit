@@ -687,6 +687,33 @@ ifndef ANNOTATIONS
 endif
 	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py ingest --band "$(BAND)" --batch $(BATCH) --annotations "$(ANNOTATIONS)"
 
+## eval-corpus-export-dawproject: Story 12.7 -- write the ingest CSV for BAND= BATCH= from the tempos already set in a DAW project (DAWPROJECT=), matched to the worklist by track name. Reads the project through scripts/dawproject-bpm.py --json, never --match. Refuses if any worklist row is missing from the project or has no single tempo, and never overwrites an existing file (default eval-corpus/ingest-<band>-batch-NNN.csv; override with OUT=). Flag columns are written as 0. Does not ingest. Develop-only.
+.PHONY: eval-corpus-export-dawproject
+eval-corpus-export-dawproject:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-export-dawproject BAND=100-120 BATCH=0 DAWPROJECT=path.dawproject)
+endif
+ifndef BATCH
+	$(error BATCH is not set. Usage: make eval-corpus-export-dawproject BAND=100-120 BATCH=0 DAWPROJECT=path.dawproject)
+endif
+ifndef DAWPROJECT
+	$(error DAWPROJECT is not set. Usage: make eval-corpus-export-dawproject BAND=100-120 BATCH=0 DAWPROJECT=path.dawproject)
+endif
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py export-dawproject --band "$(BAND)" --batch $(BATCH) --dawproject "$(DAWPROJECT)" $(if $(OUT),--out "$(OUT)",)
+
+## eval-corpus-slow-supplement: Story 12.7 -- write generations/<gen>/slow-tempo-supplement.jams.json: verified tempos under 120 BPM kept outside band membership (12-6 section 6, amendment 2026-10-23). Takes the 100-120 pool rows rejected as out-of-band below 120, plus the x1- tracks in DAWPROJECT= verified below 120 with their audio in AUDIO_DIR= (tagged detector-visible). Every track is checked against the training audio by file hash and by audio fingerprint at the review cosine; a track that matches is left out and named in the output. Changes no membership. Develop-only.
+.PHONY: eval-corpus-slow-supplement
+eval-corpus-slow-supplement:
+ifndef DAWPROJECT
+	$(error DAWPROJECT is not set. Usage: make eval-corpus-slow-supplement DAWPROJECT=path.dawproject AUDIO_DIR=dir)
+endif
+ifndef AUDIO_DIR
+	$(error AUDIO_DIR is not set. Usage: make eval-corpus-slow-supplement DAWPROJECT=path.dawproject AUDIO_DIR=dir)
+endif
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py slow-supplement --dawproject "$(DAWPROJECT)" --audio-dir "$(AUDIO_DIR)"
+
 ## eval-corpus-abandon: Story 12.7 -- record BAND= BATCH= as abandoned. The signed rule is that an abandoned batch yields no members; this appends an append-only ledger event so the batch contributes no annotations and no membership, and the draw-sequence span it consumed is never re-staged. Pass FORCE=1 to discard an existing annotation record. Develop-only.
 .PHONY: eval-corpus-abandon
 eval-corpus-abandon:
@@ -710,7 +737,7 @@ eval-corpus-audit:
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py audit
 
-## eval-corpus-manifest: Story 12.7 -- emit the JAMS corpus manifest (section-5 annotation-version tag, octave-sentinel tags joined fingerprint-first per the signed section-3 rule, 175+ degeneracy note). Refuses while any band is below 43 members and prints per-band progress instead, and refuses unless the shared audit is clean. Develop-only.
+## eval-corpus-manifest: Story 12.7 -- emit the JAMS corpus manifest (section-5 annotation-version tag, octave-sentinel tags joined fingerprint-first per the signed section-3 rule, 175+ degeneracy note). Refuses while any band is below 43 members and prints per-band progress instead, unless every such band is named with a reason in the committed implementation-artifacts/12-7-short-bands.json (and no full band is named there); the file then carries a per-band block of members, target and short reason. Refuses unless the shared audit is clean. Signoff and the training gate never read the short-band file. Develop-only.
 .PHONY: eval-corpus-manifest
 eval-corpus-manifest:
 	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \

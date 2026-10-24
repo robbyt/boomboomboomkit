@@ -1,14 +1,16 @@
 # Story 12.7: the 258-track band-balanced evaluation corpus
 
 Date: 2026-08-08, reworked 2026-08-10, 2026-08-11 after the second PR #197
-review, and 2026-08-12 for the signed FR-59a.2 partition-order amendment.
-Status: harness complete; corpus construction BLOCKED. The candidate commitment
-minted on 2026-08-08 is SUPERSEDED and no consumer will operate on it.
-Construction restarts at an explicit re-mint (`make eval-corpus-remint`), which
-is now blocked on the pre-commitment fingerprint review ALONE: both operator
-decisions are on record as of 2026-08-11 and supplied as machine-readable input.
-No track has been verified or labelled by this run; no annotation was simulated
-or invented.
+review, 2026-08-12 for the signed FR-59a.2 partition-order amendment, and
+2026-10-23 to close the corpus at its current coverage.
+Status (2026-10-23): the corpus file is written with 172 verified tracks. The
+four bands at 120 BPM and faster hold 43 each; 100-120 and sub-100 hold none and
+are declared short in `12-7-short-bands.json` under the 12-6 section-6
+amendment of 2026-10-23, which awaits the operator's signature. A separate
+slow-tempo supplement holds 11 verified tracks, none eligible for a pass or fail
+gate. Signoff still refuses and training stays blocked. The sections below that
+describe the re-mint as pending are the record of the August state; the re-mint
+ran, and the candidate commitment on record is active.
 
 The 2026-08-11 rework closed eight defects the 2026-08-10 rework introduced. The
 pattern is worth stating plainly: that pass hardened the commitment chain and,
@@ -27,8 +29,9 @@ exhaustion), section 3 (octave-sentinel rule), section 5 (annotation-version tag
 harness and the protocol could differ, the protocol wins.
 
 Harness: `scripts/build-eval-corpus.py` (subcommands prepare-review,
-commit-pools, remint, stage-batch, ingest, abandon, status, audit,
-emit-manifest, repass-sample, repass-ingest, signoff), driven by the
+commit-pools, remint, stage-batch, export-dawproject, ingest, abandon, status,
+audit, emit-manifest, slow-supplement, repass-sample, repass-ingest, signoff),
+driven by the
 `make eval-corpus-*` targets. Row-level state is gitignored under
 `_bmad-output/ml-training/eval-corpus/`; the committed records are
 `12-7-candidate-commitment.{json,md}`, one archived
@@ -577,17 +580,40 @@ genuinely above-180 tracks in the collection
 ## Per-band progress
 
 Membership is the first 43 keepers in each band's committed draw sequence,
-cumulative across batches. No batch has been staged or annotated, and no pool is
-currently committed.
+cumulative across batches. Measured 2026-10-23 with `make eval-corpus-status`
+after 100-120 batch 0 was recorded.
 
-| Band | Members | Target |
-|---|---|---|
-| sub-100 | 0 | 43 |
-| 100-120 | 0 | 43 |
-| 120-140 | 0 | 43 |
-| 140-160 | 0 | 43 |
-| 160-175 | 0 | 43 |
-| 175-plus | 0 | 43 |
+| Band | Members | Target | Annotated | Kept | State |
+|---|---|---|---|---|---|
+| sub-100 | 0 | 43 | 0 | 0 | declared short: batch 0 staged, not annotated |
+| 100-120 | 0 | 43 | 40 | 0 | declared short: batch 0 verified all 40 outside the band |
+| 120-140 | 43 | 43 | 50 | 44 | full |
+| 140-160 | 43 | 43 | 55 | 46 | full |
+| 160-175 | 43 | 43 | 52 | 48 | full |
+| 175-plus | 43 | 43 | 52 | 45 | full |
+
+The corpus file (`generations/<gen>/258-corpus.jams.json`, gitignored) holds the
+172 members and a per-band block giving members, target and short reason. The
+file keeps its 258 name so readers of it need not change; the per-band block is
+where its true size is stated.
+
+**100-120 batch 0.** The operator set the tempo of all 40 tracks in the DAW
+before this story. `export-dawproject` read them by track name from the project
+through `dawproject-bpm.py --json` and wrote the ingest CSV, and the unchanged
+`ingest` recorded it: 39 tracks verified at 140 BPM or faster, one at 85, so all
+40 are out-of-band rejects with their tempos kept and the batch yields no
+member. The pool's file tags for this band read about two-thirds of the true
+tempo, so the face-value pool for 100-120 is mostly drum and bass tagged at a
+third below its tempo.
+
+**Slow-tempo supplement** (`generations/<gen>/slow-tempo-supplement.jams.json`,
+gitignored, outside membership): 11 tracks, 10 in 100-120 and 1 under 100. All
+11 are `x1-` files from the operator's collection, tagged `detector-visible`
+because the operator saw, or cannot rule out having seen, the detector's
+estimate before setting their tempos; none is eligible for a pass or fail gate.
+Left out: the 100-120 reject verified at 85 BPM, because the same file is a
+training-list row, and two `x1-` tracks whose DAW clips read different tempos
+(the clip that plays reads above 120 in both).
 
 ## OA300 18-vs-14 reconciliation (audit outcome, 2026-08-08)
 

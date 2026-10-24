@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "declared": "2026-10-23",
+  "operator": "robbyt",
+  "bands": {
+    "100-120": "The pool's file tags for this band read two-thirds of the true tempo. Batch 0 (40 tracks) was annotated and verified every track outside 100-120, 39 of them at 140 BPM or faster and one at 85, so it yielded no member.",
+    "sub-100": "Batch 0 is staged and not annotated. It stays staged so the band can resume later."
+  }
+}

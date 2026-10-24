@@ -49,8 +49,9 @@ committed pool + draw bytes and recorded in the commitment. Preserving an
 archived commitment's JSON is not enough on its own: if the canonical row-level
 files could be replaced in place, the archived chain would be unverifiable.
 
-Subcommands: prepare-review, commit-pools, remint, stage-batch, ingest,
-abandon, status, audit, emit-manifest, repass-sample, repass-ingest, signoff.
+Subcommands: prepare-review, commit-pools, remint, stage-batch,
+export-dawproject, ingest, abandon, status, audit, emit-manifest,
+slow-supplement, repass-sample, repass-ingest, signoff.
 
 State lives under the gitignored `_bmad-output/ml-training/eval-corpus/`.
 Committed artifacts carry counts, seeds, band names, prose, and named digests
@@ -76,6 +77,7 @@ import re
 import secrets
 import shutil
 import statistics
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -108,6 +110,12 @@ COMMITMENT_MD = ARTIFACTS_DIR / "12-7-candidate-commitment.md"
 LEDGER_HEAD_JSON = ARTIFACTS_DIR / "12-7-annotation-ledger-head.json"
 ATTESTATION_JSON = ARTIFACTS_DIR / "12-7-signoff-attestation.json"
 ADDENDUM_JSON = ARTIFACTS_DIR / "12-7-fallback-addendum.json"
+# Which bands the operator has said may stay below their target, and why. Read by
+# `emit-manifest` only; signoff and the training gate never consult it.
+SHORT_BANDS_JSON = ARTIFACTS_DIR / "12-7-short-bands.json"
+# The DAW tempo reader. Called with `--json` only: its `--match` mode joins legacy
+# ground truth, which the signed 12.6 protocol (section 2, step 3) forbids here.
+DAWPROJECT_BPM_SCRIPT = REPO_ROOT / "scripts" / "dawproject-bpm.py"
 
 
 def configure_paths(state_root: Path, artifacts_dir: Path) -> None:
@@ -115,7 +123,7 @@ def configure_paths(state_root: Path, artifacts_dir: Path) -> None:
     global EVAL_CORPUS_DIR, REVIEW_FLAGS_PATH, COVERAGE_PATH
     global DISPOSITIONS_TEMPLATE_PATH, DISPOSITIONS_PATH, DECISIONS_PATH
     global ARTIFACTS_DIR, COMMITMENT_JSON, COMMITMENT_MD, LEDGER_HEAD_JSON
-    global ATTESTATION_JSON, ADDENDUM_JSON
+    global ATTESTATION_JSON, ADDENDUM_JSON, SHORT_BANDS_JSON
     EVAL_CORPUS_DIR = state_root
     REVIEW_FLAGS_PATH = state_root / "fingerprint-review.json"
     COVERAGE_PATH = state_root / "fingerprint-coverage.json"
@@ -128,6 +136,7 @@ def configure_paths(state_root: Path, artifacts_dir: Path) -> None:
     LEDGER_HEAD_JSON = artifacts_dir / "12-7-annotation-ledger-head.json"
     ATTESTATION_JSON = artifacts_dir / "12-7-signoff-attestation.json"
     ADDENDUM_JSON = artifacts_dir / "12-7-fallback-addendum.json"
+    SHORT_BANDS_JSON = artifacts_dir / "12-7-short-bands.json"
 
 
 def generation_root(generation: str) -> Path:
@@ -2776,9 +2785,11 @@ def _resolve_audio(entry: dict, pool_audio_root: str | None) -> Path:
     hits = list(base.rglob(entry["filename"]))
     if len(hits) == 1:
         return hits[0]
-    raise HarnessError(
-        f"cannot resolve oa300 audio for row {entry.get('rowId', entry['identity'])}"
-    )
+    # `dict.get` evaluates its default eagerly, so `entry['identity']` as the
+    # default raised KeyError for the identity-less lookup entries the sentinel
+    # label index builds, instead of the HarnessError `_safe_resolve` absorbs.
+    label = entry.get("rowId") or entry.get("identity") or entry.get("filename")
+    raise HarnessError(f"cannot resolve oa300 audio for row {label}")
 
 
 def _safe_resolve(entry: dict, pool_audio_root: str | None) -> Path | None:
@@ -3306,6 +3317,35 @@ def fingerprint_coverage(
             if vec:
                 candidates.append((name, key, vec))
 
+    training, train_reasons, train_roster = training_fingerprints(inputs)
+
+    coverage = {
+        "schema_version": 1,
+        "fingerprint_method": FINGERPRINT_METHOD,
+        "review_cosine": FINGERPRINT_REVIEW_COSINE,
+        "candidates_total": sum(cand_reasons.values()),
+        "candidates_covered": cand_reasons["resolved"],
+        "candidates_by_reason": cand_reasons,
+        "training_total": sum(train_reasons.values()),
+        "training_covered": train_reasons["resolved"],
+        "training_by_reason": train_reasons,
+        "candidate_roster": cand_roster,
+        "training_roster": train_roster,
+    }
+    return coverage, candidates, training
+
+
+def training_fingerprints(
+    inputs: dict,
+) -> tuple[list[tuple[str, list[float]]], dict[str, int], dict[str, str]]:
+    """The training half of `fingerprint_coverage`: every training-manifest row
+    and every tony.train/tony.val row, with the reason any one could not be read.
+
+    Returns (vectors, counts by reason, per-row reason). Shared with
+    `slow-supplement`, which checks tracks from outside the committed pool
+    against the same training audio by the same method.
+    """
+    root = inputs.get("pool_audio_root")
     training: list[tuple[str, list[float]]] = []
     train_reasons: dict[str, int] = dict.fromkeys(COVERAGE_REASONS, 0)
     train_roster: dict[str, str] = {}
@@ -3329,21 +3369,7 @@ def fingerprint_coverage(
         train_roster[key] = reason
         if vec:
             training.append((key, vec))
-
-    coverage = {
-        "schema_version": 1,
-        "fingerprint_method": FINGERPRINT_METHOD,
-        "review_cosine": FINGERPRINT_REVIEW_COSINE,
-        "candidates_total": sum(cand_reasons.values()),
-        "candidates_covered": cand_reasons["resolved"],
-        "candidates_by_reason": cand_reasons,
-        "training_total": sum(train_reasons.values()),
-        "training_covered": train_reasons["resolved"],
-        "training_by_reason": train_reasons,
-        "candidate_roster": cand_roster,
-        "training_roster": train_roster,
-    }
-    return coverage, candidates, training
+    return training, train_reasons, train_roster
 
 
 def assert_training_coverage(coverage: dict, accepted: set[str]) -> list[str]:
@@ -4705,6 +4731,178 @@ def cmd_stage_batch(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Reading tempos the operator already set in a DAW project
+#
+# The annotator names each DAW track after its opaque row id, so a track name is
+# the join key and nothing else is read: no legacy label, no tag, no detector
+# output. `dawproject-bpm.py --json` reports one reading per warped clip. A track
+# normally has one; Bitwig can leave a second, stale clip behind when a clip is
+# split, and that leftover keeps the warp it had before the operator corrected
+# the tempo. Measured on the 2026-10-23 project: one track read 51.0 BPM on a
+# sliver 0.0004 beats long and 123.93 on the clip that actually plays. Picking a
+# winner would be guessing, so readings further apart than the signed fine-
+# disagreement tolerance make the track unreadable here and the operator decides.
+# ---------------------------------------------------------------------------
+
+# Two readings of one track agree when they are within the signed fine-
+# disagreement tolerance (12-6 section 6, clarification of 2026-08-11).
+CLIP_AGREEMENT_BPM = REPASS_FINE_TOLERANCE_BPM
+# The ingest CSV column order, as the operator's hand-filled files use it.
+ANNOTATION_CSV_COLUMNS = (
+    "row_id",
+    "verified_bpm",
+    "tempo_unstable",
+    "irresolvable",
+    "ambiguous",
+    "audio_defect",
+    "duplicate_of",
+)
+assert frozenset(ANNOTATION_CSV_COLUMNS) == EXPECTED_ANNOTATION_COLUMNS
+
+
+@dataclass(frozen=True)
+class ProjectTrack:
+    """One named DAW track: its clip readings, the audio file it plays, and why
+    no single tempo can be read from it, if that is the case."""
+
+    name: str
+    readings: tuple[float, ...]
+    audio: str
+    problem: str | None
+
+    @property
+    def bpm(self) -> float | None:
+        if self.problem is not None:
+            return None
+        return round(statistics.fmean(self.readings), 2)
+
+
+def read_dawproject_clips(path: Path) -> list[dict]:
+    """Per-clip tempos from a .dawproject, through `dawproject-bpm.py --json`."""
+    if not path.is_file():
+        raise HarnessError(f"DAW project not found: {path}")
+    proc = subprocess.run(
+        [sys.executable, str(DAWPROJECT_BPM_SCRIPT), str(path), "--json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise HarnessError(
+            f"{DAWPROJECT_BPM_SCRIPT.name} could not read {path.name}: {proc.stderr.strip()}"
+        )
+    try:
+        clips = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise HarnessError(
+            f"{DAWPROJECT_BPM_SCRIPT.name} printed something other than JSON"
+        ) from exc
+    if not isinstance(clips, list) or not all(isinstance(c, dict) for c in clips):
+        raise HarnessError(f"{DAWPROJECT_BPM_SCRIPT.name} --json did not print a list of clips")
+    return clips
+
+
+def project_tracks(clips: list[dict]) -> dict[str, ProjectTrack]:
+    """Group clip readings by track name and say which tracks have one tempo."""
+    grouped: dict[str, list[dict]] = {}
+    for clip in clips:
+        name = str(clip.get("track") or "")
+        if name:
+            grouped.setdefault(name, []).append(clip)
+    out: dict[str, ProjectTrack] = {}
+    for name, group in sorted(grouped.items()):
+        # Distinct FULL paths first: two clips playing `audio/A/x.flac` and
+        # `audio/B/x.flac` share a basename but are two different files.
+        paths = sorted({str(c.get("file") or "") for c in group})
+        audio = PurePosixPath(paths[0]).name if len(paths) == 1 else ""
+        readings: list[float] = []
+        unusable = False
+        for c in group:
+            value = c.get("bpm")
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                unusable = True
+                continue
+            readings.append(float(value))
+        problem: str | None = None
+        if len(paths) != 1:
+            problem = f"the track plays more than one file {paths}"
+        elif PurePosixPath(audio).stem != name:
+            problem = f"the track plays {paths[0]!r}, not a file named after the track"
+        elif unusable or not readings:
+            problem = "a clip on the track has no usable tempo"
+        elif max(readings) - min(readings) > CLIP_AGREEMENT_BPM:
+            problem = (
+                f"its clips read different tempos {sorted(readings)}; a stale clip left by a "
+                "split is the usual cause, and which reading is the verified one is the "
+                "operator's call"
+            )
+        out[name] = ProjectTrack(
+            name=name,
+            readings=tuple(readings),
+            audio=audio,
+            problem=problem,
+        )
+    return out
+
+
+def cmd_export_dawproject(args: argparse.Namespace) -> int:
+    """Write the ingest CSV for one batch from tempos already set in a DAW project.
+
+    Turns existing DAW work into ingest input without hand copying. Every
+    worklist row must be a track in the project with one readable tempo, or
+    nothing is written. The flag columns are written as 0: a DAW project records
+    a tempo, not a reject reason, so a batch with rejects is still filled by hand.
+    This command does not ingest; the operator reviews the file and runs ingest.
+    """
+    batch = int(args.batch)
+    state = load_state()
+    require_valid_state(state, "before exporting DAW tempos")
+    record = _batch_record(state, args.band, batch)
+    out = (
+        Path(args.out)
+        if args.out
+        else EVAL_CORPUS_DIR / f"ingest-{args.band}-batch-{batch:03d}.csv"
+    )
+    tracks = project_tracks(read_dawproject_clips(Path(args.dawproject)))
+    order = list(record["work_order"])
+    missing = [rid for rid in order if rid not in tracks]
+    unreadable = [
+        f"{rid}: {tracks[rid].problem}" for rid in order if rid in tracks and tracks[rid].problem
+    ]
+    if missing or unreadable:
+        lines = [f"not in the project: {rid}" for rid in missing] + unreadable
+        raise HarnessError(
+            f"cannot export {args.band}/batch-{batch:03d}: {len(missing) + len(unreadable)} of "
+            f"{len(order)} worklist rows have no single tempo in {Path(args.dawproject).name}:\n  "
+            + "\n  ".join(lines)
+        )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # Mode "x" creates the file or fails, so no check-then-write window.
+        fh = open(out, "x", newline="", encoding="utf-8")  # noqa: SIM115
+    except FileExistsError:
+        raise HarnessError(
+            f"{out} already exists; refusing to overwrite an ingest file the operator may "
+            "have edited. Move it aside or pass --out."
+        ) from None
+    with fh:
+        writer = csv.writer(fh)
+        writer.writerow(ANNOTATION_CSV_COLUMNS)
+        for rid in order:
+            writer.writerow([rid, f"{tracks[rid].bpm:.2f}", 0, 0, 0, 0, ""])
+    print(
+        f"wrote {len(order)} rows for {args.band}/batch-{batch:03d} to {out}. Review it, then "
+        f"run: make eval-corpus-ingest BAND={args.band} BATCH={batch} ANNOTATIONS={out}"
+    )
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # ingest / abandon
 # ---------------------------------------------------------------------------
 
@@ -5548,6 +5746,67 @@ def cmd_audit(_args: argparse.Namespace) -> int:
 # emit-manifest
 # ---------------------------------------------------------------------------
 
+# Bands the operator has said may stay below target, and why (amendment
+# 2026-10-23 in 12-6 section 6). `emit-manifest` alone reads this. A band target
+# is one number in the frozen candidate list, and rebuilding that list refuses
+# while annotations exist, so an allowance for one band has to be a separate,
+# dated input. Signoff, signoff validation and the training gate never read
+# it, so a corpus written under it is usable for evaluation and still cannot
+# unlock training.
+_SHORT_BANDS_KEYS = frozenset({"schema_version", "declared", "operator", "bands"})
+
+
+@dataclass(frozen=True)
+class ShortBandDeclaration:
+    declared: str
+    operator: str
+    reasons: dict[str, str]
+    sha256: str
+
+
+def assert_short_bands_schema(doc: dict) -> None:
+    _assert_keys(doc, _SHORT_BANDS_KEYS, SHORT_BANDS_JSON.name)
+
+
+def load_short_band_declaration() -> ShortBandDeclaration | None:
+    """The committed short-band declaration, or None when there is none."""
+    if not SHORT_BANDS_JSON.exists():
+        return None
+    doc = _read_json(SHORT_BANDS_JSON, "short-band declaration")
+    where = SHORT_BANDS_JSON.name
+    try:
+        assert_short_bands_schema(doc)
+    except PrivacyError as exc:
+        # A wrong key set is a malformed declaration, not a privacy leak.
+        raise HarnessError(str(exc)) from None
+    privacy_gate(doc)
+    if doc["schema_version"] != 1:
+        raise HarnessError(f"{where}: schema_version must be 1")
+    declared = doc["declared"]
+    try:
+        date.fromisoformat(str(declared))
+    except ValueError:
+        raise HarnessError(f"{where}: 'declared' must be a YYYY-MM-DD date") from None
+    operator = doc["operator"]
+    if not isinstance(operator, str) or not operator.strip():
+        raise HarnessError(f"{where}: 'operator' must name who declared the bands short")
+    bands = doc["bands"]
+    if not isinstance(bands, dict) or not bands:
+        raise HarnessError(f"{where}: 'bands' must name at least one band and its reason")
+    reasons: dict[str, str] = {}
+    for band, reason in bands.items():
+        if band not in BAND_NAMES:
+            raise HarnessError(f"{where}: {band!r} is not a band (bands: {BAND_NAMES})")
+        if not isinstance(reason, str) or not reason.strip():
+            raise HarnessError(f"{where}: band {band} needs a reason it is short")
+        reasons[band] = reason.strip()
+    return ShortBandDeclaration(
+        declared=str(declared),
+        operator=operator.strip(),
+        reasons=reasons,
+        sha256=sha256_file(SHORT_BANDS_JSON),
+    )
+
 
 def _sentinel_label_index(inputs: dict) -> dict[str, Any]:
     """FR-59a.1-clean legacy labels (OA300 fixture values + as-entered tags),
@@ -5663,10 +5922,26 @@ def cmd_emit_manifest(_args: argparse.Namespace) -> int:
     n_band = state.n_band
     membership = recompute_membership(state)
     incomplete = [n for n in BAND_NAMES if len(membership[n]["members"]) < n_band]
-    if incomplete:
+    declaration = load_short_band_declaration()
+    short_reasons = declaration.reasons if declaration is not None else {}
+    undeclared = [n for n in incomplete if n not in short_reasons]
+    if undeclared:
         print("emit-manifest refused: corpus incomplete. Per-band progress:")
         for name in BAND_NAMES:
-            print(f"  {name:10s} {len(membership[name]['members'])}/{n_band}")
+            note = " (declared short)" if name in short_reasons else ""
+            print(f"  {name:10s} {len(membership[name]['members'])}/{n_band}{note}")
+        print(
+            f"Below target and not declared short in {SHORT_BANDS_JSON.name}: "
+            + ", ".join(undeclared)
+        )
+        return 1
+    full_but_declared = [n for n in short_reasons if n not in incomplete]
+    if full_but_declared:
+        print(
+            f"emit-manifest refused: {SHORT_BANDS_JSON.name} declares "
+            f"{', '.join(full_but_declared)} short, but each holds its full {n_band} members. "
+            "A full band cannot be declared short; correct the declaration."
+        )
         return 1
 
     failures, _warnings, _report = run_audit()
@@ -5726,18 +6001,346 @@ def cmd_emit_manifest(_args: argparse.Namespace) -> int:
             )
 
     manifest = {
-        "corpus": "12-7-band-balanced-258",
+        "corpus": "12-7-band-balanced",
         "annotation_version": ANNOTATION_VERSION_TAG,
         "protocol": PROTOCOL_POINTER,
         "degeneracy_note_175_plus": DEGENERACY_NOTE_175,
         "sentinel_per_band": sentinel_per_band,
+        # Which bands hold fewer than the target, and why. A reader of this file
+        # sees the shortfall here rather than inferring it from entry counts.
+        "bands": {
+            name: {
+                "members": len(membership[name]["members"]),
+                "target": n_band,
+                "short_reason": short_reasons.get(name),
+            }
+            for name in BAND_NAMES
+        },
+        "short_band_declaration": (
+            None
+            if declaration is None
+            else {
+                "declared": declaration.declared,
+                "operator": declaration.operator,
+                "sha256": declaration.sha256,
+            }
+        ),
         "entries": entries,
     }
     _write_json(generation_root(state.generation) / "258-corpus.jams.json", manifest)
+    short = (
+        f"; short bands {', '.join(sorted(short_reasons, key=BAND_NAMES.index))}"
+        if short_reasons
+        else ""
+    )
     print(
         f"manifest written: {generation_root(state.generation) / '258-corpus.jams.json'} "
-        f"({len(entries)} tracks; sentinel per band {sentinel_per_band})"
+        f"({len(entries)} tracks; sentinel per band {sentinel_per_band}{short})"
     )
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# slow-supplement: verified slow tracks kept OUTSIDE band membership
+#
+# Membership only admits rows from the committed pool, and a row that verifies
+# outside its band is rejected and never moved to another band. Both rules stay.
+# This file gives verified tempos under 120 a labelled place of their own, so
+# the slow range where the model fails most is still measured while the two
+# slow bands are short (amendment 2026-10-23 in 12-6 section 6). It never
+# changes membership, and the 172-track corpus figure does not count it.
+# ---------------------------------------------------------------------------
+
+SUPPLEMENT_FILE_NAME = "slow-tempo-supplement.jams.json"
+# Verified tempos below the 120-140 band: sub-100 and 100-120.
+SUPPLEMENT_CEILING_BPM = 120.0
+SUPPLEMENT_BANDS = tuple(name for name, lo, _hi in BANDS if lo < SUPPLEMENT_CEILING_BPM)
+# Pool rows rejected as out-of-band from these bands are taken when they
+# verified slow. Only 100-120 is named by the 2026-10-23 spec. The 160-175 band
+# also holds three blinded rejects verified at 85 to 87 BPM; admitting them is a
+# separate operator decision.
+#
+# Today this source cannot yield a track. Under the 2026-08-11 order the
+# candidate pool is drawn from the training lists, so every pool row is a
+# training-list row, and only MEMBERS are put on the list of training songs to
+# remove. A non-member reject therefore matches its own training-list file and
+# is left out; the one candidate on 2026-10-23, the 100-120 reject verified at
+# 85 BPM, was left out for exactly that reason. This source starts yielding
+# tracks only after the training lists are rebuilt without those rows.
+SUPPLEMENT_REJECT_BANDS = ("100-120",)
+# Files from the operator's own collection, named `x1-<id>` in the DAW project.
+SUPPLEMENT_EXTRA_PREFIX = "x1-"
+SOURCE_OPERATOR_COLLECTION = "operator-collection"
+SOURCE_POOL_REJECT = "pool-out-of-band-reject"
+# The operator saw, or cannot rule out having seen, the detector's estimate for
+# these files before setting their tempos (operator decision 1, 2026-10-23).
+TAG_DETECTOR_VISIBLE = "detector-visible"
+SUPPLEMENT_NOTE = (
+    "Verified slow tempos kept outside band membership (12-6 section 6, amendment "
+    "2026-10-23). Not part of the corpus track count. What was checked: each track's "
+    "file hash against the two non-Rekordbox training lists; each track's audio "
+    "fingerprint against every training-list and Tony train/val file at the 0.97 review "
+    "cosine; GiantSteps titles (titled pool rows only, so it cannot fire for the "
+    "untitled x1- tracks); and supplement tracks against each other across bands, "
+    "standardized over the supplement alone. What was NOT checked: Tony train/val files "
+    "by hash, the 172 corpus members, and supplement tracks against each other within "
+    "one band. Any match leaves a track out. These partial checks are acceptable only "
+    "because every kept track is report-only. Tracks tagged detector-visible were "
+    "annotated by an operator who saw, or cannot rule out having seen, the detector's "
+    "estimate first: they are listed and reported so failures in this range stay "
+    "visible, and they are excluded from any pass or fail gate."
+)
+
+
+@dataclass(frozen=True)
+class SupplementTrack:
+    row_id: str
+    band: str
+    bpm: float
+    source: str
+    tags: tuple[str, ...]
+    path: Path | None
+    # The entry `build_review_flags` reads: `source`, `identity`, `title`.
+    flag_entry: dict
+    ambiguous: bool = False
+
+    @property
+    def key(self) -> str:
+        return candidate_key(self.flag_entry)
+
+
+def supplement_from_rejects(state: HarnessState, membership: dict) -> list[SupplementTrack]:
+    """Pool rows verified under 120 BPM and rejected from their band for it."""
+    by_row_id = state.by_row_id
+    root = state.pools.get("pool_audio_root")
+    out: list[SupplementTrack] = []
+    for band in SUPPLEMENT_REJECT_BANDS:
+        for rid, rec in sorted(membership[band]["rejects"].items()):
+            bpm = rec.get("verified_bpm")
+            if rec.get("reason") != "out-of-band" or bpm is None:
+                continue
+            verified_band = band_of(float(bpm))
+            if verified_band is None or float(bpm) >= SUPPLEMENT_CEILING_BPM:
+                continue
+            entry = by_row_id[rid]
+            out.append(
+                SupplementTrack(
+                    row_id=rid,
+                    band=verified_band,
+                    bpm=float(bpm),
+                    source=SOURCE_POOL_REJECT,
+                    tags=(),
+                    path=_safe_resolve(entry, root),
+                    flag_entry=entry,
+                    ambiguous=bool(rec.get("ambiguous")),
+                )
+            )
+    return out
+
+
+def supplement_from_project(
+    tracks: dict[str, ProjectTrack], audio_dir: Path
+) -> tuple[list[SupplementTrack], list[tuple[str, str]]]:
+    """Operator-collection tracks verified under 120 BPM in the DAW project.
+
+    Returns (tracks, left out). A track whose clips disagree is left out when any
+    of its readings is slow, since it might belong here and the reading that
+    counts is the operator's call. A problem track with no usable reading at all
+    is left out and listed too, since nothing shows it is not slow. One whose
+    readings are all at or above the ceiling is not a slow track and is not
+    mentioned. The ceiling test uses the unrounded mean of the readings, so
+    119.99 and 120.00 (which round to 120.00) still count as slow.
+    """
+    out: list[SupplementTrack] = []
+    left_out: list[tuple[str, str]] = []
+    for name, track in sorted(tracks.items()):
+        if not name.startswith(SUPPLEMENT_EXTRA_PREFIX):
+            continue
+        if track.problem is not None:
+            if not track.readings or any(r < SUPPLEMENT_CEILING_BPM for r in track.readings):
+                left_out.append((name, track.problem))
+            continue
+        bpm = track.bpm
+        mean = statistics.fmean(track.readings)
+        if bpm is None or mean >= SUPPLEMENT_CEILING_BPM:
+            continue
+        verified_band = band_of(mean)
+        if verified_band is None:
+            continue
+        out.append(
+            SupplementTrack(
+                row_id=name,
+                band=verified_band,
+                bpm=bpm,
+                source=SOURCE_OPERATOR_COLLECTION,
+                tags=(TAG_DETECTOR_VISIBLE,),
+                path=audio_dir / track.audio,
+                flag_entry={"source": SOURCE_OPERATOR_COLLECTION, "identity": name, "title": ""},
+            )
+        )
+    return out, left_out
+
+
+def supplement_training_matches(
+    tracks: list[SupplementTrack], inputs: dict, accepted_uncovered: set[str]
+) -> tuple[list[SupplementTrack], list[tuple[str, str]]]:
+    """Leave out tracks that match the training audio. Narrower than the
+    pre-commitment review, and acceptable only because every kept track is
+    report-only, never part of a pass or fail gate.
+
+    What is checked, and any hit leaves the track out rather than going to a
+    person:
+      - the file's sha256 against the two non-Rekordbox training lists
+        (`manifest_hashes`); Tony train/val files are NOT hash-checked;
+      - the audio fingerprint against every training-list and Tony train/val
+        file, at or above the 0.97 review cosine, standardized over training
+        plus supplement vectors;
+      - a GiantSteps title collision, which needs a title, so it can fire only
+        for titled pool rows and never for the untitled `x1-` tracks;
+      - two supplement tracks matching each other ACROSS bands, standardized
+        over the supplement vectors alone.
+
+    What is NOT checked: the 172 corpus members, and two supplement tracks in
+    the SAME band (`build_review_flags` leaves within-band pairs to the draw
+    order, which the supplement does not have).
+    """
+    assert_fingerprint_backend()
+    training, reasons, roster = training_fingerprints(inputs)
+    assert_training_coverage(
+        {
+            "training_roster": roster,
+            "training_total": sum(reasons.values()),
+            "training_by_reason": reasons,
+        },
+        accepted_uncovered,
+    )
+    left_out: list[tuple[str, str]] = []
+    bands: dict[str, list[dict]] = {name: [] for name in BAND_NAMES}
+    vectors: list[tuple[str, str, list[float]]] = []
+    fingerprinted: list[SupplementTrack] = []
+    for track in tracks:
+        if track.path is None or not track.path.exists():
+            left_out.append((track.row_id, "its audio file was not found"))
+            continue
+        if sha256_file(track.path) in inputs["manifest_hashes"]:
+            left_out.append((track.row_id, "the same file is in a training list"))
+            continue
+        _key, vec, reason = _fingerprint_one(track.key, track.path)
+        if vec is None:
+            left_out.append((track.row_id, f"its audio could not be fingerprinted ({reason})"))
+            continue
+        bands[track.band].append(track.flag_entry)
+        vectors.append((track.band, track.key, vec))
+        fingerprinted.append(track)
+    flags, same_file = build_review_flags(bands, vectors, training)
+    matched: dict[str, str] = {}
+    for flag in flags:
+        for key in (flag["candidate_key"], flag["peer_key"]):
+            if key:
+                matched.setdefault(str(key), str(flag["evidence"]))
+    for row in same_file:
+        matched.setdefault(str(row["candidate_key"]), "the same file is in a training list")
+    kept: list[SupplementTrack] = []
+    for track in fingerprinted:
+        if track.key in matched:
+            left_out.append(
+                (track.row_id, f"matches training or another track: {matched[track.key]}")
+            )
+        else:
+            kept.append(track)
+    flush_fingerprint_cache()
+    return kept, left_out
+
+
+def cmd_slow_supplement(args: argparse.Namespace) -> int:
+    """Write the slow-tempo supplement. Changes no membership and no annotation.
+
+    It writes the supplement file and flushes the fingerprint cache. Like every
+    command, `load_state` may also finish an interrupted earlier write (a staged
+    annotation record whose event is already on the ledger, or a ledger head left
+    behind by an interrupted append) before anything is read.
+    """
+    state = load_state()
+    require_valid_state(state, "before building the slow-tempo supplement")
+    membership = recompute_membership(state)
+    candidates = supplement_from_rejects(state, membership)
+    project = Path(args.dawproject)
+    from_project, left_out = supplement_from_project(
+        project_tracks(read_dawproject_clips(project)), Path(args.audio_dir)
+    )
+    candidates += from_project
+    decisions = load_operator_decisions()
+    kept, unmatched_out = supplement_training_matches(
+        candidates, load_inputs(), accepted_uncovered_training_rows(decisions)
+    )
+    left_out += unmatched_out
+
+    entries = []
+    for track in sorted(kept, key=lambda t: (BAND_NAMES.index(t.band), t.bpm, t.row_id)):
+        sandbox: dict[str, Any] = {
+            "band": track.band,
+            "source": track.source,
+            "tags": list(track.tags),
+        }
+        if track.ambiguous:
+            sandbox["ambiguous"] = True
+        visible = TAG_DETECTOR_VISIBLE in track.tags
+        entries.append(
+            {
+                "file_metadata": {
+                    "jams_version": "0.4.0",
+                    "identifiers": {"row_id": track.row_id},
+                    "title": "",
+                },
+                "annotations": [
+                    {
+                        "namespace": "tempo",
+                        "data": [
+                            {"time": 0.0, "duration": 0.0, "value": track.bpm, "confidence": 1.0}
+                        ],
+                        "annotation_metadata": {
+                            "annotation_version": ANNOTATION_VERSION_TAG,
+                            "data_source": (
+                                "operator DAW verification; the detector estimate may have "
+                                "been seen first"
+                                if visible
+                                else "Story 12.7 hand verification from a blinded worklist "
+                                "(FR-59f option 1)"
+                            ),
+                        },
+                    }
+                ],
+                "sandbox": sandbox,
+            }
+        )
+    per_band = {name: sum(1 for t in kept if t.band == name) for name in SUPPLEMENT_BANDS}
+    doc = {
+        "corpus": "12-7-slow-tempo-supplement",
+        "annotation_version": ANNOTATION_VERSION_TAG,
+        "protocol": (
+            "_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md "
+            "section 6, amendment 2026-10-23"
+        ),
+        "note": SUPPLEMENT_NOTE,
+        # The DAW project the x1- tempos came from, so a later edit is detectable.
+        "dawproject": {
+            "name": project.name,
+            "bytes": project.stat().st_size,
+            "sha256": sha256_file(project),
+        },
+        "per_band": per_band,
+        "detector_visible": sum(1 for t in kept if TAG_DETECTOR_VISIBLE in t.tags),
+        "left_out": [{"row_id": rid, "reason": why} for rid, why in sorted(left_out)],
+        "entries": entries,
+    }
+    path = generation_root(state.generation) / SUPPLEMENT_FILE_NAME
+    _write_json(path, doc)
+    print(
+        f"slow-tempo supplement written: {path} ({len(entries)} tracks; per band {per_band}; "
+        f"{doc['detector_visible']} tagged {TAG_DETECTOR_VISIBLE})"
+    )
+    for rid, why in sorted(left_out):
+        print(f"left out {rid}: {why}")
     return 0
 
 
@@ -6482,6 +7085,28 @@ def main(argv: list[str] | None = None) -> int:
     p_ri = sub.add_parser("repass-ingest", help="ingest the blind re-pass annotations")
     p_ri.add_argument("--annotations", required=True, help="operator-filled CSV, keyed by alias")
     p_ri.set_defaults(func=cmd_repass_ingest)
+
+    p_export = sub.add_parser(
+        "export-dawproject",
+        help="write a batch's ingest CSV from the tempos set in a DAW project",
+    )
+    p_export.add_argument("--band", required=True)
+    p_export.add_argument("--batch", type=int, required=True)
+    p_export.add_argument("--dawproject", required=True, help="the .dawproject file")
+    p_export.add_argument(
+        "--out", default=None, help="CSV path (default: ingest-<band>-batch-NNN.csv)"
+    )
+    p_export.set_defaults(func=cmd_export_dawproject)
+
+    p_slow = sub.add_parser(
+        "slow-supplement",
+        help="write the verified slow-tempo tracks kept outside band membership",
+    )
+    p_slow.add_argument("--dawproject", required=True, help="the .dawproject file")
+    p_slow.add_argument(
+        "--audio-dir", required=True, help="where the operator-collection audio files live"
+    )
+    p_slow.set_defaults(func=cmd_slow_supplement)
 
     p_signoff = sub.add_parser(
         "signoff",
