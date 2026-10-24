@@ -9,6 +9,39 @@ See @Makefile for all targets (`make help`). Key ones: `make build`, `make test`
 Run a single test suite: `swift test --filter BPMAnalyzer120BPMTests`
 Run a single test: `swift test --filter BPMAnalyzer120BPMTests/detect120BPM`
 
+## Naming and vocabulary
+
+The Story 12.7 corpus harness accumulated an invented institutional vocabulary
+(`must-drop obligation`, `mint`/`remint`, `disposition`, `obligation gate`,
+`closure gate`, `signoff attestation`, `sentinel`, `work order`) that turned
+ordinary files, lists, hashes, and human decisions into an imaginary
+bureaucracy. It became unreadable to the operator who owns it, who could not
+evaluate what he was being asked to approve. Every term was defensible on its
+own; the wall was built one defensible brick at a time. These rules are what
+would have prevented it.
+
+- **Name a thing at its own altitude.** If a plain phrase of about five common
+  words describes it, that phrase IS the name. "Songs to remove from training",
+  not "must-drop obligation". "Freeze the list", not "mint".
+- **Do not borrow another domain's register.** `mint`, `ledger`, `attestation`,
+  `anchor`, `sentinel`, `work order` import finance, law, and logistics. The
+  borrowed register is what makes ordinary mechanics sound institutional.
+- **Prefer the verb to the nominalization.** `dispose` -> `disposition`,
+  `commit` -> `commitment`, `oblige` -> `obligation`: each trades a concrete
+  action for an abstract noun, and abstract nouns recruit more abstract nouns.
+- **Say-it-out-loud test, applied BEFORE a term reaches an operator question, a
+  document, or a commit message.** Write the sentence you would speak to a
+  colleague. If that sentence is shorter or clearer than the term, the term is
+  overhead and the sentence is the name.
+- **Ceremonial register stays inside the signed protocol documents**, where
+  signatures and amendments are the actual subject. It does not follow those
+  concepts out into code, commit messages, or conversation.
+- **An operator question names the real-world consequence**, not the internal
+  concept: "songs you would have to re-listen to", not "membership recompute".
+
+Existing names are not worth a rename-only churn commit. Rename as you touch
+them; do not introduce new ones.
+
 ## Release Process — what ships to `main` vs stays on `develop`
 
 **This repo is multi-branch.** `main` is the public open-source release target; `develop` carries everything else, including all LLM-aided-development tooling. Read this section before authoring or moving any file. **When in doubt, default to develop.**

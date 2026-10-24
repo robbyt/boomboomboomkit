@@ -453,10 +453,58 @@ def find_cross_corpus_matches(
 # and does NOT gate the audit exit code (the metadata layer does that).
 # ---------------------------------------------------------------------------
 
-FINGERPRINT_METHOD = "librosa-mfcc-chroma-timbral-v2"
+FINGERPRINT_METHOD = "librosa-mfcc-chroma-timbral-v3"
 FINGERPRINT_DIM = 52  # 20 mfcc-mean + 20 mfcc-std + 12 chroma-mean
 _FP_SR = 22050
-_FP_DURATION = 60.0  # seconds analyzed (mid-track skip handled by offset)
+_FP_DURATION = 60.0  # seconds analyzed
+# v3 reads from the START of the file. v2 skipped the first 10 seconds, which
+# made any recording shorter than that decode to zero samples and report
+# `too-short` - not because it was unfingerprintable, but because the method
+# never read it. Measured 2026-08-13 on the Story 12.7 training universe: 2 of
+# 5,193 rows, one of them a legitimate 9.4 second interlude.
+#
+# The offset is ZERO FOR EVERY FILE, deliberately, rather than zero only for
+# short ones. Reading a short copy from 0:00 while reading a long copy of the
+# SAME recording from 0:10 compares different musical material, so the pair can
+# fail to match and a genuine duplicate reaches both the training and the
+# evaluation corpus - the exact failure this comparison exists to prevent. One
+# comparable window for all files is the requirement; an adaptive one is not.
+_FP_OFFSET = 0.0
+
+
+def compute_fingerprint_with_reason(audio_path: str) -> "tuple[np.ndarray | None, str]":
+    """`(vector, reason)` — the single decode implementation.
+
+    `reason` is `"resolved"` on success, else one of `"backend-missing"`,
+    `"decode-failed"`, `"too-short"`, `"non-finite"`. Story 12.7's eval-corpus
+    harness needs the failure STRATIFIED: its mandatory pre-commitment
+    fingerprint route reports reason-stratified coverage and treats a missing
+    decode backend as an environment failure rather than as "every file is
+    unfingerprintable". Collapsing all four into a bare `None` made those
+    indistinguishable. `compute_fingerprint` keeps the original signature.
+    """
+    import numpy as np
+
+    try:
+        import librosa
+    except ImportError:
+        return None, "backend-missing"
+    try:
+        y, sr = librosa.load(
+            audio_path, sr=_FP_SR, mono=True, duration=_FP_DURATION, offset=_FP_OFFSET
+        )
+    except Exception:
+        return None, "decode-failed"
+    if y is None or y.size < _FP_SR:  # < 1s decoded — unusable
+        return None, "too-short"
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)  # (20, T)
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)  # (12, T)
+    vec = np.concatenate([mfcc.mean(axis=1), mfcc.std(axis=1), chroma.mean(axis=1)]).astype(
+        np.float32
+    )
+    if not np.all(np.isfinite(vec)):
+        return None, "non-finite"
+    return vec, "resolved"
 
 
 def compute_fingerprint(audio_path: str) -> "np.ndarray | None":
@@ -464,26 +512,7 @@ def compute_fingerprint(audio_path: str) -> "np.ndarray | None":
     audio cannot be decoded. NOT unit-normed — the audit standardizes per
     dimension across the cohort before cosine. Lazy-imports numpy/librosa.
     """
-    import numpy as np
-
-    try:
-        import librosa
-    except ImportError:
-        return None
-    try:
-        y, sr = librosa.load(audio_path, sr=_FP_SR, mono=True, duration=_FP_DURATION, offset=10.0)
-    except Exception:
-        return None
-    if y is None or y.size < _FP_SR:  # < 1s decoded — unusable
-        return None
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)  # (20, T)
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr)  # (12, T)
-    vec = np.concatenate([mfcc.mean(axis=1), mfcc.std(axis=1), chroma.mean(axis=1)]).astype(
-        np.float32
-    )
-    if not np.all(np.isfinite(vec)):
-        return None
-    return vec
+    return compute_fingerprint_with_reason(audio_path)[0]
 
 
 def content_hash(audio_path: str) -> str:
