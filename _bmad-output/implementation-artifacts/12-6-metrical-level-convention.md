@@ -1,8 +1,8 @@
 # Story 12.6: Metrical-level convention and the ground-truth rule
 
-Date: 2026-08-08. Status: DRAFT RECOMMENDATION, pending operator signoff (section 6).
-Nothing in this document binds until the signoff block is checked. This artifact
-declares; it does not build. No track is drawn, labelled, or re-labelled here
+Date: 2026-08-08. Status: SIGNED protocol (section 6); the 2026-10-23 short-band
+amendment is also signed. This artifact declares; it does not build. No track is
+drawn, labelled, or re-labelled here
 (corpus construction is Story 12.7).
 
 Authority: prd.md FR-59b (line 185), FR-59f (lines 196-219), FR-62 (line 230),
@@ -21,8 +21,8 @@ three sources is the 160-180 BPM reading, not the 80-90 half-time reading. How
 genuinely ambiguous tracks are recorded is fixed by the faster-level tie-break
 rule in section 2; the flag is data, the primary value follows the convention.
 
-This is a recommendation. The operator may overturn it in section 6; until signed,
-no convention exists and Story 12.7 cannot start.
+The operator adopted this recommendation in section 6 on 2026-08-08. Any change
+to the convention requires a new signed amendment.
 
 ### Evidence from the two independent populations
 
@@ -405,14 +405,14 @@ The convention's tag under Story 12.3's scheme
 naming rule, stated once for the primary recommendation, the half-tempo
 fallback, and any third convention: `metrical-<level>-v1-<signoff-date>`, where
 the date component is the operator SIGNOFF date, minted at signing. The string
-below carries this document's draft date and is a draft value; it is re-dated at
-signoff.
+below was drafted on 2026-08-08 and minted unchanged at the operator signoff
+that day (section 6).
 
 ```
 declared:metrical-full-tempo-v1-2026-08-08
 ```
 
-**Validator execution record:** on 2026-08-08 the draft tag value was executed
+**Validator execution record:** on 2026-08-08 the tag value was executed
 through the validator, not merely inspected. A throwaway Swift Testing test
 (deleted after running; `git diff --stat` against `Sources/`/`Tests/` clean)
 called `AnnotationVersion.declared("metrical-full-tempo-v1-2026-08-08")` and
@@ -420,14 +420,12 @@ asserted the rendered tag equals the string above and that
 `AnnotationVersion(parsing:)` round-trips it; the same assertions ran for
 `metrical-half-tempo-v1-2026-08-08`. The test passed (`swift test --filter
 ThrowawayTagValidationTests`, 1 test, passed). Because the date component
-changes at signoff, the signed tag value must be re-run through
-`AnnotationVersion.declared(_:)` at minting; the character class (lowercase
-letters, digits, hyphens) is unchanged by a date substitution, so no new failure
-mode is expected.
+did not change at signoff, this run validated the exact signed tag. A future
+amendment that changes the tag must run the new value through
+`AnnotationVersion.declared(_:)` before minting.
 
-If the operator overturns the recommendation in section 6, the value becomes
-`metrical-half-tempo-v1-<signoff-date>` under the same naming rule; the `v1`
-component identifies the first declared convention either way, and any later
+Had the operator chosen the half-tempo alternative, the value would have been
+`metrical-half-tempo-v1-<signoff-date>` under the same naming rule. Any later
 convention change mints a new tag rather than reusing this one. The 258-track
 corpus's ground-truth file declares this tag; figures scored against it carry it
 per FR-60.

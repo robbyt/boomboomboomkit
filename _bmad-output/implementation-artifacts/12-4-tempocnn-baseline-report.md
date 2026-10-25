@@ -10,8 +10,9 @@ Raw output: `_bmad-output/ml-training/tempocnn-baseline/predictions.json`.
 **Gate 0 does NOT fire.** The published Schreiber and Mueller ISMIR 2018 single-step
 tempo CNN, run end to end on the same 661 GiantSteps rows, the same annotation source,
 and the same FR-18-strict protocol that produced our v2 model's 348/661, scores
-**545/661 (82.4%)** -- track-for-track equal to the published 82.5% Acc1 converted to
-tracks (545). The pre-registered threshold was midpoint(348, 545) = 446.5 tracks; 545
+**545/661 (82.5%)** -- equal in aggregate count to the published 82.5% Acc1 converted to
+tracks (545). Published per-track predictions are unavailable, so individual outcomes
+cannot be compared. The pre-registered threshold was midpoint(348, 545) = 446.5 tracks; 545
 is far above it. The evaluation path and the ruler are sound; the thirty-point gap is
 attributable to our model and training, and Story 12.5's pipeline differential proceeds
 on this scored baseline.
@@ -104,7 +105,7 @@ octave-tolerant and Acc2 rows directly).
 
 | System | Protocol | Tracks / 661 | % |
 |---|---|---|---|
-| **Reference 2018 CNN (this run)** | FR-18 strict Acc1 @4%, no tempo2 | **545** | 82.4 |
+| **Reference 2018 CNN (this run)** | FR-18 strict Acc1 @4%, no tempo2 | **545** | 82.5 |
 | Reference 2018 CNN (this run) | strict Acc1 @2%, no tempo2 | 544 | 82.3 |
 | Reference 2018 CNN (this run) | Acc1 @2% with tempo2 floor (Python re-implementation of the Swift mirexHit metric; equivalence tested on synthetic rows only) | 642 | 97.1 |
 | Reference 2018 CNN (this run) | octave-tolerant Acc1 @4% (pred, 2x, /2) | 645 | 97.6 |
@@ -116,9 +117,9 @@ octave-tolerant and Acc2 rows directly).
 Gate: reference 545 > midpoint 446.5 -> **Gate 0 passes**; verdict
 `gap-attributable-to-our-model`.
 
-The in-house reproduction lands ON the published figure (545 vs 545 tracks; 82.4% vs
-82.5% is rounding on the same count), which doubles as a strong cross-check that the
-harness, rows, and annotation are aligned.
+The in-house reproduction matches the published aggregate after converting 82.5%
+to 545 of 661 tracks. This is an aggregate sanity check, not a per-track comparison;
+the annotation and row alignment is established separately in the record above.
 
 ## Per-axis observations handed to Story 12.5
 
