@@ -33,8 +33,9 @@ enum TempoRangeEnvelope {
 /// consumer-specifiable (FR-53). It is distinct from ``PerceptualTempoWindow``, and
 /// the distinction is load-bearing:
 ///
-/// - `TempoScanRange` bounds candidate *generation*. It sizes the autocorrelation /
-///   Fourier-tempogram search grid, so a tempo outside it is never even considered.
+/// - `TempoScanRange` bounds candidate *generation* and the exported candidate list.
+///   It sizes the autocorrelation / Fourier-tempogram search grid; candidates folded
+///   outside the range by octave normalization are omitted from ``BPMResult``.
 ///   Widen it to detect very slow (ambient, downtempo) or very fast (hardcore,
 ///   speedcore) material.
 /// - ``PerceptualTempoWindow`` bounds octave *normalization*. It decides which octave
@@ -49,7 +50,7 @@ enum TempoRangeEnvelope {
 /// 8 (multi-peak extraction), 10 (octave disambiguation index mapping), 10c (fine-grid
 /// refinement), and 12 (confidence) are all indexed off the integer grid derived from
 /// this range; the final range guard after step 10c rejects a winner outside
-/// `minBPM...maxBPM`.
+/// `minBPM...maxBPM`, and the exported candidates are filtered to that interval.
 ///
 /// ## Fractional bounds are honoured, not truncated
 ///

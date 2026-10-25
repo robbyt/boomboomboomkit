@@ -653,10 +653,16 @@ struct BPMAnalyzer {
 
     trace?.confidence = confidence
 
-    // BPMResult.candidates carries rescored + duration-hinted values (DD#11 contract);
-    // trace.rawCandidates above preserves the pre-rescore signal for diagnostics.
+    // BPMResult.candidates carries rescored + duration-hinted values (DD#11 contract)
+    // that remain inside the requested scan range. Step 9's octave fold can put a
+    // candidate outside that range even when the disambiguated winner is valid;
+    // downstream merge and metadata selection must not promote such a candidate.
+    // trace.rawCandidates above remains the unfiltered pre-rescore diagnostic.
+    let exportedCandidates = hintedCandidates.filter {
+      scanRange.minBPM <= $0.bpm && $0.bpm <= scanRange.maxBPM
+    }
     return BPMResult(
-      bpm: bpm, confidence: confidence, candidates: hintedCandidates, trace: trace,
+      bpm: bpm, confidence: confidence, candidates: exportedCandidates, trace: trace,
       beatGrid: beatGrid)
   }
 

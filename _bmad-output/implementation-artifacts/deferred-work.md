@@ -1518,3 +1518,9 @@ Same stopping rule as rounds 3 and 4: none of these changes today's corpus outpu
 - source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
   summary: Recover a re-mint interrupted after the successor commitment is published but before the tracked annotation-ledger head is written. Planned fix: verify the successor's commitment chain and empty new-generation ledger, then complete the head transition; never accept an arbitrary head/commitment mismatch as repairable.
   evidence: PR 197 comment r4366403202. The current commitment is active, its tracked head binds its digest, and its generation contains 10 annotation-ledger events and 10 annotation records. `remint` refuses an active commitment and also refuses a prior generation with annotation state, so this transition is not reachable in today's work. **Re-open trigger:** before a future remint of a superseded generation.
+
+## Deferred from: PR 189 Story 12.1 review (2026-10-25)
+
+- source_spec: `_bmad-output/implementation-artifacts/12-1-consumer-specifiable-tempo-search-range.md`
+  summary: Keep a track when the comparison analysis returns nil in `TempoRangeImpactTests.measure`: record its successful baseline verdict, score the missing comparison as a miss in the overall, per-band, and per-genre accuracy deltas, and continue counting it in `comparisonOnlyFailed` coverage. The current early return drops that row from every accuracy tally.
+  evidence: PR 189 comment r4366278906. The committed `12-1-tempo-range-impact-report.json` records `comparisonOnlyFailed: 0`, so no published accuracy delta or the Story 12.2 decision that cites it changes. **Re-open trigger:** the next `make tempo-range-impact-report` run with a perceptual window or scan range that causes a comparison-only failure.

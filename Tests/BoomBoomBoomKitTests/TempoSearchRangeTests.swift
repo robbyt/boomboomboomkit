@@ -13,6 +13,79 @@ import Testing
 
 @testable import BoomBoomBoomKit
 
+// MARK: - Exported candidate bounds
+
+@Suite("Story 12.1 — exported candidates obey the scan range")
+struct TempoScanRangeCandidateTests {
+  @Test("folded candidates outside a narrow scan range stay diagnostic only")
+  func narrowRangeFiltersExportedCandidates() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let decoded = try PCMBufferReader.readDecodedAudio(from: url, maxSeconds: 120)
+    let range = TempoScanRange(minBPM: 130, maxBPM: 240)
+    var options = BPMAnalyzer.Options()
+    options.tempoScanRange = range
+    options.enableTrace = true
+
+    let result = try #require(BPMAnalyzer.estimateBPM(decoded: decoded, options: options))
+    let raw = try #require(result.trace?.rawCandidates)
+    #expect(raw.contains { $0.bpm < range.minBPM || $0.bpm > range.maxBPM })
+    #expect(!result.candidates.isEmpty)
+    #expect(result.candidates.allSatisfy { range.minBPM <= $0.bpm && $0.bpm <= range.maxBPM })
+  }
+
+  @Test("metadata cannot promote a folded candidate outside the scan range")
+  func corroborationCannotPromoteOutOfRangeCandidate() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let decoded = try PCMBufferReader.readDecodedAudio(from: url, maxSeconds: 120)
+    let range = TempoScanRange(minBPM: 130, maxBPM: 240)
+    var options = BPMAnalyzer.Options()
+    options.tempoScanRange = range
+    options.enableTrace = true
+
+    let result = try #require(BPMAnalyzer.estimateBPM(decoded: decoded, options: options))
+    let raw = try #require(result.trace?.rawCandidates)
+    let folded = try #require(raw.first { $0.bpm < range.minBPM || $0.bpm > range.maxBPM })
+    let tag = MetadataBPMEvidence(
+      source: .id3TBPM, rawValue: String(folded.bpm), parsedBPM: folded.bpm,
+      rejectionReason: nil)
+    let input = MetadataCorroborationInput(
+      consensusBPM: nil, participatingTags: [tag], conflictDetected: false,
+      policy: .default)
+
+    // A strong metadata weight would select the folded 106.5 BPM candidate
+    // from the unfiltered list. The analyzer's exported list must deny it.
+    let unfiltered = BPMResult(
+      bpm: result.bpm, confidence: result.confidence, candidates: raw, trace: nil)
+    let (wouldPromote, _) = MetadataCorroborator.apply(
+      to: unfiltered, input: input, metadataScale: 2)
+    #expect(wouldPromote.bpm == folded.bpm)
+
+    let (corroborated, _) = MetadataCorroborator.apply(
+      to: result, input: input, metadataScale: 2)
+    #expect(range.minBPM <= corroborated.bpm && corroborated.bpm <= range.maxBPM)
+    #expect(
+      corroborated.candidates.allSatisfy {
+        range.minBPM <= $0.bpm && $0.bpm <= range.maxBPM
+      })
+  }
+
+  @Test("default range preserves the unfiltered candidate list")
+  func defaultRangePreservesCandidates() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    let decoded = try PCMBufferReader.readDecodedAudio(from: url, maxSeconds: 120)
+    var options = BPMAnalyzer.Options()
+    options.enableTrace = true
+
+    let result = try #require(BPMAnalyzer.estimateBPM(decoded: decoded, options: options))
+    let raw = try #require(result.trace?.rawCandidates)
+    try #require(result.candidates.count == raw.count)
+    for (candidate, original) in zip(result.candidates, raw) {
+      #expect(candidate.bpm.bitPattern == original.bpm.bitPattern)
+      #expect(candidate.score.bitPattern == original.score.bitPattern)
+    }
+  }
+}
+
 // MARK: - Window-edge tolerance
 
 /// How far outside a supplied ``PerceptualTempoWindow`` a reported tempo may sit.
