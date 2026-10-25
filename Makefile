@@ -116,9 +116,9 @@ demo-lint:
 	fi; \
 	bash Demo/BoomBoomBoomBPM/scripts/confidence-label-audit.sh
 
-## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ pytest suite). NOT a git hook — runs on demand
+## pre-commit: Run all pre-PR gates (library + demo fmt + lint + the develop-only scripts/ and ml-training pytest suites). NOT a git hook — runs on demand
 .PHONY: pre-commit
-pre-commit: fmt demo-fmt lint demo-lint scripts-tests
+pre-commit: fmt demo-fmt lint demo-lint scripts-tests ml-training-tests
 
 ## test: Run unit tests only (excludes benchmark target; no corpus env required)
 .PHONY: test
@@ -247,6 +247,28 @@ duration-impact-report:
 	DURATION_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.AblationMatrixTests/durationImpactReport
 
+## smc-prior-replication: Story 12.2 section 6.2 item 1 -- run the published SMC 2015 drum-and-bass tempo prior (130-180 BPM) on this pipeline as a hard search-range bound, at the published values. Story 12.1 only ever moved Options.perceptualWindow, and only to 100...200; nobody has run Options.tempoScanRange at 130...180. Note this is a hard-bound ANALOGUE of the published prior: whether SMC constrained a search grid or reweighted candidates is unverified here, so a negative result bounds the hard-filter reading and not the published mechanism. Four arms per corpus at otherwise-shipped defaults: A baseline, B scan-only (PRIMARY), C scan+window, D window-only. Arms run over the whole corpus; the artifact slices DnB against non-DnB, because the DnB rows measure the win and the non-DnB rows measure what a blanket or mistaken declaration costs. Note the published prior is SUB-OCTAVE, so PerceptualTempoWindow normalizes a requested 130...180 up to 130...260 and arms C and D cannot express it on the fold knob; every arm records requested AND effective bounds. Release config for wall-clock (accuracy is config-independent; the baseline arm reproducing the known corpus figures is the built-in cross-check). Refuses to run against a dirty tree, so the artifact's gitSHA always ties to code. Override the prior with SMC_PRIOR_BOUNDS="<min>,<max>". Changes no default; JSON per corpus to _bmad-output/implementation-artifacts/12-2-smc-prior-replication-<corpus>.json.
+# Overridable so a sensitivity run can be staged elsewhere. A recipe-level assignment
+# would beat the caller's environment, which silently overwrote the canonical artifact
+# the first time a sensitivity sweep was attempted.
+SMC_PRIOR_OUT_DIR ?= $(CURDIR)/_bmad-output/implementation-artifacts
+.PHONY: smc-prior-replication
+smc-prior-replication:
+	@mkdir -p "$(SMC_PRIOR_OUT_DIR)"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	SMC_PRIOR_REPLICATION=1 \
+	SMC_PRIOR_OUT_DIR="$(SMC_PRIOR_OUT_DIR)" \
+	$(if $(SMC_TONY_MIN_CONFIDENCE),SMC_TONY_MIN_CONFIDENCE="$(SMC_TONY_MIN_CONFIDENCE)",) \
+	$(if $(SMC_PRIOR_BOUNDS),SMC_PRIOR_BOUNDS="$(SMC_PRIOR_BOUNDS)",) \
+	GIT_SHA=$$( \
+	  SHA=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown); \
+	  DIRTY=$$( [ -n "$$(git status --porcelain 2>/dev/null)" ] && echo "-dirty" || echo "" ); \
+	  echo "$$SHA$$DIRTY" \
+	) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.SMCPriorReplicationTests
+
 ## ml-policy-sweep: Generate per-policy ml-policy-sweep JSON to _bmad-output/implementation-artifacts/4-4-ml-policy-sweep.json
 .PHONY: ml-policy-sweep
 ml-policy-sweep:
@@ -334,6 +356,32 @@ tempo-refine-impact-report:
 	TEMPO_REFINE_IMPACT=1 \
 	TEMPO_REFINE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.DAWOracleBenchmarkTests/tempoRefinementImpact
+
+## octave-threshold-sweep: Story 12.1 AC #1 -- the inherited Epic-13 charter-item-1 ceiling sweep over the two hand-tuned resolveOctaveAmbiguity thresholds (octaveEnergyThreshold 0.3, octaveScoreThreshold 0.5). Sweeps a 7x7 grid on OA300 (the 6x6 bracket around the shipped pair plus the 1.0 row and column that effectively close the 2:1 fallback), then runs one GiantSteps confirmation pass at the shipped default AND at the best OA300 point (override with OCTAVE_SWEEP_CONFIRM="<energy>,<score>"). Measurement only -- it never changes the defaults. Per-combination JSON to _bmad-output/implementation-artifacts/12-1-octave-threshold-sweep.json. Numbers are single-window BPMAnalyzer.estimateBPM, not the full AudioAnalysisService pipeline, so they are NOT comparable to the corpus floors.
+.PHONY: octave-threshold-sweep
+octave-threshold-sweep:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	OCTAVE_THRESHOLD_SWEEP=1 \
+	OCTAVE_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.OctaveThresholdSweepTests/oa300ThresholdSweep
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	OCTAVE_THRESHOLD_SWEEP=1 \
+	OCTAVE_SWEEP_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	$(if $(OCTAVE_SWEEP_CONFIRM),OCTAVE_SWEEP_CONFIRM="$(OCTAVE_SWEEP_CONFIRM)",) \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.OctaveThresholdSweepTests/giantStepsConfirmation
+
+## tempo-range-impact-report: Story 12.1 AC #8 / NFR-14 -- per-track impact of the consumer-specifiable perceptual tempo window (FR-53), with the per-band and per-genre breakdown FR-55 asks for. Compares the full AudioAnalysisService.analyzeBPM pipeline at default options against the same pipeline with only Options.perceptualWindow moved (default comparison window 100...200; override with TEMPO_RANGE_IMPACT_WINDOW="<min>,<max>"). Schema follows the click-impact precedent: {changedRanking, changedDisambiguationWinner, changedFinalBPM, total} plus perBand / perGenre. Changes no default; JSON to _bmad-output/implementation-artifacts/12-1-tempo-range-impact-report.json.
+.PHONY: tempo-range-impact-report
+tempo-range-impact-report:
+	@mkdir -p "$(CURDIR)/_bmad-output/implementation-artifacts"
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	TEMPO_RANGE_IMPACT=1 \
+	TEMPO_RANGE_IMPACT_OUT_DIR="$(CURDIR)/_bmad-output/implementation-artifacts" \
+	$(if $(TEMPO_RANGE_IMPACT_WINDOW),TEMPO_RANGE_IMPACT_WINDOW="$(TEMPO_RANGE_IMPACT_WINDOW)",) \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.TempoRangeImpactTests/tempoRangeImpactReport
 
 ## accuracy-forensics: Phase 0 — forensic accuracy attribution over OA300 + GiantSteps (default pipeline). Per-corpus JSON to _bmad-output/implementation-artifacts/accuracy-forensics-<corpus>.json: candidate-recall oracle (true BPM in top-1/3/5/10 + factor + score margin), error-type histogram (octave vs triplet kept separate), recall split (selection-bound vs generation-bound), confidence reliability curve, BPM-error distribution, per-genre error-type composition, label-policy tags. Reporting-only — touches no DSP; corpus floors unaffected.
 .PHONY: accuracy-forensics
@@ -477,7 +525,7 @@ ifndef CASE
 endif
 	uv run scripts/new-case.py "$(TYPE)" "$(CASE)"
 
-## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration, because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
+## py-lint: Ruff lint + format-check (develop-only ml-training + scripts) and ty type-check (Story 7.1 corpus tooling). uv-invoked; a dependency of `lint`. The legacy torch/numpy training pipeline (train.py/eval.py/model.py/tony-tunes-*) AND the Story 7.3 torch-importing ablation harness (ablation/*.py except build_unsupervised_manifest.py) carry pre-existing torch ty debt and are out of the ty scope for now; the stdlib-only ablation/build_unsupervised_manifest.py IS ty-checked. ruff covers all of ablation/ via the `.` glob. The W87 suite under scripts/tests/ is likewise ruff-covered via `../../scripts/` but is NOT in the ty enumeration; Story 12.4's tempocnn_baseline.py is ruff-covered but out of the ty scope too (its lazy tensorflow import resolves only with the tempocnn-baseline dependency group installed -- the torch-debt precedent), because ty's search path is $(ML_TRAINING_DIR), so scripts/tests/test_docc_transclude.py's sibling `from conftest import Workspace` (TYPE_CHECKING-only) is unresolvable from there and ty reports a spurious unresolved-import.
 .PHONY: py-lint
 py-lint:
 	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
@@ -486,7 +534,7 @@ py-lint:
 	fi; \
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
 	uv run ruff format --check . ../../scripts/ && \
-	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/dawproject-annotations.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py corpus_manifests.py
+	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/dawproject-annotations.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py ../../scripts/build-eval-corpus.py corpus_manifests.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -579,6 +627,130 @@ pool-durations:
 repair-mix-manifests:
 	uv run --project $(ML_TRAINING_DIR) python scripts/repair-mix-manifests.py
 
+## eval-corpus-prepare-review: Story 12.7 -- stage 1 of the MANDATORY pre-commitment fingerprint review the signed section-2 exclusion rule requires. Emits the review flag set (candidate audio matching a training recording at or above the DD #3 review cosine, plus conservative GiantSteps normalized-title collisions) and a disposition template. The algorithm only flags; a recorded human disposition is what excludes, and minting is blocked until every flag carries one. Both files stay gitignored under _bmad-output/ml-training/eval-corpus/. Develop-only.
+.PHONY: eval-corpus-prepare-review
+eval-corpus-prepare-review:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py prepare-review
+
+## eval-corpus-pools: Story 12.7 -- build and commit the banded candidate pools for the 258-track evaluation corpus per the signed section-2 protocol (face-value banding, FR-59a.2 metadata AND fingerprint exclusion, content-bound rows, seeded draw sequences). Refuses while the commitment on record is superseded, while any fingerprint review flag is unadjudicated, or while the two operator decisions (short-band allocation, cross-band duplicate rule) are absent as machine-readable input. Row-level pools stay gitignored under _bmad-output/ml-training/eval-corpus/; the committed 12-7-candidate-commitment.{json,md} carries counts, seeds, and named digests only. Exit 4 on operator escalation, 2 on input drift, 3 on a privacy-gate violation. Develop-only.
+.PHONY: eval-corpus-pools
+eval-corpus-pools:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py commit-pools $(if $(SEED),--seed $(SEED),)
+
+## eval-corpus-remint: Story 12.7 -- mint a SUCCESSOR to a superseded candidate commitment. Archives the predecessor byte-for-byte next to the commitment artifact, records supersedes_sha256 (commitment validation walks the whole chain, so an archived predecessor cannot silently vanish), writes a fresh generation of row-level files, and replaces the canonical commitment last. Refuses while any prerequisite is missing, while the commitment on record is active, and while the prior generation carries ANY annotation state. Exit 4 on operator escalation. Develop-only.
+.PHONY: eval-corpus-remint
+eval-corpus-remint:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py remint $(if $(SEED),--seed $(SEED),)
+
+## eval-corpus-repass-sample: Story 12.7 -- draw the signed section-6 10 percent blind re-pass sample (12-6 lines 484-492, bound by the 2026-08-08 signoff). Independent domain-separated seed over a separate permutation of the frozen member roster, fresh aliases and an independently randomized order so the annotator is blinded to the first-pass BPM, the flags, membership position, and the original row id. Refuses until the corpus is complete and the shared audit is clean. Stage a FRESH DAW project per the signed SOP. Develop-only.
+.PHONY: eval-corpus-repass-sample
+eval-corpus-repass-sample:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py repass-sample
+
+## eval-corpus-repass-ingest: Story 12.7 -- ingest the blind re-pass annotation CSV (ANNOTATIONS=, keyed by re-pass alias). Records the two-tier disagreement rates per the operator clarification of 2026-08-11 (metrical-level: within 4 percent of 2x or 0.5x; fine: same level, above 0.5 BPM) plus the continuous absolute-difference distribution. It measures repeatability and never relabels: a disagreement is data, resolved only by a dated amendment. Develop-only.
+.PHONY: eval-corpus-repass-ingest
+eval-corpus-repass-ingest:
+ifndef ANNOTATIONS
+	$(error ANNOTATIONS is not set. Usage: make eval-corpus-repass-ingest ANNOTATIONS=path.csv)
+endif
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py repass-ingest --annotations "$(ANNOTATIONS)"
+
+## eval-corpus-batch: Story 12.7 -- stage the next blinded annotation batch for BAND= (opaque row IDs, copied audio, worklist with row_id + staged path only). Optional BATCH= (validated against sequence) and SIZE= (default 40). Develop-only.
+.PHONY: eval-corpus-batch
+eval-corpus-batch:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-batch BAND=100-120)
+endif
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py stage-batch --band "$(BAND)" $(if $(BATCH),--batch $(BATCH),) $(if $(SIZE),--size $(SIZE),)
+
+## eval-corpus-ingest: Story 12.7 -- ingest the operator-filled annotation CSV for BAND= BATCH= ANNOTATIONS= (DSP-free keep/reject, first-43-cumulative membership recompute; all-or-nothing validation). Develop-only.
+.PHONY: eval-corpus-ingest
+eval-corpus-ingest:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-ingest BAND=100-120 BATCH=0 ANNOTATIONS=path.csv)
+endif
+ifndef BATCH
+	$(error BATCH is not set. Usage: make eval-corpus-ingest BAND=100-120 BATCH=0 ANNOTATIONS=path.csv)
+endif
+ifndef ANNOTATIONS
+	$(error ANNOTATIONS is not set. Usage: make eval-corpus-ingest BAND=100-120 BATCH=0 ANNOTATIONS=path.csv)
+endif
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py ingest --band "$(BAND)" --batch $(BATCH) --annotations "$(ANNOTATIONS)"
+
+## eval-corpus-export-dawproject: Story 12.7 -- write the ingest CSV for BAND= BATCH= from the tempos already set in a DAW project (DAWPROJECT=), matched to the worklist by track name. Reads the project through scripts/dawproject-bpm.py --json, never --match. Refuses if any worklist row is missing from the project or has no single tempo, and never overwrites an existing file (default eval-corpus/ingest-<band>-batch-NNN.csv; override with OUT=). Flag columns are written as 0. Does not ingest. Develop-only.
+.PHONY: eval-corpus-export-dawproject
+eval-corpus-export-dawproject:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-export-dawproject BAND=100-120 BATCH=0 DAWPROJECT=path.dawproject)
+endif
+ifndef BATCH
+	$(error BATCH is not set. Usage: make eval-corpus-export-dawproject BAND=100-120 BATCH=0 DAWPROJECT=path.dawproject)
+endif
+ifndef DAWPROJECT
+	$(error DAWPROJECT is not set. Usage: make eval-corpus-export-dawproject BAND=100-120 BATCH=0 DAWPROJECT=path.dawproject)
+endif
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py export-dawproject --band "$(BAND)" --batch $(BATCH) --dawproject "$(DAWPROJECT)" $(if $(OUT),--out "$(OUT)",)
+
+## eval-corpus-slow-supplement: Story 12.7 -- write generations/<gen>/slow-tempo-supplement.jams.json: verified tempos under 120 BPM kept outside band membership (12-6 section 6, amendment 2026-10-23). Takes the 100-120 pool rows rejected as out-of-band below 120, plus the x1- tracks in DAWPROJECT= verified below 120 with their audio in AUDIO_DIR= (tagged detector-visible). Every track is checked against the training audio by file hash and by audio fingerprint at the review cosine; a track that matches is left out and named in the output. Changes no membership. Develop-only.
+.PHONY: eval-corpus-slow-supplement
+eval-corpus-slow-supplement:
+ifndef DAWPROJECT
+	$(error DAWPROJECT is not set. Usage: make eval-corpus-slow-supplement DAWPROJECT=path.dawproject AUDIO_DIR=dir)
+endif
+ifndef AUDIO_DIR
+	$(error AUDIO_DIR is not set. Usage: make eval-corpus-slow-supplement DAWPROJECT=path.dawproject AUDIO_DIR=dir)
+endif
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py slow-supplement --dawproject "$(DAWPROJECT)" --audio-dir "$(AUDIO_DIR)"
+
+## eval-corpus-abandon: Story 12.7 -- record BAND= BATCH= as abandoned. The signed rule is that an abandoned batch yields no members; this appends an append-only ledger event so the batch contributes no annotations and no membership, and the draw-sequence span it consumed is never re-staged. Pass FORCE=1 to discard an existing annotation record. Develop-only.
+.PHONY: eval-corpus-abandon
+eval-corpus-abandon:
+ifndef BAND
+	$(error BAND is not set. Usage: make eval-corpus-abandon BAND=100-120 BATCH=0)
+endif
+ifndef BATCH
+	$(error BATCH is not set. Usage: make eval-corpus-abandon BAND=100-120 BATCH=0)
+endif
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py abandon --band "$(BAND)" --batch $(BATCH) $(if $(REASON),--reason "$(REASON)",) $(if $(FORCE),--force,)
+
+## eval-corpus-status: Story 12.7 -- per-band membership progress plus the observed keeper rate and the ceil(43/rate) review estimate the signed re-plan checkpoint consumes. Validates every batch record against the committed draw sequence first. Develop-only.
+.PHONY: eval-corpus-status
+eval-corpus-status:
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py status
+
+## eval-corpus-audit: Story 12.7 -- fail-closed audit, shared by emit-manifest and signoff: annotation-ledger integrity, canonical batch-record validation, FR-59a.1 no-DSP-field assertion over every membership input, FR-59a.2 residual cross-corpus overlap over EVERY candidate (GiantSteps coverage is required, not optional), cross-band duplicate check, and the oa300 18-vs-14 row-basis reconciliation report. Nonzero exit on any assertion failure, including an absent or superseded commitment. Develop-only.
+.PHONY: eval-corpus-audit
+eval-corpus-audit:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py audit
+
+## eval-corpus-manifest: Story 12.7 -- emit the JAMS corpus manifest (section-5 annotation-version tag, octave-sentinel tags joined fingerprint-first per the signed section-3 rule, 175+ degeneracy note). Refuses while any band is below 43 members and prints per-band progress instead, unless every such band is named with a reason in the committed implementation-artifacts/12-7-short-bands.json (and no full band is named there); the file then carries a per-band block of members, target and short reason. Refuses unless the shared audit is clean. Signoff and the training gate never read the short-band file. Develop-only.
+.PHONY: eval-corpus-manifest
+eval-corpus-manifest:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py emit-manifest
+
+## eval-corpus-signoff: Story 12.7 -- record the signoff ATTESTATION that train.py validates. Runs the shared audit and refuses unless it is clean and every band holds its full membership, then writes 12-7-signoff-attestation.json bound to the active commitment digest and the annotation-ledger head. Editing the REVIEWER_SIGNOFF marker by hand does not produce one. Develop-only.
+.PHONY: eval-corpus-signoff
+eval-corpus-signoff:
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	uv run --project $(ML_TRAINING_DIR) python scripts/build-eval-corpus.py signoff
+
 ## q9-ratio-cluster: Epic 12 Q9 — emit q9-ratio-cluster-v1.json, the tracked evidence artifact behind q9-ratio-cluster-2026-08-01.md. Derived from the gitignored non-rekordbox-survey.json, which cannot be committed (a complete private-collection inventory: absolute roots, per-file BPM signals, audio hashes), so this is the repository-only auditable substitute. Counts only; a recursive privacy allowlist stops the aggregate becoming a row-level dump or carrying an absolute root before the file is written. Run with --check to verify the committed aggregate still matches the survey, or --audit-prose to report any figure in the artifact with no backing value in the aggregate. Develop-only.
 .PHONY: q9-ratio-cluster
 q9-ratio-cluster:
@@ -602,6 +774,32 @@ audit-corpus-splits:
 	uv run --project $(ML_TRAINING_DIR) python scripts/audit-corpus-splits.py \
 		--check-sentinels-against Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/12-dnb-sentinels-expanded.json \
 		--reject-marginal
+
+## tempocnn-baseline: Story 12.4 (Gate 0) -- run the published Schreiber and Mueller ISMIR 2018 single-step tempo CNN end to end (its own featurization and decode) on the same 661 GiantSteps rows, annotation source, and FR-18-strict protocol behind our 348/661, then evaluate the pre-registered midpoint(348, P) gate rule. Requires TEMPOCNN_WEIGHTS_DIR (weights live outside git; checksums verified against tempocnn-baseline-provenance.json, refuse on mismatch) and GIANTSTEPS_CORPUS_PATH. Develop-only; fails loudly on a main-only checkout (the ml-* convention). Uses the tempocnn-baseline dependency group (TF runtime), synced on demand.
+.PHONY: tempocnn-baseline
+tempocnn-baseline:
+ifndef TEMPOCNN_WEIGHTS_DIR
+	$(error TEMPOCNN_WEIGHTS_DIR is not set. Invoke as: TEMPOCNN_WEIGHTS_DIR=/path/to/weights make tempocnn-baseline)
+endif
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
+		echo "ERROR: $(ML_TRAINING_DIR) absent (main-only checkout); tempocnn-baseline is develop-only tooling."; \
+		exit 1; \
+	fi
+	cd $(ML_TRAINING_DIR) && uv sync --locked --group tempocnn-baseline
+	cd $(ML_TRAINING_DIR) && \
+	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	TEMPOCNN_WEIGHTS_DIR="$(abspath $(TEMPOCNN_WEIGHTS_DIR))" \
+	uv run --group tempocnn-baseline python tempocnn_baseline.py
+	@echo "Output: $(ML_TRAINING_DIR)/tempocnn-baseline/predictions.json"
+
+## ml-training-tests: Run the ml-training pytest suite under _bmad-output/ml-training/tests/ (Story 12.4: the Gate 0 harness pure-logic tests; no network, no weights, no TensorFlow). Self-skips with a printed note on a main-only checkout, the scripts-tests convention -- this target is a pre-commit prerequisite and a mid-run hard failure there would abort the gate chain.
+.PHONY: ml-training-tests
+ml-training-tests:
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)/tests" ]; then \
+		echo "Note: $(ML_TRAINING_DIR)/tests absent (main-only checkout); skipping the develop-only ml-training pytest suite."; \
+	else \
+		cd $(ML_TRAINING_DIR) && uv run pytest tests/; \
+	fi
 
 ## ml-summary: Regenerate model_summary.txt and model_metadata.json
 .PHONY: ml-summary

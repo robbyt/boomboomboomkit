@@ -500,7 +500,7 @@ struct AblationMatrixTests {
       return
     }
     let data = try Data(contentsOf: URL(fileURLWithPath: jsonPath))
-    let gt = try JSONDecoder().decode([GiantStepsTrack].self, from: data)
+    let gt = try GiantStepsTrack.loadCorpus(from: data)
 
     let optimalPlusClick = TechniqueSet.optimal.inserting(.clickTrackCorrelation)
     let optimal = TechniqueSet.optimal

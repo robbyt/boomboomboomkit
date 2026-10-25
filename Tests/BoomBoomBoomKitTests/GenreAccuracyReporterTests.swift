@@ -109,6 +109,45 @@ struct GenreAccuracyReporterTests {
     #expect(!tinyLine!.contains("** LOW **"))
   }
 
+  @Test("format renders the Acc2-Acc1 column as count plus percentage points")
+  func formatRendersOctaveErrorProxyColumn() throws {
+    let buckets = [
+      GenreBucket(genre: "alpha", total: 82, acc1Correct: 58, acc2Correct: 74)
+    ]
+    let out = GenreAccuracyReporter.format(
+      corpusLabel: "Test", intensity: 7,
+      annotationVersion: try AnnotationVersion.declared("v2"), buckets: buckets,
+      overallAcc1Percent: 70.7, overallAcc2Percent: 90.2)
+    #expect(out.contains("Acc2-Acc1"))
+    let alphaLine = out.split(separator: "\n").first { $0.contains("alpha") }
+    #expect(alphaLine != nil)
+    #expect(alphaLine!.contains(" 16  19.5pp"))
+  }
+
+  @Test("bucket octave-error proxy accessors")
+  func bucketOctaveErrorProxyAccessors() {
+    let b = GenreBucket(genre: "g", total: 82, acc1Correct: 58, acc2Correct: 74)
+    #expect(b.octaveErrorProxy == 16)
+    #expect(abs(b.octaveErrorProxyPercentagePoints - 19.5) < 0.05)
+    let empty = GenreBucket(genre: "g", total: 0, acc1Correct: 0, acc2Correct: 0)
+    #expect(empty.octaveErrorProxy == 0)
+    #expect(empty.octaveErrorProxyPercentagePoints == 0.0)
+  }
+
+  @Test("format surfaces the annotation version in the header, defaulting to untagged")
+  func formatSurfacesAnnotationVersion() throws {
+    let tagged = GenreAccuracyReporter.format(
+      corpusLabel: "Test", intensity: 7,
+      annotationVersion: try AnnotationVersion.declared("v2"), buckets: [],
+      overallAcc1Percent: 0.0, overallAcc2Percent: 0.0)
+    #expect(tagged.contains("Annotation version: declared:v2"))
+
+    let untagged = GenreAccuracyReporter.format(
+      corpusLabel: "Test", intensity: 7, buckets: [],
+      overallAcc1Percent: 0.0, overallAcc2Percent: 0.0)
+    #expect(untagged.contains("Annotation version: untagged"))
+  }
+
   @Test("format empty buckets produces header and overall only")
   func formatEmptyBucketsProducesHeaderAndOverallOnly() {
     let out = GenreAccuracyReporter.format(

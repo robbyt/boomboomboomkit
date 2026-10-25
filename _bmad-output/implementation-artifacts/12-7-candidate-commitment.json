@@ -1,0 +1,223 @@
+{
+ "artist_exclusion_limitation": "Pool rows carry no artist field, so artist-string FR-59a.2 exclusion is enforceable only for Tony rows. What compensates is NOT the artist check by another name: the mandatory pre-commitment fingerprint review covers every candidate against the training manifests by audio content, and every confirmed match is DISPOSED OF before minting. What disposal means depends on the recorded partition order. Under the pre-amendment order a confirmed match excludes the candidate. Under the signed 2026-08-11 repartition order a confirmed match against a training-MANIFEST row instead retains the candidate and enumerates the training row the rebuild must drop, while a confirmed match against a tony.train or tony.val row still excludes. The residual gap is the same either way: a training track by the same artist that is a DIFFERENT recording, which artist-string exclusion would have removed and fingerprinting deliberately does not.",
+ "bands": {
+  "100-120": {
+   "candidates": 263,
+   "exclusions": {
+    "artist": 7,
+    "audio-unhashable": 1,
+    "audio-unresolved": 25,
+    "continuous-mix": 0,
+    "cross-band-duplicate": 0,
+    "fingerprint-confirmed": 1,
+    "fingerprint-uncoverable": 0,
+    "manifest-hash": 0,
+    "tony-split": 5
+   },
+   "fallback_candidates": 0,
+   "fallback_seed": 558327059,
+   "seed": 844345532
+  },
+  "120-140": {
+   "candidates": 76,
+   "exclusions": {
+    "artist": 37,
+    "audio-unhashable": 2,
+    "audio-unresolved": 44,
+    "continuous-mix": 0,
+    "cross-band-duplicate": 2,
+    "fingerprint-confirmed": 0,
+    "fingerprint-uncoverable": 0,
+    "manifest-hash": 0,
+    "tony-split": 99
+   },
+   "fallback_candidates": 0,
+   "fallback_seed": 3060139760,
+   "seed": 227114723
+  },
+  "140-160": {
+   "candidates": 73,
+   "exclusions": {
+    "artist": 36,
+    "audio-unhashable": 13,
+    "audio-unresolved": 47,
+    "continuous-mix": 1,
+    "cross-band-duplicate": 12,
+    "fingerprint-confirmed": 3,
+    "fingerprint-uncoverable": 0,
+    "manifest-hash": 0,
+    "tony-split": 246
+   },
+   "fallback_candidates": 0,
+   "fallback_seed": 2346123404,
+   "seed": 3068079782
+  },
+  "160-175": {
+   "candidates": 114,
+   "exclusions": {
+    "artist": 0,
+    "audio-unhashable": 29,
+    "audio-unresolved": 0,
+    "continuous-mix": 0,
+    "cross-band-duplicate": 0,
+    "fingerprint-confirmed": 0,
+    "fingerprint-uncoverable": 0,
+    "manifest-hash": 0,
+    "tony-split": 0
+   },
+   "fallback_candidates": 0,
+   "fallback_seed": 3790097780,
+   "seed": 2250969899
+  },
+  "175-plus": {
+   "candidates": 104,
+   "exclusions": {
+    "artist": 0,
+    "audio-unhashable": 0,
+    "audio-unresolved": 0,
+    "continuous-mix": 9,
+    "cross-band-duplicate": 0,
+    "fingerprint-confirmed": 0,
+    "fingerprint-uncoverable": 0,
+    "manifest-hash": 0,
+    "tony-split": 0
+   },
+   "fallback_candidates": 0,
+   "fallback_seed": 3257255057,
+   "seed": 3325602299
+  },
+  "sub-100": {
+   "candidates": 2155,
+   "exclusions": {
+    "artist": 290,
+    "audio-unhashable": 14,
+    "audio-unresolved": 109,
+    "continuous-mix": 8,
+    "cross-band-duplicate": 10,
+    "fingerprint-confirmed": 7,
+    "fingerprint-uncoverable": 0,
+    "manifest-hash": 0,
+    "tony-split": 527
+   },
+   "fallback_candidates": 0,
+   "fallback_seed": 3227219705,
+   "seed": 2627814653
+  }
+ },
+ "draw_file_sha256": "be9f3ccf01d13ba84d7d8b13cc071010d436c00acafeb07d702cb9c85a784efb",
+ "fallback_addendum": {
+  "addendum_sha256": null,
+  "already_in_primary_by_band": {
+   "100-120": 2,
+   "120-140": 26,
+   "140-160": 46,
+   "160-175": 12,
+   "175-plus": 0,
+   "sub-100": 184
+  },
+  "dated": "2026-08-15",
+  "fallback_candidates_by_band": {
+   "100-120": 3,
+   "120-140": 28,
+   "140-160": 59,
+   "160-175": 41,
+   "175-plus": 0,
+   "sub-100": 198
+  },
+  "net_new_by_band": {
+   "100-120": 0,
+   "120-140": 0,
+   "140-160": 0,
+   "160-175": 0,
+   "175-plus": 0,
+   "sub-100": 0
+  },
+  "note": "The signed exhaustion fallback source order is Tony as-entered rows, then OA300 rows. Both are already inside the primary pools, so the addendum's NET NEW set is empty by construction: enumerating it recovers nothing for any band. A short band still HALTS. This is reported rather than inferred so the operator can see it.",
+  "policy": "repartition"
+ },
+ "fingerprint_review": {
+  "candidate_universe_sha256": "55e3ea63629807a4b2d48463c6d3c34f576fe901514bdf137b906c293af7363e",
+  "cleared": 36,
+  "confirmed_same_recording": 146,
+  "coverage": {
+   "amended_uncovered_training_rows": 0,
+   "candidates_by_reason": {
+    "decode-failed": 0,
+    "metadata-excluded": 0,
+    "missing-file": 0,
+    "no-path": 0,
+    "non-finite": 0,
+    "resolved": 2820,
+    "too-short": 0,
+    "unresolved-path": 0
+   },
+   "candidates_covered": 2820,
+   "candidates_total": 2820,
+   "training_by_reason": {
+    "decode-failed": 0,
+    "metadata-excluded": 0,
+    "missing-file": 0,
+    "no-path": 0,
+    "non-finite": 0,
+    "resolved": 5193,
+    "too-short": 0,
+    "unresolved-path": 0
+   },
+   "training_covered": 5193,
+   "training_total": 5193
+  },
+  "coverage_sha256": "bc5f3306db520739d54ae635c248efedd09725ade7c8754a89edee144cc55dca",
+  "dispositions_sha256": "c1eb9e64288bc54fd38f079c5500bd004baf461def2c3bcba6dce6bd53b48165",
+  "flags": 182,
+  "method": "librosa-mfcc-chroma-timbral-v3",
+  "recording_groups": 6,
+  "same_file_exempt": 2550,
+  "same_file_sha256": "ea73cd3e49090610c94ec996f89e5785face2dff3627ef6dadba27260d103195",
+  "training_input_digests": {
+   "corpus_splits.json": "86594293d668b654292dc8b4ce1f0694b4d18c183dd25e28d5606dae688cffea",
+   "non-rekordbox-secondary-supervised-manifest.json": "7f5c9eb54f777bf7beca370a2816f3a27122b58b5a7d05e0dee192d641764e5f",
+   "non-rekordbox-unsupervised-pretrain-manifest.json": "56ca9c907f33eb2360d1cf4a4389c9e2126ba1789f162d50af4a1b4e62e3caff"
+  },
+  "training_input_sha256": "d77f177d9252c3afdc262d16ab9fa671e2904868803a16fdd0c204fa83856102"
+ },
+ "generated": "2026-08-15",
+ "generation": "ge94c3fc04f636363",
+ "master_seed": 982188959,
+ "n_band_target": 43,
+ "notes": [
+  "The annotation ledger provides INTEGRITY, not backup or recovery. It detects editing, deletion, reordering, and stale-file reuse of annotation state; it cannot restore a lost annotation, and these labels cannot be regenerated. Annotation records are immutable and versioned: no command overwrites or unlinks one."
+ ],
+ "operator_decisions": {
+  "cross_band_duplicate_rule": "pre-commitment-recording-dedup",
+  "decided": "2026-08-11",
+  "decisions_sha256": "e560a93ed0ba5947ed2ee4df10d335707e32c10acbbf2f8adf3b15330055e7ea",
+  "short_band_allocation": "repartition"
+ },
+ "partition_obligation": {
+  "enumerated_fingerprint_matches": 143,
+  "excluded_by_confirmed_disposition": 11,
+  "excluded_giantsteps_matches": 0,
+  "excluded_training_fingerprint_matches": 11,
+  "must_drop_count": 2684,
+  "must_drop_sha256": "bf000ab82402d1f865998cb0555f8af6ea21d7a86f06aa807f5f8110068435a3",
+  "note": "Signed amendment 2026-08-11 (FR-59a.2 partition ORDER). Under the repartition policy one exclusion route reverses: a candidate matching a non-Rekordbox TRAINING MANIFEST by audioHash is drawn into the eval corpus, and the training rebuild drops it. The tony.train and tony.val recording-identity route and the artist-string route are unchanged and still exclude at candidate construction. The counts here are the MINT-TIME obligation universe over candidates; the list bound at signoff is derived from the final MEMBER roster, because dropping training rows for candidates that were rejected or ended up surplus would starve training for nothing. Row-level entries are private and live in a gitignored sidecar; only this digest and these counts are committed.",
+  "policy": "repartition",
+  "retained_manifest_matches": 2541,
+  "route_reversed": "non-Rekordbox training manifest audioHash",
+  "status": "provisional"
+ },
+ "pool_file_sha256": "2a9cff7cf36070c8341d847270a7256379da1e0540982f9c9307817cccf385b8",
+ "protocol": "_bmad-output/implementation-artifacts/12-6-metrical-level-convention.md section 2",
+ "run_command": "make eval-corpus-pools",
+ "schema_version": 4,
+ "seed_algorithm": "python-stdlib random.Random (Mersenne Twister), Random(seed).shuffle(sorted_rows)",
+ "short_bands": [],
+ "status": "active",
+ "story": "12.7",
+ "supersedes_sha256": "986156f5600a298b7c7c581936ad54139b5cfd960214d5f2d8ce2d83d166055e",
+ "tagless_by_source": {
+  "oa300": 0,
+  "pool": 2198,
+  "tony": 2
+ }
+}

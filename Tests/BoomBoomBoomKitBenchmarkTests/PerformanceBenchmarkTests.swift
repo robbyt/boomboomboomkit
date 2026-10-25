@@ -71,8 +71,12 @@ private struct HardwareInfo: Sendable {
   }
 }
 
-// MARK: - Baseline Record (schemaVersion 2)
+// MARK: - Baseline Record (schemaVersion 3)
 
+// Story 12.3 (FR-60): schemaVersion 3 records the per-corpus annotation version.
+// The custom decoder below accepts the previous schema (2) and surfaces `.untagged`
+// for it — rejecting it would kill the cross-run delta line against every committed
+// baseline — and rejects unsupported versions.
 private struct BaselineRecord: Codable, Sendable {
   let schemaVersion: Int
   let recordedAt: String
@@ -107,6 +111,14 @@ private struct BaselineRecord: Codable, Sendable {
   struct Accuracy: Codable, Sendable {
     let oa300: AccuracySnapshot
     let giantsteps: AccuracySnapshot?
+
+    /// Applies the Story 12.3 schema rule to both snapshots: schema 2 defaults to
+    /// `.untagged`, schema 3 requires the field, anything else is rejected.
+    func resolvingAnnotationVersions(schemaVersion: Int) throws -> Accuracy {
+      Accuracy(
+        oa300: try oa300.resolvingAnnotationVersion(schemaVersion: schemaVersion),
+        giantsteps: try giantsteps?.resolvingAnnotationVersion(schemaVersion: schemaVersion))
+    }
   }
 
   struct AccuracySnapshot: Codable, Sendable {
@@ -114,6 +126,88 @@ private struct BaselineRecord: Codable, Sendable {
     let acc1Correct: Int
     let acc2Correct: Int
     let tolerance: Double
+    /// Non-nil on every record the custom `BaselineRecord` decoder hands back
+    /// (`.untagged` for the previous schema); optional only so a schema-2 payload
+    /// without the field can decode at all.
+    let annotationVersion: AnnotationVersion?
+    /// Whether the JSON carried the `annotationVersion` KEY at all. Captured at
+    /// decode time because `decodeIfPresent` collapses an explicit `null` and an
+    /// absent key to the same `nil` — and a schema-2 record carrying the key,
+    /// even as `null`, must fail the schema rule loudly. Not encoded.
+    var annotationVersionFieldPresent: Bool = true
+
+    private enum CodingKeys: String, CodingKey {
+      case total, acc1Correct, acc2Correct, tolerance, annotationVersion
+    }
+
+    init(
+      total: Int, acc1Correct: Int, acc2Correct: Int, tolerance: Double,
+      annotationVersion: AnnotationVersion?
+    ) {
+      self.total = total
+      self.acc1Correct = acc1Correct
+      self.acc2Correct = acc2Correct
+      self.tolerance = tolerance
+      self.annotationVersion = annotationVersion
+      self.annotationVersionFieldPresent = annotationVersion != nil
+    }
+
+    init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      total = try container.decode(Int.self, forKey: .total)
+      acc1Correct = try container.decode(Int.self, forKey: .acc1Correct)
+      acc2Correct = try container.decode(Int.self, forKey: .acc2Correct)
+      tolerance = try container.decode(Double.self, forKey: .tolerance)
+      annotationVersion = try container.decodeIfPresent(
+        AnnotationVersion.self, forKey: .annotationVersion)
+      annotationVersionFieldPresent = container.contains(.annotationVersion)
+    }
+
+    func resolvingAnnotationVersion(schemaVersion: Int) throws -> AccuracySnapshot {
+      AccuracySnapshot(
+        total: total, acc1Correct: acc1Correct, acc2Correct: acc2Correct,
+        tolerance: tolerance,
+        annotationVersion: try AccuracyRecordSchema.annotationVersion(
+          fromDecoded: annotationVersion, fieldPresent: annotationVersionFieldPresent,
+          schemaVersion: schemaVersion))
+    }
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case schemaVersion, recordedAt, gitSHA, buildConfiguration, swiftPackageVersion
+    case hardware, wallClock, accuracy
+  }
+}
+
+extension BaselineRecord {
+  /// Custom decoder (Story 12.3): a synthesized `Decodable` with a non-optional
+  /// version field would fail before `schemaVersion` could be inspected. Decodes
+  /// `schemaVersion` first, rejects unsupported values, and normalizes the
+  /// per-corpus annotation versions per `AccuracyRecordSchema`.
+  init(from decoder: any Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    let schema = try c.decode(Int.self, forKey: .schemaVersion)
+    guard AccuracyRecordSchema.supported.contains(schema) else {
+      // Typed (not DecodingError) so readHistory can print "unsupported
+      // schemaVersion N" instead of "malformed baseline file".
+      throw AccuracyRecordSchema.SchemaError.unsupportedSchemaVersion(schema)
+    }
+    // A schema-2 record decodes with `.untagged` filled in (see
+    // resolvingAnnotationVersions below), so the decoded record already
+    // satisfies the schema-3 shape; bump its schemaVersion to match so a
+    // re-encode is self-consistent rather than claiming schema 2 while
+    // carrying the field schema 2 forbids.
+    self.init(
+      schemaVersion: schema == AccuracyRecordSchema.previous
+        ? AccuracyRecordSchema.current : schema,
+      recordedAt: try c.decode(String.self, forKey: .recordedAt),
+      gitSHA: try c.decode(String.self, forKey: .gitSHA),
+      buildConfiguration: try c.decode(String.self, forKey: .buildConfiguration),
+      swiftPackageVersion: try c.decode(String.self, forKey: .swiftPackageVersion),
+      hardware: try c.decode(Hardware.self, forKey: .hardware),
+      wallClock: try c.decode(WallClock.self, forKey: .wallClock),
+      accuracy: try c.decode(Accuracy.self, forKey: .accuracy)
+        .resolvingAnnotationVersions(schemaVersion: schema))
   }
 }
 
@@ -204,16 +298,17 @@ private enum BaselineStore {
       let record: BaselineRecord
       do {
         record = try JSONDecoder().decode(BaselineRecord.self, from: data)
-      } catch {
-        print("Warning: malformed baseline file \(name) — skipping")
-        continue
-      }
-      guard record.schemaVersion == 2 else {
+      } catch AccuracyRecordSchema.SchemaError.unsupportedSchemaVersion(let schema) {
         print(
-          "Warning: baseline file \(name) has schemaVersion \(record.schemaVersion), expected 2 — skipping"
+          "Warning: baseline file \(name) has unsupported schemaVersion \(schema), supported: \(AccuracyRecordSchema.supported); skipping"
         )
         continue
+      } catch {
+        print("Warning: malformed baseline file \(name); skipping")
+        continue
       }
+      // No post-decode schema guard: the custom BaselineRecord decoder already
+      // rejects unsupported schema versions, so a decoded record is in range.
       records.append(record)
     }
     return records.sorted { $0.recordedAt < $1.recordedAt }
@@ -232,6 +327,8 @@ struct PerformanceBenchmarkTests {
 
   private let corpusPath: String
   private let groundTruth: [OA300Track]
+  /// Resolved at the loader (Story 12.3, FR-60); recorded per corpus on the snapshot.
+  private let oa300AnnotationVersion: AnnotationVersion
 
   init() throws {
     guard let path = ProcessInfo.processInfo.environment["OA300_CORPUS_PATH"],
@@ -251,7 +348,11 @@ struct PerformanceBenchmarkTests {
     }
 
     let data = try Data(contentsOf: url)
-    groundTruth = try OA300Track.loadCorpus(from: data)
+    // Story 12.3 (FR-60): resolve the annotation version at the loader; it is
+    // recorded on the persisted snapshot below.
+    let versioned = try OA300Track.loadVersionedCorpus(from: data)
+    groundTruth = versioned.tracks
+    oa300AnnotationVersion = versioned.annotationVersion
   }
 
   @Test("benchmark wall-clock time at intensity 7 (serial) + accuracy snapshot")
@@ -394,7 +495,8 @@ struct PerformanceBenchmarkTests {
       total: oa300Total,
       acc1Correct: oa300Acc1,
       acc2Correct: oa300Acc2,
-      tolerance: Self.oa300Tolerance)
+      tolerance: Self.oa300Tolerance,
+      annotationVersion: oa300AnnotationVersion)
 
     // Persistence + delta printing.
     guard let stats else {
@@ -631,11 +733,15 @@ struct PerformanceBenchmarkTests {
     guard FileManager.default.fileExists(atPath: jsonPath) else {
       return nil
     }
-    guard let data = try? Data(contentsOf: URL(fileURLWithPath: jsonPath)),
-      let tracks = try? JSONDecoder().decode([GiantStepsTrack].self, from: data)
-    else {
+    let versioned: VersionedCorpus<GiantStepsTrack>
+    do {
+      let data = try Data(contentsOf: URL(fileURLWithPath: jsonPath))
+      versioned = try GiantStepsTrack.loadVersionedCorpus(from: data)
+    } catch {
+      print("GiantSteps accuracy pass skipped: \(error)")
       return nil
     }
+    let tracks = versioned.tracks
 
     func trackURL(_ track: GiantStepsTrack) -> URL {
       URL(fileURLWithPath: path)
@@ -682,13 +788,11 @@ struct PerformanceBenchmarkTests {
     var acc2 = 0
     for (index, track) in availableTracks.enumerated() {
       guard let detected = trackBPMs[index] else { continue }
-      let acc1Hit =
-        isAcc1Match(detected, track.bpm, tolerance: tolerance)
-        || (track.tempo2.map { isAcc1Match(detected, $0, tolerance: tolerance) } ?? false)
-      let acc2Hit =
-        acc1Hit
-        || isAcc2Match(detected, track.bpm, tolerance: tolerance)
-        || (track.tempo2.map { isAcc2Match(detected, $0, tolerance: tolerance) } ?? false)
+      // Story 12.3: shared floor-compatible MIREX pairing (pure extraction).
+      let verdict = mirexTempoVerdict(
+        detected: detected, primary: track.bpm, alternate: track.tempo2, tolerance: tolerance)
+      let acc1Hit = verdict.floorAcc1
+      let acc2Hit = verdict.floorAcc2
       if acc1Hit {
         acc1 += 1
         acc2 += 1
@@ -701,7 +805,8 @@ struct PerformanceBenchmarkTests {
       total: availableTracks.count,
       acc1Correct: acc1,
       acc2Correct: acc2,
-      tolerance: tolerance)
+      tolerance: tolerance,
+      annotationVersion: versioned.annotationVersion)
   }
 
   private static func buildRecord(
@@ -717,7 +822,7 @@ struct PerformanceBenchmarkTests {
     // secondsFromGMT: 0 always produces a valid TimeZone.
     isoFormatter.timeZone = TimeZone(secondsFromGMT: 0)!
     return BaselineRecord(
-      schemaVersion: 2,
+      schemaVersion: AccuracyRecordSchema.current,
       recordedAt: isoFormatter.string(from: Date()),
       gitSHA: ProcessInfo.processInfo.environment["GIT_SHA"] ?? "unknown",
       buildConfiguration: hardware.buildConfiguration,
@@ -1037,8 +1142,37 @@ struct BaselineStoreUnitTests {
     let read = try #require(history.first)
     #expect(read.recordedAt == original.recordedAt)
     #expect(read.gitSHA == original.gitSHA)
-    #expect(read.schemaVersion == original.schemaVersion)
+    // The stub is a schema-2 record; decode fills `.untagged` and bumps the
+    // decoded schemaVersion to 3 so the record is self-consistent on re-encode.
+    #expect(read.schemaVersion == AccuracyRecordSchema.current)
     #expect(read.wallClock.meanSeconds == original.wallClock.meanSeconds)
+  }
+
+  @Test("schema-2 decode normalizes to a self-consistent schema-3 record on re-encode")
+  func schema2DecodeReencodeRoundTrip() throws {
+    let decoded = try JSONDecoder().decode(
+      BaselineRecord.self, from: Data(Self.stubRecordJSON(schemaVersion: 2).utf8))
+    #expect(decoded.schemaVersion == AccuracyRecordSchema.current)
+    #expect(decoded.accuracy.oa300.annotationVersion == .untagged)
+
+    let reencoded = try JSONEncoder().encode(decoded)
+    let redecoded = try JSONDecoder().decode(BaselineRecord.self, from: reencoded)
+    #expect(redecoded.schemaVersion == AccuracyRecordSchema.current)
+    #expect(redecoded.accuracy.oa300.annotationVersion == .untagged)
+  }
+
+  @Test("schema-2 record with an explicit null version field fails decode loudly")
+  func schema2ExplicitNullVersionFieldFails() throws {
+    // `decodeIfPresent` collapses explicit null and absent key; the presence
+    // bit captured by the snapshot decoder must keep them distinct — schema 2
+    // CARRYING the key, even as null, violates the schema rule.
+    var json = Self.stubRecordJSON(schemaVersion: 2)
+    let needle = "\"oa300\": {"
+    let range = try #require(json.range(of: needle))
+    json.replaceSubrange(range, with: "\"oa300\": { \"annotationVersion\": null,")
+    #expect(throws: (any Error).self) {
+      _ = try JSONDecoder().decode(BaselineRecord.self, from: Data(json.utf8))
+    }
   }
 
   @Test("write atomicity — temp file absent post-write")
@@ -1078,7 +1212,11 @@ struct BaselineStoreUnitTests {
         meanSeconds: 0.216, medianSeconds: 0.182, p95Seconds: 0.285, minSeconds: 0.140,
         maxSeconds: 0.331, totalSeconds: 17.49),
       accuracy: .init(
-        oa300: .init(total: 82, acc1Correct: 57, acc2Correct: 73, tolerance: 0.02),
+        oa300: .init(
+          total: 82, acc1Correct: 57, acc2Correct: 73, tolerance: 0.02,
+          // Schema 2 predates tagging: a persisted schema-2 record must NOT carry
+          // the field (a present one is a loud decode failure on read).
+          annotationVersion: schemaVersion == AccuracyRecordSchema.previous ? nil : .untagged),
         giantsteps: nil))
   }
 
