@@ -158,7 +158,7 @@ struct BundleGateEvaluationTests {
         inputSha256: bundleGateSha256(inputData),
         predictionsSha256: bundleGateSha256(predictions),
         seed: input.seed,
-        checkpointPath: modelPath,
+        checkpointPath: modelURL.path,
         checkpointSha256: try bundleGateCheckpointSha256(modelURL),
         modelIdentifier: technique.modelIdentifier,
         gitSha: env["GIT_SHA"] ?? "unknown",
