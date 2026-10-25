@@ -824,3 +824,33 @@ when DSP gets 30 of 43. Both must be restated for 172 tracks in four bands plus
 the declared short bands before 12.9 relies on them.
 
 - [x] **Operator signoff on this amendment.** Signed 2026-10-23 by the operator (robbyt), recorded via the structured decision elicitation after reading the measured outcome above, including that the supplement holds no gate-eligible track.
+
+### Amendment 2026-10-25: separate provisional bundle-gate cohort
+
+The operator's 2026-10-25 Story 12.9 decisions authorize a **separate** gate
+cohort. They do not reopen the frozen 12.7 commitment, its 172 member labels,
+its draw order, its annotation ledger, or the FR-59d training partition. The
+172 signed JAMS labels remain authoritative even when a current DAW clip is
+stale. The gate cohort adds every sound, unique, blinded `e1-` through `e5-`
+row from the committed candidate draw with one finite DAW tempo and a matching
+annotation record. Both source and verified tempo band are recorded. An
+out-of-band reject may enter this new cohort under its **verified** band, while
+remaining a reject under 12.7. Detector-visible `x1-` rows remain report-only.
+
+`scripts/build-bundle-gate-cohort.py` writes a private generation-bound,
+content-hashed snapshot under the ignored `eval-corpus/bundle-gate/` directory.
+It verifies each audio file against the pool's committed content hash and
+refuses a missing file, missing hash, conflicting label, or duplicate audio.
+This changes no 12.7 corpus artifact. On 2026-10-25 the frozen generation
+`ge94c3fc04f636363` produced **245 rows**: 172 unchanged members and 73
+additional blinded rows; verified bands sub-100 4, 100-120 0, 120-140 48,
+140-160 50, 160-175 91, 175-plus 52. Its private row roster is bound by
+SHA-256 `6cee900bd8fd8d84e120b5e82047cc35049828e78128aaadf8cebf846f17798c`.
+No row-level data belongs in git.
+
+This provisional cohort permits paired DSP versus balanced-peer DSP+ML
+measurement now. It is **not** a corpus signoff. Final bundle approval still
+requires measurable slow bands, the blind re-pass, FR-59d training-manifest
+rebuild and partition closure for the 172 members, a separate training-overlap
+closure for the added gate rows, and the 12.7 signoff attestation. Story 12.9's
+gate rule and these conditions are recorded in `12-9-bundle-gate.md`.

@@ -1105,6 +1105,55 @@ fr18-evaluate:
 		--out-dir "$(CURDIR)/_bmad-output/ml-training" \
 		$(FR18_EVAL_ARGS)
 
+# Story 12.9: private, generation-bound paired DSP versus default DSP+ML gate.
+# The gate input and predictions are gitignored. Four original DnB sentinels
+# run with the cohort; OA300/GiantSteps may be added for context, never gates.
+BUNDLE_GATE_DIR ?= $(CURDIR)/_bmad-output/ml-training/eval-corpus/bundle-gate
+BUNDLE_GATE_COHORT ?= $(firstword $(wildcard $(BUNDLE_GATE_DIR)/cohort-g*.json))
+BUNDLE_GATE_PRED_DIR ?= $(BUNDLE_GATE_DIR)/predictions
+BUNDLE_GATE_REPORT ?= $(BUNDLE_GATE_DIR)/bundle-gate-report.json
+
+## bundle-gate-freeze: Freeze the private 12.9 cohort from signed 12.7 state and DAWPROJECT=
+.PHONY: bundle-gate-freeze
+bundle-gate-freeze:
+	@test -n "$(DAWPROJECT)" || { echo "DAWPROJECT is required"; exit 1; }
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" uv run --project $(ML_TRAINING_DIR) python scripts/build-bundle-gate-cohort.py \
+		--dawproject "$(DAWPROJECT)" --out-dir "$(BUNDLE_GATE_DIR)"
+
+## bundle-gate-produce: Paired production-path run for SEED= and BNNS_MODEL_URL=
+.PHONY: bundle-gate-produce
+bundle-gate-produce:
+	@test -n "$(SEED)" || { echo "SEED is required"; exit 1; }
+	@test -n "$(BNNS_MODEL_URL)" || { echo "BNNS_MODEL_URL is required"; exit 1; }
+	@test -f "$(BUNDLE_GATE_COHORT)" || { echo "freeze the cohort first"; exit 1; }
+	@mkdir -p "$(BUNDLE_GATE_PRED_DIR)"
+	cd $(ML_TRAINING_DIR) && OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+		GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" uv run python evaluate_bundle_gate.py \
+		--cohort "$(BUNDLE_GATE_COHORT)" --seed "$(SEED)" \
+		--input-out "$(BUNDLE_GATE_PRED_DIR)/bundle-gate-input-seed-$(SEED).json" \
+		$(if $(BUNDLE_GATE_LEGACY),--include-legacy,)
+	BUNDLE_GATE_EVAL=1 BUNDLE_GATE_INPUT="$(BUNDLE_GATE_PRED_DIR)/bundle-gate-input-seed-$(SEED).json" \
+		BUNDLE_GATE_OUT_DIR="$(BUNDLE_GATE_PRED_DIR)" BNNS_MODEL_URL="$(BNNS_MODEL_URL)" \
+		GIT_SHA="$$(git rev-parse HEAD)" \
+		swift test --filter BoomBoomBoomKitBenchmarkTests.BundleGateEvaluationTests/pairedProductionRuntime
+
+## bundle-gate-evaluate: Emit provisional report or request approval (BUNDLE_GATE_APPROVE=1)
+.PHONY: bundle-gate-evaluate
+bundle-gate-evaluate:
+	cd $(ML_TRAINING_DIR) && OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" uv run python evaluate_bundle_gate.py \
+		--cohort "$(BUNDLE_GATE_COHORT)" --predictions "$(BUNDLE_GATE_PRED_DIR)" \
+		--report "$(BUNDLE_GATE_REPORT)" \
+		$(if $(BUNDLE_GATE_APPROVE),--request-approval,)
+
+## bundle-gate-negative-control: Run failed Epic 7 seed-42 model and require a substantive failed gate
+.PHONY: bundle-gate-negative-control
+bundle-gate-negative-control: SEED := 42
+bundle-gate-negative-control: BNNS_MODEL_URL := $(CURDIR)/_bmad-output/ml-models/giantsteps_v2_seed_42.mlmodelc
+bundle-gate-negative-control: bundle-gate-produce
+	cd $(ML_TRAINING_DIR) && OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" uv run python evaluate_bundle_gate.py \
+		--cohort "$(BUNDLE_GATE_COHORT)" --predictions "$(BUNDLE_GATE_PRED_DIR)" \
+		--report "$(BUNDLE_GATE_REPORT)" --negative-control
+
 # ---------------------------------------------------------------------------
 # Story 7.7 — Epic 7 close-out harness (develop-only, operator-run for the
 # authoritative numbers). The v2 model does not exist yet (KDD-B4 signoff
