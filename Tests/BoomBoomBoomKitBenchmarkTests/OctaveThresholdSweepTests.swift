@@ -422,6 +422,13 @@ struct OctaveThresholdSweepTests {
       payload = decoded
     }
 
+    // The OA300 pass starts a new sweep. Any prior GiantSteps confirmation is
+    // stale until the second pass reruns against this sweep's selected point.
+    if corpus == .oa300 {
+      payload.removeValue(forKey: SweepCorpus.giantSteps.rawValue)
+      payload.removeValue(forKey: "giantstepsCoverage")
+    }
+
     payload[corpus.rawValue] = result.rows.map(\.json)
     payload["\(corpus.rawValue)Coverage"] = [
       "groundTruthEntries": groundTruthCount,
