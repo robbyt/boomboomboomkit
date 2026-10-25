@@ -1380,3 +1380,141 @@ evidence live in `12-5-pipeline-differential.md`; nothing here is acted on insid
 - source_spec: `_bmad-output/implementation-artifacts/spec-12-5-pipeline-differential-and-cause-ranking.md`
   summary: The committed 12.4 baseline report describes the reference reproduction as "track-for-track" equal to the published figure; only the aggregate count (545 = 545) is comparable, since no per-track predictions from the published run exist. Reword to count-for-count on next touch of that artifact.
   evidence: Story 12.5 review pass 2026-08-08; the same overclaim was patched at the two 12.5 sites, and the 12.4 report at `_bmad-output/implementation-artifacts/12-4-tempocnn-baseline-report.md` carries the identical phrasing (pre-existing, outside the 12.5 file set).
+
+## Deferred from: Story 12.7 fingerprint pass (2026-08-15)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-repartition-and-must-drop-gates.md`
+  summary: One training row points at a damaged MP3 that the training decoder abandons 10 seconds into a 6 minute 53 second track. Drop the row in the FR-59d manifest rebuild rather than repair it. Not fixed here because both 12.7 intent contracts forbid modifying the training manifests and the shared emitter cannot re-emit a hand-edited single-row drop.
+  evidence: The row is `Drum and Bass/Noisia/noisia - centepod (feat. mayhem & pacific).mp3`, `audioHash` 4419aa2c, in `non-rekordbox-unsupervised-pretrain-manifest.json` (masked-mel pretrain pool, label-free; it is not in the secondary-supervised manifest). Measured 2026-08-15: 16,508,387 bytes, 320 kbps CBR, no Xing header, container duration 412.6 s. libmpg123, which is what librosa uses and therefore what both the training loader and the Story 12.7 fingerprint see, hits an illegal frame header at byte offset 165,010 and gives up at exactly 10.00 s after a run of failed resyncs. A more tolerant decoder recovers 377.39 s but drops 1,344 frames, which is 35.2 s or 8.5% of the track, leaving that many splice discontinuities. A 320 kbps re-encode of that recovery was produced and verified to decode all 377.39 s cleanly; it was not kept, because 1,344 splices inject spurious onsets and spurious onsets are the wrong kind of noise to feed a tempo model. No second copy of the recording exists anywhere under `/Users` or `/Volumes`. **An earlier note in the same session described this as decoding "only 10s of a 16.5MB file", which reads as a truncated download. It is not truncated: it is a full-length track with a damaged bitstream, and that distinction is what changes the recommendation from restore to drop.** Effect today is small and bounded: masked-mel pretraining consumed 10 s instead of 377 s for 1 row of 2,162, and the row's fingerprint covers those same 10 s, making it a weaker duplicate-detection representative than every other training row. The metadata `audioHash` route still catches an exact copy, so only a re-encode of this particular recording could pass the fingerprint unflagged. **Why it is not fixed in Story 12.7:** the intent contracts of both 12.7 specs say "No modification of `non-rekordbox-*-manifest.json`", and independently `scripts/repair-mix-manifests.py` refuses to stamp provenance unless the survey still projects to the committed rows exactly, so a hand-edited single-row drop cannot go back through the shared emitter. The FR-59d rebuild re-emits both manifests anyway; this row rides along with the must-drop rows. **Re-open trigger:** the FR-59d training-manifest rebuild.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-repartition-and-must-drop-gates.md`
+  summary: One row of the LABELLED training pool holds a single tempo label for a track whose tempo is not constant. Drop it in the FR-59d manifest rebuild, alongside the damaged Noisia row above. Not fixed here for the same reason: both 12.7 intent contracts forbid modifying the training manifests.
+  evidence: The row is `Drum and Bass/Commix - The Divide (Original Mix).mp3` in `non-rekordbox-secondary-supervised-manifest.json`, the pool that carries `bpm_truth`. It reached the evaluation corpus as candidate `e4-ed5ed2a4ce49` in the `160-175` band and the annotator rejected it as tempo-unstable on 2026-08-23: the tempo is inconsistent across the track, so no single value describes it. A supervised training row in that state is not merely weak material, it is a wrong label. **The file itself is intact and was verified so before the reject was recorded** (zero decode errors, full 298.67 s, no dropped or silent sections, peak 1.0876 from ordinary intersample overshoot with no clipped run longer than one sample, crest factor 3.23 indicating a loud limited master rather than damage). The operator's first description was "corrupt"; measurement did not support that, and `audio_defect` was deliberately NOT recorded so the corpus does not carry a false defect claim against a healthy file. `tempo_unstable` is the recorded reason and it is the true one. Note the contrast with the `Underspawn - Bookworm` row rejected on 2026-08-17 for the same audible reason: that one sits in `unsupervisedPool`, which is label-free masked-mel material where an unstable tempo carries no wrong label, so it has no equivalent training consequence and is not filed here. **Re-open trigger:** the FR-59d training-manifest rebuild.
+
+- source_spec: none
+  summary: Story 12.8, declare the model's output bin schema a public contract (FR-67), run as its own bmad-build after the 12.7 close.
+  evidence: Split from the 2026-10-23 "bring Epic 12 back on track" request; independently shippable, documentation and doc-comment only, depends on nothing.
+
+- source_spec: none
+  summary: Story 12.9 part one, define the bundle gate (FR-68 to FR-71: the ensemble-lift rule in tracks, ALPHA 0.05, 12 net tracks, the FR-69c risk answers, the calibration floor, the per-band tripwire, the Epic 7 negative-control check) and leave the final run on the full corpus to a later story.
+  evidence: Split from the same request; the definition can start now, while the final run needs a corpus that 12.7 closes only partially.
+
+- source_spec: none
+  summary: Epic 12 close-out: refresh the PR 189 and PR 197 descriptions, fix the stale status lines (12-6 header, epics.md frontmatter, 12-2 OUTCOME, 12-7 progress text), add the eval-corpus/ ignore rule to develop and the epic branch, split unrelated files out of PR 197, then squash PR 189 into develop.
+  evidence: Split from the same request; listed in the 2026-10-23 Epic 12 review as stale or risky text that should be fixed before the epic lands.
+
+## Deferred from: Story 12.7 close at current coverage (2026-10-23)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Fill 100-120 and sub-100 to 43 members each. Sub-100 batch 0 is staged and was deliberately not abandoned, so that band resumes with an ordinary annotate-and-ingest. 100-120 needs a different source: its face-value pool measured 0 keepers in 40.
+  evidence: 100-120 batch 0 verified 39 of 40 tracks at 140 BPM or faster and one at 85; the pool's file tags for the band read about two-thirds of the true tempo, so the face-value pool is mostly drum and bass tagged a third low. Continuing along that draw sequence is unlikely to reach 43. The operator's remaining 93 `x1-` files (132 in `/Users/rterhaar/Music/2026-08-29-to-annotate/`, 39 already in the DAW project) are a source once admitted, but they sit outside the committed pool and the operator may have seen the detector's estimates for them, so admitting them to membership needs a dated 12-6 amendment that settles both points. The short-band declaration (`12-7-short-bands.json`) must be updated or removed as each band fills, since `emit-manifest` refuses a full band that is still declared short. **Re-open trigger:** the operator resumes annotation, or a story is opened to source slow tracks.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Run the signed 10 percent blind re-listen (`repass-sample`, `repass-ingest`) once the member set is final.
+  evidence: 12-6 section 6 binds it as the mitigation for "independence, not correctness". It samples the final member roster, and with two bands short the roster is not final. `signoff` refuses without it, unchanged. **Re-open trigger:** both slow bands full, or a dated amendment that fixes the member set at its current size.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Training-overlap sign-off: the FR-59d rebuild of the two training manifests without the members on the list of training songs to remove, then the check against the rebuilt training lists.
+  evidence: Unchanged from the 2026-08-11 amendment; `signoff` and `train.py` refuse until that check has run and its result is recorded. Note for the rebuild: the slow-tempo supplement's one blinded track (the 100-120 reject verified at 85 BPM) was left out because its file is a training-list row, and only members are put on that list. If the supplement should hold gate-eligible slow tracks, the rebuild has to drop those rows too, or they have to come from audio no training list contains. **Re-open trigger:** the FR-59d rebuild story.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Restate Story 12.9's bundle-gate figures for the corpus that exists: the 12-net-track margin at 10 percent discordance, the "258-track corpus" wording, and the per-band "30 of 43" handled rule, for 172 tracks in four full bands plus two declared short bands and a supplement that holds no gate-eligible track.
+  evidence: epic-12-context.md (Bundle gate, 12.9) and the 12-6 amendment of 2026-10-23. A margin sized for 258 paired tracks is not the margin for 172, and the slow range where the model fails most has no gate-eligible track at all today. **Re-open trigger:** Story 12.9 part one (the bundle-gate definition).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Two `x1-` tracks in the DAW project hold two clips that read different tempos, so neither has a single verified tempo and both were left out of the slow-tempo supplement. The operator deletes the stale clip in the project, or states which reading stands.
+  evidence: `x1-0fb9a45aed91` reads 112.0 and 127.98; `x1-51e8f1c983e2` reads 51.0 and 123.93. In both the slow reading sits on a sliver left by a clip split (0.56 beats, and 0.0004 beats), and the clip that plays reads 127.98 and 123.93, outside the slow range. The spec counted 13 slow `x1-` tracks from the first clip of each track; reading every clip gives 11. `project_tracks` in the harness refuses to pick a winner when readings differ by more than 0.5 BPM. **Re-open trigger:** the next edit of that DAW project.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Decide whether the three blinded 160-175 rejects verified at 85 to 87 BPM join the slow-tempo supplement. The 2026-10-23 spec named only the 100-120 rejects, so `SUPPLEMENT_REJECT_BANDS` holds only that band.
+  evidence: `membership.json` 160-175 rejects: two at 85.0 and one at 87.0, all out-of-band from blinded worklists. They are pool rows, so they will likely meet the same training-list match that left out the 100-120 reject (see the overlap entry above). **Re-open trigger:** the 12.9 gate definition, if it wants sub-100 coverage.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-12-7-close-corpus-at-current-coverage.md`
+  summary: 59 of the 82 OA300 audio files do not resolve under `$OA300_CORPUS_PATH/corpus` on the operator's machine, so `emit-manifest`'s octave-sentinel join falls back to exact-filename matching for those rows instead of the fingerprint match first.
+  evidence: Measured 2026-10-23 while running `make eval-corpus-manifest`: `/Users/rterhaar/Dropbox/OA300_OnsetAudio300/corpus` holds a DAW project and its folders, not the corpus audio. The run had crashed on this with a KeyError (the not-found message evaluated `entry['identity']` as a `dict.get` default on a lookup entry that has none); that is fixed, and an unresolvable row now reads as "no audio". The fallback is the documented one in 12-6 section 3, so the manifest is valid, but a re-encode of an OA300 sentinel track would be missed. **Re-open trigger:** before the corpus file is used for a sentinel-subset figure.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Strengthen the slow-tempo supplement's overlap check before the supplement feeds any pass or fail gate: compare against the corpus members and within each band, hash Tony train/val files as well as the training-list files, standardize against the training cohort only, and cover GiantSteps for untitled tracks; also tag supplement entries in the octave-sentinel window and test the carried `ambiguous` flag.
+  evidence: 2026-10-23 review of the 12.7 close. As built the check is narrower than the pre-commitment review, which is acceptable only because every supplement track is report-only (`detector-visible`).
+
+## Deferred from: PR 197 Codex review triage (2026-10-24)
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Before the next freeze of the candidate list (remint, or a `commit-pools` re-check), decide the 5 review flags that fingerprint coverage of the 190 DAW-labelled Tony training tracks adds. Recompute the review the same way; no flag was removed.
+  evidence: Before this fix, `load_inputs` read Tony training paths only from `tony-survey.json`. It therefore never fingerprinted 190 of the 1,067 tony train/val tracks: the ones `scripts/ingest-dawproject-labels.py` added to `tony-truth-labels.json` (175 train, 15 val). Paths now come from the truth labels. A read-only recompute on 2026-10-24 resolved all 5,383 training rows, found the same candidate universe digest, and raised 182 flags to 187 (5 added, 0 removed). None of the 5 added flags touches a member, and the slow-tempo supplement came out byte-identical when rerun. Three of the 5 match a DAW-labelled training track at cosine 1.0. Two of those are byte-identical copies: `e4-404ce8aa2ed4` (160-175, draw position 74; annotation stopped at 52) and `e0-76e9c624e944` (sub-100, not yet drawn). The third is in sub-100. The other two are sub-100 at cosine 0.9708. They crossed the threshold because the standardization statistics changed. `plan_commit` requires the recorded decisions to cover exactly the current flag set, so the next freeze refuses until these are decided. **Re-open trigger:** the next remint, or resuming the sub-100 or 160-175 draw past the flagged positions.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Add `tony-truth-labels.json` to the recorded training-input digests (`training_input_paths`), so that changing a Tony training path invalidates recorded fingerprint decisions.
+  evidence: Codex review of the PR 197 fix. Tony training paths now come from the truth labels, but the recorded digests cover only the two training lists and `corpus_splits.json`. That leaves a gap: a flag names the Tony track ID, not the audio, so a path changed to a different recording would keep an old decision. Adding the file now would change the digest recorded in the active frozen list and force a re-freeze, so the change waits for that re-freeze. No recorded decision depends on a truth-labels-only path today: the existing decisions predate those 190 tracks entering coverage. **Re-open trigger:** the next remint.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Make `validate_attestation` return a failure entry, rather than raise, on unreadable or malformed commitment, head, ledger-file, re-pass and closure artifacts, and on non-numeric band counts.
+  evidence: Codex review of the PR 197 fix. The ledger walk and the annotation records now return failures. Unchanged code can still raise elsewhere: on an unreadable or non-object commitment or head JSON, on a ledger path that is a directory, in re-pass record reads, and in the band-count arithmetic. `train.py` calls the validator and does not catch the error, so each of these still stops training. Training stays blocked either way; what is missing is a readable failure message. **Re-open trigger:** the first time signoff can succeed.
+
+## Deferred from: PR 197 Codex review triage, round 3 (2026-10-24)
+
+Stopping rule (operator, 2026-10-24): fix a corpus-harness review finding only when it changes today's corpus output, and defer the rest with the step that would expose it. Each entry below was checked against the code and today's private data without writing anything, and none changes current output.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Bind the signoff file to the training lists for every closure route. Today the `no-obligation` and `obligation-vacuous` routes in `partition_closure_state` keep certifying after the training lists change, and `train.py` would accept that signoff. Planned fix: record `training_input_digests` in the signoff file and compare it with the current files in `validate_attestation`, which covers all three routes.
+  evidence: PR 197 comment r4366206991. Not reachable today: the frozen list was made with the repartition order and has 2,684 open obligations, so only the closure-record route applies, and that route has been bound since `a359c42`. **Re-open trigger:** before signoff can succeed.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Under `fallback-addendum`, `build_fallback_candidates` can re-admit recordings that `build_pool_universe` had excluded for cause (continuous DJ mixes). It only receives `universe_keys - kept_keys`, and that set is computed after those exclusions. Planned fix: carry the exclusions made for cause into the fallback build.
+  evidence: PR 197 comment r4366206995. Not reachable today: the recorded short-band policy is `repartition`, and all 2,785 pool rows have `origin=primary`. **Re-open trigger:** any move to `fallback-addendum`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `write_worklist` writes the CSV in place. A staging run interrupted mid-write leaves a header-only or partial worklist, which `require_valid_state` rejects, and that blocks both resuming `stage-batch` and `abandon --force`. Planned fix: write through `_write_text_atomic`.
+  evidence: PR 197 comment r4366206998. No staging is interrupted today, and every worklist passes the audit. **Re-open trigger:** the next `stage-batch`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: A forced re-ingest of unchanged annotations moves the annotation log head. That gets past the `repass-sample` check meant to stop redrawing a completed re-listen sample, so the repeatability figure could be redrawn without any label changing. Planned fix: allow a redraw only when the member roster or a sampled row's primary label differs from what the previous sample recorded.
+  evidence: PR 197 comment r4366207000. The 10 percent re-listen has not run. **Re-open trigger:** before `repass-sample`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `validate_attestation` compares only the copied `sample_sha256` strings for the re-listen. It does not check the re-pass log or whether the sample record and annotation records still exist and hash correctly; the audit does. Planned fix: a re-pass counterpart of `annotation_ledger_failures` (added in `1a33a49`), shared by the audit and the validator.
+  evidence: PR 197 comment r4366207003. There is no re-pass and no signoff file today. **Re-open trigger:** before `repass-sample`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: The review-universe digest leaves out each candidate's `contentSha256`. If a Tony or OA300 file is replaced between `prepare-review` and `commit-pools`, old fingerprint decisions can then apply to different audio. Planned fix: include the content hashes in the digest.
+  evidence: PR 197 comment r4366207004. Adding them changes the digest recorded in the active frozen list and forces a re-freeze, so this lands with the next freeze, together with binding `tony-truth-labels.json` into the training-input digests (entry above, 2026-10-24). **Re-open trigger:** the next remint.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `compute_membership` does not follow `duplicate_of` links transitively. With links A to B and B to C in draw order A, B, C, it keeps both A and C. Planned fix: group linked rows with union-find before choosing members. A row rejected for its own reasons must still never suppress a clean copy.
+  evidence: PR 197 comment r4366207010. The annotations hold one link (140-160 `e3-63178f2f475c` to `e3-824f4b73e616`) and no chain, so membership is unchanged. **Re-open trigger:** the next ingest that records a `duplicate_of`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: The octave-sentinel join in `member_legacy_labels` always adds labels from legacy rows with the same filename, even when both recordings have fingerprints that disagree. 12-6 section 3 allows a filename match only where no fingerprint is available. Planned fix: index filenames only for legacy rows that did not get a fingerprint.
+  evidence: PR 197 comment r4366207011. Simulated on today's 172 members, the fix leaves the count at 1 sentinel, with 0 changed. That sentinel (`e4-620e8b654f8b`, an OA300 track) gets its 80 BPM label from a Tony row that has no audio path, which is the case section 3 allows. **Re-open trigger:** before the sentinel subset feeds any figure.
+
+## Deferred from: PR 197 Codex review triage, round 4 (2026-10-24)
+
+Same stopping rule as round 3: none of these changes today's corpus output.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: `apply_dispositions` does not extend a confirmed training or GiantSteps exclusion through a confirmed same-recording group. If A and B are confirmed as one recording and only B is confirmed against a Tony training recording, A stays eligible. Planned fix: after `union_recording_groups`, exclude every key in a group that holds an excluded key. Apply the same treatment to manifest-route removal lists under the repartition order.
+  evidence: PR 197 comment r4366299550. Today's decisions confirm 6 candidate-to-candidate same-recording pairs, covering 12 candidates. In each of the 4 pool pairs both sides carry their own confirmed training match. In the 2 OA300-to-Tony pairs, neither does. No group has an excluded side and an eligible side, so the members are unchanged. **Re-open trigger:** the next remint, or any new same-recording decision.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: If `repass-sample` stops after staging its pending sample record but before appending the event, a retry fails its own opening audit on that same pending record. `repass-ingest` needs a sampled event, and `abandon` handles only primary batches, so no command recovers. Planned fix: let `repass-sample` resume from a pending sample whose digest verifies, or add an explicit command to set it aside, as `abandon --force` does since `a359c42`.
+  evidence: PR 197 comment r4366299552. The re-listen has not run. **Re-open trigger:** before `repass-sample`.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: After a completed re-listen, a forced re-ingest that excludes a sampled member without changing its BPM (for example `audio_defect=1`) changes membership. Signoff still accepts the old sample, because the check compares BPMs only. Planned fix: compare the current member roster with the sample's `population_sha256`, and require a fresh re-listen when membership has changed. Do this together with the redraw rule from round 3.
+  evidence: PR 197 comment r4366299555. The re-listen has not run. **Re-open trigger:** before `repass-sample`.
+
+## Deferred from: PR 197 Codex review triage, round 5 (2026-10-25)
+
+Same stopping rule as rounds 3 and 4: none of these changes today's corpus output.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Audit `duplicate_of` links across the complete member roster, so an operator-confirmed cross-band re-encode cannot survive in two bands. `recompute_membership` selects each band independently; the global audit checks identities, content hashes, mint-time recording groups, and titles, but not annotation links. Planned fix: reject a pair of members connected by an explicit annotation link across bands, while keeping file-specific rejects from suppressing a clean copy.
+  evidence: PR 197 comment r4366403197. Today's 249 annotations have one `duplicate_of` link; its two endpoints are not both members. There are 172 members and no cross-band member link, so the current manifest is unchanged. **Re-open trigger:** the next ingest that records a cross-band `duplicate_of` link, or before a new member roster is certified.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Make `validate_attestation` verify the generation's candidate-pool and draw-sequence files against `pool_file_sha256` and `draw_file_sha256`, as `validate_state` already does. The training gate currently accepts a signed attestation when either row-level file is missing or changed.
+  evidence: PR 197 comment r4366403200. Both files exist and match the active commitment's hashes today. No signoff attestation exists, and the short bands and partition closure still prevent signoff. **Re-open trigger:** before signoff can succeed, together with the other validator checks deferred above.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Recover a re-mint interrupted after the successor commitment is published but before the tracked annotation-ledger head is written. Planned fix: verify the successor's commitment chain and empty new-generation ledger, then complete the head transition; never accept an arbitrary head/commitment mismatch as repairable.
+  evidence: PR 197 comment r4366403202. The current commitment is active, its tracked head binds its digest, and its generation contains 10 annotation-ledger events and 10 annotation records. `remint` refuses an active commitment and also refuses a prior generation with annotation state, so this transition is not reachable in today's work. **Re-open trigger:** before a future remint of a superseded generation.
