@@ -1502,3 +1502,19 @@ Same stopping rule as round 3: none of these changes today's corpus output.
 - source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
   summary: After a completed re-listen, a forced re-ingest that excludes a sampled member without changing its BPM (for example `audio_defect=1`) changes membership. Signoff still accepts the old sample, because the check compares BPMs only. Planned fix: compare the current member roster with the sample's `population_sha256`, and require a fresh re-listen when membership has changed. Do this together with the redraw rule from round 3.
   evidence: PR 197 comment r4366299555. The re-listen has not run. **Re-open trigger:** before `repass-sample`.
+
+## Deferred from: PR 197 Codex review triage, round 5 (2026-10-25)
+
+Same stopping rule as rounds 3 and 4: none of these changes today's corpus output.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Audit `duplicate_of` links across the complete member roster, so an operator-confirmed cross-band re-encode cannot survive in two bands. `recompute_membership` selects each band independently; the global audit checks identities, content hashes, mint-time recording groups, and titles, but not annotation links. Planned fix: reject a pair of members connected by an explicit annotation link across bands, while keeping file-specific rejects from suppressing a clean copy.
+  evidence: PR 197 comment r4366403197. Today's 249 annotations have one `duplicate_of` link; its two endpoints are not both members. There are 172 members and no cross-band member link, so the current manifest is unchanged. **Re-open trigger:** the next ingest that records a cross-band `duplicate_of` link, or before a new member roster is certified.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Make `validate_attestation` verify the generation's candidate-pool and draw-sequence files against `pool_file_sha256` and `draw_file_sha256`, as `validate_state` already does. The training gate currently accepts a signed attestation when either row-level file is missing or changed.
+  evidence: PR 197 comment r4366403200. Both files exist and match the active commitment's hashes today. No signoff attestation exists, and the short bands and partition closure still prevent signoff. **Re-open trigger:** before signoff can succeed, together with the other validator checks deferred above.
+
+- source_spec: `spec-12-7-close-corpus-at-current-coverage.md`
+  summary: Recover a re-mint interrupted after the successor commitment is published but before the tracked annotation-ledger head is written. Planned fix: verify the successor's commitment chain and empty new-generation ledger, then complete the head transition; never accept an arbitrary head/commitment mismatch as repairable.
+  evidence: PR 197 comment r4366403202. The current commitment is active, its tracked head binds its digest, and its generation contains 10 annotation-ledger events and 10 annotation records. `remint` refuses an active commitment and also refuses a prior generation with annotation state, so this transition is not reachable in today's work. **Re-open trigger:** before a future remint of a superseded generation.
