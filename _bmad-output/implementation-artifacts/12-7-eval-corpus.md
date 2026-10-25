@@ -6,7 +6,7 @@ review, 2026-08-12 for the signed FR-59a.2 partition-order amendment, and
 Status (2026-10-23): the corpus file is written with 172 verified tracks. The
 four bands at 120 BPM and faster hold 43 each; 100-120 and sub-100 hold none and
 are declared short in `12-7-short-bands.json` under the 12-6 section-6
-amendment of 2026-10-23, which awaits the operator's signature. A separate
+amendment signed by the operator on 2026-10-23. A separate
 slow-tempo supplement holds 11 verified tracks, none eligible for a pass or fail
 gate. Signoff still refuses and training stays blocked. The sections below that
 describe the re-mint as pending are the record of the August state; the re-mint
