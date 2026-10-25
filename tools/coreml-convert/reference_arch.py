@@ -33,7 +33,10 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-# BPM bin schema per DD #7 — 256 integer bins from 30 to 285 BPM inclusive.
+# Public BPM bin contract: see README.md, "Model contract for BNNSTechnique".
+# Keep this schema, _bmad-output/ml-training/dataset.py, and
+# BNNSTechnique.expectedBinCount/bpmBinOffset in sync when a named story changes it.
+# Per DD #7: 256 integer bins from 30 to 285 BPM inclusive.
 BPM_BIN_MIN = 30
 BPM_BIN_MAX = 285
 BPM_BIN_COUNT = BPM_BIN_MAX - BPM_BIN_MIN + 1  # 256
