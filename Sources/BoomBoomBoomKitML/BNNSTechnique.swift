@@ -187,7 +187,10 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   private static let targetWidth = 512
 
   /// Number of output bins emitted by the model. Verified at init time
-  /// against the actual graph metadata via `validateContract`.
+  /// against the actual graph metadata via `validateContract`. Part of the
+  /// public BYOW bin contract in README.md ("Model contract for
+  /// BNNSTechnique"); keep it and `bpmBinOffset` in sync with the reference
+  /// architecture and training dataset when a named story changes the schema.
   private static let expectedBinCount = 256
 
   /// BPM offset for the bin-center decode (DD #18): `bpm = 30 + argmax`.

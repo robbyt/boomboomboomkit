@@ -56,7 +56,10 @@ DNB_TARGETS_PATH = (
     REPO_ROOT / "_bmad-output" / "implementation-artifacts" / "4-dnb-triplet-targets.json"
 )
 
-# BPM bin schema per DD #7 — 256 integer bins from 30 to 285 BPM inclusive.
+# Public BPM bin contract: see README.md, "Model contract for BNNSTechnique".
+# Keep this schema, tools/coreml-convert/reference_arch.py, and
+# BNNSTechnique.expectedBinCount/bpmBinOffset in sync when a named story changes it.
+# Per DD #7: 256 integer bins from 30 to 285 BPM inclusive.
 BPM_BIN_MIN = 30
 BPM_BIN_MAX = 285
 BPM_BIN_COUNT = BPM_BIN_MAX - BPM_BIN_MIN + 1  # 256

@@ -662,7 +662,7 @@ var options = AudioAnalysisService.Options()
 
 // Path A — same architecture, your own weights:
 let yourModel = Bundle.main.url(forResource: "your_model", withExtension: "mlmodelc")!
-options.mlTechnique = try? BNNSTechnique(modelURL: yourModel)
+options.mlTechnique = try BNNSTechnique(modelURL: yourModel)
 
 // Path B — different architecture, your own MLTechnique conformance:
 options.mlTechnique = MyDeepRhythmTechnique()
@@ -687,16 +687,36 @@ Path A above — supplying your own weights against the built-in `BNNSTechnique`
 | Property | Required value |
 |---|---|
 | Input shape | `(1, 1, 128, 512)` NCHW float32 — 1 channel × 128 mel bands × 512 time frames |
-| Output shape | `(1, 256)` logits over 256 BPM bins |
+| Output | 256 float32 logits in bin order (the validator accepts any positive-rank tensor with 256 elements; the reference model uses shape `(1, 256)`) |
 | BPM bin schema | bin index `i` → BPM `i + 30`, so 30 to 285 BPM inclusive |
 | Tensor names | `input`, `output` |
 | Compute units | `CPU_ONLY` — consumed through BNNSGraph; the Neural Engine is not used |
 | Compute precision | `FLOAT32` |
 | Min deployment target | macOS 15 |
 
+**Public tempo-bin contract.** The 256 output bins represent integer BPM values
+from 30 through 285: bin `i` means `i + 30` BPM. The schema is declared in
+`tools/coreml-convert/reference_arch.py` (the shipping reference architecture),
+`_bmad-output/ml-training/dataset.py` (training labels), and
+`BNNSTechnique.expectedBinCount` and `BNNSTechnique.bpmBinOffset` (runtime
+validation and decode). These three declaration sites must change together.
+A different output bin count makes
+`BNNSTechnique` throw the public, consumer-visible
+`MLTechniqueError.binCountMismatch` when the model is constructed. That check
+verifies the count, not the BPM mapping: a shifted or reordered 256-bin model
+can load but report incorrect tempos. Any schema change breaks existing BYOW
+models even before 1.0, so it requires a named story; no compatibility with a
+changed schema is promised.
+
 `BNNSTechnique` featurizes in three stages before inference: transpose the frame-major log-mel to mel-major, z-score normalize per mel band, then resample to a fixed width of 512 frames. Softmax is applied host-side, and decoding is `argmax` over the 256 bins. If your architecture needs different featurization, implement `MLTechnique` directly (Path B) instead of matching this contract.
 
-At the default `Options.perceptualWindow` of 60-200 BPM, only 141 of the 256 bins are reachable, because every result is folded into that window. Widening the window widens the reachable set, up to the 30-300 envelope. Bins outside the window in use are decode-dead; training against the full 256 is harmless but wastes capacity.
+The built-in decoder abstains when the argmax maps outside 60-200 BPM, before
+any perceptual-window folding. Bins 0-29 (30-59 BPM) and 171-255 (201-285 BPM)
+therefore cannot produce a usable `BNNSTechnique` result: 115 of 256 bins are
+decode-dead, regardless of `Options.perceptualWindow`. Probability mass on
+those bins can also lower the top-bin confidence used by the abstain gate.
+See [issue #147](https://github.com/robbyt/boomboomboomkit/issues/147) for a
+future range or decode change; this contract declaration does not change either.
 
 If you want the measured history of the models this project trained against that contract — including why none of them shipped — it is kept with the weights on the `develop` branch rather than here, since no model ships with the library.
 

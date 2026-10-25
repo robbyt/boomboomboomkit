@@ -180,6 +180,8 @@ public enum MLTechniqueError: Error, Sendable {
 
   /// The model's output bin count does not match the library's BPM bin
   /// decode contract (256 bins → `bpm = 30.0 + Double(argmax)` per DD #18).
+  /// This is a consumer-visible construction error for BYOW models; see
+  /// README.md ("Model contract for BNNSTechnique") for the public schema.
   /// Consumers shipping a different bin count must implement a custom
   /// ``MLTechnique`` conformance that decodes their own bin centers.
   case binCountMismatch(expected: Int, actual: Int)
