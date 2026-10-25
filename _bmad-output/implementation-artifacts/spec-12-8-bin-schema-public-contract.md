@@ -26,6 +26,7 @@ context:
 - The README's BYOW contract is authoritative; the two Python declarations and the BNNS runtime constants now point to it. The `MLTechniqueError` doc comment also names the consumer-visible failure.
 - Corrected the existing README claim about perceptual-window reachability: BNNS decode abstains outside 60-200 BPM before ensemble folding. The 115 dead bins and issue #147 are documented without altering runtime or training behavior.
 - `make lint` and `git diff --check` passed. The lint run reported one pre-existing, non-serious nesting warning in `PerformanceBenchmarkTests.swift`.
+- The sprint-status row is `done` for this completed declaration story, per the operator's correction; the one-shot workflow's default `review` transition did not match the requested tracking state.
 
 ## Review Triage Log
 
