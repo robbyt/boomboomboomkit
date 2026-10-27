@@ -59,6 +59,66 @@ public enum BPMSelectionPolicy: String, CaseIterable, Sendable, Hashable, Docume
 
 extension BPMSelectionPolicy {
 
+  struct MergeOutcome: Sendable {
+    let result: BPMResult
+    let largestAgreementCount: Int
+    let windowVotingRan: Bool
+    let voteAccepted: Bool
+  }
+
+  /// Keeps the public `merge` result unchanged while exposing whether its
+  /// window vote actually accepted a group of distinct final BPM results.
+  static func mergeWithOutcome(
+    windowResults: [BPMResult], candidateCount: Int,
+    strategy: BPMSelectionPolicy, votingPolicy: VotingPolicy,
+    votingThreshold: Double
+  ) -> MergeOutcome? {
+    guard
+      let result = merge(
+        windowResults: windowResults, candidateCount: candidateCount,
+        strategy: strategy, votingPolicy: votingPolicy,
+        votingThreshold: votingThreshold)
+    else { return nil }
+    var groups: [(bpm: Double, indices: [Int])] = []
+    for (index, window) in windowResults.enumerated() {
+      if let group = groups.firstIndex(where: { isNearMatch(window.bpm, $0.bpm) }) {
+        groups[group].indices.append(index)
+      } else {
+        groups.append((window.bpm, [index]))
+      }
+    }
+    let largest = groups.map { $0.indices.count }.max() ?? 0
+    let ran = strategy == .windowVoting && windowResults.count >= 2
+    var accepted = false
+    if ran {
+      switch votingPolicy {
+      case .simpleMajority:
+        accepted = pickLargestCluster(results: windowResults, groups: groups) != nil
+      case .thresholdGated:
+        if let group = pickLargestCluster(results: windowResults, groups: groups) {
+          let threshold =
+            votingThreshold.isFinite
+            ? min(max(votingThreshold, 0), 1) : 0
+          accepted = group.indices.map { windowResults[$0].confidence }.max() ?? 0 >= threshold
+        }
+      case .confidenceWeighted:
+        let winner = groups.min { lhs, rhs in
+          let left = lhs.indices.reduce(0) { $0 + windowResults[$1].confidence }
+          let right = rhs.indices.reduce(0) { $0 + windowResults[$1].confidence }
+          if left != right { return left > right }
+          let leftMax = lhs.indices.map { windowResults[$0].confidence }.max() ?? 0
+          let rightMax = rhs.indices.map { windowResults[$0].confidence }.max() ?? 0
+          if leftMax != rightMax { return leftMax > rightMax }
+          return (lhs.indices.first ?? 0) < (rhs.indices.first ?? 0)
+        }
+        accepted = (winner?.indices.count ?? 0) >= 2
+      }
+    }
+    return MergeOutcome(
+      result: result, largestAgreementCount: largest,
+      windowVotingRan: ran, voteAccepted: accepted)
+  }
+
   /// Merges candidates from multiple analysis windows using this strategy.
   ///
   /// - Parameters:
@@ -468,19 +528,47 @@ extension BPMSelectionPolicy {
     weights: SignalWeights = .default,
     equivalence: OctaveEquivalencePolicy = .default,
     votingPolicy: VotingPolicy = .simpleMajority,
-    votingThreshold: Double = 0.0
+    votingThreshold: Double = 0.0,
+    rhythmicRegions: [RhythmicRegionResult]? = nil
   ) -> PoolSelection? {
     // DD #7 / FR-8: empty pool → nil. `merge` already returns nil on empty
     // windowResults; the guard makes the library-safety contract explicit and
     // avoids any precondition-crash path.
-    guard
-      let merged = Self.merge(
+    let outcome: MergeOutcome?
+    if rhythmicRegions == nil {
+      outcome = Self.merge(
+        windowResults: pool.dspWindows,
+        candidateCount: pool.candidateCount,
+        strategy: self,
+        votingPolicy: votingPolicy,
+        votingThreshold: votingThreshold
+      )
+      .map {
+        MergeOutcome(
+          result: $0, largestAgreementCount: 0,
+          windowVotingRan: false, voteAccepted: false)
+      }
+    } else {
+      outcome = Self.mergeWithOutcome(
         windowResults: pool.dspWindows,
         candidateCount: pool.candidateCount,
         strategy: self,
         votingPolicy: votingPolicy,
         votingThreshold: votingThreshold)
-    else { return nil }
+    }
+    guard let outcome else { return nil }
+    var merged = outcome.result
+    if let rhythmicRegions, merged.trace != nil {
+      var trace = merged.trace
+      trace?.rhythmicRegionEvidence = RhythmicRegionEvidence(
+        regions: rhythmicRegions,
+        successfulRegionCount: pool.dspWindows.count,
+        largestAgreementCount: outcome.largestAgreementCount,
+        windowVotingRan: outcome.windowVotingRan,
+        voteAccepted: outcome.voteAccepted,
+        preMetadataBPM: merged.bpm)
+      merged = merged.with(trace: trace)
+    }
 
     // Authoritative per-source trace entries, built from the merged voice. Gated
     // on a real trace — the exact observable gate the former
