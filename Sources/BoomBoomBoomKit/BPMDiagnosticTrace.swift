@@ -14,9 +14,13 @@ import Foundation
 /// This is an evolving API — fields may change across library versions.
 public struct BPMDiagnosticTrace: Sendable {
 
+  /// Cross-region selection and voting evidence. Nil on the default path.
+  public var rhythmicRegionEvidence: RhythmicRegionEvidence?
+
   // MARK: - Step 1: Energy Scan
 
-  /// Sample offset where energy transition was detected (analysis starts here).
+  /// Sample offset where analysis starts: the detected energy transition on
+  /// the default path, or the selected region when rhythmic regions are enabled.
   public var energyTransitionOffset: Int = 0
 
   /// Actual analysis window duration in seconds.
@@ -267,6 +271,56 @@ public struct BPMDiagnosticTrace: Sendable {
   // MARK: - Story 6.1: Unified Signal Pool (SignalParticipationTraceEntry lives in SignalPool/)
 
   public var signalParticipationTrace: [SignalParticipationTraceEntry] = []
+}
+
+/// A selected PCM region and its final DSP BPM, or nil if analysis failed.
+public struct RhythmicRegionResult: Sendable, CustomStringConvertible {
+  public let startSample: Int
+  public let sampleCount: Int
+  public let rhythmScore: Float
+  public let bpm: Double?
+
+  public init(startSample: Int, sampleCount: Int, rhythmScore: Float, bpm: Double?) {
+    self.startSample = startSample
+    self.sampleCount = sampleCount
+    self.rhythmScore = rhythmScore
+    self.bpm = bpm
+  }
+
+  public var description: String {
+    let bpmDescription = bpm.map { String($0) } ?? "nil"
+    return "RhythmicRegionResult(start: \(startSample), count: \(sampleCount), "
+      + "score: \(rhythmScore), bpm: \(bpmDescription))"
+  }
+}
+
+/// Cross-region evidence captured before metadata or ML can change the BPM.
+public struct RhythmicRegionEvidence: Sendable, CustomStringConvertible {
+  public let regions: [RhythmicRegionResult]
+  public let successfulRegionCount: Int
+  public let largestAgreementCount: Int
+  public let windowVotingRan: Bool
+  public let voteAccepted: Bool
+  public let preMetadataBPM: Double
+
+  public init(
+    regions: [RhythmicRegionResult], successfulRegionCount: Int,
+    largestAgreementCount: Int, windowVotingRan: Bool,
+    voteAccepted: Bool, preMetadataBPM: Double
+  ) {
+    self.regions = regions
+    self.successfulRegionCount = successfulRegionCount
+    self.largestAgreementCount = largestAgreementCount
+    self.windowVotingRan = windowVotingRan
+    self.voteAccepted = voteAccepted
+    self.preMetadataBPM = preMetadataBPM
+  }
+
+  public var description: String {
+    "RhythmicRegionEvidence(regions: \(regions), successful: \(successfulRegionCount), "
+      + "largestAgreement: \(largestAgreementCount), votingRan: \(windowVotingRan), "
+      + "voteAccepted: \(voteAccepted), preMetadataBPM: \(preMetadataBPM))"
+  }
 }
 
 // MARK: - Trace Evidence Types (Story 3-3b)

@@ -95,8 +95,17 @@ opts.techniqueSet = .clickAugmented   // sharp + vote + fine + click-correlation
 let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: opts)
 ```
 
-`intensity` is still consulted for the window sizes, so how many windows run and how
-long each one is remains intensity-driven even when an explicit technique set is set.
+With default region selection, `intensity` still controls the window sizes even
+when an explicit technique set is set.
+
+To try the rhythmic-region BPM experiment, set `opts.useRhythmicRegions = true`
+alongside `opts.mergeStrategy = .windowVoting` and
+`opts.votingPolicy = .simpleMajority`. It analyzes distinct regions within the
+decoded audio (`opts.maxSeconds` defaults to 120 seconds) and returns one BPM;
+it does not track tempo changes. If fewer than two regions agree, window voting
+uses its highest-confidence fallback. Set `opts.enableTrace = true` to inspect
+`trace.rhythmicRegionEvidence`, including selected offsets and the pre-metadata
+vote. The experiment remains off by default pending broader accuracy review.
 
 ### Constraining the tempo range
 

@@ -186,6 +186,15 @@ benchmark-giantsteps:
 	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
 	swift test --filter BoomBoomBoomKitBenchmarkTests.GiantStepsBenchmarkTests
 
+## rhythmic-region-impact-report: Paired Release A/B/C/D tempo-region experiment over OA300, then GiantSteps
+.PHONY: rhythmic-region-impact-report
+rhythmic-region-impact-report:
+	RHYTHMIC_REGION_IMPACT=1 \
+	RHYTHMIC_REGION_LIMIT="$(RHYTHMIC_REGION_LIMIT)" \
+	OA300_CORPUS_PATH="$(OA300_CORPUS_PATH)" \
+	GIANTSTEPS_CORPUS_PATH="$(GIANTSTEPS_CORPUS_PATH)" \
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.RhythmicRegionImpactTests
+
 ## perf-benchmark: Run wall-clock perf + accuracy snapshot with per-run baseline files
 .PHONY: perf-benchmark
 perf-benchmark:

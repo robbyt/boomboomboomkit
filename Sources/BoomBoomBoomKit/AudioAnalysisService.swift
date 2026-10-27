@@ -176,6 +176,19 @@ public struct AudioAnalysisService {
     /// ``BeatGridAnalysisSpan/decodedSampleCount`` (``BeatGrid/analysisSpan``).
     public var maxSeconds: Double = 120
 
+    /// Analyze distinct rhythmic regions of the decoded buffer. The default
+    /// `false` retains the existing energy-transition windows and output.
+    /// Pair with `.windowVoting` and `.simpleMajority` to require agreement
+    /// between two regions before accepting a BPM vote. Search stays within
+    /// ``maxSeconds`` (120 seconds by default) and uses at most eight bounded
+    /// probes even when the full file is decoded.
+    public var useRhythmicRegions: Bool = false
+
+    /// Benchmark-only same-geometry placement control. When enabled alongside
+    /// `useRhythmicRegions`, choose evenly spaced disjoint regions without
+    /// rhythm scoring. Kept internal so consumers have one opt-in behavior.
+    var useUniformRegionControl: Bool = false
+
     /// Analysis intensity level (default: `.default`, which is level 7).
     /// Controls pipeline depth: which DSP stages run, how many candidates
     /// are considered, and how many analysis windows the level lists (one below
@@ -676,7 +689,8 @@ public struct AudioAnalysisService {
         from: pre.pool,
         weights: resolvedWeights,
         votingPolicy: options.votingPolicy,
-        votingThreshold: options.votingThreshold)
+        votingThreshold: options.votingThreshold,
+        rhythmicRegions: pre.rhythmicRegions)
     else { return nil }
     let corroborated = selection.result
     let evidence = selection.evidence
@@ -1214,6 +1228,7 @@ public struct AudioAnalysisService {
     /// consumes. Built UNCONDITIONALLY (authoritative, not nil on the default
     /// path); Phase 1 (`merge`) now runs inside `select`, not in this helper.
     let pool: UnifiedSignalPool
+    let rhythmicRegions: [RhythmicRegionResult]?
   }
 
   /// URL-derived BPM inputs gathered before a shared decode. Keeping these
@@ -1319,21 +1334,34 @@ public struct AudioAnalysisService {
       && options.mlTechnique != nil
       && options.ensemblePolicy.invokesMLInference
 
-    // Collect results from all windows.
+    // Collect results from all windows. Keep the default loop untouched so
+    // opting out preserves the existing analyzer calls and progress sequence.
     var windowResults: [BPMResult] = []
     let windowSizes = options.intensity.windowSizes
-    let total = windowSizes.count
-    var completed = 0
-
-    for windowSeconds in windowSizes {
+    var rhythmicRegions: [RhythmicRegionResult]?
+    if options.useRhythmicRegions {
       if options.isCancelled() { throw CancellationError() }
-      options.onProgress?(ProgressUpdate(windowsCompleted: completed, windowsTotal: total))
-
-      guard
+      let selected =
+        options.useUniformRegionControl
+        ? uniformRegionControl(
+          samples: decoded.samples, sampleRate: decoded.sampleRate,
+          durationSeconds: windowSizes.min() ?? 30,
+          maximumCount: windowSizes.count)
+        : RhythmicRegionSelector.select(
+          samples: decoded.samples, sampleRate: decoded.sampleRate,
+          durationSeconds: windowSizes.min() ?? 30,
+          maximumCount: windowSizes.count)
+      if options.isCancelled() { throw CancellationError() }
+      var regionRows: [RhythmicRegionResult] = []
+      for region in selected {
+        if options.isCancelled() { throw CancellationError() }
+        options.onProgress?(
+          ProgressUpdate(windowsCompleted: regionRows.count, windowsTotal: selected.count))
         let bpmResult = BPMAnalyzer.estimateBPM(
           decoded: decoded,
           options: .init(
-            analysisWindowSeconds: windowSeconds,
+            analysisWindowSeconds: Double(region.sampleCount) / decoded.sampleRate,
+            explicitStartSample: region.startSample,
             intensity: options.intensity,
             techniqueSet: options.techniqueSet,
             tempoScanRange: options.tempoScanRange,
@@ -1341,15 +1369,44 @@ public struct AudioAnalysisService {
             enableTrace: enableTrace,
             fileDurationSeconds: fileDurationSeconds,
             durationHintMinFileSeconds: options.durationHintMinFileSeconds,
-            captureMLFeatures: captureMLFeatures)
-        )
-      else {
-        completed += 1
-        continue
+            captureMLFeatures: captureMLFeatures))
+        regionRows.append(
+          RhythmicRegionResult(
+            startSample: region.startSample, sampleCount: region.sampleCount,
+            rhythmScore: region.rhythmScore, bpm: bpmResult?.bpm))
+        if let bpmResult { windowResults.append(bpmResult) }
       }
+      rhythmicRegions = regionRows
+    } else {
+      let total = windowSizes.count
+      var completed = 0
 
-      windowResults.append(bpmResult)
-      completed += 1
+      for windowSeconds in windowSizes {
+        if options.isCancelled() { throw CancellationError() }
+        options.onProgress?(ProgressUpdate(windowsCompleted: completed, windowsTotal: total))
+
+        guard
+          let bpmResult = BPMAnalyzer.estimateBPM(
+            decoded: decoded,
+            options: .init(
+              analysisWindowSeconds: windowSeconds,
+              intensity: options.intensity,
+              techniqueSet: options.techniqueSet,
+              tempoScanRange: options.tempoScanRange,
+              perceptualWindow: options.perceptualWindow,
+              enableTrace: enableTrace,
+              fileDurationSeconds: fileDurationSeconds,
+              durationHintMinFileSeconds: options.durationHintMinFileSeconds,
+              captureMLFeatures: captureMLFeatures)
+          )
+        else {
+          completed += 1
+          continue
+        }
+
+        windowResults.append(bpmResult)
+        completed += 1
+      }
     }
 
     // Story 6.5b (KDD-A6 Stage 3): build the AUTHORITATIVE UnifiedSignalPool —
@@ -1375,7 +1432,29 @@ public struct AudioAnalysisService {
       mlParticipation: mlParticipation,
       weight: 1.0)
 
-    return PreCorroborationOutput(metadataInput: metadataInput, pool: pool)
+    return PreCorroborationOutput(
+      metadataInput: metadataInput, pool: pool, rhythmicRegions: rhythmicRegions)
+  }
+
+  /// Equal count and duration to rhythmic selection, with positions fixed by
+  /// the decoded span. This is an internal corpus control, not a public mode.
+  private static func uniformRegionControl(
+    samples: [Float], sampleRate: Double, durationSeconds: Double,
+    maximumCount: Int
+  ) -> [RhythmicRegionSelector.Region] {
+    guard !samples.isEmpty, sampleRate.isFinite, sampleRate >= 8_000,
+      durationSeconds.isFinite, durationSeconds > 0, maximumCount > 0
+    else { return [] }
+    let seconds = min(durationSeconds, 30)
+    let span = min(samples.count, Int(min(seconds * sampleRate, Double(samples.count))))
+    guard span > 0 else { return [] }
+    let count = min(maximumCount, max(1, samples.count / span))
+    let lastStart = samples.count - span
+    return (0..<count).map { index in
+      let start = count == 1 ? 0 : index * lastStart / (count - 1)
+      return RhythmicRegionSelector.Region(
+        startSample: start, sampleCount: span, rhythmScore: 0)
+    }
   }
 
   // MARK: - Story 8-2: decodeOnce funnel + decoded-path cap (DD #9 / DD #3b)

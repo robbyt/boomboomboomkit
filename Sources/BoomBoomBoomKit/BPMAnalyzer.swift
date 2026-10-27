@@ -192,6 +192,9 @@ struct BPMAnalyzer {
     /// Duration of analysis window after energy transition (default 30s).
     var analysisWindowSeconds: Double = defaultAnalysisWindowSeconds
 
+    /// Internal region-selection seam. Nil retains the energy-transition scan.
+    var explicitStartSample: Int?
+
     /// Controls pipeline depth and is recorded in the diagnostic trace.
     var intensity: AnalysisIntensity = .default
 
@@ -328,7 +331,13 @@ struct BPMAnalyzer {
     guard duration >= minimumDurationSeconds else { return nil }
 
     // Step 1: Energy scan — find the "drop" for analysis window selection
-    let dropOffset = findEnergyTransition(samples: samples, sampleRate: sampleRate)
+    let dropOffset: Int
+    if let explicitStartSample = options.explicitStartSample {
+      guard samples.indices.contains(explicitStartSample) else { return nil }
+      dropOffset = explicitStartSample
+    } else {
+      dropOffset = findEnergyTransition(samples: samples, sampleRate: sampleRate)
+    }
     let remainingSamples = samples.count - dropOffset
     let windowSamples = sampleSpan(
       seconds: options.analysisWindowSeconds, sampleRate: sampleRate, cap: remainingSamples)
