@@ -1,3 +1,10 @@
+//
+//  RhythmicRegionSelectorTests.swift
+//  BoomBoomBoomKit
+//
+//  Bounded rhythm-region selection behavior.
+//
+
 import Foundation
 import Testing
 
@@ -68,5 +75,15 @@ struct RhythmicRegionSelectorTests {
     for pair in zip(probes, probes.dropFirst()) {
       #expect(pair.0.startSample + pair.0.sampleCount <= pair.1.startSample)
     }
+  }
+
+  @Test("out-of-range finite sample rates are rejected before integer conversion")
+  func excessiveSampleRate() {
+    let samples = [Float](repeating: 0, count: 8_000)
+    #expect(
+      RhythmicRegionSelector.select(
+        samples: samples, sampleRate: Double.greatestFiniteMagnitude,
+        durationSeconds: 30, maximumCount: 3
+      ).isEmpty)
   }
 }

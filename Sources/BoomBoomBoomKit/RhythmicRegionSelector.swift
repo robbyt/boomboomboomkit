@@ -1,7 +1,14 @@
+//
+//  RhythmicRegionSelector.swift
+//  BoomBoomBoomKit
+//
+//  Bounded rhythm scoring for candidate PCM regions.
+//
+
 import Foundation
 
 /// A bounded, inexpensive rhythm scan over decoded PCM. The scan reads at most
-/// eight regions and at most 64 samples per 10 ms energy bin. It never changes
+/// eight regions and at most 127 samples per 10 ms energy bin. It never changes
 /// the onset features or the DSP technique used by the selected BPM passes.
 enum RhythmicRegionSelector {
   struct Region: Sendable {
@@ -33,6 +40,7 @@ enum RhythmicRegionSelector {
     samples: [Float], sampleRate: Double, durationSeconds: Double
   ) -> [Region] {
     guard !samples.isEmpty, sampleRate.isFinite, sampleRate >= 8_000,
+      sampleRate <= BPMAnalyzer.maxOnsetSampleRate,
       durationSeconds.isFinite, durationSeconds > 0
     else { return [] }
 
