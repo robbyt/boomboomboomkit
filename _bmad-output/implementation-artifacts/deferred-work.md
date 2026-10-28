@@ -1534,3 +1534,19 @@ Same stopping rule as rounds 3 and 4: none of these changes today's corpus outpu
 - source_spec: `spec-12-9-bundle-gate-definition.md`
   summary: Complete the final signed-corpus and frozen-model bundle-gate run after slow-band coverage, blind re-pass, training-manifest rebuild, FR-59d partition closure, 12.7 signoff, and a separate cohort-bound training-overlap closure for all added gate rows. Run the selected checkpoint once through the paired production path, with the four original sentinels and optional contextual legacy corpora, then seek approval only if every substantive gate passes.
   evidence: The frozen provisional cohort has 245 rows, but only 4 under 100 BPM and none at 100-120; both bands are unmeasurable under the predeclared 43-row floor. The 12.7 signoff attestation and partition closure are absent and would certify only the original 172, leaving the 73 new rows without a training-partition proof. The evaluator deliberately hard-blocks approval until a cohort-bound closure validator exists. The failed Epic 7 seed-42 checkpoint is a negative control with potential training overlap. **Re-open trigger:** the slow-band and 12.7/FR-59d obligations close, a cohort-bound closure audit is implemented, and a candidate checkpoint is frozen before evaluation.
+
+- source_spec: `15-11-waveform-band-levels.md`
+  summary: Add a test that a non-end-of-file read error after the first chunk makes `WaveformBandLevelReader.read` throw `PCMBufferReaderError.readFailed` instead of returning a short result.
+  evidence: Code review 2026-10-27: no fixture produces a non -39 read error after the first chunk, so simplifying the catch to `if chunkStart > 0 { break }` passes every test. Needs a fault-injection seam or a crafted fixture.
+
+- source_spec: `15-11-waveform-band-levels.md`
+  summary: Decide whether a first chunk that reads 0 frames without throwing should throw `readFailed` instead of returning an all-silent result.
+  evidence: Unverified (maybe-false): no way was shown to make `AVAudioFile.read(into:)` return 0 frames without throwing at position 0. If reachable, a caller would cache an all-silent result. Settle by finding a file that does it.
+
+- source_spec: `15-11-waveform-band-levels.md`
+  summary: Curate the waveform types (`WaveformBandLevelReader`, `WaveformBandLevels` and `WaveformAnalyzer`) in a topic group on the DocC landing page.
+  evidence: Code review 2026-10-27: `BoomBoomBoomKit.docc/BoomBoomBoomKit.md` lists none of them; they fall into the uncurated sections.
+
+- source_spec: `15-11-waveform-band-levels.md`
+  summary: Find a fixture whose first `AVAudioFile.read(into:)` throws `NSOSStatusErrorDomain` -39, so DD-7's "-39 at `chunkStart == 0` throws `readFailed`" rule gets a test (for example a FLAC cut inside its first 65,536 frames).
+  evidence: Code review 2026-10-27: the FLAC cut to its audio start + 10 bytes throws `com.apple.coreaudio.avfaudio` -66567 under the test runner, so `firstReadFailureThrows` passes with or without the `chunkStart > 0` guard.

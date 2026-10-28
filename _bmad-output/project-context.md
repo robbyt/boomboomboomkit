@@ -18,7 +18,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ## Technology Stack & Versions
 
 - **Swift 6.0** — strict concurrency (`swift-tools-version: 6.0`), macOS 15+. All new public types MUST conform to `Sendable`
-- **Zero external dependencies** — hard constraint, not observation. Only Apple system frameworks (Foundation, Accelerate, AVFoundation; plus CryptoKit + Synchronization, imported only by `ModelRegistry`). Do not introduce third-party packages
+- **Zero external dependencies** — hard constraint, not observation. Only Apple system frameworks (Foundation, Accelerate, AVFoundation; plus CryptoKit, imported only by `ModelRegistry` and the waveform levels file format (`WaveformBandLevelsFile.swift`), and Synchronization, imported only by `ModelRegistry`). Do not introduce third-party packages
 - **Accelerate/vDSP** — ALL bulk numeric operations must use vDSP. No manual `for` loops over signal buffers. Float precision for signals; **Double precision mandatory for IIR filters** (K-weighting biquads — Float causes measurable errors near unit circle poles)
 - **AVFoundation** — audio file I/O only (PCMBufferReader). Imported via `@preconcurrency import AVFoundation` — do NOT remove this annotation (Apple types are not yet Sendable-annotated; this is the SE-0337 migration path). NEVER use `AVAsset.commonMetadata` for embedded BPM tags — it is async-only on macOS 13+ and Vorbis surfacing is historically inconsistent. Direct container parsing only (see `FileMetadataReader` for the pattern)
 - **Swift Testing** — `@Suite`, `@Test`, `#expect`, `#require`. NOT XCTest

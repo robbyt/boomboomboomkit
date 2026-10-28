@@ -235,6 +235,32 @@ struct LoudnessChart: View {
 }
 ```
 
+## Waveform levels
+
+`WaveformBandLevelReader.read(url:options:)` measures a file's low, mid and high band peak and RMS, 150 values per second. Each channel is filtered into three bands (a 300 Hz low-pass; a 250 Hz high-pass then a 1,200 Hz low-pass; a 3,000 Hz high-pass then, at sample rates above 18 kHz, a 9,000 Hz low-pass). For each bucket and band, `peak` holds the largest magnitude of any channel and `rms` the louder channel's RMS, as linear values from 0 to 1. The file is streamed in fixed chunks, so memory holds one 65,536-frame chunk, four 65,536-sample `Double` filter buffers per channel (about 2 MiB per channel), and the two output arrays. A header that claims more than 12 hours throws `WaveformBandLevelError.durationTooLong` before anything is allocated from it.
+
+The library writes nothing to disk. To cache the levels, encode them, store the bytes with your own code, and decode them on the next load:
+
+```swift
+import BoomBoomBoomKit
+
+// key: your lowercase hex SHA-256 of the audio file's bytes (64 characters).
+let levels = try WaveformBandLevelReader.read(url: trackURL)
+let bytes = try levels.encoded(forKey: key)
+try bytes.write(to: cacheFolder.appending(path: "\(key).waveform"), options: .atomic)
+
+// Later:
+let stored = try Data(contentsOf: cacheFolder.appending(path: "\(key).waveform"))
+if let cached = WaveformBandLevels.decoded(from: stored, forKey: key) {
+  // use cached.peak and cached.rms
+} else {
+  // nil means delete the file: it is damaged, for another key, or from an
+  // older analysisVersion. Measure again and store the new result.
+}
+```
+
+`decoded(from:forKey:)` never throws. A checksum covers every stored byte, and a new `WaveformBandLevelReader.analysisVersion` makes every older file decode to `nil`. `framesRead` below `frameCount` means the file ended before its header said it would and the decoder reported the end-of-file status (`NSOSStatusErrorDomain` -39); the buckets past that point are silent. Otherwise an early end throws `PCMBufferReaderError.readFailed`. The same decoded samples always give the same bits on one machine; lossy decoders may not return identical samples on every read. Cancellation goes through `Options.isCancelled` (default `Task.isCancelled`) and throws `CancellationError`.
+
 ## Shared decode
 
 Use `analyzeFull(url:)` when an app needs BPM, beat-grid, and loudness for one
@@ -559,6 +585,9 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `LoudnessSample`, `LoudnessSeries` | Foundation-only plotting adapter for `LUFSReport.samples` |
 | `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file; `isCancelled` cooperative-cancellation closure) |
 | `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
+| `WaveformBandLevelReader` | Streams a file and measures low, mid and high band peak and RMS, 150 buckets per second; see "Waveform levels" |
+| `WaveformBandLevels`, `WaveformBandLevel`, `WaveformAudioSource` | The reader's result and its file format (`encoded(forKey:)`, `decoded(from:forKey:)`) |
+| `WaveformBandLevelError` | Unsupported sample rate (6 kHz and below), a header claiming more than 12 hours, invalid key, oversized encoded header |
 | `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, `gridOrigin` anchor, `coverage`, `tempoAgreement`) returned by `analyzeBeatGrid` / `analyze`; see "Beat grid" |
 | `BeatTimestamp` | One detected beat: `presentationTime` + per-beat `confidence` + `strength` (all clamped finite) |
 | `BeatGridAnchor` / `BeatGridAnchorSource` | The Rekordbox-style extrapolation anchor on `BeatGrid.gridOrigin` (phase-consistency selected) + its provenance |
