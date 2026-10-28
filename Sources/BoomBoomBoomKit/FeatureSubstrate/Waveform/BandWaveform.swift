@@ -153,10 +153,17 @@ public struct BandWaveform: Sendable, Hashable {
   /// The time, in seconds from the start of the file, at which `bucket`
   /// starts: its first frame divided by ``sampleRate``.
   ///
-  /// The first frame of bucket `i` is the first frame at or after `i / 150`
-  /// seconds, so the result is not exactly `i / 150` unless that time falls on
-  /// a whole frame. It is the reader's own boundary, so
+  /// The first frame of bucket `i` is the first frame the reader put in it:
+  /// the first frame at or after `i / 150` seconds, give or take one frame at
+  /// a few boundaries of a non-integral sample rate, where the reader's two
+  /// rounding steps disagree. So the result is not exactly `i / 150` unless
+  /// that time falls on a whole frame. It is the reader's own boundary, so
   /// `bucket(at: startTime(ofBucket: i)!) == i`.
+  ///
+  /// Exact for a file read in full 65,536-frame chunks, which is how
+  /// ``BandWaveformReader`` reads every file whose reads return all the frames
+  /// asked for. If a read ever returned fewer frames without an error, a later
+  /// boundary at one of those disagreeing frames could be off by one frame.
   ///
   /// Returns `nil` when `bucket` is negative or not below `peak.count`, which
   /// includes every bucket of an empty waveform.
@@ -165,7 +172,8 @@ public struct BandWaveform: Sendable, Hashable {
   /// - Returns: The start time in seconds, or `nil`.
   public func startTime(ofBucket bucket: Int) -> Double? {
     guard bucket >= 0, bucket < peak.count else { return nil }
-    return Double(timebase.firstFrame(ofBucket: bucket)) / sampleRate
+    return Double(timebase.spanFirstFrame(ofBucket: bucket, chunkFrames: Self.chunkFrames))
+      / sampleRate
   }
 
   /// The bucket holding the frame that plays at `seconds` from the start of
@@ -173,7 +181,8 @@ public struct BandWaveform: Sendable, Hashable {
   ///
   /// The frame at `seconds` is the last frame whose start time
   /// (`Double(frame) / sampleRate`) is not after `seconds`; the bucket is the
-  /// one the reader put that frame in. The returned bucket's
+  /// one the reader put that frame in, including at the boundaries where its
+  /// two rounding steps disagree. The returned bucket's
   /// ``startTime(ofBucket:)`` is never after `seconds`, and the next bucket's
   /// is after it. Bucket `i` does not cover exactly `i / 150 ..< (i + 1) / 150`
   /// seconds; see ``startTime(ofBucket:)``.
@@ -194,12 +203,15 @@ public struct BandWaveform: Sendable, Hashable {
     if frame > 0, Double(frame) / sampleRate > seconds { frame -= 1 }
     if frame < frameCount, Double(frame + 1) / sampleRate <= seconds { frame += 1 }
     guard frame >= 0, frame < frameCount else { return nil }
-    let bucket = timebase.bucket(atFrame: frame)
+    let bucket = timebase.spanBucket(atFrame: frame, chunkFrames: Self.chunkFrames)
     return bucket >= 0 && bucket < peak.count ? bucket : nil
   }
 
   /// The reader's frame and bucket arithmetic at this waveform's rate.
   private var timebase: WaveformBucketTimebase { WaveformBucketTimebase(sampleRate: sampleRate) }
+
+  /// The reader's chunk size, which decides where a span can start.
+  private static let chunkFrames = Int64(BandWaveformReader.chunkFrames)
 
   // MARK: - Invariant helpers
 

@@ -267,6 +267,7 @@ func waveformKey(for url: URL) throws -> String {
 /// Returns the stored waveform when the cache file is usable. Otherwise measures
 /// the track, stores the result and returns it.
 func loadWaveform(for trackURL: URL, cacheFolder: URL) throws -> BandWaveform {
+  try? FileManager.default.createDirectory(at: cacheFolder, withIntermediateDirectories: true)
   let cacheURL = cacheFolder.appending(path: "\(try waveformKey(for: trackURL)).waveform")
 
   if let stored = try? Data(contentsOf: cacheURL) {
@@ -294,7 +295,10 @@ For a content-hash key, hash the audio file's bytes instead of the identity stri
 ```swift
 var store: [String: Data] = [:]  // or a database table keyed by your track ID
 
-let key = trackID  // any key your app already has
+// Any key your app already has, plus something that changes with the audio:
+// the stored bytes carry no audio identity, so a key that outlives an edit to
+// the track keeps returning the old waveform.
+let key = "\(trackID)|\(trackModificationDate.timeIntervalSince1970)"
 let waveform: BandWaveform
 if let bytes = store[key], let cached = BandWaveform(serializedData: bytes) {
   waveform = cached

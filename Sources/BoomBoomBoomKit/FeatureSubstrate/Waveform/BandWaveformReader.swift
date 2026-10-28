@@ -165,7 +165,14 @@ public enum BandWaveformReader: Sendable {
           url, underlyingDescription: error.localizedDescription)
       }
       let frameCount = Int(buffer.frameLength)
-      guard frameCount > 0, let channels = buffer.floatChannelData else { break }
+      guard frameCount > 0, let channels = buffer.floatChannelData else {
+        // A read that succeeds with nothing in it: after the first chunk the
+        // file has ended early, but on the first chunk no frame decoded at
+        // all, which is a failure, not an empty track.
+        if chunkStart > 0 { break }
+        throw PCMBufferReaderError.readFailed(
+          url, underlyingDescription: "the first read returned no frames")
+      }
       framesRead += Int64(frameCount)
       for channel in 0..<channelCount {
         filters[channel].filter(

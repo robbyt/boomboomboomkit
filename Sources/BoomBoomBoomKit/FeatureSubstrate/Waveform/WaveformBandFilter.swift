@@ -244,6 +244,40 @@ struct WaveformBucketTimebase {
   func bucketCount(frames: Int64) -> Int {
     frames > 0 ? bucket(atFrame: frames - 1) + 1 : 0
   }
+
+  // MARK: Where the reader's span walk puts a frame
+
+  /// The bucket the reader's span walk puts absolute frame `frame` in, for a
+  /// file read in full chunks of `chunkFrames`. A short successful read would
+  /// move later chunk starts off the multiples of `chunkFrames`; the result can
+  /// then differ by one bucket at a disagreeing frame.
+  ///
+  /// The walk starts a span at a frame, takes that frame's ``bucket(atFrame:)``
+  /// and runs the span to ``firstFrame(ofBucket:)`` of the next bucket. The two
+  /// formulas round independently, so at a few boundaries of a non-integral
+  /// rate they disagree by one frame. A frame that ``bucket(atFrame:)`` puts in
+  /// bucket `b` but that lies before `firstFrame(ofBucket: b)` stays in the
+  /// span of `b - 1`, unless a read chunk starts at or before it inside `b`'s
+  /// own frames. A frame that ``bucket(atFrame:)`` puts in `b - 1` at or after
+  /// `firstFrame(ofBucket: b)` gets a one-frame span of its own in `b - 1`.
+  func spanBucket(atFrame frame: Int64, chunkFrames: Int64) -> Int {
+    let bucket = bucket(atFrame: frame)
+    guard bucket > 0, frame < firstFrame(ofBucket: bucket) else { return bucket }
+    let chunkStart = frame - frame % chunkFrames
+    return self.bucket(atFrame: chunkStart) == bucket ? bucket : bucket - 1
+  }
+
+  /// The first absolute frame the reader's span walk puts in `bucket`, for a
+  /// file read in full chunks of `chunkFrames`. Within one frame of
+  /// ``firstFrame(ofBucket:)``.
+  func spanFirstFrame(ofBucket bucket: Int, chunkFrames: Int64) -> Int64 {
+    let first = firstFrame(ofBucket: bucket)
+    for frame in max(first - 1, 0)...(first + 1)
+    where spanBucket(atFrame: frame, chunkFrames: chunkFrames) >= bucket {
+      return frame
+    }
+    return first + 2
+  }
 }
 
 // MARK: - WaveformBucketSums

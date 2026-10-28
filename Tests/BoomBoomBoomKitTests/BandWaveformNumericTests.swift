@@ -421,6 +421,69 @@ struct BandWaveformTimeTests {
         frameCount: frameCount, framesRead: frameCount, source: source))
   }
 
+  /// Rates whose bucket boundaries include frames where the reader's two
+  /// rounding steps disagree (6,000.1 Hz does at bucket 31,500, 210 s), plus
+  /// seeded non-integral rates across the accepted range.
+  static let walkRates: [Double] = {
+    var rng = SplitMix64(seed: 0x15_11_0A)
+    let seeded = (0..<10).map { _ in
+      6_001 + Double(rng.next() % 90_000_000) / 1_000
+    }
+    return [6_000.1, 6_000.3, 7_777.7, 11_025.5, 22_050.123456789012, 44_100.7] + seeded
+  }()
+
+  @Test("bucket times follow the reader's span walk frame by frame", arguments: walkRates)
+  func timesFollowTheSpanWalk(sampleRate: Double) throws {
+    // At most about 2 million frames per rate, and at least the 210 s that
+    // reaches the known disagreement at 6,000.1 Hz.
+    let seconds = min(600, max(211, 2_000_000 / sampleRate))
+    let waveform = try Self.waveform(seconds: seconds, sampleRate: sampleRate)
+    let frames = waveform.frameCount
+    let bucketCount = waveform.peak.count
+    let chunk: Int64 = 65_536
+    func formulaBucket(_ frame: Int64) -> Int {
+      Int((Double(frame) * 150 / sampleRate).rounded(.down))
+    }
+    func formulaFirstFrame(_ bucket: Int) -> Int64 {
+      Int64((Double(bucket) * sampleRate / 150).rounded(.up))
+    }
+    // The span walk, written out from the measurement contract: chunks of
+    // 65,536 frames; in each, a span starts at `offset`, takes the bucket of
+    // its first frame and ends at the next bucket's first frame.
+    var walkFirstFrame = [Int64](repeating: -1, count: bucketCount)
+    var frameMismatches = 0
+    var disagreements = 0
+    var chunkStart: Int64 = 0
+    while chunkStart < frames {
+      let count = Int(min(frames - chunkStart, chunk))
+      var offset = 0
+      while offset < count {
+        let bucket = formulaBucket(chunkStart + Int64(offset))
+        let end = max(offset + 1, min(count, Int(formulaFirstFrame(bucket + 1) - chunkStart)))
+        guard bucket < bucketCount else { break }
+        if walkFirstFrame[bucket] < 0 { walkFirstFrame[bucket] = chunkStart + Int64(offset) }
+        for index in offset..<end {
+          let frame = chunkStart + Int64(index)
+          if formulaBucket(frame) != bucket { disagreements += 1 }
+          if waveform.bucket(at: Double(frame) / sampleRate) != bucket { frameMismatches += 1 }
+        }
+        offset = end
+      }
+      chunkStart += Int64(count)
+    }
+    var startMismatches = 0
+    for bucket in 0..<bucketCount
+    where waveform.startTime(ofBucket: bucket) != Double(walkFirstFrame[bucket]) / sampleRate {
+      startMismatches += 1
+    }
+    #expect(frameMismatches == 0, "frames whose bucket(at:) differs from the walk")
+    #expect(startMismatches == 0, "buckets whose startTime differs from the walk")
+    if sampleRate == 6_000.1 {
+      #expect(
+        disagreements > 0, "the premise: this rate has a boundary where the formulas disagree")
+    }
+  }
+
   @Test("every bucket's start time maps back to that bucket (10 minutes)", arguments: rates)
   func startTimeRoundTrips(sampleRate: Double) throws {
     let waveform = try Self.waveform(seconds: 600, sampleRate: sampleRate)

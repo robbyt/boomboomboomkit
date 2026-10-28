@@ -332,6 +332,8 @@ Two observations for the Hilbert parity gate. (a) Run it under a test runner, no
 
 - 2026-10-28, owner decision after CI failed on macOS 26: a read past a cut FLAC's real end throws Foundation's generic nil error there (`Foundation._GenericObjCError` code 0), and `eofErr` -39 only on macOS 27. The reader now treats either, after the first chunk, as an early end, so a cut file returns the frames read on every macOS version. Values are unchanged. **For the Hilbert migration story:** on macOS 26 and earlier, Hilbert's reader throws on cut files where this reader returns partial levels, so the parity run must expect that difference on the early-end fixtures. The nil error carries no reason, so on those versions a passing read failure (a damaged file, a cloud file replaced mid-read) can also return partial levels: Hilbert's store should not cache a result with `framesRead < frameCount`, or should re-measure it on a later load.
 
+- 2026-10-28, Codex diff review of PR #212: (1) `startTime(ofBucket:)` and `bucket(at:)` now follow the reader's span walk exactly, including the frames where its floor and ceiling formulas disagree and the 65,536-frame chunk starts (found at 6,000.1 Hz, bucket 31,500); a test writes the walk out independently and checks every frame and bucket at 16 non-integral rates; exact for full-chunk reads, documented as within one frame otherwise. (2) A first read that succeeds with no frames now throws `readFailed` (closes the deferred-work item on it). (3) README: the dictionary key includes a modification date, and the folder example creates its folder best-effort. Measured values unchanged.
+
 ## Review Triage Log
 
 | # | Finding (reviewer) | Verdict | Evidence | Route |
