@@ -1,5 +1,5 @@
 //
-//  WaveformBandLevelReader.swift
+//  BandWaveformReader.swift
 //  BoomBoomBoomKit
 //
 //  Story 15.11: streams an audio file in fixed 65,536-frame chunks and
@@ -11,7 +11,7 @@
 import Accelerate
 import Foundation
 
-/// Reads a file's three-band waveform levels: low, mid and high band peak and
+/// Reads a file's three-band waveform: low, mid and high band peak and
 /// RMS, 150 values per second.
 ///
 /// What is measured: each channel is filtered into three bands (a 300 Hz
@@ -33,9 +33,9 @@ import Foundation
 /// 12 hours is refused before anything is allocated from it.
 ///
 /// Caching: the library never stores anything. To keep a result, call
-/// ``WaveformBandLevels/encoded()`` and store the bytes under a key and in a
+/// ``BandWaveform/serializedData()`` and store the bytes under a key and in a
 /// store the caller chooses (a file in its own folder, a database blob,
-/// memory). ``WaveformBandLevels/decoded(from:)`` returns `nil` for bytes that
+/// memory). ``BandWaveform/init(serializedData:)`` returns `nil` for bytes that
 /// cannot be used; discard them and measure again.
 ///
 /// Cancellation: ``Options/isCancelled`` is checked before each chunk, and a
@@ -44,23 +44,23 @@ import Foundation
 ///
 /// Early end of file: when a file decodes fewer frames than its header states
 /// and the decoder reports the end-of-file status (`NSOSStatusErrorDomain`
-/// -39), the levels read before the real end are kept, the remaining buckets
-/// stay ``WaveformBandLevel/silent``, and ``WaveformBandLevels/framesRead`` is
-/// less than ``WaveformBandLevels/frameCount``. Otherwise the read throws
+/// -39), the buckets measured before the real end are kept, the remaining buckets
+/// stay ``BandWaveform/Levels/silent``, and ``BandWaveform/framesRead`` is
+/// less than ``BandWaveform/frameCount``. Otherwise the read throws
 /// `PCMBufferReaderError.readFailed`.
 ///
 /// Exactness: on one machine the same decoded samples always give the same
 /// bits. Lossy decoders may not return identical samples on every read, and DSP
 /// output can differ between macOS versions.
-public enum WaveformBandLevelReader: Sendable {
+public enum BandWaveformReader: Sendable {
   /// Buckets per second of audio. Fixed.
   public static let bucketsPerSecond: Double = 150
 
   /// Names the measurement: the filter bank, the bucket rule, the read chunk,
   /// the peak and RMS rules, the louder-channel rule and the non-finite rule.
   /// Changes whenever any stored value could change, which makes every
-  /// encoding made under an earlier version unusable
-  /// (``WaveformBandLevels/decoded(from:)`` returns `nil`; discard and
+  /// waveform serialized under an earlier version unusable
+  /// (``BandWaveform/init(serializedData:)`` returns `nil`; discard and
   /// measure again).
   public static let analysisVersion = "band-peak-rms.loudest-channel.v1"
 
@@ -87,22 +87,22 @@ public enum WaveformBandLevelReader: Sendable {
     public init() {}
   }
 
-  /// Reads the file at `url` and measures its band levels.
+  /// Reads the file at `url` and measures its band waveform.
   ///
   /// - Parameters:
   ///   - url: The audio file. Any format `AVAudioFile` decodes.
   ///   - options: ``Options``, for cancellation.
-  /// - Returns: The levels, one bucket per 1/150 s of the header's length.
+  /// - Returns: The waveform, one bucket per 1/150 s of the header's length.
   /// - Throws: `PCMBufferReaderError.fileNotReadable` when the file cannot be
-  ///   opened; ``WaveformBandLevelError/unsupportedFormat(_:sampleRate:)`` when
+  ///   opened; ``BandWaveformError/unsupportedFormat(_:sampleRate:)`` when
   ///   the sample rate is not finite or is at or below 6,000 Hz, or a filter
-  ///   cannot be built; ``WaveformBandLevelError/durationTooLong(_:seconds:)``
+  ///   cannot be built; ``BandWaveformError/durationTooLong(_:seconds:)``
   ///   when the header's length is more than 12 hours;
   ///   `PCMBufferReaderError.bufferAllocationFailed` when the read buffer cannot
   ///   be allocated; `PCMBufferReaderError.readFailed` when a read fails other
   ///   than with the end-of-file status after the first frame;
   ///   `CancellationError` when ``Options/isCancelled`` returns `true`.
-  public static func read(url: URL, options: Options = Options()) throws -> WaveformBandLevels {
+  public static func read(url: URL, options: Options = Options()) throws -> BandWaveform {
     let file: AVAudioFile
     do {
       file = try AVAudioFile(forReading: url)
@@ -111,35 +111,35 @@ public enum WaveformBandLevelReader: Sendable {
     }
     let format = file.processingFormat
     let sampleRate = format.sampleRate
-    guard sampleRate.isFinite, sampleRate > WaveformBandLevels.minimumSampleRateExclusive else {
-      throw WaveformBandLevelError.unsupportedFormat(url, sampleRate: sampleRate)
+    guard sampleRate.isFinite, sampleRate > BandWaveform.minimumSampleRateExclusive else {
+      throw BandWaveformError.unsupportedFormat(url, sampleRate: sampleRate)
     }
     // Before any allocation the header sizes: a damaged header can claim
     // billions of frames.
     let length = file.length
     let seconds = Double(length) / sampleRate
     guard seconds <= maximumDurationSeconds else {
-      throw WaveformBandLevelError.durationTooLong(url, seconds: seconds)
+      throw BandWaveformError.durationTooLong(url, seconds: seconds)
     }
     guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunkFrames) else {
       throw PCMBufferReaderError.bufferAllocationFailed(url)
     }
     let timebase = WaveformBucketTimebase(sampleRate: sampleRate)
     let bucketCount = timebase.bucketCount(frames: length)
-    var peak = [WaveformBandLevel](repeating: .silent, count: bucketCount)
-    var rms = [WaveformBandLevel](repeating: .silent, count: bucketCount)
+    var peak = [BandWaveform.Levels](repeating: .silent, count: bucketCount)
+    var rms = [BandWaveform.Levels](repeating: .silent, count: bucketCount)
     let channelCount = Int(format.channelCount)
     var sums = WaveformBucketSums(channelCount: channelCount)
     var filters: [WaveformBandFilter] = []
     filters.reserveCapacity(channelCount)
     for _ in 0..<channelCount {
       guard let filter = WaveformBandFilter(sampleRate: sampleRate) else {
-        throw WaveformBandLevelError.unsupportedFormat(url, sampleRate: sampleRate)
+        throw BandWaveformError.unsupportedFormat(url, sampleRate: sampleRate)
       }
       filters.append(filter)
     }
     let encoded = file.fileFormat.streamDescription.pointee
-    let source = WaveformAudioSource(
+    let source = BandWaveform.Source(
       formatID: encoded.mFormatID, processingFormat: describe(format))
     let mayContainNonFinite = mayDecodeNonFinite(encoded)
 
@@ -190,7 +190,7 @@ public enum WaveformBandLevelReader: Sendable {
         offset = end
       }
     }
-    return WaveformBandLevels(
+    return BandWaveform(
       measuredPeak: peak, rms: rms, sampleRate: sampleRate, channelCount: channelCount,
       frameCount: length, framesRead: framesRead, source: source)
   }

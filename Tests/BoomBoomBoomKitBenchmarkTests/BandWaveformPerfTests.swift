@@ -1,18 +1,19 @@
 //
-//  WaveformBandLevelPerfTests.swift
+//  BandWaveformPerfTests.swift
 //  BoomBoomBoomKitBenchmarkTests
 //
 //  Story 15.11: wall-clock and memory probe for
-//  `WaveformBandLevelReader.read(url:options:)` and the waveform levels file
-//  format. Writes one per-SHA JSON baseline under
+//  `BandWaveformReader.read(url:options:)` and `BandWaveform` serialization.
+//  Writes one per-SHA JSON baseline under
 //  `_bmad-output/perf-baselines/waveform-band/`.
 //
 //  Timing (warm-up, then the median of 5) on 10-minute stereo 44.1 kHz
 //  synthetic files, a 16-bit WAV and a FLAC: the reader, decode only
-//  (`AVAudioFile` reads in the reader's chunk size, no filtering), `encoded`,
-//  and `decoded`. Plus the `AVAudioFile` open and `length` for the bundled
-//  FLAC, WAV, MP3 and M4A fixtures, the check a caller can run against stored
-//  levels. No speed bound is asserted.
+//  (`AVAudioFile` reads in the reader's chunk size, no filtering),
+//  `serializedData()` (recorded as `encodedMs`) and `init(serializedData:)`
+//  (`decodedMs`). Plus the `AVAudioFile` open and `length` for the bundled
+//  FLAC, WAV, MP3 and M4A fixtures, the check a caller can run against a stored
+//  waveform. No speed bound is asserted.
 //
 //  Memory: 2-, 10- and 30-minute stereo WAVs, each read once in its own child
 //  process (this test binary re-invoked with a filter and
@@ -33,7 +34,7 @@ import Testing
 @testable import BoomBoomBoomKit
 
 @Suite(
-  "WaveformBandLevelReader wall-clock and memory baseline (Story 15.11)",
+  "BandWaveformReader wall-clock and memory baseline (Story 15.11)",
   .disabled(
     if: ProcessInfo.processInfo.environment["BBB_WAVEFORM_BAND_PERF"] != "1"
       || ProcessInfo.processInfo.environment[MemoryChild.fileVariable]
@@ -41,7 +42,7 @@ import Testing
     "Set BBB_WAVEFORM_BAND_PERF=1 (or run make waveform-band-perf-baseline) to record a baseline"
   )
 )
-struct WaveformBandLevelPerfTests {
+struct BandWaveformPerfTests {
   private static let sampleRate = SyntheticAudioFile.sampleRate
   private static let timedIterations = 5
   private static let timedMinutes = 10
@@ -54,7 +55,7 @@ struct WaveformBandLevelPerfTests {
   // MARK: - Suite entry point
 
   @Test func recordWallClockAndMemory() throws {
-    let folder = try SyntheticAudioFiles.makeFolder(prefix: "WaveformBandLevelPerfTests")
+    let folder = try SyntheticAudioFiles.makeFolder(prefix: "BandWaveformPerfTests")
     defer { try? FileManager.default.removeItem(at: folder) }
 
     // Every fixture is written before any timing starts.
@@ -74,18 +75,18 @@ struct WaveformBandLevelPerfTests {
     for (format, url) in timedFiles {
       let fileBytes =
         (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
-      var levels: WaveformBandLevels?
+      var waveform: BandWaveform?
       let reader = try Self.time {
-        levels = try WaveformBandLevelReader.read(url: url)
+        waveform = try BandWaveformReader.read(url: url)
       }
-      let measured = try #require(levels)
+      let measured = try #require(waveform)
       #expect(measured.peak.count == Self.timedMinutes * 60 * 150)
       let decodeOnly = try Self.time { try Self.decodeOnly(url) }
       var encodedData = Data()
-      let encode = try Self.time { encodedData = measured.encoded() }
-      var decodedLevels: WaveformBandLevels?
+      let encode = try Self.time { encodedData = measured.serializedData() }
+      var decodedLevels: BandWaveform?
       let decode = try Self.time {
-        decodedLevels = WaveformBandLevels.decoded(from: encodedData)
+        decodedLevels = BandWaveform(serializedData: encodedData)
       }
       #expect(decodedLevels == measured)
       print(
@@ -139,7 +140,7 @@ struct WaveformBandLevelPerfTests {
     }
     let short = try #require(peakBytes[10])
     let long = try #require(peakBytes[30])
-    let outputGrowth = (30 - 10) * 60 * 150 * WaveformBandLevels.bytesPerBucket
+    let outputGrowth = (30 - 10) * 60 * 150 * BandWaveform.bytesPerBucket
     let allowed = Int(Double(outputGrowth) * (1 + Self.memorySlack))
     let growth = long - short
     let wholeFileDecode = (30 - 10) * 60 * Int(Self.sampleRate) * 2 * 4
@@ -189,11 +190,11 @@ struct WaveformBandLevelPerfTests {
     let file = try AVAudioFile(forReading: url)
     guard
       let buffer = AVAudioPCMBuffer(
-        pcmFormat: file.processingFormat, frameCapacity: WaveformBandLevelReader.chunkFrames)
+        pcmFormat: file.processingFormat, frameCapacity: BandWaveformReader.chunkFrames)
     else { return }
     while file.framePosition < file.length {
       let requested = min(
-        file.length - file.framePosition, Int64(WaveformBandLevelReader.chunkFrames))
+        file.length - file.framePosition, Int64(BandWaveformReader.chunkFrames))
       try file.read(into: buffer, frameCount: AVAudioFrameCount(requested))
       if buffer.frameLength == 0 { break }
     }
@@ -256,7 +257,7 @@ struct WaveformBandLevelPerfTests {
       childArguments.append(arguments[index])
       index += 1
     }
-    childArguments += ["--filter", "WaveformBandLevelMemoryChildTests"]
+    childArguments += ["--filter", "BandWaveformMemoryChildTests"]
     let process = Process()
     process.executableURL = URL(fileURLWithPath: arguments[0])
     process.arguments = childArguments
@@ -308,8 +309,8 @@ struct WaveformBandLevelPerfTests {
       "createdAt": timestamp,
       "platform": platform,
       "configuration": Self.configuration,
-      "analysisVersion": WaveformBandLevelReader.analysisVersion,
-      "probeSource": "Tests/BoomBoomBoomKitBenchmarkTests/WaveformBandLevelPerfTests.swift",
+      "analysisVersion": BandWaveformReader.analysisVersion,
+      "probeSource": "Tests/BoomBoomBoomKitBenchmarkTests/BandWaveformPerfTests.swift",
       "sampleRate": Self.sampleRate,
       "channels": 2,
       "timedIterations": Self.timedIterations,
@@ -410,21 +411,21 @@ struct WaveformBandLevelPerfTests {
 /// file named by `BBB_WAVEFORM_BAND_MEMORY_FILE`, then the process's peak
 /// resident size in bytes on standard output.
 @Suite(
-  "WaveformBandLevelReader memory child (Story 15.11)",
+  "BandWaveformReader memory child (Story 15.11)",
   .enabled(
     if: ProcessInfo.processInfo.environment[MemoryChild.fileVariable] != nil,
-    "Started by WaveformBandLevelPerfTests with BBB_WAVEFORM_BAND_MEMORY_FILE set"
+    "Started by BandWaveformPerfTests with BBB_WAVEFORM_BAND_MEMORY_FILE set"
   )
 )
-struct WaveformBandLevelMemoryChildTests {
+struct BandWaveformMemoryChildTests {
   @Test func readOnceAndReportPeakMemory() throws {
     let path = try #require(ProcessInfo.processInfo.environment[MemoryChild.fileVariable])
-    let levels = try WaveformBandLevelReader.read(url: URL(fileURLWithPath: path))
+    let waveform = try BandWaveformReader.read(url: URL(fileURLWithPath: path))
     var usage = rusage()
     getrusage(RUSAGE_SELF, &usage)
     // On macOS ru_maxrss is in bytes.
     print("\(MemoryChild.reportPrefix)\(usage.ru_maxrss)")
-    #expect(!levels.peak.isEmpty)
+    #expect(!waveform.peak.isEmpty)
   }
 }
 

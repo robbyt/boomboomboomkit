@@ -2,7 +2,7 @@
 //  WaveformBandFilter.swift
 //  BoomBoomBoomKit
 //
-//  Story 15.11: the internal pieces of `WaveformBandLevelReader` -- the
+//  Story 15.11: the internal pieces of `BandWaveformReader` -- the
 //  three-band filter of one channel, the bucket timebase, and the open
 //  bucket's running sums of squares. Nothing here is shared with
 //  `WaveformAnalyzer`, which uses a different coefficient expression, bin
@@ -232,12 +232,12 @@ struct WaveformBucketTimebase {
 
   /// The bucket holding absolute frame `frame`.
   func bucket(atFrame frame: Int64) -> Int {
-    Int((Double(frame) * WaveformBandLevelReader.bucketsPerSecond / sampleRate).rounded(.down))
+    Int((Double(frame) * BandWaveformReader.bucketsPerSecond / sampleRate).rounded(.down))
   }
 
   /// The first absolute frame of `bucket`.
   func firstFrame(ofBucket bucket: Int) -> Int64 {
-    Int64((Double(bucket) * sampleRate / WaveformBandLevelReader.bucketsPerSecond).rounded(.up))
+    Int64((Double(bucket) * sampleRate / BandWaveformReader.bucketsPerSecond).rounded(.up))
   }
 
   /// Buckets for a file `frames` long, the final partial one included.
@@ -287,7 +287,7 @@ struct WaveformBucketSums {
 
   /// The RMS of the frames added so far, band by band: the louder channel's,
   /// clamped to 1.
-  var rootMeanSquare: WaveformBandLevel {
+  var rootMeanSquare: BandWaveform.Levels {
     guard frames > 0 else { return .silent }
     let frames = Double(frames)
     // Every channel covers the same frames, so the larger sum is the louder
@@ -300,7 +300,7 @@ struct WaveformBucketSums {
       loudest.high = max(loudest.high, sums.high)
     }
     func level(_ sum: Double) -> Float { Float(min((sum / frames).squareRoot(), 1)) }
-    return WaveformBandLevel(
+    return BandWaveform.Levels(
       low: level(loudest.low), mid: level(loudest.mid), high: level(loudest.high))
   }
 }

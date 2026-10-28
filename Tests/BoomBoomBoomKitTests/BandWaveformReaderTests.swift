@@ -1,8 +1,8 @@
 //
-//  WaveformBandLevelReaderTests.swift
+//  BandWaveformReaderTests.swift
 //  BoomBoomBoomKitTests
 //
-//  Story 15.11: `WaveformBandLevelReader` against real WAV and FLAC files
+//  Story 15.11: `BandWaveformReader` against real WAV and FLAC files
 //  written into a temporary folder: bucket placement by absolute frame, maxima
 //  across channels and read chunks, clamping, the final partial bucket, a file
 //  that ends before its header says, the failures, the low, mid and high
@@ -13,7 +13,7 @@
 //  An impulse's high band is measured against `impulsePeak`, the high peak of
 //  a unit impulse fed to `WaveformBandFilter` itself, so no test here
 //  reimplements the filters. The independent filter checks live in
-//  `WaveformBandLevelNumericTests`.
+//  `BandWaveformNumericTests`.
 //
 
 @preconcurrency import AVFoundation
@@ -24,20 +24,20 @@ import Testing
 
 @testable import BoomBoomBoomKit
 
-@Suite("WaveformBandLevelReader")
-struct WaveformBandLevelReaderTests {
+@Suite("BandWaveformReader")
+struct BandWaveformReaderTests {
   private typealias TestFile = SyntheticAudioFile
 
   private static let sampleRate = SyntheticAudioFile.sampleRate
   private static let bucketFrames = SyntheticAudioFile.bucketFrames
-  private static let chunk = Int(WaveformBandLevelReader.chunkFrames)
+  private static let chunk = Int(BandWaveformReader.chunkFrames)
 
   private static func makeFolder() throws -> URL {
-    try SyntheticAudioFiles.makeFolder(prefix: "WaveformBandLevelReaderTests")
+    try SyntheticAudioFiles.makeFolder(prefix: "BandWaveformReaderTests")
   }
 
-  private static func read(_ url: URL) throws -> WaveformBandLevels {
-    try WaveformBandLevelReader.read(url: url)
+  private static func read(_ url: URL) throws -> BandWaveform {
+    try BandWaveformReader.read(url: url)
   }
 
   // MARK: - Peaks per second
@@ -58,13 +58,13 @@ struct WaveformBandLevelReaderTests {
       }
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(levels.bucketsPerSecond == 150)
-    #expect(levels.frameCount == Int64(10 * Int(Self.sampleRate)))
-    #expect(levels.bucketsPerSecond == WaveformBandLevelReader.bucketsPerSecond)
-    #expect(levels.peak.count == 1_500)
-    for (index, level) in levels.peak.map(\.high).enumerated() {
+    #expect(waveform.bucketsPerSecond == 150)
+    #expect(waveform.frameCount == Int64(10 * Int(Self.sampleRate)))
+    #expect(waveform.bucketsPerSecond == BandWaveformReader.bucketsPerSecond)
+    #expect(waveform.peak.count == 1_500)
+    for (index, level) in waveform.peak.map(\.high).enumerated() {
       switch index {
       case ..<600:
         #expect(level == 0, "bucket \(index) is before the burst: \(level)")
@@ -120,9 +120,9 @@ struct WaveformBandLevelReaderTests {
       channels[1][100 * bucket + bucket / 2] = 0.6
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    let high = levels.peak.map { Double($0.high) }
+    let high = waveform.peak.map { Double($0.high) }
     #expect(high[0] == 0)
     #expect(abs(high[1] - 0.4 * unit) <= 1e-6, "bucket 1: \(high[1])")
     #expect(abs(high[222] - 0.6 * unit) <= 1e-6, "bucket 222: \(high[222])")
@@ -142,9 +142,9 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try Self.writeTone(5_000, amplitude: 1.5, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    for (index, level) in zip(Self.steadyBuckets, Self.steady(levels)) {
+    for (index, level) in zip(Self.steadyBuckets, Self.steady(waveform)) {
       #expect(level.high == 1, "bucket \(index): \(level)")
     }
   }
@@ -166,11 +166,11 @@ struct WaveformBandLevelReaderTests {
       samples[samples.count - 1][frames - 1] = -0.7
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     let timebase = WaveformBucketTimebase(sampleRate: sampleRate)
-    #expect(levels.peak.count == timebase.bucketCount(frames: Int64(frames)))
-    let last = try #require(levels.peak.last)
+    #expect(waveform.peak.count == timebase.bucketCount(frames: Int64(frames)))
+    let last = try #require(waveform.peak.last)
     #expect(last.high > 0, "the final partial bucket: \(last)")
   }
 
@@ -193,11 +193,11 @@ struct WaveformBandLevelReaderTests {
     let file = try AVAudioFile(forReading: url)
     let buffer = try #require(
       AVAudioPCMBuffer(
-        pcmFormat: file.processingFormat, frameCapacity: WaveformBandLevelReader.chunkFrames))
+        pcmFormat: file.processingFormat, frameCapacity: BandWaveformReader.chunkFrames))
     var threw = false
     while !threw, file.framePosition < file.length {
       let remaining = min(
-        file.length - file.framePosition, Int64(WaveformBandLevelReader.chunkFrames))
+        file.length - file.framePosition, Int64(BandWaveformReader.chunkFrames))
       do {
         try file.read(into: buffer, frameCount: AVAudioFrameCount(remaining))
       } catch {
@@ -208,10 +208,10 @@ struct WaveformBandLevelReaderTests {
       threw && file.framePosition > 0 && file.framePosition < file.length,
       "the cut file must stop decoding part way: at \(file.framePosition) of \(file.length)")
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(levels.peak.count == 300, "the bucket count comes from the header's 2 s")
-    for (index, level) in levels.peak.map(\.high).enumerated() {
+    #expect(waveform.peak.count == 300, "the bucket count comes from the header's 2 s")
+    for (index, level) in waveform.peak.map(\.high).enumerated() {
       if (37..<75).contains(index) {
         #expect(level > 0.1, "bucket \(index) holds the tone: \(level)")
       } else if index == 75 {
@@ -261,8 +261,8 @@ struct WaveformBandLevelReaderTests {
   }
 
   /// The steady part of a tone's peak levels.
-  private static func steady(_ levels: WaveformBandLevels) -> ArraySlice<WaveformBandLevel> {
-    levels.peak[steadyBuckets]
+  private static func steady(_ waveform: BandWaveform) -> ArraySlice<BandWaveform.Levels> {
+    waveform.peak[steadyBuckets]
   }
 
   @Test("an 80 Hz tone: low about the tone, mid small")
@@ -271,9 +271,9 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try Self.writeTone(80, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    for (index, level) in zip(Self.steadyBuckets, Self.steady(levels)) {
+    for (index, level) in zip(Self.steadyBuckets, Self.steady(waveform)) {
       #expect(level.low >= 0.9 * Self.toneAmplitude, "bucket \(index): \(level)")
       #expect(level.mid <= 0.15 * Self.toneAmplitude, "bucket \(index): \(level)")
     }
@@ -285,9 +285,9 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try Self.writeTone(800, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    for (index, level) in zip(Self.steadyBuckets, Self.steady(levels)) {
+    for (index, level) in zip(Self.steadyBuckets, Self.steady(waveform)) {
       #expect(level.mid >= 0.85 * Self.toneAmplitude, "bucket \(index): \(level)")
       #expect(level.low <= 0.2 * Self.toneAmplitude, "bucket \(index): \(level)")
     }
@@ -299,11 +299,11 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try Self.writeTone(5_000, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     // Modelled: 0.5 x the high band's 0.9187 gain at 5 kHz.
     let modelled: Float = 0.4594
-    for (index, level) in zip(Self.steadyBuckets, Self.steady(levels)) {
+    for (index, level) in zip(Self.steadyBuckets, Self.steady(waveform)) {
       #expect(abs(level.high - modelled) <= 0.01 + 0.03 * modelled, "bucket \(index): \(level)")
       #expect(level.low <= 0.01, "bucket \(index): \(level)")
       #expect(level.mid <= 0.05, "bucket \(index): \(level)")
@@ -318,10 +318,10 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try Self.writeTone(5_000, sampleRate: sampleRate, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(levels.peak.allSatisfy { $0.high.isFinite })
-    for (index, level) in zip(Self.steadyBuckets, Self.steady(levels)) {
+    #expect(waveform.peak.allSatisfy { $0.high.isFinite })
+    for (index, level) in zip(Self.steadyBuckets, Self.steady(waveform)) {
       #expect(level.high >= minimumHigh, "bucket \(index): \(level)")
     }
   }
@@ -334,7 +334,7 @@ struct WaveformBandLevelReaderTests {
     let url = try SyntheticAudioFiles.writeSilentWAV(sampleRate: 6_000, frames: 6_000, in: folder)
     #expect(try AVAudioFile(forReading: url).processingFormat.sampleRate == 6_000, "the premise")
 
-    let error = #expect(throws: WaveformBandLevelError.self) { try Self.read(url) }
+    let error = #expect(throws: BandWaveformError.self) { try Self.read(url) }
     guard case .unsupportedFormat(let errorURL, let rate) = error else {
       Issue.record("expected unsupportedFormat, got \(String(describing: error))")
       return
@@ -371,9 +371,9 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try Self.writeTone(80, antiphase: true, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    for (index, level) in zip(Self.steadyBuckets, Self.steady(levels)) {
+    for (index, level) in zip(Self.steadyBuckets, Self.steady(waveform)) {
       #expect(level.low >= 0.9 * Self.toneAmplitude, "bucket \(index): \(level)")
     }
   }
@@ -393,12 +393,12 @@ struct WaveformBandLevelReaderTests {
       }
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     // Frame 65,536 is in bucket 222; buckets 220 to 225 straddle it.
     #expect(chunk * 150 / Int(Self.sampleRate) == 222)
     for index in 220...225 {
-      let level = levels.peak[index]
+      let level = waveform.peak[index]
       #expect(level.low >= 0.9 * Self.toneAmplitude, "bucket \(index): \(level)")
     }
   }
@@ -418,12 +418,12 @@ struct WaveformBandLevelReaderTests {
       }
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     // Bucket 223 starts 26 frames after the tone stops, all of it in the
     // second chunk: silent input, but the filters' state from the first chunk
     // still rings there. A filter reset at the chunk would leave it 0.
-    let tail = levels.peak[223]
+    let tail = waveform.peak[223]
     #expect(tail.low > 0.01, "bucket 223: \(tail)")
   }
 
@@ -437,13 +437,13 @@ struct WaveformBandLevelReaderTests {
       channels[0][10 * bucket + bucket / 2] = 0.9
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(Self.loudest(levels, \.high) == 10)
-    #expect(Self.loudest(levels, \.mid) == 10)
-    #expect(Self.loudest(levels, \.low) == 10)
+    #expect(Self.loudest(waveform, \.high) == 10)
+    #expect(Self.loudest(waveform, \.mid) == 10)
+    #expect(Self.loudest(waveform, \.low) == 10)
     let unit = try Self.impulsePeak()
-    #expect(abs(Double(levels.peak[10].high) - 0.9 * unit) <= 1e-6)
+    #expect(abs(Double(waveform.peak[10].high) - 0.9 * unit) <= 1e-6)
   }
 
   @Test(
@@ -458,15 +458,15 @@ struct WaveformBandLevelReaderTests {
       channels[1][11 * bucket - 1] = 0.9
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     // The high band peaks 3 frames after the impulse, in the next bucket.
-    #expect(Self.loudest(levels, \.high) == 11)
+    #expect(Self.loudest(waveform, \.high) == 11)
     let unit = try Self.impulsePeak()
-    #expect(abs(Double(levels.peak[11].high) - 0.9 * unit) <= 1e-6)
-    #expect(levels.peak[10].high > 0)
-    #expect([10, 11].contains(Self.loudest(levels, \.mid)))
-    #expect([10, 11].contains(Self.loudest(levels, \.low)))
+    #expect(abs(Double(waveform.peak[11].high) - 0.9 * unit) <= 1e-6)
+    #expect(waveform.peak[10].high > 0)
+    #expect([10, 11].contains(Self.loudest(waveform, \.mid)))
+    #expect([10, 11].contains(Self.loudest(waveform, \.low)))
   }
 
   @Test("NaN and +-Inf, then an 80 Hz tone: the bands stay finite and the tone's low is measured")
@@ -483,10 +483,10 @@ struct WaveformBandLevelReaderTests {
       Self.writeTone(80, antiphase: false, into: channels)
     }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(levels.peak.allSatisfy { $0.low.isFinite && $0.mid.isFinite && $0.high.isFinite })
-    for (index, level) in zip(Self.steadyBuckets, Self.steady(levels)) {
+    #expect(waveform.peak.allSatisfy { $0.low.isFinite && $0.mid.isFinite && $0.high.isFinite })
+    for (index, level) in zip(Self.steadyBuckets, Self.steady(waveform)) {
       #expect(level.low >= 0.9 * Self.toneAmplitude, "bucket \(index): \(level)")
     }
   }
@@ -498,12 +498,12 @@ struct WaveformBandLevelReaderTests {
     let url = try SyntheticAudioFiles.writeFile(TestFile(frames: Int(Self.sampleRate)), in: folder)
     { _ in }
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(levels.peak.count == 150)
-    #expect(levels.peak.allSatisfy { $0 == .silent })
-    #expect(levels.rms.count == 150)
-    #expect(levels.rms.allSatisfy { $0 == .silent })
+    #expect(waveform.peak.count == 150)
+    #expect(waveform.peak.allSatisfy { $0 == .silent })
+    #expect(waveform.rms.count == 150)
+    #expect(waveform.rms.allSatisfy { $0 == .silent })
   }
 
   @Test(
@@ -542,10 +542,10 @@ struct WaveformBandLevelReaderTests {
 
   /// The bucket holding the loudest `band`.
   private static func loudest(
-    _ levels: WaveformBandLevels, _ band: KeyPath<WaveformBandLevel, Float>
+    _ waveform: BandWaveform, _ band: KeyPath<BandWaveform.Levels, Float>
   ) -> Int? {
-    levels.peak.indices.max {
-      levels.peak[$0][keyPath: band] < levels.peak[$1][keyPath: band]
+    waveform.peak.indices.max {
+      waveform.peak[$0][keyPath: band] < waveform.peak[$1][keyPath: band]
     }
   }
 
@@ -567,17 +567,17 @@ struct WaveformBandLevelReaderTests {
   /// band the louder channel's sqrt(mean of squared filtered samples) over the
   /// bucket's frames, clamped to 1.
   private static func referenceRMS(_ channels: [[Float]], sampleRate: Double) throws
-    -> [WaveformBandLevel]
+    -> [BandWaveform.Levels]
   {
     let frames = try #require(channels.first).count
     let rate = Int(sampleRate)
     try #require(Double(rate) == sampleRate, "a whole sample rate, for the integer bucket rule")
-    let perSecond = Int(WaveformBandLevelReader.bucketsPerSecond)
+    let perSecond = Int(BandWaveformReader.bucketsPerSecond)
     guard frames > 0 else { return [] }
     let bucketCount = (frames - 1) * perSecond / rate + 1
     var counts = [Int](repeating: 0, count: bucketCount)
     for frame in 0..<frames { counts[frame * perSecond / rate] += 1 }
-    var rms = [WaveformBandLevel](repeating: .silent, count: bucketCount)
+    var rms = [BandWaveform.Levels](repeating: .silent, count: bucketCount)
     for samples in channels {
       var filter = try #require(WaveformBandFilter(sampleRate: sampleRate))
       samples.withUnsafeBufferPointer { filter.filter($0) }
@@ -589,7 +589,7 @@ struct WaveformBandLevelReaderTests {
       }
       for bucket in 0..<bucketCount {
         let level = sums[bucket].map { Float(min(($0 / Double(counts[bucket])).squareRoot(), 1)) }
-        rms[bucket] = WaveformBandLevel(
+        rms[bucket] = BandWaveform.Levels(
           low: max(rms[bucket].low, level[0]), mid: max(rms[bucket].mid, level[1]),
           high: max(rms[bucket].high, level[2]))
       }
@@ -599,7 +599,8 @@ struct WaveformBandLevelReaderTests {
 
   /// Every band of every bucket of `rms` within `tolerance` of `reference`'s.
   private static func expectRMS(
-    _ rms: some Collection<WaveformBandLevel>, equal reference: some Collection<WaveformBandLevel>,
+    _ rms: some Collection<BandWaveform.Levels>,
+    equal reference: some Collection<BandWaveform.Levels>,
     within tolerance: Float = 1e-6, sourceLocation: SourceLocation = #_sourceLocation
   ) {
     #expect(rms.count == reference.count, sourceLocation: sourceLocation)
@@ -619,7 +620,7 @@ struct WaveformBandLevelReaderTests {
   enum Band: CaseIterable, Sendable {
     case low, mid, high
 
-    func value(_ level: WaveformBandLevel) -> Float {
+    func value(_ level: BandWaveform.Levels) -> Float {
       switch self {
       case .low: level.low
       case .mid: level.mid
@@ -630,8 +631,8 @@ struct WaveformBandLevelReaderTests {
 
   /// Per band, sqrt(mean(x^2)) over `levels`: the aggregate the sine test
   /// compares, computed here rather than by any app code.
-  private static func rootMeanSquare(of levels: some Collection<WaveformBandLevel>)
-    -> WaveformBandLevel
+  private static func rootMeanSquare(of levels: some Collection<BandWaveform.Levels>)
+    -> BandWaveform.Levels
   {
     guard !levels.isEmpty else { return .silent }
     let count = Double(levels.count)
@@ -639,7 +640,7 @@ struct WaveformBandLevelReaderTests {
       let sum = levels.reduce(0.0) { $0 + Double(band.value($1)) * Double(band.value($1)) }
       return Float((sum / count).squareRoot())
     }
-    return WaveformBandLevel(low: mean(.low), mid: mean(.mid), high: mean(.high))
+    return BandWaveform.Levels(low: mean(.low), mid: mean(.mid), high: mean(.high))
   }
 
   @Test(
@@ -650,11 +651,11 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try Self.writeTone(frequency, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     let ratio = 0.5.squareRoot()
-    let peak = levels.peak[Self.steadyBuckets]
-    let rms = levels.rms[Self.steadyBuckets]
+    let peak = waveform.peak[Self.steadyBuckets]
+    let rms = waveform.rms[Self.steadyBuckets]
     for (index, (peak, rms)) in zip(Self.steadyBuckets, zip(peak, rms)) {
       let bucket = Double(band.value(rms)) / Double(band.value(peak))
       #expect(abs(bucket - ratio) <= 0.05, "bucket \(index): \(rms) of \(peak)")
@@ -682,16 +683,16 @@ struct WaveformBandLevelReaderTests {
     let url = try SyntheticAudioFiles.writeFile(
       TestFile(frames: frames), samples: [left, right], in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     let leftOnly = try Self.referenceRMS([left], sampleRate: Self.sampleRate)
-    #expect(levels.rms.count == leftOnly.count)
-    for (index, (level, expected)) in zip(levels.rms, leftOnly).enumerated() {
+    #expect(waveform.rms.count == leftOnly.count)
+    for (index, (level, expected)) in zip(waveform.rms, leftOnly).enumerated() {
       #expect(
         abs(level.low - expected.low) <= 1e-6, "bucket \(index): \(level) against \(expected)")
     }
     #expect(
-      levels.rms[Self.steadyBuckets].allSatisfy { $0.low > 0.3 },
+      waveform.rms[Self.steadyBuckets].allSatisfy { $0.low > 0.3 },
       "the premise: the tone is measured")
   }
 
@@ -722,17 +723,17 @@ struct WaveformBandLevelReaderTests {
     let url = try SyntheticAudioFiles.writeFile(
       TestFile(frames: frames), samples: [samples, samples], in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(!levels.rms.isEmpty && levels.rms.count == levels.peak.count, "measured")
-    for (index, (rms, peak)) in zip(levels.rms, levels.peak).enumerated() {
+    #expect(!waveform.rms.isEmpty && waveform.rms.count == waveform.peak.count, "measured")
+    for (index, (rms, peak)) in zip(waveform.rms, waveform.peak).enumerated() {
       for band in Self.bands {
         #expect(
           band.value(rms) <= band.value(peak) + 1e-6,
           "measured \(index) \(band): \(rms) against \(peak)")
       }
     }
-    #expect(levels.rms.allSatisfy { $0.low > 0 && $0.mid > 0 && $0.high > 0 }, "premise")
+    #expect(waveform.rms.allSatisfy { $0.low > 0 && $0.mid > 0 && $0.high > 0 }, "premise")
   }
 
   @Test(
@@ -759,10 +760,10 @@ struct WaveformBandLevelReaderTests {
     let rightHigh = try Self.referenceRMS([right], sampleRate: Self.sampleRate)[222].high
     #expect(leftHigh > 0 && rightHigh > leftHigh, "premise: \(leftHigh), \(rightHigh)")
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
     Self.expectRMS(
-      levels.rms, equal: try Self.referenceRMS([left, right], sampleRate: Self.sampleRate))
+      waveform.rms, equal: try Self.referenceRMS([left, right], sampleRate: Self.sampleRate))
   }
 
   @Test(
@@ -778,9 +779,9 @@ struct WaveformBandLevelReaderTests {
     try #require(reference.count == 151)
     #expect(reference[150].low > 0.1, "the premise: the partial bucket holds the tone")
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    Self.expectRMS(levels.rms, equal: reference)
+    Self.expectRMS(waveform.rms, equal: reference)
   }
 
   @Test(
@@ -801,12 +802,12 @@ struct WaveformBandLevelReaderTests {
     let file = try AVAudioFile(forReading: url)
     let buffer = try #require(
       AVAudioPCMBuffer(
-        pcmFormat: file.processingFormat, frameCapacity: WaveformBandLevelReader.chunkFrames))
+        pcmFormat: file.processingFormat, frameCapacity: BandWaveformReader.chunkFrames))
     var decoded: [[Float]] = [[], []]
     var threw = false
     while file.framePosition < file.length {
       let remaining = min(
-        file.length - file.framePosition, Int64(WaveformBandLevelReader.chunkFrames))
+        file.length - file.framePosition, Int64(BandWaveformReader.chunkFrames))
       do {
         try file.read(into: buffer, frameCount: AVAudioFrameCount(remaining))
       } catch {
@@ -832,11 +833,11 @@ struct WaveformBandLevelReaderTests {
       "the premise: the last kept bucket is partial (\(kept) frames)")
     #expect(reference[last].low > 0.1, "the premise: the last kept bucket holds the tone")
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(levels.rms.count == 300, "the bucket count comes from the header's 2 s")
-    Self.expectRMS(levels.rms.prefix(reference.count), equal: reference)
-    for (index, level) in levels.rms.enumerated().dropFirst(reference.count) {
+    #expect(waveform.rms.count == 300, "the bucket count comes from the header's 2 s")
+    Self.expectRMS(waveform.rms.prefix(reference.count), equal: reference)
+    for (index, level) in waveform.rms.enumerated().dropFirst(reference.count) {
       #expect(level == .silent, "bucket \(index) is past the real end: \(level)")
     }
   }
@@ -910,7 +911,7 @@ struct WaveformBandLevelReaderTests {
     let maximum = Int64(1) << 36 - 1
     #expect(try AVAudioFile(forReading: url).length == maximum, "the premise")
 
-    let error = #expect(throws: WaveformBandLevelError.self) { try Self.read(url) }
+    let error = #expect(throws: BandWaveformError.self) { try Self.read(url) }
     guard case .durationTooLong(let errorURL, let seconds) = error else {
       Issue.record("expected durationTooLong, got \(String(describing: error))")
       return
@@ -943,7 +944,7 @@ struct WaveformBandLevelReaderTests {
 
     let read = Task {
       withUnsafeCurrentTask { $0?.cancel() }
-      return try WaveformBandLevelReader.read(url: url)
+      return try BandWaveformReader.read(url: url)
     }
 
     await #expect(throws: CancellationError.self) { try await read.value }
@@ -957,15 +958,15 @@ struct WaveformBandLevelReaderTests {
     defer { try? FileManager.default.removeItem(at: folder) }
     let url = try SyntheticAudioFiles.writeFile(TestFile(frames: 0), in: folder) { _ in }
     #expect(try AVAudioFile(forReading: url).length == 0, "the premise")
-    var options = WaveformBandLevelReader.Options()
+    var options = BandWaveformReader.Options()
     options.isCancelled = { true }
 
-    let levels = try WaveformBandLevelReader.read(url: url, options: options)
+    let waveform = try BandWaveformReader.read(url: url, options: options)
 
-    #expect(levels.peak.isEmpty)
-    #expect(levels.rms.isEmpty)
-    #expect(levels.frameCount == 0)
-    #expect(levels.framesRead == 0)
+    #expect(waveform.peak.isEmpty)
+    #expect(waveform.rms.isEmpty)
+    #expect(waveform.frameCount == 0)
+    #expect(waveform.framesRead == 0)
   }
 
   @Test("isCancelled turning true at the second chunk check throws CancellationError")
@@ -976,7 +977,7 @@ struct WaveformBandLevelReaderTests {
       TestFile(frames: 2 * Int(Self.sampleRate)), in: folder
     ) { _ in }
     let checks = Mutex(0)
-    var options = WaveformBandLevelReader.Options()
+    var options = BandWaveformReader.Options()
     options.isCancelled = {
       checks.withLock { count in
         count += 1
@@ -985,7 +986,7 @@ struct WaveformBandLevelReaderTests {
     }
 
     #expect(throws: CancellationError.self) {
-      try WaveformBandLevelReader.read(url: url, options: options)
+      try BandWaveformReader.read(url: url, options: options)
     }
     #expect(checks.withLock { $0 } == 2, "the first chunk was read before the second check")
   }
@@ -999,9 +1000,9 @@ struct WaveformBandLevelReaderTests {
     ) { _ in }
 
     await #expect(throws: CancellationError.self) {
-      try await withThrowingTaskGroup(of: WaveformBandLevels.self) { group in
+      try await withThrowingTaskGroup(of: BandWaveform.self) { group in
         group.cancelAll()
-        group.addTask { try WaveformBandLevelReader.read(url: url) }
+        group.addTask { try BandWaveformReader.read(url: url) }
         return try await group.next()
       }
     }
@@ -1018,12 +1019,12 @@ struct WaveformBandLevelReaderTests {
     #expect(try AVAudioFile(forReading: url).processingFormat.sampleRate == rate, "the premise")
     #expect(try #require(WaveformBandFilter(sampleRate: rate)).highSectionCount == 1)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
 
-    #expect(levels.sampleRate == rate)
-    #expect(levels.peak.count == 150)
-    #expect(levels.peak.allSatisfy { $0.low.isFinite && $0.mid.isFinite && $0.high.isFinite })
-    #expect(levels.peak[75].low >= 0.9 * 0.5, "the tone is measured: \(levels.peak[75])")
+    #expect(waveform.sampleRate == rate)
+    #expect(waveform.peak.count == 150)
+    #expect(waveform.peak.allSatisfy { $0.low.isFinite && $0.mid.isFinite && $0.high.isFinite })
+    #expect(waveform.peak[75].low >= 0.9 * 0.5, "the tone is measured: \(waveform.peak[75])")
   }
 
   @Test(
@@ -1046,13 +1047,13 @@ struct WaveformBandLevelReaderTests {
       TestFile(frames: frames, sampleRate: sampleRate), samples: [left, right], in: folder)
     #expect(try AVAudioFile(forReading: url).processingFormat.sampleRate == sampleRate)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
     let expected = DirectFormCascade.levels([left, right], sampleRate: sampleRate)
 
-    #expect(levels.peak.count == expected.peak.count)
+    #expect(waveform.peak.count == expected.peak.count)
     #expect(expected.peak[100].high > 0.3, "the premise: the tone is in the high band")
-    DirectFormCascade.expectLevels(levels.peak, near: expected.peak, within: 1e-6)
-    DirectFormCascade.expectLevels(levels.rms, near: expected.rms, within: 1e-6)
+    DirectFormCascade.expectLevels(waveform.peak, near: expected.peak, within: 1e-6)
+    DirectFormCascade.expectLevels(waveform.rms, near: expected.rms, within: 1e-6)
   }
 
   @Test(
@@ -1079,33 +1080,33 @@ struct WaveformBandLevelReaderTests {
     let url = try SyntheticAudioFiles.writeFile(
       TestFile(frames: frames, channels: 6), samples: channels, in: folder)
 
-    let levels = try Self.read(url)
+    let waveform = try Self.read(url)
     let expected = DirectFormCascade.levels(channels, sampleRate: Self.sampleRate)
     let perChannel = channels.map { DirectFormCascade.levels([$0], sampleRate: Self.sampleRate) }
 
-    #expect(levels.channelCount == 6)
-    #expect(levels.peak.count == expected.peak.count)
+    #expect(waveform.channelCount == 6)
+    #expect(waveform.peak.count == expected.peak.count)
     // Each band follows its own loudest channel: channel 0 for low, 1 for mid,
     // 2 for high before the read chunk's end and 3 after it.
     for bucket in [100, 250] {
-      #expect(abs(levels.peak[bucket].low - perChannel[0].peak[bucket].low) <= 1e-6)
-      #expect(abs(levels.peak[bucket].mid - perChannel[1].peak[bucket].mid) <= 1e-6)
-      #expect(abs(levels.rms[bucket].low - perChannel[0].rms[bucket].low) <= 1e-6)
-      #expect(abs(levels.rms[bucket].mid - perChannel[1].rms[bucket].mid) <= 1e-6)
+      #expect(abs(waveform.peak[bucket].low - perChannel[0].peak[bucket].low) <= 1e-6)
+      #expect(abs(waveform.peak[bucket].mid - perChannel[1].peak[bucket].mid) <= 1e-6)
+      #expect(abs(waveform.rms[bucket].low - perChannel[0].rms[bucket].low) <= 1e-6)
+      #expect(abs(waveform.rms[bucket].mid - perChannel[1].rms[bucket].mid) <= 1e-6)
     }
-    #expect(abs(levels.peak[100].high - perChannel[2].peak[100].high) <= 1e-6)
-    #expect(abs(levels.peak[250].high - perChannel[3].peak[250].high) <= 1e-6)
+    #expect(abs(waveform.peak[100].high - perChannel[2].peak[100].high) <= 1e-6)
+    #expect(abs(waveform.peak[250].high - perChannel[3].peak[250].high) <= 1e-6)
     // The premise: in bucket 222 the high winner changes at the split.
     let split = 222
     #expect(perChannel[2].rms[split].high > 0 && perChannel[3].rms[split].high > 0)
     #expect(perChannel[3].peak[split].high > perChannel[2].peak[split].high)
     // The split bucket equals the cascade over the whole signal.
     #expect(
-      levels.peak[split] == expected.peak[split],
-      "\(levels.peak[split]) against \(expected.peak[split])")
-    DirectFormCascade.expectLevels([levels.rms[split]], near: [expected.rms[split]], within: 1e-6)
-    DirectFormCascade.expectLevels(levels.peak, near: expected.peak, within: 1e-6)
-    DirectFormCascade.expectLevels(levels.rms, near: expected.rms, within: 1e-6)
+      waveform.peak[split] == expected.peak[split],
+      "\(waveform.peak[split]) against \(expected.peak[split])")
+    DirectFormCascade.expectLevels([waveform.rms[split]], near: [expected.rms[split]], within: 1e-6)
+    DirectFormCascade.expectLevels(waveform.peak, near: expected.peak, within: 1e-6)
+    DirectFormCascade.expectLevels(waveform.rms, near: expected.rms, within: 1e-6)
   }
 
   @Test(
@@ -1118,15 +1119,15 @@ struct WaveformBandLevelReaderTests {
     { _ in }
 
     for (url, formatID) in [(flac, kAudioFormatFLAC), (wav, kAudioFormatLinearPCM)] {
-      let levels = try Self.read(url)
+      let waveform = try Self.read(url)
       let file = try AVAudioFile(forReading: url)
-      #expect(levels.source.formatID == formatID)
-      #expect(levels.source.processingFormat == "float32 deinterleaved 2ch 44100.0Hz")
-      #expect(levels.sampleRate == file.processingFormat.sampleRate)
-      #expect(levels.channelCount == Int(file.processingFormat.channelCount))
-      #expect(levels.frameCount == file.length)
-      #expect(levels.framesRead == file.length)
-      #expect(levels.analysisVersion == WaveformBandLevelReader.analysisVersion)
+      #expect(waveform.source.formatID == formatID)
+      #expect(waveform.source.processingFormat == "float32 deinterleaved 2ch 44100.0Hz")
+      #expect(waveform.sampleRate == file.processingFormat.sampleRate)
+      #expect(waveform.channelCount == Int(file.processingFormat.channelCount))
+      #expect(waveform.frameCount == file.length)
+      #expect(waveform.framesRead == file.length)
+      #expect(waveform.analysisVersion == BandWaveformReader.analysisVersion)
     }
   }
 }

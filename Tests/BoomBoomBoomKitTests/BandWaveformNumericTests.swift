@@ -1,5 +1,5 @@
 //
-//  WaveformBandLevelNumericTests.swift
+//  BandWaveformNumericTests.swift
 //  BoomBoomBoomKitTests
 //
 //  Story 15.11 (DD-12 b): checks of the three-band waveform measurement
@@ -7,7 +7,8 @@
 //  the pinned bits of the filter quality, closed-form cookbook coefficients,
 //  a scalar Double direct-form cascade as the filter reference, hand-computed
 //  bucket boundaries, and a bucket split by the read chunk. Then a sweep over
-//  every bundled codec fixture.
+//  every bundled codec fixture, and the bucket time queries and band subscript
+//  of `BandWaveform`.
 //
 
 @preconcurrency import AVFoundation
@@ -93,7 +94,7 @@ enum DirectFormCascade {
   /// magnitude of any channel and the RMS the louder channel's, both clamped to
   /// 1.
   static func levels(_ channels: [[Float]], sampleRate: Double) -> (
-    peak: [WaveformBandLevel], rms: [WaveformBandLevel]
+    peak: [BandWaveform.Levels], rms: [BandWaveform.Levels]
   ) {
     let frames = channels.first?.count ?? 0
     guard frames > 0 else { return ([], []) }
@@ -101,9 +102,9 @@ enum DirectFormCascade {
     let bucketCount = bucket(frames - 1) + 1
     var counts = [Int](repeating: 0, count: bucketCount)
     for frame in 0..<frames { counts[bucket(frame)] += 1 }
-    var peak = [WaveformBandLevel](repeating: .silent, count: bucketCount)
-    var rms = [WaveformBandLevel](repeating: .silent, count: bucketCount)
-    let bands: [WritableKeyPath<WaveformBandLevel, Float>] = [\.low, \.mid, \.high]
+    var peak = [BandWaveform.Levels](repeating: .silent, count: bucketCount)
+    var rms = [BandWaveform.Levels](repeating: .silent, count: bucketCount)
+    let bands: [WritableKeyPath<BandWaveform.Levels, Float>] = [\.low, \.mid, \.high]
     for samples in channels {
       let outputs = [
         filter(samples, low(sampleRate: sampleRate)),
@@ -131,13 +132,13 @@ enum DirectFormCascade {
 
   /// Every band of every bucket within `tolerance`, and equal counts.
   static func expectLevels(
-    _ actual: [WaveformBandLevel], near expected: [WaveformBandLevel], within tolerance: Float,
+    _ actual: [BandWaveform.Levels], near expected: [BandWaveform.Levels], within tolerance: Float,
     sourceLocation: SourceLocation = #_sourceLocation
   ) {
     #expect(actual.count == expected.count, sourceLocation: sourceLocation)
     var failures = 0
     for (index, (level, reference)) in zip(actual, expected).enumerated() {
-      for band in [\WaveformBandLevel.low, \.mid, \.high]
+      for band in [\BandWaveform.Levels.low, \.mid, \.high]
       where abs(level[keyPath: band] - reference[keyPath: band]) > tolerance {
         failures += 1
         if failures <= 5 {
@@ -152,8 +153,8 @@ enum DirectFormCascade {
 
 // MARK: - Numeric checks
 
-@Suite("WaveformBandLevel numeric checks")
-struct WaveformBandLevelNumericTests {
+@Suite("BandWaveform numeric checks")
+struct BandWaveformNumericTests {
   private static let rates: [Double] = [44_100, 48_000, 96_000, 18_000, 18_001]
 
   @Test("quality is 0.5.squareRoot(), bit for bit")
@@ -261,10 +262,10 @@ struct WaveformBandLevelNumericTests {
   @Test(
     "a bucket split by the read chunk: its peak and RMS equal the cascade over the whole signal")
   func bucketSplitByReadChunkMatchesCascade() throws {
-    let folder = try SyntheticAudioFiles.makeFolder(prefix: "WaveformBandLevelNumericTests")
+    let folder = try SyntheticAudioFiles.makeFolder(prefix: "BandWaveformNumericTests")
     defer { try? FileManager.default.removeItem(at: folder) }
     let frames = 2 * Int(SyntheticAudioFile.sampleRate)
-    let chunk = Int(WaveformBandLevelReader.chunkFrames)
+    let chunk = Int(BandWaveformReader.chunkFrames)
     let left = SyntheticAudioFiles.noiseAndTones(frames: frames)
     let burst = SyntheticAudioFiles.sine(5_000, amplitude: 0.9, frames: frames)
     let right = (0..<frames).map { $0 < chunk ? 0 : burst[$0] }
@@ -273,19 +274,19 @@ struct WaveformBandLevelNumericTests {
     // Bucket 222 spans frames 65,268..<65,562, across the chunk at 65,536.
     let split = 222
 
-    let levels = try WaveformBandLevelReader.read(url: url)
+    let waveform = try BandWaveformReader.read(url: url)
     let expected = DirectFormCascade.levels(
       [left, right], sampleRate: SyntheticAudioFile.sampleRate)
 
     #expect(
-      levels.peak[split] == expected.peak[split],
-      "\(levels.peak[split]) against \(expected.peak[split])")
-    for band in [\WaveformBandLevel.low, \.mid, \.high] {
+      waveform.peak[split] == expected.peak[split],
+      "\(waveform.peak[split]) against \(expected.peak[split])")
+    for band in [\BandWaveform.Levels.low, \.mid, \.high] {
       #expect(
-        abs(levels.rms[split][keyPath: band] - expected.rms[split][keyPath: band]) <= 1e-6,
-        "\(levels.rms[split]) against \(expected.rms[split])")
+        abs(waveform.rms[split][keyPath: band] - expected.rms[split][keyPath: band]) <= 1e-6,
+        "\(waveform.rms[split]) against \(expected.rms[split])")
     }
-    DirectFormCascade.expectLevels(levels.rms, near: expected.rms, within: 1e-6)
+    DirectFormCascade.expectLevels(waveform.rms, near: expected.rms, within: 1e-6)
   }
 
   // MARK: - Non-finite input
@@ -321,21 +322,21 @@ struct WaveformBandLevelNumericTests {
     }
     let integerPCM = description(kAudioFormatLinearPCM, flags: kAudioFormatFlagIsSignedInteger)
     let floatPCM = description(kAudioFormatLinearPCM, flags: kAudioFormatFlagIsFloat)
-    #expect(!WaveformBandLevelReader.mayDecodeNonFinite(integerPCM))
-    #expect(WaveformBandLevelReader.mayDecodeNonFinite(floatPCM))
+    #expect(!BandWaveformReader.mayDecodeNonFinite(integerPCM))
+    #expect(BandWaveformReader.mayDecodeNonFinite(floatPCM))
     for formatID in [
       kAudioFormatFLAC, kAudioFormatAppleLossless, kAudioFormatULaw, kAudioFormatALaw,
     ] {
-      #expect(!WaveformBandLevelReader.mayDecodeNonFinite(description(formatID)), "\(formatID)")
+      #expect(!BandWaveformReader.mayDecodeNonFinite(description(formatID)), "\(formatID)")
     }
     for formatID in [kAudioFormatMPEGLayer3, kAudioFormatMPEG4AAC, kAudioFormatOpus, 0x7A7A_7A7A] {
-      #expect(WaveformBandLevelReader.mayDecodeNonFinite(description(formatID)), "\(formatID)")
+      #expect(BandWaveformReader.mayDecodeNonFinite(description(formatID)), "\(formatID)")
     }
   }
 
   @Test("a 16-bit WAV and the float WAV of the same signal measure alike")
   func integerWAVMeasuresLikeFloatWAV() throws {
-    let folder = try SyntheticAudioFiles.makeFolder(prefix: "WaveformBandLevelNumericTests")
+    let folder = try SyntheticAudioFiles.makeFolder(prefix: "BandWaveformNumericTests")
     defer { try? FileManager.default.removeItem(at: folder) }
     // Whole multiples of 1/32768, so 16-bit storage keeps every sample exactly.
     let signal = SyntheticAudioFiles.noiseAndTones(frames: 70_000).map {
@@ -347,8 +348,8 @@ struct WaveformBandLevelNumericTests {
       SyntheticAudioFile(frames: signal.count, container: .wav16), samples: [signal, signal],
       in: folder)
 
-    let floatLevels = try WaveformBandLevelReader.read(url: float)
-    let integerLevels = try WaveformBandLevelReader.read(url: integer)
+    let floatLevels = try BandWaveformReader.read(url: float)
+    let integerLevels = try BandWaveformReader.read(url: integer)
 
     #expect(floatLevels.peak == integerLevels.peak)
     #expect(floatLevels.rms == integerLevels.rms)
@@ -373,18 +374,18 @@ struct WaveformBandLevelNumericTests {
   func bundledFixtureReads(name: String, fileExtension: String) throws {
     let url = try AudioFixtures.url(for: name, extension: fileExtension)
 
-    let levels = try WaveformBandLevelReader.read(url: url)
+    let waveform = try BandWaveformReader.read(url: url)
 
     let file = try AVAudioFile(forReading: url)
-    #expect(levels.frameCount == file.length)
-    #expect(levels.framesRead <= levels.frameCount)
-    let expectedCount = WaveformBandLevels.bucketCount(
-      frameCount: levels.frameCount, sampleRate: levels.sampleRate)
-    #expect(levels.peak.count == expectedCount)
-    #expect(levels.rms.count == expectedCount)
-    #expect(!levels.peak.isEmpty)
-    for (index, (peak, rms)) in zip(levels.peak, levels.rms).enumerated() {
-      for band in [\WaveformBandLevel.low, \.mid, \.high] {
+    #expect(waveform.frameCount == file.length)
+    #expect(waveform.framesRead <= waveform.frameCount)
+    let expectedCount = BandWaveform.bucketCount(
+      frameCount: waveform.frameCount, sampleRate: waveform.sampleRate)
+    #expect(waveform.peak.count == expectedCount)
+    #expect(waveform.rms.count == expectedCount)
+    #expect(!waveform.peak.isEmpty)
+    for (index, (peak, rms)) in zip(waveform.peak, waveform.rms).enumerated() {
+      for band in [\BandWaveform.Levels.low, \.mid, \.high] {
         let p = peak[keyPath: band]
         let r = rms[keyPath: band]
         guard (0...1).contains(p), (0...1).contains(r), r <= p + 1e-6 else {
@@ -392,6 +393,167 @@ struct WaveformBandLevelNumericTests {
           return
         }
       }
+    }
+  }
+}
+
+// MARK: - Bucket times and bands
+
+@Suite("BandWaveform bucket times and bands")
+struct BandWaveformTimeTests {
+  private static let source = BandWaveform.Source(
+    formatID: 0x6C70_636D, processingFormat: "float32 deinterleaved 1ch 44100.0Hz")
+
+  /// The four rates the bucket boundaries are hand-checked at in
+  /// `bucketBoundariesMatchHandComputedValues`, plus one that is not a whole
+  /// number of Hz.
+  static let rates: [Double] = [11_025, 44_100, 48_000, 96_000, 22_050.123456789012]
+
+  /// A silent waveform `seconds` long at `sampleRate`, built without a file.
+  private static func waveform(seconds: Double, sampleRate: Double) throws -> BandWaveform {
+    let frameCount = Int64((seconds * sampleRate).rounded(.down))
+    let buckets = try #require(
+      BandWaveform.bucketCount(frameCount: frameCount, sampleRate: sampleRate))
+    let silent = [BandWaveform.Levels](repeating: .silent, count: buckets)
+    return try #require(
+      BandWaveform(
+        peak: silent, rms: silent, sampleRate: sampleRate, channelCount: 1,
+        frameCount: frameCount, framesRead: frameCount, source: source))
+  }
+
+  @Test("every bucket's start time maps back to that bucket (10 minutes)", arguments: rates)
+  func startTimeRoundTrips(sampleRate: Double) throws {
+    let waveform = try Self.waveform(seconds: 600, sampleRate: sampleRate)
+    #expect(waveform.peak.count == 90_000, "the premise: 150 buckets per second")
+    var previous = -Double.infinity
+    var missing = 0
+    var mismatches = 0
+    var notIncreasing = 0
+    var pastEnd = 0
+    var beforeCadence = 0
+    var frameOrMoreAfterCadence = 0
+    for bucket in waveform.peak.indices {
+      guard let start = waveform.startTime(ofBucket: bucket) else {
+        missing += 1
+        continue
+      }
+      if waveform.bucket(at: start) != bucket { mismatches += 1 }
+      if start <= previous { notIncreasing += 1 }
+      if start >= waveform.duration { pastEnd += 1 }
+      // The first frame at or after i / 150 s: never before it, and less than
+      // one frame after it.
+      let cadence = Double(bucket) / 150
+      if start < cadence { beforeCadence += 1 }
+      if start - 1 / sampleRate >= cadence { frameOrMoreAfterCadence += 1 }
+      previous = start
+    }
+    #expect(missing == 0)
+    #expect(mismatches == 0)
+    #expect(notIncreasing == 0, "start times increase")
+    #expect(pastEnd == 0)
+    #expect(beforeCadence == 0)
+    #expect(frameOrMoreAfterCadence == 0)
+    #expect(waveform.startTime(ofBucket: 0) == 0)
+  }
+
+  @Test(
+    "the returned bucket starts at or before the time, and the next one after it",
+    arguments: rates)
+  func bucketHoldsTheTime(sampleRate: Double) throws {
+    let waveform = try Self.waveform(seconds: 600, sampleRate: sampleRate)
+    var times: [Double] = [0, .leastNonzeroMagnitude, waveform.duration.nextDown]
+    var rng = SplitMix64(seed: 0x15_11)
+    for _ in 0..<20_000 {
+      let unit = Double(rng.next() >> 11) / Double(UInt64(1) << 53)
+      times.append(unit * waveform.duration)
+    }
+    // Both sides of every 97th boundary, and of the last one.
+    for bucket in Array(stride(from: 1, to: waveform.peak.count, by: 97))
+      + [waveform.peak.count - 1]
+    {
+      let start = try #require(waveform.startTime(ofBucket: bucket))
+      times += [start.nextDown, start, start.nextUp, Double(bucket) / 150]
+    }
+    var failures = 0
+    for time in times where time >= 0 && time < waveform.duration {
+      guard let bucket = waveform.bucket(at: time),
+        let start = waveform.startTime(ofBucket: bucket), start <= time
+      else {
+        failures += 1
+        continue
+      }
+      if let next = waveform.startTime(ofBucket: bucket + 1), next <= time { failures += 1 }
+    }
+    #expect(failures == 0)
+  }
+
+  @Test("bucket 1 at 11,025 Hz starts at frame 74, not at 1/150 s")
+  func bucketsDoNotStartAtMultiplesOfTheCadence() throws {
+    let waveform = try Self.waveform(seconds: 1, sampleRate: 11_025)
+    #expect(waveform.startTime(ofBucket: 1) == 74.0 / 11_025)
+    #expect(waveform.startTime(ofBucket: 1) != 1.0 / 150)
+    // 1/150 s is frame 73.5, so it plays frame 73, which is in bucket 0. The
+    // naive `Int(seconds * 150)` says bucket 1.
+    #expect(waveform.bucket(at: 1.0 / 150) == 0)
+    #expect(Int(1.0 / 150 * 150) == 1)
+  }
+
+  @Test("out-of-range and non-finite queries are nil")
+  func outOfRangeQueriesAreNil() throws {
+    let waveform = try Self.waveform(seconds: 2, sampleRate: 44_100)
+    let count = waveform.peak.count
+    #expect(count == 300)
+    for bucket in [-1, Int.min, count, count + 1, Int.max] {
+      #expect(waveform.startTime(ofBucket: bucket) == nil, "bucket \(bucket)")
+    }
+    #expect(waveform.startTime(ofBucket: count - 1) != nil)
+    let times: [Double] = [
+      -1, -.leastNonzeroMagnitude, waveform.duration, waveform.duration.nextUp, .nan,
+      .signalingNaN, .infinity, -.infinity, .greatestFiniteMagnitude,
+      -.greatestFiniteMagnitude, 1e300,
+    ]
+    for time in times {
+      #expect(waveform.bucket(at: time) == nil, "time \(time)")
+    }
+    #expect(waveform.duration == 2)
+    #expect(waveform.bucket(at: waveform.duration.nextDown) == count - 1)
+    #expect(waveform.bucket(at: 0) == 0)
+  }
+
+  @Test("an empty waveform has duration 0 and answers every query with nil")
+  func emptyWaveformQueriesAreNil() throws {
+    let waveform = try #require(
+      BandWaveform(
+        peak: [], rms: [], sampleRate: 48_000, channelCount: 2, frameCount: 0, framesRead: 0,
+        source: Self.source))
+    #expect(waveform.duration == 0)
+    for bucket in [-1, 0, 1, Int.max] {
+      #expect(waveform.startTime(ofBucket: bucket) == nil)
+    }
+    for time in [0, 1e-9, 1, -1, .nan, .infinity] as [Double] {
+      #expect(waveform.bucket(at: time) == nil)
+    }
+  }
+
+  @Test("the band subscript reads and writes the named band")
+  func bandSubscriptReadsAndWrites() {
+    #expect(BandWaveform.Band.allCases == [.low, .mid, .high])
+    #expect(BandWaveform.Band.allCases.map(\.rawValue) == ["low", "mid", "high"])
+    var levels = BandWaveform.Levels.silent
+    levels[.mid] = 0.5
+    #expect(levels.mid == 0.5)
+    #expect(levels.low == 0 && levels.high == 0)
+    levels[.low] = 0.25
+    levels[.high] = 1
+    #expect(levels == BandWaveform.Levels(low: 0.25, mid: 0.5, high: 1))
+    for band in BandWaveform.Band.allCases {
+      let expected: Float =
+        switch band {
+        case .low: 0.25
+        case .mid: 0.5
+        case .high: 1
+        }
+      #expect(levels[band] == expected, "\(band)")
     }
   }
 }

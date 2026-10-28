@@ -238,11 +238,11 @@ struct LoudnessChart: View {
 
 ## Waveform levels
 
-`WaveformBandLevelReader.read(url:options:)` measures a file's low, mid and high band peak and RMS, 150 values per second. Each channel is filtered into three bands (a 300 Hz low-pass; a 250 Hz high-pass then a 1,200 Hz low-pass; a 3,000 Hz high-pass then, at sample rates above 18 kHz, a 9,000 Hz low-pass). For each bucket and band, `peak` holds the largest magnitude of any channel and `rms` the louder channel's RMS, as linear values from 0 to 1. The file is streamed in fixed chunks, so memory holds one 65,536-frame chunk, four 65,536-sample `Double` filter buffers per channel (about 2 MiB per channel), and the two output arrays. A header that claims more than 12 hours throws `WaveformBandLevelError.durationTooLong` before anything is allocated from it.
+`BandWaveformReader.read(url:options:)` returns a `BandWaveform`: a file's low, mid and high band peak and RMS, 150 values per second. Each channel is filtered into three bands (a 300 Hz low-pass; a 250 Hz high-pass then a 1,200 Hz low-pass; a 3,000 Hz high-pass then, at sample rates above 18 kHz, a 9,000 Hz low-pass). For each bucket and band, `peak` holds the largest magnitude of any channel and `rms` the louder channel's RMS, as linear values from 0 to 1. Each element is a `BandWaveform.Levels` with `low`, `mid` and `high`, also readable as `levels[band]` for each `BandWaveform.Band` in `Band.allCases`. The file is streamed in fixed chunks, so memory holds one 65,536-frame chunk, four 65,536-sample `Double` filter buffers per channel (about 2 MiB per channel), and the two output arrays. A header that claims more than 12 hours throws `BandWaveformError.durationTooLong` before anything is allocated from it.
 
 ### Caching waveforms
 
-Measuring reads and filters the whole file every time. Caching the result means a track is measured once. The library never stores anything: your app chooses the cache key and the store (a folder of files, a database blob, memory) and owns the size limit. The library owns the byte format, `encoded()` and `decoded(from:)`, and decides whether stored bytes are still usable. The encoded bytes carry no key, so any key scheme works.
+Measuring reads and filters the whole file every time. Caching the result means a track is measured once. The library never stores anything: your app chooses the cache key and the store (a folder of files, a database blob, memory) and owns the size limit. The library owns the byte format, `serializedData()` and `init?(serializedData:)`, and decides whether stored bytes are still usable. The bytes carry no key, so any key scheme works.
 
 Two common keys:
 
@@ -264,13 +264,13 @@ func waveformKey(for url: URL) throws -> String {
   return SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
 }
 
-/// Returns the stored levels when the cache file is usable. Otherwise measures
+/// Returns the stored waveform when the cache file is usable. Otherwise measures
 /// the track, stores the result and returns it.
-func waveformLevels(for trackURL: URL, cacheFolder: URL) throws -> WaveformBandLevels {
+func loadWaveform(for trackURL: URL, cacheFolder: URL) throws -> BandWaveform {
   let cacheURL = cacheFolder.appending(path: "\(try waveformKey(for: trackURL)).waveform")
 
   if let stored = try? Data(contentsOf: cacheURL) {
-    if let cached = WaveformBandLevels.decoded(from: stored) {
+    if let cached = BandWaveform(serializedData: stored) {
       return cached
     }
     // nil: the bytes are damaged or come from an older analysisVersion.
@@ -278,25 +278,25 @@ func waveformLevels(for trackURL: URL, cacheFolder: URL) throws -> WaveformBandL
     try? FileManager.default.removeItem(at: cacheURL)
   }
 
-  let levels = try WaveformBandLevelReader.read(url: trackURL)
-  // A failed write costs only the cache entry; the measured levels are still returned.
-  try? levels.encoded().write(to: cacheURL, options: .atomic)
-  return levels
+  let waveform = try BandWaveformReader.read(url: trackURL)
+  // A failed write costs only the cache entry; the measured waveform is still returned.
+  try? waveform.serializedData().write(to: cacheURL, options: .atomic)
+  return waveform
 }
 ```
 
-For a content-hash key, hash the audio file's bytes instead of the identity string. The store does not have to be a folder. `encoded()` returns plain `Data`, so a dictionary, a database blob column or any key-value store works, keyed however you like:
+For a content-hash key, hash the audio file's bytes instead of the identity string. The store does not have to be a folder. `serializedData()` returns plain `Data`, so a dictionary, a database blob column or any key-value store works, keyed however you like:
 
 ```swift
 var store: [String: Data] = [:]  // or a database table keyed by your track ID
 
 let key = trackID  // any key your app already has
-let levels: WaveformBandLevels
-if let bytes = store[key], let cached = WaveformBandLevels.decoded(from: bytes) {
-  levels = cached
+let waveform: BandWaveform
+if let bytes = store[key], let cached = BandWaveform(serializedData: bytes) {
+  waveform = cached
 } else {
-  levels = try WaveformBandLevelReader.read(url: trackURL)
-  store[key] = levels.encoded()
+  waveform = try BandWaveformReader.read(url: trackURL)
+  store[key] = waveform.serializedData()
 }
 ```
 
@@ -304,29 +304,36 @@ Run it off the main thread. Cancelling the task stops a fresh measurement before
 
 ```swift
 let load = Task.detached(priority: .userInitiated) {
-  try waveformLevels(for: trackURL, cacheFolder: cacheFolder)
+  try loadWaveform(for: trackURL, cacheFolder: cacheFolder)
 }
 // Later, if the user loads another track first:
 load.cancel()
 ```
 
-To use the result, bucket `i` covers the audio from `Double(i) / levels.bucketsPerSecond` seconds onward:
+To use the result, ask the waveform where each bucket starts. Bucket `i` starts at the first frame at or after `i / 150` seconds, so `Double(i) / 150` can be off by up to one sample; `startTime(ofBucket:)` and `bucket(at:)` use the reader's own frame arithmetic and return `nil` for an index or time outside the file:
 
 ```swift
-let levels = try await load.value
-for index in levels.peak.indices {
-  let seconds = Double(index) / levels.bucketsPerSecond
-  let peak = levels.peak[index]  // peak.low, peak.mid, peak.high in 0...1
-  let rms = levels.rms[index]    // rms.low, rms.mid, rms.high in 0...1
-  // Draw the three bands at `seconds`.
+let waveform = try await load.value
+for index in waveform.peak.indices {
+  guard let seconds = waveform.startTime(ofBucket: index) else { continue }
+  let peak = waveform.peak[index]  // peak.low, peak.mid, peak.high in 0...1
+  let rms = waveform.rms[index]    // rms.low, rms.mid, rms.high in 0...1
+  for band in BandWaveform.Band.allCases {
+    // Draw peak[band] and rms[band] at `seconds`.
+  }
+}
+
+// The bucket under the playhead, or nil past the end of the file.
+if let index = waveform.bucket(at: playheadSeconds) {
+  let level = waveform.peak[index][.mid]
 }
 ```
 
 What to know when caching:
 
-- **`nil` from `decoded(from:)` always means discard and measure again.** It never throws. A checksum covers every stored byte, so damaged or truncated bytes and bytes written before the current `WaveformBandLevelReader.analysisVersion` all return `nil`. A library update that changes the measurement changes `analysisVersion`, and old entries are measured again on their next load. The bytes do not record which audio file they came from; your key does.
+- **`nil` from `init?(serializedData:)` always means discard and measure again.** It never throws. A checksum covers every stored byte, so damaged or truncated bytes and bytes written before the current `BandWaveformReader.analysisVersion` all return `nil`. A library update that changes the measurement changes `analysisVersion`, and old entries are measured again on their next load. The bytes do not record which audio file they came from; your key does.
 - **Write atomically.** `.atomic` writes to a temporary file and renames it into place, so a crash mid-write never leaves a partial file under the real name. A partial file would decode to `nil` anyway, and the next load would measure the track again.
-- **Size limits and eviction are yours.** A 4-minute track encodes to about 864 KB (24 bytes per bucket, 36,000 buckets) plus under 1 KB of header. Use the file's modification date or your own index to evict the least recently used entries.
+- **Size limits and eviction are yours.** A 4-minute track serializes to about 864 KB (24 bytes per bucket, 36,000 buckets) plus under 1 KB of header. Use the file's modification date or your own index to evict the least recently used entries.
 - **The same decoded samples give the same bits on one machine.** Lossy decoders may not return identical samples on every read, and DSP output can differ between macOS versions, so a cached waveform and a fresh one can differ slightly after an OS update. Nothing invalidates on the OS version.
 - **A file can end before its header says.** `framesRead` below `frameCount` means the decoder reported the end-of-file status (`NSOSStatusErrorDomain` -39) partway through; the buckets past that point are silent. Any other read failure throws `PCMBufferReaderError.readFailed`.
 
@@ -654,9 +661,9 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `LoudnessSample`, `LoudnessSeries` | Foundation-only plotting adapter for `LUFSReport.samples` |
 | `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file; `isCancelled` cooperative-cancellation closure) |
 | `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
-| `WaveformBandLevelReader` | Streams a file and measures low, mid and high band peak and RMS, 150 buckets per second; see "Waveform levels" |
-| `WaveformBandLevels`, `WaveformBandLevel`, `WaveformAudioSource` | The reader's result and its byte format (`encoded()`, `decoded(from:)`); the caller chooses the key and the store |
-| `WaveformBandLevelError` | Thrown by the reader: unsupported sample rate (6 kHz and below), or a header claiming more than 12 hours |
+| `BandWaveformReader` | Streams a file and measures low, mid and high band peak and RMS, 150 buckets per second; see "Waveform levels" |
+| `BandWaveform`, `BandWaveform.Levels`, `BandWaveform.Band`, `BandWaveform.Source` | The reader's result, its bucket time queries (`duration`, `startTime(ofBucket:)`, `bucket(at:)`) and its byte format (`serializedData()`, `init?(serializedData:)`); the caller chooses the key and the store |
+| `BandWaveformError` | Thrown by the reader: unsupported sample rate (6 kHz and below), or a header claiming more than 12 hours |
 | `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, `gridOrigin` anchor, `coverage`, `tempoAgreement`) returned by `analyzeBeatGrid` / `analyze`; see "Beat grid" |
 | `BeatTimestamp` | One detected beat: `presentationTime` + per-beat `confidence` + `strength` (all clamped finite) |
 | `BeatGridAnchor` / `BeatGridAnchorSource` | The Rekordbox-style extrapolation anchor on `BeatGrid.gridOrigin` (phase-consistency selected) + its provenance |

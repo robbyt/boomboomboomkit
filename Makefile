@@ -357,13 +357,13 @@ waveform-perf-baseline:
 	BBB_COMMIT_SHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown) \
 	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.WaveformAnalyzerPerfTests
 
-## waveform-band-perf-baseline: Story 15.11: time WaveformBandLevelReader.read, decode only, encoded and decoded on 10-minute stereo 44.1 kHz synthetic 16-bit WAV and FLAC files (warm-up plus the median of 5), plus the AVAudioFile open and length of the bundled FLAC, WAV, MP3 and M4A fixtures; measure peak memory of one read of 2-, 10- and 30-minute stereo WAVs, each in its own child process, and assert the 10 to 30 minute growth stays within the output arrays plus 25 percent. Writes a per-SHA JSON baseline under _bmad-output/perf-baselines/waveform-band/. Release config. Synthetic fixtures plus bundled fixtures only (no corpus required). Asserts no speed bound. Env-gated. The benchmark target is excluded from make test.
+## waveform-band-perf-baseline: Story 15.11: time BandWaveformReader.read, decode only, serializedData and init(serializedData:) on 10-minute stereo 44.1 kHz synthetic 16-bit WAV and FLAC files (warm-up plus the median of 5), plus the AVAudioFile open and length of the bundled FLAC, WAV, MP3 and M4A fixtures; measure peak memory of one read of 2-, 10- and 30-minute stereo WAVs, each in its own child process, and assert the 10 to 30 minute growth stays within the output arrays plus 25 percent. Writes a per-SHA JSON baseline under _bmad-output/perf-baselines/waveform-band/. Release config. Synthetic fixtures plus bundled fixtures only (no corpus required). Asserts no speed bound. Env-gated. The benchmark target is excluded from make test.
 .PHONY: waveform-band-perf-baseline
 waveform-band-perf-baseline:
 	@mkdir -p "$(CURDIR)/_bmad-output/perf-baselines/waveform-band"
 	BBB_WAVEFORM_BAND_PERF=1 \
 	BBB_COMMIT_SHA=$$(git rev-parse HEAD 2>/dev/null || echo unknown) \
-	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.WaveformBandLevel
+	swift test -c release --filter BoomBoomBoomKitBenchmarkTests.BandWaveform
 
 ## tempo-refine-impact-report: Story 8-10 AC9 — per-track beat-grid tempo-error + predicted last-beat drift, refinement ON vs OFF, scored against the DAW-verified oracle over .fullTrack coverage. JSON to _bmad-output/implementation-artifacts/8-10-tempo-refine-impact.json. Accuracy metric (config-agnostic); asserts the monotonic reject-guard (improved >= worsened, mean drift not increased).
 .PHONY: tempo-refine-impact-report

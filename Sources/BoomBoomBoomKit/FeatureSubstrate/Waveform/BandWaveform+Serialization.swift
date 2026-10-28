@@ -1,11 +1,12 @@
 //
-//  WaveformBandLevelsFile.swift
+//  BandWaveform+Serialization.swift
 //  BoomBoomBoomKit
 //
 //  Story 15.11 (DD-9, DD-10): a versioned binary format for
-//  `WaveformBandLevels`. The library turns levels into bytes and back and
-//  decides whether stored bytes are still usable; the caller owns where the
-//  bytes live. Nothing here touches the file system.
+//  `BandWaveform`: `serializedData()` and `init(serializedData:)`. The library
+//  turns a waveform into bytes and back and decides whether stored bytes are
+//  still usable; the caller owns where the bytes live. Nothing here touches the
+//  file system.
 //
 //  Layout, little-endian, offsets from the first byte of the data:
 //
@@ -21,11 +22,11 @@
 import CryptoKit
 import Foundation
 
-extension WaveformBandLevels {
+extension BandWaveform {
 
   // MARK: - Public API
 
-  /// Encodes the levels into the waveform levels file format.
+  /// The waveform in the band waveform file format, ready to store.
   ///
   /// The library never stores anything. The caller chooses the cache key and
   /// the store (a file in its own folder, a database blob, memory) and keeps
@@ -35,12 +36,12 @@ extension WaveformBandLevels {
   /// header (``analysisVersion``, the counts, the sample rate, ``source``, and
   /// diagnostic fields: the filter bank, the OS version and the creation time),
   /// then every peak and RMS value as a little-endian `Float32`. A SHA-256
-  /// checksum covers all of it, so any damaged byte makes ``decoded(from:)``
-  /// return `nil`. Values come back bit for bit.
+  /// checksum covers all of it, so any damaged byte makes
+  /// ``init(serializedData:)`` return `nil`. Values come back bit for bit.
   ///
-  /// - Returns: The encoded bytes. Never fails: every result this type accepts
-  ///   has a header far under the format's 65,536-byte limit.
-  public func encoded() -> Data {
+  /// - Returns: The bytes. Never fails: every waveform this type accepts has a
+  ///   header far under the format's 65,536-byte limit.
+  public func serializedData() -> Data {
     let header = EncodedHeader(
       analysisVersion: analysisVersion,
       bucketsPerSecond: bucketsPerSecond,
@@ -97,23 +98,26 @@ extension WaveformBandLevels {
     return Data(bytes)
   }
 
-  /// Decodes levels from bytes written by ``encoded()``, or returns `nil`
-  /// when the bytes cannot be used.
+  /// Creates a waveform from bytes written by ``serializedData()``, or returns
+  /// `nil` when the bytes cannot be used.
   ///
-  /// Never throws. `nil` always means the bytes are unusable: they are
+  /// Never throws or traps. `nil` always means the bytes are unusable: they are
   /// damaged, truncated, from another layout version, or measured under an
-  /// earlier ``WaveformBandLevelReader/analysisVersion`` (a new version makes
-  /// every older encoding unusable). Discard them, measure the file again, and
-  /// store the new result. The library never stores anything; the caller's key
-  /// decides which stored bytes belong to which audio file.
+  /// earlier ``BandWaveformReader/analysisVersion`` (a new version makes
+  /// every waveform serialized under an older one unusable). Discard them,
+  /// measure the file again, and store the new result. The library never
+  /// stores anything; the caller's key decides which stored bytes belong to
+  /// which audio file.
   ///
   /// The diagnostic header fields (the filter bank, the OS version and the
   /// creation time) are never read, so they cannot make bytes unusable.
   ///
+  /// The result equals, bit for bit, the waveform that wrote the bytes.
+  ///
   /// - Parameter data: The stored bytes. A slice of a larger `Data` is fine.
-  /// - Returns: The levels, equal bit for bit to those encoded, or `nil`.
-  public static func decoded(from data: Data) -> WaveformBandLevels? {
-    data.withUnsafeBytes { raw in decoded(from: raw) }
+  public init?(serializedData data: Data) {
+    guard let waveform = data.withUnsafeBytes({ raw in Self.decode(raw) }) else { return nil }
+    self = waveform
   }
 
   // MARK: - Layout constants
@@ -133,7 +137,7 @@ extension WaveformBandLevels {
   /// The decoder over the bytes in place. Every count read from the data is
   /// checked against the bytes actually present before anything is allocated
   /// from it.
-  private static func decoded(from raw: UnsafeRawBufferPointer) -> WaveformBandLevels? {
+  private static func decode(_ raw: UnsafeRawBufferPointer) -> BandWaveform? {
     guard raw.count >= prefixBytes,
       raw[0..<magic.count].elementsEqual(magic),
       readUInt32(raw, at: 8) == layoutVersion
@@ -149,8 +153,8 @@ extension WaveformBandLevels {
       UnsafeRawBufferPointer(rebasing: raw[prefixBytes..<(prefixBytes + headerCount)]))
     guard let header = try? JSONDecoder().decode(DecodedHeader.self, from: headerData),
       header.elementType == elementType,
-      header.analysisVersion == WaveformBandLevelReader.analysisVersion,
-      header.bucketsPerSecond == WaveformBandLevelReader.bucketsPerSecond,
+      header.analysisVersion == BandWaveformReader.analysisVersion,
+      header.bucketsPerSecond == BandWaveformReader.bucketsPerSecond,
       header.sampleRate.isFinite, header.sampleRate > minimumSampleRateExclusive,
       let bucketCount = bucketCount(
         frameCount: header.frameCount, sampleRate: header.sampleRate),
@@ -169,10 +173,10 @@ extension WaveformBandLevels {
     let rmsStart = payloadStart + bucketCount * 12
     let peak = readLevels(raw, at: payloadStart, count: bucketCount)
     let rms = readLevels(raw, at: rmsStart, count: bucketCount)
-    return WaveformBandLevels(
+    return BandWaveform(
       peak: peak, rms: rms, sampleRate: header.sampleRate, channelCount: header.channelCount,
       frameCount: header.frameCount, framesRead: header.framesRead,
-      source: WaveformAudioSource(
+      source: BandWaveform.Source(
         formatID: header.source.formatID, processingFormat: header.source.processingFormat))
   }
 
@@ -186,15 +190,15 @@ extension WaveformBandLevels {
   /// `count` levels of three little-endian `Float32` values from `offset`.
   private static func readLevels(
     _ raw: UnsafeRawBufferPointer, at offset: Int, count: Int
-  ) -> [WaveformBandLevel] {
-    var levels = [WaveformBandLevel]()
+  ) -> [BandWaveform.Levels] {
+    var levels = [BandWaveform.Levels]()
     levels.reserveCapacity(count)
     var position = offset
     for _ in 0..<count {
       let low = Float(bitPattern: readUInt32(raw, at: position))
       let mid = Float(bitPattern: readUInt32(raw, at: position + 4))
       let high = Float(bitPattern: readUInt32(raw, at: position + 8))
-      levels.append(WaveformBandLevel(low: low, mid: mid, high: high))
+      levels.append(BandWaveform.Levels(low: low, mid: mid, high: high))
       position += 12
     }
     return levels

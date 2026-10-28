@@ -328,6 +328,7 @@ Two observations for the Hilbert parity gate. (a) Run it under a test runner, no
 
 - 2026-10-27, code review (blind, edge case, verification gap). A damaged FLAC header can claim 68.7 billion frames (confirmed by patching a bundled fixture's STREAMINFO), and the reader sized its output from it, about 5.6 GB before the first frame; Hilbert's reader has the same behavior. Owner decision: refuse headers claiming more than 12 hours with a new error case `durationTooLong(URL, seconds:)`, and move the `> 6_000` rate refusal ahead of every header-sized allocation. DD-3's order and DD-7 amended. Applied as targeted patches rather than a full re-derivation, because the change is confined to the reader's opening checks and one error case. Known-bad state avoided: any allocation sized by an unchecked header. KEEP: everything else in the implementation, which matched Hilbert's reader bit for bit over 707,622 values.
 - 2026-10-28, owner change: the caller owns the cache key and the store; the format no longer carries or validates a key; `invalidKey` and `headerTooLarge` removed; `encoded()` is non-throwing.
+- 2026-10-28, owner-approved API follow-up, see `spec-15-11-waveform-api-ergonomics.md`: public names become `BandWaveform` (with nested `Levels`, `Band`, `Source`), `BandWaveformReader` and `BandWaveformError`; `encoded()` / `decoded(from:)` become `serializedData()` / `init?(serializedData:)`; bucket time queries and a band subscript added. Values and stored bytes unchanged.
 
 ## Review Triage Log
 

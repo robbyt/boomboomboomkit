@@ -1,5 +1,5 @@
 //
-//  WaveformBandLevelError.swift
+//  BandWaveformError.swift
 //  BoomBoomBoomKit
 //
 //  Story 15.11 (DD-7): the one new error type for the three-band waveform
@@ -10,9 +10,9 @@
 
 import Foundation
 
-/// Errors from ``WaveformBandLevelReader``. Encoding and decoding
-/// ``WaveformBandLevels`` never throw.
-public enum WaveformBandLevelError: Error, Sendable, LocalizedError {
+/// Errors from ``BandWaveformReader``. ``BandWaveform/serializedData()`` and
+/// ``BandWaveform/init(serializedData:)`` never throw.
+public enum BandWaveformError: Error, Sendable, LocalizedError {
   /// The file's sample rate cannot be measured: it is not finite, it is at or
   /// below 6,000 Hz (where the 3,000 Hz high-pass would be unstable), or a band
   /// filter could not be built at it.
