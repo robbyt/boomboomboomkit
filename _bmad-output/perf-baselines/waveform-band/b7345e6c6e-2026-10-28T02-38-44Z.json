@@ -1,0 +1,134 @@
+{
+  "analysisVersion" : "band-peak-rms.loudest-channel.v1",
+  "channels" : 2,
+  "commitSHA" : "b7345e6c6ed5c609986961dcab89271391bc3cbd",
+  "configuration" : "release",
+  "createdAt" : "2026-10-28T02:38:44Z",
+  "formats" : [
+    {
+      "bucketCount" : 90000,
+      "decodedMs" : {
+        "max" : 1.7932079999999999,
+        "median" : 1.7119169999999999,
+        "min" : 1.6956659999999999
+      },
+      "decodeOnlyMs" : {
+        "max" : 15.565583,
+        "median" : 15.260916999999999,
+        "min" : 14.956042
+      },
+      "durationSeconds" : 600,
+      "encodedBytes" : 2160684,
+      "encodedMs" : {
+        "max" : 2.625375,
+        "median" : 2.4562080000000002,
+        "min" : 2.4173749999999998
+      },
+      "fileBytes" : 105844096,
+      "format" : "wav16",
+      "readerMs" : {
+        "max" : 213.96154200000001,
+        "median" : 212.72829200000001,
+        "min" : 211.40745799999999
+      }
+    },
+    {
+      "bucketCount" : 90000,
+      "decodedMs" : {
+        "max" : 1.7070000000000001,
+        "median" : 1.698,
+        "min" : 1.6902079999999999
+      },
+      "decodeOnlyMs" : {
+        "max" : 734.30999999999995,
+        "median" : 733.20808399999999,
+        "min" : 731.14516700000001
+      },
+      "durationSeconds" : 600,
+      "encodedBytes" : 2160684,
+      "encodedMs" : {
+        "max" : 2.4948329999999999,
+        "median" : 2.4665409999999999,
+        "min" : 2.451292
+      },
+      "fileBytes" : 98066886,
+      "format" : "flac",
+      "readerMs" : {
+        "max" : 931.52133300000003,
+        "median" : 928.84983399999999,
+        "min" : 928.073125
+      }
+    }
+  ],
+  "headerOpens" : [
+    {
+      "fixture" : "test-audio.flac",
+      "format" : "flac",
+      "frameCount" : 44100,
+      "openAndLengthMs" : {
+        "max" : 0.081958000000000003,
+        "median" : 0.068250000000000005,
+        "min" : 0.065375000000000003
+      }
+    },
+    {
+      "fixture" : "sample.wav",
+      "format" : "wav",
+      "frameCount" : 8000,
+      "openAndLengthMs" : {
+        "max" : 0.052332999999999998,
+        "median" : 0.045541999999999999,
+        "min" : 0.043166999999999997
+      }
+    },
+    {
+      "fixture" : "Meta_Man.mp3",
+      "format" : "mp3",
+      "frameCount" : 1355904,
+      "openAndLengthMs" : {
+        "max" : 0.19658400000000001,
+        "median" : 0.1575,
+        "min" : 0.15520900000000001
+      }
+    },
+    {
+      "fixture" : "test-audio.m4a",
+      "format" : "m4a",
+      "frameCount" : 44100,
+      "openAndLengthMs" : {
+        "max" : 0.104667,
+        "median" : 0.080708000000000002,
+        "min" : 0.075541999999999998
+      }
+    }
+  ],
+  "memory" : [
+    {
+      "bucketCount" : 18000,
+      "durationSeconds" : 120,
+      "maxResidentBytes" : 49446912
+    },
+    {
+      "bucketCount" : 90000,
+      "durationSeconds" : 600,
+      "maxResidentBytes" : 51200000
+    },
+    {
+      "bucketCount" : 270000,
+      "durationSeconds" : 1800,
+      "maxResidentBytes" : 55590912
+    }
+  ],
+  "memoryCheck" : {
+    "allowedBytes" : 5400000,
+    "growthBytes" : 4390912,
+    "outputArrayGrowthBytes" : 4320000,
+    "slack" : 0.25,
+    "wholeFileDecodeGrowthBytes" : 423360000
+  },
+  "platform" : "Version 27.2 (Build 26B118) arch=arm64",
+  "probeSource" : "Tests\/BoomBoomBoomKitBenchmarkTests\/WaveformBandLevelPerfTests.swift",
+  "sampleRate" : 44100,
+  "schemaVersion" : 1,
+  "timedIterations" : 5
+}
