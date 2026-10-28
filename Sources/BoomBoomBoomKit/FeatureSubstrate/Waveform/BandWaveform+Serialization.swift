@@ -155,12 +155,11 @@ extension BandWaveform {
       header.elementType == elementType,
       header.analysisVersion == BandWaveformReader.analysisVersion,
       header.bucketsPerSecond == BandWaveformReader.bucketsPerSecond,
-      header.sampleRate.isFinite, header.sampleRate > minimumSampleRateExclusive,
+      isSupported(sampleRate: header.sampleRate, frameCount: header.frameCount),
       let bucketCount = bucketCount(
         frameCount: header.frameCount, sampleRate: header.sampleRate),
       header.bucketCount == bucketCount,
       header.channelCount >= 1,
-      header.frameCount >= 0,
       header.framesRead >= 0, header.framesRead <= header.frameCount,
       let payloadCount = payloadByteCount(bucketCount: bucketCount),
       header.payloadByteCount == payloadCount,

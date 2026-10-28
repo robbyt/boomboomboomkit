@@ -69,9 +69,44 @@ public struct BandWaveform: Sendable, Hashable {
   /// bytes. Keeps every accepted waveform's serialized header small.
   static let maximumProcessingFormatBytes = 256
 
-  /// A waveform's sample rate must be above this, in Hz: the reader refuses
-  /// rates at or below it.
+  // MARK: - Supported range
+
+  /// A waveform's sample rate must be above this, in Hz: the 3,000 Hz
+  /// high-pass is unstable at or below it.
   static let minimumSampleRateExclusive: Double = 6_000
+
+  /// A waveform's sample rate must be at most this, in Hz: twice 768 kHz, the
+  /// highest consumer rate.
+  static let maximumSampleRate: Double = 1_536_000
+
+  /// The longest waveform, 12 hours, from the header's length. Bounds the
+  /// output arrays (about 155 MB at the limit) when a damaged header claims
+  /// far more frames than the file holds.
+  static let maximumDurationSeconds: Double = 43_200
+
+  /// Whether `sampleRate` is in the supported range: finite, above 6,000 Hz
+  /// and at most 1,536,000 Hz.
+  static func isSupported(sampleRate: Double) -> Bool {
+    sampleRate.isFinite && sampleRate > minimumSampleRateExclusive
+      && sampleRate <= maximumSampleRate
+  }
+
+  /// Whether a waveform `frameCount` frames long at `sampleRate` is in the
+  /// supported range: a supported rate, a `frameCount` that is not negative,
+  /// and at most 43,200 seconds.
+  ///
+  /// Every path checks this before any arithmetic sized by the length: the
+  /// reader, the validating init and therefore the decoder. Inside the range a
+  /// frame count is at most 43,200 s x 1,536,000 Hz, about 6.6e10 frames, far
+  /// below 2^53, so every frame count converts to `Double` exactly and every
+  /// bucket boundary converts to `Int64` and every bucket index to `Int`
+  /// without overflow. That is enough for the one-frame correction steps of
+  /// the time queries. It is not exact arithmetic: a fractional rate still
+  /// rounds.
+  static func isSupported(sampleRate: Double, frameCount: Int64) -> Bool {
+    isSupported(sampleRate: sampleRate) && frameCount >= 0
+      && Double(frameCount) / sampleRate <= maximumDurationSeconds
+  }
 
   /// Creates a waveform after checking every invariant, or returns `nil`.
   ///
@@ -79,11 +114,12 @@ public struct BandWaveform: Sendable, Hashable {
   /// ``bucketsPerSecond`` and ``analysisVersion`` are set to the reader's
   /// current constants.
   ///
-  /// Returns `nil` unless all of these hold: `sampleRate` is finite and above
-  /// 6,000 Hz; `peak` and `rms` each hold exactly the bucket count
-  /// `frameCount` gives at 150 buckets per second; `channelCount` is at least
-  /// 1; `frameCount` is not negative; `framesRead` is between 0 and
-  /// `frameCount`; every value is finite and in `0...1`; and
+  /// Returns `nil` unless all of these hold: `sampleRate` is finite, above
+  /// 6,000 Hz and at most 1,536,000 Hz; `frameCount` is not negative and
+  /// `frameCount / sampleRate` is at most 43,200 seconds (12 hours); `peak` and
+  /// `rms` each hold exactly the bucket count `frameCount` gives at 150
+  /// buckets per second; `channelCount` is at least 1; `framesRead` is between
+  /// 0 and `frameCount`; every value is finite and in `0...1`; and
   /// `source.processingFormat` is at most 256 UTF-8 bytes.
   ///
   /// - Parameters:
@@ -103,11 +139,10 @@ public struct BandWaveform: Sendable, Hashable {
     framesRead: Int64,
     source: Source
   ) {
-    guard sampleRate.isFinite, sampleRate > Self.minimumSampleRateExclusive,
+    guard Self.isSupported(sampleRate: sampleRate, frameCount: frameCount),
       let bucketCount = Self.bucketCount(frameCount: frameCount, sampleRate: sampleRate),
       peak.count == bucketCount, rms.count == bucketCount,
       channelCount >= 1,
-      frameCount >= 0,
       framesRead >= 0, framesRead <= frameCount,
       source.processingFormat.utf8.count <= Self.maximumProcessingFormatBytes,
       peak.allSatisfy(Self.isValid), rms.allSatisfy(Self.isValid)
@@ -130,6 +165,7 @@ public struct BandWaveform: Sendable, Hashable {
   ) {
     assert(peak.count == rms.count)
     assert(peak.count == Self.bucketCount(frameCount: frameCount, sampleRate: sampleRate))
+    assert(Self.isSupported(sampleRate: sampleRate, frameCount: frameCount))
     assert(framesRead >= 0 && framesRead <= frameCount)
     self.peak = peak
     self.rms = rms
@@ -158,7 +194,15 @@ public struct BandWaveform: Sendable, Hashable {
   /// a few boundaries of a non-integral sample rate, where the reader's two
   /// rounding steps disagree. So the result is not exactly `i / 150` unless
   /// that time falls on a whole frame. It is the reader's own boundary, so
-  /// `bucket(at: startTime(ofBucket: i)!) == i`.
+  /// `bucket(at: startTime(ofBucket: i)!) == i` for every bucket that holds a
+  /// frame.
+  ///
+  /// The final bucket can hold no frame: at a rounding boundary, the bucket
+  /// count the header's length gives can include one more bucket than the
+  /// reader puts a frame in (at 6,000.1 Hz, 420,008 frames give 10,501
+  /// buckets, and the last frame is in bucket 10,499). That bucket stays
+  /// ``Levels/silent``, its start time is ``duration``, and
+  /// ``bucket(at:)`` never returns it.
   ///
   /// Exact for a file read in full 65,536-frame chunks, which is how
   /// ``BandWaveformReader`` reads every file whose reads return all the frames
@@ -185,7 +229,8 @@ public struct BandWaveform: Sendable, Hashable {
   /// two rounding steps disagree. The returned bucket's
   /// ``startTime(ofBucket:)`` is never after `seconds`, and the next bucket's
   /// is after it. Bucket `i` does not cover exactly `i / 150 ..< (i + 1) / 150`
-  /// seconds; see ``startTime(ofBucket:)``.
+  /// seconds; see ``startTime(ofBucket:)``. A final bucket that holds no frame
+  /// is never returned.
   ///
   /// Returns `nil` when `seconds` is not finite (NaN or infinite), is
   /// negative, or is at or after ``duration``, which includes every time for

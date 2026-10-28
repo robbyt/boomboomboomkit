@@ -14,8 +14,9 @@ import Foundation
 /// ``BandWaveform/init(serializedData:)`` never throw.
 public enum BandWaveformError: Error, Sendable, LocalizedError {
   /// The file's sample rate cannot be measured: it is not finite, it is at or
-  /// below 6,000 Hz (where the 3,000 Hz high-pass would be unstable), or a band
-  /// filter could not be built at it.
+  /// below 6,000 Hz (where the 3,000 Hz high-pass would be unstable), it is
+  /// above 1,536,000 Hz (twice 768 kHz, the top of the supported range), or a
+  /// band filter could not be built at it.
   case unsupportedFormat(URL, sampleRate: Double)
   /// The file's header claims more than 12 hours of audio. Refused before any
   /// memory is allocated from that length, so a damaged header cannot size the
@@ -28,7 +29,8 @@ public enum BandWaveformError: Error, Sendable, LocalizedError {
     case .unsupportedFormat(let url, let sampleRate):
       return
         "Cannot measure waveform levels of \(url.lastPathComponent): sample rate "
-        + "\(sampleRate.description) Hz is not supported (it must be finite and above 6000 Hz)."
+        + "\(sampleRate.description) Hz is not supported (it must be finite, above 6000 Hz "
+        + "and at most 1536000 Hz)."
     case .durationTooLong(let url, let seconds):
       return
         "Cannot measure waveform levels of \(url.lastPathComponent): its header claims "

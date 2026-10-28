@@ -544,6 +544,96 @@ struct BandWaveformSerializationTests {
     #expect(full?.analysisVersion == BandWaveformReader.analysisVersion)
   }
 
+  // MARK: - Supported range
+
+  /// A validating-init call with the given rate and length, and silent arrays
+  /// of exactly the bucket count they give, so only the supported range can
+  /// reject it.
+  private static func silentWaveform(sampleRate: Double, frameCount: Int64) throws -> BandWaveform?
+  {
+    let buckets = try #require(
+      BandWaveform.bucketCount(frameCount: frameCount, sampleRate: sampleRate))
+    let silent = [BandWaveform.Levels](repeating: .silent, count: buckets)
+    return BandWaveform(
+      peak: silent, rms: silent, sampleRate: sampleRate, channelCount: 1,
+      frameCount: frameCount, framesRead: 0, source: source)
+  }
+
+  /// `Int64.max` frames at `Double(Int64.max) * 150` Hz: 2 buckets, but the
+  /// boundary after bucket 1 rounds to 2^63 and does not fit in `Int64`.
+  private static let int64MaxRate = Double(Int64.max) * 150
+
+  /// 2^60 + 1 frames at 2^60 x 150 Hz: frame counts past 2^53, where `Double`
+  /// no longer represents every whole number.
+  private static let precisionRate = Double(UInt64(1) << 60) * 150
+  private static let precisionFrames = Int64(1) << 60 + 1
+
+  @Test("the validating init rejects a rate or length outside the supported range")
+  func validatingInitRejectsOutsideTheSupportedRange() throws {
+    #expect(
+      try Self.silentWaveform(sampleRate: Self.int64MaxRate, frameCount: .max) == nil,
+      "Int64.max frames at Int64.max x 150 Hz")
+    #expect(
+      try Self.silentWaveform(sampleRate: Self.precisionRate, frameCount: Self.precisionFrames)
+        == nil,
+      "2^60 + 1 frames at 2^60 x 150 Hz")
+    #expect(
+      try Self.silentWaveform(sampleRate: 1_536_000.0.nextUp, frameCount: 300) == nil,
+      "just above 1,536,000 Hz")
+    #expect(
+      try Self.silentWaveform(sampleRate: 1_536_000, frameCount: 300) != nil,
+      "1,536,000 Hz itself is accepted")
+    #expect(BandWaveform.isSupported(sampleRate: 6_000.0.nextUp, frameCount: 1))
+    #expect(!BandWaveform.isSupported(sampleRate: 6_000, frameCount: 1))
+    #expect(!BandWaveform.isSupported(sampleRate: 44_100, frameCount: -1))
+    #expect(!BandWaveform.isSupported(sampleRate: .nan, frameCount: 1))
+    #expect(!BandWaveform.isSupported(sampleRate: .infinity, frameCount: 1))
+  }
+
+  @Test("the duration limit is exactly 43,200 s, checked without allocating the arrays")
+  func durationLimitIsExact() {
+    let limit = Int64(43_200 * 48_000)
+    #expect(BandWaveform.isSupported(sampleRate: 48_000, frameCount: limit))
+    #expect(!BandWaveform.isSupported(sampleRate: 48_000, frameCount: limit + 1))
+    #expect(!BandWaveform.isSupported(sampleRate: 48_000, frameCount: .max))
+  }
+
+  @Test("serialized bytes outside the supported range, with the checksum rebuilt, are nil")
+  func decoderRejectsOutsideTheSupportedRange() throws {
+    let waveform = try Self.smallResult()
+    #expect(waveform.peak.count == 2, "the premise: both crafted headers claim 2 buckets")
+    let edits: [(String, (inout [String: Any]) -> Void)] = [
+      (
+        "Int64.max frames at Int64.max x 150 Hz",
+        {
+          $0["sampleRate"] = Self.int64MaxRate
+          $0["frameCount"] = Self.int64Max
+          $0["framesRead"] = 0
+        }
+      ),
+      (
+        "2^60 + 1 frames at 2^60 x 150 Hz",
+        {
+          $0["sampleRate"] = Self.precisionRate
+          $0["frameCount"] = NSNumber(value: Self.precisionFrames)
+          $0["framesRead"] = 0
+        }
+      ),
+      (
+        "just above 1,536,000 Hz, 20,000 frames (2 buckets)",
+        {
+          $0["sampleRate"] = 1_536_000.0.nextUp
+          $0["frameCount"] = 20_000
+          $0["framesRead"] = 0
+        }
+      ),
+    ]
+    for (name, edit) in edits {
+      let data = try Self.crafted(from: waveform, edit)
+      #expect(BandWaveform(serializedData: data) == nil, "\(name)")
+    }
+  }
+
   @Test("error descriptions are readable")
   func errorDescriptionsAreReadable() {
     let url = URL(fileURLWithPath: "/tmp/track.wav")

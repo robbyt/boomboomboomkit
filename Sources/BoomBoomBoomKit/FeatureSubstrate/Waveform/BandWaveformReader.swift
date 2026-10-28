@@ -71,11 +71,6 @@ public enum BandWaveformReader: Sendable {
   /// chunk boundaries fall.
   static let chunkFrames: AVAudioFrameCount = 65_536
 
-  /// The longest file the reader measures, 12 hours, from the header's length.
-  /// Bounds the output arrays (about 155 MB at the limit) when a damaged header
-  /// claims far more frames than the file holds.
-  static let maximumDurationSeconds: Double = 43_200
-
   /// `eofErr`, the `NSOSStatusErrorDomain` code `AVAudioFile.read(into:)`
   /// throws for a read past the frames the file really holds.
   static let endOfFileStatus = -39
@@ -98,12 +93,14 @@ public enum BandWaveformReader: Sendable {
   /// - Returns: The waveform, one bucket per 1/150 s of the header's length.
   /// - Throws: `PCMBufferReaderError.fileNotReadable` when the file cannot be
   ///   opened; ``BandWaveformError/unsupportedFormat(_:sampleRate:)`` when
-  ///   the sample rate is not finite or is at or below 6,000 Hz, or a filter
-  ///   cannot be built; ``BandWaveformError/durationTooLong(_:seconds:)``
-  ///   when the header's length is more than 12 hours;
+  ///   the sample rate is not finite, is at or below 6,000 Hz or is above
+  ///   1,536,000 Hz, or a filter cannot be built;
+  ///   ``BandWaveformError/durationTooLong(_:seconds:)`` when the header's
+  ///   length is more than 12 hours;
   ///   `PCMBufferReaderError.bufferAllocationFailed` when the read buffer cannot
-  ///   be allocated; `PCMBufferReaderError.readFailed` when a read fails other
-  ///   other than with an early-end error after the first chunk;
+  ///   be allocated; `PCMBufferReaderError.readFailed` when the header's length
+  ///   is negative, or when a read fails other than with an early-end error
+  ///   after the first chunk;
   ///   `CancellationError` when ``Options/isCancelled`` returns `true`.
   public static func read(url: URL, options: Options = Options()) throws -> BandWaveform {
     let file: AVAudioFile
@@ -114,15 +111,18 @@ public enum BandWaveformReader: Sendable {
     }
     let format = file.processingFormat
     let sampleRate = format.sampleRate
-    guard sampleRate.isFinite, sampleRate > BandWaveform.minimumSampleRateExclusive else {
+    // The supported range, the same one the validating init checks, before any
+    // arithmetic or allocation sized by the header: a damaged header can claim
+    // billions of frames.
+    guard BandWaveform.isSupported(sampleRate: sampleRate) else {
       throw BandWaveformError.unsupportedFormat(url, sampleRate: sampleRate)
     }
-    // Before any allocation the header sizes: a damaged header can claim
-    // billions of frames.
     let length = file.length
-    let seconds = Double(length) / sampleRate
-    guard seconds <= maximumDurationSeconds else {
-      throw BandWaveformError.durationTooLong(url, seconds: seconds)
+    guard length >= 0 else {
+      throw PCMBufferReaderError.readFailed(url, underlyingDescription: "negative length")
+    }
+    guard BandWaveform.isSupported(sampleRate: sampleRate, frameCount: length) else {
+      throw BandWaveformError.durationTooLong(url, seconds: Double(length) / sampleRate)
     }
     guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: chunkFrames) else {
       throw PCMBufferReaderError.bufferAllocationFailed(url)

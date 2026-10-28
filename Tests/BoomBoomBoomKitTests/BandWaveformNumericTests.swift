@@ -434,8 +434,9 @@ struct BandWaveformTimeTests {
 
   @Test("bucket times follow the reader's span walk frame by frame", arguments: walkRates)
   func timesFollowTheSpanWalk(sampleRate: Double) throws {
-    // At most about 2 million frames per rate, and at least the 210 s that
-    // reaches the known disagreement at 6,000.1 Hz.
+    // About 2 million frames below about 9,500 Hz. Above that the 211 s floor,
+    // which reaches the known disagreement at 6,000.1 Hz, decides: about 20
+    // million frames at the highest seeded rates, near 96 kHz.
     let seconds = min(600, max(211, 2_000_000 / sampleRate))
     let waveform = try Self.waveform(seconds: seconds, sampleRate: sampleRate)
     let frames = waveform.frameCount
@@ -548,6 +549,103 @@ struct BandWaveformTimeTests {
       if let next = waveform.startTime(ofBucket: bucket + 1), next <= time { failures += 1 }
     }
     #expect(failures == 0)
+  }
+
+  // MARK: - Supported range edges
+
+  /// A silent waveform `frameCount` frames long at `sampleRate`.
+  private static func waveform(frameCount: Int64, sampleRate: Double) throws -> BandWaveform {
+    let buckets = try #require(
+      BandWaveform.bucketCount(frameCount: frameCount, sampleRate: sampleRate))
+    let silent = [BandWaveform.Levels](repeating: .silent, count: buckets)
+    return try #require(
+      BandWaveform(
+        peak: silent, rms: silent, sampleRate: sampleRate, channelCount: 1,
+        frameCount: frameCount, framesRead: frameCount, source: source))
+  }
+
+  /// Buckets in `buckets` whose start time is missing or does not map back to
+  /// the bucket.
+  private static func roundTripFailures(_ waveform: BandWaveform, buckets: Range<Int>) -> Int {
+    buckets.reduce(0) { failures, bucket in
+      guard let start = waveform.startTime(ofBucket: bucket),
+        waveform.bucket(at: start) == bucket
+      else { return failures + 1 }
+      return failures
+    }
+  }
+
+  @Test("waveforms at the edges of the supported range are accepted and round-trip")
+  func supportedRangeEdgesRoundTrip() throws {
+    let cases: [(String, Int64, Double)] = [
+      ("empty", 0, 44_100),
+      ("one frame", 1, 44_100),
+      ("1,536,000 Hz for 2 s", 3_072_000, 1_536_000),
+      ("just above 6,000 Hz for 3 s", 18_000, 6_000.0.nextUp),
+    ]
+    for (name, frameCount, sampleRate) in cases {
+      let waveform = try Self.waveform(frameCount: frameCount, sampleRate: sampleRate)
+      #expect(
+        Self.roundTripFailures(waveform, buckets: waveform.peak.indices) == 0, "\(name)")
+    }
+    let one = try Self.waveform(frameCount: 1, sampleRate: 44_100)
+    #expect(one.peak.count == 1)
+    #expect(one.bucket(at: 0) == 0)
+    #expect(one.bucket(at: one.duration) == nil)
+  }
+
+  @Test("96,000.1 Hz, bucket 31,500: the time queries follow the reader's span walk")
+  func boundaryWhereTheFormulasDisagreeAt96000Point1() throws {
+    let sampleRate = 96_000.1
+    let waveform = try Self.waveform(seconds: 211, sampleRate: sampleRate)
+    // The premise: the floor formula puts frame 20,160,021 in bucket 31,499,
+    // the ceiling formula says bucket 31,500 starts there.
+    let timebase = WaveformBucketTimebase(sampleRate: sampleRate)
+    #expect(timebase.bucket(atFrame: 20_160_021) == 31_499)
+    #expect(timebase.firstFrame(ofBucket: 31_500) == 20_160_021)
+
+    #expect(waveform.startTime(ofBucket: 31_500) == 20_160_022 / sampleRate)
+    #expect(waveform.bucket(at: 20_160_021 / sampleRate) == 31_499)
+    #expect(waveform.bucket(at: 20_160_022 / sampleRate) == 31_500)
+    #expect(Self.roundTripFailures(waveform, buckets: waveform.peak.indices) == 0)
+  }
+
+  @Test("at the top of the supported range the bucket boundaries fit, without allocating")
+  func topOfTheSupportedRangeFits() throws {
+    for sampleRate in [1_536_000, 1_535_999.9] {
+      let frameCount = Int64((43_200 * sampleRate).rounded(.down))
+      #expect(BandWaveform.isSupported(sampleRate: sampleRate, frameCount: frameCount))
+      let timebase = WaveformBucketTimebase(sampleRate: sampleRate)
+      let count = timebase.bucketCount(frames: frameCount)
+      #expect(count == 43_200 * 150, "\(sampleRate)")
+      #expect(BandWaveform.bucketCount(frameCount: frameCount, sampleRate: sampleRate) == count)
+      // The boundary after the last bucket converts to Int64 without trapping
+      // and sits within one bucket of the end.
+      let boundary = timebase.firstFrame(ofBucket: count)
+      #expect(boundary >= frameCount && boundary - frameCount <= 10_241, "\(sampleRate)")
+      let chunk: Int64 = 65_536
+      let spanBoundary = timebase.spanFirstFrame(ofBucket: count, chunkFrames: chunk)
+      #expect(abs(spanBoundary - boundary) <= 1, "\(sampleRate)")
+      #expect(timebase.spanBucket(atFrame: spanBoundary - 1, chunkFrames: chunk) == count - 1)
+      #expect(timebase.spanBucket(atFrame: spanBoundary, chunkFrames: chunk) == count)
+      #expect(timebase.spanBucket(atFrame: frameCount - 1, chunkFrames: chunk) == count - 1)
+    }
+  }
+
+  @Test("a final bucket that holds no frame starts at duration and is never returned")
+  func emptyFinalBucket() throws {
+    let sampleRate = 6_000.1
+    let waveform = try Self.waveform(frameCount: 420_008, sampleRate: sampleRate)
+    #expect(waveform.peak.count == 10_501, "the premise: the header's length gives 10,501")
+    #expect(
+      WaveformBucketTimebase(sampleRate: sampleRate).spanBucket(
+        atFrame: 420_007, chunkFrames: 65_536) == 10_499,
+      "the premise: the reader puts the last frame in bucket 10,499")
+
+    #expect(waveform.startTime(ofBucket: 10_500) == waveform.duration)
+    #expect(waveform.bucket(at: 420_007 / sampleRate) == 10_499)
+    #expect(waveform.bucket(at: waveform.duration.nextDown) == 10_499)
+    #expect(Self.roundTripFailures(waveform, buckets: 0..<10_500) == 0)
   }
 
   @Test("bucket 1 at 11,025 Hz starts at frame 74, not at 1/150 s")

@@ -343,6 +343,24 @@ struct BandWaveformReaderTests {
     #expect(rate == 6_000)
   }
 
+  @Test("a rate above the 1,536,000 Hz ceiling: the read throws unsupportedFormat")
+  func sampleRateAboveCeilingThrows() throws {
+    let folder = try Self.makeFolder()
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let url = try SyntheticAudioFiles.writeSilentWAV(
+      sampleRate: 1_536_001, frames: 20_000, in: folder)
+    #expect(
+      try AVAudioFile(forReading: url).processingFormat.sampleRate == 1_536_001, "the premise")
+
+    let error = #expect(throws: BandWaveformError.self) { try Self.read(url) }
+    guard case .unsupportedFormat(let errorURL, let rate) = error else {
+      Issue.record("expected unsupportedFormat, got \(String(describing: error))")
+      return
+    }
+    #expect(errorURL == url)
+    #expect(rate == 1_536_001)
+  }
+
   @Test(
     "a steady sine through the band filter: the high band's gain matches the filter model",
     arguments: [

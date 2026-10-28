@@ -238,7 +238,7 @@ struct LoudnessChart: View {
 
 ## Waveform levels
 
-`BandWaveformReader.read(url:options:)` returns a `BandWaveform`: a file's low, mid and high band peak and RMS, 150 values per second. Each channel is filtered into three bands (a 300 Hz low-pass; a 250 Hz high-pass then a 1,200 Hz low-pass; a 3,000 Hz high-pass then, at sample rates above 18 kHz, a 9,000 Hz low-pass). For each bucket and band, `peak` holds the largest magnitude of any channel and `rms` the louder channel's RMS, as linear values from 0 to 1. Each element is a `BandWaveform.Levels` with `low`, `mid` and `high`, also readable as `levels[band]` for each `BandWaveform.Band` in `Band.allCases`. The file is streamed in fixed chunks, so memory holds one 65,536-frame chunk, four 65,536-sample `Double` filter buffers per channel (about 2 MiB per channel), and the two output arrays. A header that claims more than 12 hours throws `BandWaveformError.durationTooLong` before anything is allocated from it.
+`BandWaveformReader.read(url:options:)` returns a `BandWaveform`: a file's low, mid and high band peak and RMS, 150 values per second. Each channel is filtered into three bands (a 300 Hz low-pass; a 250 Hz high-pass then a 1,200 Hz low-pass; a 3,000 Hz high-pass then, at sample rates above 18 kHz, a 9,000 Hz low-pass). For each bucket and band, `peak` holds the largest magnitude of any channel and `rms` the louder channel's RMS, as linear values from 0 to 1. Each element is a `BandWaveform.Levels` with `low`, `mid` and `high`, also readable as `levels[band]` for each `BandWaveform.Band` in `Band.allCases`. The file is streamed in fixed chunks, so memory holds one 65,536-frame chunk, four 65,536-sample `Double` filter buffers per channel (about 2 MiB per channel), and the two output arrays. A header that claims more than 12 hours throws `BandWaveformError.durationTooLong` before anything is allocated from it. A sample rate at or below 6,000 Hz, or above 1,536,000 Hz, throws `BandWaveformError.unsupportedFormat`.
 
 ### Caching waveforms
 
@@ -673,7 +673,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
 | `BandWaveformReader` | Streams a file and measures low, mid and high band peak and RMS, 150 buckets per second; see "Waveform levels" |
 | `BandWaveform`, `BandWaveform.Levels`, `BandWaveform.Band`, `BandWaveform.Source` | The reader's result, its bucket time queries (`duration`, `startTime(ofBucket:)`, `bucket(at:)`) and its byte format (`serializedData()`, `init?(serializedData:)`); the caller chooses the key and the store |
-| `BandWaveformError` | Thrown by the reader: unsupported sample rate (6 kHz and below), or a header claiming more than 12 hours |
+| `BandWaveformError` | Thrown by the reader: unsupported sample rate (6 kHz and below, or above 1,536 kHz), or a header claiming more than 12 hours |
 | `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, `gridOrigin` anchor, `coverage`, `tempoAgreement`) returned by `analyzeBeatGrid` / `analyze`; see "Beat grid" |
 | `BeatTimestamp` | One detected beat: `presentationTime` + per-beat `confidence` + `strength` (all clamped finite) |
 | `BeatGridAnchor` / `BeatGridAnchorSource` | The Rekordbox-style extrapolation anchor on `BeatGrid.gridOrigin` (phase-consistency selected) + its provenance |
