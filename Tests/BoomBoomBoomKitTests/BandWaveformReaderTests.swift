@@ -873,6 +873,24 @@ struct BandWaveformReaderTests {
 
   // MARK: - Failures
 
+  @Test("both early-end errors count as the end of the file, and nothing else does")
+  func earlyEndErrorsAreRecognized() {
+    // macOS 27 reports a read past a FLAC's real end as eofErr; macOS 26 and
+    // earlier as Foundation's generic nil error.
+    #expect(BandWaveformReader.isEndOfFile(NSError(domain: NSOSStatusErrorDomain, code: -39)))
+    #expect(
+      BandWaveformReader.isEndOfFile(
+        NSError(domain: BandWaveformReader.nilErrorDomain, code: 0)))
+    #expect(!BandWaveformReader.isEndOfFile(NSError(domain: NSOSStatusErrorDomain, code: -40)))
+    #expect(
+      !BandWaveformReader.isEndOfFile(
+        NSError(domain: BandWaveformReader.nilErrorDomain, code: 1)))
+    #expect(
+      !BandWaveformReader.isEndOfFile(
+        NSError(domain: "com.apple.coreaudio.avfaudio", code: -66_567)))
+    #expect(!BandWaveformReader.isEndOfFile(CancellationError()))
+  }
+
   @Test("a FLAC whose first read throws, before any frame decodes, throws")
   func firstReadFailureThrows() throws {
     let folder = try Self.makeFolder()

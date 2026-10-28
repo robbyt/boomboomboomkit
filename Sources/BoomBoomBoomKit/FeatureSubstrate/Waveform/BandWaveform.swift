@@ -29,8 +29,8 @@ import Foundation
 /// final bucket may be partial, and its RMS covers the frames it holds.
 ///
 /// ``frameCount`` comes from the file's header. When the file decodes fewer
-/// frames than that and the decoder reports the end-of-file status
-/// (`NSOSStatusErrorDomain` -39), ``framesRead`` is smaller, the buckets past
+/// frames than that and the decoder reports an early end (see
+/// ``BandWaveformReader``), ``framesRead`` is smaller, the buckets past
 /// the real end stay ``Levels/silent``, and the bucket count still follows the
 /// header. Otherwise the read throws `PCMBufferReaderError.readFailed`.
 ///

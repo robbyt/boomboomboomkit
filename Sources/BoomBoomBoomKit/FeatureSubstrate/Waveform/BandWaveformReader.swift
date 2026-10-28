@@ -43,11 +43,14 @@ import Foundation
 /// returns an empty result without checking it.
 ///
 /// Early end of file: when a file decodes fewer frames than its header states
-/// and the decoder reports the end-of-file status (`NSOSStatusErrorDomain`
-/// -39), the buckets measured before the real end are kept, the remaining buckets
+/// and a read after the first chunk fails with an early-end error, the buckets
+/// measured before the real end are kept, the remaining buckets
 /// stay ``BandWaveform/Levels/silent``, and ``BandWaveform/framesRead`` is
-/// less than ``BandWaveform/frameCount``. Otherwise the read throws
-/// `PCMBufferReaderError.readFailed`.
+/// less than ``BandWaveform/frameCount``. Two errors count as an early end,
+/// because macOS versions differ: `NSOSStatusErrorDomain` -39 (`eofErr`,
+/// macOS 27) and Foundation's generic nil error, a failed read with no error
+/// object (macOS 26 and earlier). Any other failure, and any failure on the
+/// first chunk, throws `PCMBufferReaderError.readFailed`.
 ///
 /// Exactness: on one machine the same decoded samples always give the same
 /// bits. Lossy decoders may not return identical samples on every read, and DSP
@@ -100,7 +103,7 @@ public enum BandWaveformReader: Sendable {
   ///   when the header's length is more than 12 hours;
   ///   `PCMBufferReaderError.bufferAllocationFailed` when the read buffer cannot
   ///   be allocated; `PCMBufferReaderError.readFailed` when a read fails other
-  ///   than with the end-of-file status after the first frame;
+  ///   other than with an early-end error after the first chunk;
   ///   `CancellationError` when ``Options/isCancelled`` returns `true`.
   public static func read(url: URL, options: Options = Options()) throws -> BandWaveform {
     let file: AVAudioFile
@@ -197,11 +200,18 @@ public enum BandWaveformReader: Sendable {
 
   // MARK: - Helpers
 
-  /// Whether `error` is the end-of-file status a read past the file's real end
-  /// throws. Tested on the raw error, before any wrapping.
-  private static func isEndOfFile(_ error: any Error) -> Bool {
+  /// The domain of Foundation's generic nil error, which an Objective-C call
+  /// that fails without an error object bridges to. On macOS 26 and earlier,
+  /// `AVAudioFile.read(into:)` reports a read past a FLAC's real end this way.
+  static let nilErrorDomain = "Foundation._GenericObjCError"
+
+  /// Whether `error` is one a read past the file's real end throws: `eofErr`
+  /// (`NSOSStatusErrorDomain` -39) or Foundation's generic nil error (code 0).
+  /// Tested on the raw error, before any wrapping.
+  static func isEndOfFile(_ error: any Error) -> Bool {
     let error = error as NSError
-    return error.domain == NSOSStatusErrorDomain && error.code == endOfFileStatus
+    return (error.domain == NSOSStatusErrorDomain && error.code == endOfFileStatus)
+      || (error.domain == nilErrorDomain && error.code == 0)
   }
 
   /// Whether samples decoded from a file in `encoded` format can be NaN or

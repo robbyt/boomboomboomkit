@@ -335,7 +335,7 @@ What to know when caching:
 - **Write atomically.** `.atomic` writes to a temporary file and renames it into place, so a crash mid-write never leaves a partial file under the real name. A partial file would decode to `nil` anyway, and the next load would measure the track again.
 - **Size limits and eviction are yours.** A 4-minute track serializes to about 864 KB (24 bytes per bucket, 36,000 buckets) plus under 1 KB of header. Use the file's modification date or your own index to evict the least recently used entries.
 - **The same decoded samples give the same bits on one machine.** Lossy decoders may not return identical samples on every read, and DSP output can differ between macOS versions, so a cached waveform and a fresh one can differ slightly after an OS update. Nothing invalidates on the OS version.
-- **A file can end before its header says.** `framesRead` below `frameCount` means the decoder reported the end-of-file status (`NSOSStatusErrorDomain` -39) partway through; the buckets past that point are silent. Any other read failure throws `PCMBufferReaderError.readFailed`.
+- **A file can end before its header says.** `framesRead` below `frameCount` means a read after the first chunk failed with an early-end error, as when a download was cut short; the buckets past that point are silent. The reader accepts both forms macOS uses for that error: `NSOSStatusErrorDomain` -39 on macOS 27, and a generic nil error on macOS 26 and earlier. Any other read failure throws `PCMBufferReaderError.readFailed`.
 
 ## Shared decode
 
