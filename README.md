@@ -242,47 +242,61 @@ struct LoudnessChart: View {
 
 ### Caching waveforms
 
-Measuring reads and filters the whole file every time. Caching the result means a track is measured once. The library writes nothing to disk, so your app owns the folder, the file writes and the size limit; the library owns the file format and decides whether stored bytes are still usable.
+Measuring reads and filters the whole file every time. Caching the result means a track is measured once. The library never stores anything: your app chooses the cache key and the store (a folder of files, a database blob, memory) and owns the size limit. The library owns the byte format, `encoded()` and `decoded(from:)`, and decides whether stored bytes are still usable. The encoded bytes carry no key, so any key scheme works.
 
-The cache key is the lowercase hex SHA-256 of the audio file's bytes: 64 characters, `0-9` and `a-f`. Hashing the content means a renamed or moved track still hits the cache, and an edited one misses.
+Two common keys:
+
+- **File identity** (path plus size plus modification date). Costs no file read. A renamed or moved track misses the cache and is measured again.
+- **Content hash** (SHA-256 of the file's bytes). Survives renames and moves, and an edited track misses. It reads the whole file on every load to compute the key.
 
 ```swift
 import BoomBoomBoomKit
 import CryptoKit
 import Foundation
 
-/// The cache key: lowercase hex SHA-256 of the audio file's bytes.
+/// A file identity key: path, size and modification date. No audio is read.
 func waveformKey(for url: URL) throws -> String {
-  let handle = try FileHandle(forReadingFrom: url)
-  defer { try? handle.close() }
-  var hasher = SHA256()
-  while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
-    hasher.update(data: chunk)
-  }
-  return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+  let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+  let size = values.fileSize ?? 0
+  let modified = values.contentModificationDate?.timeIntervalSince1970 ?? 0
+  let identity = "\(url.standardizedFileURL.path)|\(size)|\(modified)"
+  // Hashing the short identity string gives a fixed-length, file-name-safe key.
+  return SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
 }
 
 /// Returns the stored levels when the cache file is usable. Otherwise measures
 /// the track, stores the result and returns it.
 func waveformLevels(for trackURL: URL, cacheFolder: URL) throws -> WaveformBandLevels {
-  let key = try waveformKey(for: trackURL)
-  let cacheURL = cacheFolder.appending(path: "\(key).waveform")
+  let cacheURL = cacheFolder.appending(path: "\(try waveformKey(for: trackURL)).waveform")
 
   if let stored = try? Data(contentsOf: cacheURL) {
-    if let cached = WaveformBandLevels.decoded(from: stored, forKey: key) {
+    if let cached = WaveformBandLevels.decoded(from: stored) {
       return cached
     }
-    // nil: the file is damaged, was written for another key, or comes from an
-    // older analysisVersion. Delete it and measure again.
+    // nil: the bytes are damaged or come from an older analysisVersion.
+    // Discard them and measure again.
     try? FileManager.default.removeItem(at: cacheURL)
   }
 
   let levels = try WaveformBandLevelReader.read(url: trackURL)
   // A failed write costs only the cache entry; the measured levels are still returned.
-  if let bytes = try? levels.encoded(forKey: key) {
-    try? bytes.write(to: cacheURL, options: .atomic)
-  }
+  try? levels.encoded().write(to: cacheURL, options: .atomic)
   return levels
+}
+```
+
+For a content-hash key, hash the audio file's bytes instead of the identity string. The store does not have to be a folder. `encoded()` returns plain `Data`, so a dictionary, a database blob column or any key-value store works, keyed however you like:
+
+```swift
+var store: [String: Data] = [:]  // or a database table keyed by your track ID
+
+let key = trackID  // any key your app already has
+let levels: WaveformBandLevels
+if let bytes = store[key], let cached = WaveformBandLevels.decoded(from: bytes) {
+  levels = cached
+} else {
+  levels = try WaveformBandLevelReader.read(url: trackURL)
+  store[key] = levels.encoded()
 }
 ```
 
@@ -310,9 +324,9 @@ for index in levels.peak.indices {
 
 What to know when caching:
 
-- **`nil` from `decoded(from:forKey:)` always means delete.** It never throws. A checksum covers every stored byte, so a damaged file, a file stored under another key, and a file written before the current `WaveformBandLevelReader.analysisVersion` all return `nil`. A library update that changes the measurement changes `analysisVersion`, and the old files are measured again on their next load.
+- **`nil` from `decoded(from:)` always means discard and measure again.** It never throws. A checksum covers every stored byte, so damaged or truncated bytes and bytes written before the current `WaveformBandLevelReader.analysisVersion` all return `nil`. A library update that changes the measurement changes `analysisVersion`, and old entries are measured again on their next load. The bytes do not record which audio file they came from; your key does.
 - **Write atomically.** `.atomic` writes to a temporary file and renames it into place, so a crash mid-write never leaves a partial file under the real name. A partial file would decode to `nil` anyway, and the next load would measure the track again.
-- **Size limits and eviction are yours.** A 4-minute track encodes to about 864 KB (24 bytes per bucket, 36,000 buckets) plus under 1 KB of header. Use the file's modification date or your own index to evict the least recently used files.
+- **Size limits and eviction are yours.** A 4-minute track encodes to about 864 KB (24 bytes per bucket, 36,000 buckets) plus under 1 KB of header. Use the file's modification date or your own index to evict the least recently used entries.
 - **The same decoded samples give the same bits on one machine.** Lossy decoders may not return identical samples on every read, and DSP output can differ between macOS versions, so a cached waveform and a fresh one can differ slightly after an OS update. Nothing invalidates on the OS version.
 - **A file can end before its header says.** `framesRead` below `frameCount` means the decoder reported the end-of-file status (`NSOSStatusErrorDomain` -39) partway through; the buckets past that point are silent. Any other read failure throws `PCMBufferReaderError.readFailed`.
 
@@ -641,8 +655,8 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `LUFSOptions` | Options for `analyzeLUFS` (`maxSeconds`; default nil = full file; `isCancelled` cooperative-cancellation closure) |
 | `LUFSAnalysisError` | Thrown for unsupported sample rates (44.1/48/96 kHz ship) |
 | `WaveformBandLevelReader` | Streams a file and measures low, mid and high band peak and RMS, 150 buckets per second; see "Waveform levels" |
-| `WaveformBandLevels`, `WaveformBandLevel`, `WaveformAudioSource` | The reader's result and its file format (`encoded(forKey:)`, `decoded(from:forKey:)`) |
-| `WaveformBandLevelError` | Unsupported sample rate (6 kHz and below), a header claiming more than 12 hours, invalid key, oversized encoded header |
+| `WaveformBandLevels`, `WaveformBandLevel`, `WaveformAudioSource` | The reader's result and its byte format (`encoded()`, `decoded(from:)`); the caller chooses the key and the store |
+| `WaveformBandLevelError` | Thrown by the reader: unsupported sample rate (6 kHz and below), or a header claiming more than 12 hours |
 | `BeatGrid` | Typed beat-grid result container (beats, downbeats, tempo, confidence, `gridOrigin` anchor, `coverage`, `tempoAgreement`) returned by `analyzeBeatGrid` / `analyze`; see "Beat grid" |
 | `BeatTimestamp` | One detected beat: `presentationTime` + per-beat `confidence` + `strength` (all clamped finite) |
 | `BeatGridAnchor` / `BeatGridAnchorSource` | The Rekordbox-style extrapolation anchor on `BeatGrid.gridOrigin` (phase-consistency selected) + its provenance |

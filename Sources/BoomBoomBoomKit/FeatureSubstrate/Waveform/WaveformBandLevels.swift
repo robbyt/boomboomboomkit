@@ -93,9 +93,10 @@ public struct WaveformAudioSource: Sendable, Hashable {
 /// On one machine the same decoded samples always give the same bits. Lossy
 /// decoders may not return identical samples on every read.
 ///
-/// ``encoded(forKey:)`` and ``decoded(from:forKey:)`` turn a result into bytes
-/// and back. The caller chooses where the bytes are stored; the library never
-/// writes to disk.
+/// ``encoded()`` and ``decoded(from:)`` turn a result into bytes and back.
+/// The library never stores anything: the caller chooses the cache key and the
+/// store (a file in its own folder, a database blob, memory). A `nil` from
+/// ``decoded(from:)`` means discard the stored bytes and measure again.
 public struct WaveformBandLevels: Sendable, Hashable {
   /// Each bucket's largest magnitude per band over every channel.
   public let peak: [WaveformBandLevel]

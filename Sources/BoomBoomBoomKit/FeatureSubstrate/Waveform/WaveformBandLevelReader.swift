@@ -32,6 +32,12 @@ import Foundation
 /// output arrays, never the whole decoded file. A header that claims more than
 /// 12 hours is refused before anything is allocated from it.
 ///
+/// Caching: the library never stores anything. To keep a result, call
+/// ``WaveformBandLevels/encoded()`` and store the bytes under a key and in a
+/// store the caller chooses (a file in its own folder, a database blob,
+/// memory). ``WaveformBandLevels/decoded(from:)`` returns `nil` for bytes that
+/// cannot be used; discard them and measure again.
+///
 /// Cancellation: ``Options/isCancelled`` is checked before each chunk, and a
 /// `true` throws `CancellationError`. A file whose header states 0 frames
 /// returns an empty result without checking it.
@@ -52,9 +58,10 @@ public enum WaveformBandLevelReader: Sendable {
 
   /// Names the measurement: the filter bank, the bucket rule, the read chunk,
   /// the peak and RMS rules, the louder-channel rule and the non-finite rule.
-  /// Changes whenever any stored value could change, which makes every file
-  /// encoded under an earlier version unusable
-  /// (``WaveformBandLevels/decoded(from:forKey:)`` returns `nil`).
+  /// Changes whenever any stored value could change, which makes every
+  /// encoding made under an earlier version unusable
+  /// (``WaveformBandLevels/decoded(from:)`` returns `nil`; discard and
+  /// measure again).
   public static let analysisVersion = "band-peak-rms.loudest-channel.v1"
 
   /// Frames decoded per read. Fixed: the filter output depends on where the

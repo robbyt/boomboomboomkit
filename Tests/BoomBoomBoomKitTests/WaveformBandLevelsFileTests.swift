@@ -17,8 +17,6 @@ import Testing
 
 @Suite("WaveformBandLevels file format")
 struct WaveformBandLevelsFileTests {
-  private static let keyA = String(repeating: "0123456789abcdef", count: 4)
-  private static let keyB = String(repeating: "fedcba9876543210", count: 4)
   private static let source = WaveformAudioSource(
     formatID: 0x6C70_636D, processingFormat: "float32 deinterleaved 2ch 44100.0Hz")
 
@@ -144,7 +142,7 @@ struct WaveformBandLevelsFileTests {
   private static func crafted(
     from levels: WaveformBandLevels, _ edit: (inout [String: Any]) -> Void
   ) throws -> Data {
-    var parts = try split(try levels.encoded(forKey: keyA))
+    var parts = try split(levels.encoded())
     edit(&parts.header)
     return try assemble(parts)
   }
@@ -155,46 +153,49 @@ struct WaveformBandLevelsFileTests {
   func readerResultRoundTrips() throws {
     let levels = try Self.readerResult()
     #expect(levels.peak.count == 239, "the premise: 70,000 frames at 44.1 kHz")
-    let data = try levels.encoded(forKey: Self.keyA)
+    let data = levels.encoded()
     #expect(data.count > 48 + levels.peak.count * 24)
 
-    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data, forKey: Self.keyA), levels)
+    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data), levels)
   }
 
   @Test("the empty result round-trips")
   func emptyResultRoundTrips() throws {
     let levels = try Self.emptyResult()
-    let data = try levels.encoded(forKey: Self.keyA)
+    let data = levels.encoded()
 
-    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data, forKey: Self.keyA), levels)
+    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data), levels)
   }
 
   @Test("an early-end-of-file result round-trips with framesRead unchanged")
   func earlyEOFResultRoundTrips() throws {
     let levels = try Self.earlyEndResult()
     #expect(levels.framesRead > 0 && levels.framesRead < levels.frameCount, "the premise")
-    let data = try levels.encoded(forKey: Self.keyA)
+    let data = levels.encoded()
 
-    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data, forKey: Self.keyA), levels)
+    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data), levels)
   }
 
-  @Test("a non-integral sample rate and a 256-byte processing format round-trip")
-  func extremeHeaderValuesRoundTrip() throws {
+  @Test(
+    "the largest valid header (a 256-byte processing format) and a non-integral rate round-trip")
+  func largestValidHeaderRoundTrips() throws {
     let format = String(repeating: "x", count: 256)
     let levels = try #require(
       WaveformBandLevels(
         peak: [.silent, .silent], rms: [.silent, .silent], sampleRate: 22_050.123456789012,
         channelCount: 64, frameCount: 200, framesRead: 17,
         source: WaveformAudioSource(formatID: .max, processingFormat: format)))
-    let data = try levels.encoded(forKey: Self.keyA)
+    let data = levels.encoded()
+    let headerCount = Int(data[12]) | Int(data[13]) << 8 | Int(data[14]) << 16
+    #expect(headerCount < 2_048, "far under the 65,536-byte limit: \(headerCount)")
 
-    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data, forKey: Self.keyA), levels)
+    Self.expectBitIdentical(WaveformBandLevels.decoded(from: data), levels)
   }
 
   @Test("the header carries the diagnostic fields")
   func headerCarriesDiagnosticFields() throws {
     let levels = try Self.smallResult()
-    let header = try Self.split(try levels.encoded(forKey: Self.keyA)).header
+    let header = try Self.split(levels.encoded()).header
 
     let filterBank = try #require(header["filterBank"] as? [String: Any])
     #expect(filterBank["lowPassHz"] as? Double == 300)
@@ -208,7 +209,7 @@ struct WaveformBandLevelsFileTests {
     let createdAt = try #require(header["createdAt"] as? String)
     #expect(try Date(createdAt, strategy: .iso8601) <= Date())
     #expect(header["elementType"] as? String == "float32le")
-    #expect(header["key"] as? String == Self.keyA)
+    #expect(header["key"] == nil, "the format carries no key")
     #expect(header["analysisVersion"] as? String == "band-peak-rms.loudest-channel.v1")
     #expect(header["bucketCount"] as? Int == 2)
     #expect(header["payloadByteCount"] as? Int == 48)
@@ -217,7 +218,7 @@ struct WaveformBandLevelsFileTests {
   @Test("the layout: magic, version 1, header count, then the payload's little-endian bits")
   func layoutIsAsDocumented() throws {
     let levels = try Self.smallResult()
-    let bytes = [UInt8](try levels.encoded(forKey: Self.keyA))
+    let bytes = [UInt8](levels.encoded())
 
     #expect(Array(bytes[0..<8]) == Array("BBBKWAVE".utf8))
     #expect(Array(bytes[8..<12]) == [1, 0, 0, 0])
@@ -229,60 +230,31 @@ struct WaveformBandLevelsFileTests {
     #expect(Array(parts.payload[24..<28]) == [0x00, 0x00, 0x80, 0x3E])
   }
 
-  // MARK: - Keys
-
-  @Test("a file encoded for one key is nil for another valid key")
-  func otherKeyIsNil() throws {
-    let data = try Self.smallResult().encoded(forKey: Self.keyA)
-
-    #expect(WaveformBandLevels.decoded(from: data, forKey: Self.keyB) == nil)
-  }
-
-  @Test(
-    "a bad key: encoded throws invalidKey, decoded returns nil",
-    arguments: [
-      String(repeating: "a", count: 63), String(repeating: "A", count: 64),
-      "../" + String(repeating: "a", count: 61), String(repeating: "a", count: 65),
-      String(repeating: "g", count: 64), "",
-    ])
-  func badKeyIsRefused(key: String) throws {
-    let levels = try Self.smallResult()
-
-    let error = #expect(throws: WaveformBandLevelError.self) { try levels.encoded(forKey: key) }
-    guard case .invalidKey(let reported) = error else {
-      Issue.record("expected invalidKey, got \(String(describing: error))")
-      return
-    }
-    #expect(reported == key)
-    let data = try levels.encoded(forKey: Self.keyA)
-    #expect(WaveformBandLevels.decoded(from: data, forKey: key) == nil)
-  }
-
   // MARK: - Slices
 
   @Test("a slice that does not start at index 0: the valid one decodes, a truncated one is nil")
   func sliceInputIsParsedFromItsFirstByte() throws {
     let levels = try Self.readerResult()
-    let data = try levels.encoded(forKey: Self.keyA)
+    let data = levels.encoded()
     let container = Data([0xDE, 0xAD, 0xBE, 0xEF, 0x42]) + data + Data([0x99])
     let start = 5
     let valid = container[start..<(container.count - 1)]
     #expect(valid.startIndex == start, "the premise: a slice with a nonzero start")
 
-    Self.expectBitIdentical(WaveformBandLevels.decoded(from: valid, forKey: Self.keyA), levels)
-    #expect(WaveformBandLevels.decoded(from: container[start...], forKey: Self.keyA) == nil)
+    Self.expectBitIdentical(WaveformBandLevels.decoded(from: valid), levels)
+    #expect(WaveformBandLevels.decoded(from: container[start...]) == nil)
     #expect(
-      WaveformBandLevels.decoded(from: container[start..<(container.count - 2)], forKey: Self.keyA)
+      WaveformBandLevels.decoded(from: container[start..<(container.count - 2)])
         == nil)
     #expect(
-      WaveformBandLevels.decoded(from: container[start..<(start + 20)], forKey: Self.keyA) == nil)
+      WaveformBandLevels.decoded(from: container[start..<(start + 20)]) == nil)
   }
 
   // MARK: - Damaged bytes
 
   @Test("damaged bytes are nil and never trap")
   func damagedBytesAreNil() throws {
-    let data = try Self.readerResult().encoded(forKey: Self.keyA)
+    let data = try Self.readerResult().encoded()
     let bytes = [UInt8](data)
     let headerCount = Int(bytes[12]) | Int(bytes[13]) << 8
     var cases: [(String, [UInt8])] = []
@@ -316,13 +288,13 @@ struct WaveformBandLevelsFileTests {
     cases.append(("zeros", [UInt8](repeating: 0, count: bytes.count)))
 
     for (name, damaged) in cases {
-      #expect(WaveformBandLevels.decoded(from: Data(damaged), forKey: Self.keyA) == nil, "\(name)")
+      #expect(WaveformBandLevels.decoded(from: Data(damaged)) == nil, "\(name)")
     }
   }
 
   @Test("header byte counts out of range are nil, with the checksum rebuilt")
   func headerCountOutOfRangeIsNil() throws {
-    let data = try Self.smallResult().encoded(forKey: Self.keyA)
+    let data = try Self.smallResult().encoded()
     let bytes = [UInt8](data)
     for count: UInt32 in [0, 65_537, UInt32(bytes.count - 48 + 1), .max] {
       var prefix = Array(bytes[0..<16])
@@ -333,17 +305,17 @@ struct WaveformBandLevelsFileTests {
           UInt8(truncatingIfNeeded: count >> 16), UInt8(truncatingIfNeeded: count >> 24),
         ])
       let rebuilt = Self.withChecksum(prefix: prefix, rest: Array(bytes[48...]))
-      #expect(WaveformBandLevels.decoded(from: rebuilt, forKey: Self.keyA) == nil, "H = \(count)")
+      #expect(WaveformBandLevels.decoded(from: rebuilt) == nil, "H = \(count)")
     }
   }
 
   @Test("a header that is not JSON, with the checksum rebuilt, is nil")
   func headerNotJSONIsNil() throws {
-    let parts = try Self.split(try Self.smallResult().encoded(forKey: Self.keyA))
+    let parts = try Self.split(try Self.smallResult().encoded())
     for header in ["not json", "{", "[]", "{\"key\": 1}", String(repeating: "[", count: 10_000)] {
       let data = try Self.assemble(parts, headerBytes: Data(header.utf8))
       #expect(
-        WaveformBandLevels.decoded(from: data, forKey: Self.keyA) == nil, "\(header.prefix(20))")
+        WaveformBandLevels.decoded(from: data) == nil, "\(header.prefix(20))")
     }
   }
 
@@ -408,8 +380,6 @@ struct WaveformBandLevelsFileTests {
       ("bucketsPerSecond 100", { $0["bucketsPerSecond"] = 100 }),
       ("older analysisVersion", { $0["analysisVersion"] = "band-peak-rms.loudest-channel.v0" }),
       ("elementType float16le", { $0["elementType"] = "float16le" }),
-      ("other key in the header", { $0["key"] = Self.keyB }),
-      ("missing key", { $0["key"] = nil }),
       ("missing source", { $0["source"] = nil }),
       (
         "formatID out of UInt32 range",
@@ -423,7 +393,7 @@ struct WaveformBandLevelsFileTests {
     ]
     for (name, edit) in edits {
       let data = try Self.crafted(from: levels, edit)
-      #expect(WaveformBandLevels.decoded(from: data, forKey: Self.keyA) == nil, "\(name)")
+      #expect(WaveformBandLevels.decoded(from: data) == nil, "\(name)")
     }
   }
 
@@ -431,7 +401,7 @@ struct WaveformBandLevelsFileTests {
   func payloadValuesOutOfRangeAreNil() throws {
     let levels = try Self.smallResult()
     for value in [Float.nan, .infinity, -.infinity, -0.5, 1.000_001, .greatestFiniteMagnitude] {
-      var parts = try Self.split(try levels.encoded(forKey: Self.keyA))
+      var parts = try Self.split(levels.encoded())
       let bits = value.bitPattern
       parts.payload.replaceSubrange(
         28..<32,
@@ -440,7 +410,7 @@ struct WaveformBandLevelsFileTests {
           UInt8(truncatingIfNeeded: bits >> 16), UInt8(truncatingIfNeeded: bits >> 24),
         ])
       let data = try Self.assemble(parts)
-      #expect(WaveformBandLevels.decoded(from: data, forKey: Self.keyA) == nil, "\(value)")
+      #expect(WaveformBandLevels.decoded(from: data) == nil, "\(value)")
     }
   }
 
@@ -483,7 +453,7 @@ struct WaveformBandLevelsFileTests {
     ]
     for (name, edit) in edits {
       let data = try Self.crafted(from: levels, edit)
-      let decoded = WaveformBandLevels.decoded(from: data, forKey: Self.keyA)
+      let decoded = WaveformBandLevels.decoded(from: data)
       #expect(decoded != nil, "\(name)")
       Self.expectBitIdentical(decoded, levels)
     }
@@ -541,9 +511,8 @@ struct WaveformBandLevelsFileTests {
     let unsupported = WaveformBandLevelError.unsupportedFormat(url, sampleRate: 6_000)
     #expect(unsupported.localizedDescription.contains("track.wav"))
     #expect(unsupported.localizedDescription.contains("6000.0 Hz"))
-    #expect(WaveformBandLevelError.invalidKey("ABC").localizedDescription.contains("\"ABC\""))
-    #expect(
-      WaveformBandLevelError.headerTooLarge(byteCount: 70_000).localizedDescription.contains(
-        "70000"))
+    let tooLong = WaveformBandLevelError.durationTooLong(url, seconds: 50_000)
+    #expect(tooLong.localizedDescription.contains("track.wav"))
+    #expect(tooLong.localizedDescription.contains("50000.0 seconds"))
   }
 }

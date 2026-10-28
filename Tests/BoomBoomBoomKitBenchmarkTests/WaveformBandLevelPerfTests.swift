@@ -47,7 +47,6 @@ struct WaveformBandLevelPerfTests {
   private static let timedMinutes = 10
   private static let memoryMinutes = [2, 10, 30]
   private static let memorySlack = 0.25
-  private static let key = String(repeating: "0123456789abcdef", count: 4)
   private static let headerFixtures: [(name: String, fileExtension: String)] = [
     ("test-audio", "flac"), ("sample", "wav"), ("Meta_Man", "mp3"), ("test-audio", "m4a"),
   ]
@@ -83,10 +82,10 @@ struct WaveformBandLevelPerfTests {
       #expect(measured.peak.count == Self.timedMinutes * 60 * 150)
       let decodeOnly = try Self.time { try Self.decodeOnly(url) }
       var encodedData = Data()
-      let encode = try Self.time { encodedData = try measured.encoded(forKey: Self.key) }
+      let encode = try Self.time { encodedData = measured.encoded() }
       var decodedLevels: WaveformBandLevels?
       let decode = try Self.time {
-        decodedLevels = WaveformBandLevels.decoded(from: encodedData, forKey: Self.key)
+        decodedLevels = WaveformBandLevels.decoded(from: encodedData)
       }
       #expect(decodedLevels == measured)
       print(

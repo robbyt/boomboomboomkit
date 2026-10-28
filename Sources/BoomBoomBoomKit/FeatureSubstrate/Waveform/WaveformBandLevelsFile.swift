@@ -27,28 +27,21 @@ extension WaveformBandLevels {
 
   /// Encodes the levels into the waveform levels file format.
   ///
-  /// The caller stores the bytes wherever it likes; the library writes nothing
-  /// to disk. A file name of `<key>.waveform` is a reasonable choice.
+  /// The library never stores anything. The caller chooses the cache key and
+  /// the store (a file in its own folder, a database blob, memory) and keeps
+  /// the bytes however it likes; the format neither needs nor records a key.
   ///
   /// The format starts with a fixed magic and a layout version, then a JSON
-  /// header (the key, ``analysisVersion``, the counts, the sample rate,
-  /// ``source``, and diagnostic fields: the filter bank, the OS version and the
-  /// creation time), then every peak and RMS value as a little-endian
-  /// `Float32`. A SHA-256 checksum covers all of it, so any damaged byte makes
-  /// ``decoded(from:forKey:)`` return `nil`. Values come back bit for bit.
+  /// header (``analysisVersion``, the counts, the sample rate, ``source``, and
+  /// diagnostic fields: the filter bank, the OS version and the creation time),
+  /// then every peak and RMS value as a little-endian `Float32`. A SHA-256
+  /// checksum covers all of it, so any damaged byte makes ``decoded(from:)``
+  /// return `nil`. Values come back bit for bit.
   ///
-  /// - Parameter key: The caller's lowercase hexadecimal SHA-256 of the audio
-  ///   file's bytes (64 characters). The library never hashes the audio file;
-  ///   the key ties the stored levels to the file they were measured from.
-  /// - Returns: The encoded bytes.
-  /// - Throws: ``WaveformBandLevelError/invalidKey(_:)`` when `key` is not
-  ///   exactly 64 lowercase hexadecimal characters;
-  ///   ``WaveformBandLevelError/headerTooLarge(byteCount:)`` when the header
-  ///   exceeds 65,536 bytes, which no result this type accepts can reach.
-  public func encoded(forKey key: String) throws -> Data {
-    guard Self.isValidKey(key) else { throw WaveformBandLevelError.invalidKey(key) }
+  /// - Returns: The encoded bytes. Never fails: every result this type accepts
+  ///   has a header far under the format's 65,536-byte limit.
+  public func encoded() -> Data {
     let header = EncodedHeader(
-      key: key,
       analysisVersion: analysisVersion,
       bucketsPerSecond: bucketsPerSecond,
       sampleRate: sampleRate,
@@ -72,10 +65,17 @@ extension WaveformBandLevels {
       createdAt: Date().ISO8601Format())
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]
-    let headerBytes = try encoder.encode(header)
-    guard headerBytes.count <= Self.maximumHeaderBytes else {
-      throw WaveformBandLevelError.headerTooLarge(byteCount: headerBytes.count)
+    let headerBytes: Data
+    do {
+      headerBytes = try encoder.encode(header)
+    } catch {
+      // Every value is finite (the init admits only finite ones), so plain JSON
+      // encoding cannot fail.
+      preconditionFailure("waveform levels header failed to encode: \(error)")
     }
+    // The init bounds every variable-length field (processingFormat at 256
+    // UTF-8 bytes), which keeps the header far under the limit.
+    assert(headerBytes.count <= Self.maximumHeaderBytes)
 
     let payloadCount = peak.count * Self.bytesPerBucket
     var bytes = [UInt8]()
@@ -97,26 +97,23 @@ extension WaveformBandLevels {
     return Data(bytes)
   }
 
-  /// Decodes levels from bytes written by ``encoded(forKey:)``, or returns
-  /// `nil` when the bytes cannot be used.
+  /// Decodes levels from bytes written by ``encoded()``, or returns `nil`
+  /// when the bytes cannot be used.
   ///
-  /// Never throws. `nil` always means the stored bytes should be deleted: they
-  /// are damaged, truncated, from another layout version, encoded for another
-  /// key, or measured under an earlier ``WaveformBandLevelReader/analysisVersion``
-  /// (a new version makes every older file unusable). After deleting, measure
-  /// the file again and store the new result. An invalid `key` also returns
-  /// `nil`.
+  /// Never throws. `nil` always means the bytes are unusable: they are
+  /// damaged, truncated, from another layout version, or measured under an
+  /// earlier ``WaveformBandLevelReader/analysisVersion`` (a new version makes
+  /// every older encoding unusable). Discard them, measure the file again, and
+  /// store the new result. The library never stores anything; the caller's key
+  /// decides which stored bytes belong to which audio file.
   ///
   /// The diagnostic header fields (the filter bank, the OS version and the
-  /// creation time) are never read, so they cannot make a file unusable.
+  /// creation time) are never read, so they cannot make bytes unusable.
   ///
-  /// - Parameters:
-  ///   - data: The stored bytes. A slice of a larger `Data` is fine.
-  ///   - key: The lowercase hexadecimal SHA-256 of the audio file's bytes the
-  ///     levels are wanted for.
+  /// - Parameter data: The stored bytes. A slice of a larger `Data` is fine.
   /// - Returns: The levels, equal bit for bit to those encoded, or `nil`.
-  public static func decoded(from data: Data, forKey key: String) -> WaveformBandLevels? {
-    data.withUnsafeBytes { raw in decoded(from: raw, forKey: key) }
+  public static func decoded(from data: Data) -> WaveformBandLevels? {
+    data.withUnsafeBytes { raw in decoded(from: raw) }
   }
 
   // MARK: - Layout constants
@@ -131,22 +128,12 @@ extension WaveformBandLevels {
   /// Three bands of 4 bytes, in both the peak and the RMS array.
   static let bytesPerBucket = 24
 
-  // MARK: - Key
-
-  /// Whether `key` is exactly 64 lowercase hexadecimal characters.
-  static func isValidKey(_ key: String) -> Bool {
-    key.utf8.count == 64
-      && key.utf8.allSatisfy { (0x30...0x39).contains($0) || (0x61...0x66).contains($0) }
-  }
-
   // MARK: - Decoding
 
   /// The decoder over the bytes in place. Every count read from the data is
   /// checked against the bytes actually present before anything is allocated
   /// from it.
-  private static func decoded(
-    from raw: UnsafeRawBufferPointer, forKey key: String
-  ) -> WaveformBandLevels? {
+  private static func decoded(from raw: UnsafeRawBufferPointer) -> WaveformBandLevels? {
     guard raw.count >= prefixBytes,
       raw[0..<magic.count].elementsEqual(magic),
       readUInt32(raw, at: 8) == layoutVersion
@@ -162,7 +149,6 @@ extension WaveformBandLevels {
       UnsafeRawBufferPointer(rebasing: raw[prefixBytes..<(prefixBytes + headerCount)]))
     guard let header = try? JSONDecoder().decode(DecodedHeader.self, from: headerData),
       header.elementType == elementType,
-      isValidKey(key), header.key == key,
       header.analysisVersion == WaveformBandLevelReader.analysisVersion,
       header.bucketsPerSecond == WaveformBandLevelReader.bucketsPerSecond,
       header.sampleRate.isFinite, header.sampleRate > minimumSampleRateExclusive,
@@ -260,7 +246,6 @@ private struct FilterBank: Encodable {
 
 /// Every header field written, the diagnostic ones included.
 private struct EncodedHeader: Encodable {
-  let key: String
   let analysisVersion: String
   let bucketsPerSecond: Double
   let sampleRate: Double
@@ -279,7 +264,6 @@ private struct EncodedHeader: Encodable {
 /// The header fields the decoder reads. The diagnostic fields are not
 /// declared, so they can never make a file unusable; unknown keys are ignored.
 private struct DecodedHeader: Decodable {
-  let key: String
   let analysisVersion: String
   let bucketsPerSecond: Double
   let sampleRate: Double
