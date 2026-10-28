@@ -10,6 +10,7 @@ Standalone audio analysis package for BPM estimation and LUFS loudness measureme
 
 - **BPM Estimation** — Mel-spectrogram onset detection + autocorrelation-based beat tracking with progressive analysis, sub-band voting disambiguation, optional click-track cross-correlation rescoring, and optional file-tag corroboration
 - **LUFS Measurement** — chart-ready `LUFSReport`: ITU-R BS.1770-5 integrated loudness + max true-peak (Annex 2 polyphase), EBU Tech 3342 loudness range, and momentary/short-term time series on the 100ms EBU Tech 3341 grid
+- **Waveform Levels**: three-band (low, mid, high) peak and RMS at 150 values per second, with a checksummed file format for caching the result
 - **PCM Reading** — Universal audio file reader producing mono `[Float]` samples (WAV, AIFF, MP3, FLAC, M4A, CAF)
 
 ## Installation
@@ -239,27 +240,81 @@ struct LoudnessChart: View {
 
 `WaveformBandLevelReader.read(url:options:)` measures a file's low, mid and high band peak and RMS, 150 values per second. Each channel is filtered into three bands (a 300 Hz low-pass; a 250 Hz high-pass then a 1,200 Hz low-pass; a 3,000 Hz high-pass then, at sample rates above 18 kHz, a 9,000 Hz low-pass). For each bucket and band, `peak` holds the largest magnitude of any channel and `rms` the louder channel's RMS, as linear values from 0 to 1. The file is streamed in fixed chunks, so memory holds one 65,536-frame chunk, four 65,536-sample `Double` filter buffers per channel (about 2 MiB per channel), and the two output arrays. A header that claims more than 12 hours throws `WaveformBandLevelError.durationTooLong` before anything is allocated from it.
 
-The library writes nothing to disk. To cache the levels, encode them, store the bytes with your own code, and decode them on the next load:
+### Caching waveforms
+
+Measuring reads and filters the whole file every time. Caching the result means a track is measured once. The library writes nothing to disk, so your app owns the folder, the file writes and the size limit; the library owns the file format and decides whether stored bytes are still usable.
+
+The cache key is the lowercase hex SHA-256 of the audio file's bytes: 64 characters, `0-9` and `a-f`. Hashing the content means a renamed or moved track still hits the cache, and an edited one misses.
 
 ```swift
 import BoomBoomBoomKit
+import CryptoKit
+import Foundation
 
-// key: your lowercase hex SHA-256 of the audio file's bytes (64 characters).
-let levels = try WaveformBandLevelReader.read(url: trackURL)
-let bytes = try levels.encoded(forKey: key)
-try bytes.write(to: cacheFolder.appending(path: "\(key).waveform"), options: .atomic)
+/// The cache key: lowercase hex SHA-256 of the audio file's bytes.
+func waveformKey(for url: URL) throws -> String {
+  let handle = try FileHandle(forReadingFrom: url)
+  defer { try? handle.close() }
+  var hasher = SHA256()
+  while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+    hasher.update(data: chunk)
+  }
+  return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+}
 
-// Later:
-let stored = try Data(contentsOf: cacheFolder.appending(path: "\(key).waveform"))
-if let cached = WaveformBandLevels.decoded(from: stored, forKey: key) {
-  // use cached.peak and cached.rms
-} else {
-  // nil means delete the file: it is damaged, for another key, or from an
-  // older analysisVersion. Measure again and store the new result.
+/// Returns the stored levels when the cache file is usable. Otherwise measures
+/// the track, stores the result and returns it.
+func waveformLevels(for trackURL: URL, cacheFolder: URL) throws -> WaveformBandLevels {
+  let key = try waveformKey(for: trackURL)
+  let cacheURL = cacheFolder.appending(path: "\(key).waveform")
+
+  if let stored = try? Data(contentsOf: cacheURL) {
+    if let cached = WaveformBandLevels.decoded(from: stored, forKey: key) {
+      return cached
+    }
+    // nil: the file is damaged, was written for another key, or comes from an
+    // older analysisVersion. Delete it and measure again.
+    try? FileManager.default.removeItem(at: cacheURL)
+  }
+
+  let levels = try WaveformBandLevelReader.read(url: trackURL)
+  // A failed write costs only the cache entry; the measured levels are still returned.
+  if let bytes = try? levels.encoded(forKey: key) {
+    try? bytes.write(to: cacheURL, options: .atomic)
+  }
+  return levels
 }
 ```
 
-`decoded(from:forKey:)` never throws. A checksum covers every stored byte, and a new `WaveformBandLevelReader.analysisVersion` makes every older file decode to `nil`. `framesRead` below `frameCount` means the file ended before its header said it would and the decoder reported the end-of-file status (`NSOSStatusErrorDomain` -39); the buckets past that point are silent. Otherwise an early end throws `PCMBufferReaderError.readFailed`. The same decoded samples always give the same bits on one machine; lossy decoders may not return identical samples on every read. Cancellation goes through `Options.isCancelled` (default `Task.isCancelled`) and throws `CancellationError`.
+Run it off the main thread. Cancelling the task stops a fresh measurement before its next chunk with `CancellationError`, so a cancelled read stores nothing:
+
+```swift
+let load = Task.detached(priority: .userInitiated) {
+  try waveformLevels(for: trackURL, cacheFolder: cacheFolder)
+}
+// Later, if the user loads another track first:
+load.cancel()
+```
+
+To use the result, bucket `i` covers the audio from `Double(i) / levels.bucketsPerSecond` seconds onward:
+
+```swift
+let levels = try await load.value
+for index in levels.peak.indices {
+  let seconds = Double(index) / levels.bucketsPerSecond
+  let peak = levels.peak[index]  // peak.low, peak.mid, peak.high in 0...1
+  let rms = levels.rms[index]    // rms.low, rms.mid, rms.high in 0...1
+  // Draw the three bands at `seconds`.
+}
+```
+
+What to know when caching:
+
+- **`nil` from `decoded(from:forKey:)` always means delete.** It never throws. A checksum covers every stored byte, so a damaged file, a file stored under another key, and a file written before the current `WaveformBandLevelReader.analysisVersion` all return `nil`. A library update that changes the measurement changes `analysisVersion`, and the old files are measured again on their next load.
+- **Write atomically.** `.atomic` writes to a temporary file and renames it into place, so a crash mid-write never leaves a partial file under the real name. A partial file would decode to `nil` anyway, and the next load would measure the track again.
+- **Size limits and eviction are yours.** A 4-minute track encodes to about 864 KB (24 bytes per bucket, 36,000 buckets) plus under 1 KB of header. Use the file's modification date or your own index to evict the least recently used files.
+- **The same decoded samples give the same bits on one machine.** Lossy decoders may not return identical samples on every read, and DSP output can differ between macOS versions, so a cached waveform and a fresh one can differ slightly after an OS update. Nothing invalidates on the OS version.
+- **A file can end before its header says.** `framesRead` below `frameCount` means the decoder reported the end-of-file status (`NSOSStatusErrorDomain` -39) partway through; the buckets past that point are silent. Any other read failure throws `PCMBufferReaderError.readFailed`.
 
 ## Shared decode
 
