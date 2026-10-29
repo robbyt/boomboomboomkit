@@ -4,9 +4,7 @@
 //
 //  Story 15.11: the internal pieces of `BandWaveformReader` -- the
 //  three-band filter of one channel, the bucket timebase, and the open
-//  bucket's running sums of squares. Nothing here is shared with
-//  `WaveformAnalyzer`, which uses a different coefficient expression, bin
-//  rule, chunking and RMS accumulation.
+//  bucket's running sums of squares.
 //
 
 import Accelerate

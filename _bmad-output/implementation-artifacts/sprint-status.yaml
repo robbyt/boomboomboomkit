@@ -1,5 +1,5 @@
 # generated: 2026-03-31
-# last_updated: 2026-10-25
+# last_updated: 2026-10-28
 # project: BoomBoomBoomKit
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-31
-last_updated: "2026-10-23"
+last_updated: "2026-10-28"
 update_history: |
   2026-10-17 -- Epic 15 (rekordbox-informed accuracy improvements) chartered from the investigation (now held in the rekordboxReader repository at ../rekordboxReader/docs/rekordbox-analysis/) of rekordbox 7.2.19.0342. Nine-phase skeleton in epics.md as CHARTER ONLY; eight phase-planner story drafts (15.2 reproduce timing baseline in-tree, 15.3 frame-time convention + fix at one boundary, 15.4 waveform types with per-bin timing and channel-aware stereo, 15.5 fixed-time ML input ablation feeding Epic 12 FR-58, 15.6 framewise beat/downbeat observation path + 4/4 decoder with stub producer, 15.7 joint tempo+phase fit, 15.8 .dawproject supplementary annotations, 15.9 matched-evaluation harness vs rekordbox and DAW oracle) folded into the charter as the provisional scope. No PRD, no stories ready-for-dev. Scope boundary pinned across every story: nothing new ships to main, SignalSource.beatGrid and SignalWeights.beatGrid stay placeholders, Story 12-7 signed-corpus protocol is OUT OF SCOPE for side effects, no "meets or exceeds rekordbox" claim admissible before Story 15.9 completes with paired held-out results. Explicit Epic 12 overlaps named: 15.5 maps to corrected-ranking item 5 (input-representation), 15.6 maps to item 7(b) (multi-task beat+tempo head). Numbering collision in the phase-planner JSON (two entries returned storyId 15.6) flagged as an open PRD question; charter reads them as 15.6 and 15.7.
   2026-07-21 -- Tracker reconciliation (issues #113/#114/#115 from the 2026-07-21 adversarial review; 58 issues filed as #109-#166 with P1/P2/P3 labels). Closed the three factually-landed epic-9/epic-10 action items (PR #88 merged 2026-07-04 as d34fe91; epic-10 squash 2026-07-15 as 07dfddf annotated, outcome unrecorded), annotated the epic-11 critical-path item (sole remainder: 11-6 operator GUI smoke), moved this field's narrative history to update_history (W16), stamped epics.md stories 8.9-8.12 + the 8.7 reconciliation banner, and added merge records to the W83/W87 ledger entries. epic-9 stays in-progress pending the 9-1/9-2 GUI smokes; 11-6 stays review pending its smoke.
@@ -362,7 +362,7 @@ development_status:
   # Epic 15: Rekordbox-informed accuracy improvements (charter only; earlier Epic 15 stories are tracked in their story files).
   15-10-beat-grid-analyzed-span-and-grid-queries: done
   15-11-waveform-band-levels: done
-  15-12-remove-waveform-analyzer: backlog
+  15-12-remove-waveform-analyzer: review
 
 action_items:
   - epic: 9

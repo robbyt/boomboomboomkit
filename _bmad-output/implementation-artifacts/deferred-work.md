@@ -1266,6 +1266,7 @@ Caller-configurable beat-grid STFT oversampling. Attempted as a 2026-10-17 follo
 - source_spec: `_bmad-output/implementation-artifacts/spec-pr-198-200-epic-15-stack-triage.md`
   summary: CLAUDE.md's Key Types roster has no entry for the Story 15.4 Waveform surface or the Story 15.6 and 15.7 Framewise types.
   evidence: `grep -c 'Waveform\|Framewise' CLAUDE.md` is 0 on the Epic 15 stack; the roster predates Epic 15, so the next agent reads a public surface list missing `WaveformAnalyzer`, `WaveformOptions`, `WaveformAnalyzerError`, and the internal Framewise namespace. Deferred because the fix edits an agent-context file.
+  update: Story 15.12 (2026-10-28) removed the Story 15.4 Waveform types, so the Waveform half is moot. The Framewise half stays open.
 
 ## Deferred from: PR 198 to 200 Epic 15 stack triage, pass 3 (beat-evidence guidance, 2026-10-19)
 
@@ -1544,7 +1545,7 @@ Same stopping rule as rounds 3 and 4: none of these changes today's corpus outpu
   evidence: Unverified (maybe-false): no way was shown to make `AVAudioFile.read(into:)` return 0 frames without throwing at position 0. If reachable, a caller would cache an all-silent result. Settle by finding a file that does it.
 
 - source_spec: `15-11-waveform-band-levels.md`
-  summary: Curate the waveform types (`BandWaveformReader`, `BandWaveform` with its nested `BandWaveform.Levels`, `BandWaveform.Band` and `BandWaveform.Source`, and `WaveformAnalyzer`) in a topic group on the DocC landing page.
+  summary: Curate the waveform types (`BandWaveformReader`, `BandWaveform` with its nested `BandWaveform.Levels`, `BandWaveform.Band` and `BandWaveform.Source`) in a topic group on the DocC landing page.
   evidence: Code review 2026-10-27: `BoomBoomBoomKit.docc/BoomBoomBoomKit.md` lists none of them; they fall into the uncurated sections.
 
 - source_spec: `15-11-waveform-band-levels.md`

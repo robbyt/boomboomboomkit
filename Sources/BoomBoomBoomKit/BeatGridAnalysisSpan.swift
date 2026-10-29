@@ -33,9 +33,8 @@
 /// `beats.first` and `beats.last` for that.
 ///
 /// ## Integer samples, one float
-/// The bounds are integers, like
-/// ``WaveformDetailEnvelope/coveredSampleRange``, so the window
-/// is recorded exactly and cannot be `NaN`. ``sampleRate`` is the one `Double`;
+/// The bounds are integer sample indices, so the window is recorded exactly
+/// and cannot be `NaN`. ``sampleRate`` is the one `Double`;
 /// the failable initializer rejects a non-finite or non-positive rate, so every
 /// stored float is finite and the synthesized `Hashable` is sound. Seconds are
 /// computed from the integers on read.
