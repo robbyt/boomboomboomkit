@@ -1,6 +1,8 @@
 # Story 15.4: Independent waveform data types with per-bin timing and channel-aware stereo
 
-Status: review (Phase 1 of 3 landed)
+Status: superseded
+
+Removed in Story 15.12 (2026-10-28), replaced by Story 15.11's `BandWaveformReader`; phases 15.4a and 15.4b withdrawn. The removed code and its perf baselines (`_bmad-output/perf-baselines/waveform/`) remain in git history at `dabddb4`.
 
 Epic: 15 (Rekordbox-informed accuracy improvements)
 Phase: 4 of the handoff in `../rekordboxReader/docs/rekordbox-analysis/AGENT_GUIDANCE.md`.
