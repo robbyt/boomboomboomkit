@@ -186,12 +186,10 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// Time-axis width of the model's input tensor (post-resample).
   private static let targetWidth = 512
 
-  /// Number of output bins emitted by the model. Verified at init time
-  /// against the actual graph metadata via `validateContract`. Part of the
-  /// public BYOW bin contract in README.md ("Model contract for
-  /// BNNSTechnique"); keep it and `bpmBinOffset` in sync with the reference
-  /// architecture and training dataset when a named story changes the schema.
-  private static let expectedBinCount = 256
+  // The output bin count (256) is `BNNSTempoGraph.binCount`, verified at
+  // init against the graph metadata. Part of the public BYOW bin contract in
+  // README.md ("Model contract for BNNSTechnique"); keep it and
+  // `bpmBinOffset` in sync with the reference architecture.
 
   /// BPM offset for the bin-center decode (DD #18): `bpm = 30 + argmax`.
   private static let bpmBinOffset: Double = 30.0
@@ -213,24 +211,10 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// the evaluator's actual abstain criterion.
   internal static let supportedFeatureSetVersion = MLFeatureFrames.currentFeatureSetVersion
 
-  /// Compiled graph + workspace ownership. Final class so its `deinit`
-  /// runs when the last `BNNSTechnique` reference drops.
-  private let handle: BNNSGraphHandle
-
-  /// Argument index for the graph's input tensor, resolved by NAME at
-  /// init via `BNNSGraphGetArgumentPosition` per DD #16. Hard-coded
-  /// positions are forbidden because a re-converted model with renamed
-  /// arguments would silently swap input/output.
-  private let srcIndex: Int
-
-  /// Argument index for the graph's output tensor.
-  private let dstIndex: Int
-
-  /// Total argument count reported by `BNNSGraphGetArgumentCount` at init.
-  /// Used to size the per-call argument array in `inferTempoCNN` so a
-  /// graph with auxiliary arguments doesn't cause OOB writes when
-  /// `srcIndex` / `dstIndex` exceed 1 (review fix C1).
-  private let argumentCount: Int
+  /// Compiled graph, its resolved argument positions, and per-call
+  /// inference, shared with `FixedTimeTechnique` (the width is the only
+  /// difference between the two contracts).
+  private let graph: BNNSTempoGraph
 
   /// Identifier surfaced on every win-path ``MLEvaluation``. Derived
   /// from the `modelURL.deletingPathExtension().lastPathComponent` at
@@ -250,7 +234,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// Test-only seam exposing the handle reference for the deinit witness
   /// test (`BNNSTechniqueDeinitWitnessTests`, Task 8). Reachable only via
   /// `@testable import BoomBoomBoomKitML`. Not intended for production.
-  internal var __handleForTesting: BNNSGraphHandle { handle }
+  internal var __handleForTesting: BNNSGraphHandle { graph.handle }
 
   /// Loads and compiles the model at `modelURL`. The default-arg
   /// (`Self.bundledReferenceURL`) is **always `nil` in the current ship**
@@ -310,44 +294,10 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       throw MLTechniqueError.modelResourceMissing(
         URL(fileURLWithPath: "<no bundled model in this build; pass modelURL: explicitly>"))
     }
-    guard FileManager.default.fileExists(atPath: modelURL.path()) else {
-      throw MLTechniqueError.modelResourceMissing(modelURL)
-    }
-
-    let compileOptions = BNNSGraphCompileOptionsMakeDefault()
-    defer { BNNSGraphCompileOptionsDestroy(compileOptions) }
-
-    let graph: bnns_graph_t = modelURL.path().withCString { cpath in
-      BNNSGraphCompileFromFile(cpath, nil, compileOptions)
-    }
-    guard graph.data != nil, graph.size != 0 else {
-      throw MLTechniqueError.modelLoadFailed(
-        underlying: BNNSCompileFailure(
-          message: "BNNSGraphCompileFromFile returned empty graph for \(modelURL.path())"))
-    }
-
-    // Validate input/output tensor names, output bin count, input rank
-    // and shape, and graph-argument-count BEFORE caching anything on the
-    // struct. `validateContract` returns the resolved argument positions
-    // and total argument count so we don't re-query the graph after init
-    // (avoids drift between validation and caching — review fix C4) and
-    // so `inferTempoCNN` can size the per-call argument array correctly
-    // when the graph has auxiliary arguments (review fix C1).
-    //
-    // Free graph data on any failure so the lifecycle contract holds
-    // even on the throw path.
-    let validation: (src: Int, dst: Int, argumentCount: Int)
-    do {
-      validation = try Self.validateContract(graph: graph)
-    } catch {
-      Self.releaseGraphData(graph.data)
-      throw error
-    }
-
-    self.handle = BNNSGraphHandle(graph: graph)
-    self.srcIndex = validation.src
-    self.dstIndex = validation.dst
-    self.argumentCount = validation.argumentCount
+    // File check, compile, and contract validation (input
+    // `[1, 1, 128, 512]`, 256-bin output) live in the shared graph helper;
+    // the throw order is unchanged.
+    self.graph = try BNNSTempoGraph(modelURL: modelURL, inputWidth: Self.targetWidth)
     // Derive identifier from the URL's basename (e.g.,
     // `giantsteps_v1.mlmodelc` → `giantsteps_v1`). Fallback to `"bnns"`
     // if the URL is malformed — the fileExists guard above makes that
@@ -427,7 +377,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     // Task 4.7. This is the byte stream Python's parity harness can
     // reproduce by replicating Swift's featurize.
     let cksum = Self.computeInputFeatureChecksum(inputTensor)
-    guard let logits = inferLogits(inputTensor) else {
+    guard let logits = graph.inferLogits(inputTensor) else {
       return (
         nil,
         MLDiagnosticSnapshot(inputFeatureChecksum: cksum, outcome: .graphFailed)
@@ -689,116 +639,6 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
     return resampled
   }
 
-  // MARK: - inferLogits
-
-  /// Per-call BNNSGraph inference. Builds a new `bnns_graph_context_t`,
-  /// runs `BNNSGraphContextExecute`, and returns the raw logit `[Float]`
-  /// (length ``expectedBinCount``) — or nil if any BNNS API call fails.
-  ///
-  /// Story 4-6 split from the original `inferTempoCNN` which folded the
-  /// host-side softmax + decode into the same function. The split lets
-  /// ``evaluateInternal(trace:)`` distinguish
-  /// ``MLDiagnosticSnapshot/FailureStage/graphFailed`` (this function
-  /// returns nil) from
-  /// ``MLDiagnosticSnapshot/FailureStage/decodeRejected``
-  /// (``decodeLogitsWithDiagnostic(_:)`` reports the decode-time
-  /// outcome). Per Codex finding #2, those were folded into a single
-  /// `inferenceFailed` case in the pre-review story spec; the split is
-  /// the load-bearing remediation.
-  private func inferLogits(
-    _ inputTensor: [Float]
-  ) -> [Float]? {
-    let context = BNNSGraphContextMake(handle.graph)
-    defer { BNNSGraphContextDestroy(context) }
-    guard context.data != nil, context.size != 0 else { return nil }
-    let setArgStatus = BNNSGraphContextSetArgumentType(
-      context, BNNSGraphArgumentTypeTensor)
-    guard setArgStatus == 0 else { return nil }
-
-    // `BNNSGraphContextGetWorkspaceSize` returns `size_t`, which the
-    // Clang importer currently maps to Swift `Int` (signed). The framework's
-    // failure sentinel is `SIZE_T_MAX`, which bit-reinterprets to `-1` in
-    // signed `Int`, so `>= 0` catches it. (Verified against bnns_graph.h:738-755
-    // on macOS 15 SDK and codex-019e23e6 thread.)
-    //
-    // Post-review-pass C3 fix: the explicit `: Int` annotation forces a compile
-    // error if a future SDK changes the import to `UInt` — the `>= 0` guard
-    // would otherwise silently no-op. Upper bound `< Int.max - pageSize`
-    // defends against absurd values that pass `>= 0` (review fix C3).
-    let workspaceSize: Int = BNNSGraphContextGetWorkspaceSize(context, nil)
-    guard workspaceSize >= 0 else { return nil }
-    var workspace: UnsafeMutableRawPointer?
-    if workspaceSize > 0 {
-      // `sysconf` can return -1 on error; `UnsafeMutableRawPointer.allocate`
-      // traps on non-positive alignment. Fall back to the canonical
-      // macOS page size (16 KiB on Apple Silicon, 4 KiB on Intel — the
-      // 4 KiB minimum is a safe over-aligned floor for either).
-      let rawPageSize = Int(sysconf(Int32(_SC_PAGESIZE)))
-      let pageSize = rawPageSize > 0 ? rawPageSize : 4096
-      // Sanity bound against absurdly large workspace sizes that passed
-      // `>= 0` (review fix C3). 1 GiB is several orders of magnitude beyond
-      // any plausible tempo-CNN workspace; if BNNS ever needs more, the
-      // floor moves with the model architecture, not silently.
-      guard workspaceSize < (1 << 30) else { return nil }
-      workspace = UnsafeMutableRawPointer.allocate(
-        byteCount: workspaceSize, alignment: pageSize)
-    }
-    defer { workspace?.deallocate() }
-
-    var inputTensorDesc = BNNSTensor()
-    let inMeta = "input".withCString {
-      BNNSGraphContextGetTensor(context, nil, $0, true, &inputTensorDesc)
-    }
-    var outputTensorDesc = BNNSTensor()
-    let outMeta = "output".withCString {
-      BNNSGraphContextGetTensor(context, nil, $0, true, &outputTensorDesc)
-    }
-    guard inMeta == 0, outMeta == 0 else { return nil }
-
-    var input = inputTensor
-    var output = [Float](repeating: 0, count: Self.expectedBinCount)
-
-    let execStatus: Int32 = input.withUnsafeMutableBytes { inBuf in
-      output.withUnsafeMutableBytes { outBuf in
-        inputTensorDesc.data = inBuf.baseAddress
-        inputTensorDesc.data_size_in_bytes = inBuf.count
-        outputTensorDesc.data = outBuf.baseAddress
-        outputTensorDesc.data_size_in_bytes = outBuf.count
-        return withUnsafeMutablePointer(to: &inputTensorDesc) { inPtr in
-          withUnsafeMutablePointer(to: &outputTensorDesc) { outPtr in
-            // Size the args array by the graph's reported argument
-            // count, not the hard-coded `count: 2`. A graph with
-            // auxiliary arguments would otherwise OOB on `args[srcIndex]`
-            // (review fix C1). srcIndex/dstIndex < argumentCount was
-            // already validated in `validateContract`.
-            var args = [bnns_graph_argument_t](
-              repeating: bnns_graph_argument_t(), count: argumentCount)
-            args[srcIndex].tensor = inPtr
-            args[srcIndex].data_ptr_size = inBuf.count
-            args[dstIndex].tensor = outPtr
-            args[dstIndex].data_ptr_size = outBuf.count
-            return args.withUnsafeMutableBufferPointer { argsPtr in
-              BNNSGraphContextExecute(
-                context, nil, argsPtr.count, argsPtr.baseAddress!,
-                workspaceSize,
-                workspace?.assumingMemoryBound(to: CChar.self))
-            }
-          }
-        }
-      }
-    }
-    // C2 residual: null out the descriptor `data` pointers after the
-    // closure so a future maintainer can't accidentally reuse them
-    // outside the `withUnsafeMutableBytes` lifetime (review fix C2).
-    inputTensorDesc.data = nil
-    inputTensorDesc.data_size_in_bytes = 0
-    outputTensorDesc.data = nil
-    outputTensorDesc.data_size_in_bytes = 0
-    guard execStatus == 0 else { return nil }
-
-    return output
-  }
-
   // MARK: - Host-side softmax + top-2 decode
 
   /// Applies a host-side softmax to the model's raw logit output
@@ -899,189 +739,6 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
       bpm: bpm, confidence: Double(confidence), secondMax: Double(secondMax))
   }
 
-  // MARK: - validateContract
-
-  /// Asserts the compiled graph exposes argument names `"input"` /
-  /// `"output"`, distinct positions, input rank 4 with shape
-  /// `[1, 1, expectedMelBands, targetWidth]` and `data_type == .float`,
-  /// and output rank `1...BNNS_MAX_TENSOR_DIMENSION` with total element
-  /// count `== expectedBinCount` and `data_type == .float`. Returns the
-  /// resolved `(src, dst, argumentCount)` tuple so `init(modelURL:)` does
-  /// not re-resolve positions (review fix C4 — single source of truth).
-  ///
-  /// Throws `MLTechniqueError.invalidTensorContract` on missing or
-  /// duplicate argument names, wrong input shape/dtype, or output rank
-  /// outside `1...BNNS_MAX_TENSOR_DIMENSION`. Throws
-  /// `MLTechniqueError.binCountMismatch` when output total-element-count
-  /// or dtype is wrong.
-  ///
-  /// Error precedence (stable contract): missing names → duplicate
-  /// positions → input shape/dtype → output rank → output element
-  /// count → output dtype. Tests asserting specific error cases should
-  /// rely on this ordering.
-  private static func validateContract(
-    graph: bnns_graph_t
-  ) throws -> (src: Int, dst: Int, argumentCount: Int) {
-    let inputIdx = "input".withCString {
-      BNNSGraphGetArgumentPosition(graph, nil, $0)
-    }
-    guard inputIdx >= 0 else {
-      throw MLTechniqueError.invalidTensorContract(missing: "input")
-    }
-    let outputIdx = "output".withCString {
-      BNNSGraphGetArgumentPosition(graph, nil, $0)
-    }
-    guard outputIdx >= 0 else {
-      throw MLTechniqueError.invalidTensorContract(missing: "output")
-    }
-    // Reject same-position mapping for input/output — would cause the
-    // output descriptor to overwrite the input slot at execute time
-    // (review fix: Codex new gap).
-    guard inputIdx != outputIdx else {
-      throw MLTechniqueError.invalidTensorContract(
-        missing: "distinct input/output positions")
-    }
-    // Argument count is `size_t` in C — the Clang importer currently maps it
-    // to Swift `Int` (signed); the failure sentinel `SIZE_T_MAX` bit-reinterprets
-    // to `-1`, so `>= 0` catches it. The explicit `: Int` annotation forces a
-    // compile error if a future SDK changes the import to `UInt` — the `>= 0`
-    // guard would otherwise silently no-op (review fix C3). The upper-bound
-    // sanity check defends against absurd values that pass `>= 0` (the BNNS
-    // graphs in this project have ≤ 4 named arguments; 1024 is a wildly
-    // permissive ceiling).
-    let argCount: Int = BNNSGraphGetArgumentCount(graph, nil)
-    guard argCount >= 0 else {
-      throw MLTechniqueError.modelLoadFailed(
-        underlying: BNNSCompileFailure(
-          message: "BNNSGraphGetArgumentCount returned SIZE_T_MAX during validateContract"))
-    }
-    guard argCount < 1024 else {
-      throw MLTechniqueError.modelLoadFailed(
-        underlying: BNNSCompileFailure(
-          message: "BNNSGraphGetArgumentCount returned implausible value \(argCount)"))
-    }
-    guard inputIdx < argCount, outputIdx < argCount else {
-      throw MLTechniqueError.invalidTensorContract(
-        missing:
-          "argument positions out of range (input=\(inputIdx), output=\(outputIdx), count=\(argCount))"
-      )
-    }
-
-    // Tensor metadata probing requires a temporary context.
-    let probeContext = BNNSGraphContextMake(graph)
-    defer { BNNSGraphContextDestroy(probeContext) }
-    guard probeContext.data != nil else {
-      throw MLTechniqueError.modelLoadFailed(
-        underlying: BNNSCompileFailure(
-          message: "BNNSGraphContextMake returned empty context during validateContract"))
-    }
-
-    // Verify INPUT contract: rank 4, shape [1, 1, melBands, frames],
-    // dtype Float. A graph emitting rank-2 or int8 input would silently
-    // misinterpret bytes at execute time (review fix: M3 / Codex new gap).
-    var inputTensor = BNNSTensor()
-    let inMeta = "input".withCString {
-      BNNSGraphContextGetTensor(probeContext, nil, $0, true, &inputTensor)
-    }
-    guard inMeta == 0 else {
-      throw MLTechniqueError.modelLoadFailed(
-        underlying: BNNSCompileFailure(
-          message:
-            "BNNSGraphContextGetTensor(input) failed during validateContract (status \(inMeta))"))
-    }
-    let maxRank = Int(BNNS_MAX_TENSOR_DIMENSION)
-    let inputRank = Int(inputTensor.rank)
-    guard (1...maxRank).contains(inputRank) else {
-      throw MLTechniqueError.invalidTensorContract(
-        missing: "input.rank in 1...\(maxRank) (got \(inputRank))")
-    }
-    // Read the input shape into a Swift array using a fixed-size
-    // BNNS_MAX_TENSOR_DIMENSION rebind — guarded above so we never
-    // over-read the tuple (review fix: C3' / E3).
-    //
-    // `BNNSTensor.shape` is imported as a fixed-size C tuple. Each element is
-    // documented as `size_t` in `bnns_types.h`; we rebind to `Int` on the
-    // assumption that the Clang importer maps `size_t` to signed `Int` (same
-    // assumption the workspace/argCount guards above depend on). The rank
-    // guard ensures we only read the first `inputRank` elements, never
-    // overrunning the tuple. If a future SDK changes the element type, the
-    // rebind silently returns wrong bytes — there is no language-level catch.
-    // The shape-vs-expectedInputShape comparison below catches most cases of
-    // drift (the bytes won't look like [1, 1, 128, 512]); the assertion below
-    // catches the rest with a debug-only sanity bound (review fix C3).
-    let inputShape: [Int] = withUnsafePointer(to: &inputTensor.shape) { tuplePtr in
-      tuplePtr.withMemoryRebound(to: Int.self, capacity: maxRank) { dims in
-        Array(UnsafeBufferPointer(start: dims, count: inputRank))
-      }
-    }
-    assert(
-      inputShape.allSatisfy { $0 > 0 && $0 <= 1 << 30 },
-      "BNNSTensor.shape element out of plausible range (got \(inputShape)) — possible import-type drift; review C3 guards in BNNSTechnique"
-    )
-    let expectedInputShape: [Int] = [1, 1, expectedMelBands, targetWidth]
-    guard inputShape == expectedInputShape else {
-      throw MLTechniqueError.invalidTensorContract(
-        missing: "input.shape \(expectedInputShape) (got \(inputShape))")
-    }
-    guard inputTensor.data_type == BNNSDataType.float else {
-      throw MLTechniqueError.invalidTensorContract(
-        missing: "input.data_type Float (got raw=\(inputTensor.data_type.rawValue))")
-    }
-
-    // Verify OUTPUT contract: rank 1...8, total element count ==
-    // expectedBinCount, dtype Float.
-    var outputTensor = BNNSTensor()
-    let outMeta = "output".withCString {
-      BNNSGraphContextGetTensor(probeContext, nil, $0, true, &outputTensor)
-    }
-    guard outMeta == 0 else {
-      throw MLTechniqueError.modelLoadFailed(
-        underlying: BNNSCompileFailure(
-          message:
-            "BNNSGraphContextGetTensor(output) failed during validateContract (status \(outMeta))"))
-    }
-    let outputRank = Int(outputTensor.rank)
-    guard (1...maxRank).contains(outputRank) else {
-      throw MLTechniqueError.invalidTensorContract(
-        missing: "output.rank in 1...\(maxRank) (got \(outputRank))")
-    }
-    let outputShape: [Int] = withUnsafePointer(to: &outputTensor.shape) { tuplePtr in
-      tuplePtr.withMemoryRebound(to: Int.self, capacity: maxRank) { dims in
-        Array(UnsafeBufferPointer(start: dims, count: outputRank))
-      }
-    }
-    assert(
-      outputShape.allSatisfy { $0 > 0 && $0 <= 1 << 30 },
-      "BNNSTensor.shape element out of plausible range (got \(outputShape)) — possible import-type drift; review C3 guards in BNNSTechnique"
-    )
-    // Total element count must match expectedBinCount — checking the
-    // last dim alone would accept [4, 64] reinterpreted as 256 floats
-    // (review fix: M4 / Codex new gap). Use overflow-reporting product.
-    var totalElements = 1
-    for dim in outputShape {
-      guard dim > 0 else {
-        throw MLTechniqueError.invalidTensorContract(
-          missing: "output.shape positive dims (got \(outputShape))")
-      }
-      let (product, overflow) = totalElements.multipliedReportingOverflow(by: dim)
-      guard !overflow else {
-        throw MLTechniqueError.invalidTensorContract(
-          missing: "output.shape element count Int-overflow (got \(outputShape))")
-      }
-      totalElements = product
-    }
-    guard totalElements == expectedBinCount else {
-      throw MLTechniqueError.binCountMismatch(
-        expected: expectedBinCount, actual: totalElements)
-    }
-    guard outputTensor.data_type == BNNSDataType.float else {
-      throw MLTechniqueError.invalidTensorContract(
-        missing: "output.data_type Float (got raw=\(outputTensor.data_type.rawValue))")
-    }
-
-    return (src: inputIdx, dst: outputIdx, argumentCount: argCount)
-  }
-
   // MARK: - HALT (g) defensive log
 
   /// `OSLog` channel for the nil-features diagnostic. Per-class is the
@@ -1103,7 +760,7 @@ public struct BNNSTechnique: MLTechnique, @unchecked Sendable {
   /// gives long-running multi-tenant apps the diagnostic signal on every
   /// instance, not just the first one.
   private func logNilFeaturesOnce() {
-    guard handle.nilFeaturesLatch.tryAcquire() else { return }
+    guard graph.handle.nilFeaturesLatch.tryAcquire() else { return }
     // `.error` (not `.fault`): a missing mlFeatures payload is a
     // configuration mismatch the consumer can recover from — the
     // technique abstains, the DSP path still produces a result. `.fault`
@@ -1230,7 +887,7 @@ internal final class OneShotLatch: @unchecked Sendable {
 /// Minimal error wrapper for BNNS compile / context failures that don't
 /// surface a richer underlying type. Carries the failure message so the
 /// MLTechniqueError.modelLoadFailed path stays structured.
-private struct BNNSCompileFailure: Error, LocalizedError {
+struct BNNSCompileFailure: Error, LocalizedError {
   let message: String
   var errorDescription: String? { message }
 }

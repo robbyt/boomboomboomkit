@@ -584,16 +584,28 @@ public struct AudioAnalysisService {
     decodeObserver: (@Sendable (FeatureSubstrate.DecodedAudio) -> Void)?
   ) throws -> AudioAnalysisResult? {
     let inputs = try urlBPMInputs(url: url, options: options)
+    // A whole-track technique reads the whole file: decode it uncapped once
+    // and give the DSP passes the `maxSeconds` prefix. Otherwise the read is
+    // capped exactly as before.
+    let wholeTrack = readsWholeTrack(options)
     let decoded = try decodeOnce(
-      url: url, maxSeconds: options.maxSeconds,
+      url: url, maxSeconds: wholeTrack ? nil : options.maxSeconds,
       isCancelled: options.isCancelled, observer: decodeObserver)
     let pre = try preCorroborationCore(
-      decoded: decoded,
+      decoded: wholeTrack ? applyCap(decoded, maxSeconds: options.maxSeconds) : decoded,
       metadataInput: inputs.metadataInput,
       fileDurationSeconds: inputs.fileDurationSeconds,
       options: options,
       enableTrace: shouldBuildTrace(options))
-    return try finishBPMAnalysis(pre: pre, options: options)
+    return try finishBPMAnalysis(pre: pre, options: options, mlAudio: decoded)
+  }
+
+  /// True when ML will run AND the technique is a ``WholeTrackMLTechnique``:
+  /// the only case in which the URL paths decode the whole file regardless of
+  /// ``Options/maxSeconds``. False under ``EnsemblePolicy/dspOnly`` or with
+  /// any other technique, so those reads are unchanged.
+  private static func readsWholeTrack(_ options: Options) -> Bool {
+    options.ensemblePolicy.invokesMLInference && options.mlTechnique is WholeTrackMLTechnique
   }
 
   /// Analyzes the BPM of already-decoded audio — the Story 8-2 shared-decode
@@ -640,6 +652,17 @@ public struct AudioAnalysisService {
     decoded: FeatureSubstrate.DecodedAudio,
     options: Options = .init()
   ) throws -> AudioAnalysisResult? {
+    try analyzeBPM(decoded: decoded, mlAudio: decoded, options: options)
+  }
+
+  /// The decoded path with the audio a ``WholeTrackMLTechnique`` reads passed
+  /// separately, so ``analyze(decoded:options:)`` can hand it the full decode
+  /// while the DSP passes read the `maxSeconds` prefix.
+  static func analyzeBPM(
+    decoded: FeatureSubstrate.DecodedAudio,
+    mlAudio: FeatureSubstrate.DecodedAudio,
+    options: Options
+  ) throws -> AudioAnalysisResult? {
     // Early checkpoint BEFORE the maxSeconds prefix slice — a pre-cancelled
     // call must not pay a potentially multi-MB prefix copy first (mirrors
     // the url path's pre-decode check and the LUFS decoded path's ordering).
@@ -656,7 +679,7 @@ public struct AudioAnalysisService {
       fileDurationSeconds: nil,
       options: options,
       enableTrace: shouldBuildTrace(options))
-    return try finishBPMAnalysis(pre: pre, options: options)
+    return try finishBPMAnalysis(pre: pre, options: options, mlAudio: mlAudio)
   }
 
   /// Story 4.3 + ADR-6 reconciled by Story 4.4 DD #2: trace is built when
@@ -675,8 +698,13 @@ public struct AudioAnalysisService {
   /// progress divergence class is shared behavior, not a reconciliation
   /// burden): pool selection → ML evaluation → ensemble combination →
   /// effective-intensity reporting → result assembly.
+  ///
+  /// `mlAudio` is the decoded track handed to a ``WholeTrackMLTechnique``:
+  /// the longest decode the caller holds, which may extend past the
+  /// `maxSeconds` prefix the DSP passes read.
   private static func finishBPMAnalysis(
-    pre: PreCorroborationOutput, options: Options
+    pre: PreCorroborationOutput, options: Options,
+    mlAudio: FeatureSubstrate.DecodedAudio
   ) throws -> AudioAnalysisResult? {
     // Story 6.5b (KDD-A6 Stage 3): Phase 1 (cross-window aggregation) + Phase 2a
     // (pool-authoritative multiplicative metadata corroboration) collapse into a
@@ -719,7 +747,7 @@ public struct AudioAnalysisService {
     // identical bytes — the trace is unchanged on those paths.
     var localTrace = corroborated.trace
     let mlOutcome = try Self.evaluateMLIfActive(
-      options: options, trace: &localTrace)
+      options: options, trace: &localTrace, audio: mlAudio)
     let corroboratedWithSnapshot = corroborated.with(trace: localTrace)
     // Phase 2b: cross-signal ML fusion + KDD-A5 weighted resolution. Weights are
     // derived from the policy inside `combineEnsemble` (same `resolveWeights`
@@ -847,8 +875,17 @@ public struct AudioAnalysisService {
   /// ``enableTrace`` governs whether the trace itself is returned to
   /// the caller; ``enableMLDiagnostics`` governs whether the snapshot
   /// is written into it. The two are independent.
+  ///
+  /// **Whole-track techniques.** When the conformer adopts
+  /// ``WholeTrackMLTechnique``, the helper calls
+  /// ``WholeTrackMLTechnique/evaluate(trace:audio:)`` with `audio` instead,
+  /// and under ``Options/enableMLDiagnostics`` writes its crop evidence to
+  /// ``BPMDiagnosticTrace/mlInputCrops`` and its snapshot to
+  /// ``BPMDiagnosticTrace/mlDiagnosticSnapshot``, with the same
+  /// cancellation ordering.
   private static func evaluateMLIfActive(
-    options: Options, trace: inout BPMDiagnosticTrace?
+    options: Options, trace: inout BPMDiagnosticTrace?,
+    audio: FeatureSubstrate.DecodedAudio
   ) throws -> MLSeamOutcome {
     guard options.ensemblePolicy.invokesMLInference,
       let ml = options.mlTechnique,
@@ -859,7 +896,13 @@ public struct AudioAnalysisService {
     // strict ordering).
     let localEvaluation: MLEvaluation?
     let localSnapshot: MLDiagnosticSnapshot?
-    if let diag = ml as? MLDiagnosticTechnique, options.enableMLDiagnostics {
+    var localCrops: MLInputCropEvidence?
+    if let wholeTrack = ml as? WholeTrackMLTechnique {
+      let result = wholeTrack.evaluate(trace: unwrappedTrace, audio: audio)
+      localEvaluation = result.evaluation
+      localSnapshot = options.enableMLDiagnostics ? result.snapshot : nil
+      localCrops = options.enableMLDiagnostics ? result.crops : nil
+    } else if let diag = ml as? MLDiagnosticTechnique, options.enableMLDiagnostics {
       let result = diag.evaluateWithDiagnostic(trace: unwrappedTrace)
       localEvaluation = result.evaluation
       localSnapshot = result.snapshot
@@ -883,6 +926,7 @@ public struct AudioAnalysisService {
     // nil write upholds that contract.
     var mutableTrace = unwrappedTrace
     mutableTrace.mlDiagnosticSnapshot = localSnapshot
+    mutableTrace.mlInputCrops = localCrops
     trace = mutableTrace
     // The evaluation ran (both cancellation brackets passed): nil is the
     // model's voluntary abstain, non-nil is a real evaluation (GH-167
@@ -1778,9 +1822,12 @@ public struct AudioAnalysisService {
     loudnessOptions.isCancelled = isCancelled
 
     let inputs = try urlBPMInputs(url: url, options: bpmOptions)
+    // A whole-track technique reads the whole file; every other pass keeps
+    // its own cap through `applyCap` below.
     let decoded = try decodeOnce(
       url: url,
-      maxSeconds: unionDecodeCap(options.maxSeconds, lufsOptions.maxSeconds),
+      maxSeconds: readsWholeTrack(bpmOptions)
+        ? nil : unionDecodeCap(options.maxSeconds, lufsOptions.maxSeconds),
       isCancelled: isCancelled,
       observer: decodeObserver)
     if isCancelled() { throw CancellationError() }
@@ -1793,7 +1840,7 @@ public struct AudioAnalysisService {
       options: bpmOptions,
       enableTrace: shouldBuildTrace(bpmOptions))
     let bpmAndBeatGrid: CombinedAnalysisResult?
-    if let bpm = try finishBPMAnalysis(pre: pre, options: bpmOptions) {
+    if let bpm = try finishBPMAnalysis(pre: pre, options: bpmOptions, mlAudio: decoded) {
       if isCancelled() { throw CancellationError() }
       bpmAndBeatGrid = try combineGridWithBPM(
         decoded: bpmCarrier, options: bpmOptions, bpm: bpm)
@@ -2121,7 +2168,11 @@ public struct AudioAnalysisService {
     }
     // Checkpoint before the (separate) beat-grid pass (AC6).
     if options.isCancelled() { throw CancellationError() }
-    return try combineGridWithBPM(decoded: decoded, options: options, bpm: bpm)
+    // With a whole-track technique the captured decode is the whole file;
+    // the grid keeps the `maxSeconds` prefix it always read.
+    let gridCarrier =
+      readsWholeTrack(options) ? applyCap(decoded, maxSeconds: options.maxSeconds) : decoded
+    return try combineGridWithBPM(decoded: gridCarrier, options: options, bpm: bpm)
   }
 
   /// Combined analysis over an already-decoded carrier — the shared-decode seam
@@ -2142,7 +2193,8 @@ public struct AudioAnalysisService {
     // Cap once so the BPM pass and the grid pass see the identical buffer
     // (`analyzeBPM(decoded:)` re-applies the cap idempotently).
     let capped = applyCap(decoded, maxSeconds: options.maxSeconds)
-    guard let bpm = try analyzeBPM(decoded: capped, options: options) else { return nil }
+    guard let bpm = try analyzeBPM(decoded: capped, mlAudio: decoded, options: options)
+    else { return nil }
     if options.isCancelled() { throw CancellationError() }
     return try combineGridWithBPM(decoded: capped, options: options, bpm: bpm)
   }

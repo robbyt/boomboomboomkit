@@ -1128,6 +1128,8 @@ fr18-evaluate:
 # that holds fr18-predictions-191/ and eval-corpus/ (read-only).
 # ---------------------------------------------------------------------------
 FIXED_TIME_RUN_DIR ?= $(CURDIR)/$(ML_TRAINING_DIR)/fixed-time-runs/seed_42
+# Seed of the run in FIXED_TIME_RUN_DIR; names the exported fixed_time_seed_<seed>.mlmodelc.
+FIXED_TIME_SEED ?= 42
 FIXED_TIME_LEGACY_ROOT ?= $(CURDIR)/$(ML_TRAINING_DIR)
 FIXED_TIME_WORKERS ?= $(TRAIN_WORKERS)
 FIXED_TIME_PREFLIGHT_SUBSET ?= 32
@@ -1178,6 +1180,25 @@ fixed-time-score:
 	uv run python -m fixed_time.score --run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
 		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" --device $(FIXED_TIME_DEVICE) \
 		$(FIXED_TIME_SCORE_ARGS)
+
+## fixed-time-export: Export FIXED_TIME_RUN_DIR/model.pt to an ML program (input [1,1,128,1200] named input, output named output, FP32, macOS 15) and compile it with xcrun coremlc to FIXED_TIME_RUN_DIR/fixed_time_seed_$(FIXED_TIME_SEED).mlmodelc (FIXED_TIME_SEED, default 42) for the demo app. Refuses unless PyTorch eager and Core ML agree within 1e-3 on a real crop (the top-ranked crop of a bundled audio fixture). Weights stay outside git. Develop-only.
+.PHONY: fixed-time-export
+fixed-time-export:
+	cd $(ML_TRAINING_DIR) && \
+	uv run python -m fixed_time.export --run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
+		--seed $(FIXED_TIME_SEED)
+
+## fixed-time-parity: Run the Swift FixedTimeTechnique (decode, 44.1 kHz crops, rhythm ranking, BNNSGraph inference, mean of softmax) on the first FIXED_TIME_PARITY_LIMIT (default 20) GiantSteps rows of FIXED_TIME_RUN_DIR/scores-giantsteps.json and record kept crop starts and BPM against Python to FIXED_TIME_RUN_DIR/swift-parity-giantsteps.json. Needs fixed-time-export first. Passes when at least 90 percent of BPMs match. Develop-only.
+FIXED_TIME_PARITY_LIMIT ?= 20
+.PHONY: fixed-time-parity
+fixed-time-parity:
+	FIXED_TIME_PARITY=1 \
+	FIXED_TIME_SCORES_JSON="$(abspath $(FIXED_TIME_RUN_DIR))/scores-giantsteps.json" \
+	FIXED_TIME_MODEL_URL="$(abspath $(FIXED_TIME_RUN_DIR))/fixed_time_seed_$(FIXED_TIME_SEED).mlmodelc" \
+	FIXED_TIME_PARITY_OUT="$(abspath $(FIXED_TIME_RUN_DIR))/swift-parity-giantsteps.json" \
+	FIXED_TIME_PARITY_LIMIT="$(FIXED_TIME_PARITY_LIMIT)" \
+	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	swift test --filter BoomBoomBoomKitBenchmarkTests.FixedTimeParityTests
 
 ## fixed-time-report: Story 15.5 -- paired per-track report (variant vs legacy vs tempo-CNN) by tempo band and error category, plus pretraining-exposure counts and manifest.json. Covers GiantSteps, the 12.7 corpus and OA300 (tempo-CNN not-run on the last two). Writes nothing unless every arm joins exactly with equal labels and legacy still scores 348/661, 124/172 and 43/82 and tempo-CNN 545/661. Develop-only.
 .PHONY: fixed-time-report

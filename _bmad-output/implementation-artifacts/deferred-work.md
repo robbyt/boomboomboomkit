@@ -1563,3 +1563,15 @@ Same stopping rule as rounds 3 and 4: none of these changes today's corpus outpu
 - source_spec: `_bmad-output/implementation-artifacts/spec-15-5-fixed-time-ml-input-ablation.md`
   summary: Replace the boolean-mask indexing in `ablation/masked_mel.py` (`diff[m]` in `masked_reconstruction_loss`, `masked[i, :, :, m] = 0` in `apply_time_mask`) with multiplicative masks, which give the same loss without the MPS index kernels.
   evidence: The Story 15.5 run hit two MPS faults in `loss.backward()` of this loss at 1200 frames (an out-of-bounds index and a mask counted as 744,448 then 930,635 positions); a silent in-range miscount would corrupt pretraining gradients without raising. The code is shared with the legacy recipe, so the change needs its own check that legacy losses are unchanged.
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-fixed-time-model.md`
+  summary: A whole-track ML technique runs with no cancellation check and no length bound. 44.1 kHz conversion, rhythm scoring of every candidate crop and up to 4 inferences all run uninterrupted on the full decode, so `maxSeconds` does not limit its cost.
+  evidence: `FixedTimeCrops.build` and `FixedTimeTechnique.evaluate(trace:audio:)` have no cancellation hook. `WholeTrackMLTechnique` has no cancellation parameter, so a fix changes that public protocol. A 2-hour 48 kHz mix copies about 1.3 GB and scores about 700 candidates.
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-fixed-time-model.md`
+  summary: The fixed-time technique's failure paths have no test: inference failure, non-finite logits, and the 44.1 kHz conversion abstain.
+  evidence: `FixedTimeTechnique` holds the BNNS graph directly, so the committed fixture cannot reach these paths. A test needs an injectable inference seam.
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-fixed-time-model.md`
+  summary: The Swift-vs-Python parity run records whether the kept crop starts match but never asserts it, so ranking drift that leaves the BPM unchanged passes.
+  evidence: The first run matched 17 of 20 kept-start sets and all 3 differences are explained by MP3 decoder length differences. Set an asserted floor once a few runs show the stable rate.
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-fixed-time-model.md`
+  summary: Bring the CLAUDE.md key-type entries up to date for the fixed-time work.
+  evidence: `MLTechniqueError` still says only `BNNSTechnique.init` and `MLFeatureFrames.init` throw it. `MLDiagnosticTechnique` lists only `BNNSTechnique`. `MLEvaluation` still says conformers clamp to 60...200. The Design Constraints list of public types lacks `WholeTrackMLTechnique` and `FixedTimeTechnique`. The `BNNSTechnique` entry does not mention `BNNSTempoGraph`.

@@ -61,8 +61,11 @@ struct RhythmicRegionIntegrationTests {
   private func legacyTraceBytes(_ trace: BPMDiagnosticTrace) -> [UInt8] {
     // Capture every legacy field in declaration order. The metadata source Set
     // needs sorting because Swift randomizes its reflection order per process.
+    // Fields added after the pinned archive are skipped: `mlInputCrops` is nil
+    // on this DSP-only path and did not exist when the fingerprint was taken.
+    let laterFields: Set<String> = ["rhythmicRegionEvidence", "mlInputCrops"]
     let fields = Mirror(reflecting: trace).children.compactMap { child -> String? in
-      guard let label = child.label, label != "rhythmicRegionEvidence" else { return nil }
+      guard let label = child.label, !laterFields.contains(label) else { return nil }
       if label == "metadataPolicyUsed" {
         let policy = trace.metadataPolicyUsed
         let sources = policy.enabledSources.map { String(reflecting: $0) }.sorted()
@@ -328,6 +331,8 @@ struct RhythmicRegionIntegrationTests {
     ]
     #expect(baselineSnapshots.contains(observed))
     #expect(trace.rhythmicRegionEvidence == nil)
+    // Skipped by `legacyTraceBytes`, so check it here: no ML ran on this path.
+    #expect(trace.mlInputCrops == nil)
   }
 
   @Test("metadata-disabled URL and decoded paths use identical capped PCM")

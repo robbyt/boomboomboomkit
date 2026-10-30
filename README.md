@@ -681,6 +681,9 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `MetadataPolicy` | File-tag corroboration policy + parsing hygiene flags |
 | `MetadataSource`, `MetadataBPMEvidence`, `HarmonicRatio` | Metadata evidence types |
 | `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Using your own tempo model" + "Model contract for `BNNSTechnique`" |
+| `WholeTrackMLTechnique` | `MLTechnique` refinement that also receives the whole decoded file (`evaluate(trace:audio:)`) and reports the crops it read. The service calls it in place of `evaluate(trace:)` when the policy invokes ML |
+| `FixedTimeTechnique` (`BoomBoomBoomKitML`) | Whole-track BNNSGraph tempo model reading up to four 12 s log-mel crops chosen by rhythm score. See "Model contract for `FixedTimeTechnique`" |
+| `FeatureSubstrate.FixedTimeCrops`, `FeatureSubstrate.FixedTimeCropSet` | The fixed-time model input: 44.1 kHz conversion, the crop plan, the rhythm ranking, and z-scored `[128, 1200]` crop tensors |
 | `MLEvaluation` | ML estimate carrier (`bpm`, `confidence`, optional `modelIdentifier`) |
 | `EnsemblePolicy` | DSP + ML combiner policy (5 cases: `.default`, `.dspOnly` default, `.mlOnly`, `.highestConfidence`, `.weightedVoting(SignalWeights)`) |
 | `SignalWeights` | Per-source weights for `EnsemblePolicy.weightedVoting` (`dsp` / `ml` / `fileMetadata` / `beatGrid`; `.default` = equal weighting) |
@@ -735,6 +738,7 @@ Populated only when `Options.enableTrace` is set (DSP fields) or `Options.enable
 | `WeightedSignal` / `SignalSource` | A participating signal's BPM, confidence, and origin (`.dsp` / `.ml` / `.fileMetadata` / `.beatGrid`) |
 | `SignalParticipationTraceEntry` | Per-signal pool log: source, participation, weight, contribution |
 | `EnsembleWeightResolution` | How a weighted ensemble policy resolved: per-source effective votes and the winner |
+| `MLInputCropEvidence` / `MLInputCrop` | The crops a `WholeTrackMLTechnique` scored and kept (start, length, rhythm score), or why it abstained. On `BPMDiagnosticTrace.mlInputCrops` when `Options.enableMLDiagnostics` is set |
 
 ### Reserved — declared but not wired
 
@@ -850,8 +854,9 @@ Path A above — supplying your own weights against the built-in `BNNSTechnique`
 from 30 through 285: bin `i` means `i + 30` BPM. The schema is declared in
 `tools/coreml-convert/reference_arch.py` (the shipping reference architecture),
 `_bmad-output/ml-training/dataset.py` (training labels), and
-`BNNSTechnique.expectedBinCount` and `BNNSTechnique.bpmBinOffset` (runtime
-validation and decode). These three declaration sites must change together.
+the shared graph loader's bin count plus the `bpmBinOffset` of `BNNSTechnique`
+and `FixedTimeTechnique` (runtime validation and decode). These declaration
+sites must change together.
 A different output bin count makes
 `BNNSTechnique` throw the public, consumer-visible
 `MLTechniqueError.binCountMismatch` when the model is constructed. That check
@@ -871,6 +876,35 @@ See [issue #147](https://github.com/robbyt/boomboomboomkit/issues/147) for a
 future range or decode change; this contract declaration does not change either.
 
 If you want the measured history of the models this project trained against that contract — including why none of them shipped — it is kept with the weights on the `develop` branch rather than here, since no model ships with the library.
+
+### Model contract for `FixedTimeTechnique`
+
+`FixedTimeTechnique` reads fixed 12 s crops of the whole decoded track at 0.01 s per frame instead of the analysis window resized to 512 columns. It adopts `WholeTrackMLTechnique`, so whenever the ensemble policy invokes ML, every `AudioAnalysisService` entry point hands it the whole decoded file, whatever `Options.maxSeconds` is (the DSP, beat-grid and loudness passes still read only their `maxSeconds` prefix). Its BPM votes like any other ML estimate.
+
+```swift
+options.mlTechnique = try FixedTimeTechnique(modelURL: yourFixedTimeModel)
+options.ensemblePolicy = .default
+```
+
+| Property | Required value |
+|---|---|
+| Input shape | `(1, 1, 128, 1200)` NCHW float32: 1 channel, 128 mel bands, 1200 frames (12.04 s) |
+| Output | 256 float32 logits, the same bin schema as `BNNSTechnique` (bin `i` means `i + 30` BPM) |
+| Tensor names | `input`, `output` |
+
+The loader checks only the input and output shapes and data types. The export settings this project uses are `FLOAT32` compute precision and a macOS 15 deployment target; they are not requirements the loader checks.
+
+A 512-wide model throws `MLTechniqueError.invalidTensorContract` here, and a 1200-wide model throws the same error from `BNNSTechnique`, so an app can try one kind and then the other.
+
+Per track the technique:
+
+1. converts the audio to 44.1 kHz mono when it is at any other rate;
+2. lays out candidate crops every 600 frames, plus one tail crop ending on the last frame when those stop short (a track under 1200 frames has none);
+3. scores each candidate on its own samples with the analyzer's rhythm score and keeps at most 4, by score with ties to the earlier start, each above 0, at least half the best, and sharing no frame with a crop already kept;
+4. builds each kept crop's log-mel (FFT 2048, hop 441, 128 bands from 30 Hz to 16 kHz, `log(1 + 100 x)`) and z-scores it per band;
+5. runs the model on each kept crop, averages the softmax, and decodes `30 + argmax`.
+
+The decoded BPM is reported raw; the ensemble octave-folds a value outside 60 to 200 BPM into that window. The confidence is the averaged softmax's top probability and is not calibrated. The technique abstains, with the reason on `BPMDiagnosticTrace.mlInputCrops`, when the track is shorter than one crop (`shorter-than-crop`), when every crop scores 0 (`no-rhythmic-crop`), when the 44.1 kHz conversion fails, or when inference fails. `FeatureSubstrate.FixedTimeCrops.build(decoded:)` exposes the same crops and scores without a model.
 
 ## Model registry
 

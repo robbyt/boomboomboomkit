@@ -439,6 +439,22 @@ public struct PCMBufferReader {
     return AVAudioFrameCount(capacity)
   }
 
+  /// Converts already-decoded mono samples from `fromRate` to `toRate` with
+  /// the same `AVAudioConverter` path the reader uses for `targetSampleRate`.
+  /// Works in either direction. ``FeatureSubstrate/FixedTimeCrops`` uses it to
+  /// bring a decoded track to 44.1 kHz.
+  ///
+  /// - Throws: ``PCMBufferReaderError/conversionFailed(_:)`` or
+  ///   ``PCMBufferReaderError/bufferAllocationFailed(_:)``; there is no file,
+  ///   so the URL payload is a fixed placeholder.
+  static func resampleMono(
+    _ samples: [Float], fromRate: Double, toRate: Double
+  ) throws -> [Float] {
+    try downsample(
+      samples: samples, fromRate: fromRate, toRate: toRate,
+      url: URL(fileURLWithPath: "decoded-audio"))
+  }
+
   private static func downsample(
     samples: [Float],
     fromRate: Double,
