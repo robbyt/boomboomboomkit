@@ -96,7 +96,8 @@ struct FixedTimeParityTests {
         candidates.first { FileManager.default.fileExists(atPath: $0.path) },
         "audio for \(row.trackId) not found under \(corpus)")
       let decoded = try PCMBufferReader.readDecodedAudio(from: audioURL)
-      let result = technique.evaluate(trace: BPMDiagnosticTrace(), audio: decoded)
+      let result = technique.evaluate(
+        trace: BPMDiagnosticTrace(), audio: decoded, isCancelled: { false })
       let swiftStarts = result.crops?.keptCrops.map(\.startFrame) ?? []
       let pythonStarts = row.keptCrops.map(\.startFrame)
       let parity = ParityRow(

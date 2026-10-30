@@ -89,7 +89,8 @@ private final class StubWholeTrackTechnique: WholeTrackMLTechnique, @unchecked S
   }
 
   func evaluate(
-    trace: BPMDiagnosticTrace, audio: FeatureSubstrate.DecodedAudio
+    trace: BPMDiagnosticTrace, audio: FeatureSubstrate.DecodedAudio,
+    isCancelled: @Sendable () -> Bool
   ) -> (
     evaluation: MLEvaluation?, crops: MLInputCropEvidence?, snapshot: MLDiagnosticSnapshot?
   ) {
@@ -266,7 +267,8 @@ struct FixedTimeTechniqueTests {
       modelURL: #require(fixtureModel("FixedTimeTiny.mlmodelc")))
     #expect(technique.modelIdentifier == "FixedTimeTiny")
     let audio = clickTrack(seconds: 40)
-    let out = technique.evaluate(trace: BPMDiagnosticTrace(), audio: audio)
+    let out = technique.evaluate(
+      trace: BPMDiagnosticTrace(), audio: audio, isCancelled: { false })
     let evaluation = try #require(out.evaluation)
     let crops = try #require(out.crops)
     #expect(crops.abstainReason == nil)
@@ -288,12 +290,14 @@ struct FixedTimeTechniqueTests {
   func abstains() throws {
     let technique = try FixedTimeTechnique(
       modelURL: #require(fixtureModel("FixedTimeTiny.mlmodelc")))
-    let short = technique.evaluate(trace: BPMDiagnosticTrace(), audio: clickTrack(seconds: 10))
+    let short = technique.evaluate(
+      trace: BPMDiagnosticTrace(), audio: clickTrack(seconds: 10), isCancelled: { false })
     #expect(short.evaluation == nil)
     #expect(short.crops?.abstainReason == .shorterThanCrop)
     #expect(short.snapshot == nil)
     let silent = technique.evaluate(
-      trace: BPMDiagnosticTrace(), audio: decoded([Float](repeating: 0, count: 20 * 44_100)))
+      trace: BPMDiagnosticTrace(), audio: decoded([Float](repeating: 0, count: 20 * 44_100)),
+      isCancelled: { false })
     #expect(silent.evaluation == nil)
     #expect(silent.crops?.abstainReason == .noRhythmicCrop)
     #expect(silent.crops?.candidates.count == 3)

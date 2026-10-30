@@ -878,11 +878,16 @@ public struct AudioAnalysisService {
   ///
   /// **Whole-track techniques.** When the conformer adopts
   /// ``WholeTrackMLTechnique``, the helper calls
-  /// ``WholeTrackMLTechnique/evaluate(trace:audio:)`` with `audio` instead,
-  /// and under ``Options/enableMLDiagnostics`` writes its crop evidence to
+  /// ``WholeTrackMLTechnique/evaluate(trace:audio:isCancelled:)`` with
+  /// `audio` and ``Options/isCancelled`` instead, and under
+  /// ``Options/enableMLDiagnostics`` writes its crop evidence to
   /// ``BPMDiagnosticTrace/mlInputCrops`` and its snapshot to
   /// ``BPMDiagnosticTrace/mlDiagnosticSnapshot``, with the same
-  /// cancellation ordering.
+  /// cancellation ordering. A technique that stops part way on cancellation
+  /// is caught by the post-evaluate check, which throws and discards its
+  /// result. The technique and that check share a ``StickyCancellation``
+  /// around ``Options/isCancelled``, so a closure that answers `true` once
+  /// and `false` afterwards still throws instead of reading as an abstain.
   private static func evaluateMLIfActive(
     options: Options, trace: inout BPMDiagnosticTrace?,
     audio: FeatureSubstrate.DecodedAudio
@@ -891,14 +896,16 @@ public struct AudioAnalysisService {
       let ml = options.mlTechnique,
       let unwrappedTrace = trace
     else { return .notInvoked }
-    if options.isCancelled() { throw CancellationError() }
+    let isCancelled = StickyCancellation(options.isCancelled)
+    if isCancelled() { throw CancellationError() }
     // Evaluate into locals — NO trace mutation yet (Codex finding #4
     // strict ordering).
     let localEvaluation: MLEvaluation?
     let localSnapshot: MLDiagnosticSnapshot?
     var localCrops: MLInputCropEvidence?
     if let wholeTrack = ml as? WholeTrackMLTechnique {
-      let result = wholeTrack.evaluate(trace: unwrappedTrace, audio: audio)
+      let result = wholeTrack.evaluate(
+        trace: unwrappedTrace, audio: audio, isCancelled: { isCancelled() })
       localEvaluation = result.evaluation
       localSnapshot = options.enableMLDiagnostics ? result.snapshot : nil
       localCrops = options.enableMLDiagnostics ? result.crops : nil
@@ -914,7 +921,7 @@ public struct AudioAnalysisService {
     // cancellation flipping at this point throws CancellationError; the
     // snapshot is discarded so the caller never sees a stale snapshot
     // stranded in a trace it has already given up on.
-    if options.isCancelled() { throw CancellationError() }
+    if isCancelled() { throw CancellationError() }
     // Mutation strictly last — only on the no-cancellation path. Story
     // 4-6 code review P5: write BOTH branches so the trace field
     // always reflects THIS evaluation. Previously a non-diagnostic
@@ -935,6 +942,29 @@ public struct AudioAnalysisService {
       return .evaluated(localEvaluation)
     }
     return .abstained
+  }
+
+  /// A cancellation check that stays `true` once it has returned `true`.
+  ///
+  /// A technique that stops on a `true` answer returns nothing, and the
+  /// service then checks again to tell a stop from an abstain. Asking the
+  /// consumer's closure a second time could get `false`, so the model step
+  /// asks through this latch instead.
+  final class StickyCancellation: Sendable {
+    private let check: @Sendable () -> Bool
+    private let fired = Mutex(false)
+
+    init(_ check: @escaping @Sendable () -> Bool) {
+      self.check = check
+    }
+
+    /// `true` if any earlier call returned `true`, otherwise `check()`.
+    func callAsFunction() -> Bool {
+      if fired.withLock({ $0 }) { return true }
+      guard check() else { return false }
+      fired.withLock { $0 = true }
+      return true
+    }
   }
 
   // MARK: - Story 6.4 (KDD-A6 Stage 3, Part 1): ML ensemble combiner (inlined)
@@ -1541,7 +1571,9 @@ public struct AudioAnalysisService {
   /// The ONLY decode entry inside `AudioAnalysisService` (AC1d — grep-locked:
   /// no direct `readMonoSamples` call survives in this file). Checks
   /// cancellation immediately before the decode, decodes exactly once via
-  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``, and fires the
+  /// the reader's internal overload of
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``, which also
+  /// checks `isCancelled` between the 10 s chunks of a long file, and fires the
   /// internal `observer` once per actual decode (the AC1 structural-gate
   /// seam — public Options structs are untouched, DD #9).
   static func decodeOnce(
@@ -1552,7 +1584,7 @@ public struct AudioAnalysisService {
   ) throws -> FeatureSubstrate.DecodedAudio {
     if isCancelled() { throw CancellationError() }
     let decoded = try PCMBufferReader.readDecodedAudio(
-      from: url, maxSeconds: maxSeconds)
+      from: url, maxSeconds: maxSeconds, isCancelled: isCancelled)
     observer?(decoded)
     return decoded
   }

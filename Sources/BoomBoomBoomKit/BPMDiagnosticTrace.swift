@@ -206,7 +206,7 @@ public struct BPMDiagnosticTrace: Sendable {
   ///    back to ``MLTechnique/evaluate(trace:)`` and leave this nil — the
   ///    documented `wontfix pre-1.0` consumer-wrapper limitation), OR
   ///    conforms to ``WholeTrackMLTechnique``, whose
-  ///    ``WholeTrackMLTechnique/evaluate(trace:audio:)`` returns the
+  ///    ``WholeTrackMLTechnique/evaluate(trace:audio:isCancelled:)`` returns the
   ///    snapshot instead.
   /// 2. ``AudioAnalysisService/Options/ensemblePolicy`` is not
   ///    ``EnsemblePolicy/dspOnly`` (DSP-only short-circuits before the ML

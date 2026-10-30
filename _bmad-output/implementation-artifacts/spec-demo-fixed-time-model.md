@@ -23,6 +23,7 @@ context:
 - Crop scoring and ranking become public library API.
 - The model's BPM votes in the ensemble through the existing `EnsemblePolicy`, which needs a library change to pass the whole decoded track to the technique.
 - The demo shows the kept crops on the existing timeline. There is no per-crop table and no click-to-play.
+- Cancel reaches every long step a whole-track model adds (owner decision, 2026-10-30, after review): the whole-file decode and the 44.1 kHz conversion run in chunks of about 10 s, the model step checks between crops and between inferences, and the output stays identical to a single read. Memory is not capped.
 
 ## Boundaries & Constraints
 
@@ -157,6 +158,16 @@ Per-track rows: `swift-parity-giantsteps.json` in the run dir.
 
 - **Status (2026-10-30):** review is complete and every command gate passes. The spec stays `in-review` until the owner's GUI smoke in the demo, which CLAUDE.md requires before a demo-UI change is `done`.
 
+**Cancel reaches the long steps (2026-10-30, owner decision after review; closes triage #3's cancellation half).**
+- File read: `PCMBufferReader` reads in chunks of about 10 s of file frames. `decodeOnce` passes `Options.isCancelled` through a new internal `readDecodedAudio(from:maxSeconds:isCancelled:chunkFrames:)`, checked before every read after the first; the public reader signatures are unchanged and never cancel. A file that fits in two chunks is still read in one call.
+- Same samples as one read, including two short reads AVAudioFile does (measured): a cut FLAC, CAF or AIFF returns short at its real end, and a large read of a float32 WAV stops at a 1,024-frame boundary (a 30 s file reads 1,321,984 of 1,323,000 frames). The last read therefore asks for everything left (one to two chunks) and nothing is read after it; an earlier short read is followed by another, and an end-of-file error or an empty read after the first chunk ends the read.
+- 44.1 kHz conversion: `AVAudioConverter` is fed about 10 s of input per input-block call, checking between chunks. Bit-identical to the one-shot feed (168 of 168 prototype cases, plus the tests).
+- Model step: `FixedTimeCrops.build(decoded:isCancelled:)` and `samplesAt44k(_:isCancelled:)` (defaults never cancel) check before each candidate score and each kept tensor and throw `CancellationError`. `WholeTrackMLTechnique` is now `evaluate(trace:audio:isCancelled:)`; `FixedTimeTechnique` checks before each inference and returns `(nil, nil, nil)` on cancel, and the service's post-evaluate check throws.
+- Tests: `WholeTrackCancellationTests.swift` (12 tests). AAC decoding is not bit-reproducible inside the test process: two plain `AVAudioFile` reads of `test-audio.m4a` gave two different decodes (36,543 of 44,100 samples, at most 1.1e-7 apart) with no reader code involved, and never in a standalone process. The bundled-format comparison therefore retries with a fresh pair of reads, up to 5 times; the deterministic formats match on the first.
+- Results: `make test` 1295 tests pass; `make lint` and `make docc-validate` pass; parity 20/20 BPM and 17/20 kept starts, the same three start differences as above.
+- Not done: memory is not capped (per the owner decision), and there is no length limit.
+- Review fixes (2026-10-30): the model step and the service's check after it share a sticky latch around `Options.isCancelled`, so a closure that answers `true` once and then `false` still throws instead of reading as an abstain; new tests for that, for cancelling a `url:` analysis during the whole-file decode, for the technique stopping at its first `true` answer (call counts), for 6-channel and 48 kHz float WAVs at chunk sizes on and off 1,024 (measured: small chunks can read a mono float WAV past where one large read stops, keeping every sample the single read keeps; the default chunk matches it), for chunked conversion 96 to 22.05, 44.1 to 16 and 8 to 44.1 kHz, and a `#require` that the fixtures are longer than two chunks; README and `WholeTrackMLTechnique` docs now name what is cancelable and that the public reader functions take no cancel closure; the memory figure in deferred-work is marked as not re-measured.
+
 ## Spec Change Log
 
 - **Review pass 1 (2026-10-30).**
@@ -198,6 +209,24 @@ Pass 1: blind, edge-case and verification-gap layers.
 | 19 | Abstains from `cropTensor` failures are mislabelled `conversion-failed` | low | the shape check is an internal invariant that real audio does not reach; a fix adds a public case | reject |
 | 20 | `analyzeFull` whole-track input untested (gap) | medium | pre-verified | patch: tests added with #1 |
 | 21 | `loadModel` kind untested; `attachMLTechnique` defaults to `.window` (gap) | low | pre-verified | patch: default removed |
+
+Pass 2: making the whole-track path cancelable (owner decision, 2026-10-30). Blind, edge-case and verification-gap layers.
+
+| # | Finding | Verdict | Evidence | Route |
+|---|---|---|---|---|
+| 22 | A cancel closure that flips back to false makes a cancelled model step look like a model abstain | low | the post-evaluate check re-asked the closure | patch: sticky latch in the service |
+| 23 | No test cancels a URL analysis during the whole-file decode | low | `serviceDecodeCancels` used `analyzeLUFS(url:)` only | patch |
+| 24 | Model-step cancel tests pass even if the technique ignores the answer | low | the service post-check throws anyway | patch: call counts asserted |
+| 25 | More-than-2-channel mixdown rewritten for chunks, untested | medium (gap) | pre-verified; no fixture with more than 2 channels | patch: 6-channel cases |
+| 26 | Float-WAV short read only tested at the default chunk and 44.1 kHz | low | patch showed non-default chunks read further on mono float WAV; default chunk matches, and only it is used in production | patch: pinned and documented |
+| 27 | Chunked downward conversion untested | low | public `readMonoSamples(targetSampleRate:)` now converts in chunks | patch: 5 rate pairs bit-identical |
+| 28 | Fixture length premise not asserted | low | tests need more than two chunks | patch |
+| 29 | README overclaims every long step is cancelable; public reader not cancelable | low | linear copy passes have no check | patch: docs |
+| 30 | Memory figure stale | low | chunked read removed the multichannel buffer | patch: deferred entry reworded |
+| 31 | AAC reads differ inside one parallel test process | medium, pre-existing | happens without the new code | defer |
+| 32 | Generic code 0 error may be taken as end of file on macOS 26 or earlier, silently shortening a decode | maybe-false (would be medium) | measured on macOS 27 only | defer |
+| 33 | No running-demo check of Cancel | not a code defect | covered by the owner GUI smoke that gates `done` | reject; added to the smoke checklist |
+| 34 | A file of exactly 2 x chunk frames is read in two calls, not one as claimed | low | identity is still pinned by the chunk-size sweep | reject |
 
 ## Design Notes
 

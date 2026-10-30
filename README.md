@@ -681,7 +681,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 | `MetadataPolicy` | File-tag corroboration policy + parsing hygiene flags |
 | `MetadataSource`, `MetadataBPMEvidence`, `HarmonicRatio` | Metadata evidence types |
 | `MLTechnique` | Protocol for ML-based BPM estimation (slot on `Options.mlTechnique`; backend-agnostic — Core ML, BNNSGraph, MLX, etc.). See "Using your own tempo model" + "Model contract for `BNNSTechnique`" |
-| `WholeTrackMLTechnique` | `MLTechnique` refinement that also receives the whole decoded file (`evaluate(trace:audio:)`) and reports the crops it read. The service calls it in place of `evaluate(trace:)` when the policy invokes ML |
+| `WholeTrackMLTechnique` | `MLTechnique` refinement that also receives the whole decoded file (`evaluate(trace:audio:isCancelled:)`) and reports the crops it read. The service calls it in place of `evaluate(trace:)` when the policy invokes ML |
 | `FixedTimeTechnique` (`BoomBoomBoomKitML`) | Whole-track BNNSGraph tempo model reading up to four 12 s log-mel crops chosen by rhythm score. See "Model contract for `FixedTimeTechnique`" |
 | `FeatureSubstrate.FixedTimeCrops`, `FeatureSubstrate.FixedTimeCropSet` | The fixed-time model input: 44.1 kHz conversion, the crop plan, the rhythm ranking, and z-scored `[128, 1200]` crop tensors |
 | `MLEvaluation` | ML estimate carrier (`bpm`, `confidence`, optional `modelIdentifier`) |
@@ -904,7 +904,7 @@ Per track the technique:
 4. builds each kept crop's log-mel (FFT 2048, hop 441, 128 bands from 30 Hz to 16 kHz, `log(1 + 100 x)`) and z-scores it per band;
 5. runs the model on each kept crop, averages the softmax, and decodes `30 + argmax`.
 
-The decoded BPM is reported raw; the ensemble octave-folds a value outside 60 to 200 BPM into that window. The confidence is the averaged softmax's top probability and is not calibrated. The technique abstains, with the reason on `BPMDiagnosticTrace.mlInputCrops`, when the track is shorter than one crop (`shorter-than-crop`), when every crop scores 0 (`no-rhythmic-crop`), when the 44.1 kHz conversion fails, or when inference fails. `FeatureSubstrate.FixedTimeCrops.build(decoded:)` exposes the same crops and scores without a model.
+The decoded BPM is reported raw; the ensemble octave-folds a value outside 60 to 200 BPM into that window. The confidence is the averaged softmax's top probability and is not calibrated. The technique abstains, with the reason on `BPMDiagnosticTrace.mlInputCrops`, when the track is shorter than one crop (`shorter-than-crop`), when every crop scores 0 (`no-rhythmic-crop`), when the 44.1 kHz conversion fails, or when inference fails. `FeatureSubstrate.FixedTimeCrops.build(decoded:isCancelled:)` exposes the same crops and scores without a model. Three steps check `Options.isCancelled` part way through and throw `CancellationError`: the service's read of the whole file (between 10 s chunks), the 44.1 kHz conversion (between 10 s chunks), and the model step (between crops and between inferences). A few linear passes over the whole track run to completion once started, such as clearing non-finite samples, copying the `maxSeconds` prefix, and copying out the converter's output. The public `PCMBufferReader` functions do not take a cancellation closure.
 
 ## Model registry
 

@@ -157,7 +157,7 @@ public protocol MLTechnique: Sendable {
 /// track, such as `FixedTimeTechnique` (12 s crops ranked by rhythm score),
 /// adopts this protocol instead. When ``AudioAnalysisService/Options/mlTechnique``
 /// conforms and the ensemble policy invokes ML, the service calls
-/// ``evaluate(trace:audio:)`` with the decoded track and uses its evaluation
+/// ``evaluate(trace:audio:isCancelled:)`` with the decoded track and uses its evaluation
 /// exactly as it would use ``MLTechnique/evaluate(trace:)``'s: the result
 /// votes in the ensemble under the selected ``EnsemblePolicy``.
 ///
@@ -170,6 +170,20 @@ public protocol MLTechnique: Sendable {
 /// With ``AudioAnalysisService/Options/enableMLDiagnostics`` set, the
 /// service writes `crops` to ``BPMDiagnosticTrace/mlInputCrops`` and
 /// `snapshot` to ``BPMDiagnosticTrace/mlDiagnosticSnapshot``.
+///
+/// Cancellation: the service passes its
+/// ``AudioAnalysisService/Options/isCancelled``, wrapped so that once it
+/// returns `true` it keeps returning `true`. A conformer checks it between
+/// its long steps and, once it returns `true`, may stop and return anything
+/// (`(nil, nil, nil)` is enough): the service checks the same wrapped
+/// closure after the call, throws `CancellationError`, and discards the
+/// result. What can be stopped part way: the whole-file read and the
+/// 44.1 kHz conversion (checked between 10 s chunks), and the model step
+/// (checked between crops and between inferences). A few linear passes over
+/// the whole track run to completion once started, such as clearing
+/// non-finite samples, copying the `maxSeconds` prefix, and copying out the
+/// converter's output. The public ``PCMBufferReader`` functions take no
+/// cancellation closure.
 public protocol WholeTrackMLTechnique: MLTechnique {
 
   /// Evaluates the whole decoded track.
@@ -178,6 +192,8 @@ public protocol WholeTrackMLTechnique: MLTechnique {
   ///   - trace: The diagnostic trace from the just-completed merge step,
   ///     as passed to ``MLTechnique/evaluate(trace:)``.
   ///   - audio: The decoded mono track at its own sample rate.
+  ///   - isCancelled: The service's cancellation check. Call it between
+  ///     long steps and stop once it returns `true`.
   /// - Returns:
   ///   - `evaluation`: the model's estimate, or `nil` when it abstained.
   ///   - `crops`: the input the model chose from the track, or the reason it
@@ -186,7 +202,8 @@ public protocol WholeTrackMLTechnique: MLTechnique {
   ///     ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)`` returns
   ///     them; `nil` when no model input was built.
   func evaluate(
-    trace: BPMDiagnosticTrace, audio: FeatureSubstrate.DecodedAudio
+    trace: BPMDiagnosticTrace, audio: FeatureSubstrate.DecodedAudio,
+    isCancelled: @Sendable () -> Bool
   ) -> (
     evaluation: MLEvaluation?, crops: MLInputCropEvidence?, snapshot: MLDiagnosticSnapshot?
   )

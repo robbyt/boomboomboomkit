@@ -120,15 +120,23 @@ extension FeatureSubstrate {
     }
 
     /// `decoded` as 44.1 kHz mono samples. Audio already at 44.1 kHz is
-    /// returned as is; any other rate is converted with `AVAudioConverter`.
+    /// returned as is; any other rate is converted with `AVAudioConverter`,
+    /// about 10 s of input at a time, checking `isCancelled` before every
+    /// chunk after the first. The output equals a one-shot conversion.
     ///
-    /// - Throws: ``FeatureSubstrateError/featurizationFailed(reason:)`` when
-    ///   the conversion fails.
-    public static func samplesAt44k(_ decoded: DecodedAudio) throws -> [Float] {
+    /// - Throws: `CancellationError` when `isCancelled` returns `true`;
+    ///   ``FeatureSubstrateError/featurizationFailed(reason:)`` when the
+    ///   conversion fails.
+    public static func samplesAt44k(
+      _ decoded: DecodedAudio, isCancelled: @Sendable () -> Bool = { false }
+    ) throws -> [Float] {
       if decoded.sampleRate == sampleRate || decoded.samples.isEmpty { return decoded.samples }
       do {
         return try PCMBufferReader.resampleMono(
-          decoded.samples, fromRate: decoded.sampleRate, toRate: sampleRate)
+          decoded.samples, fromRate: decoded.sampleRate, toRate: sampleRate,
+          isCancelled: isCancelled)
+      } catch let cancellation as CancellationError {
+        throw cancellation
       } catch {
         throw FeatureSubstrateError.featurizationFailed(
           reason: "converting \(decoded.sampleRate) Hz audio to 44.1 kHz failed: \(error)")
@@ -169,20 +177,34 @@ extension FeatureSubstrate {
     /// Scores every candidate crop of `decoded`, ranks them, and builds the
     /// kept crops' tensors.
     ///
-    /// - Throws: ``FeatureSubstrateError/featurizationFailed(reason:)`` when
-    ///   the 44.1 kHz conversion or a crop's log-mel fails.
-    public static func build(decoded: DecodedAudio) throws -> FixedTimeCropSet {
-      let samples = try samplesAt44k(decoded)
+    /// `isCancelled` is checked before each candidate's score, before each
+    /// kept crop's tensor, and between the 10 s chunks of a 44.1 kHz
+    /// conversion. The default never cancels.
+    ///
+    /// - Throws: `CancellationError` when `isCancelled` returns `true`;
+    ///   ``FeatureSubstrateError/featurizationFailed(reason:)`` when the
+    ///   44.1 kHz conversion or a crop's log-mel fails.
+    public static func build(
+      decoded: DecodedAudio, isCancelled: @Sendable () -> Bool = { false }
+    ) throws -> FixedTimeCropSet {
+      let samples = try samplesAt44k(decoded, isCancelled: isCancelled)
       let frames = frameCount(sampleCount: samples.count)
-      let candidates = candidateStarts(frameCount: frames).map { start in
-        MLInputCrop(
-          startFrame: start,
-          startSeconds: Double(start * hopSamples) / sampleRate,
-          durationSeconds: Double(cropSamples) / sampleRate,
-          rhythmScore: rhythmScore(samples: samples, startFrame: start))
+      var candidates: [MLInputCrop] = []
+      for start in candidateStarts(frameCount: frames) {
+        if isCancelled() { throw CancellationError() }
+        candidates.append(
+          MLInputCrop(
+            startFrame: start,
+            startSeconds: Double(start * hopSamples) / sampleRate,
+            durationSeconds: Double(cropSamples) / sampleRate,
+            rhythmScore: rhythmScore(samples: samples, startFrame: start)))
       }
       let kept = rank(candidates)
-      let tensors = try kept.map { try cropTensor(samples: samples, startFrame: $0.startFrame) }
+      var tensors: [[Float]] = []
+      for crop in kept {
+        if isCancelled() { throw CancellationError() }
+        tensors.append(try cropTensor(samples: samples, startFrame: crop.startFrame))
+      }
       return FixedTimeCropSet(
         frameCount: frames, candidates: candidates, keptCrops: kept, keptTensors: tensors)
     }
@@ -219,7 +241,7 @@ extension FeatureSubstrate {
     }
   }
 
-  /// The output of ``FixedTimeCrops/build(decoded:)`` for one track.
+  /// The output of ``FixedTimeCrops/build(decoded:isCancelled:)`` for one track.
   public struct FixedTimeCropSet: Sendable {
     /// Log-mel frames in the 44.1 kHz track.
     public let frameCount: Int
