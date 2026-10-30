@@ -522,6 +522,9 @@ struct ContentView: View {
               .foregroundStyle(.secondary)
               .lineLimit(1)
               .truncationMode(.middle)
+            if let kind = viewModel.mlModelKind {
+              AnalysisMetadataChip(label: "Model kind", value: kind.label)
+            }
           }
         }
         if let mlError = viewModel.mlModelError {

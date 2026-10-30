@@ -52,6 +52,7 @@ struct HelpButtonLogicTests {
   }
 
   @Test("Every merge strategy resolves to authored docs, not the fallback sentinel")
+  @MainActor
   func docsResolveToAuthoredContent() {
     for policy in BPMSelectionPolicy.allCases {
       let rendered = String(MergeStrategyDoc(policy).docs.characters)
@@ -107,6 +108,7 @@ struct HelpButtonLogicTests {
   }
 
   @Test("Every intensity level resolves to authored docs, not the fallback sentinel")
+  @MainActor
   func intensityDocsResolveToAuthoredContent() {
     for intensity in Self.allLevels {
       let rendered = String(IntensityDoc(intensity).docs.characters)
@@ -138,6 +140,7 @@ struct HelpButtonLogicTests {
   }
 
   @Test("Every ensemble preset resolves to authored docs, not the fallback sentinel")
+  @MainActor
   func ensembleDocsResolveToAuthoredContent() {
     for preset in EnsemblePreset.allCases {
       let rendered = String(EnsembleDoc(preset).docs.characters)

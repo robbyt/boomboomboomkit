@@ -297,7 +297,7 @@ struct TraceExport: Codable, Sendable, Equatable {
       }
     )
 
-    // Emit MLInfo whenever ANY of the three ML trace fields is populated.
+    // Emit MLInfo whenever ANY of the four ML trace fields is populated.
     // mlDiagnosticSnapshot and mlFeatures can both be non-nil on abstain
     // paths where ensembleDecision is nil — gating on decision alone
     // silently drops the most useful ML failure evidence.
@@ -305,11 +305,13 @@ struct TraceExport: Codable, Sendable, Equatable {
     if trace.ensembleDecision != nil
       || trace.mlDiagnosticSnapshot != nil
       || trace.mlFeatures != nil
+      || trace.mlInputCrops != nil
     {
       ml = MLInfo(
         ensembleDecision: trace.ensembleDecision.map { EnsembleDecisionJSON(from: $0) },
         diagnosticSnapshot: trace.mlDiagnosticSnapshot.map { MLDiagnosticSnapshotJSON(from: $0) },
-        featureFramesShape: trace.mlFeatures.map { MLFeatureFramesShapeJSON(from: $0) }
+        featureFramesShape: trace.mlFeatures.map { MLFeatureFramesShapeJSON(from: $0) },
+        inputCrops: trace.mlInputCrops.map { MLInputCropsJSON(from: $0) }
       )
     } else {
       ml = nil
@@ -392,6 +394,36 @@ struct MLInfo: Codable, Sendable, Equatable {
   let ensembleDecision: EnsembleDecisionJSON?
   let diagnosticSnapshot: MLDiagnosticSnapshotJSON?
   let featureFramesShape: MLFeatureFramesShapeJSON?
+  /// The crops a whole-track (fixed-time) model read, or why it abstained.
+  /// Absent from the JSON when no such model ran.
+  let inputCrops: MLInputCropsJSON?
+}
+
+/// Projection of `BPMDiagnosticTrace.mlInputCrops`: the kept crops in rank
+/// order, the candidate count, and the abstain reason.
+struct MLInputCropsJSON: Codable, Sendable, Equatable {
+  struct KeptCrop: Codable, Sendable, Equatable {
+    /// 1 = highest rhythm score.
+    let rank: Int
+    let startSeconds: Double
+    let rhythmScore: Float
+  }
+  let keptCrops: [KeptCrop]
+  let candidateCount: Int
+  /// `shorter-than-crop`, `no-rhythmic-crop`, `conversion-failed`,
+  /// `inference-failed`, or nil when the model produced an estimate.
+  let abstainReason: String?
+
+  init(from evidence: MLInputCropEvidence) {
+    self.keptCrops = evidence.keptCrops.enumerated().map { index, crop in
+      KeptCrop(
+        rank: index + 1,
+        startSeconds: crop.startSeconds.isFinite ? crop.startSeconds : 0,
+        rhythmScore: crop.rhythmScore.isFinite ? crop.rhythmScore : 0)
+    }
+    self.candidateCount = evidence.candidates.count
+    self.abstainReason = evidence.abstainReason?.rawValue
+  }
 }
 
 // MARK: - Nested Projection Types

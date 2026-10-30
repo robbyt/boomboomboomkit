@@ -295,6 +295,11 @@ final class AnalysisViewModel {
   /// `nil` when no model is loaded.
   var mlModelName: String?
 
+  /// Which input the loaded model reads (window resized to 512 columns, or
+  /// 12 s fixed-time crops), or `nil` when no model is loaded. Set with
+  /// ``mlModelName`` so the status row and the picker name the kind.
+  var mlModelKind: MLModelKind?
+
   /// When `true` (and a model is loaded), the model is attached to the run
   /// (`Options.mlTechnique`) and participates per the active preset's
   /// policy. Bound to the ContentView "Use loaded model" toggle; flipping it
@@ -575,7 +580,10 @@ final class AnalysisViewModel {
               bpmTempo: value.bpm,
               // The analyzed file, carried atomically so the timeline scrubber loads
               // audio keyed to THIS result (Story 10.3 DD5/F4).
-              sourceURL: url
+              sourceURL: url,
+              // The crops a fixed-time model read, shaded on the timeline. Empty
+              // for a window model, with no model, or when it abstained.
+              mlInputCrops: value.trace?.mlInputCrops?.keptCrops ?? []
             )
           } else {
             self.gridVisualization = nil
@@ -808,10 +816,16 @@ final class AnalysisViewModel {
   // The literal `yourURL` / `yourModelURL` placeholders are deliberate — the
   // demo does NOT export real sandbox URLs into copy-paste content. No
   // leading whitespace, no trailing newline.
+  //
+  // `mlModelKind` names the constructor the attach hint uses: a fixed-time
+  // model throws from `BNNSTechnique(modelURL:)`, so a loaded fixed-time
+  // model gets `FixedTimeTechnique(modelURL:)`. `nil` (no model loaded) and
+  // `.window` keep the `BNNSTechnique` hint.
   static func generateConfigSnippet(
     intensity: AnalysisIntensity,
     mergeStrategy: BPMSelectionPolicy,
-    ensemblePreset: EnsemblePreset
+    ensemblePreset: EnsemblePreset,
+    mlModelKind: MLModelKind? = nil
   ) -> String {
     // Canonical case literal for every level (Story 11.2 DD-1a): one uniform
     // shape (`.level7`), never a mix of named aliases + the removed
@@ -831,7 +845,8 @@ final class AnalysisViewModel {
         "// This preset uses the ML signal — attach a model "
           + "(needs import BoomBoomBoomKitML), or ML abstains:"
       )
-      lines.append("opts.mlTechnique = try BNNSTechnique(modelURL: yourModelURL)")
+      let technique = mlModelKind == .fixedTime ? "FixedTimeTechnique" : "BNNSTechnique"
+      lines.append("opts.mlTechnique = try \(technique)(modelURL: yourModelURL)")
     }
     lines.append(
       "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
@@ -847,7 +862,8 @@ final class AnalysisViewModel {
     let snippet = Self.generateConfigSnippet(
       intensity: options.intensity,
       mergeStrategy: options.mergeStrategy,
-      ensemblePreset: selectedEnsemblePreset
+      ensemblePreset: selectedEnsemblePreset,
+      mlModelKind: mlModelKind
     )
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
@@ -883,6 +899,10 @@ final class AnalysisViewModel {
   /// (`mlTechnique`/`mlModelName`/`mlEnabled`/`mlModelError`) is set via
   /// ``attachMLTechnique(_:named:)``; every failure path detaches uniformly via
   /// ``detachMLTechnique()`` and surfaces `mlModelError`.
+  ///
+  /// Two model kinds load here (see ``constructTechnique(at:window:fixedTime:)``):
+  /// a 512-column window model (`BNNSTechnique`) and, when that rejects the
+  /// tensor contract, a fixed-time 12 s crop model (`FixedTimeTechnique`).
   @discardableResult
   func loadModel(at url: URL) -> Bool {
     guard #available(macOS 15.0, *) else {
@@ -890,14 +910,49 @@ final class AnalysisViewModel {
       return false
     }
     do {
-      let technique = try BookmarkPersistence.withSecurityScopedAccess(to: url) {
-        try BNNSTechnique(modelURL: url)
+      let loaded = try BookmarkPersistence.withSecurityScopedAccess(to: url) {
+        try Self.constructTechnique(at: url)
       }
-      attachMLTechnique(technique, named: url.lastPathComponent)
+      attachMLTechnique(loaded.technique, named: url.lastPathComponent, kind: loaded.kind)
       return true
     } catch {
       failModelLoad(reason: "Could not load model: \(error)")
       return false
+    }
+  }
+
+  /// Builds the technique for a compiled model: first as a 512-column window
+  /// model (`BNNSTechnique`); when that throws
+  /// `MLTechniqueError.invalidTensorContract` (the input is not
+  /// `[1, 1, 128, 512]`), as a fixed-time crop model (`FixedTimeTechnique`,
+  /// input `[1, 1, 128, 1200]`). Any other window-model error, such as a
+  /// missing file or a failed compile, is thrown as is. When both kinds reject
+  /// the model the error names both reasons.
+  ///
+  /// The constructors are parameters so tests can drive the fallback without
+  /// model files.
+  nonisolated static func constructTechnique(
+    at url: URL,
+    window: (URL) throws -> any MLTechnique = { try BNNSTechnique(modelURL: $0) },
+    fixedTime: (URL) throws -> any MLTechnique = { try FixedTimeTechnique(modelURL: $0) }
+  ) throws -> (technique: any MLTechnique, kind: MLModelKind) {
+    do {
+      return (try window(url), .window)
+    } catch MLTechniqueError.invalidTensorContract(let windowReason) {
+      do {
+        return (try fixedTime(url), .fixedTime)
+      } catch {
+        throw ModelKindMismatch(windowReason: windowReason, fixedTimeError: error)
+      }
+    }
+  }
+
+  /// Neither model kind accepted the file.
+  nonisolated struct ModelKindMismatch: Error, CustomStringConvertible {
+    let windowReason: String
+    let fixedTimeError: any Error
+    var description: String {
+      "not a window model (\(windowReason)) and not a fixed-time model (\(fixedTimeError))"
     }
   }
 
@@ -910,6 +965,7 @@ final class AnalysisViewModel {
   func detachMLTechnique() {
     mlTechnique = nil
     mlModelName = nil
+    mlModelKind = nil
     mlEnabled = false
   }
 
@@ -926,9 +982,12 @@ final class AnalysisViewModel {
   /// quartet: the toggle's visibility is gated on `mlModelName != nil`, so all
   /// four writes are load-bearing. The active preset's policy governs how the
   /// technique participates in the next run.
-  func attachMLTechnique(_ technique: any MLTechnique, named name: String) {
+  func attachMLTechnique(
+    _ technique: any MLTechnique, named name: String, kind: MLModelKind
+  ) {
     mlTechnique = technique
     mlModelName = name
+    mlModelKind = kind
     mlEnabled = true
     mlModelError = nil
   }
@@ -1106,6 +1165,23 @@ final class AnalysisViewModel {
     // Task.cancel() is nonisolated.
     for (_, task) in inFlightTasks {
       task.cancel()
+    }
+  }
+}
+
+/// The input a loaded ML model reads. Pure value type, so `nonisolated` under
+/// the demo's MainActor default isolation.
+nonisolated enum MLModelKind: String, Sendable, Equatable, CaseIterable {
+  /// `BNNSTechnique`: the analysis window resized to 512 columns.
+  case window
+  /// `FixedTimeTechnique`: up to four 12 s crops chosen by rhythm score.
+  case fixedTime
+
+  /// The kind as the status row, chip, and picker show it.
+  var label: String {
+    switch self {
+    case .window: "Window, 512 columns"
+    case .fixedTime: "Fixed-time, 12 s crops"
     }
   }
 }

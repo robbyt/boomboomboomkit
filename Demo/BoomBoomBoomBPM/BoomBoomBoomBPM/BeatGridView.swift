@@ -22,6 +22,10 @@ struct GridVisualizationState: Equatable {
   /// on the no-BPM/failure arms). Every `gridVisualization = nil` clear therefore
   /// also stops playback.
   let sourceURL: URL
+  /// The crops a fixed-time ML model read, in rank order (best first), shaded
+  /// on the lane and labelled with their rank. Empty when no fixed-time model
+  /// ran or it abstained.
+  var mlInputCrops: [MLInputCrop] = []
 }
 
 /// The demo's single beat-grid surface: horizontal beat-grid + waveform overlay
@@ -384,6 +388,19 @@ struct BeatGridView: View {
     // Waveform: a single closed, filled, mirrored envelope (DAW-style) — top edge
     // left-to-right, bottom edge right-to-left, closed and filled. Much cleaner
     // than per-column ticks.
+    // Fixed-time ML input crops: shaded spans under every other layer, each
+    // labelled with its rank (1 = highest rhythm score).
+    for shade in Self.cropShades(
+      crops: state.mlInputCrops, span: effectiveDuration, width: width)
+    {
+      let rect = CGRect(x: shade.minX, y: 0, width: shade.maxX - shade.minX, height: size.height)
+      context.fill(Path(rect), with: .color(.green.opacity(0.14)))
+      context.stroke(Path(rect), with: .color(.green.opacity(0.55)), lineWidth: 1)
+      context.draw(
+        Text("\(shade.rank)").font(.caption2.bold()).foregroundStyle(.green),
+        at: CGPoint(x: shade.minX + 4, y: size.height - 4), anchor: .bottomLeading)
+    }
+
     let count = state.peaks.count
     if count > 0 {
       let amp = size.height / 2 * 0.92
@@ -449,6 +466,33 @@ struct BeatGridView: View {
       tri.addLine(to: CGPoint(x: ax, y: 7))
       tri.closeSubpath()
       context.fill(tri, with: .color(.orange))
+    }
+  }
+
+  // MARK: - ML input crop shading (pure, unit-tested)
+
+  /// One shaded crop: its rank (1-based, rank order of `crops`) and its x span
+  /// clamped to `[0, width]`.
+  nonisolated struct CropShade: Equatable {
+    let rank: Int
+    let minX: CGFloat
+    let maxX: CGFloat
+  }
+
+  /// Maps kept crops to x spans on a lane of `width` points covering `span`
+  /// seconds. Crops with non-finite times, and crops entirely past the span,
+  /// are left out; a crop running past the span is cut at the lane's end.
+  nonisolated static func cropShades(
+    crops: [MLInputCrop], span: Double, width: CGFloat
+  ) -> [CropShade] {
+    guard span.isFinite, span > 0, width.isFinite, width > 0 else { return [] }
+    return crops.enumerated().compactMap { index, crop in
+      let start = crop.startSeconds
+      let end = crop.startSeconds + crop.durationSeconds
+      guard start.isFinite, end.isFinite, start < span, end > 0 else { return nil }
+      let minX = CGFloat(max(0, start) / span) * width
+      let maxX = CGFloat(min(span, end) / span) * width
+      return CropShade(rank: index + 1, minX: minX, maxX: maxX)
     }
   }
 
@@ -599,6 +643,10 @@ struct BeatGridHelpButton: View {
         .pink, "Downbeats",
         "The detected start-of-bar beats (the \"1\" of each bar), shown only when the analyzer is "
           + "confident enough to mark them.")
+      legendRow(
+        .green, "ML input crops",
+        "The 12 s stretches a fixed-time ML model read, numbered by rhythm score (1 is the "
+          + "most rhythmic). Shown only when a fixed-time model ran on this track.")
       legendRow(
         .orange, "Anchor",
         "The single most-trusted beat that the extrapolated grid is built outward from.")

@@ -262,6 +262,7 @@ struct TraceView: View {
     let hasAnyML =
       trace.mlDiagnosticSnapshot != nil
       || trace.mlFeatures != nil
+      || trace.mlInputCrops != nil
     GroupBox("ML ensemble") {
       VStack(alignment: .leading, spacing: 4) {
         if !hasAnyML {
@@ -269,6 +270,9 @@ struct TraceView: View {
         } else {
           if let diag = trace.mlDiagnosticSnapshot {
             mlDiagnosticRows(diag)
+          }
+          if let crops = trace.mlInputCrops {
+            mlInputCropRows(crops)
           }
           if let features = trace.mlFeatures {
             Text(
@@ -311,6 +315,24 @@ struct TraceView: View {
     // ML input with the JSON export when diagnosing inference drift.
     LabeledContent("Input feature checksum") {
       Text(String(diag.inputFeatureChecksum)).monospacedDigit()
+    }
+  }
+
+  // The fixed-time model's input: which 12 s crops it read, or why it abstained.
+  @ViewBuilder
+  private func mlInputCropRows(_ crops: MLInputCropEvidence) -> some View {
+    if let reason = crops.abstainReason {
+      LabeledContent("Fixed-time abstain reason", value: reason.rawValue)
+    }
+    LabeledContent(
+      "Fixed-time crops kept", value: "\(crops.keptCrops.count) of \(crops.candidates.count)")
+    ForEach(Array(crops.keptCrops.enumerated()), id: \.offset) { index, crop in
+      LabeledContent("Crop \(index + 1) start") {
+        Text(
+          String(format: "%.2f s, rhythm score %.3f", crop.startSeconds, crop.rhythmScore)
+        )
+        .monospacedDigit()
+      }
     }
   }
 

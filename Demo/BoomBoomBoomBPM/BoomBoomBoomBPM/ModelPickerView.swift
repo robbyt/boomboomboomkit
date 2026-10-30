@@ -37,6 +37,12 @@ struct ModelPickerView: View {
       Text("ML Models")
         .font(.title2)
         .bold()
+      // Both model kinds load from the same panel; the loader tries the window
+      // kind first and the fixed-time kind when the input shape does not match.
+      Text(Self.kindsHelp)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
 
       if catalog.isEmpty {
         emptyState
@@ -114,6 +120,12 @@ struct ModelPickerView: View {
     }
   }
 
+  /// The two model kinds the picker loads, by input shape.
+  nonisolated static let kindsHelp =
+    "Two kinds load: a window model (input 1 x 1 x 128 x 512, the analysis window "
+    + "resized to 512 columns) and a fixed-time model (input 1 x 1 x 128 x 1200, up to "
+    + "four 12 s crops chosen by rhythm score)."
+
   // MARK: - Subviews
 
   private var emptyState: some View {
@@ -149,6 +161,13 @@ struct ModelPickerView: View {
       Text("Selected: \(catalog.isSelected(entry) ? "yes" : "no")")
         .font(.caption)
         .foregroundStyle(catalog.isSelected(entry) ? .green : .secondary)
+      // The kind is known only once the model has loaded, so only the row in use
+      // names it.
+      if catalog.isSelected(entry), let kind = viewModel.mlModelKind {
+        Text("Kind: \(kind.label)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
     }
     .padding(.vertical, 2)
   }
@@ -165,7 +184,7 @@ struct ModelPickerView: View {
     // the register-first validation (DD8) is the real guard against a wrong pick.
     panel.canChooseDirectories = true
     panel.allowsMultipleSelection = false
-    panel.message = "Choose a compiled Core ML model (.mlmodelc)"
+    panel.message = "Choose a compiled Core ML model (.mlmodelc): " + Self.kindsHelp
     // Constrain toward `.mlmodelc` when the UTType resolves; fall back to the
     // message-only panel otherwise (DD6).
     if let type = UTType(filenameExtension: "mlmodelc") {
@@ -188,7 +207,7 @@ struct ModelPickerView: View {
     else { return }
     // The catalog resolves the entry to its token-bearing capability URL and hands
     // THAT (never the tokenless `entry.url`) to the loader — `loadModel` scopes it
-    // and constructs `BNNSTechnique` (DD9). On any failure the sheet stays open with
+    // and constructs `BNNSTechnique` or `FixedTimeTechnique` (DD9). On any failure the sheet stays open with
     // the labeled error visible (AC4).
     switch catalog.useModel(entry, load: { viewModel.loadModel(at: $0) }) {
     case .loaded:

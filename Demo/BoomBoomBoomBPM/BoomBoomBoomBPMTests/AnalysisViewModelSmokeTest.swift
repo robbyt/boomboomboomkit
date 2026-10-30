@@ -396,6 +396,18 @@ struct AnalysisViewModelSmokeTest {
     #expect(lines.count == 7)
     #expect(snippet.contains("opts.mlTechnique = try BNNSTechnique(modelURL: yourModelURL)"))
     #expect(snippet.contains("import BoomBoomBoomKitML"))
+    // A loaded window model keeps the same hint; a fixed-time model, which
+    // BNNSTechnique rejects, gets its own constructor on the same line.
+    #expect(
+      AnalysisViewModel.generateConfigSnippet(
+        intensity: .default, mergeStrategy: .maxConfidence, ensemblePreset: preset,
+        mlModelKind: .window) == snippet)
+    let fixedTime = AnalysisViewModel.generateConfigSnippet(
+      intensity: .default, mergeStrategy: .maxConfidence, ensemblePreset: preset,
+      mlModelKind: .fixedTime)
+    #expect(fixedTime.components(separatedBy: "\n").count == 7)
+    #expect(fixedTime.contains("opts.mlTechnique = try FixedTimeTechnique(modelURL: yourModelURL)"))
+    #expect(!fixedTime.contains("BNNSTechnique"))
     #expect(!snippet.hasSuffix("\n"))
     #expect(
       lines.last == "let result = try AudioAnalysisService.analyzeBPM(url: yourURL, options: opts)"
@@ -1550,7 +1562,8 @@ struct AnalysisViewModelSmokeTest {
             inputFeatureChecksum: 0xABCD_1234,
             outcome: .win(
               .init(bpm: 141.0, softmaxMax: 0.55, softmaxSecondMax: 0.18)))),
-        featureFramesShape: nil
+        featureFramesShape: nil,
+        inputCrops: nil
       )
     )
   }
@@ -1722,6 +1735,59 @@ struct AnalysisViewModelSmokeTest {
 
     // Size bound — shape-only export stays under 100 KB.
     #expect(data.count < 100_000)
+  }
+
+  // The fixed-time model's crops reach the export: kept crops with rank,
+  // start and rhythm score, the candidate count, and the abstain reason. The
+  // crops alone (no decision, snapshot or features) are enough to emit MLInfo.
+  @Test("mlInputCrops are exported under ml.inputCrops")
+  @MainActor
+  func mlInputCropsExported() async throws {
+    let viewModel = try await Self.analyzeFixture()
+    let snapshot = try #require(viewModel.lastRunSnapshot)
+    var trace = snapshot.trace
+    trace.ensembleDecision = nil
+    trace.mlDiagnosticSnapshot = nil
+    trace.mlFeatures = nil
+    trace.mlInputCrops = MLInputCropEvidence(
+      candidates: [
+        MLInputCrop(startFrame: 0, startSeconds: 0, durationSeconds: 12.04, rhythmScore: 0.4),
+        MLInputCrop(startFrame: 1200, startSeconds: 12, durationSeconds: 12.04, rhythmScore: 0.6),
+      ],
+      keptCrops: [
+        MLInputCrop(startFrame: 1200, startSeconds: 12, durationSeconds: 12.04, rhythmScore: 0.6),
+        MLInputCrop(startFrame: 0, startSeconds: 0, durationSeconds: 12.04, rhythmScore: 0.4),
+      ],
+      abstainReason: nil)
+    let export = TraceExport.from(
+      trace: trace,
+      runOptions: snapshot.runOptions,
+      result: snapshot.result,
+      fileName: snapshot.fileName,
+      metadataEvidence: snapshot.metadataEvidence,
+      elapsedSeconds: 0
+    )
+    let data = try JSONEncoder().encode(export)
+    let decoded = try JSONDecoder().decode(TraceExport.self, from: data)
+    let crops = try #require(decoded.ml?.inputCrops)
+    #expect(crops.candidateCount == 2)
+    #expect(crops.abstainReason == nil)
+    #expect(crops.keptCrops.map(\.rank) == [1, 2])
+    #expect(crops.keptCrops.map(\.startSeconds) == [12, 0])
+    #expect(crops.keptCrops.first?.rhythmScore == 0.6)
+
+    trace.mlInputCrops = MLInputCropEvidence(
+      candidates: [], keptCrops: [], abstainReason: .shorterThanCrop)
+    let abstained = TraceExport.from(
+      trace: trace,
+      runOptions: snapshot.runOptions,
+      result: snapshot.result,
+      fileName: snapshot.fileName,
+      metadataEvidence: snapshot.metadataEvidence,
+      elapsedSeconds: 0
+    )
+    #expect(abstained.ml?.inputCrops?.abstainReason == "shorter-than-crop")
+    #expect(abstained.ml?.inputCrops?.keptCrops.isEmpty == true)
   }
 
   // Recursive helper for 5.11 — walks a JSONSerialization-decoded
