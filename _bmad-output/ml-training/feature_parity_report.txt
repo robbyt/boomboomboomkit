@@ -1,7 +1,7 @@
 ==============================================================================
 Feature pipeline parity harness — Story 4-4b AC #3 Part B
 ==============================================================================
-Fixture: /Users/rterhaar/Dropbox/research/swift/BoomBoomBoomKit/_bmad-output/ml-training/fixtures/feature_pipeline_v1.npz
+Fixture: fixtures/feature_pipeline_v1.npz
 Fixture sha256: 834f17514b852c3e11c4290d1ae6055185104e650cfa025e6c5468620a73f2c1
 feature_set_version: v1
 
@@ -11,6 +11,8 @@ STAGE_TOLERANCES:
   Stage 3: abs ≤ 1e-04, rel ≤ 0.001
   Stage 4: abs ≤ 1e-04, rel ≤ 0.001
   Stage 5: abs ≤ 1e-04, rel ≤ 0.001
+  Stage 6: abs ≤ 1e-04, rel ≤ 0.001
+  Stage 7: abs ≤ 1e-04, rel ≤ 0.001
 
 stage name                      flag           max_abs       max_rel  note
 --------------------------------------------------------------------------------------------------------------
@@ -24,6 +26,10 @@ stage name                      flag           max_abs       max_rel  note
 3     click_120bpm_5s           OK        9.536743e-07  1.000000e+00  shape=(496, 128); tol abs≤1e-04 rel≤0.001
 4     click_120bpm_5s           OK        9.536743e-07  3.362097e-07  active_bands=128/128; degenerate_threshold_std=1e-03; tol abs≤1e-04 rel≤0.001
 5     click_120bpm_5s           OK        1.125336e-04  5.347722e-01  model-input tensor [128, 512]; active_bands=128/128; tol abs<=1e-04 rel<=0.001
+6     click_120bpm_20s          OK        9.536743e-07  4.166989e-07  fixed-time crops [3, 128, 1200] at starts [0, 600, 796]; active_bands=384/384; tol abs<=1e-04 rel<=0.001
+7     click_120bpm_20s          OK        2.514899e-07  2.626561e-07  crop rhythm scores [0.957487, 0.957487, 0.958335] vs Swift probeRegions; ranking [796, 0, 600], kept [796]; min activity 1.000; tol abs<=1e-04 rel<=0.001
+6     rhythm_mix_40s            OK        1.113415e-04  7.615946e-02  fixed-time crops [6, 128, 1200] at starts [0, 600, 1200, 1800, 2400, 2796]; active_bands=768/768; tol abs<=1e-04 rel<=0.001
+7     rhythm_mix_40s            OK        1.505705e-06  6.674530e-06  crop rhythm scores [0.954864, 0.907868, 0.0, 0.067067, 0.026187, 0.026044] vs Swift probeRegions; ranking [0, 600, 1800, 2400, 2796, 1200], kept [0]; min activity 0.289; tol abs<=1e-04 rel<=0.001
 --------------------------------------------------------------------------------------------------------------
 
 OVERALL (gating rows only): PASS

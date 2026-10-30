@@ -1551,3 +1551,15 @@ Same stopping rule as rounds 3 and 4: none of these changes today's corpus outpu
 - source_spec: `15-11-waveform-band-levels.md`
   summary: Find a fixture whose first `AVAudioFile.read(into:)` throws `NSOSStatusErrorDomain` -39, so DD-7's "-39 at `chunkStart == 0` throws `readFailed`" rule gets a test (for example a FLAC cut inside its first 65,536 frames).
   evidence: Code review 2026-10-27: the FLAC cut to its audio start + 10 bytes throws `com.apple.coreaudio.avfaudio` -66567 under the test runner, so `firstReadFailureThrows` passes with or without the `chunkStart > 0` guard.
+- source_spec: `_bmad-output/implementation-artifacts/spec-15-5-fixed-time-ml-input-ablation.md`
+  summary: Separate the coverage effect from the input-format effect in the 15.5 report, by adding a variant aggregate over only the crops inside the first 120 s or the legacy analysis window, and by scoring the archived legacy `model.pt` through the Python scoring path as a control that should recover about 348 of 661.
+  evidence: The report states that the variant reads whole files while the legacy rows come from the runtime analysis window via AVFoundation and BNNS, but no figure separates those differences from the input change; `crops-<corpus>.npz` already keeps every crop's start frame and softmax, so the first part needs no new inference.
+- source_spec: `_bmad-output/implementation-artifacts/spec-15-5-fixed-time-ml-input-ablation.md`
+  summary: Make the Python-to-Swift rhythm-score and crop parity (stages 6 and 7 of `test_feature_parity.py`) part of a normally run check by committing a Swift-produced score fixture that pytest compares against.
+  evidence: Today the port is compared to Swift only by a manual `make ml-dump-fixture ml-parity`; `make ml-training-tests` compares it to a Python hand-copy, so a later change to `RhythmicRegionSelector.score` would not fail any routine check.
+- source_spec: `_bmad-output/implementation-artifacts/spec-15-5-fixed-time-ml-input-ablation.md`
+  summary: Add finer cuts to the 15.5 report from data it already saves: the 12.7 signed bands (split at 120 BPM), top-ranked-crop-only and per-crop Acc1 next to the ranked average.
+  evidence: The story's three bands merge 100 to 120 with 120 to 140, where earlier diagnosis found different failure modes, and the report cannot show whether averaging kept crops helps over the best single crop; `crops-<corpus>.npz` keeps per-crop softmax in rank order.
+- source_spec: `_bmad-output/implementation-artifacts/spec-15-5-fixed-time-ml-input-ablation.md`
+  summary: Replace the boolean-mask indexing in `ablation/masked_mel.py` (`diff[m]` in `masked_reconstruction_loss`, `masked[i, :, :, m] = 0` in `apply_time_mask`) with multiplicative masks, which give the same loss without the MPS index kernels.
+  evidence: The Story 15.5 run hit two MPS faults in `loss.backward()` of this loss at 1200 frames (an out-of-bounds index and a mask counted as 744,448 then 930,635 positions); a silent in-range miscount would corrupt pretraining gradients without raising. The code is shared with the legacy recipe, so the change needs its own check that legacy losses are unchanged.

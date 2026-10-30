@@ -66,6 +66,21 @@ let package = Package(
       ],
       path: "Sources/dump-model-input"
     ),
+    // dump-fixed-time-input: Story 15.5. Depends on BoomBoomBoomKit for the
+    // substrate log-mel, then mirrors the fixed-time crop preprocessing (1200-frame
+    // crops, tail crop, per-crop z-score, no resize) and records the library's
+    // rhythm score per crop (`@testable import`, debug builds) for the
+    // test_feature_parity.py stages 6 and 7. Writes its own 20 s click and 40 s
+    // click / silence / noise mix signals to ../parity_signals/. Develop-only —
+    // never ships to main.
+    .executableTarget(
+      name: "dump-fixed-time-input",
+      dependencies: [
+        .product(name: "BoomBoomBoomKit", package: "BoomBoomBoomKit")
+      ],
+      path: "Sources/dump-fixed-time-input",
+      linkerSettings: [.linkedFramework("Accelerate")]
+    ),
     // dump-real-track: Phase 1.5 (Epic 7 close-out). Runs the FULL
     // AudioAnalysisService path on one REAL audio file and dumps the selected
     // window's log-mel + model-input tensor + window manifest, so the Python

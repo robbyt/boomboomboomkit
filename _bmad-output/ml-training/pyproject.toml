@@ -46,5 +46,7 @@ target-version = "py311"
 [tool.ty.environment]
 python-version = "3.11"
 # scripts/audit-corpus-splits.py inserts this dir on sys.path at runtime to import
-# corpus_common; make ty resolve it statically too.
-extra-paths = ["."]
+# corpus_common; make ty resolve it statically too. Story 15.5: fixed_time/ imports
+# the ablation/ modules by bare name (as ablation/ itself does), which the package
+# puts on sys.path at runtime.
+extra-paths = [".", "ablation"]

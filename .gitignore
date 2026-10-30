@@ -103,6 +103,10 @@ _bmad-output/ml-training/v2-runs/_archive/*/*.mlmodelc/
 _bmad-output/ml-training/v2-runs/_archive/*/fr18-predictions.json
 # Per-experiment FR-18 runtime prediction scratch dumps (regenerable via fr18-produce).
 _bmad-output/ml-training/fr18-predictions-191/
+# Story 15.5: fixed-time ablation run outputs (variant weights, per-crop class
+# probabilities, per-track scores, the paired report). Regenerable via the
+# fixed-time-* make targets; the report names private 12.7 rows.
+_bmad-output/ml-training/fixed-time-runs/
 # Stale earlier-corpus supervisedAugmented arm (different corpusVersionHash than the
 # current maskedMelPretrain winner; not a matched FR-24 pair). Local-only scratch.
 _bmad-output/ml-training/v2-runs/supervisedAugmented/
