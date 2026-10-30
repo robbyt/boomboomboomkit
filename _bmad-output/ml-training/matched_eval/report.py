@@ -59,17 +59,20 @@ SYSTEM_DESCRIPTIONS = {
         "grid = beat-grid tempo extrapolated from gridOrigin"
     ),
     "variant-joint-fit": (
-        "Story 15.7: DSP stub observations -> metrical level selection seeded with the "
-        "default BPM -> joint tempo and phase fit, on the default pass's decode; a nil "
-        "at any step abstains"
+        "Story 15.7: DSP stub observations -> bar-state decode at the default BPM and the "
+        "quarter level (the level the BPM stage chose; the fit never changes octave) -> joint "
+        "tempo and phase fit, on the default pass's decode; a nil decode or fit abstains; "
+        "the metrical-level selector's choice is recorded per row as a diagnostic only"
     ),
     "variant-comb-best-phase": (
         "Story 15.10 follow-up: the default grid re-anchored at the onset-comb best phase "
-        "(internal BeatGridAnalyzer hook); BPM answer unchanged from the default"
+        "(internal BeatGridAnalyzer hook), observed on the default pass's decode; BPM answer "
+        "unchanged from the default; refused per track when the observed run's output "
+        "differs; runtime and memory not-comparable"
     ),
     "variant-fixed-time": (
         "Story 15.5 fixed-time model, BPM read from its scores files; tempo families only; "
-        "Python inference, so runtime and memory are not comparable with the Swift rows"
+        "Python inference, so runtime and memory are not-comparable with the Swift rows"
     ),
     "commercial-analyzer": (
         "a commercial DJ analyzer's BPM as recorded in the OA300 label file; version "
@@ -81,18 +84,26 @@ SYSTEM_DESCRIPTIONS = {
 COMMERCIAL_VERSION = "unrecorded"
 COMMERCIAL_MODE = "unrecorded"
 
-# Words the summary must never contain: they would read as a claim that one
-# system is level with or ahead of another. Directions are stated only as the
-# sign of a paired difference with its pairing, n, interval and p beside it.
+# Words the tracked summary and JSON must never contain: they would read as a
+# claim about how two systems compare. Directions are stated only as the sign of a
+# paired difference with its pairing, n, interval, p and q beside it.
 FORBIDDEN_WORDS = re.compile(
     r"\b(meet|meets|meeting|met|match|matches|matched|matching|approach|approaches|"
-    r"approached|approaching|exceed|exceeds|exceeded|exceeding|parity|on par|outperform\w*|"
-    r"surpass\w*|beats? the)\b",
+    r"approached|approaching|exceed|exceeds|exceeded|exceeding|parity|on par|on a par|"
+    r"outperform\w*|surpass\w*|better|worse|ahead|level with|equivalent|comparable|"
+    r"beats)\b",
     re.IGNORECASE,
 )
-# Literal names of this harness's own files and targets, which contain one of the
-# words above and are removed before the scan.
-ALLOWED_LITERALS = ("matched-eval-runs", "matched-eval-run", "matched-eval", "matched_eval")
+# Literal names this harness must emit that contain one of the words above (its own
+# files and targets, and the spec's `not-comparable` status); removed before the scan.
+ALLOWED_LITERALS = (
+    "matched-eval-runs",
+    "matched-eval-run",
+    "matched-eval",
+    "matched_eval",
+    "not-comparable",
+)
+EXPECTED_RUNNER_BUILD = "release -Xswiftc -enable-testing"
 
 
 class ReportRefusal(RuntimeError):
@@ -117,7 +128,7 @@ def check_wording(text: str) -> None:
         scrubbed = scrubbed.replace(literal, "")
     hits = sorted({m.group(0).lower() for m in FORBIDDEN_WORDS.finditer(scrubbed)})
     if hits:
-        raise WordingViolation(f"summary contains forbidden comparison words: {hits}")
+        raise WordingViolation(f"tracked output contains forbidden comparison words: {hits}")
 
 
 def assert_no_track_identifiers(text: str, manifest: dict[str, Any]) -> None:
@@ -145,6 +156,42 @@ def canonical_json(doc: Any) -> bytes:
 # ---------------------------------------------------------------------------
 
 
+def check_runner_provenance(runner_doc: dict[str, Any], git: dict[str, Any]) -> None:
+    """Refuse a runner output built from other code or in another configuration."""
+    problems = []
+    if runner_doc.get("gitSha") != git["sha"] or runner_doc.get("dirty") != git["dirty"]:
+        problems.append(
+            f"runner output is from {runner_doc.get('gitSha')} (dirty {runner_doc.get('dirty')}), "
+            f"the report is at {git['sha']} (dirty {git['dirty']})"
+        )
+    if runner_doc.get("buildConfiguration") != EXPECTED_RUNNER_BUILD:
+        problems.append(
+            f"runner build {runner_doc.get('buildConfiguration')!r}, expected "
+            f"{EXPECTED_RUNNER_BUILD!r}"
+        )
+    if problems:
+        raise ReportRefusal("; ".join(problems))
+
+
+def restrict_to_runner(manifest: dict[str, Any], runner_doc: dict[str, Any]) -> dict[str, Any]:
+    """For a runner output that declares `--limit N`: the manifest cut to the tracks
+    the runner ran, which must be N tracks (or all of them) of the manifest."""
+    limit = runner_doc.get("limit")
+    if limit is None:
+        return manifest
+    ran = {(t["corpus"], t["trackId"]) for t in runner_doc["tracks"]}
+    total = sum(len(d["rows"]) for d in manifest["corpora"].values())
+    known = {(c, r["trackId"]) for c, d in manifest["corpora"].items() for r in d["rows"]}
+    if not ran <= known or len(ran) != min(int(limit), total):
+        raise ReportRefusal(f"runner output declares limit {limit} but covers {len(ran)} tracks")
+    corpora = {}
+    for c, d in manifest["corpora"].items():
+        rows = [r for r in d["rows"] if (c, r["trackId"]) in ran]
+        if rows:
+            corpora[c] = {**d, "rows": rows}
+    return {**manifest, "corpora": corpora, "limit": int(limit)}
+
+
 def index_runner(runner_doc: dict[str, Any] | None) -> dict[tuple[str, str], dict[str, Any]]:
     if runner_doc is None:
         return {}
@@ -158,11 +205,14 @@ def index_runner(runner_doc: dict[str, Any] | None) -> dict[tuple[str, str], dic
 
 
 def load_fixed_time_scores(fixed_time_dir: Path | None, corpus: str) -> dict[str, Any] | None:
-    if fixed_time_dir is None:
+    """The 15.5 scores for `corpus`, or None when no 15.5 run was given or the 15.5
+    run scored no such corpus (the synthetic clicks). A given run directory without
+    the corpus's scores file refuses."""
+    if fixed_time_dir is None or corpus == cp.SYNTHETIC:
         return None
     path = fixed_time_dir / f"scores-{corpus}.json"
     if not path.is_file():
-        return None
+        raise ReportRefusal(f"15.5 run directory has no scores-{corpus}.json")
     doc = json.loads(path.read_text())
     doc["_sha256"] = cp.sha256_file(path)
     doc["_by_id"] = {r["trackId"]: r for r in doc["rows"]}
@@ -172,7 +222,7 @@ def load_fixed_time_scores(fixed_time_dir: Path | None, corpus: str) -> dict[str
 def fixed_time_record(scores: dict[str, Any] | None, row: dict[str, Any]) -> dict[str, Any]:
     base: dict[str, Any] = {"gridFamilies": mt.NO_DATA, "runtimeStatus": mt.NOT_COMPARABLE}
     if scores is None:
-        return {**base, "status": mt.NOT_RUN, "reason": "15.5 scores file absent"}
+        return {**base, "status": mt.NOT_RUN, "reason": "no 15.5 scores for this corpus"}
     identity = (
         f"15.5 fixed-time model, weights sha256 {scores.get('weightsSha256')}, input contract "
         f"{scores.get('inputContract')}, aggregator {scores.get('aggregator')}, scores file "
@@ -188,7 +238,7 @@ def fixed_time_record(scores: dict[str, Any] | None, row: dict[str, Any]) -> dic
     if scored is None:
         return {**base, "status": mt.NOT_RUN, "reason": "track not in the 15.5 scores file"}
     if scored.get("audioSha256") != row["audioSha256"]:
-        return {**base, "status": mt.FAILED, "reason": "audio differs from the 15.5 scoring run"}
+        raise ReportRefusal(f"{row['corpus']}: audio differs from the 15.5 scoring run")
     if scored.get("abstained"):
         return {**base, "status": mt.ABSTAINED, "reason": str(scored["abstained"])}
     if scored.get("variantBPM") is None:
@@ -252,8 +302,9 @@ def build_rows(
             if ran["audioSha256"] != r["audioSha256"]:
                 raise ReportRefusal(f"{corpus}: runner audio hash differs from the manifest")
             records = {s: ran["systems"][s] for s in SWIFT_SYSTEMS}
-            records[FIXED_TIME] = fixed_time_record(scores, r)
+            records[FIXED_TIME] = fixed_time_record(scores, {**r, "corpus": corpus})
             records[COMMERCIAL] = commercial_record(corpus, r)
+            records = {k: mt.normalize_record(v) for k, v in records.items()}
             ref_bpm = float(r["referenceBPM"])
             for system in SYSTEMS:
                 common = {
@@ -279,10 +330,12 @@ def build_rows(
                     comparable = (
                         system in SWIFT_SYSTEMS
                         and record["status"] in (mt.OK, mt.ABSTAINED)
+                        and record.get("runtimeComparable", True) is not False
                         and record.get("runtimeSeconds") is not None
+                        and record.get("peakMemoryAboveBaselineBytes") is not None
                     )
                     if system in SWIFT_SYSTEMS and not comparable:
-                        record = {**record, "runtimeStatus": mt.NO_DATA}
+                        record = {**record, "runtimeStatus": mt.NOT_COMPARABLE}
                     families = mt.evaluate(
                         record, ref_bpm, r.get("annotation"), runtime_comparable=comparable
                     )
@@ -344,18 +397,19 @@ def _stratum_sort_key(name: str) -> tuple[int, int, str]:
 def direction_sentence(
     corpus: str, a: str, b: str, label: str, metric: str, s: dict[str, Any], tag: str | None
 ) -> str | None:
-    """The only form a direction takes: the sign of the median paired difference,
-    with pairing, label, n, interval and p beside it. None when the stratum is
-    underpowered or the interval does not exclude zero."""
-    if s.get("n", 0) == 0 or s["underpowered"] or not s["interval_excludes_zero"]:
+    """The only form a direction takes: the sign of the paired difference's
+    interval, with pairing, label, n, interval, p and q beside it. None unless
+    `stats.direction_allowed` (paired n >= 10, interval excludes zero, q < 0.05)."""
+    if not st.direction_allowed(s):
         return None
-    sign = "above zero" if s["median"] > 0 else "below zero"
     lo, hi = s["interval95"]
+    sign = "above zero" if lo > 0 else "below zero"
     tag_text = f", {tag}" if tag else ""
     return (
-        f"{corpus}, `{a}` vs `{b}` ({label}{tag_text}), {metric}: the median paired "
-        f"difference ({a} minus {b}) is {sign}: {s['median']:.6g}, n = {s['n']}, "
-        f"95 % interval [{lo:.6g}, {hi:.6g}], Wilcoxon p = {s['wilcoxon_p']:.3g}."
+        f"{corpus}, `{a}` vs `{b}` ({label}{tag_text}), {metric}: the {s['statistic']} paired "
+        f"difference ({a} minus {b}) is {sign}: {s['estimate']:.6g}, n = {s['n']}, "
+        f"95 % interval [{lo:.6g}, {hi:.6g}], p = {s['p_value']:.3g} ({s['p_note']}), "
+        f"q = {s['q_value']:.3g}."
     )
 
 
@@ -377,8 +431,9 @@ def metric_values(
 def system_summaries(
     rows: list[dict[str, Any]], corpus: str, strata: dict[str, list[str]]
 ) -> dict[str, Any]:
-    """Per system and stratum: status counts, family status counts and metric
-    summaries (n, mean, median) of the system's own values."""
+    """Per system and stratum: status counts, coverage (share of the system's run
+    tracks with an answer), and metric summaries (n, mean, median) of the system's
+    own values. Accuracy rates count an abstention or failure as incorrect."""
     by_system: dict[str, dict[str, dict[str, Any]]] = {}
     for r in rows:
         if r["corpus"] == corpus:
@@ -389,9 +444,8 @@ def system_summaries(
         per: dict[str, Any] = {}
         for stratum, ids in strata.items():
             sel = [tracks[i] for i in ids if i in tracks]
-            fam_status = {
-                f: dict(Counter(t["families"][f]["status"] for t in sel)) for f in mt.FAMILIES
-            }
+            outcomes = Counter(t["status"] for t in sel)
+            ran = sum(outcomes[k] for k in (mt.OK, mt.ABSTAINED, mt.FAILED, mt.REFERENCE))
             metrics: dict[str, Any] = {}
             for _family, metric, get in mt.METRICS:
                 vals = [v for v in (get(t["families"]) for t in sel) if v is not None]
@@ -400,24 +454,31 @@ def system_summaries(
                         "n": len(vals),
                         "mean": float(np.mean(vals)),
                         "median": float(np.median(vals)),
+                        "underpowered": len(vals) < st.UNDERPOWERED_BELOW,
                     }
             per[stratum] = {
                 "n": len(sel),
-                "underpowered": len(sel) < st.UNDERPOWERED_BELOW,
-                "outcomes": dict(Counter(t["status"] for t in sel)),
+                "outcomes": dict(outcomes),
+                "coverage": None if ran == 0 else (outcomes[mt.OK] + outcomes[mt.REFERENCE]) / ran,
                 "metrics": metrics,
             }
             if stratum == "overall":
-                per[stratum]["familyStatus"] = fam_status
+                per[stratum]["familyStatus"] = {
+                    f: dict(Counter(t["families"][f]["status"] for t in sel)) for f in mt.FAMILIES
+                }
         out[system] = per
     return out
 
 
 def pairing_summaries(
     rows: list[dict[str, Any]], corpus: str, strata: dict[str, list[str]], tag: str | None
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], int]:
+    """Every pairing x metric x stratum summary, with Benjamini-Hochberg q-values
+    over all of them (the corpus's tests) and a direction where allowed. Returns
+    the pairings and the number of tests."""
     values = metric_values(rows, corpus)
     out: list[dict[str, Any]] = []
+    tests: list[dict[str, Any]] = []
     for a, b in pairings():
         label = pairing_label(a, b)
         for family, metric, _get in mt.METRICS:
@@ -430,9 +491,13 @@ def pairing_summaries(
                 diffs = [va[i] - vb[i] for i in ids if i in va and i in vb]
                 if not diffs:
                     continue
-                s = st.paired_summary(diffs, f"{corpus}|{a}|{b}|{metric}|{stratum}")
-                s["direction"] = direction_sentence(corpus, a, b, label, metric, s, tag)
+                s = st.paired_summary(
+                    diffs,
+                    f"{corpus}|{a}|{b}|{metric}|{stratum}",
+                    yes_no=metric in mt.YES_NO_METRICS,
+                )
                 per[stratum] = s
+                tests.append(s)
             if per:
                 entry: dict[str, Any] = {
                     "a": a,
@@ -440,12 +505,20 @@ def pairing_summaries(
                     "label": label,
                     "family": family,
                     "metric": metric,
+                    "accuracyCountsAbstentionAsIncorrect": metric in mt.ACCURACY_METRICS,
                     "strata": per,
                 }
                 if tag:
                     entry["referenceTag"] = tag
                 out.append(entry)
-    return out
+    for s, q in zip(tests, st.benjamini_hochberg([t["p_value"] for t in tests])):
+        s["q_value"] = q
+    for entry in out:
+        for s in entry["strata"].values():
+            s["direction"] = direction_sentence(
+                corpus, entry["a"], entry["b"], entry["label"], entry["metric"], s, tag
+            )
+    return out, len(tests)
 
 
 def aggregate(
@@ -461,6 +534,7 @@ def aggregate(
         strata = {k: strata[k] for k in sorted(strata, key=_stratum_sort_key)}
         tag = cp.CROWDSOURCED_TAG if corpus == "giantsteps" else None
         sources = doc["sources"]
+        pairs, test_count = pairing_summaries(rows, corpus, strata, tag)
         corpora_out[corpus] = {
             "n": len(doc["rows"]),
             "referenceKind": doc["referenceKind"],
@@ -472,7 +546,8 @@ def aggregate(
             "duplicateRecordingsDropped": sources.get("duplicateRecordingsDropped", 0),
             "strataN": {k: len(v) for k, v in strata.items()},
             "systems": system_summaries(rows, corpus, strata),
-            "pairings": pairing_summaries(rows, corpus, strata, tag),
+            "testCount": test_count,
+            "pairings": pairs,
         }
     return {
         "schema": AGGREGATE_SCHEMA,
@@ -496,12 +571,27 @@ def aggregate(
         "statistics": {
             "bootstrapResamples": st.BOOTSTRAP_RESAMPLES,
             "bootstrapSeed": st.BOOTSTRAP_SEED,
-            "interval": "percentile 2.5 and 97.5 of the resampled medians of paired differences",
-            "wilcoxon": "scipy.stats.wilcoxon, two-sided, zero differences dropped",
+            "interval": (
+                "percentile 2.5 and 97.5 of the resampled statistic of paired differences: "
+                "the median for continuous metrics, the mean for yes/no metrics"
+            ),
+            "continuousP": "scipy.stats.wilcoxon, two-sided, zero differences dropped",
+            "yesNoP": "exact McNemar from the discordant counts",
+            "yesNoMetrics": sorted(mt.YES_NO_METRICS),
+            "accuracyRule": (
+                "accuracy rates and paired accuracy differences count an abstention or "
+                "failure as incorrect; coverage is reported beside them"
+            ),
+            "multipleComparisons": "Benjamini-Hochberg q-values over all tests in a corpus",
+            "directionRule": (
+                f"paired n >= {st.UNDERPOWERED_BELOW}, interval excludes zero, "
+                f"q < {st.DIRECTION_Q_BELOW}"
+            ),
             "underpoweredBelow": st.UNDERPOWERED_BELOW,
         },
         "tempoBands": [b[0] for b in st.TEMPO_BANDS] + [st.OUTSIDE_BANDS],
-        "styleTags": "OA300 and GiantSteps genre; 12.7 untagged",
+        "styleTags": "OA300 and GiantSteps genre; 12.7 untagged; synthetic clicks by click shape",
+        "limit": manifest.get("limit"),
         "digests": digests,
         "corpora": corpora_out,
     }
@@ -559,13 +649,21 @@ def render_markdown(agg: dict[str, Any]) -> str:
         f"beat window {tol['beatWindowSeconds'] * 1000:.0f} ms.",
         f"- Paired differences are a minus b. Interval: {stats_['interval']}, "
         f"{stats_['bootstrapResamples']} resamples, seed {stats_['bootstrapSeed']}. "
-        f"p: {stats_['wilcoxon']}.",
-        f"- A stratum with n below {stats_['underpoweredBelow']} is underpowered and gets no "
-        "direction. A direction is the sign of the median paired difference, stated only "
-        "when the interval excludes zero, with its pairing, n, interval and p beside it.",
+        f"p: {stats_['continuousP']} for continuous metrics; {stats_['yesNoP']} for yes/no "
+        f"metrics ({', '.join(stats_['yesNoMetrics'])}). Every p carries a "
+        f"{stats_['multipleComparisons']}; each corpus states its test count.",
+        f"- {stats_['accuracyRule'][0].upper()}{stats_['accuracyRule'][1:]}.",
+        f"- n is the paired count everywhere; n below {stats_['underpoweredBelow']} is "
+        "underpowered and gets no direction. A direction is the sign of the paired "
+        f"difference's interval, stated only when {stats_['directionRule']}, with its "
+        "pairing, n, interval, p and q beside it.",
         "- Families 4 to 7 (grid phase, beat precision, recall and F, downbeat phase, "
-        "drift) need a Story 15.8 hand annotation; a track without one reports "
-        "no-reference and is left out of those pairings.",
+        "drift) need a reference annotation: a Story 15.8 hand annotation, or the planted "
+        "click times of the synthetic corpus. A track without one reports no-reference and "
+        "is left out of those pairings. Downbeat phase and drift are scored only when the "
+        "grid is at the reference's tempo level (level-mismatch otherwise); drift is the "
+        "grid's phase error at the last annotated bar line minus its phase error at the "
+        "first.",
         f"- Memory: {agg['memorySampling']}.",
         "",
     ]
@@ -578,7 +676,8 @@ def render_markdown(agg: dict[str, Any]) -> str:
             f"n = {c['n']}; reference: {c['referenceKind']} (`{c['referenceSource']['name']}`, "
             f"sha256 {c['referenceSource']['sha256'][:16]}...)"
             + (f"; tag {tag}" if tag else "")
-            + f"; hand-annotated tracks: {c['annotatedTracks']}.",
+            + f"; tracks with a reference annotation: {c['annotatedTracks']}; tests run: "
+            + f"{c['testCount']}.",
             "",
         ]
         if c.get("duplicateRecordingsDropped"):
@@ -590,21 +689,26 @@ def render_markdown(agg: dict[str, Any]) -> str:
         lines += [
             "### Per-system results, all tracks",
             "",
-            "| system | outcomes | level same | strict 0.10 | strict 0.05 | strict 0.02 | "
-            "median abs error BPM | median abs error ppt | median runtime s | "
-            "median peak memory MB | grid families |",
-            "|---|---|---|---|---|---|---|---|---|---|---|",
+            "Accuracy rates count an abstention or failure as incorrect; coverage is the "
+            "share of tracks the system answered.",
+            "",
+            "| system | outcomes | coverage | level same | strict 0.10 | strict 0.05 | "
+            "strict 0.02 | median abs error BPM | median abs error ppt | median abs phase "
+            "error s | median F | median runtime s | median peak memory MB | grid families |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for system, per in c["systems"].items():
             o = per["overall"]
             m = o["metrics"]
             outcomes = ", ".join(f"{k} {v}" for k, v in sorted(o["outcomes"].items()))
             grid = ", ".join(f"{k} {v}" for k, v in sorted(o["familyStatus"]["grid_phase"].items()))
+            coverage = "-" if o["coverage"] is None else f"{o['coverage']:.3f}"
             lines.append(
-                f"| `{system}` | {outcomes} | {_rate(m, 'level_same')} | "
+                f"| `{system}` | {outcomes} | {coverage} | {_rate(m, 'level_same')} | "
                 f"{_rate(m, 'strict_0.10')} | {_rate(m, 'strict_0.05')} | "
                 f"{_rate(m, 'strict_0.02')} | {_median(m, 'abs_error_bpm')} | "
-                f"{_median(m, 'abs_error_ppt')} | {_median(m, 'runtime_s')} | "
+                f"{_median(m, 'abs_error_ppt')} | {_median(m, 'abs_phase_error_s')} | "
+                f"{_median(m, 'f_measure')} | {_median(m, 'runtime_s')} | "
                 f"{_median(m, 'peak_memory_bytes', 1 / 2**20)} | {grid} |"
             )
         lines.append("")
@@ -614,24 +718,26 @@ def render_markdown(agg: dict[str, Any]) -> str:
             lines += [
                 f"### By {title}",
                 "",
-                "Rates are the share of tracks with a value; each cell shows n.",
+                "Accuracy rates count an abstention or failure as incorrect; n is the "
+                "system's count of tracks with a value, and underpowered is judged on it.",
                 "",
-                "| stratum | n | underpowered | system | level same | strict 0.05 | "
+                "| stratum | tracks | system | n | underpowered | level same | strict 0.05 | "
                 "median abs error BPM |",
-                "|---|---|---|---|---|---|---|",
+                "|---|---|---|---|---|---|---|---|",
             ]
-            for stratum, n in c["strataN"].items():
+            for stratum, count in c["strataN"].items():
                 if not stratum.startswith(kind):
                     continue
-                under = "yes" if n < stats_["underpoweredBelow"] else "no"
                 for system, per in c["systems"].items():
                     if system == ORACLE:
                         continue
                     m = per[stratum]["metrics"]
                     if not m.get("level_same"):
                         continue
+                    n = m["level_same"]["n"]
+                    under = "yes" if n < stats_["underpoweredBelow"] else "no"
                     lines.append(
-                        f"| {stratum.split(':', 1)[1]} | {n} | {under} | `{system}` | "
+                        f"| {stratum.split(':', 1)[1]} | {count} | `{system}` | {n} | {under} | "
                         f"{_rate(m, 'level_same')} | {_rate(m, 'strict_0.05')} | "
                         f"{_median(m, 'abs_error_bpm')} |"
                     )
@@ -647,8 +753,9 @@ def render_markdown(agg: dict[str, Any]) -> str:
             lines += [
                 f"#### `{a}` vs `{b}` ({label}" + (f", {tag}" if tag else "") + ")",
                 "",
-                "| metric | n | median | 95 % interval | Wilcoxon p | interval excludes 0 |",
-                "|---|---|---|---|---|---|",
+                "| metric | n | statistic | estimate | 95 % interval | p | q | interval "
+                "excludes 0 |",
+                "|---|---|---|---|---|---|---|---|",
             ]
             for p in entries:
                 s = p["strata"].get("overall")
@@ -656,8 +763,8 @@ def render_markdown(agg: dict[str, Any]) -> str:
                     continue
                 lo, hi = s["interval95"]
                 lines.append(
-                    f"| {p['metric']} | {s['n']} | {_fmt(s['median'])} | "
-                    f"[{_fmt(lo)}, {_fmt(hi)}] | {s['wilcoxon_p']:.3g} | "
+                    f"| {p['metric']} | {s['n']} | {s['statistic']} | {_fmt(s['estimate'])} | "
+                    f"[{_fmt(lo)}, {_fmt(hi)}] | {s['p_value']:.3g} | {s['q_value']:.3g} | "
                     f"{'yes' if s['interval_excludes_zero'] else 'no'} |"
                 )
                 if s.get("direction"):
@@ -667,11 +774,11 @@ def render_markdown(agg: dict[str, Any]) -> str:
         if directions:
             lines += [f"- {d}" for d in directions]
         else:
-            lines.append("None: no overall interval excludes zero.")
+            lines.append("None: no overall pairing satisfies the direction rule.")
         lines += [
             "",
-            "Stratified pairings, each with n, interval, p and a direction only where the "
-            "stratum is not underpowered, are in the JSON aggregate.",
+            "Stratified pairings, each with n, interval, p, q and a direction only where the "
+            "direction rule holds, are in the JSON aggregate.",
             "",
         ]
 
@@ -683,7 +790,11 @@ def render_markdown(agg: dict[str, Any]) -> str:
         "- Its version and analysis mode were not recorded with the values; its grid is "
         "not available, so its grid families are no-data.",
         "- `variant-fixed-time` runs in Python from a separate scoring run; its runtime "
-        "and memory are not comparable with the Swift rows.",
+        "and memory are not-comparable with the Swift rows. `variant-comb-best-phase` is "
+        "the default analysis plus an observation; its runtime and memory are "
+        "not-comparable too.",
+        "- The synthetic-clicks corpus is twelve clean click clips at one tempo; it "
+        "measures grid timing on planted clicks, not on music.",
         "- The 12.7 corpus carries no style tags.",
         "",
         "## Digests",

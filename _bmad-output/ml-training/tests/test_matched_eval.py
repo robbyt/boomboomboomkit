@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from matched_eval import corpora as cp  # noqa: E402
 from matched_eval import metrics as mt  # noqa: E402
 from matched_eval import report as rp  # noqa: E402
+from matched_eval import run as rn  # noqa: E402
 from matched_eval import stats as st  # noqa: E402
 
 GIT = {"sha": "0" * 40, "dirty": False, "untrackedPaths": 0}
@@ -82,16 +83,19 @@ def manifest_and_runner(
     }
     runner = {
         "schema": "15.9-runner-output.v1",
-        "buildConfiguration": "test",
+        "buildConfiguration": rp.EXPECTED_RUNNER_BUILD,
+        "gitSha": GIT["sha"],
+        "dirty": GIT["dirty"],
+        "limit": None,
         "memorySampling": "test",
         "tracks": runner_tracks,
     }
     return manifest, runner
 
 
-def build(corpus: str, tracks: list[dict[str, Any]]):
+def build(corpus: str, tracks: list[dict[str, Any]], fixed_time_dir: Path | None = None):
     manifest, runner = manifest_and_runner(corpus, tracks)
-    rows, digests = rp.build_rows(manifest, "cd" * 32, runner, None, GIT)
+    rows, _digests = rp.build_rows(manifest, "cd" * 32, runner, fixed_time_dir, GIT)
     return manifest, runner, rows
 
 
@@ -220,7 +224,7 @@ def test_joint_fit_abstention_is_counted_but_not_paired():
     assert jf["families"]["tempo_level"]["status"] == "abstained"
 
     strata = rp._strata(rows, "oa300")
-    pairs = rp.pairing_summaries(rows, "oa300", strata, None)
+    pairs, _count = rp.pairing_summaries(rows, "oa300", strata, None)
     level = next(
         p
         for p in pairs
@@ -228,7 +232,18 @@ def test_joint_fit_abstention_is_counted_but_not_paired():
         and p["b"] == "variant-joint-fit"
         and p["metric"] == "level_same"
     )
-    assert level["strata"]["overall"]["n"] == 11
+    # An abstention counts as incorrect in accuracy, so all 12 tracks pair.
+    assert level["strata"]["overall"]["n"] == 12
+    assert level["strata"]["overall"]["n_positive"] == 1
+    assert level["accuracyCountsAbstentionAsIncorrect"] is True
+    abs_err = next(
+        p
+        for p in pairs
+        if p["a"] == "boomboomboomkit-optimal"
+        and p["b"] == "variant-joint-fit"
+        and p["metric"] == "abs_error_bpm"
+    )
+    assert abs_err["strata"]["overall"]["n"] == 11
     failure = next(
         p
         for p in pairs
@@ -303,7 +318,7 @@ def test_underpowered_stratum_has_n_and_no_direction():
     assert big["underpowered"] is False
     assert big["direction"] is not None
     md = rp.render_markdown(agg)
-    assert "| 110-129 | 6 | yes |" in md
+    assert "| 110-129 | 6 | `boomboomboomkit-optimal` | 6 | yes |" in md
 
 
 def test_bootstrap_is_deterministic_and_uses_the_committed_parameters():
@@ -316,13 +331,14 @@ def test_bootstrap_is_deterministic_and_uses_the_committed_parameters():
     lo, hi = a["interval95"]
     assert lo <= a["median"] <= hi
     assert a["interval_excludes_zero"] == (lo > 0 or hi < 0)
-    assert 0.0 <= a["wilcoxon_p"] <= 1.0
+    assert 0.0 <= a["p_value"] <= 1.0
+    assert a["statistic"] == "median"
 
 
 def test_all_zero_differences():
     s = st.paired_summary([0.0] * 12, "z")
     assert s["interval95"] == [0.0, 0.0]
-    assert s["wilcoxon_p"] == 1.0
+    assert s["p_value"] == 1.0
     assert s["interval_excludes_zero"] is False
 
 
@@ -357,10 +373,20 @@ def test_giantsteps_pairings_are_tagged_crowdsourced():
 
 def test_direction_sentence_carries_pairing_n_interval_and_p():
     s = st.paired_summary([0.5 + 0.01 * i for i in range(20)], "d")
+    s["q_value"] = 0.01
     text = rp.direction_sentence("oa300", "a-sys", "oracle", "system-vs-reference", "m", s, None)
     assert text is not None
-    for part in ("`a-sys` vs `oracle`", "system-vs-reference", "n = 20", "95 % interval", "p ="):
+    for part in (
+        "`a-sys` vs `oracle`",
+        "system-vs-reference",
+        "n = 20",
+        "95 % interval",
+        "p =",
+        "q =",
+    ):
         assert part in text
+    s["q_value"] = 0.2
+    assert rp.direction_sentence("oa300", "a", "oracle", "x", "m", s, None) is None
 
 
 # ---------------------------------------------------------------------------
@@ -404,7 +430,7 @@ def test_generated_markdown_passes_the_guard_and_names_every_pairing():
     rp.check_wording(md)
     for p in agg["corpora"]["oa300"]["pairings"]:
         s = p["strata"]["overall"]
-        assert {"n", "interval95", "wilcoxon_p", "interval_excludes_zero"} <= set(s)
+        assert {"n", "interval95", "p_value", "q_value", "interval_excludes_zero"} <= set(s)
         assert p["label"] in (rp.SYSTEM_VS_SYSTEM, rp.SYSTEM_VS_REFERENCE)
         assert f"#### `{p['a']}` vs `{p['b']}` ({p['label']}" in md
 
@@ -532,3 +558,348 @@ def test_changed_12_7_audio_refuses_naming_the_track(tmp_path):
     )
     with pytest.raises(cp.CorpusRefusal, match="e9-row0001"):
         cp.load_eval_12_7(gate)
+
+
+# ---------------------------------------------------------------------------
+# Review pass 1 additions
+# ---------------------------------------------------------------------------
+
+
+def _scores_dir(tmp_path: Path, corpus: str, rows: list[dict[str, Any]]) -> Path:
+    d = tmp_path / "fixed-time"
+    d.mkdir(exist_ok=True)
+    (d / f"scores-{corpus}.json").write_text(
+        json.dumps(
+            {
+                "weightsSha256": "ee" * 32,
+                "inputContract": "synthetic",
+                "aggregator": "synthetic",
+                "codeGitSha": "x",
+                "rows": rows,
+            }
+        )
+    )
+    return d
+
+
+def _sha(track: str) -> str:
+    return hashlib.sha256(track.encode()).hexdigest()
+
+
+def test_fixed_time_join_ok_abstained_and_missing_track(tmp_path):
+    d = _scores_dir(
+        tmp_path,
+        "oa300",
+        [
+            {"trackId": "t0", "audioSha256": _sha("t0"), "variantBPM": 128.0, "abstained": None},
+            {"trackId": "t1", "audioSha256": _sha("t1"), "variantBPM": None, "abstained": "x"},
+        ],
+    )
+    tracks = [{"id": f"t{i}", "ref": 128.0} for i in range(3)]
+    _, _, rows = build("oa300", tracks, d)
+    assert row_for(rows, rp.FIXED_TIME, "t0")["status"] == mt.OK
+    assert row_for(rows, rp.FIXED_TIME, "t0")["families"]["strict_tempo"]["0.02"] is True
+    assert row_for(rows, rp.FIXED_TIME, "t1")["status"] == mt.ABSTAINED
+    assert row_for(rows, rp.FIXED_TIME, "t2")["status"] == mt.NOT_RUN
+    rt = row_for(rows, rp.FIXED_TIME, "t0")["families"]["runtime_memory"]["status"]
+    assert rt == mt.NOT_COMPARABLE
+
+
+def test_fixed_time_hash_mismatch_refuses(tmp_path):
+    d = _scores_dir(
+        tmp_path,
+        "oa300",
+        [{"trackId": "t0", "audioSha256": "00" * 32, "variantBPM": 128.0, "abstained": None}],
+    )
+    with pytest.raises(rp.ReportRefusal, match="15.5"):
+        build("oa300", [{"id": "t0", "ref": 128.0}], d)
+
+
+def test_fixed_time_missing_scores_file_refuses_but_not_for_synthetic(tmp_path):
+    d = tmp_path / "empty-run"
+    d.mkdir()
+    with pytest.raises(rp.ReportRefusal, match="scores-oa300"):
+        build("oa300", [{"id": "t0", "ref": 128.0}], d)
+    _, _, rows = build(cp.SYNTHETIC, [{"id": "c0", "ref": 120.0}], d)
+    assert row_for(rows, rp.FIXED_TIME, "c0")["status"] == mt.NOT_RUN
+
+
+def test_yes_no_statistics_use_mean_and_mcnemar():
+    diffs = [1.0] * 9 + [-1.0] * 1 + [0.0] * 10
+    s = st.paired_summary(diffs, "yn", yes_no=True)
+    assert s["statistic"] == "mean"
+    assert s["estimate"] == pytest.approx(0.4)
+    from fixed_time.report import mcnemar_exact_p
+
+    assert s["p_value"] == pytest.approx(mcnemar_exact_p(9, 1))
+    lo, hi = s["interval95"]
+    assert lo <= 0.4 <= hi
+
+
+def test_benjamini_hochberg():
+    q = st.benjamini_hochberg([0.01, 0.04, 0.03, 0.5])
+    # Sorted p 0.01, 0.03, 0.04, 0.5 -> raw 0.04, 0.06, 0.0533, 0.5 -> running minimum.
+    assert q == pytest.approx([0.04, 0.04 * 4 / 3, 0.04 * 4 / 3, 0.5])
+    assert st.benjamini_hochberg([]) == []
+
+
+def test_corpus_test_count_and_q_values_in_aggregate():
+    tracks = [{"id": f"t{i}", "ref": 120.0} for i in range(12)]
+    manifest, runner, rows = build("oa300", tracks)
+    agg = rp.aggregate(rows, manifest, {}, GIT, runner)
+    c = agg["corpora"]["oa300"]
+    n_tests = sum(len(p["strata"]) for p in c["pairings"])
+    assert c["testCount"] == n_tests > 0
+    assert all("q_value" in s for p in c["pairings"] for s in p["strata"].values())
+    assert f"tests run: {n_tests}" in rp.render_markdown(agg)
+
+
+def test_abstention_counts_as_incorrect_in_accuracy_rates():
+    tracks = [
+        {
+            "id": f"t{i}",
+            "ref": 120.0,
+            "systems": {
+                "variant-joint-fit": swift_record(None, status="abstained", reason="nil")
+                if i < 3
+                else swift_record(120.0)
+            },
+        }
+        for i in range(10)
+    ]
+    manifest, runner, rows = build("oa300", tracks)
+    agg = rp.aggregate(rows, manifest, {}, GIT, runner)
+    jf = agg["corpora"]["oa300"]["systems"]["variant-joint-fit"]["overall"]
+    assert jf["metrics"]["level_same"]["n"] == 10
+    assert jf["metrics"]["level_same"]["mean"] == pytest.approx(0.7)
+    assert jf["coverage"] == pytest.approx(0.7)
+    assert jf["metrics"]["abs_error_bpm"]["n"] == 7
+
+
+def test_level_mismatch_skips_downbeat_and_drift():
+    ann = annotation_120()
+    half = {"tempoBPM": 60.0, "anchorSeconds": 10.0, "downbeat": {"anchorSeconds": 10.0}}
+    fam = mt.grid_families(half, ann)
+    assert fam["downbeat_phase"]["status"] == mt.LEVEL_MISMATCH
+    assert fam["drift"]["status"] == mt.LEVEL_MISMATCH
+    assert fam["grid_phase"]["status"] == mt.OK
+
+
+def test_drift_is_phase_error_at_last_bar_minus_first():
+    ann = annotation_120(start=10.0, bars=8)
+    grid = {"tempoBPM": 120.12, "anchorSeconds": 10.03, "downbeat": {}}
+    drift = mt.grid_families(grid, ann)["drift"]
+    first = mt.nearest_beat_error(120.12, 10.03, 10.0)
+    last = mt.nearest_beat_error(120.12, 10.03, 26.0)
+    assert drift["drift_s"] == pytest.approx(last - first)
+    assert first == pytest.approx(0.03)
+
+
+@pytest.mark.parametrize("tempo", [float("nan"), float("inf"), 0.0, -120.0, None])
+def test_non_finite_or_non_positive_tempo_is_a_failure(tempo):
+    _, _, rows = build(
+        "oa300",
+        [{"id": "t0", "ref": 120.0, "systems": {"variant-joint-fit": swift_record(tempo)}}],
+    )
+    row = row_for(rows, "variant-joint-fit", "t0")
+    assert row["status"] == mt.FAILED
+    assert row["reason"] == mt.INVALID_TEMPO
+    assert row["families"]["failure"]["failed_or_abstained"] is True
+    assert mt._metric_tempo_level(row["families"]) == 0.0
+
+
+@pytest.mark.parametrize("tempo", [0.0, -1.0, float("nan")])
+def test_invalid_grid_tempo_is_a_grid_failure(tempo):
+    fam = mt.grid_families({"tempoBPM": tempo, "anchorSeconds": 1.0}, annotation_120())
+    assert all(fam[f]["status"] == mt.FAILED for f in mt.GRID_FAMILIES)
+
+
+def test_synthetic_click_reference_shape(tmp_path):
+    doc = cp.build_synthetic_clicks(tmp_path / "clicks")
+    rows = doc["rows"]
+    assert len(rows) == cp.EXPECTED_COUNTS[cp.SYNTHETIC] == 12
+    assert {r["style"] for r in rows} == {"single-impulse", "64-sample-exp-decay"}
+    first = next(r for r in rows if r["trackId"] == "click-44100-offset0-single-impulse.wav")
+    assert first["audioSha256"] == cp.sha256_file(Path(first["audioPath"]))
+    ann = first["annotation"]
+    assert len(ann["beatTimes"]) == 23
+    assert ann["beatTimes"][0] == pytest.approx(0.5)
+    assert [m for _t, m in ann["barLines"]] == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    assert ann["spanStartSeconds"] == pytest.approx(0.5)
+    assert ann["spanEndSeconds"] == pytest.approx(10.5)
+    assert mt.reference_beats(ann).size == 21
+    exact = {"tempoBPM": 120.0, "anchorSeconds": 0.5, "downbeat": {}}
+    fam = mt.grid_families(exact, ann)
+    assert fam["beat_prf"]["f_measure"] == pytest.approx(1.0)
+    assert fam["grid_phase"]["phase_error_s"] == pytest.approx(0.0, abs=1e-12)
+
+    late = next(r for r in rows if r["trackId"] == "click-48000-offset479-64-sample-exp-decay.wav")
+    assert late["annotation"]["beatTimes"][0] == pytest.approx((24_000 + 479) / 48_000)
+
+    from scipy.io import wavfile
+
+    sr, data = wavfile.read(first["audioPath"])
+    assert sr == 44_100 and data.dtype == np.float32 and data.size == 529_200
+    assert data[22_050] == 1.0 and data[22_051] == 0.0
+
+
+def test_runner_grid_record_keys_feed_the_grid_families():
+    """A runner record in the exact shape matched-eval-run writes."""
+    grid = {
+        "tempoBPM": 120.0,
+        "anchorSeconds": 10.5,
+        "anchorSource": "medianConsistentBeat",
+        "beatCount": 56,
+        "analysisSpanStartSeconds": 0.0,
+        "analysisSpanEndSeconds": 30.0,
+        "downbeat": {"status": "not-attempted"},
+    }
+    record = {
+        "status": "ok",
+        "reason": None,
+        "tempoBPM": 120.0,
+        "grid": grid,
+        "runtimeSeconds": 0.2,
+        "peakMemoryAboveBaselineBytes": 4096,
+        "runtimeComparable": True,
+        "variantIdentity": "x",
+        "buildConfiguration": rp.EXPECTED_RUNNER_BUILD,
+    }
+    _, _, rows = build(
+        "oa300",
+        [
+            {
+                "id": "t0",
+                "ref": 120.0,
+                "annotation": annotation_120(),
+                "systems": {"boomboomboomkit-optimal": record},
+            }
+        ],
+    )
+    fam = row_for(rows, "boomboomboomkit-optimal", "t0")["families"]
+    assert fam["grid_phase"]["status"] == mt.OK
+    assert fam["grid_phase"]["region"] == "inside-analysed-span"
+    assert fam["beat_prf"]["f_measure"] == pytest.approx(1.0)
+    assert fam["downbeat_phase"]["status"] == mt.NO_DATA
+    assert fam["drift"]["drift_s"] == pytest.approx(0.0, abs=1e-9)
+    assert fam["runtime_memory"]["peak_memory_bytes"] == 4096
+
+    not_comparable = {**record, "runtimeComparable": False, "runtimeSeconds": None}
+    _, _, rows = build(
+        "oa300",
+        [{"id": "t0", "ref": 120.0, "systems": {"boomboomboomkit-optimal": not_comparable}}],
+    )
+    rt = row_for(rows, "boomboomboomkit-optimal", "t0")["families"]["runtime_memory"]
+    assert rt["status"] == mt.NOT_COMPARABLE
+
+
+def test_wording_scan_covers_the_tracked_json():
+    tracks = [{"id": f"t{i}", "ref": 120.0} for i in range(3)]
+    manifest, runner, rows = build("oa300", tracks)
+    agg = rp.aggregate(rows, manifest, {}, GIT, runner)
+    rp.check_wording(rp.canonical_json(agg).decode())
+    for word in ("better", "worse", "ahead", "level with", "equivalent", "comparable", "beats"):
+        agg["systems"]["oracle"] = f"the reference is {word} here"
+        with pytest.raises(rp.WordingViolation):
+            rp.check_wording(rp.canonical_json(agg).decode())
+    rp.check_wording('{"status": "not-comparable"}')
+
+
+def test_runner_provenance_must_match_the_report():
+    _manifest, runner = manifest_and_runner("oa300", [{"id": "t0", "ref": 120.0}])
+    rp.check_runner_provenance(runner, GIT)
+    with pytest.raises(rp.ReportRefusal):
+        rp.check_runner_provenance({**runner, "gitSha": "1" * 40}, GIT)
+    with pytest.raises(rp.ReportRefusal):
+        rp.check_runner_provenance({**runner, "dirty": True}, GIT)
+    with pytest.raises(rp.ReportRefusal):
+        rp.check_runner_provenance({**runner, "buildConfiguration": "debug"}, GIT)
+
+
+def test_annotation_on_a_dropped_duplicate_refuses(tmp_path):
+    paths = ["5. T.mp3", "5. T.wav"]
+    root = tmp_path / "oa300"
+    root.mkdir()
+    for p in paths:
+        (root / p).write_bytes(p.encode())
+    (root / cp.ORACLE_FILENAME).write_text(
+        json.dumps({"entries": [_jams_entry(p, 170.0) for p in paths]})
+    )
+    labels = tmp_path / "labels.json"
+    labels.write_text(json.dumps({"entries": [_jams_entry(p, 170.0, "dnb") for p in paths]}))
+    ann = _jams_entry("5. T.mp3", 170.0)
+    ann["sandbox"] = {
+        "annotation_version": cp.ANNOTATION_VERSION,
+        "reference_downbeat_time_sec": 1.0,
+        "verified_span_start_sec": 1.0,
+        "verified_span_end_sec": 20.0,
+        "verified_bpm": 170.0,
+        "bar_position": 1,
+    }
+    (root / cp.ANNOTATIONS_FILENAME).write_text(json.dumps({"entries": [ann]}))
+    with pytest.raises(cp.CorpusRefusal, match="duplicate"):
+        cp.load_oa300(root, labels)
+
+
+# ---------------------------------------------------------------------------
+# run.py
+# ---------------------------------------------------------------------------
+
+
+def _write_run(run_dir: Path, tracks: list[dict[str, Any]], runner_extra: dict | None = None):
+    manifest, runner = manifest_and_runner("oa300", tracks)
+    runner.update(runner_extra or {})
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "manifest.json").write_text(json.dumps(manifest))
+    (run_dir / "runner-output.json").write_text(json.dumps(runner))
+    return manifest
+
+
+def test_run_refuses_without_a_runner(tmp_path):
+    assert rn.main(["swift", "--run-dir", str(tmp_path)]) == rn.EXIT_REFUSED
+    missing = str(tmp_path / "absent-binary")
+    assert rn.main(["swift", "--run-dir", str(tmp_path), "--runner", missing]) == rn.EXIT_REFUSED
+
+
+def test_run_report_refuses_without_run_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(rn, "git_state", lambda: GIT)
+    assert rn.main(["report", "--run-dir", str(tmp_path / "empty")]) == rn.EXIT_REFUSED
+
+
+def test_run_report_refuses_on_runner_from_other_code(tmp_path, monkeypatch):
+    monkeypatch.setattr(rn, "git_state", lambda: GIT)
+    run_dir = tmp_path / "run"
+    _write_run(run_dir, [{"id": "t0", "ref": 120.0}], {"gitSha": "1" * 40})
+    args = ["report", "--run-dir", str(run_dir), "--artifact-dir", str(tmp_path / "art")]
+    assert rn.main(args) == rn.EXIT_REFUSED
+
+
+def test_run_report_turns_a_wording_violation_into_a_refusal(tmp_path, monkeypatch):
+    monkeypatch.setattr(rn, "git_state", lambda: GIT)
+    monkeypatch.setitem(rp.SYSTEM_DESCRIPTIONS, "oracle", "a better reference")
+    run_dir = tmp_path / "run"
+    _write_run(run_dir, [{"id": "t0", "ref": 120.0}])
+    args = ["report", "--run-dir", str(run_dir), "--artifact-dir", str(tmp_path / "art")]
+    assert rn.main(args) == rn.EXIT_REFUSED
+    assert not (tmp_path / "art").exists()
+
+
+def test_run_report_accepts_a_declared_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(rn, "git_state", lambda: GIT)
+    run_dir = tmp_path / "run"
+    manifest = _write_run(run_dir, [{"id": f"t{i}", "ref": 120.0} for i in range(3)])
+    runner = json.loads((run_dir / "runner-output.json").read_text())
+    runner["tracks"] = runner["tracks"][:2]
+    runner["limit"] = 2
+    (run_dir / "runner-output.json").write_text(json.dumps(runner))
+    art = tmp_path / "art"
+    assert rn.main(["report", "--run-dir", str(run_dir), "--artifact-dir", str(art)]) == 0
+    out = art / f"15-9-matched-eval-{GIT['sha']}-limit2.json"
+    agg = json.loads(out.read_text())
+    assert agg["limit"] == 2 and agg["corpora"]["oa300"]["n"] == 2
+    assert (art / f"15-9-matched-eval-{GIT['sha']}-limit2.md").is_file()
+    # Without the declaration the short runner output refuses.
+    runner["limit"] = None
+    (run_dir / "runner-output.json").write_text(json.dumps(runner))
+    assert rn.main(["report", "--run-dir", str(run_dir), "--artifact-dir", str(art)]) == 3
+    assert manifest["corpora"]["oa300"]["rows"]

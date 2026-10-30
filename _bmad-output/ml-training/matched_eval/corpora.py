@@ -17,6 +17,15 @@ Three corpora, each with its own independent reference:
   giantsteps  The 661 rows of `giantsteps-tempo-ground-truth.json`. Its labels are
               crowdsourced, so every pairing on this corpus is tagged
               `crowdsourced-reference`. Style tag from the label file's `genre`.
+  synthetic-clicks
+              The twelve Story 15.2 timing clips, generated exactly as
+              `BeatGridTimingBaselineTests` builds them (12 s at 120 BPM; 44.1 and
+              48 kHz; offsets 0, hop/2 and hop-1 samples; a single impulse or a
+              64-sample exponential decay), written as float WAV files into the run
+              directory. Their planted beat times and bar starts (every fourth planted
+              beat from the first) are written as a reference annotation in the
+              Story 15.8 shape, so families 1 to 7 are scored against them. Style tag
+              = click shape.
 
 Track ids are the ones the Story 15.5 scores files use: the OA300 relative path,
 the 12.7 row id, the GiantSteps filename.
@@ -41,13 +50,21 @@ ORACLE_FILENAME = "daw-oracle.json"
 ANNOTATIONS_FILENAME = "daw-oracle-annotations.json"
 GIANTSTEPS_LABELS_FILENAME = "giantsteps-tempo-ground-truth.json"
 
-CORPORA = ("oa300", "eval-12-7", "giantsteps")
-EXPECTED_COUNTS = {"oa300": 22, "eval-12-7": 172, "giantsteps": 661}
+SYNTHETIC = "synthetic-clicks"
+CORPORA = ("oa300", "eval-12-7", "giantsteps", SYNTHETIC)
+EXPECTED_COUNTS = {"oa300": 22, "eval-12-7": 172, "giantsteps": 661, SYNTHETIC: 12}
 REFERENCE_KIND = {
     "oa300": "daw-verified",
     "eval-12-7": "verified-12.7",
     "giantsteps": "crowdsourced-reference",
+    SYNTHETIC: "planted-click",
 }
+# Story 15.2 timing fixtures (Tests/BoomBoomBoomKitBenchmarkTests/BeatGridTimingBaselineTests.swift).
+CLICK_SECONDS = 12.0
+CLICK_BPM = 120.0
+CLICK_SAMPLE_RATES = (44_100, 48_000)
+CLICK_SHAPES = (("single-impulse", 1), ("64-sample-exp-decay", 64))
+CLICK_ANNOTATIONS_FILENAME = "synthetic-clicks-annotations.json"
 CROWDSOURCED_TAG = "crowdsourced-reference"
 UNTAGGED = "untagged"
 ANNOTATION_VERSION = "15.8.v2"
@@ -139,15 +156,21 @@ def load_annotations(path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, A
 
 
 def normalize_annotation(entry: dict[str, Any]) -> dict[str, Any]:
-    """The fields the grid families read, from one `15.8.v2` entry."""
+    """The fields the grid families read, from one `15.8.v2` entry. Bar lines are
+    the `beat_position` items at position 1 (a hand annotation lists only those);
+    an entry that lists every beat (the synthetic clicks) also yields `beatTimes`."""
     sandbox = entry["sandbox"]
     bar_lines: list[list[float]] = []
+    beat_times: list[float] = []
     for ann in entry.get("annotations", []):
         if ann.get("namespace") != "beat_position":
             continue
         for item in ann.get("data", []):
-            bar_lines.append([float(item["time"]), float(item["value"]["measure"])])
+            beat_times.append(float(item["time"]))
+            if int(item["value"].get("position", 1)) == 1:
+                bar_lines.append([float(item["time"]), float(item["value"]["measure"])])
     bar_lines.sort()
+    beat_times.sort()
     return {
         "referenceDownbeatSeconds": float(sandbox["reference_downbeat_time_sec"]),
         "spanStartSeconds": float(sandbox["verified_span_start_sec"]),
@@ -156,6 +179,7 @@ def normalize_annotation(entry: dict[str, Any]) -> dict[str, Any]:
         "declaredLevel": sandbox.get("declared_metrical_level"),
         "barPosition": int(sandbox["bar_position"]),
         "barLines": bar_lines,
+        "beatTimes": beat_times if len(beat_times) > len(bar_lines) else [],
     }
 
 
@@ -170,6 +194,12 @@ def load_oa300(oa300_root: Path, labels_path: Path = OA300_LABELS) -> dict[str, 
     for e in _entries(labels_path):
         labels[local_path(e)] = (jams_tempo(e), e.get("sandbox", {}).get("genre"))
     annotations, annotation_source = load_annotations(oa300_root / ANNOTATIONS_FILENAME)
+    orphaned = sorted(set(annotations) & set(dropped))
+    if orphaned:
+        raise CorpusRefusal(
+            f"oa300: {len(orphaned)} hand annotation(s) name a duplicate recording that is "
+            "counted under its .wav; re-key them to the .wav"
+        )
 
     rows: list[dict[str, Any]] = []
     problems: list[str] = []
@@ -280,6 +310,114 @@ def load_giantsteps(giantsteps_root: Path) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Synthetic clicks (Story 15.2 timing fixtures)
+# ---------------------------------------------------------------------------
+
+
+def click_clip(sample_rate: int, offset: int, shape_samples: int) -> tuple[Any, list[float]]:
+    """One clip and its planted beat times, as `synthesizeClickTrack` builds it:
+    impulses at `beatSamples * k + offset` for k >= 1 while a whole impulse fits,
+    each `exp(-j / 10)` for j < shape length."""
+    import numpy as np
+
+    n = int(sample_rate * CLICK_SECONDS)
+    beat = int(sample_rate / (CLICK_BPM / 60.0))
+    samples = np.zeros(n, dtype=np.float32)
+    shape = np.exp(-np.arange(shape_samples, dtype=np.float64) / 10.0).astype(np.float32)
+    positions = list(range(beat + offset, n - shape_samples, beat))
+    for p in positions:
+        samples[p : p + shape_samples] = shape
+    return samples, [p / sample_rate for p in positions]
+
+
+def click_annotation_entry(track_id: str, planted: list[float], duration: float) -> dict:
+    """The planted beats as a Story 15.8-shaped entry: every planted beat as a
+    `beat_position` item, bar starts every fourth beat from the first, the verified
+    span from the first to the last bar start."""
+    bar_starts = planted[::4]
+    start, end = bar_starts[0], bar_starts[-1]
+    items = [
+        {
+            "time": t,
+            "duration": 0.0,
+            "value": {
+                "position": k % 4 + 1,
+                "measure": k // 4 + 1,
+                "num_beats": 4,
+                "beat_units": 4,
+            },
+            "confidence": 1.0,
+        }
+        for k, t in enumerate(planted)
+    ]
+    return {
+        "file_metadata": {
+            "duration": duration,
+            "jams_version": "0.4.0",
+            "identifiers": {"basename": track_id, "local_path": track_id, "track_id": track_id},
+        },
+        "annotations": [
+            {
+                "namespace": "tempo",
+                "data": [
+                    {"time": start, "duration": end - start, "value": CLICK_BPM, "confidence": 1.0}
+                ],
+            },
+            {"namespace": "beat_position", "data": items},
+        ],
+        "sandbox": {
+            "reference_downbeat_time_sec": start,
+            "verified_bpm": CLICK_BPM,
+            "declared_metrical_level": "quarter",
+            "bar_position": 1,
+            "verified_span_start_sec": start,
+            "verified_span_end_sec": end,
+            "annotation_version": ANNOTATION_VERSION,
+            "source": "story-15.2-click-generator",
+        },
+    }
+
+
+def build_synthetic_clicks(out_dir: Path) -> dict[str, Any]:
+    """Write the twelve clips and their reference annotation into `out_dir`."""
+    from scipy.io import wavfile
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    entries: list[dict[str, Any]] = []
+    meta: list[tuple[str, Path, str]] = []
+    for sr in CLICK_SAMPLE_RATES:
+        hop = int(sr / 100)
+        for offset in (0, hop // 2, hop - 1):
+            for shape_name, shape_samples in CLICK_SHAPES:
+                track_id = f"click-{sr}-offset{offset}-{shape_name}.wav"
+                samples, planted = click_clip(sr, offset, shape_samples)
+                path = out_dir / track_id
+                wavfile.write(str(path), sr, samples)
+                entries.append(click_annotation_entry(track_id, planted, samples.size / sr))
+                meta.append((track_id, path, shape_name))
+    ann_path = out_dir / CLICK_ANNOTATIONS_FILENAME
+    ann_path.write_text(json.dumps({"entries": entries}, indent=2, sort_keys=True) + "\n")
+    annotations, source = load_annotations(ann_path)
+    rows = [
+        {
+            "trackId": track_id,
+            "audioPath": str(path),
+            "audioSha256": sha256_file(path),
+            "referenceBPM": CLICK_BPM,
+            "style": shape_name,
+            "commercialBPM": None,
+            "annotation": annotations[track_id],
+        }
+        for track_id, path, shape_name in meta
+    ]
+    assert source is not None
+    return {
+        "rows": rows,
+        "sources": {"reference": {"name": ann_path.name, "sha256": source["sha256"]}},
+    }
+
+
+# ---------------------------------------------------------------------------
 # Manifest
 # ---------------------------------------------------------------------------
 
@@ -298,6 +436,7 @@ def build_manifest(
     oa300_root: Path | None,
     giantsteps_root: Path | None,
     bundle_gate_input: Path | None,
+    synthetic_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Resolve and verify every requested corpus before anything runs."""
     out: dict[str, Any] = {}
@@ -314,6 +453,10 @@ def build_manifest(
             if giantsteps_root is None:
                 raise CorpusRefusal("GIANTSTEPS_CORPUS_PATH is not set")
             doc = load_giantsteps(giantsteps_root)
+        elif corpus == SYNTHETIC:
+            if synthetic_dir is None:
+                raise CorpusRefusal("no directory to write the synthetic clicks into")
+            doc = build_synthetic_clicks(synthetic_dir)
         else:
             raise CorpusRefusal(f"unknown corpus {corpus}")
         check_rows(corpus, doc["rows"])

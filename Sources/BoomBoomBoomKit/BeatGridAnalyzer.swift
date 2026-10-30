@@ -418,8 +418,8 @@ enum BeatGridAnalyzer {
     }
 
     // Story 15.9: report the onset-comb best phase at the grid tempo when, and only
-    // when, an evaluation harness has bound `combPhaseObserver`. Reading the
-    // task-local is the only work on the default path; nothing below depends on it.
+    // when, a caller has bound `combPhaseObserver`. Reading the task-local is the
+    // only work on the default path; nothing below depends on it.
     if let observer = combPhaseObserver {
       observeCombPhase(
         observer: observer, onsetEnvelope: onsetEnvelope, beatFrames: beatFrames,
@@ -923,8 +923,8 @@ enum BeatGridAnalyzer {
 
   /// The best phase of the onset-comb fold for one period: the fold that
   /// ``combSupport(period:onset:lo:hi:)`` scores, with the winning phase bin kept
-  /// instead of discarded (Story 15.9). Internal; read by the develop-only
-  /// evaluation harness to build a grid anchored at this phase.
+  /// instead of discarded (Story 15.9). An internal observation used by evaluation
+  /// tooling to build a grid anchored at this phase.
   struct CombBestPhase: Sendable, Hashable {
     /// Envelope frame the fold starts at: phase 0 is this frame.
     let foldOriginFrame: Int
@@ -959,8 +959,9 @@ enum BeatGridAnalyzer {
     let phaseSeconds: Double
   }
 
-  /// Story 15.9 evaluation hook. `nil` (the default, and the value on every
-  /// library path) means nothing is computed; an evaluation harness binds it with
+  /// Story 15.9: an internal observation used by evaluation tooling. `nil` (the
+  /// default, and the value on every library path) means nothing is computed; a
+  /// caller binds it with
   /// `$combPhaseObserver.withValue(_:operation:)` around a call and receives one
   /// ``CombPhaseObservation`` per beat grid the analyzer builds. It never changes
   /// an output: the observation is computed from values the grid already holds.

@@ -71,6 +71,7 @@ def prepare(args: argparse.Namespace, run_dir: Path) -> None:
         bundle_gate_input=(
             Path(args.legacy_root) / BUNDLE_GATE_INPUT_RELPATH if args.legacy_root else None
         ),
+        synthetic_dir=run_dir / cp.SYNTHETIC,
     )
     run_dir.mkdir(parents=True, exist_ok=True)
     write_json(run_dir / "manifest.json", manifest)
@@ -80,26 +81,41 @@ def prepare(args: argparse.Namespace, run_dir: Path) -> None:
 
 
 def swift(args: argparse.Namespace, run_dir: Path) -> int:
+    if not args.runner:
+        raise rp.ReportRefusal("--runner is required to run the Swift systems")
     runner = Path(args.runner)
     if not runner.is_file():
-        print(f"ERROR: Swift runner not found at {runner}", file=sys.stderr)
-        return 2
+        raise rp.ReportRefusal(f"Swift runner not found at {runner}")
+    runner_input = run_dir / "runner-input.json"
+    if not runner_input.is_file():
+        raise rp.ReportRefusal(f"no runner input at {runner_input}; run prepare first")
     cmd = [
         str(runner),
         "--input",
-        str(run_dir / "runner-input.json"),
+        str(runner_input),
         "--output",
         str(run_dir / "runner-output.json"),
     ]
+    if args.limit is not None:
+        cmd += ["--limit", str(args.limit)]
     return subprocess.call(cmd)
 
 
+def read_run_file(run_dir: Path, name: str) -> bytes:
+    path = run_dir / name
+    if not path.is_file():
+        raise rp.ReportRefusal(f"no {name} in {run_dir}; run prepare and swift first")
+    return path.read_bytes()
+
+
 def report(args: argparse.Namespace, run_dir: Path, git: dict[str, Any]) -> None:
-    manifest_bytes = (run_dir / "manifest.json").read_bytes()
-    manifest = json.loads(manifest_bytes)
-    runner_bytes = (run_dir / "runner-output.json").read_bytes()
+    manifest_bytes = read_run_file(run_dir, "manifest.json")
+    full_manifest = json.loads(manifest_bytes)
+    runner_bytes = read_run_file(run_dir, "runner-output.json")
     runner_doc = json.loads(runner_bytes)
     manifest_sha = rp.sha256_bytes(manifest_bytes)
+    rp.check_runner_provenance(runner_doc, git)
+    manifest = rp.restrict_to_runner(full_manifest, runner_doc)
     fixed_time_dir = Path(args.fixed_time_run_dir) if args.fixed_time_run_dir else None
     rows, fixed_time_digests = rp.build_rows(
         manifest, manifest_sha, runner_doc, fixed_time_dir, git
@@ -116,9 +132,13 @@ def report(args: argparse.Namespace, run_dir: Path, git: dict[str, Any]) -> None
     md = rp.render_markdown(agg)
     agg_bytes = rp.canonical_json(agg)
     for text in (agg_bytes.decode("utf-8"), md):
-        rp.assert_no_track_identifiers(text, manifest)
+        rp.check_wording(text)
+        rp.assert_no_track_identifiers(text, full_manifest)
 
-    stem = f"15-9-matched-eval-{run_dir.name}"
+    # Named from the SHA the runner output records (equal to the report's, checked above).
+    stem = f"15-9-matched-eval-{runner_doc['gitSha']}" + ("-dirty" if runner_doc["dirty"] else "")
+    if runner_doc.get("limit") is not None:
+        stem += f"-limit{runner_doc['limit']}"
     artifact_dir = Path(args.artifact_dir)
     artifact_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / f"{stem}.json").write_bytes(agg_bytes)
@@ -138,12 +158,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--fixed-time-run-dir", help="Story 15.5 run directory with scores-*.json")
     p.add_argument("--runner", help="path to the built matched-eval-run binary")
     p.add_argument("--corpus", action="append", choices=cp.CORPORA)
+    p.add_argument("--limit", type=int, help="run only the first N tracks (a declared subset)")
     p.add_argument("--oa300-root", default=os.environ.get("OA300_CORPUS_PATH", ""))
     p.add_argument("--giantsteps-root", default=os.environ.get("GIANTSTEPS_CORPUS_PATH", ""))
     args = p.parse_args(argv if argv is not None else sys.argv[1:])
+    if args.limit is not None and args.limit < 0:
+        print("ERROR: --limit must be non-negative", file=sys.stderr)
+        return 2
 
     git = git_state()
     run_dir = Path(args.run_dir) if args.run_dir else run_dir_for(Path(args.run_root), git)
+    if args.limit is not None and not args.run_dir:
+        run_dir = run_dir.with_name(f"{run_dir.name}-limit{args.limit}")
     try:
         if args.command in ("prepare", "all"):
             prepare(args, run_dir)
@@ -154,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
                 return code
         if args.command in ("report", "all"):
             report(args, run_dir, git)
-    except (cp.CorpusRefusal, rp.ReportRefusal) as e:
+    except (cp.CorpusRefusal, rp.ReportRefusal, rp.WordingViolation) as e:
         print(f"ERROR: refused. {e}", file=sys.stderr)
         return EXIT_REFUSED
     return 0

@@ -1200,8 +1200,11 @@ fixed-time-report:
 # ---------------------------------------------------------------------------
 MATCHED_EVAL_RUN_ROOT ?= $(CURDIR)/$(ML_TRAINING_DIR)/matched-eval-runs
 MATCHED_EVAL_RUNNER := $(CURDIR)/$(ML_TRAINING_DIR)/swift_feature_extractor/.build/release/matched-eval-run
+# Run only the first N tracks (a declared subset: the run directory and the
+# aggregate carry a -limit<N> suffix). Empty runs every track.
+MATCHED_EVAL_LIMIT ?=
 
-## matched-eval: Story 15.9 -- build the Swift runner (release, -enable-testing), resolve and hash the three corpora (OA300 DAW-verified 22 tracks, the 172 locked 12.7 members read-only and refused on any audio hash change, GiantSteps 661 with a crowdsourced-reference tag), run the shipped pipeline, the 15.7 joint fit and the comb best-phase grid per track with runtime and task_info peak memory, join the 15.5 fixed-time scores and the commercial analyzer's recorded OA300 BPMs, and write nine separate metric families per (track, system) to the gitignored run directory plus paired bootstrap intervals and Wilcoxon p-values by tempo band and style tag to implementation-artifacts/15-9-matched-eval-<git sha>.{json,md}. Develop-only; fails loudly on a main-only checkout.
+## matched-eval: Story 15.9 -- build the Swift runner (release, -enable-testing), resolve and hash the corpora (OA300 DAW-verified 22 tracks, the 172 locked 12.7 members read-only and refused on any audio hash change, GiantSteps 661 with a crowdsourced-reference tag, and the twelve Story 15.2 synthetic click clips generated into the run directory with their planted beats as the grid reference), run the shipped pipeline, the 15.7 joint fit at the BPM stage level and the comb best-phase grid per track with runtime and task_info peak memory, join the 15.5 fixed-time scores and the commercial analyzer's recorded OA300 BPMs, and write nine separate metric families per (track, system) to the gitignored run directory plus paired bootstrap intervals and Wilcoxon p-values by tempo band and style tag to implementation-artifacts/15-9-matched-eval-<git sha>.{json,md}. MATCHED_EVAL_LIMIT=N runs the first N tracks as a declared subset. Develop-only; fails loudly on a main-only checkout.
 .PHONY: matched-eval
 matched-eval:
 	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
@@ -1217,7 +1220,8 @@ matched-eval:
 		--run-root "$(abspath $(MATCHED_EVAL_RUN_ROOT))" \
 		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" \
 		--fixed-time-run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
-		--runner "$(MATCHED_EVAL_RUNNER)"
+		--runner "$(MATCHED_EVAL_RUNNER)" \
+		$(if $(MATCHED_EVAL_LIMIT),--limit $(MATCHED_EVAL_LIMIT),)
 
 # Story 12.9: private, generation-bound paired DSP versus default DSP+ML gate.
 # The gate input and predictions are gitignored. Four original DnB sentinels

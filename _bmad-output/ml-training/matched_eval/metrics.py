@@ -11,14 +11,18 @@ Families, never collapsed into one number:
                     verified span (mir_eval `match_events`, BEAT_WINDOW_S).
   6 downbeat_phase  whether a system downbeat lies within BEAT_WINDOW_S of the
                     reference downbeat.
-  7 drift           grid time minus reference time accumulated over the verified span.
+  7 drift           the grid's phase error at the last annotated bar line minus its
+                    phase error at the first.
   8 failure         failed or abstained, with the reason.
-  9 runtime_memory  runtime (s) and peak resident memory above the pre-pass baseline.
+  9 runtime_memory  runtime (s) and peak memory above the pre-pass baseline.
 
-Families 4 to 7 need a Story 15.8 hand annotation and report `no-reference`
-without one. A system that emits no grid reports `no-data` for them. A
-system that abstained or failed reports that status in families 1 to 7 and is
-counted in family 8.
+Families 4 to 7 need a reference annotation (a Story 15.8 hand annotation, or the
+planted beats of the synthetic clicks) and report `no-reference` without one. A
+system that emits no grid reports `no-data` for them. Downbeat phase and drift are
+scored only when the grid is at the reference's tempo level (`level-mismatch`
+otherwise). A system that abstained or failed reports that status in families 1 to
+7, is counted in family 8, and counts as incorrect in the yes/no accuracy metrics.
+A non-finite or non-positive tempo is a failure.
 
 A grid is a tempo and an anchor time; its beats are `anchor + k * 60 / tempo` for
 every integer k, before and after the anchor.
@@ -69,10 +73,23 @@ NO_DATA = "no-data"
 NOT_COMPARABLE = "not-comparable"
 NOT_APPLICABLE = "not-applicable"
 LEVEL_MISMATCH = "level-mismatch"
+INVALID_TEMPO = "non-finite or non-positive tempo"
+INVALID_GRID = "non-finite or non-positive grid tempo or anchor"
 
 
 def strict_key(tol: float) -> str:
     return f"{tol:.2f}"
+
+
+def _valid_tempo(v: Any) -> bool:
+    return isinstance(v, (int, float)) and math.isfinite(v) and v > 0
+
+
+def normalize_record(record: dict[str, Any]) -> dict[str, Any]:
+    """An `ok` record whose tempo is missing, non-finite or non-positive is a failure."""
+    if record.get("status") == OK and not _valid_tempo(record.get("tempoBPM")):
+        return {**record, "status": FAILED, "reason": INVALID_TEMPO, "tempoBPM": None}
+    return record
 
 
 # ---------------------------------------------------------------------------
@@ -113,20 +130,26 @@ def grid_beats(tempo_bpm: float, anchor_s: float, start_s: float, end_s: float) 
 
 
 def reference_beats(annotation: dict[str, Any]) -> np.ndarray:
-    """Annotated beats in the verified span: four per bar, spaced evenly between
-    each pair of consecutive annotated bar lines."""
+    """Reference beats in the verified span. Annotations that list every beat
+    (`beatTimes`, the synthetic clicks) use them; hand annotations, which list bar
+    lines only, get four beats per bar spaced evenly between consecutive bar lines."""
+    start, end = annotation["spanStartSeconds"], annotation["spanEndSeconds"]
+    listed = annotation.get("beatTimes") or []
+    if len(listed) > len(annotation["barLines"]):
+        beats = np.asarray(sorted(float(t) for t in listed))
+        return beats[(beats >= start - 1e-9) & (beats <= end + 1e-9)]
     lines = sorted((float(t), float(m)) for t, m in annotation["barLines"])
     if len(lines) < 2:
         return np.empty(0)
-    beats: list[float] = []
+    out: list[float] = []
     for (t0, m0), (t1, m1) in zip(lines, lines[1:]):
         count = int(round((m1 - m0) * BEATS_PER_BAR))
         if count <= 0:
             continue
         step = (t1 - t0) / count
-        beats.extend(t0 + j * step for j in range(count))
-    beats.append(lines[-1][0])
-    return np.asarray(beats)
+        out.extend(t0 + j * step for j in range(count))
+    out.append(lines[-1][0])
+    return np.asarray(out)
 
 
 def nearest_beat_error(tempo_bpm: float, anchor_s: float, t: float) -> float:
@@ -160,30 +183,38 @@ def span_region(t: float, start: float | None, end: float | None) -> str:
 
 
 def grid_families(grid: dict[str, Any] | None, annotation: dict[str, Any] | None) -> dict:
-    """Families 4 to 7 for one system grid against one hand annotation."""
+    """Families 4 to 7 for one system grid against one reference annotation."""
     if annotation is None:
         return {f: {"status": NO_REFERENCE} for f in GRID_FAMILIES}
     if grid is None or grid.get("tempoBPM") is None or grid.get("anchorSeconds") is None:
         return {f: {"status": NO_DATA} for f in GRID_FAMILIES}
-    tempo = float(grid["tempoBPM"])
-    anchor = float(grid["anchorSeconds"])
+    tempo, anchor = grid["tempoBPM"], grid["anchorSeconds"]
+    if not _valid_tempo(tempo) or not math.isfinite(anchor):
+        return {f: {"status": FAILED, "reason": INVALID_GRID} for f in GRID_FAMILIES}
+    tempo, anchor = float(tempo), float(anchor)
     start = annotation["spanStartSeconds"]
     end = annotation["spanEndSeconds"]
     downbeat = annotation["referenceDownbeatSeconds"]
-    span_start = grid.get("analysisSpanStartSeconds")
-    span_end = grid.get("analysisSpanEndSeconds")
 
-    phase = nearest_beat_error(tempo, anchor, downbeat)
     out: dict[str, Any] = {
         "grid_phase": {
             "status": OK,
-            "phase_error_s": phase,
-            "region": span_region(downbeat, span_start, span_end),
+            "phase_error_s": nearest_beat_error(tempo, anchor, downbeat),
+            "region": span_region(
+                downbeat, grid.get("analysisSpanStartSeconds"), grid.get("analysisSpanEndSeconds")
+            ),
         }
     }
     ref = reference_beats(annotation)
     est = grid_beats(tempo, anchor, start - BEAT_WINDOW_S, end + BEAT_WINDOW_S)
     out["beat_prf"] = {"status": OK, **beat_prf(ref, est)}
+
+    level = tempo_level_class(tempo, annotation["verifiedBPM"])
+    if level != "same":
+        mismatch = {"status": LEVEL_MISMATCH, "gridLevel": level}
+        out["downbeat_phase"] = dict(mismatch)
+        out["drift"] = dict(mismatch)
+        return out
 
     db = grid.get("downbeat") or {}
     if db.get("anchorSeconds") is None:
@@ -199,17 +230,16 @@ def grid_families(grid: dict[str, Any] | None, annotation: dict[str, Any] | None
             "downbeat_error_s": err,
         }
 
-    level = tempo_level_class(tempo, annotation["verifiedBPM"])
-    if level != "same":
-        out["drift"] = {"status": LEVEL_MISMATCH, "gridLevel": level}
+    lines = sorted(float(t) for t, _m in annotation["barLines"])
+    if len(lines) < 2:
+        out["drift"] = {"status": NO_REFERENCE, "reason": "fewer than two bar lines"}
     else:
-        lines = annotation["barLines"]
-        bars = (lines[-1][1] - lines[0][1]) if len(lines) >= 2 else 0.0
-        beats = bars * BEATS_PER_BAR
+        first = nearest_beat_error(tempo, anchor, lines[0])
+        last = nearest_beat_error(tempo, anchor, lines[-1])
         out["drift"] = {
             "status": OK,
-            "drift_s": beats * 60.0 / tempo - (end - start),
-            "span_s": end - start,
+            "drift_s": last - first,
+            "span_s": lines[-1] - lines[0],
         }
     return out
 
@@ -226,9 +256,8 @@ def evaluate(
     *,
     runtime_comparable: bool,
 ) -> dict[str, Any]:
-    """All nine families for one system record.
-
-    `system` carries `status` (ok / abstained / failed / not-run), `reason`,
+    """All nine families for one system record (pass it through `normalize_record`
+    first). `system` carries `status` (ok / abstained / failed / not-run), `reason`,
     `tempoBPM`, `grid` (or None), and for Swift systems `runtimeSeconds` and
     `peakMemoryAboveBaselineBytes`."""
     status = system["status"]
@@ -240,7 +269,7 @@ def evaluate(
             fam.update({f: {"status": NO_REFERENCE} for f in GRID_FAMILIES})
         return fam
 
-    if status == OK and system.get("tempoBPM") is not None:
+    if status == OK:
         bpm = float(system["tempoBPM"])
         fam["tempo_level"] = {"status": OK, "class": tempo_level_class(bpm, reference_bpm)}
         fam["strict_tempo"] = {
@@ -250,8 +279,8 @@ def evaluate(
         err, ppt = fine_error(bpm, reference_bpm)
         fam["fine_error"] = {"status": OK, "error_bpm": err, "error_ppt": ppt}
         if system.get("gridFamilies") == NO_DATA:
-            # A tempo-only system: no grid to score, and without a hand annotation
-            # there is nothing to score it against either.
+            # A tempo-only system: no grid to score, and without a reference
+            # annotation there is nothing to score it against either.
             missing = NO_REFERENCE if annotation is None else NO_DATA
             fam.update({f: {"status": missing} for f in GRID_FAMILIES})
         else:
@@ -282,7 +311,7 @@ def evaluate(
 
 def reference_families(annotation: dict[str, Any] | None) -> dict[str, Any]:
     """The reference scored against itself: the zero point of every vs-reference
-    pairing. Grid families exist only where a hand annotation does."""
+    pairing. Grid families exist only where a reference annotation does."""
     fam: dict[str, Any] = {
         "tempo_level": {"status": OK, "class": "same"},
         "strict_tempo": {"status": OK, **{strict_key(t): True for t in STRICT_TOLERANCES}},
@@ -308,6 +337,10 @@ def reference_families(annotation: dict[str, Any] | None) -> dict[str, Any]:
 # Per-metric values for pairing
 # ---------------------------------------------------------------------------
 
+# An abstention or failure in one of these families counts as incorrect (0) in the
+# yes/no accuracy metrics; coverage is reported beside them.
+_INCORRECT = (ABSTAINED, FAILED)
+
 
 def _ok(fam: dict[str, Any], name: str) -> dict[str, Any] | None:
     f = fam.get(name, {})
@@ -319,14 +352,18 @@ def _flag(v: Any) -> float | None:
 
 
 def _metric_tempo_level(fam):
-    f = _ok(fam, "tempo_level")
-    return None if f is None else (1.0 if f["class"] == "same" else 0.0)
+    f = fam.get("tempo_level", {})
+    if f.get("status") in _INCORRECT:
+        return 0.0
+    return None if f.get("status") != OK else (1.0 if f["class"] == "same" else 0.0)
 
 
 def _metric_strict(tol):
     def get(fam):
-        f = _ok(fam, "strict_tempo")
-        return None if f is None else _flag(f[strict_key(tol)])
+        f = fam.get("strict_tempo", {})
+        if f.get("status") in _INCORRECT:
+            return 0.0
+        return None if f.get("status") != OK else _flag(f[strict_key(tol)])
 
     return get
 
@@ -342,13 +379,29 @@ def _metric_field(family: str, field: str, absolute: bool = False):
     return get
 
 
-def _metric_bool(family: str, field: str):
-    def get(fam):
-        f = _ok(fam, family)
-        return None if f is None else _flag(f.get(field))
+def _metric_downbeat(fam):
+    f = fam.get("downbeat_phase", {})
+    if f.get("status") in _INCORRECT:
+        return 0.0
+    return None if f.get("status") != OK else _flag(f.get("downbeat_correct"))
 
-    return get
 
+def _metric_failure(fam):
+    f = _ok(fam, "failure")
+    return None if f is None else _flag(f.get("failed_or_abstained"))
+
+
+# Yes/no metrics: interval on the mean paired difference, exact McNemar p.
+YES_NO_METRICS = frozenset(
+    {
+        "level_same",
+        *(f"strict_{strict_key(t)}" for t in STRICT_TOLERANCES),
+        "downbeat_correct",
+        "failed_or_abstained",
+    }
+)
+# Accuracy metrics: an abstention or failure counts as incorrect.
+ACCURACY_METRICS = YES_NO_METRICS - {"failed_or_abstained"}
 
 # (family, metric, extractor). Every pairing is computed for every metric that
 # has values on both sides; a track missing either side is left out of that one.
@@ -368,10 +421,10 @@ METRICS: tuple[tuple[str, str, Any], ...] = (
     ("beat_prf", "precision", _metric_field("beat_prf", "precision")),
     ("beat_prf", "recall", _metric_field("beat_prf", "recall")),
     ("beat_prf", "f_measure", _metric_field("beat_prf", "f_measure")),
-    ("downbeat_phase", "downbeat_correct", _metric_bool("downbeat_phase", "downbeat_correct")),
+    ("downbeat_phase", "downbeat_correct", _metric_downbeat),
     ("drift", "drift_s", _metric_field("drift", "drift_s")),
     ("drift", "abs_drift_s", _metric_field("drift", "drift_s", absolute=True)),
-    ("failure", "failed_or_abstained", _metric_bool("failure", "failed_or_abstained")),
+    ("failure", "failed_or_abstained", _metric_failure),
     ("runtime_memory", "runtime_s", _metric_field("runtime_memory", "runtime_s")),
     (
         "runtime_memory",

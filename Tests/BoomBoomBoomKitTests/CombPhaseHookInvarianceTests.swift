@@ -87,4 +87,31 @@ struct CombPhaseHookInvarianceTests {
     }
     #expect(observedGrids > 0, "no fixture produced a beat grid; the hook was never exercised")
   }
+
+  @Test("observed phase seconds sit within one envelope frame of the grid's beats")
+  func observedPhaseSecondsLandOnTheGrid() throws {
+    for name in ["bpm-120-click", "bpm-170-click"] {
+      let url = try AudioFixtures.url(for: name, extension: "wav")
+      let decoded = try PCMBufferReader.readDecodedAudio(from: url, maxSeconds: 120)
+      let seen = Mutex<[BeatGridAnalyzer.CombPhaseObservation]>([])
+      let observer: @Sendable (BeatGridAnalyzer.CombPhaseObservation) -> Void = { obs in
+        seen.withLock { $0.append(obs) }
+      }
+      let result = try BeatGridAnalyzer.$combPhaseObserver.withValue(observer) {
+        try AudioAnalysisService.analyze(decoded: decoded)
+      }
+      let grid = try #require(result?.beatGrid, "no grid on \(name)")
+      let origin = try #require(grid.gridOrigin, "no grid origin on \(name)")
+      let obs = try #require(seen.withLock { $0.first }, "no observation on \(name)")
+      let period = 60.0 / grid.estimatedTempo
+      let frame = Double(Int(decoded.sampleRate / 100)) / decoded.sampleRate
+      var offset = (obs.phaseSeconds - origin.presentationTime)
+        .truncatingRemainder(dividingBy: period)
+      if offset > period / 2 { offset -= period }
+      if offset < -period / 2 { offset += period }
+      #expect(
+        abs(offset) <= frame + 1e-9,
+        "\(name): best phase \(obs.phaseSeconds) s is \(offset * 1000) ms off the grid")
+    }
+  }
 }

@@ -8,29 +8,42 @@
 //                              options (TechniqueSet.optimal). Its decode is
 //                              captured through the internal decode-observer seam.
 //    variant-joint-fit         Story 15.7 on that same decode:
-//                              DSPStubObservationProducer -> MetricalLevelSelector
-//                              (seeded with the default BPM) -> JointTempoPhaseFit.
-//                              Grid from the fit's tempo and phase anchor; a nil at
-//                              any step abstains with the step named.
-//    variant-comb-best-phase   Story 15.10 follow-up: `analyze(url:)` again with
+//                              DSPStubObservationProducer -> BarStateDecoder at the
+//                              default BPM and level .quarter (the level the BPM
+//                              stage chose; the fit never changes octave) ->
+//                              JointTempoPhaseFit.fit(observations:candidate:).
+//                              Grid from the fit's tempo and phase anchor; a nil
+//                              decode or fit abstains. The metrical-level selector's
+//                              choice is recorded as a diagnostic only.
+//    variant-comb-best-phase   Story 15.10 follow-up: `analyze(decoded:)` on the
+//                              default pass's own decode with
 //                              `BeatGridAnalyzer.combPhaseObserver` bound; the default
 //                              grid's tempo re-anchored at the onset-comb best phase.
-//                              Its BPM answer is the default BPM, unchanged.
+//                              Refused (failed) when its grid differs from the
+//                              default pass, its BPM differs from the same
+//                              `analyze(decoded:)` call without the observer (the
+//                              decoded path has no file tags, so its BPM can
+//                              legitimately differ from the URL pass), or the
+//                              observed tempo differs from the grid tempo. Its BPM
+//                              answer is the default pass's. Runtime and memory not
+//                              comparable.
 //
-//  Runtime and memory per system. Each pass runs alone; the resident size
-//  (`task_info` MACH_TASK_BASIC_INFO) is sampled every millisecond on a second
-//  thread while the pass runs, and the record holds the high-water mark minus the
-//  resident size just before the pass. The joint-fit row needs the default pass
-//  for its seed, so its runtime is the default pass plus the fit stage and its
+//  Runtime and memory per system. Each pass runs alone; the physical footprint
+//  (`task_info` TASK_VM_INFO `phys_footprint`) is sampled every millisecond on a
+//  second thread while the pass runs, and the record holds the high-water mark
+//  minus the footprint just before the pass. The joint-fit row needs the default
+//  pass for its seed, so its runtime is the default pass plus the fit stage and its
 //  memory the larger of the two passes' peaks; the stage alone is recorded too.
 //
 //  Every audio file is hashed before any analysis; a sha256 that differs from the
-//  input refuses the whole run (exit 3, naming the track).
+//  input refuses the whole run (exit 3, naming the track). The output records the
+//  git SHA (with a dirty flag) of the checkout the binary sits in and the build
+//  configuration, so the report can refuse a runner output from other code.
 //
 //  Build (release needs -enable-testing for the internal Story 15.7 types):
 //    swift build -c release -Xswiftc -enable-testing --product matched-eval-run
 //  Run:
-//    matched-eval-run --input <runner-input.json> --output <runner-output.json>
+//    matched-eval-run --input <runner-input.json> --output <runner-output.json> [--limit N]
 //
 
 import CryptoKit
@@ -55,6 +68,7 @@ func fail(_ message: String, code: Int32 = 1) -> Never {
 
 // MARK: - CLI
 
+let usage = "usage: matched-eval-run --input <in.json> --output <out.json> [--limit N]"
 var inputPath: String?
 var outputPath: String?
 var limit: Int?
@@ -64,14 +78,38 @@ do {
     switch arg {
     case "--input": inputPath = args.next()
     case "--output": outputPath = args.next()
-    case "--limit": limit = args.next().flatMap { Int($0) }
-    default: fail("unknown argument \(arg)", code: 2)
+    case "--limit":
+      guard let value = args.next(), let n = Int(value), n >= 0 else {
+        fail("--limit needs a non-negative integer. \(usage)", code: 2)
+      }
+      limit = n
+    default: fail("unknown argument \(arg). \(usage)", code: 2)
     }
   }
 }
-guard let inputPath, let outputPath else {
-  fail("usage: matched-eval-run --input <in.json> --output <out.json> [--limit N]", code: 2)
+guard let inputPath, let outputPath else { fail(usage, code: 2) }
+
+// MARK: - Provenance
+
+/// `git` in the directory holding this binary, so the SHA names the checkout it was
+/// built from. `nil` when git is unavailable.
+func git(_ args: [String]) -> String? {
+  let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+  process.arguments = ["-C", exe.deletingLastPathComponent().path] + args
+  let pipe = Pipe()
+  process.standardOutput = pipe
+  process.standardError = FileHandle.nullDevice
+  do { try process.run() } catch { return nil }
+  let data = pipe.fileHandleForReading.readDataToEndOfFile()
+  process.waitUntilExit()
+  guard process.terminationStatus == 0 else { return nil }
+  return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
 }
+let runnerGitSha = git(["rev-parse", "HEAD"]) ?? "unknown"
+let runnerDirty =
+  git(["status", "--porcelain", "--untracked-files=no"]).map { !$0.isEmpty } ?? true
 
 // MARK: - Input
 
@@ -140,21 +178,24 @@ do {
 
 // MARK: - Memory sampling
 
-nonisolated(unsafe) let taskPort = mach_task_self_
+let taskPort = mach_task_self_
 
-func residentBytes() -> UInt64 {
-  var info = mach_task_basic_info()
+/// The task's physical footprint (`TASK_VM_INFO` `phys_footprint`), the figure the
+/// system itself charges to the process; unlike the resident size it does not keep
+/// freed-but-mapped pages.
+@Sendable func footprintBytes() -> UInt64 {
+  var info = task_vm_info_data_t()
   var count = mach_msg_type_number_t(
-    MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+    MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
   let kr = withUnsafeMutablePointer(to: &info) { ptr in
     ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-      task_info(taskPort, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+      task_info(taskPort, task_flavor_t(TASK_VM_INFO), $0, &count)
     }
   }
-  return kr == KERN_SUCCESS ? info.resident_size : 0
+  return kr == KERN_SUCCESS ? info.phys_footprint : 0
 }
 
-/// Samples the resident size every millisecond on its own thread between
+/// Samples the physical footprint every millisecond on its own thread between
 /// `init` and `finish()`.
 final class MemorySampler: Sendable {
   let baseline: UInt64
@@ -163,12 +204,12 @@ final class MemorySampler: Sendable {
   private let finished = DispatchSemaphore(value: 0)
 
   init() {
-    let base = residentBytes()
+    let base = footprintBytes()
     baseline = base
     peak = Atomic<UInt64>(base)
     let thread = Thread { [self] in
       while !self.stopFlag.load(ordering: .relaxed) {
-        self.record(residentBytes())
+        self.record(footprintBytes())
         usleep(1_000)
       }
       self.finished.signal()
@@ -188,7 +229,7 @@ final class MemorySampler: Sendable {
 
   /// Stops sampling; returns the high-water mark above the baseline, in bytes.
   func finish() -> UInt64 {
-    record(residentBytes())
+    record(footprintBytes())
     stopFlag.store(true, ordering: .relaxed)
     finished.wait()
     let top = peak.load(ordering: .relaxed)
@@ -269,15 +310,16 @@ func gridRecord(_ grid: BeatGrid, anchorSeconds: Double, anchorSource: String) -
 
 func statusRecord(
   status: String, reason: String? = nil, tempo: Double? = nil, grid: [String: Any]? = nil,
-  runtime: Double, peak: UInt64, identity: String, extra: [String: Any] = [:]
+  runtime: Double?, peak: UInt64?, identity: String, extra: [String: Any] = [:]
 ) -> [String: Any] {
   var record: [String: Any] = [
     "status": status,
     "reason": reason.map { $0 as Any } ?? NSNull(),
     "tempoBPM": finite(tempo),
     "grid": grid.map { $0 as Any } ?? NSNull(),
-    "runtimeSeconds": runtime,
-    "peakMemoryAboveBaselineBytes": peak,
+    "runtimeSeconds": finite(runtime),
+    "peakMemoryAboveBaselineBytes": peak.map { $0 as Any } ?? NSNull(),
+    "runtimeComparable": runtime != nil && peak != nil,
     "variantIdentity": identity,
     "buildConfiguration": buildConfiguration,
   ]
@@ -290,19 +332,166 @@ let optimalIdentity =
   + "(TechniqueSet.optimal, metadata corroboration on, beat grid over the analysis window, "
   + "no tempo refinement); grid = estimatedTempo extrapolated from gridOrigin"
 let jointIdentity =
-  "DSPStubObservationProducer(hopSize: sampleRate/100) -> MetricalLevelSelector.select("
-  + "seed = default BPM) -> JointTempoPhaseFit.fit [\(JointTempoPhaseFit.modelIdentifier)] "
-  + "on the default pass's decode; grid = fit tempo extrapolated from phaseAnchorSeconds"
+  "DSPStubObservationProducer(hopSize: sampleRate/100) -> BarStateDecoder.decode("
+  + "tempoBPM: default BPM, level: .quarter) -> JointTempoPhaseFit.fit(observations:candidate:) "
+  + "[\(JointTempoPhaseFit.modelIdentifier)] on the default pass's decode; grid = fit tempo "
+  + "extrapolated from phaseAnchorSeconds"
 let combIdentity =
   "default grid (estimatedTempo) re-anchored at the onset-comb best phase "
-  + "(BeatGridAnalyzer.combPhaseObserver, fold at the grid period over the tracked beats); "
-  + "BPM answer = default BPM"
+  + "(BeatGridAnalyzer.combPhaseObserver, fold at the grid period over the tracked beats), "
+  + "observed by analyze(decoded:) on the default pass's decode; BPM answer = default BPM"
 
 // MARK: - Per-track passes
 
 func anchorSourceName(_ grid: BeatGrid) -> String {
   guard let origin = grid.gridOrigin else { return "none" }
   return String(describing: origin.source)
+}
+
+enum JointOutcome {
+  case fit(FittedTempoPhase)
+  case abstain(String)
+}
+
+/// The 15.7 joint fit at the BPM stage's level, plus the metrical-level selector's
+/// choice on the same observations as a diagnostic (outside the timed stage).
+func jointFitPass(
+  decoded: FeatureSubstrate.DecodedAudio, seed: Double, passA: Measured<Void>?
+) -> [String: Any] {
+  let hop = Int(decoded.sampleRate / 100)
+  var observations: FramewiseObservations?
+  let run = measure { () -> JointOutcome in
+    guard hop > 0 else { return .abstain("sample-rate-below-100-hz") }
+    guard let obs = DSPStubObservationProducer(hopSize: hop).produce(decoded: decoded)
+    else { return .abstain("observation-producer-returned-nil") }
+    observations = obs
+    guard
+      let candidate = BarStateDecoder.decode(observations: obs, tempoBPM: seed, level: .quarter)
+    else { return .abstain("quarter-level-decode-returned-nil") }
+    guard let fit = JointTempoPhaseFit.fit(observations: obs, candidate: candidate)
+    else { return .abstain("joint-fit-returned-nil") }
+    return .fit(fit)
+  }
+  var extra: [String: Any] = [
+    "stageRuntimeSeconds": run.seconds, "stagePeakMemoryAboveBaselineBytes": run.peakBytes,
+    "seedBPM": seed, "fitLevel": MetricalLevel.quarter.rawValue,
+  ]
+  if let observations {
+    let selection = MetricalLevelSelector.select(observations: observations, tempoBPM: seed)
+    extra["selectorDiagnosticLevel"] =
+      selection.map { $0.chosen.metricalLevel.rawValue as Any } ?? NSNull()
+  }
+  let runtime = passA.map { $0.seconds + run.seconds }
+  let peak = passA.map { max($0.peakBytes, run.peakBytes) }
+  switch run.value {
+  case .fit(let fit):
+    let grid: [String: Any] = [
+      "tempoBPM": finite(fit.tempoBPM),
+      "anchorSeconds": finite(fit.phaseAnchorSeconds),
+      "anchorSource": "joint-fit-phase-anchor",
+      "beatCount": NSNull(),
+      "analysisSpanStartSeconds": 0.0,
+      "analysisSpanEndSeconds": finite(fit.coverageWindowSeconds),
+      "downbeat": ["status": "not-attempted"],
+    ]
+    extra["metricalLevel"] = fit.metricalLevel.rawValue
+    extra["keptFraction"] = finite(fit.keptFraction)
+    extra["supportScore"] = finite(Double(fit.supportScore))
+    extra["decoderIdentifier"] = fit.decoderIdentifier
+    extra["observationModelIdentifier"] = fit.observationModelIdentifier
+    extra["frontendIdentifier"] = fit.frontendIdentifier
+    return statusRecord(
+      status: "ok", tempo: fit.tempoBPM, grid: grid, runtime: runtime, peak: peak,
+      identity: jointIdentity, extra: extra)
+  case .abstain(let reason):
+    return statusRecord(
+      status: "abstained", reason: reason, runtime: runtime, peak: peak,
+      identity: jointIdentity, extra: extra)
+  }
+}
+
+/// The comb best-phase grid, observed on the default pass's decode. Refused (failed)
+/// when the observed run's output differs from the default pass.
+func combPass(
+  decoded: FeatureSubstrate.DecodedAudio, options: AudioAnalysisService.Options,
+  defaultBPM: Double, defaultGrid: BeatGrid?
+) -> [String: Any] {
+  let seen = ObservationBox()
+  let combObserver: @Sendable (BeatGridAnalyzer.CombPhaseObservation) -> Void = { obs in
+    seen.items.withLock { $0.append(obs) }
+  }
+  let result: CombinedAnalysisResult?
+  do {
+    result = try BeatGridAnalyzer.$combPhaseObserver.withValue(combObserver) {
+      try AudioAnalysisService.analyze(decoded: decoded, options: options)
+    }
+  } catch {
+    return statusRecord(
+      status: "failed", reason: "analyze(decoded:) threw: \(error)", runtime: nil, peak: nil,
+      identity: combIdentity)
+  }
+  let observations = seen.items.withLock { $0 }
+  guard let result else {
+    return statusRecord(
+      status: "failed", reason: "analyze(decoded:) found no analyzable audio", runtime: nil,
+      peak: nil, identity: combIdentity)
+  }
+  // `analyze(decoded:)` has no URL, so file-tag corroboration and the duration hint
+  // are inert and its BPM can differ from the default pass's for reasons unrelated
+  // to the observer. The BPM check is therefore against the same call without the
+  // observer bound, on the same decode; the grid does not depend on the URL and is
+  // checked against the default pass itself.
+  let control: CombinedAnalysisResult?
+  do {
+    control = try AudioAnalysisService.analyze(decoded: decoded, options: options)
+  } catch {
+    return statusRecord(
+      status: "failed", reason: "unobserved analyze(decoded:) threw: \(error)", runtime: nil,
+      peak: nil, identity: combIdentity)
+  }
+  if result.bpm.bpm.bitPattern != control?.bpm.bpm.bitPattern {
+    return statusRecord(
+      status: "failed", reason: "observed run's BPM differs from the same run unobserved",
+      runtime: nil, peak: nil, identity: combIdentity,
+      extra: ["observedBPM": finite(result.bpm.bpm)])
+  }
+  // The combined path stamps each grid's tempo agreement against that call's own
+  // BPM, which differs between the URL and decoded paths for the reason above; the
+  // grid is compared with that one stamp neutralized.
+  func unstamped(_ grid: BeatGrid?) -> BeatGrid? { grid?.with(tempoAgreement: .notCompared) }
+  if unstamped(result.beatGrid) != unstamped(defaultGrid) {
+    return statusRecord(
+      status: "failed", reason: "observed run's grid differs from the default pass",
+      runtime: nil, peak: nil, identity: combIdentity)
+  }
+  guard let grid = result.beatGrid else {
+    return statusRecord(
+      status: "abstained", reason: "no-default-grid", runtime: nil, peak: nil,
+      identity: combIdentity)
+  }
+  guard observations.count == 1, let obs = observations.first else {
+    return statusRecord(
+      status: "failed", reason: "comb observations: \(observations.count), expected 1",
+      runtime: nil, peak: nil, identity: combIdentity)
+  }
+  guard obs.tempoBPM.bitPattern == grid.estimatedTempo.bitPattern else {
+    return statusRecord(
+      status: "failed", reason: "observed tempo differs from the grid tempo", runtime: nil,
+      peak: nil, identity: combIdentity)
+  }
+  let extra: [String: Any] = [
+    "bestBin": obs.bestPhase.bestBin,
+    "bins": obs.bestPhase.bins,
+    "periodFrames": finite(obs.bestPhase.periodFrames),
+    "foldOriginFrame": obs.bestPhase.foldOriginFrame,
+    "foldEndFrame": obs.bestPhase.foldEndFrame,
+    "combSupport": finite(obs.bestPhase.support),
+    "defaultAnchorSeconds": finite(grid.gridOrigin?.presentationTime),
+  ]
+  return statusRecord(
+    status: "ok", tempo: defaultBPM,
+    grid: gridRecord(grid, anchorSeconds: obs.phaseSeconds, anchorSource: "comb-best-phase"),
+    runtime: nil, peak: nil, identity: combIdentity, extra: extra)
 }
 
 func runTrack(_ track: TrackInput) -> [String: Any] {
@@ -315,14 +504,12 @@ func runTrack(_ track: TrackInput) -> [String: Any] {
   let observer: @Sendable (FeatureSubstrate.DecodedAudio) -> Void = { box.set($0) }
   var defaultBPM: Double?
   var defaultGrid: BeatGrid?
-  var passARuntime = 0.0
-  var passAPeak: UInt64 = 0
+  var passA: Measured<Void>?
   do {
     let run = try measure {
       try AudioAnalysisService.analyze(url: url, options: options, decodeObserver: observer)
     }
-    passARuntime = run.seconds
-    passAPeak = run.peakBytes
+    passA = Measured(value: (), seconds: run.seconds, peakBytes: run.peakBytes)
     if let result = run.value {
       defaultBPM = result.bpm.bpm
       defaultGrid = result.beatGrid
@@ -345,113 +532,24 @@ func runTrack(_ track: TrackInput) -> [String: Any] {
     }
   } catch {
     systems["boomboomboomkit-optimal"] = statusRecord(
-      status: "failed", reason: "analyze threw: \(error)", runtime: 0, peak: 0,
+      status: "failed", reason: "analyze threw: \(error)", runtime: nil, peak: nil,
       identity: optimalIdentity)
   }
 
-  // Pass B: the joint fit on the same decode, seeded with the default BPM.
-  let decoded = box.take()
-  if let decoded, let seed = defaultBPM {
-    enum JointOutcome {
-      case fit(FittedTempoPhase)
-      case abstain(String)
-    }
-    let run = measure { () -> JointOutcome in
-      let hop = Int(decoded.sampleRate / 100)
-      guard hop > 0 else { return .abstain("sample-rate-below-100-hz") }
-      guard let observations = DSPStubObservationProducer(hopSize: hop).produce(decoded: decoded)
-      else { return .abstain("observation-producer-returned-nil") }
-      guard let selection = MetricalLevelSelector.select(observations: observations, tempoBPM: seed)
-      else { return .abstain("metrical-level-selector-returned-nil") }
-      guard let fit = JointTempoPhaseFit.fit(observations: observations, selection: selection)
-      else { return .abstain("joint-fit-returned-nil") }
-      return .fit(fit)
-    }
-    let runtime = passARuntime + run.seconds
-    let peak = max(passAPeak, run.peakBytes)
-    let stage: [String: Any] = [
-      "stageRuntimeSeconds": run.seconds, "stagePeakMemoryAboveBaselineBytes": run.peakBytes,
-      "seedBPM": seed,
-    ]
-    switch run.value {
-    case .fit(let fit):
-      let grid: [String: Any] = [
-        "tempoBPM": finite(fit.tempoBPM),
-        "anchorSeconds": finite(fit.phaseAnchorSeconds),
-        "anchorSource": "joint-fit-phase-anchor",
-        "beatCount": NSNull(),
-        "analysisSpanStartSeconds": 0.0,
-        "analysisSpanEndSeconds": finite(fit.coverageWindowSeconds),
-        "downbeat": ["status": "not-attempted"],
-      ]
-      var extra = stage
-      extra["metricalLevel"] = fit.metricalLevel.rawValue
-      extra["keptFraction"] = finite(fit.keptFraction)
-      extra["supportScore"] = finite(Double(fit.supportScore))
-      extra["decoderIdentifier"] = fit.decoderIdentifier
-      extra["observationModelIdentifier"] = fit.observationModelIdentifier
-      extra["frontendIdentifier"] = fit.frontendIdentifier
-      systems["variant-joint-fit"] = statusRecord(
-        status: "ok", tempo: fit.tempoBPM, grid: grid, runtime: runtime, peak: peak,
-        identity: jointIdentity, extra: extra)
-    case .abstain(let reason):
-      systems["variant-joint-fit"] = statusRecord(
-        status: "abstained", reason: reason, runtime: runtime, peak: peak,
-        identity: jointIdentity, extra: stage)
-    }
+  // Passes B and C both read pass A's decode; it is released when this scope ends.
+  var decoded = box.take()
+  if let audio = decoded, let seed = defaultBPM {
+    systems["variant-joint-fit"] = jointFitPass(decoded: audio, seed: seed, passA: passA)
+    systems["variant-comb-best-phase"] = combPass(
+      decoded: audio, options: options, defaultBPM: seed, defaultGrid: defaultGrid)
   } else {
+    let reason = decoded == nil ? "no-decode" : "no-default-bpm-seed"
     systems["variant-joint-fit"] = statusRecord(
-      status: "abstained", reason: decoded == nil ? "no-decode" : "no-default-bpm-seed",
-      runtime: passARuntime, peak: passAPeak, identity: jointIdentity)
-  }
-
-  // Pass C: the default pipeline again with the comb best-phase observer bound.
-  let seen = ObservationBox()
-  let combObserver: @Sendable (BeatGridAnalyzer.CombPhaseObservation) -> Void = { obs in
-    seen.items.withLock { $0.append(obs) }
-  }
-  do {
-    let run = try measure {
-      try BeatGridAnalyzer.$combPhaseObserver.withValue(combObserver) {
-        try AudioAnalysisService.analyze(url: url, options: options)
-      }
-    }
-    let observations = seen.items.withLock { $0 }
-    let sameAsDefault =
-      run.value?.bpm.bpm.bitPattern == defaultBPM?.bitPattern && run.value?.beatGrid == defaultGrid
-    var extra: [String: Any] = ["outputIdenticalToDefaultPass": sameAsDefault]
-    if let result = run.value, let grid = result.beatGrid, observations.count == 1,
-      let obs = observations.first
-    {
-      extra["bestBin"] = obs.bestPhase.bestBin
-      extra["bins"] = obs.bestPhase.bins
-      extra["periodFrames"] = finite(obs.bestPhase.periodFrames)
-      extra["foldOriginFrame"] = obs.bestPhase.foldOriginFrame
-      extra["foldEndFrame"] = obs.bestPhase.foldEndFrame
-      extra["combSupport"] = finite(obs.bestPhase.support)
-      extra["defaultAnchorSeconds"] = finite(grid.gridOrigin?.presentationTime)
-      systems["variant-comb-best-phase"] = statusRecord(
-        status: "ok", tempo: result.bpm.bpm,
-        grid: gridRecord(grid, anchorSeconds: obs.phaseSeconds, anchorSource: "comb-best-phase"),
-        runtime: run.seconds, peak: run.peakBytes, identity: combIdentity, extra: extra)
-    } else {
-      let reason: String
-      if run.value == nil {
-        reason = "no-analyzable-audio"
-      } else if run.value?.beatGrid == nil {
-        reason = "no-default-grid"
-      } else {
-        reason = "comb-observations-\(observations.count)"
-      }
-      systems["variant-comb-best-phase"] = statusRecord(
-        status: "abstained", reason: reason, runtime: run.seconds, peak: run.peakBytes,
-        identity: combIdentity, extra: extra)
-    }
-  } catch {
+      status: "abstained", reason: reason, runtime: nil, peak: nil, identity: jointIdentity)
     systems["variant-comb-best-phase"] = statusRecord(
-      status: "failed", reason: "analyze threw: \(error)", runtime: 0, peak: 0,
-      identity: combIdentity)
+      status: "abstained", reason: reason, runtime: nil, peak: nil, identity: combIdentity)
   }
+  decoded = nil
 
   return [
     "trackId": track.trackId,
@@ -478,10 +576,12 @@ for (i, track) in tracks.enumerated() {
 let document: [String: Any] = [
   "schema": runnerSchema,
   "buildConfiguration": buildConfiguration,
+  "gitSha": runnerGitSha,
+  "dirty": runnerDirty,
+  "limit": limit.map { $0 as Any } ?? NSNull(),
   "memorySampling":
-    "task_info MACH_TASK_BASIC_INFO resident_size, sampled every 1 ms on a second thread "
-    + "while each pass runs; value = high-water mark minus the resident size just before "
-    + "the pass",
+    "task_info TASK_VM_INFO phys_footprint, sampled every 1 ms on a second thread while "
+    + "each pass runs; value = high-water mark minus the footprint just before the pass",
   "jointFitModelIdentifier": JointTempoPhaseFit.modelIdentifier,
   "trackCount": records.count,
   "tracks": records,
