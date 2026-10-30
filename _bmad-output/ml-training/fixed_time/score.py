@@ -1,4 +1,4 @@
-"""Score the fixed-time variant on GiantSteps and the 12.7 corpus (Story 15.5).
+"""Score the fixed-time variant on GiantSteps, the 12.7 corpus and OA300 (Story 15.5).
 
 For every track: decode the whole file at 44.1 kHz (no 120 s cap, no PCM
 cache), score every candidate 1200-frame crop with the ported rhythm score,
@@ -14,6 +14,11 @@ Corpora:
   - The 12.7 signed corpus, read-only: the 172 `locked-12.7-member` rows of the
     12.9 bundle-gate seed-42 input. Every file is hashed first; if any differs
     from its recorded `audioSha256`, the run refuses before scoring anything.
+  - OA300 (82 tracks), resolved by `build_fr18_input.resolve_oa300` over the
+    committed `oa300-ground-truth.json`. Every file must resolve, or the run
+    refuses naming the missing ones. A row's `trackId` is its corpus-relative
+    audio path (unique); it also carries the ground-truth `title`, which is all
+    the legacy rows carry, and the file's sha256.
 
 Writes `scores-<corpus>.json` (per-track rows, including each kept crop's start
 frame, start seconds and rhythm score) and `crops-<corpus>.npz` (per track:
@@ -38,12 +43,20 @@ import fixed_time  # noqa: F401  (sys.path setup for the sibling training module
 from fixed_time import features as ft
 
 ML_TRAINING_DIR = Path(__file__).resolve().parent.parent
+REPO_ROOT = ML_TRAINING_DIR.parent.parent
 DEFAULT_RUN_DIR = ML_TRAINING_DIR / "fixed-time-runs" / "seed_42"
 BUNDLE_GATE_INPUT_RELPATH = Path(
     "eval-corpus/bundle-gate/predictions/bundle-gate-input-seed-42.json"
 )
 LOCKED_CATEGORY = "locked-12.7-member"
-EXPECTED_COUNTS = {"giantsteps": 661, "eval-12-7": 172}
+EXPECTED_COUNTS = {"giantsteps": 661, "eval-12-7": 172, "oa300": 82}
+# The `scoredInputs` name of each corpus's own label source; a scores file
+# records only its own, so the report re-checks only the labels it was scored on.
+LABEL_SOURCE_INPUT = {
+    "giantsteps": "giantstepsGroundTruth",
+    "eval-12-7": "bundleGateInput",
+    "oa300": "oa300GroundTruth",
+}
 CORPORA = tuple(EXPECTED_COUNTS)
 AGGREGATOR_NAME = "mean_of_softmax_ranked"
 AGGREGATOR_SYMBOL = "fixed_time.score:mean_of_softmax_ranked"
@@ -143,8 +156,59 @@ def check_rows(corpus: str, rows: list[dict[str, Any]]) -> None:
         raise ScoreRefusal(f"{corpus}: duplicate track ids {dupes}")
 
 
-def resolve_corpus(corpus: str, *, giantsteps_root: str, bundle_gate_input: Path):
+def oa300_ground_truth_path() -> Path:
+    """The committed OA300 ground-truth file `resolve_oa300` reads."""
+    from build_fr18_input import FIXTURES
+
+    return FIXTURES / "oa300-ground-truth.json"
+
+
+def resolve_oa300_rows(oa300_root: str) -> list[dict[str, Any]]:
+    """Every OA300 ground-truth row as a scoring row, or refuse naming the files
+    that do not resolve. `trackId` is the corpus-relative audio path; `title` is
+    the id `resolve_oa300` gives (the ground-truth title), which the legacy rows
+    use as their only id."""
+    from build_fr18_input import resolve_oa300
+    from jams_corpus import load_oa300_rows
+
+    if not oa300_root:
+        raise ScoreRefusal("OA300_CORPUS_PATH is not set")
+    root = Path(oa300_root)
+    expected = [
+        Path(t["subdir"], t["filename"]) if t.get("subdir") else Path(t["filename"])
+        for t in load_oa300_rows(oa300_ground_truth_path())
+    ]
+    missing = [str(rel) for rel in expected if not (root / rel).is_file()]
+    if missing:
+        raise ScoreRefusal(f"oa300: {len(missing)} audio files not found under {root}: {missing}")
+    rows = []
+    for r in resolve_oa300(oa300_root):
+        rows.append(
+            {
+                "trackId": str(Path(r["audioPath"]).relative_to(root)),
+                "title": r["trackId"],
+                "audioPath": r["audioPath"],
+                "groundTruthBPM": float(r["groundTruthBPM"]),
+                "corpus": "oa300",
+            }
+        )
+    return rows
+
+
+def resolve_corpus(
+    corpus: str, *, giantsteps_root: str, bundle_gate_input: Path, oa300_root: str = ""
+):
     """Rows for `corpus` plus the sha256 of the label/membership source."""
+    if corpus == "oa300":
+        rows = resolve_oa300_rows(oa300_root)
+        check_rows(corpus, rows)
+        for r in rows:
+            r["audioSha256"] = sha256_file(Path(r["audioPath"]))
+        source = oa300_ground_truth_path()
+        return rows, {
+            "path": str(source.resolve().relative_to(REPO_ROOT)),
+            "sha256": sha256_file(source),
+        }
     if corpus == "giantsteps":
         from build_fr18_input import resolve_giantsteps
 
@@ -217,6 +281,7 @@ def score_track(
         "corpus": row["corpus"],
         "groundTruthBPM": row["groundTruthBPM"],
         "audioSha256": row["audioSha256"],
+        **({"title": row["title"]} if "title" in row else {}),
         "samples": int(audio.shape[0]),
         "frames": n_frames,
         "candidateCrops": len(starts),
@@ -336,13 +401,17 @@ def main(argv: list[str] | None = None) -> int:
     bundle_gate_input = args.legacy_root / BUNDLE_GATE_INPUT_RELPATH
     corpora = CORPORA if args.corpus == "all" else (args.corpus,)
     giantsteps_root = os.environ.get("GIANTSTEPS_CORPUS_PATH", "")
+    oa300_root = os.environ.get("OA300_CORPUS_PATH", "")
 
     # Resolve and verify every corpus before scoring any of them.
     resolved = {}
     try:
         for corpus in corpora:
             resolved[corpus] = resolve_corpus(
-                corpus, giantsteps_root=giantsteps_root, bundle_gate_input=bundle_gate_input
+                corpus,
+                giantsteps_root=giantsteps_root,
+                bundle_gate_input=bundle_gate_input,
+                oa300_root=oa300_root,
             )
     except ScoreRefusal as e:
         print(f"ERROR: scoring refused. {e}", file=sys.stderr)
@@ -377,17 +446,11 @@ def main(argv: list[str] | None = None) -> int:
         "featureFixtureSha256": fixture.sha256,
         "codeGitSha": code_git_sha(),
     }
-    # The label and membership sources as scored, so the report can refuse if
-    # either changes between scoring and reporting.
-    scored_inputs: dict[str, str] = {}
-    gs_truth = Path(giantsteps_root) / "giantsteps-tempo-ground-truth.json"
-    if giantsteps_root and gs_truth.is_file():
-        scored_inputs["giantstepsGroundTruth"] = sha256_file(gs_truth)
-    if bundle_gate_input.is_file():
-        scored_inputs["bundleGateInput"] = sha256_file(bundle_gate_input)
-    meta["scoredInputs"] = scored_inputs
     for corpus in corpora:
         rows, source = resolved[corpus]
+        # The corpus's own label source as scored, so the report can refuse if it
+        # changes between scoring and reporting.
+        scored_inputs = {LABEL_SOURCE_INPUT[corpus]: source["sha256"]}
         score_corpus(
             corpus,
             rows,
@@ -395,7 +458,7 @@ def main(argv: list[str] | None = None) -> int:
             fixture,
             device,
             args.run_dir,
-            {**meta, "labelSource": source},
+            {**meta, "labelSource": source, "scoredInputs": scored_inputs},
             aggregator,
         )
     return 0

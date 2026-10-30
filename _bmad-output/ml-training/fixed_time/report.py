@@ -8,13 +8,17 @@ exact:
       GiantSteps: fr18-predictions-191/seed_42/predictions.json, `fr18ModelBPM`
       12.7:       eval-corpus/bundle-gate/predictions/seed_42/predictions.json,
                   `modelBPM`, the 172 `locked-12.7-member` rows
+      OA300:      the `corpus == "oa300"` rows of the GiantSteps dump,
+                  `fr18ModelBPM`; they carry only the title as id, so each is
+                  paired to the variant rows sharing its (title, label) key
+                  (`pair_legacy_oa300`)
   - tempo-CNN: tempocnn-baseline/predictions.json (`modelBPM`), carried forward
-      verbatim, GiantSteps only; 12.7 rows report `not-run`
+      verbatim, GiantSteps only; 12.7 and OA300 rows report `not-run`
 
-Every arm must hold each track id exactly once (661 and 172) with equal
+Every arm must hold each track id exactly once (661, 172 and 82) with equal
 ground-truth labels, and strict Acc1 (4 %) must still come out at the recorded
-counts: legacy 348/661 and 124/172, tempo-CNN 545/661. Otherwise the run exits
-nonzero naming the problem and writes nothing.
+counts: legacy 348/661, 124/172 and 43/82, tempo-CNN 545/661. Otherwise the
+run exits nonzero naming the problem and writes nothing.
 
 Writes `fixed-time-report.json`, `fixed-time-report.md` and `manifest.json`
 next to the variant scores.
@@ -47,13 +51,14 @@ TEMPOCNN_PREDICTIONS = ML_TRAINING_DIR / "tempocnn-baseline" / "predictions.json
 LOCKED_CATEGORY = "locked-12.7-member"
 
 RUN_KIND = "infrastructure-smoke"
-CORPORA = ("giantsteps", "eval-12-7")
-EXPECTED_COUNTS = {"giantsteps": 661, "eval-12-7": 172}
+CORPORA = ("giantsteps", "eval-12-7", "oa300")
+EXPECTED_COUNTS = {"giantsteps": 661, "eval-12-7": 172, "oa300": 82}
 ARMS = ("variant", "legacy", "tempoCnn")
 # Recorded strict Acc1 (4 %) counts the join must reproduce before any delta is written.
 EXPECTED_ACC1 = {
     ("giantsteps", "legacy"): 348,
     ("eval-12-7", "legacy"): 124,
+    ("oa300", "legacy"): 43,
     ("giantsteps", "tempoCnn"): 545,
 }
 NOT_RUN = "not-run"
@@ -360,6 +365,70 @@ def load_legacy_12_7(path: Path) -> list:
     ]
 
 
+def load_legacy_oa300(path: Path) -> list[dict[str, Any]]:
+    """The OA300 rows of the legacy GiantSteps dump: [{"title", "bpm", "truth"}].
+    Their `trackId` is the ground-truth title, which is not unique."""
+    rows = json.loads(_require(path, "legacy OA300 predictions").read_text())
+    return [
+        {
+            "title": str(r["trackId"]),
+            "bpm": _bpm(r.get("fr18ModelBPM")),
+            "truth": float(r["groundTruthBPM"]),
+        }
+        for r in rows
+        if r.get("corpus") == "oa300"
+    ]
+
+
+def pair_legacy_oa300(
+    legacy: list[dict[str, Any]], variant_rows: list[dict[str, Any]]
+) -> list[tuple[str, float | None, float]]:
+    """Re-key the legacy OA300 rows to the variant's track ids.
+
+    Rows pair by (title, ground-truth label). A key pairs only when the variant
+    and legacy hold the same number of rows for it and, when that is more than
+    one, every legacy row of the key predicts the same BPM; then each variant
+    row of the key takes that prediction, so every legacy row is used exactly
+    once. Raises `ReportRefusal` naming every key that breaks this."""
+    legacy_by_key: dict[tuple[str, float], list[dict[str, Any]]] = {}
+    for r in legacy:
+        legacy_by_key.setdefault((r["title"], r["truth"]), []).append(r)
+    variant_by_key: dict[tuple[str, float], list[dict[str, Any]]] = {}
+    problems: list[str] = []
+    for r in variant_rows:
+        if not r.get("title"):
+            problems.append(f"oa300 variant row {r['trackId']} has no title")
+            continue
+        variant_by_key.setdefault((str(r["title"]), float(r["groundTruthBPM"])), []).append(r)
+    out: list[tuple[str, float | None, float]] = []
+    for key in sorted(set(legacy_by_key) | set(variant_by_key)):
+        leg = legacy_by_key.get(key, [])
+        var = variant_by_key.get(key, [])
+        if len(leg) != len(var):
+            unused = len(leg) - len(var)
+            problems.append(
+                f"oa300 key {key}: {len(var)} variant rows, {len(leg)} legacy rows"
+                + (
+                    f" ({unused} legacy row{'s' if unused > 1 else ''} unused)"
+                    if unused > 0
+                    else ""
+                )
+            )
+            continue
+        predictions = {r["bpm"] for r in leg}
+        if len(predictions) > 1:
+            problems.append(
+                f"oa300 key {key}: legacy rows predict different BPMs "
+                f"{sorted(predictions, key=lambda b: (b is None, b or 0.0))}"
+            )
+            continue
+        bpm = leg[0]["bpm"]
+        out.extend((r["trackId"], bpm, key[1]) for r in var)
+    if problems:
+        raise ReportRefusal("; ".join(problems))
+    return out
+
+
 def load_tempocnn(path: Path) -> list:
     doc = json.loads(_require(path, "tempo-CNN predictions").read_text())
     return [
@@ -654,7 +723,7 @@ def build_manifest(
     *,
     code_git_sha: str = "unknown",
 ) -> dict[str, Any]:
-    from fixed_time.score import AGGREGATOR_SYMBOL, resolve_aggregator
+    from fixed_time.score import AGGREGATOR_SYMBOL, LABEL_SOURCE_INPUT, resolve_aggregator
 
     train_spf = float(training_md["trainingSecondsPerFrame"])
     infer = {float(d["inferenceSecondsPerFrame"]) for d in score_docs.values()}
@@ -669,17 +738,18 @@ def build_manifest(
     if symbols != {AGGREGATOR_SYMBOL}:
         raise ReportRefusal(f"scores were aggregated by {sorted(symbols)}, not {AGGREGATOR_SYMBOL}")
     for corpus, doc in score_docs.items():
-        scored = doc.get("scoredInputs") or {}
-        required = {"giantsteps": "giantstepsGroundTruth", "eval-12-7": "bundleGateInput"}
-        if corpus in required and required[corpus] not in scored:
-            raise ReportRefusal(f"scores-{corpus}.json does not record {required[corpus]}")
-        for name, sha in scored.items():
-            now = (inputs.get(name) or {}).get("sha256")
-            if now != sha:
-                raise ReportRefusal(
-                    f"{name} sha256 at report time ({now}) differs from the one scores-"
-                    f"{corpus}.json was scored against ({sha})"
-                )
+        # Only the corpus's own label source is checked; other entries an older
+        # scores file may carry are ignored.
+        name = LABEL_SOURCE_INPUT[corpus]
+        sha = (doc.get("scoredInputs") or {}).get(name)
+        if sha is None:
+            raise ReportRefusal(f"scores-{corpus}.json does not record {name}")
+        now = (inputs.get(name) or {}).get("sha256")
+        if now != sha:
+            raise ReportRefusal(
+                f"{name} sha256 at report time ({now}) differs from the one scores-"
+                f"{corpus}.json was scored against ({sha})"
+            )
     rules = {json.dumps(d.get("rankingRule"), sort_keys=True) for d in score_docs.values()}
     if rules != {json.dumps(ft.ranking_rule(), sort_keys=True)}:
         raise ReportRefusal("scores were ranked under a different rule than this harness's")
@@ -737,6 +807,8 @@ def build_report(args: argparse.Namespace) -> tuple[dict, dict]:
     legacy_root: Path = args.legacy_root
     legacy_gs = args.legacy_giantsteps or legacy_root / LEGACY_GIANTSTEPS_RELPATH
     legacy_127 = args.legacy_12_7 or legacy_root / LEGACY_12_7_RELPATH
+    # The legacy OA300 rows are in the same dump as the GiantSteps rows.
+    legacy_oa300 = legacy_gs
     tempocnn = args.tempocnn
     bundle_input = _require(legacy_root / BUNDLE_GATE_INPUT_RELPATH, "bundle-gate input")
 
@@ -757,6 +829,15 @@ def build_report(args: argparse.Namespace) -> tuple[dict, dict]:
         },
     }
     problems: list[str] = []
+    try:
+        arms_by_corpus["oa300"] = {
+            "variant": variant_rows["oa300"],
+            "legacy": pair_legacy_oa300(
+                load_legacy_oa300(legacy_oa300), score_docs["oa300"]["rows"]
+            ),
+        }
+    except ReportRefusal as e:
+        problems.append(str(e))
     joined: dict[str, list] = {}
     expected_acc1: dict[str, dict] = {}
     for corpus, arms in arms_by_corpus.items():
@@ -777,13 +858,25 @@ def build_report(args: argparse.Namespace) -> tuple[dict, dict]:
         ("variantScoresEval127", run_dir / "scores-eval-12-7.json"),
         ("variantCropProbabilitiesGiantsteps", run_dir / "crops-giantsteps.npz"),
         ("variantCropProbabilitiesEval127", run_dir / "crops-eval-12-7.npz"),
+        ("variantScoresOa300", run_dir / "scores-oa300.json"),
+        ("variantCropProbabilitiesOa300", run_dir / "crops-oa300.npz"),
         ("legacyGiantstepsPredictions", legacy_gs),
         ("legacyEval127Predictions", legacy_127),
+        ("legacyOa300Predictions", legacy_oa300),
         ("tempoCnnPredictions", tempocnn),
         ("bundleGateInput", bundle_input),
         ("giantstepsGroundTruth", Path(score_docs["giantsteps"]["labelSource"]["path"])),
     ):
         inputs[name] = {"path": str(path), "sha256": sha256_file(_require(path, name))}
+    from fixed_time.score import oa300_ground_truth_path
+
+    # The committed OA300 labels as they are now; build_manifest refuses if they
+    # changed since scores-oa300.json was scored.
+    oa300_truth = _require(oa300_ground_truth_path(), "oa300GroundTruth")
+    inputs["oa300GroundTruth"] = {
+        "path": repo_relative(oa300_truth),
+        "sha256": sha256_file(oa300_truth),
+    }
     legacy_md = training_md.get("recipeGuard", {})
     if legacy_md.get("legacyMetadataPath"):
         p = ML_TRAINING_DIR / legacy_md["legacyMetadataPath"]

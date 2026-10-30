@@ -109,6 +109,8 @@ context:
 - 2026-10-29, owner decision during review (loop 1): crops are 12 s (1200 frames); each song's crops are ranked by the DSP rhythm score and only the top 4 at or above half the best (and above 0) are used, in pretraining, fine-tuning and scoring, with a fresh draw each epoch. This replaces the fixed 8 s pretraining crop (finding B5) and random crops inside `select_window`. KEEP: the reviewed harness code (recipe guard and corpus-drift record, atomic artifact writes, exact join, label and anchor refusals, refusal-writes-nothing, per-source exposure, arm-difference disclosures, manifest provenance, parity path handling, tests); change crop constants, crop selection and the aggregator, and update tests to match.
 - 2026-10-29, owner decision during review: the corpus hash no longer has to match. The legacy pretraining manifests predate commit 1a697a5, which removed continuous DJ mixes; the variant trains on the current manifests and records the difference. The exposure bullet now says the pool includes labelled `tony.train` audio.
 
+- 2026-10-30, owner request after done: OA300 added as a third corpus by the follow-up spec `spec-15-5-oa300-third-corpus.md` (expected legacy 43/82). 8 of its 82 files turned out to be in the label-free pretraining pool, not 0 as first reported.
+
 ## Review Triage Log
 
 Pass 1 (2026-10-29). Layers: blind (B), edge case (E), verification gap (V).

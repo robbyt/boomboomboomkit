@@ -1134,6 +1134,8 @@ FIXED_TIME_PREFLIGHT_SUBSET ?= 32
 FIXED_TIME_DEVICE ?= cpu
 # Extra fixed-time-train flags, e.g. FIXED_TIME_TRAIN_ARGS=--overwrite.
 FIXED_TIME_TRAIN_ARGS ?=
+# Extra fixed-time-score flags, e.g. FIXED_TIME_SCORE_ARGS="--corpus oa300".
+FIXED_TIME_SCORE_ARGS ?=
 
 ## fixed-time-preflight: Story 15.5 -- check the model and the masked-mel decoder at [N,1,128,1200], report whether the recipe guard would let the full run start, plan crops for FIXED_TIME_PREFLIGHT_SUBSET songs per list in memory, and time one pretraining plus one fine-tuning epoch on them to print a projected full-run time. Writes only preflight.json. Develop-only.
 .PHONY: fixed-time-preflight
@@ -1167,15 +1169,17 @@ fixed-time-train:
 		--num-workers $(FIXED_TIME_WORKERS) --out-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
 		$(FIXED_TIME_TRAIN_ARGS)
 
-## fixed-time-score: Story 15.5 -- score the variant on GiantSteps (661) and the 172 locked 12.7 members (read-only; refuses if any audio hash differs from the bundle-gate input). Whole-file decode, every candidate crop rhythm-scored, at most 4 kept, mean_of_softmax_ranked over the kept crops, raw 30 + argmax decode with inRuntimeRange. Saves each kept crop's start time and softmax. Develop-only.
+## fixed-time-score: Story 15.5 -- score the variant on three corpora: GiantSteps (661), the 172 locked 12.7 members (read-only; refuses if any audio hash differs from the bundle-gate input) and OA300 (82; refuses naming any audio file missing under OA300_CORPUS_PATH). FIXED_TIME_SCORE_ARGS="--corpus oa300" scores one corpus alone. Whole-file decode, every candidate crop rhythm-scored, at most 4 kept, mean_of_softmax_ranked over the kept crops, raw 30 + argmax decode with inRuntimeRange. Saves each kept crop's start time and softmax. Develop-only.
 .PHONY: fixed-time-score
 fixed-time-score:
 	cd $(ML_TRAINING_DIR) && \
 	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	OA300_CORPUS_PATH="$(abspath $(OA300_CORPUS_PATH))" \
 	uv run python -m fixed_time.score --run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
-		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" --device $(FIXED_TIME_DEVICE)
+		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" --device $(FIXED_TIME_DEVICE) \
+		$(FIXED_TIME_SCORE_ARGS)
 
-## fixed-time-report: Story 15.5 -- paired per-track report (variant vs legacy vs tempo-CNN) by tempo band and error category, plus pretraining-exposure counts and manifest.json. Writes nothing unless every arm joins exactly with equal labels and legacy still scores 348/661 and 124/172 and tempo-CNN 545/661. Develop-only.
+## fixed-time-report: Story 15.5 -- paired per-track report (variant vs legacy vs tempo-CNN) by tempo band and error category, plus pretraining-exposure counts and manifest.json. Covers GiantSteps, the 12.7 corpus and OA300 (tempo-CNN not-run on the last two). Writes nothing unless every arm joins exactly with equal labels and legacy still scores 348/661, 124/172 and 43/82 and tempo-CNN 545/661. Develop-only.
 .PHONY: fixed-time-report
 fixed-time-report:
 	cd $(ML_TRAINING_DIR) && \

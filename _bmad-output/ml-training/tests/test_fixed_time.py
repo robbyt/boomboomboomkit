@@ -518,6 +518,420 @@ class TestAudioHashRefusal:
         assert [r["trackId"] for r in rows] == ["a"]
 
 
+def _variant_oa300(*rows):
+    """Score-doc rows: (trackId, title, truth)."""
+    return [{"trackId": t, "title": title, "groundTruthBPM": truth} for t, title, truth in rows]
+
+
+def _legacy_oa300(*rows):
+    """Legacy dump rows: (title, prediction, truth)."""
+    return [{"title": title, "bpm": bpm, "truth": truth} for title, bpm, truth in rows]
+
+
+class TestOa300Pairing:
+    def test_unique_key_pairs(self):
+        out = rp.pair_legacy_oa300(
+            _legacy_oa300(("A", 120.0, 120.0), ("B", 157.0, 157.85), ("B", 140.0, 157.84)),
+            _variant_oa300(
+                ("x/a.mp3", "A", 120.0), ("b1.mp3", "B", 157.85), ("b2.mp3", "B", 157.84)
+            ),
+        )
+        assert sorted(out) == [
+            ("b1.mp3", 157.0, 157.85),
+            ("b2.mp3", 140.0, 157.84),
+            ("x/a.mp3", 120.0, 120.0),
+        ]
+
+    def test_shared_key_same_prediction_pairs_both(self):
+        out = rp.pair_legacy_oa300(
+            _legacy_oa300(("S", 169.0, 170.0), ("S", 169.0, 170.0)),
+            _variant_oa300(("s1.mp3", "S", 170.0), ("s2.mp3", "S", 170.0)),
+        )
+        assert sorted(out) == [("s1.mp3", 169.0, 170.0), ("s2.mp3", 169.0, 170.0)]
+
+    def test_shared_key_different_predictions_refuses_naming_the_key(self):
+        with pytest.raises(rp.ReportRefusal, match="'S', 170.0.*different BPMs"):
+            rp.pair_legacy_oa300(
+                _legacy_oa300(("S", 169.0, 170.0), ("S", 140.0, 170.0)),
+                _variant_oa300(("s1.mp3", "S", 170.0), ("s2.mp3", "S", 170.0)),
+            )
+
+    def test_key_count_mismatch_refuses_naming_the_key(self):
+        with pytest.raises(rp.ReportRefusal, match="'S', 170.0.*2 variant rows, 1 legacy rows"):
+            rp.pair_legacy_oa300(
+                _legacy_oa300(("S", 169.0, 170.0)),
+                _variant_oa300(("s1.mp3", "S", 170.0), ("s2.mp3", "S", 170.0)),
+            )
+
+    def test_unused_legacy_row_refuses_naming_it(self):
+        with pytest.raises(rp.ReportRefusal, match="'Z', 99.0.*\\(1 legacy row unused\\)"):
+            rp.pair_legacy_oa300(
+                _legacy_oa300(("A", 120.0, 120.0), ("Z", 99.0, 99.0)),
+                _variant_oa300(("a.mp3", "A", 120.0)),
+            )
+
+    def test_surplus_legacy_rows_are_counted_when_the_variant_has_some(self):
+        with pytest.raises(rp.ReportRefusal, match="'S', 170.0.*\\(2 legacy rows unused\\)"):
+            rp.pair_legacy_oa300(
+                _legacy_oa300(*[("S", 169.0, 170.0)] * 3),
+                _variant_oa300(("s1.mp3", "S", 170.0)),
+            )
+
+    def test_label_differs_from_legacy_refuses(self):
+        # A changed label makes two unmatched keys, both named.
+        with pytest.raises(rp.ReportRefusal) as info:
+            rp.pair_legacy_oa300(
+                _legacy_oa300(("A", 120.0, 120.0)), _variant_oa300(("a.mp3", "A", 121.0))
+            )
+        assert "('A', 120.0)" in str(info.value) and "('A', 121.0)" in str(info.value)
+
+    def test_expected_count_drift_refuses_naming_43(self):
+        variant = [(f"v{i:02d}.mp3", 120.0, 120.0) for i in range(82)]
+        legacy = [(tid, 120.0 if i < 42 else 50.0, 120.0) for i, (tid, _, _) in enumerate(variant)]
+        joined = rp.join_arms("oa300", {"variant": variant, "legacy": legacy})
+        with pytest.raises(
+            rp.ReportRefusal, match="oa300/legacy strict Acc1 recomputes to 42, expected 43"
+        ):
+            rp.check_expected_acc1("oa300", joined)
+
+    def test_expected_count_matches(self):
+        variant = [(f"v{i:02d}.mp3", 120.0, 120.0) for i in range(82)]
+        legacy = [(tid, 120.0 if i < 43 else 50.0, 120.0) for i, (tid, _, _) in enumerate(variant)]
+        joined = rp.join_arms("oa300", {"variant": variant, "legacy": legacy})
+        assert rp.check_expected_acc1("oa300", joined) == {"variant": 82, "legacy": 43}
+        assert rp.summarize("oa300", joined)["tempoCnn"] == rp.NOT_RUN
+
+    def test_load_legacy_reads_only_oa300_rows(self, tmp_path):
+        path = tmp_path / "predictions.json"
+        path.write_text(
+            json.dumps(
+                [
+                    {"corpus": "oa300", "trackId": "A", "fr18ModelBPM": 120, "groundTruthBPM": 120},
+                    {
+                        "corpus": "giantsteps",
+                        "trackId": "g",
+                        "fr18ModelBPM": 1,
+                        "groundTruthBPM": 2,
+                    },
+                ]
+            )
+        )
+        assert rp.load_legacy_oa300(path) == [{"title": "A", "bpm": 120.0, "truth": 120.0}]
+
+    def test_manifest_requires_oa300_scoring_time_hash(self):
+        with pytest.raises(
+            rp.ReportRefusal, match="scores-oa300.json does not record oa300GroundTruth"
+        ):
+            rp.build_manifest(
+                _training_md(),
+                {"giantsteps": _score_doc(), "oa300": _score_doc()},
+                TestBuildManifest.INPUTS,
+            )
+
+    def test_manifest_refuses_oa300_labels_changed_since_scoring(self):
+        scored = {"oa300GroundTruth": "o" * 64}
+        inputs = {
+            **TestBuildManifest.INPUTS,
+            "oa300GroundTruth": {"path": "oa.json", "sha256": "n" * 64},
+        }
+        with pytest.raises(rp.ReportRefusal, match="oa300GroundTruth sha256 at report time"):
+            rp.build_manifest(
+                _training_md(),
+                {"giantsteps": _score_doc(), "oa300": _score_doc(scoredInputs=scored)},
+                inputs,
+            )
+
+    def test_manifest_checks_only_each_corpus_own_label_source(self):
+        # A GiantSteps scores file is not invalidated by an OA300 label change,
+        # even when it carries a stale oa300GroundTruth entry.
+        inputs = {
+            **TestBuildManifest.INPUTS,
+            "oa300GroundTruth": {"path": "oa.json", "sha256": "n" * 64},
+        }
+        gs = _score_doc(
+            scoredInputs={"giantstepsGroundTruth": "g" * 64, "oa300GroundTruth": "o" * 64}
+        )
+        oa = _score_doc(scoredInputs={"oa300GroundTruth": "n" * 64})
+        m = rp.build_manifest(_training_md(), {"giantsteps": gs, "oa300": oa}, inputs)
+        assert m["inputs"] == inputs
+
+
+class TestScoreRecordsOwnLabelSource:
+    def test_each_scores_file_records_only_its_corpus_label_source(self, tmp_path, monkeypatch):
+        import types
+
+        import dataset as ds
+
+        (tmp_path / "model.pt").write_bytes(b"")
+        captured: dict[str, dict] = {}
+        monkeypatch.setattr(
+            sc,
+            "resolve_corpus",
+            lambda corpus, **_kw: ([], {"path": f"{corpus}.json", "sha256": f"s-{corpus}"}),
+        )
+        monkeypatch.setattr(sc, "load_model", lambda *_a: None)
+        monkeypatch.setattr(ds, "load_fixture", lambda _p: types.SimpleNamespace(sha256="f"))
+        monkeypatch.setattr(ft, "check_fixture", lambda _f: None)
+        monkeypatch.setattr(
+            sc,
+            "score_corpus",
+            lambda corpus, _rows, _m, _f, _d, _out, meta, _agg: captured.setdefault(corpus, meta),
+        )
+        assert sc.main(["--run-dir", str(tmp_path)]) == 0
+        assert {c: m["scoredInputs"] for c, m in captured.items()} == {
+            "giantsteps": {"giantstepsGroundTruth": "s-giantsteps"},
+            "eval-12-7": {"bundleGateInput": "s-eval-12-7"},
+            "oa300": {"oa300GroundTruth": "s-oa300"},
+        }
+
+
+def _write_json(path: Path, doc) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc))
+    return path
+
+
+def _report_run(tmp_path, monkeypatch, *, second_shared_legacy_bpm: float):
+    """A minimal run directory and legacy root that `rp.main` reads end to end.
+
+    GiantSteps and 12.7 hold 2 tracks each; OA300 holds 3, two of which share
+    the (title, label) key ("Song S", 170.0). Exposure inputs are stubbed.
+    Returns (argv, run_dir)."""
+    import ablation_locator as loc
+    import corpus_common as cc
+    import dataset as ds
+
+    run = tmp_path / "run"
+    legacy_root = tmp_path / "legacy"
+    side = tmp_path / "side"
+    run.mkdir()
+    for name in ("secondary.json", "unsupervised.json", "splits.json", "labels.json"):
+        _write_json(side / name, {})
+    _write_json(side / "pool-durations.json", {})
+    monkeypatch.setattr(loc, "SECONDARY_MANIFEST", side / "secondary.json")
+    monkeypatch.setattr(loc, "UNSUPERVISED_MANIFEST", side / "unsupervised.json")
+    monkeypatch.setattr(loc, "CORPUS_SPLITS", side / "splits.json")
+    monkeypatch.setattr(loc, "ML_TRAINING_DIR", side)
+    monkeypatch.setattr(cc, "TONY_TRUTH_LABELS", side / "labels.json")
+    fixture = side / "fixture.npz"
+    fixture.write_bytes(b"fixture")
+    monkeypatch.setattr(ds, "FIXTURE_PATH", fixture)
+    monkeypatch.setattr(rp, "load_legacy_manifests", lambda: {})
+    monkeypatch.setattr(
+        rp,
+        "pretraining_pool_hashes",
+        lambda _cache, _manifests: {
+            arm: {src: set() for src in rp.POOL_SOURCES} for arm in ("variant", "legacy")
+        },
+    )
+    for corpus, n in (("giantsteps", 2), ("eval-12-7", 2), ("oa300", 3)):
+        monkeypatch.setitem(rp.EXPECTED_COUNTS, corpus, n)
+    monkeypatch.setattr(
+        rp,
+        "EXPECTED_ACC1",
+        {
+            ("giantsteps", "legacy"): 2,
+            ("eval-12-7", "legacy"): 2,
+            ("oa300", "legacy"): 3,
+            ("giantsteps", "tempoCnn"): 2,
+        },
+    )
+
+    gs_truth = _write_json(side / "giantsteps-tempo-ground-truth.json", [])
+    bundle_input = _write_json(legacy_root / rp.BUNDLE_GATE_INPUT_RELPATH, {"tracks": []})
+    oa300_truth_sha = sc.sha256_file(sc.oa300_ground_truth_path())
+    plan = _write_json(run / "crop-plan.json", {"plan": 1})
+    (run / "model.pt").write_bytes(b"weights")
+    _write_json(
+        run / "metadata.json",
+        _training_md(
+            cropPlan={"sha256": sc.sha256_file(plan), "keptSongs": {}, "skippedSongs": {}}
+        ),
+    )
+
+    gs = [("g1.mp3", 120.0), ("g2.mp3", 128.0)]
+    e127 = [("e1", 100.0), ("e2", 140.0)]
+    oa = [
+        ("house/a.mp3", "Song A", 120.0),
+        ("b.mp3", "Song S", 170.0),
+        ("dnb/c.mp3", "Song S", 170.0),
+    ]
+
+    def variant_row(tid, truth, **extra):
+        return {
+            "trackId": tid,
+            "variantBPM": truth,
+            "groundTruthBPM": truth,
+            "audioSha256": "h-" + tid,
+            "abstained": None,
+            "inRuntimeRange": True,
+            **extra,
+        }
+
+    docs = {
+        "giantsteps": (
+            [variant_row(t, b) for t, b in gs],
+            {"giantstepsGroundTruth": sc.sha256_file(gs_truth)},
+            str(gs_truth),
+        ),
+        "eval-12-7": (
+            [variant_row(t, b) for t, b in e127],
+            {"bundleGateInput": sc.sha256_file(bundle_input)},
+            str(bundle_input),
+        ),
+        "oa300": (
+            [variant_row(t, b, title=title) for t, title, b in oa],
+            {"oa300GroundTruth": oa300_truth_sha},
+            "Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json",
+        ),
+    }
+    for corpus, (rows, scored, label_path) in docs.items():
+        (run / f"crops-{corpus}.npz").write_bytes(b"npz-" + corpus.encode())
+        _write_json(
+            run / f"scores-{corpus}.json",
+            _score_doc(
+                rows=rows,
+                scoredInputs=scored,
+                labelSource={"path": label_path, "sha256": next(iter(scored.values()))},
+                featureFixtureSha256="f",
+                aggregator=sc.AGGREGATOR_NAME,
+                cropProbabilitiesFile=f"crops-{corpus}.npz",
+            ),
+        )
+
+    legacy_dump = [
+        {"corpus": "giantsteps", "trackId": t, "fr18ModelBPM": b, "groundTruthBPM": b}
+        for t, b in gs
+    ] + [
+        {"corpus": "oa300", "trackId": "Song A", "fr18ModelBPM": 120.0, "groundTruthBPM": 120.0},
+        {"corpus": "oa300", "trackId": "Song S", "fr18ModelBPM": 169.0, "groundTruthBPM": 170.0},
+        {
+            "corpus": "oa300",
+            "trackId": "Song S",
+            "fr18ModelBPM": second_shared_legacy_bpm,
+            "groundTruthBPM": 170.0,
+        },
+    ]
+    _write_json(legacy_root / rp.LEGACY_GIANTSTEPS_RELPATH, legacy_dump)
+    _write_json(
+        legacy_root / rp.LEGACY_12_7_RELPATH,
+        [
+            {"trackId": t, "category": rp.LOCKED_CATEGORY, "modelBPM": b, "groundTruthBPM": b}
+            for t, b in e127
+        ],
+    )
+    tempocnn = _write_json(
+        tmp_path / "tempocnn.json",
+        {"tracks": [{"trackId": t, "modelBPM": b, "groundTruthBPM": b} for t, b in gs]},
+    )
+    argv = [
+        "--run-dir",
+        str(run),
+        "--legacy-root",
+        str(legacy_root),
+        "--tempocnn",
+        str(tempocnn),
+    ]
+    return argv, run
+
+
+def _snapshot(directory: Path) -> dict[str, bytes]:
+    return {p.name: p.read_bytes() for p in sorted(directory.iterdir())}
+
+
+class TestReportMainOa300:
+    def test_shared_key_with_different_legacy_predictions_writes_nothing(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        argv, run = _report_run(tmp_path, monkeypatch, second_shared_legacy_bpm=140.0)
+        before = _snapshot(run)
+        assert rp.main(argv) == 3
+        err = capsys.readouterr().err
+        assert "('Song S', 170.0)" in err and "different BPMs" in err
+        assert _snapshot(run) == before
+
+    def test_consistent_run_records_the_oa300_inputs(self, tmp_path, monkeypatch):
+        argv, run = _report_run(tmp_path, monkeypatch, second_shared_legacy_bpm=169.0)
+        assert rp.main(argv) == 0
+        manifest = json.loads((run / "manifest.json").read_text())
+        assert {
+            "variantScoresOa300",
+            "variantCropProbabilitiesOa300",
+            "legacyOa300Predictions",
+            "oa300GroundTruth",
+        } <= set(manifest["inputs"])
+        report = json.loads((run / "fixed-time-report.json").read_text())
+        assert report["expectedAcc1"]["oa300/legacy"] == {"recorded": 3, "recomputed": 3}
+        assert report["summaries"]["oa300"]["tempoCnn"] == rp.NOT_RUN
+        assert sorted(r["trackId"] for r in report["tracks"]["oa300"]) == [
+            "b.mp3",
+            "dnb/c.mp3",
+            "house/a.mp3",
+        ]
+
+
+class TestOa300Resolution:
+    GT = [
+        {"filename": "a.mp3", "bpm": 120.0, "subdir": "house", "title": "Song A"},
+        {"filename": "b.mp3", "bpm": 170.0, "subdir": None, "title": "Song S"},
+        {"filename": "c.mp3", "bpm": 170.0, "subdir": "dnb", "title": "Song S"},
+    ]
+
+    def _corpus(self, tmp_path, monkeypatch, *, skip=()):
+        import build_fr18_input
+        import jams_corpus
+
+        root = tmp_path / "oa300"
+        for t in self.GT:
+            rel = Path(t["subdir"], t["filename"]) if t["subdir"] else Path(t["filename"])
+            if str(rel) in skip:
+                continue
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_bytes(rel.name.encode())
+        rows = lambda _path: [dict(t) for t in self.GT]  # noqa: E731
+        monkeypatch.setattr(jams_corpus, "load_oa300_rows", rows)
+        monkeypatch.setattr(build_fr18_input, "load_oa300_rows", rows)
+        monkeypatch.setitem(sc.EXPECTED_COUNTS, "oa300", len(self.GT))
+        return root
+
+    def test_rows_carry_relative_path_ids_title_and_hash(self, tmp_path, monkeypatch):
+        root = self._corpus(tmp_path, monkeypatch)
+        rows, source = sc.resolve_corpus(
+            "oa300", giantsteps_root="", bundle_gate_input=tmp_path / "x", oa300_root=str(root)
+        )
+        assert [(r["trackId"], r["title"]) for r in rows] == [
+            ("house/a.mp3", "Song A"),
+            ("b.mp3", "Song S"),
+            ("dnb/c.mp3", "Song S"),
+        ]
+        assert rows[0]["audioSha256"] == hashlib.sha256(b"a.mp3").hexdigest()
+        assert all(r["corpus"] == "oa300" for r in rows)
+        assert (
+            source["path"] == "Tests/BoomBoomBoomKitBenchmarkTests/Fixtures/oa300-ground-truth.json"
+        )
+        assert len(source["sha256"]) == 64
+
+    def test_missing_audio_refuses_naming_the_file(self, tmp_path, monkeypatch):
+        root = self._corpus(tmp_path, monkeypatch, skip=("dnb/c.mp3",))
+        with pytest.raises(sc.ScoreRefusal, match="dnb/c.mp3") as info:
+            sc.resolve_oa300_rows(str(root))
+        assert "house/a.mp3" not in str(info.value)
+
+    def test_missing_audio_exits_nonzero(self, tmp_path, monkeypatch, capsys):
+        root = self._corpus(tmp_path, monkeypatch, skip=("b.mp3",))
+        run = tmp_path / "run"
+        run.mkdir()
+        (run / "model.pt").write_bytes(b"")
+        monkeypatch.setenv("OA300_CORPUS_PATH", str(root))
+        assert sc.main(["--run-dir", str(run), "--corpus", "oa300"]) == 3
+        assert "b.mp3" in capsys.readouterr().err
+        assert sorted(p.name for p in run.iterdir()) == ["model.pt"]
+
+    def test_unset_corpus_path_refuses(self):
+        with pytest.raises(sc.ScoreRefusal, match="OA300_CORPUS_PATH"):
+            sc.resolve_oa300_rows("")
+
+
 class TestRecipeGuard:
     LEGACY = {
         "splitVersionHash": tr.LEGACY_SPLIT_VERSION_HASH,
@@ -1091,6 +1505,20 @@ class TestScoreTrack:
         assert row["variantBPM"] == 30.0 + int(np.argmax(expected.mean(axis=0)))
         assert row["inRuntimeRange"] is True and row["abstained"] is None
 
+    def test_title_is_copied_when_present(self, monkeypatch, feature_fixture):
+        import torch
+
+        monkeypatch.setattr(sc, "decode_audio", lambda _p: click_track(10.0))
+        row, _ = sc.score_track(
+            _StubModel(np.zeros((1, 256))),
+            {**self._row(), "corpus": "oa300", "title": "Song A"},
+            feature_fixture,
+            torch.device("cpu"),
+        )
+        assert row["title"] == "Song A"
+        plain, _ = self._score(monkeypatch, feature_fixture, click_track(10.0), np.zeros((1, 256)))
+        assert "title" not in plain
+
     def test_short_clip_abstains(self, monkeypatch, feature_fixture):
         row, arrays = self._score(
             monkeypatch, feature_fixture, click_track(10.0), np.zeros((1, 256))
@@ -1231,6 +1659,7 @@ class TestReportRendering:
     def test_markdown_renders_without_rekordbox(self, monkeypatch):
         monkeypatch.setitem(rp.EXPECTED_COUNTS, "giantsteps", 4)
         monkeypatch.setitem(rp.EXPECTED_COUNTS, "eval-12-7", 4)
+        monkeypatch.setitem(rp.EXPECTED_COUNTS, "oa300", 4)
         tracks = {
             "giantsteps": rp.join_arms(
                 "giantsteps",
@@ -1242,6 +1671,9 @@ class TestReportRendering:
             ),
             "eval-12-7": rp.join_arms(
                 "eval-12-7", {"variant": _rows(4, hits=1), "legacy": _rows(4, hits=2)}
+            ),
+            "oa300": rp.join_arms(
+                "oa300", {"variant": _rows(4, hits=3), "legacy": _rows(4, hits=1)}
             ),
         }
         pools = {src: set() for src in rp.POOL_SOURCES}
@@ -1273,6 +1705,14 @@ class TestReportRendering:
         }
         md = rp.render_markdown(report)
         assert "## giantsteps (4 tracks)" in md and "## eval-12-7 (4 tracks)" in md
+        oa300 = md.split("## oa300 (4 tracks)", 1)[1].split("## Inputs", 1)[0]
+        assert "| fixed-time variant | 3/4 (75.0 %) |" in oa300
+        assert "| legacy (512-column) | 1/4 (25.0 %) |" in oa300
+        assert "| tempo-CNN | not-run | not-run |" in oa300
+        assert "- variantMinusLegacy: +2 tracks" in oa300 and "McNemar p = " in oa300
+        assert "Tracks where the variant and legacy disagree on Acc1 (2)" in oa300
+        assert "| <100 |" in oa300 and "| octave-halving |" in oa300
+        assert sum(f"| oa300 | {rp.ARM_LABEL[a]} |" in md for a in ("variant", "legacy")) == 2
         assert "AVFoundation" in md and "float16" in md and "byte-identical" in md
         assert "label-free pool" not in md and "same pool" not in md
         assert "crop choice" in md and "no-rhythmic-crop 1" in md
