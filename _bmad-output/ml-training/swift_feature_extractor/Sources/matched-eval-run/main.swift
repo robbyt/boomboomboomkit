@@ -37,8 +37,10 @@
 //
 //  Every audio file is hashed before any analysis; a sha256 that differs from the
 //  input refuses the whole run (exit 3, naming the track). The output records the
-//  git SHA (with a dirty flag) of the checkout the binary sits in and the build
-//  configuration, so the report can refuse a runner output from other code.
+//  git SHA (with a dirty flag) of the checkout the binary sits in, read at run time,
+//  and the build configuration, so the report can refuse a runner output from other
+//  code. The run-time SHA names the code the binary was built from only because the
+//  driver (matched_eval/run.py) rebuilds the runner immediately before running it.
 //
 //  Build (release needs -enable-testing for the internal Story 15.7 types):
 //    swift build -c release -Xswiftc -enable-testing --product matched-eval-run
@@ -91,8 +93,10 @@ guard let inputPath, let outputPath else { fail(usage, code: 2) }
 
 // MARK: - Provenance
 
-/// `git` in the directory holding this binary, so the SHA names the checkout it was
-/// built from. `nil` when git is unavailable.
+/// `git` in the directory holding this binary, read at run time, so the SHA names the
+/// checkout as it is now. That is the code the binary was built from because the
+/// driver (matched_eval/run.py) rebuilds the runner right before running it; a binary
+/// run by hand after a checkout change is mislabeled. `nil` when git is unavailable.
 func git(_ args: [String]) -> String? {
   let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
   let process = Process()

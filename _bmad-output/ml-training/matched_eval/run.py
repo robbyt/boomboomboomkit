@@ -2,7 +2,8 @@
 
   prepare   resolve and verify the corpora; write manifest.json and
             runner-input.json to the run directory
-  swift     run the Swift runner on runner-input.json -> runner-output.json
+  swift     build the Swift runner from this checkout, then run it on
+            runner-input.json -> runner-output.json
   report    join manifest, runner output and the 15.5 scores; write rows.json to
             the run directory and the tracked aggregate (JSON and Markdown)
   all       prepare, swift, report
@@ -34,6 +35,12 @@ BUNDLE_GATE_INPUT_RELPATH = Path(
     "eval-corpus/bundle-gate/predictions/bundle-gate-input-seed-42.json"
 )
 EXIT_REFUSED = 3
+# The runner records the git SHA of the checkout at run time, so `swift` always
+# builds it here first and never runs a binary from elsewhere. Release needs
+# -enable-testing for the internal Story 15.7 types.
+SWIFT_PACKAGE_DIR = ML_TRAINING_DIR / "swift_feature_extractor"
+RUNNER_PRODUCT = "matched-eval-run"
+SWIFT_BUILD = ("swift", "build", "-c", "release", "-Xswiftc", "-enable-testing")
 
 
 def git_state() -> dict[str, Any]:
@@ -80,15 +87,27 @@ def prepare(args: argparse.Namespace, run_dir: Path) -> None:
     print(f"[prepare] {counts} -> {run_dir}")
 
 
-def swift(args: argparse.Namespace, run_dir: Path) -> int:
-    if not args.runner:
-        raise rp.ReportRefusal("--runner is required to run the Swift systems")
-    runner = Path(args.runner)
+def build_runner() -> Path:
+    """Build the runner from this checkout; return the binary the build wrote."""
+    cwd = str(SWIFT_PACKAGE_DIR)
+    code = subprocess.call([*SWIFT_BUILD, "--product", RUNNER_PRODUCT], cwd=cwd)
+    if code != 0:
+        raise rp.ReportRefusal(f"swift build of {RUNNER_PRODUCT} exited {code}")
+    try:
+        bin_dir = subprocess.check_output([*SWIFT_BUILD, "--show-bin-path"], cwd=cwd, text=True)
+    except (OSError, subprocess.CalledProcessError) as e:
+        raise rp.ReportRefusal(f"swift build --show-bin-path failed: {e}") from e
+    runner = Path(bin_dir.strip()) / RUNNER_PRODUCT
     if not runner.is_file():
-        raise rp.ReportRefusal(f"Swift runner not found at {runner}")
+        raise rp.ReportRefusal(f"Swift runner not found at {runner} after the build")
+    return runner
+
+
+def swift(args: argparse.Namespace, run_dir: Path) -> int:
     runner_input = run_dir / "runner-input.json"
     if not runner_input.is_file():
         raise rp.ReportRefusal(f"no runner input at {runner_input}; run prepare first")
+    runner = build_runner()
     cmd = [
         str(runner),
         "--input",
@@ -156,7 +175,6 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--artifact-dir", default=str(DEFAULT_ARTIFACT_DIR))
     p.add_argument("--legacy-root", help="ml-training directory holding eval-corpus/ (read-only)")
     p.add_argument("--fixed-time-run-dir", help="Story 15.5 run directory with scores-*.json")
-    p.add_argument("--runner", help="path to the built matched-eval-run binary")
     p.add_argument("--corpus", action="append", choices=cp.CORPORA)
     p.add_argument("--limit", type=int, help="run only the first N tracks (a declared subset)")
     p.add_argument("--oa300-root", default=os.environ.get("OA300_CORPUS_PATH", ""))

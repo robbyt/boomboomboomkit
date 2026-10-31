@@ -855,10 +855,67 @@ def _write_run(run_dir: Path, tracks: list[dict[str, Any]], runner_extra: dict |
     return manifest
 
 
-def test_run_refuses_without_a_runner(tmp_path):
+def _fake_swift_toolchain(monkeypatch, bin_dir: Path, build_code: int = 0) -> list:
+    """Record every subprocess the swift step starts; `swift build --show-bin-path`
+    answers `bin_dir`, the build answers `build_code`, the runner answers 0."""
+    calls: list = []
+
+    def call(cmd, **kw):
+        calls.append((list(cmd), kw.get("cwd")))
+        return build_code if cmd[:2] == ["swift", "build"] else 0
+
+    def check_output(cmd, **kw):
+        calls.append((list(cmd), kw.get("cwd")))
+        return f"{bin_dir}\n"
+
+    monkeypatch.setattr(rn.subprocess, "call", call)
+    monkeypatch.setattr(rn.subprocess, "check_output", check_output)
+    monkeypatch.setattr(rn, "git_state", lambda: GIT)
+    return calls
+
+
+def test_run_swift_refuses_without_runner_input(tmp_path, monkeypatch):
+    calls = _fake_swift_toolchain(monkeypatch, tmp_path)
     assert rn.main(["swift", "--run-dir", str(tmp_path)]) == rn.EXIT_REFUSED
-    missing = str(tmp_path / "absent-binary")
-    assert rn.main(["swift", "--run-dir", str(tmp_path), "--runner", missing]) == rn.EXIT_REFUSED
+    assert calls == []
+
+
+def test_run_swift_builds_the_runner_before_running_it(tmp_path, monkeypatch):
+    # The runner records the SHA of the checkout at run time; that names the code it
+    # was built from only if the driver builds it from this checkout first.
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "runner-input.json").write_text("{}")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "matched-eval-run").write_text("")
+    calls = _fake_swift_toolchain(monkeypatch, bin_dir)
+    assert rn.main(["swift", "--run-dir", str(run_dir)]) == 0
+    flags = ["swift", "build", "-c", "release", "-Xswiftc", "-enable-testing"]
+    package = str(rn.ML_TRAINING_DIR / "swift_feature_extractor")
+    build = calls.index((flags + ["--product", "matched-eval-run"], package))
+    bin_path = calls.index((flags + ["--show-bin-path"], package))
+    runs = [i for i, (cmd, _) in enumerate(calls) if cmd[0] == str(bin_dir / "matched-eval-run")]
+    assert len(runs) == 1 and build < bin_path < runs[0]
+
+
+def test_run_swift_refuses_a_failed_build(tmp_path, monkeypatch):
+    (tmp_path / "runner-input.json").write_text("{}")
+    calls = _fake_swift_toolchain(monkeypatch, tmp_path, build_code=1)
+    assert rn.main(["swift", "--run-dir", str(tmp_path)]) == rn.EXIT_REFUSED
+    assert [cmd[:2] for cmd, _ in calls] == [["swift", "build"]]
+
+
+def test_run_swift_takes_no_prebuilt_runner(tmp_path, monkeypatch):
+    # A binary built at an older commit would be labeled with the current HEAD.
+    (tmp_path / "runner-input.json").write_text("{}")
+    stale = tmp_path / "matched-eval-run"
+    stale.write_text("")
+    calls = _fake_swift_toolchain(monkeypatch, tmp_path / "bin")
+    with pytest.raises(SystemExit) as exc:
+        rn.main(["swift", "--run-dir", str(tmp_path), "--runner", str(stale)])
+    assert exc.value.code == 2
+    assert calls == []
 
 
 def test_run_report_refuses_without_run_files(tmp_path, monkeypatch):

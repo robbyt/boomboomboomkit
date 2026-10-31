@@ -1199,7 +1199,6 @@ fixed-time-report:
 # FIXED_TIME_LEGACY_ROOT names the ml-training directory holding eval-corpus/.
 # ---------------------------------------------------------------------------
 MATCHED_EVAL_RUN_ROOT ?= $(CURDIR)/$(ML_TRAINING_DIR)/matched-eval-runs
-MATCHED_EVAL_RUNNER := $(CURDIR)/$(ML_TRAINING_DIR)/swift_feature_extractor/.build/release/matched-eval-run
 # Run only the first N tracks (a declared subset: the run directory and the
 # aggregate carry a -limit<N> suffix). Empty runs every track.
 MATCHED_EVAL_LIMIT ?=
@@ -1211,8 +1210,6 @@ matched-eval:
 		echo "ERROR: $(ML_TRAINING_DIR) absent (main-only checkout); matched-eval is develop-only tooling."; \
 		exit 1; \
 	fi
-	cd $(ML_TRAINING_DIR)/swift_feature_extractor && \
-		swift build -c release -Xswiftc -enable-testing --product matched-eval-run
 	cd $(ML_TRAINING_DIR) && \
 	OA300_CORPUS_PATH="$(abspath $(OA300_CORPUS_PATH))" \
 	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
@@ -1220,7 +1217,6 @@ matched-eval:
 		--run-root "$(abspath $(MATCHED_EVAL_RUN_ROOT))" \
 		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" \
 		--fixed-time-run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
-		--runner "$(MATCHED_EVAL_RUNNER)" \
 		$(if $(MATCHED_EVAL_LIMIT),--limit $(MATCHED_EVAL_LIMIT),)
 
 # Story 12.9: private, generation-bound paired DSP versus default DSP+ML gate.
