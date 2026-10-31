@@ -1581,3 +1581,9 @@ Same stopping rule as rounds 3 and 4: none of these changes today's corpus outpu
 - source_spec: `_bmad-output/implementation-artifacts/spec-demo-fixed-time-model.md`
   summary: Unverified, would be medium if true. The chunked reader treats an end-of-file-like error after the first chunk as the end of the file. On macOS 26 and earlier, a genuine mid-file decode failure might surface as Foundation's generic nil-domain, code 0 error, which `BandWaveformReader.isEndOfFile` also accepts. That read would then return a shortened decode where the old single read threw.
   evidence: Measured on macOS 27 only. To settle it, run a corrupted-mid-file MP3, FLAC and M4A through `readDecodedAudio` on macOS 15 or 26 and check which error each surfaces.
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-bundled-fixed-time-model.md`
+  summary: The demo's model `Selected:` mark is app-wide (one `ModelCatalog`) while each window loads its own model, so a second window's launch step (or a pick in it) moves or clears the mark another window relies on.
+  evidence: `WindowGroup` in `BoomBoomBoomBPMApp.swift` shares one catalog across windows; `ContentView` owns a per-window `AnalysisViewModel`. Fix needs per-window selection state. Medium; needs two windows open at once.
+- source_spec: `_bmad-output/implementation-artifacts/spec-demo-bundled-fixed-time-model.md`
+  summary: CLAUDE.md's model-location notes do not mention that the demo now commits a built-in copy of the fixed-time model under `Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/Models/`.
+  evidence: The CLAUDE.md line about `_bmad-output/ml-models/` covers the library only; agent-context edit, so deferred.

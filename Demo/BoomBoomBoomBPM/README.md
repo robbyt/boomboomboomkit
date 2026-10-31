@@ -85,6 +85,19 @@ These are portal-side items the operator handles via App Store Connect — none 
 
 Required by Apple since May 2024 for any App Store submission. Auto-included in the bundle by Xcode 26+'s `PBXFileSystemSynchronizedRootGroup` (no project edits needed).
 
+## Built-in model
+
+The app ships one model in its resources: `BoomBoomBoomBPM/Models/fixed-time-tempo-v1.mlmodelc`, copied into the built app at `Contents/Resources/fixed-time-tempo-v1.mlmodelc/`. It is the Story 15.5 fixed-time tempo model, seed 42 (input `1 x 1 x 128 x 1200`, up to four 12 s crops chosen by rhythm score, 256 tempo bins out).
+
+- `weights/weight.bin` sha256: `cc2c1c8a3e21411a8406f1f3e7c64059f4c8c59446b52628de4f2b6763caa327`
+- Exported with `make fixed-time-export` (FP32 ML program, macOS 15, compiled with `xcrun coremlc`; the export checks PyTorch against Core ML within 1e-3 on a real crop). The output `fixed_time_seed_42.mlmodelc` was copied in unchanged and renamed.
+- Accuracy on its own: 547/661 GiantSteps tracks within 4% (Acc1), 617/661 counting half or double tempo (Acc2).
+- Trust: the training run was a smoke test of the training setup, not a gated or ranked model, and its confidence is not calibrated.
+
+On every launch the app lists it in the Models sheet as `Source: Bundled`, loads it, and marks it `Selected: yes`, with `Use loaded model` off, so results under `Default` do not change until you turn it on. It is never stored as a bookmark. If it fails to load, the sheet shows `Reason: bundled-model-load-failed` and the row stays listed. Choosing another model replaces it for the session.
+
+To replace it, export a new model with `make fixed-time-export`, copy the `.mlmodelc` directory over `BoomBoomBoomBPM/Models/fixed-time-tempo-v1.mlmodelc` (keep the name, or change `ModelCatalog.bundledModelResourceName` to match), update the sha256 above and `pinnedWeightSHA256` in `BoomBoomBoomBPMTests/BundledModelLaunchTests.swift`, then run `make demo-build` and `make demo-test`.
+
 ## Build configurations
 
 | Make target | Purpose |

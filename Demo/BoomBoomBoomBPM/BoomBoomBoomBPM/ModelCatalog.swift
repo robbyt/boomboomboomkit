@@ -46,9 +46,11 @@ import Observation
 @Observable
 final class ModelCatalog {
 
-  /// Provenance of a catalog entry. Today every entry is `.userAdded`; the other
-  /// two cases are documented seams for a future bundled / known-public model
-  /// (DD2 — no bundled model ships since Story 4-6 Branch C), not dead code.
+  /// Provenance of a catalog entry. `.bundled` is the fixed-time model the demo
+  /// ships in its own resources (``bundledModelResourceName``), listed on every
+  /// launch from the app bundle and never written to bookmark storage.
+  /// `.userAdded` is a model picked from disk. `.knownPublic` is a documented seam
+  /// for a future downloadable model, not dead code.
   enum ModelSource: String, Sendable, CaseIterable {
     case bundled
     case knownPublic
@@ -124,15 +126,74 @@ final class ModelCatalog {
   /// on launch is deferred-work W81.
   var selectedURL: URL?
 
-  /// Labeled `Reason:` diagnostics accumulated during `restore()` (one per
-  /// skipped, unresolvable/unhashable entry — DD8).
+  /// Labeled `Reason:` diagnostics accumulated at launch: one per skipped,
+  /// unresolvable/unhashable restored entry (DD8), plus
+  /// ``bundledModelLoadFailedReason`` when the launch load of the bundled model
+  /// fails. The picker shows them on its first open.
   private(set) var restoreDiagnostics: [String] = []
 
   var isEmpty: Bool { entries.isEmpty }
 
-  init(bookmarks: BookmarkPersistence = BookmarkPersistence(defaults: .standard)) {
+  /// Resource name of the model shipped inside the demo app bundle. The picker
+  /// row shows this name (the identifier is the filename stem).
+  nonisolated static let bundledModelResourceName = "fixed-time-tempo-v1"
+
+  /// The labeled diagnostic added when the bundled model is listed but fails to
+  /// load at launch.
+  nonisolated static let bundledModelLoadFailedReason = "Reason: bundled-model-load-failed"
+
+  /// The bundled model's URL in `bundle`, or `nil` when the resource is absent
+  /// (for example a host bundle that does not carry it).
+  nonisolated static func bundledModelURL(in bundle: Bundle = .main) -> URL? {
+    bundle.url(forResource: bundledModelResourceName, withExtension: "mlmodelc")
+  }
+
+  /// - Parameter bundledModelURL: the model shipped in the app bundle, listed
+  ///   first as `.bundled`. Defaults to the `Bundle.main` lookup; tests pass
+  ///   `nil` (no bundled row) or a fixture URL. A `nil` URL, or a bundle that
+  ///   fails to register, gives no bundled row and no diagnostic.
+  init(
+    bookmarks: BookmarkPersistence = BookmarkPersistence(defaults: .standard),
+    bundledModelURL: URL? = ModelCatalog.bundledModelURL()
+  ) {
     self.bookmarks = bookmarks
+    registerBundled(bundledModelURL)
     restore()
+  }
+
+  // MARK: - Bundled model (launch)
+
+  /// List the model shipped in the app bundle. It is found in the bundle on
+  /// every launch and is never stored as a bookmark. An app-bundle read needs no
+  /// security scope, so the bundle URL is its own load URL.
+  private func registerBundled(_ url: URL?) {
+    guard let url else { return }
+    guard let entry = try? registerEntry(standardizedURL: url.standardizedFileURL) else {
+      return
+    }
+    mirror(entry, source: .bundled, accessURL: url)
+  }
+
+  /// The bundled model's row, or `nil` when no bundled model is listed.
+  var bundledEntry: ModelRegistryEntry? {
+    entries.first { source(for: $0.url) == .bundled }
+  }
+
+  /// Launch step for the bundled model (owner decision, 2026-10-30: load it,
+  /// leave it off). Loads the bundled row through ``useModel(_:load:)`` so it is
+  /// marked `Selected: yes` on success. On failure the selection is cleared, the
+  /// row stays listed, and ``bundledModelLoadFailedReason`` is added to
+  /// ``restoreDiagnostics``. Returns `nil` without calling `load` when no bundled
+  /// model is listed. Turning the model off is the view model's half of the step
+  /// (``AnalysisViewModel/loadBundledModelAtLaunch(from:load:)``).
+  @discardableResult
+  func loadBundledModelAtLaunch(load: (URL) -> Bool) -> UseOutcome? {
+    guard let entry = bundledEntry else { return nil }
+    let outcome = useModel(entry, load: load)
+    if outcome != .loaded {
+      restoreDiagnostics.append(Self.bundledModelLoadFailedReason)
+    }
+    return outcome
   }
 
   // MARK: - Restore (launch)
@@ -144,7 +205,9 @@ final class ModelCatalog {
   /// abort restore or the launch — a failed entry is skipped with a labeled
   /// `Reason: restored-model-unavailable` diagnostic (DD8).
   private func restore() {
-    var seen = Set<URL>()
+    // Seeded with the rows already listed (the bundled model), so a bookmark that
+    // resolves to the same URL does not add a second row for it.
+    var seen = Set(entries.map { $0.url.standardizedFileURL })
     for (_, url) in bookmarks.resolveAll() {
       let key = url.standardizedFileURL
       guard seen.insert(key).inserted else { continue }

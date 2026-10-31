@@ -160,6 +160,13 @@ struct ContentView: View {
     .onDisappear {
       playback.load(url: nil)
     }
+    // Bundled model launch step: load the shipped fixed-time model and leave
+    // `Use loaded model` off (owner decision, 2026-10-30). Runs once per view
+    // model; the load and the switch-off happen in one main-actor turn, so the
+    // `Use loaded model` toggle's `onChange` never fires and no re-analyze starts.
+    .task {
+      viewModel.loadBundledModelAtLaunch(from: modelCatalog)
+    }
     // Registry-backed model picker (Story 10.2). On a successful "Use this
     // model" the sheet re-analyzes the current file if one is loaded.
     .sheet(isPresented: $isModelPickerPresented) {

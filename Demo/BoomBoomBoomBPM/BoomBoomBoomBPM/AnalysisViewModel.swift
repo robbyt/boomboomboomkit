@@ -937,6 +937,38 @@ final class AnalysisViewModel {
     }
   }
 
+  /// Whether ``loadBundledModelAtLaunch(from:load:)`` has run for this view
+  /// model, so a repeated `.task` on the same window does not reload the bundled
+  /// model over a model the user picked since.
+  @ObservationIgnored
+  private(set) var didRunBundledModelLaunchStep = false
+
+  /// Launch step for the model shipped in the app bundle (owner decision,
+  /// 2026-10-30: load it, leave it off). Loads the bundled row through
+  /// ``ModelCatalog/loadBundledModelAtLaunch(load:)``, so on success it is
+  /// attached and marked `Selected: yes`, then sets ``mlEnabled`` to `false`.
+  /// Results under the `Default` preset stay unchanged until the user turns
+  /// `Use loaded model` on. Writes nothing to `UserDefaults` and starts no
+  /// analysis; the caller runs it before any toggle observer sees `mlEnabled`
+  /// change, so the true-then-false pair lands in one main-actor turn. On
+  /// failure ``loadModel(at:)`` has already detached and the catalog adds its
+  /// labeled diagnostic. Runs once per view model.
+  ///
+  /// - Parameter load: the loader, defaulting to ``loadModel(at:)``; tests
+  ///   inject one so no compiled model is needed.
+  func loadBundledModelAtLaunch(from catalog: ModelCatalog, load: ((URL) -> Bool)? = nil) {
+    guard !didRunBundledModelLaunchStep else { return }
+    didRunBundledModelLaunchStep = true
+    let loader = load ?? { self.loadModel(at: $0) }
+    guard let outcome = catalog.loadBundledModelAtLaunch(load: loader) else { return }
+    if outcome == .capabilityMissing {
+      // Unreachable for a mirrored bundled row (its URL is its own load URL);
+      // detach anyway so nothing can claim to be in use.
+      detachMLTechnique()
+    }
+    mlEnabled = false
+  }
+
   /// Builds the technique for a compiled model: first as a 512-column window
   /// model (`BNNSTechnique`); when that throws
   /// `MLTechniqueError.invalidTensorContract` (the input is not
