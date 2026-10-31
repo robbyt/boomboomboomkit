@@ -166,6 +166,9 @@ class Resumer:
         self.pretrain_losses: list[float] = []
         self.finetune_losses: list[float] = []
         self.pretrain_seconds_before = 0.0
+        # Total pretraining time so far. Fine-tuning checkpoints write this, so
+        # a run resumed from one still reports the whole pretraining time.
+        self.pretrain_seconds = 0.0
         self.finetune_seconds_before = 0.0
         self._pending_rng: dict[str, Any] | None = None
 
@@ -178,6 +181,7 @@ class Resumer:
         self._pending_rng = doc["rng"]
         self.pretrain_losses = list(doc.get("pretrainLosses", []))
         self.pretrain_seconds_before = float(doc.get("pretrainSeconds", 0.0))
+        self.pretrain_seconds = self.pretrain_seconds_before
         if name == FINETUNE_LATEST:
             self.skip_pretrain = True
             self.finetune_start = int(doc["completedEpoch"]) + 1
@@ -214,6 +218,7 @@ class Resumer:
 
         def end(epoch: int, state: dict[str, Any]) -> None:
             self.pretrain_losses.append(float(state["loss"]))
+            self.pretrain_seconds = self.pretrain_seconds_before + _now() - t_start
             if self.store is None:
                 return
             payload = {
@@ -224,7 +229,7 @@ class Resumer:
                 "loaderGenerator": loader_generator.get_state(),
                 "rng": capture_rng(),
                 "pretrainLosses": list(self.pretrain_losses),
-                "pretrainSeconds": self.pretrain_seconds_before + _now() - t_start,
+                "pretrainSeconds": self.pretrain_seconds,
             }
             self.store.save(PRETRAIN_LATEST, payload)
             if epoch == self.pretrain_epochs - 1:
@@ -258,7 +263,7 @@ class Resumer:
                     "phaseState": state,
                     "rng": capture_rng(),
                     "pretrainLosses": list(self.pretrain_losses),
-                    "pretrainSeconds": self.pretrain_seconds_before,
+                    "pretrainSeconds": self.pretrain_seconds,
                     "finetuneLosses": list(self.finetune_losses),
                     "finetuneSeconds": self.finetune_seconds_before + _now() - t_start,
                 },

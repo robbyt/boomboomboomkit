@@ -2072,15 +2072,16 @@ class TestCheckpointResume:
 
         return CheckpointStore(path, plan_sha256=sha, recipe=self.RECIPE)
 
-    def _pretrain(self, model, store, on_epoch_start=None):
+    def _pretrain(self, model, store, on_epoch_start=None, resumer=None):
         import torch
         from torch.utils.data import DataLoader
 
         import masked_mel
         from fixed_time.checkpoints import Resumer
 
-        resumer = Resumer(store, model, pretrain_epochs=3)
-        resumer.load()
+        if resumer is None:
+            resumer = Resumer(store, model, pretrain_epochs=3)
+            resumer.load()
         g = torch.Generator()
         g.manual_seed(42)
         loader = DataLoader(
@@ -2119,14 +2120,15 @@ class TestCheckpointResume:
         _assert_same_weights(_weights(resumed_model), _weights(straight_model))
         assert store.load("pretrain-final")["completedEpoch"] == 2
 
-    def _finetune(self, model, store, on_epoch_start=None):
+    def _finetune(self, model, store, on_epoch_start=None, resumer=None):
         import torch
 
         from ablation_train import finetune
         from fixed_time.checkpoints import Resumer
 
-        resumer = Resumer(store, model, pretrain_epochs=3)
-        resumer.load()
+        if resumer is None:
+            resumer = Resumer(store, model, pretrain_epochs=3)
+            resumer.load()
         records = [_Rec(bpm) for bpm in (90, 128, 128, 140, 150, 165, 170, 174)]
         result = finetune(
             model,
@@ -2166,6 +2168,53 @@ class TestCheckpointResume:
         assert resumed_result.per_epoch == straight_result.per_epoch
         assert resumed_result.best_val_acc1 == straight_result.best_val_acc1
         _assert_same_weights(_weights(resumed_model), _weights(straight_model))
+
+    def _both_phases(self, model, store, crash_finetune_at):
+        """One Resumer for both phases, as train() uses it."""
+        from fixed_time.checkpoints import Resumer
+
+        resumer = Resumer(store, model, pretrain_epochs=3)
+        resumer.load()
+        if not resumer.skip_pretrain:
+            self._pretrain(model, store, resumer=resumer)
+        with pytest.raises(_Crash):
+            self._finetune(model, store, _crash_at(crash_finetune_at), resumer=resumer)
+        return resumer
+
+    def _counting_clock(self, monkeypatch):
+        import itertools
+
+        import fixed_time.checkpoints as ck
+
+        ticks = itertools.count()
+        monkeypatch.setattr(ck, "_now", lambda: float(next(ticks)))
+
+    def test_finetuning_checkpoint_keeps_the_pretraining_time(self, tmp_path, monkeypatch):
+        from fixed_time.checkpoints import Resumer
+
+        self._counting_clock(monkeypatch)
+        store = self._store(tmp_path)
+        self._both_phases(_fresh(), store, crash_finetune_at=2)
+        pretrain_seconds = store.load("pretrain-final")["pretrainSeconds"]
+        assert pretrain_seconds > 0
+        assert store.load("finetune-latest")["pretrainSeconds"] == pretrain_seconds
+
+        resumed = Resumer(store, _fresh(seed=999), pretrain_epochs=3)
+        resumed.load()
+        assert resumed.resumed_from["checkpoint"] == "checkpoints/finetune-latest.pt"
+        assert resumed.pretrain_seconds == pretrain_seconds
+
+    def test_pretraining_resumed_then_finetuning_crash_keeps_the_total(self, tmp_path, monkeypatch):
+        self._counting_clock(monkeypatch)
+        store = self._store(tmp_path)
+        with pytest.raises(_Crash):
+            self._pretrain(_fresh(), store, on_epoch_start=_crash_at(2))
+        interrupted = store.load("pretrain-latest")["pretrainSeconds"]
+
+        self._both_phases(_fresh(seed=999), store, crash_finetune_at=2)
+        pretrain_seconds = store.load("pretrain-final")["pretrainSeconds"]
+        assert pretrain_seconds > interrupted > 0
+        assert store.load("finetune-latest")["pretrainSeconds"] == pretrain_seconds
 
     def test_resume_prefers_the_most_advanced_checkpoint(self, tmp_path):
         store = self._store(tmp_path)

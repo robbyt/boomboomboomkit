@@ -364,6 +364,8 @@ def train(
     pretrain_seconds = resumer.pretrain_seconds_before + (
         0.0 if resumer.skip_pretrain else time.time() - t0
     )
+    # Fine-tuning checkpoints carry this total, so a resume from one reports it.
+    resumer.pretrain_seconds = pretrain_seconds
 
     # finetune builds the train and val sets itself; keep them so the epoch
     # callback reaches the train set before each epoch's iterator starts.
