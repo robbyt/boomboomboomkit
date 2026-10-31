@@ -32,8 +32,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -645,6 +647,30 @@ def preflight(out_dir: Path, subset: int, num_workers: int, legacy_path: Path) -
     return 0
 
 
+# What the trainer writes to a run directory. `--overwrite` moves these, and only
+# these, aside; the crop plan and anything else in the directory stay put.
+RUN_FILES = ("model.pt", "metadata.json", "training_log.json", "checkpoints")
+
+
+def archive_previous_run(out_dir: Path) -> Path | None:
+    """Move the previous run's files into `out_dir/_archive/<UTC timestamp>/`.
+
+    Moving instead of deleting keeps the completed run until its replacement
+    finishes, and leaves the run directory with no model.pt, so an interrupted
+    replacement run resumes from its own checkpoints on a plain rerun. Returns
+    the archive folder, or None when there was nothing to move."""
+    present = [n for n in RUN_FILES if (out_dir / n).exists()]
+    if not present:
+        return None
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    archive = out_dir / "_archive" / stamp
+    archive.mkdir(parents=True, exist_ok=False)
+    for name in present:
+        shutil.move(str(out_dir / name), str(archive / name))
+    print(f"[fixed-time] moved the previous run's {', '.join(present)} to {archive}")
+    return archive
+
+
 def full_run(out_dir: Path, num_workers: int, legacy_path: Path, overwrite: bool) -> int:
     from fixed_time.plan import PlanError
 
@@ -663,14 +689,15 @@ def full_run(out_dir: Path, num_workers: int, legacy_path: Path, overwrite: bool
     existing = [n for n in ("model.pt", "metadata.json") if (out_dir / n).exists()]
     if existing and not overwrite:
         print(
-            f"ERROR: {existing} exist in {out_dir}; pass --overwrite to replace them.",
+            f"ERROR: {existing} exist in {out_dir}; pass --overwrite to archive them "
+            "and start a new run.",
             file=sys.stderr,
         )
         return 2
-    store = CheckpointStore(out_dir, plan_sha256=plan_sha, recipe=RECIPE)
     if overwrite:
-        store.clear()
-    else:
+        archive_previous_run(out_dir)
+    store = CheckpointStore(out_dir, plan_sha256=plan_sha, recipe=RECIPE)
+    if not overwrite:
         try:
             store.resume_point()  # refuse a mismatched checkpoint before any work
         except CheckpointMismatch as e:
@@ -700,7 +727,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--num-workers", type=int, default=4)
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     p.add_argument("--legacy-metadata", type=Path, default=LEGACY_METADATA)
-    p.add_argument("--overwrite", action="store_true")
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="move the previous run to <out-dir>/_archive/<UTC time>/ and start fresh",
+    )
     return p.parse_args(argv)
 
 

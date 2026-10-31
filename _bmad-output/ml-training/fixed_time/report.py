@@ -743,6 +743,13 @@ def build_manifest(
     weights = {d["weightsSha256"] for d in score_docs.values()}
     if weights != {training_md["weightsSha256"]}:
         raise ReportRefusal("scored weights differ from the trained weights")
+    # model.pt as it is now: a replacement run since scoring changes it.
+    now_weights = (inputs.get("variantWeights") or {}).get("sha256")
+    if now_weights != training_md["weightsSha256"]:
+        raise ReportRefusal(
+            f"model.pt sha256 at report time ({now_weights}) differs from the trained and "
+            f"scored weights ({training_md['weightsSha256']})"
+        )
     symbols = {d["aggregatorSymbol"] for d in score_docs.values()}
     if symbols != {AGGREGATOR_SYMBOL}:
         raise ReportRefusal(f"scores were aggregated by {sorted(symbols)}, not {AGGREGATOR_SYMBOL}")

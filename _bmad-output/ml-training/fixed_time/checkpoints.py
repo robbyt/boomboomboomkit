@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import os
 import random
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -107,10 +106,6 @@ class CheckpointStore:
         if not path.is_file():
             return None
         return torch.load(path, map_location="cpu", weights_only=False)
-
-    def clear(self) -> None:
-        if self.dir.exists():
-            shutil.rmtree(self.dir)
 
     def resume_point(self) -> tuple[str, dict[str, Any]] | None:
         """The most advanced checkpoint, or None. Raises CheckpointMismatch when any

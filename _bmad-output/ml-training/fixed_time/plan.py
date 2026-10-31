@@ -246,7 +246,10 @@ def validate_plan(
     file still has the size and mtime the plan recorded (`identity(path)`); that
     each kept pretraining and train song has a full schedule drawn only from its
     kept crops; and that each kept validation song has a validation crop among its
-    kept crops. Raises PlanError naming every problem."""
+    kept crops. A song whose file was missing at planning (no size or mtime
+    recorded, skipped as decode-failed) and is still missing counts as unchanged;
+    a missing file the plan recorded a size for, or one that has since appeared,
+    counts as changed. Raises PlanError naming every problem."""
     problems: list[str] = []
     if plan.get("planSchema") != PLAN_SCHEMA:
         problems.append(f"plan schema {plan.get('planSchema')!r}, expected {PLAN_SCHEMA!r}")
@@ -278,10 +281,13 @@ def validate_plan(
         changed, unscheduled, off_plan = [], [], []
         for e in entries:
             now = identity(e["path"])
-            if now is None or now != {
-                "fileSize": e.get("fileSize"),
-                "fileMtimeNs": e.get("fileMtimeNs"),
-            }:
+            planned = {"fileSize": e.get("fileSize"), "fileMtimeNs": e.get("fileMtimeNs")}
+            still_missing = (
+                now is None
+                and planned == {"fileSize": None, "fileMtimeNs": None}
+                and e.get("skipped") == SKIP_DECODE
+            )
+            if not still_missing and (now is None or now != planned):
                 changed.append(e["key"])
             if e.get("skipped"):
                 continue

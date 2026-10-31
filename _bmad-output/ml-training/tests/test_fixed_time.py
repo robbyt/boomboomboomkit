@@ -784,10 +784,12 @@ def _report_run(tmp_path, monkeypatch, *, second_shared_legacy_bpm: float):
     oa300_truth_sha = sc.sha256_file(sc.oa300_ground_truth_path())
     plan = _write_json(run / "crop-plan.json", {"plan": 1})
     (run / "model.pt").write_bytes(b"weights")
+    weights_sha = sc.sha256_file(run / "model.pt")
     _write_json(
         run / "metadata.json",
         _training_md(
-            cropPlan={"sha256": sc.sha256_file(plan), "keptSongs": {}, "skippedSongs": {}}
+            weightsSha256=weights_sha,
+            cropPlan={"sha256": sc.sha256_file(plan), "keptSongs": {}, "skippedSongs": {}},
         ),
     )
 
@@ -834,6 +836,7 @@ def _report_run(tmp_path, monkeypatch, *, second_shared_legacy_bpm: float):
             run / f"scores-{corpus}.json",
             _score_doc(
                 rows=rows,
+                weightsSha256=weights_sha,
                 scoredInputs=scored,
                 labelSource={"path": label_path, "sha256": next(iter(scored.values()))},
                 featureFixtureSha256="f",
@@ -1259,6 +1262,39 @@ class TestPlan:
         with pytest.raises(cp.PlanError, match="audio files changed") as info:
             cp.validate_plan(plan, _lists(), RECIPE_SMALL, identity=touched)
         assert "val: 1 audio files" in str(info.value)
+
+    def _missing_at_planning(self):
+        """The plan with /z.mp3 missing when it was ranked, as `_rank_path` records it."""
+        rankings = _rankings()
+        rankings["/z.mp3"] = {
+            **_ranking([], skipped=cp.SKIP_DECODE),
+            "fileSize": None,
+            "fileMtimeNs": None,
+        }
+        return cp.build_plan(_lists(), rankings, RECIPE_SMALL)
+
+    def test_validate_accepts_unchanged_missing_decode_failed_song(self):
+        plan = self._missing_at_planning()
+
+        def z_missing(path):
+            return None if path == "/z.mp3" else _same(path)
+
+        cp.validate_plan(json.loads(json.dumps(plan)), _lists(), RECIPE_SMALL, identity=z_missing)
+
+    def test_validate_refuses_missing_song_that_reappears(self):
+        plan = self._missing_at_planning()
+        with pytest.raises(cp.PlanError, match="pretrain: 1 audio files changed"):
+            cp.validate_plan(plan, _lists(), RECIPE_SMALL, identity=_same)
+
+    def test_validate_refuses_missing_identity_on_a_kept_song(self):
+        plan = cp.build_plan(_lists(), _rankings(), RECIPE_SMALL)
+        plan["songs"]["train"][0].update(fileSize=None, fileMtimeNs=None)
+
+        def b_missing(path):
+            return None if path == "/b.mp3" else _same(path)
+
+        with pytest.raises(cp.PlanError, match="train: 1 audio files changed"):
+            cp.validate_plan(plan, _lists(), RECIPE_SMALL, identity=b_missing)
 
     def test_validate_refuses_missing_validation_crop(self):
         plan = cp.build_plan(_lists(), _rankings(), RECIPE_SMALL)
@@ -1715,6 +1751,15 @@ class TestBuildManifest:
                 {"giantsteps": _score_doc(), "eval-12-7": _score_doc(scoredInputs={})},
                 self.INPUTS,
             )
+
+    def test_refuses_weights_replaced_since_scoring(self):
+        inputs = {**self.INPUTS, "variantWeights": {"path": "model.pt", "sha256": "v" * 64}}
+        docs = {"giantsteps": _score_doc(), "eval-12-7": _score_doc()}
+        with pytest.raises(rp.ReportRefusal, match="model.pt sha256 at report time"):
+            rp.build_manifest(_training_md(), docs, inputs)
+        missing = {k: v for k, v in self.INPUTS.items() if k != "variantWeights"}
+        with pytest.raises(rp.ReportRefusal, match=r"model.pt sha256 at report time \(None\)"):
+            rp.build_manifest(_training_md(), docs, missing)
 
     def test_refuses_a_crop_plan_training_did_not_use(self):
         inputs = {**self.INPUTS, "cropPlan": {"path": "crop-plan.json", "sha256": "q" * 64}}
@@ -2276,6 +2321,56 @@ class TestCheckpointResume:
         monkeypatch.setattr(tr, "plan_summary", lambda *a, **k: {})
         assert tr.full_run(tmp_path, 0, tmp_path / "legacy.json", True) == 0
         assert seen["left"] == [] and seen["store"].plan_sha256 == "b" * 64
+
+    def test_interrupted_overwrite_run_resumes_and_keeps_the_old_run(self, tmp_path, monkeypatch):
+        from fixed_time.checkpoints import CheckpointStore
+
+        sha = "b" * 64
+        old_store = CheckpointStore(tmp_path, plan_sha256=sha, recipe=tr.RECIPE)
+        old_store.save("finetune-latest", {"phase": "finetune", "completedEpoch": 59})
+        for name in ("model.pt", "metadata.json", "training_log.json"):
+            (tmp_path / name).write_text(f"old {name}")
+        (tmp_path / cp.PLAN_FILE).write_text("plan")
+        monkeypatch.setattr(tr, "run_guard", lambda _p: {"corpusDrift": None})
+        monkeypatch.setattr(tr, "read_plan", lambda _d: ({}, sha))
+
+        def interrupted(**kw):
+            kw["checkpoints"].save("pretrain-latest", {"phase": "pretrain", "completedEpoch": 4})
+            raise _Crash
+
+        monkeypatch.setattr(tr, "train", interrupted)
+        with pytest.raises(_Crash):
+            tr.full_run(tmp_path, 0, tmp_path / "legacy.json", True)
+
+        seen = {}
+
+        def resumed(**kw):
+            seen["point"] = kw["checkpoints"].resume_point()
+            return {}
+
+        monkeypatch.setattr(tr, "train", resumed)
+        monkeypatch.setattr(tr, "write_run_artifacts", lambda *a, **k: None)
+        monkeypatch.setattr(tr, "plan_summary", lambda *a, **k: {})
+        assert tr.full_run(tmp_path, 0, tmp_path / "legacy.json", False) == 0
+        name, doc = seen["point"]
+        assert (name, doc["completedEpoch"]) == ("pretrain-latest", 4)
+
+        (archive,) = (tmp_path / "_archive").iterdir()
+        assert (archive / "model.pt").read_text() == "old model.pt"
+        assert sorted(p.name for p in archive.iterdir()) == [
+            "checkpoints",
+            "metadata.json",
+            "model.pt",
+            "training_log.json",
+        ]
+        old = CheckpointStore(archive, plan_sha256=sha, recipe=tr.RECIPE)
+        assert old.load("finetune-latest")["completedEpoch"] == 59
+        assert (tmp_path / cp.PLAN_FILE).read_text() == "plan"
+
+    def test_archive_previous_run_with_nothing_to_move(self, tmp_path):
+        (tmp_path / cp.PLAN_FILE).write_text("plan")
+        assert tr.archive_previous_run(tmp_path) is None
+        assert [p.name for p in tmp_path.iterdir()] == [cp.PLAN_FILE]
 
     def test_checkpoint_write_is_atomic(self, tmp_path):
         store = self._store(tmp_path)
