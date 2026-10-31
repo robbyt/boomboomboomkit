@@ -176,17 +176,19 @@ public struct AudioAnalysisService {
     /// ``BeatGridAnalysisSpan/decodedSampleCount`` (``BeatGrid/analysisSpan``).
     public var maxSeconds: Double = 120
 
-    /// Analyze distinct rhythmic regions of the decoded buffer. The default
-    /// `false` retains the existing energy-transition windows and output.
-    /// Pair with `.windowVoting` and `.simpleMajority` to require agreement
-    /// between two regions before accepting a BPM vote. Search stays within
+    /// Analyze distinct rhythmic regions of the decoded buffer by default.
+    /// With the default `.windowVoting` and `.simpleMajority` pairing, two
+    /// regions must agree before a BPM vote is accepted. Set this to `false`
+    /// and ``mergeStrategy`` to `.maxConfidence` for the historical
+    /// energy-transition-window path. Search stays within
     /// ``maxSeconds`` (120 seconds by default) and uses at most eight bounded
-    /// probes even when the full file is decoded.
-    public var useRhythmicRegions: Bool = false
+    /// probes even when the full file is decoded. When no selected region
+    /// returns a BPM, the call falls back to the energy-transition windows.
+    public var useRhythmicRegions: Bool = true
 
     /// Benchmark-only same-geometry placement control. When enabled alongside
     /// `useRhythmicRegions`, choose evenly spaced disjoint regions without
-    /// rhythm scoring. Kept internal so consumers have one opt-in behavior.
+    /// rhythm scoring. Kept internal so consumers have one default behavior.
     var useUniformRegionControl: Bool = false
 
     /// Analysis intensity level (default: `.default`, which is level 7).
@@ -254,14 +256,16 @@ public struct AudioAnalysisService {
     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
     public var mlTechnique: (any MLTechnique)?
 
-    /// Strategy for combining candidates across analysis windows (default: `.maxConfidence`).
+    /// Strategy for combining candidates across analysis windows (default: `.windowVoting`).
     /// Only applies at intensity 6+ where multiple windows are analyzed.
-    public var mergeStrategy: BPMSelectionPolicy = .maxConfidence
+    /// Set to `.maxConfidence` with `useRhythmicRegions = false` to reproduce
+    /// the historical selection path.
+    public var mergeStrategy: BPMSelectionPolicy = .windowVoting
 
     /// Resolution policy used when ``mergeStrategy`` is
     /// ``BPMSelectionPolicy/windowVoting``. Has no effect for any other
-    /// strategy. Default ``VotingPolicy/simpleMajority`` reproduces the
-    /// post-Story-3-3a baseline byte-for-byte. See ``VotingPolicy`` for the
+    /// strategy. Default ``VotingPolicy/simpleMajority`` requires agreement
+    /// from two distinct regions. See ``VotingPolicy`` for the
     /// per-case semantics.
     public var votingPolicy: VotingPolicy = .simpleMajority
 
@@ -1377,36 +1381,21 @@ public struct AudioAnalysisService {
         if let bpmResult { windowResults.append(bpmResult) }
       }
       rhythmicRegions = regionRows
-    } else {
-      let total = windowSizes.count
-      var completed = 0
-
-      for windowSeconds in windowSizes {
-        if options.isCancelled() { throw CancellationError() }
-        options.onProgress?(ProgressUpdate(windowsCompleted: completed, windowsTotal: total))
-
-        guard
-          let bpmResult = BPMAnalyzer.estimateBPM(
-            decoded: decoded,
-            options: .init(
-              analysisWindowSeconds: windowSeconds,
-              intensity: options.intensity,
-              techniqueSet: options.techniqueSet,
-              tempoScanRange: options.tempoScanRange,
-              perceptualWindow: options.perceptualWindow,
-              enableTrace: enableTrace,
-              fileDurationSeconds: fileDurationSeconds,
-              durationHintMinFileSeconds: options.durationHintMinFileSeconds,
-              captureMLFeatures: captureMLFeatures)
-          )
-        else {
-          completed += 1
-          continue
-        }
-
-        windowResults.append(bpmResult)
-        completed += 1
+      // No region yielded a BPM (for example, a long silent intro covers every
+      // probe). Run the historical energy-transition windows instead so the
+      // call can still find music after the intro. The region rows stay
+      // recorded with nil BPMs; progress restarts at zero for the windows.
+      if windowResults.isEmpty {
+        windowResults = try energyTransitionWindowResults(
+          decoded: decoded, options: options, enableTrace: enableTrace,
+          fileDurationSeconds: fileDurationSeconds,
+          captureMLFeatures: captureMLFeatures)
       }
+    } else {
+      windowResults = try energyTransitionWindowResults(
+        decoded: decoded, options: options, enableTrace: enableTrace,
+        fileDurationSeconds: fileDurationSeconds,
+        captureMLFeatures: captureMLFeatures)
     }
 
     // Story 6.5b (KDD-A6 Stage 3): build the AUTHORITATIVE UnifiedSignalPool —
@@ -1434,6 +1423,52 @@ public struct AudioAnalysisService {
 
     return PreCorroborationOutput(
       metadataInput: metadataInput, pool: pool, rhythmicRegions: rhythmicRegions)
+  }
+
+  /// The historical analysis path: one window per entry in the intensity's
+  /// window sizes, each placed by ``BPMAnalyzer``'s energy-transition search.
+  /// Used when ``Options/useRhythmicRegions`` is off, and as the fallback when
+  /// every selected rhythmic region returned no BPM. Checks cancellation and
+  /// reports progress before each window, counting from zero.
+  private static func energyTransitionWindowResults(
+    decoded: FeatureSubstrate.DecodedAudio,
+    options: Options,
+    enableTrace: Bool,
+    fileDurationSeconds: Double?,
+    captureMLFeatures: Bool
+  ) throws -> [BPMResult] {
+    let windowSizes = options.intensity.windowSizes
+    let total = windowSizes.count
+    var completed = 0
+    var windowResults: [BPMResult] = []
+
+    for windowSeconds in windowSizes {
+      if options.isCancelled() { throw CancellationError() }
+      options.onProgress?(ProgressUpdate(windowsCompleted: completed, windowsTotal: total))
+
+      guard
+        let bpmResult = BPMAnalyzer.estimateBPM(
+          decoded: decoded,
+          options: .init(
+            analysisWindowSeconds: windowSeconds,
+            intensity: options.intensity,
+            techniqueSet: options.techniqueSet,
+            tempoScanRange: options.tempoScanRange,
+            perceptualWindow: options.perceptualWindow,
+            enableTrace: enableTrace,
+            fileDurationSeconds: fileDurationSeconds,
+            durationHintMinFileSeconds: options.durationHintMinFileSeconds,
+            captureMLFeatures: captureMLFeatures)
+        )
+      else {
+        completed += 1
+        continue
+      }
+
+      windowResults.append(bpmResult)
+      completed += 1
+    }
+    return windowResults
   }
 
   /// Equal count and duration to rhythmic selection, with positions fixed by

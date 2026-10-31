@@ -360,6 +360,7 @@ struct AudioAnalysisServiceProgressTests {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
     let expectedWindows = AnalysisIntensity.default.windowSizes.count
     var opts = AudioAnalysisService.Options()
+    opts.useRhythmicRegions = false  // Legacy window-count contract.
     opts.onProgress = { updates.append($0) }
     _ = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
     #expect(updates.count == expectedWindows)
@@ -412,6 +413,7 @@ struct AudioAnalysisServiceProgressTests {
     for level in AnalysisIntensity.allCases {
       nonisolated(unsafe) var updates: [ProgressUpdate] = []
       var opts = AudioAnalysisService.Options()
+      opts.useRhythmicRegions = false  // This checks windowSizes, not selected regions.
       opts.intensity = level
       opts.onProgress = { updates.append($0) }
       let result = try AudioAnalysisService.analyzeBPM(url: url, options: opts)
@@ -635,6 +637,7 @@ struct AudioAnalysisServiceVotingPolicyTests {
       sampleRate: 44100, url: tempURL)
 
     var opts = AudioAnalysisService.Options()
+    opts.useRhythmicRegions = false  // Keep the historical 30/60/90 window seam.
     opts.mergeStrategy = .windowVoting
 
     opts.votingPolicy = .simpleMajority

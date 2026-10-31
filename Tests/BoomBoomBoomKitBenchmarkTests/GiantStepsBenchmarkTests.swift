@@ -63,7 +63,7 @@ struct GiantStepsBenchmarkTests {
 
   @Test("benchmark at default intensity (7)")
   func benchmarkDefaultIntensity() async throws {
-    let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.02)
+    let (metrics, perTrack) = try await runBenchmark(intensity: .default, tolerance: 0.02)
     print("\n=== GiantSteps Tempo Benchmark — Intensity 7 (default) ===")
     print("Corpus: \(metrics.total) tracks, crowdsourced ground truth (v2)")
     print("Annotation version: \(annotationVersion)")
@@ -97,16 +97,17 @@ struct GiantStepsBenchmarkTests {
       }
     }
 
-    // Story 3-3 AC #6 + Story 3-4 AC #4 floors: unconditional `#expect` on every CI
-    // invocation regardless of preset membership. Catches wiring bugs that
-    // "by construction" reasoning would miss.
+    // Epic 13 promoted default: preserve the measured C result on all 661 tracks.
+    #expect(metrics.total == 661)
+    let nilTracks = perTrack.filter { $0.detected == nil }.map { $0.track.filename }
+    #expect(nilTracks.isEmpty, "Default GiantSteps nil results: \(nilTracks.prefix(5))")
     #expect(
-      metrics.acc1Correct >= 537,
-      "AC #6 GiantSteps Acc1 regression: expected >= 537/661 (81.2%), got \(metrics.acc1Correct)/\(metrics.total)"
+      metrics.acc1Correct >= 573,
+      "Default GiantSteps Acc1 regression: expected >= 573/661, got \(metrics.acc1Correct)/\(metrics.total)"
     )
     #expect(
-      metrics.acc2Correct >= 546,
-      "AC #6 GiantSteps Acc2 regression: expected >= 546/661 (82.6%), got \(metrics.acc2Correct)/\(metrics.total)"
+      metrics.acc2Correct >= 579,
+      "Default GiantSteps Acc2 regression: expected >= 579/661, got \(metrics.acc2Correct)/\(metrics.total)"
     )
   }
 
@@ -117,7 +118,8 @@ struct GiantStepsBenchmarkTests {
   @Test("AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY")
   func benchmarkDurationHintOptOut() async throws {
     let (metrics, _) = try await runBenchmark(
-      intensity: .default, tolerance: 0.02,
+      intensity: .default, mergeStrategy: .maxConfidence,
+      useRhythmicRegions: false, tolerance: 0.02,
       durationHint: false, metadataPolicy: .disabled)
     print("\n=== GiantSteps Benchmark — durationHint=false (AC #5 control) ===")
     print(
@@ -150,7 +152,8 @@ struct GiantStepsBenchmarkTests {
     // Setting `.disabled` preserves the pre-Story-3.6 pipeline so the byte-equality
     // contract still holds.
     let (metrics, perTrack) = try await runBenchmark(
-      intensity: .default, mergeStrategy: .windowVoting, tolerance: 0.02,
+      intensity: .default, mergeStrategy: .windowVoting,
+      useRhythmicRegions: false, tolerance: 0.02,
       metadataPolicy: .disabled)
 
     // Surface analyzeBPM nils explicitly — without this guard, a transient
@@ -297,7 +300,8 @@ struct GiantStepsBenchmarkTests {
 
   private func runBenchmark(
     intensity: AnalysisIntensity,
-    mergeStrategy: BPMSelectionPolicy = .maxConfidence,
+    mergeStrategy: BPMSelectionPolicy? = nil,
+    useRhythmicRegions: Bool? = nil,
     tolerance: Double,
     durationHint: Bool = true,
     metadataPolicy: MetadataPolicy = .default
@@ -320,7 +324,8 @@ struct GiantStepsBenchmarkTests {
               options: {
                 var o = AudioAnalysisService.Options()
                 o.intensity = intensity
-                o.mergeStrategy = mergeStrategy
+                if let mergeStrategy { o.mergeStrategy = mergeStrategy }
+                if let useRhythmicRegions { o.useRhythmicRegions = useRhythmicRegions }
                 o.durationHint = durationHint
                 o.metadataPolicy = metadataPolicy
                 return o

@@ -57,7 +57,7 @@ struct RhythmicRegionImpactTests {
     let report: [String: Any] = [
       "configuration": [
         "maxSeconds": 120, "intensity": 7,
-        "A": "shipped DSP defaults with tracing",
+        "A": "historical first-transition/maxConfidence DSP with tracing",
         "B": "old [30,60,90] windows with windowVoting/simpleMajority",
         "C": "rhythm-scored disjoint 30s regions with windowVoting/simpleMajority",
         "D": "uniform disjoint 30s regions with windowVoting/simpleMajority",
@@ -128,9 +128,12 @@ struct RhythmicRegionImpactTests {
   {
     var options = AudioAnalysisService.Options()
     options.enableTrace = enableTrace
+    // Keep the historical A/B controls independent of production defaults.
+    options.useRhythmicRegions = false
+    options.mergeStrategy = .maxConfidence
+    options.votingPolicy = .simpleMajority
     if arm >= 1 {
       options.mergeStrategy = .windowVoting
-      options.votingPolicy = .simpleMajority
     }
     if arm >= 2 { options.useRhythmicRegions = true }
     if arm == 3 { options.useUniformRegionControl = true }

@@ -46,7 +46,7 @@
 //                                      Meta_Man_La_Noche…   99.75%
 //                                      Submerged_Lament    100.18%
 //
-//  KNOWN FAILURES ARE A RATCHET, NOT AN EXCUSE. Four fixtures fail today and are
+//  KNOWN FAILURES ARE A RATCHET, NOT AN EXCUSE. Three fixtures still fail and are
 //  wrapped in `withKnownIssue`. That keeps `make test` green while making the debt
 //  visible in code. Crucially, `withKnownIssue` FAILS IF THE ISSUE STOPS
 //  OCCURRING, so when the octave work in the #167 plan (row 10 / #141) lands, this
@@ -98,6 +98,9 @@ struct AccuracyFloorTests {
     FloorCase(name: "Meta_Man_Είσαι_η_Λύση_", ext: "mp3", trueBPM: 128, knownFailure: nil),
     FloorCase(name: "Quantum_Cascade", ext: "mp3", trueBPM: 170.3, knownFailure: nil),
     FloorCase(name: "robbyt_x-ray-30s", ext: "mp3", trueBPM: 174, knownFailure: nil),
+    // The rhythmic-region default recovers the 120 s cut, previously detected
+    // near 115.6 BPM by the first-transition window path.
+    FloorCase(name: "robbyt_x-ray-120s", ext: "mp3", trueBPM: 174, knownFailure: nil),
 
     // --- Known failures (GH-167 item 5 baseline, 2026-07-24) ---
     //
@@ -116,14 +119,6 @@ struct AccuracyFloorTests {
     FloorCase(
       name: "Submerged_Lament", ext: "mp3", trueBPM: 70,
       knownFailure: "octave-doubled: reports ~140 for a 70 BPM track (2x)"),
-    // Not an octave error: ~115.6 is two-thirds of 174, the 3:2 harmonic relation
-    // `HarmonicRatio.twoThird` already models. The 30 s cut of the same source
-    // track (identical first-30s prefix) resolves correctly at 174.3 (conf 0.92).
-    // That IMPLICATES content after 0:30; it does not prove causation, since the
-    // two cuts also differ in window count and aggregation.
-    FloorCase(
-      name: "robbyt_x-ray-120s", ext: "mp3", trueBPM: 174,
-      knownFailure: "triplet-related: reports ~115.6, two-thirds of 174 (3:2)"),
   ]
 
   /// The floor's own denominator guard (GH-167 item 4's lesson applied to item 5).

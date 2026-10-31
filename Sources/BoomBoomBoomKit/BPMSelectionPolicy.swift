@@ -534,8 +534,12 @@ extension BPMSelectionPolicy {
     // DD #7 / FR-8: empty pool → nil. `merge` already returns nil on empty
     // windowResults; the guard makes the library-safety contract explicit and
     // avoids any precondition-crash path.
+    // Every region row with a BPM contributed exactly one window. When none
+    // did, the pool holds the energy-transition fallback windows, so their
+    // vote is not reported as region agreement.
+    let successfulRegionCount = rhythmicRegions?.filter { $0.bpm != nil }.count ?? 0
     let outcome: MergeOutcome?
-    if rhythmicRegions == nil {
+    if rhythmicRegions == nil || successfulRegionCount == 0 {
       outcome = Self.merge(
         windowResults: pool.dspWindows,
         candidateCount: pool.candidateCount,
@@ -562,7 +566,7 @@ extension BPMSelectionPolicy {
       var trace = merged.trace
       trace?.rhythmicRegionEvidence = RhythmicRegionEvidence(
         regions: rhythmicRegions,
-        successfulRegionCount: pool.dspWindows.count,
+        successfulRegionCount: successfulRegionCount,
         largestAgreementCount: outcome.largestAgreementCount,
         windowVotingRan: outcome.windowVotingRan,
         voteAccepted: outcome.voteAccepted,
