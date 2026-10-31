@@ -490,14 +490,18 @@ final class AnalysisViewModel {
             // library's own decoder so the waveform shares the grid's exact
             // decoded-PCM time origin / sample rate. A fixed-time model ranks
             // crops across the whole uncapped track, so the decode runs to the
-            // end of the last kept crop when one ends past `maxSeconds`.
+            // end of the last kept crop when one ends past `maxSeconds`. That
+            // can be the whole file, so the decode polls the run's cancel
+            // predicate; a cancel throws `CancellationError`, `try?` drops the
+            // waveform, and the cancel-flag check after this task clears the UI.
             let waveformSeconds = BeatGridView.waveformSpanSeconds(
               maxSeconds: optsForDetached.maxSeconds,
               crops: fullAnalysis.bpmAndBeatGrid?.bpm.trace?.mlInputCrops?.keptCrops ?? [])
             var waveform: WaveformData?
             if fullAnalysis.bpmAndBeatGrid?.beatGrid != nil,
               let wf = try? Waveform.decode(
-                url: url, maxSeconds: waveformSeconds, columns: 2000)
+                url: url, maxSeconds: waveformSeconds, columns: 2000,
+                isCancelled: optsForDetached.isCancelled)
             {
               waveform = WaveformData(peaks: wf.peaks, duration: wf.duration)
             }
@@ -531,11 +535,13 @@ final class AnalysisViewModel {
 
       guard self.currentTaskID == taskID else { return }
 
-      // Codex review 019ee763 #3: a user cancel landing DURING/after the
-      // (non-cancellation-polling) waveform decode leaves analyze() already
-      // returned .success, so no CancellationError fires above. Re-check the
-      // cancel flag before committing so a pure cancel never paints a stale
-      // grid; mirror the CancellationError arm's isAnalyzing reset.
+      // A cancel during the waveform decode stops the decode (it polls the
+      // same cancel flag), but the decode's `try?` swallows that
+      // CancellationError and the detached task still returns .success, so
+      // the arm above does not fire. A cancel after the decode also lands
+      // here. Re-check the cancel flag before committing so a cancel never
+      // paints a stale grid; mirror the CancellationError arm's isAnalyzing
+      // reset.
       if cancelFlag.load(ordering: .acquiring) {
         self.isAnalyzing = false
         return
