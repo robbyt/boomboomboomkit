@@ -2379,3 +2379,41 @@ class TestCheckpointResume:
         names = sorted(p.name for p in (tmp_path / "checkpoints").iterdir())
         assert names == ["pretrain-latest.pt"]
         assert store.load("pretrain-latest")["completedEpoch"] == 1
+
+
+class TestExportParity:
+    """NaN compares false against atol, so a NaN parity error must not pass."""
+
+    @pytest.mark.parametrize("diff", [float("nan"), float("inf")])
+    def test_non_finite_diff_refuses(self, diff):
+        from fixed_time.export import ExportRefusal, check_parity
+
+        with pytest.raises(ExportRefusal, match="not finite"):
+            check_parity("Core ML", diff, 1e-3)
+
+    def test_diff_above_atol_refuses(self):
+        from fixed_time.export import ExportRefusal, check_parity
+
+        with pytest.raises(ExportRefusal, match="differs from eager"):
+            check_parity("trace", 2e-3, 1e-3)
+
+    def test_small_finite_diff_passes(self):
+        from fixed_time.export import check_parity
+
+        check_parity("trace", 1e-6, 1e-3)
+
+    def test_non_finite_output_refuses(self):
+        from fixed_time.export import ExportRefusal, check_finite_outputs
+
+        with pytest.raises(ExportRefusal, match="Core ML output"):
+            check_finite_outputs({"eager": np.zeros(3), "Core ML": np.array([0.0, np.nan, 1.0])})
+        check_finite_outputs({"eager": np.zeros(3), "traced": np.ones(3)})
+
+    @pytest.mark.parametrize("atol", [float("nan"), float("inf"), -1.0])
+    def test_invalid_atol_refuses_before_the_checkpoint(self, tmp_path, atol):
+        from fixed_time.export import ExportRefusal, export
+
+        missing = tmp_path / "no-such-run"
+        with pytest.raises(ExportRefusal, match="^atol must be finite"):
+            export(missing, 42, missing / "audio.mp3", atol)
+        assert not missing.exists()

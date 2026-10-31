@@ -9,8 +9,8 @@ named `input` and output `output` (FP32, macOS 15), compiles it with
 Before writing anything it checks the conversion on a real crop: the
 top-ranked crop of a bundled audio fixture (or `--audio`), built with the same
 `fixed_time.features` code that scoring uses. If PyTorch eager and Core ML
-outputs differ by more than `--atol` (1e-3) it refuses and leaves any earlier
-export in place.
+outputs differ by more than `--atol` (1e-3), or either holds a NaN or inf, it
+refuses and leaves any earlier export in place.
 
 The model is never named or exported as `giantsteps_v2_*`.
 
@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -45,6 +46,22 @@ INPUT_SHAPE = (1, 1, ft.N_MELS, ft.CROP_FRAMES)
 
 class ExportRefusal(RuntimeError):
     """The export would produce a model that differs from the checkpoint."""
+
+
+def check_finite_outputs(outputs: dict[str, np.ndarray]) -> None:
+    """Refuse if any compared output holds a NaN or inf."""
+    for label, values in outputs.items():
+        if not np.isfinite(values).all():
+            raise ExportRefusal(f"{label} output contains non-finite values")
+
+
+def check_parity(label: str, diff: float, atol: float) -> None:
+    """Refuse unless `diff` is finite and within `atol`. A NaN diff compares
+    false against any limit, so it is rejected explicitly."""
+    if not math.isfinite(diff):
+        raise ExportRefusal(f"{label} max abs difference from eager is not finite ({diff})")
+    if diff > atol:
+        raise ExportRefusal(f"{label} output differs from eager by {diff:.3e} > {atol}")
 
 
 def load_state(checkpoint: Path):
@@ -81,6 +98,9 @@ def real_crop(audio_path: Path) -> tuple[np.ndarray, dict]:
 
 
 def export(run_dir: Path, seed: int, audio_path: Path, atol: float) -> Path:
+    if not (math.isfinite(atol) and atol >= 0):
+        raise ExportRefusal(f"atol must be finite and >= 0, got {atol}")
+
     import coremltools as ct
     import torch
 
@@ -103,10 +123,10 @@ def export(run_dir: Path, seed: int, audio_path: Path, atol: float) -> Path:
         eager = model(example).numpy()
         traced = torch.jit.trace(model, example)
         traced_out = traced(example).numpy()
+    check_finite_outputs({"eager": eager, "traced": traced_out})
     trace_diff = float(np.abs(eager - traced_out).max())
     print(f"eager vs traced max abs difference: {trace_diff:.3e}")
-    if trace_diff > atol:
-        raise ExportRefusal(f"trace differs from eager by {trace_diff:.3e} > {atol}")
+    check_parity("trace", trace_diff, atol)
 
     mlmodel = ct.convert(
         traced,
@@ -124,13 +144,13 @@ def export(run_dir: Path, seed: int, audio_path: Path, atol: float) -> Path:
         raise ExportRefusal(f"tensor names {in_names} -> {out_names}, expected input -> output")
 
     coreml_out = np.asarray(mlmodel.predict({"input": crop})["output"]).reshape(eager.shape)
+    check_finite_outputs({"Core ML": coreml_out})
     diff = float(np.abs(eager - coreml_out).max())
     print(
         f"eager vs Core ML max abs difference on the crop at {crop_info['startSeconds']:.2f} s "
         f"of {audio_path.name}: {diff:.3e} (limit {atol:g})"
     )
-    if diff > atol:
-        raise ExportRefusal(f"Core ML output differs from eager by {diff:.3e} > {atol}")
+    check_parity("Core ML", diff, atol)
 
     with tempfile.TemporaryDirectory(dir=run_dir, prefix=".fixed-time-export.") as tmp:
         package = Path(tmp) / f"fixed_time_seed_{seed}.mlpackage"
