@@ -259,8 +259,9 @@ public struct LUFSOptions: Sendable {
   ///
   /// SERVICE-LEVEL granularity only: an in-flight measurement runs to
   /// completion (O(n) vDSP passes — same ADR-1 rationale as BPM's
-  /// between-windows-only checks). `PCMBufferReader.readDecodedAudio` does
-  /// not check cancellation.
+  /// between-windows-only checks). The URL path's decode also checks it
+  /// between the reader's 10 s chunks, through
+  /// `PCMBufferReader.readDecodedAudio(from:maxSeconds:isCancelled:)`.
   public var isCancelled: @Sendable () -> Bool = { Task.isCancelled }
 
   /// Creates options with the defaults (full-file analysis).

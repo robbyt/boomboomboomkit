@@ -278,6 +278,27 @@ struct ChunkedReadTests {
     #expect(counter.calls == 0)
   }
 
+  @Test("the public cancellable read throws CancellationError when the closure is true")
+  func publicReadCancels() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    try requireLongerThanTwoChunks(url)
+    // No maxSeconds and no chunkFrames: the public three-argument form.
+    #expect(throws: CancellationError.self) {
+      _ = try PCMBufferReader.readDecodedAudio(from: url, isCancelled: { true })
+    }
+  }
+
+  @Test("the public cancellable read equals the plain read when the closure is false")
+  func publicReadMatchesPlainRead() throws {
+    let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")
+    try requireLongerThanTwoChunks(url)
+    let plain = try PCMBufferReader.readDecodedAudio(from: url)
+    let cancellable = try PCMBufferReader.readDecodedAudio(from: url, isCancelled: { false })
+    #expect(cancellable.sampleRate == plain.sampleRate)
+    #expect(cancellable.samples.count == plain.samples.count)
+    #expect(bits(cancellable.samples) == bits(plain.samples))
+  }
+
   @Test("the service's decode checks Options.isCancelled between chunks")
   func serviceDecodeCancels() throws {
     let url = try AudioFixtures.url(for: "Meta_Man", extension: "mp3")

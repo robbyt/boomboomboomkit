@@ -89,10 +89,10 @@ public struct PCMBufferReader {
   /// Decoding happens exactly once per call (single `AVAudioFile` open, the
   /// same core as ``readMonoSamples(from:maxSeconds:targetSampleRate:)``). A
   /// long file is read in chunks of about 10 s; the samples equal one read of
-  /// the whole span. This method does NOT check cooperative cancellation — it
+  /// the whole span. This method does NOT check cooperative cancellation; it
   /// is a plain throwing reader call, same contract as `readMonoSamples`.
-  /// `AudioAnalysisService` reads through an internal overload that checks its
-  /// ``AudioAnalysisService/Options/isCancelled`` between chunks.
+  /// ``readDecodedAudio(from:maxSeconds:isCancelled:)`` is the same read with
+  /// a cancellation check between chunks.
   ///
   /// Non-finite (NaN/Inf) decoded samples are silently read as 0.0 (GH #122
   /// ingress policy), so a fully corrupt float file reads as silence.
@@ -110,12 +110,39 @@ public struct PCMBufferReader {
     from url: URL,
     maxSeconds: Double? = nil
   ) throws -> FeatureSubstrate.DecodedAudio {
-    try readDecodedAudio(from: url, maxSeconds: maxSeconds, isCancelled: { false })
+    try readDecodedAudio(
+      from: url, maxSeconds: maxSeconds, isCancelled: { false }, chunkFrames: nil)
   }
 
-  /// ``readDecodedAudio(from:maxSeconds:)`` with cancellation: `isCancelled`
-  /// is checked before every read chunk after the first, and `true` throws
-  /// `CancellationError`. A file that fits in one read is never checked.
+  /// ``readDecodedAudio(from:maxSeconds:)`` with cooperative cancellation.
+  /// The file is read in chunks of about 10 s; `isCancelled` is checked
+  /// before every read after the first, and `true` throws
+  /// `CancellationError`. A file of two chunks or less is read in one call
+  /// and never checked. With `isCancelled` always `false`, the result equals
+  /// ``readDecodedAudio(from:maxSeconds:)``. `AudioAnalysisService` reads
+  /// through this path with its `Options.isCancelled`.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
+  ///   - maxSeconds: If provided, only read the first N seconds; sanitized
+  ///     as in ``readDecodedAudio(from:maxSeconds:)``.
+  ///   - isCancelled: Checked between read chunks, never during one.
+  /// - Returns: A ``FeatureSubstrate/DecodedAudio`` carrying the mono
+  ///   samples, the file's native sample rate, and codec/trim provenance.
+  /// - Throws: `CancellationError` when `isCancelled` returns `true`;
+  ///   `PCMBufferReaderError` for file access, format, or read failures.
+  public static func readDecodedAudio(
+    from url: URL,
+    maxSeconds: Double? = nil,
+    isCancelled: @Sendable () -> Bool
+  ) throws -> FeatureSubstrate.DecodedAudio {
+    try readDecodedAudio(
+      from: url, maxSeconds: maxSeconds, isCancelled: isCancelled, chunkFrames: nil)
+  }
+
+  /// ``readDecodedAudio(from:maxSeconds:isCancelled:)`` with a chosen read
+  /// size. `chunkFrames` has no default so the public three-argument call
+  /// never resolves here.
   ///
   /// - Parameter chunkFrames: Frames per read; `nil` is about 10 s of the
   ///   file (``readChunkSeconds``). Tests pass a small value to exercise many
@@ -124,7 +151,7 @@ public struct PCMBufferReader {
     from url: URL,
     maxSeconds: Double?,
     isCancelled: @Sendable () -> Bool,
-    chunkFrames: AVAudioFrameCount? = nil
+    chunkFrames: AVAudioFrameCount?
   ) throws -> FeatureSubstrate.DecodedAudio {
     let file = try openFile(url)
     let codec = codec(forFormatID: file.fileFormat.streamDescription.pointee.mFormatID)

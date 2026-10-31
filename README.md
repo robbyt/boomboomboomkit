@@ -416,6 +416,7 @@ What you need to know about the decoded path:
 - `Options.maxSeconds` / `LUFSOptions.maxSeconds` still apply on the decoded path, as a prefix slice that mirrors the reader's partial-read cap arithmetic bit-for-bit.
 - `DecodedAudio.codecPriming` carries content-true provenance: the codec comes from the encoded on-disk format (an ALAC `.m4a` reads `.alac`, not `.aac`), and `trimState` is honest about priming — `.knownNone` only for linear PCM; `.unknown` for every compressed codec (the decoder either already trimmed declared priming, or a headerless stream leaked it undetectably). Nothing in the analysis pipeline branches on provenance — it is forensic context, not configuration.
 - `analyzeLUFS` (both paths) supports cooperative cancellation via `LUFSOptions.isCancelled`, checked before decode and before measurement; an in-flight measurement runs to completion.
+- `PCMBufferReader.readDecodedAudio(from:maxSeconds:isCancelled:)` is the same decode with a cancellation closure, checked between reads of about 10 s, that throws `CancellationError`. A file of two reads or less is read in one call and never checked. With a closure that returns `false`, the result equals `readDecodedAudio(from:maxSeconds:)`.
 
 ## Beat grid
 
@@ -669,7 +670,7 @@ PCMBufferReader → fan-out → BPMAnalyzer   (mel-spectrogram onset + autocorre
 |------|------|
 | `AudioAnalysisService` | Public facade composing reader + analyzers (`analyzeBPM`, `analyzeLUFS`, `analyzeBeatGrid`, combined `analyze`, and one-decode `analyzeFull`) |
 | `AudioAnalysisResult` | BPM + confidence + candidates + optional trace + optional metadata evidence |
-| `PCMBufferReader` | Audio file → `[Float]` mono samples |
+| `PCMBufferReader` | Audio file → `[Float]` mono samples. `readDecodedAudio(from:maxSeconds:isCancelled:)` checks a cancellation closure between reads of about 10 s |
 | `PCMBufferReaderError` | Error cases for file reading |
 | `AnalysisIntensity` | Controls pipeline depth (1-10 ordinal scale) |
 | `BPMSelectionPolicy` | How multi-window candidates are combined (8 strategies) |
@@ -904,7 +905,7 @@ Per track the technique:
 4. builds each kept crop's log-mel (FFT 2048, hop 441, 128 bands from 30 Hz to 16 kHz, `log(1 + 100 x)`) and z-scores it per band;
 5. runs the model on each kept crop, averages the softmax, and decodes `30 + argmax`.
 
-The decoded BPM is reported raw; the ensemble octave-folds a value outside 60 to 200 BPM into that window. The confidence is the averaged softmax's top probability and is not calibrated. The technique abstains, with the reason on `BPMDiagnosticTrace.mlInputCrops`, when the track is shorter than one crop (`shorter-than-crop`), when every crop scores 0 (`no-rhythmic-crop`), when the 44.1 kHz conversion fails, or when inference fails. `FeatureSubstrate.FixedTimeCrops.build(decoded:isCancelled:)` exposes the same crops and scores without a model. Three steps check `Options.isCancelled` part way through and throw `CancellationError`: the service's read of the whole file (between 10 s chunks), the 44.1 kHz conversion (between 10 s chunks), and the model step (between crops and between inferences). A few linear passes over the whole track run to completion once started, such as clearing non-finite samples, copying the `maxSeconds` prefix, and copying out the converter's output. The public `PCMBufferReader` functions do not take a cancellation closure.
+The decoded BPM is reported raw; the ensemble octave-folds a value outside 60 to 200 BPM into that window. The confidence is the averaged softmax's top probability and is not calibrated. The technique abstains, with the reason on `BPMDiagnosticTrace.mlInputCrops`, when the track is shorter than one crop (`shorter-than-crop`), when every crop scores 0 (`no-rhythmic-crop`), when the 44.1 kHz conversion fails, or when inference fails. `FeatureSubstrate.FixedTimeCrops.build(decoded:isCancelled:)` exposes the same crops and scores without a model. Three steps check `Options.isCancelled` part way through and throw `CancellationError`: the service's read of the whole file (between 10 s chunks), the 44.1 kHz conversion (between 10 s chunks), and the model step (between crops and between inferences). A few linear passes over the whole track run to completion once started, such as clearing non-finite samples, copying the `maxSeconds` prefix, and copying out the converter's output. To read a file yourself with the same chunked check, call `PCMBufferReader.readDecodedAudio(from:maxSeconds:isCancelled:)`; the other public `PCMBufferReader` functions do not take a cancellation closure.
 
 ## Model registry
 

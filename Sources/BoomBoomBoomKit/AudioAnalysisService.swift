@@ -1571,9 +1571,8 @@ public struct AudioAnalysisService {
   /// The ONLY decode entry inside `AudioAnalysisService` (AC1d — grep-locked:
   /// no direct `readMonoSamples` call survives in this file). Checks
   /// cancellation immediately before the decode, decodes exactly once via
-  /// the reader's internal overload of
-  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:)``, which also
-  /// checks `isCancelled` between the 10 s chunks of a long file, and fires the
+  /// ``PCMBufferReader/readDecodedAudio(from:maxSeconds:isCancelled:)``, which
+  /// also checks `isCancelled` between the 10 s chunks of a long file, and fires the
   /// internal `observer` once per actual decode (the AC1 structural-gate
   /// seam — public Options structs are untouched, DD #9).
   static func decodeOnce(
