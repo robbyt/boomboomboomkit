@@ -70,8 +70,7 @@ for signal in signals {
   let decoded = FeatureSubstrate.DecodedAudio(
     samples: samples,
     sampleRate: sampleRate,
-    codecPriming: FeatureSubstrate.PrimingInfo(
-      codec: .wav, leadingTrimFrames: 0, trailingTrimFrames: 0))
+    codecPriming: FeatureSubstrate.PrimingInfo(codec: .linearPCM, trimState: .knownNone))
 
   let onset: FeatureSubstrate.OnsetFeatures
   do {

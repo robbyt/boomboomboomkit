@@ -106,28 +106,48 @@ def pretrain_encoder(
     seed: int,
     mask_ratio: float = DEFAULT_MASK_RATIO,
     span: int = DEFAULT_SPAN,
+    target_frames: int | None = None,
+    on_epoch_start=None,
+    start_epoch: int = 0,
+    on_epoch_end=None,
+    resume_state: dict | None = None,
 ) -> None:
     """Masked-mel pretrain the conv encoder IN PLACE on `model` (block1/2/3 get
-    grads; the head fc1/fc2 are untouched). The decoder is local + discarded."""
+    grads; the head fc1/fc2 are untouched). The decoder is local + discarded.
+
+    `target_frames` is the input width the decoder reconstructs; None keeps the
+    legacy `dataset.TARGET_FRAMES` (512). Story 15.5 passes 1200 for its
+    fixed-time crops. `on_epoch_start` (default None: nothing is called) is
+    called with the epoch index before that epoch's loader iterator starts.
+
+    Resume hooks (defaults keep the legacy behaviour): epochs run from
+    `start_epoch`; `resume_state` (a dict from a previous `on_epoch_end` call)
+    restores the decoder, optimizer and masking-generator state before the first
+    epoch; `on_epoch_end(epoch, state)` receives, after each epoch, that state plus
+    the epoch's mean masked loss. The caller owns the encoder weights, the loader
+    and the process RNG states."""
     import dataset as ds
+
+    frames = ds.TARGET_FRAMES if target_frames is None else int(target_frames)
 
     if not 0.0 <= mask_ratio <= 1.0:
         raise ValueError(f"mask_ratio must be in [0, 1]; got {mask_ratio}")
     if span < 1:
         raise ValueError(f"mask span must be >= 1; got {span}")
-    if span >= ds.TARGET_FRAMES:
+    if span >= frames:
         # A span >= the frame count masks 100% of frames in one placement,
         # silently voiding mask_ratio (the encoder would see all-zero input).
         raise ValueError(
-            f"mask span must be < TARGET_FRAMES ({ds.TARGET_FRAMES}); got {span} — "
+            f"mask span must be < target_frames ({frames}); got {span} — "
             f"a span >= the frame count masks every frame and voids mask_ratio."
         )
 
     model.to(device)  # encoder weights must be on the same device as the batch
-    # Decoder reconstruction shape is the LIVE feature shape (dataset.N_MELS /
-    # TARGET_FRAMES), NOT a hardcoded 512 — so a future TARGET_FRAMES/N_MELS change
-    # cannot silently shape-crash or mis-target the masked-MSE.
-    decoder = MelReconstructionDecoder(n_mels=ds.N_MELS, target_frames=ds.TARGET_FRAMES).to(device)
+    # Decoder reconstruction shape is the LIVE feature shape (dataset.N_MELS x
+    # target_frames, which defaults to dataset.TARGET_FRAMES), NOT a hardcoded 512 —
+    # so a different input width or N_MELS cannot silently shape-crash or mis-target
+    # the masked-MSE.
+    decoder = MelReconstructionDecoder(n_mels=ds.N_MELS, target_frames=frames).to(device)
     enc_params = (
         list(model.block1.parameters())
         + list(model.block2.parameters())
@@ -136,9 +156,15 @@ def pretrain_encoder(
     optimizer = torch.optim.Adam(enc_params + list(decoder.parameters()), lr=1e-3)
     gen = torch.Generator(device="cpu")
     gen.manual_seed(seed)
+    if resume_state is not None:
+        decoder.load_state_dict(resume_state["decoder"])
+        optimizer.load_state_dict(resume_state["optimizer"])
+        gen.set_state(resume_state["maskGenerator"])
     model.train()
     decoder.train()
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
+        if on_epoch_start is not None:
+            on_epoch_start(epoch)
         total, n = 0.0, 0
         for x in loader:
             x = x.to(device, non_blocking=True)
@@ -152,3 +178,13 @@ def pretrain_encoder(
             total += float(loss.item()) * x.shape[0]
             n += x.shape[0]
         print(f"[pretrain] epoch {epoch:03d} | masked-MSE {total / max(n, 1):.5f}")
+        if on_epoch_end is not None:
+            on_epoch_end(
+                epoch,
+                {
+                    "decoder": decoder.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "maskGenerator": gen.get_state(),
+                    "loss": total / max(n, 1),
+                },
+            )

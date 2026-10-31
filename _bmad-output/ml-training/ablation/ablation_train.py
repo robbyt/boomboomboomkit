@@ -112,9 +112,30 @@ def finetune(
     val_records=None,
     feature_path: str = "v1",
     rebalance: bool = False,
+    dataset_factory=None,
+    on_epoch_start=None,
+    start_epoch: int = 0,
+    on_epoch_end=None,
+    resume_state: dict | None = None,
 ) -> FinetuneResult:
     """Supervised fine-tune on Tony strong-only (tony.train/tony.val). Returns the
-    final + best val Acc1 (4% relative) and a per-epoch log."""
+    final + best val Acc1 (4% relative) and a per-epoch log.
+
+    ``dataset_factory`` (default ``LabeledTonyDataset``) builds the train and val
+    sets with the same keyword arguments. Story 15.5 passes its fixed-time crop
+    dataset here so the loop, sampler, optimizer, and schedule stay this one.
+
+    ``on_epoch_start`` (default None: nothing is called) is called with the epoch
+    index before that epoch's training iterator starts, so a dataset whose items
+    depend on the epoch is updated before DataLoader workers copy it.
+
+    Resume hooks (defaults keep the legacy behaviour): epochs run from
+    ``start_epoch``; ``resume_state`` (a dict from a previous ``on_epoch_end``
+    call) restores the optimizer, LR schedule, sampler-generator state, best and
+    final validation Acc1 and the per-epoch log before the first epoch;
+    ``on_epoch_end(epoch, state)`` receives, after each epoch's validation, that
+    state plus the epoch's mean training loss. The caller owns the model weights
+    and the process RNG states."""
     fixture = ds.load_fixture(ds.FIXTURE_PATH)
     if train_records is None:
         train_records = build_labeled_records("train")
@@ -126,7 +147,8 @@ def finetune(
     # keep the full val set as the fixed eval.
     val_records = _subset(val_records, subset)
 
-    train_set = LabeledTonyDataset(
+    make_dataset = dataset_factory or LabeledTonyDataset
+    train_set = make_dataset(
         train_records,
         fixture,
         augment=True,
@@ -137,7 +159,7 @@ def finetune(
     # strict=True: val_acc1 drives best-checkpoint selection, so a decode failure must
     # loud-fail rather than silently substitute another track (Copilot PR #26). train_set
     # stays resilient (default strict=False) — one bad track shouldn't kill a 60-epoch run.
-    val_set = LabeledTonyDataset(
+    val_set = make_dataset(
         val_records,
         fixture,
         augment=False,
@@ -201,8 +223,18 @@ def finetune(
     best_val = 0.0
     final_val = 0.0
     per_epoch: list[dict[str, Any]] = []
-    for epoch in range(epochs):
+    if resume_state is not None:
+        optimizer.load_state_dict(resume_state["optimizer"])
+        scheduler.load_state_dict(resume_state["scheduler"])
+        g.set_state(resume_state["samplerGenerator"])
+        best_val = float(resume_state["bestVal"])
+        final_val = float(resume_state["finalVal"])
+        per_epoch = [dict(e) for e in resume_state["perEpoch"]]
+    for epoch in range(start_epoch, epochs):
+        if on_epoch_start is not None:
+            on_epoch_start(epoch)
         model.train()
+        loss_total, loss_n = 0.0, 0
         for x, y in train_loader:
             x = x.to(device, non_blocking=True)
             # Keep the int64 label tensor on CPU — PyTorch MPS corrupts int64
@@ -216,11 +248,27 @@ def finetune(
             )
             loss.backward()
             optimizer.step()
+            if on_epoch_end is not None:
+                loss_total += float(loss.item()) * x.shape[0]
+                loss_n += x.shape[0]
         scheduler.step()
         final_val = _evaluate(model, val_loader, device)
         best_val = max(best_val, final_val)
         per_epoch.append({"epoch": epoch, "val_acc1": final_val})
         print(f"[finetune] epoch {epoch:03d} | val_acc1 {final_val:.3f}")
+        if on_epoch_end is not None:
+            on_epoch_end(
+                epoch,
+                {
+                    "optimizer": optimizer.state_dict(),
+                    "scheduler": scheduler.state_dict(),
+                    "samplerGenerator": g.get_state(),
+                    "bestVal": best_val,
+                    "finalVal": final_val,
+                    "perEpoch": [dict(e) for e in per_epoch],
+                    "trainLoss": loss_total / max(loss_n, 1),
+                },
+            )
 
     return FinetuneResult(
         val_acc1=final_val, best_val_acc1=best_val, epoch_count=epochs, per_epoch=per_epoch

@@ -18,6 +18,21 @@ Tolerances per spec DD #5 / AC #3 Part B (+ Story 7.5 DD #15):
             (BNNSTechnique.modelInputTensor). This is the FR-21 train/runtime
             seam: the training pipeline consumes feature_substrate_v2, the
             runtime consumes featurize; stage 5 proves they agree.
+  Stage 6 — fixed-time crops [n, 128, 1200] (Story 15.5): the crop plan
+            (1200-frame crops every 600 frames plus a tail crop), per-crop
+            per-band z-score, no resize. abs ≤ 1e-4 OR rel ≤ 1e-3 — vs the
+            `dump-fixed-time-input` Swift dump, on a 20 s 120 BPM click and a
+            40 s click / silence / noisy-drone mix (the 1 s and 5 s signals are
+            shorter than one 12 s crop). Crop start frames must match exactly. Python cuts each crop from PCM
+            (`crop_tensor_at`, what training and scoring use); Swift slices the
+            whole-signal log-mel.
+  Stage 7 — rhythm scores (Story 15.5): the Python port
+            `fixed_time.features.rhythm_score` vs the library's
+            `RhythmicRegionSelector.probeRegions` on each exact 530,807-sample
+            crop slice. abs ≤ 1e-4 OR rel ≤ 1e-3. The full ranking order and
+            the kept crops (`rank_crops`) must also match; on the mix signal at
+            least one crop must have an activity factor below 1, so that term
+            is compared too.
 
 Stages 4 and 5 mask degenerate (near-constant) bands and treat the sine as
 informational (z-score amplifies near-zero-std diffs); the click is the binding
@@ -60,7 +75,13 @@ STAGE_TOLERANCES = {
     # (mel-major + z-score + resample-to-512). 1e-4/1e-3 aligned with stages
     # 3/4 — 1e-6 is unreachable for float STFT/log accumulation (DD #15).
     5: {"abs": 1e-4, "rel": 1e-3},
+    # Stage 6 (Story 15.5): fixed-time crops, same tolerance as stage 5 (DD #15).
+    6: {"abs": 1e-4, "rel": 1e-3},
+    # Stage 7 (Story 15.5): crop rhythm scores, Python port vs Swift.
+    7: {"abs": 1e-4, "rel": 1e-3},
 }
+# The mix must exercise the activity factor below 1 and a clear ranking.
+FIXED_TIME_SIGNALS = {"click_120bpm_20s": False, "rhythm_mix_40s": True}
 
 
 @dataclass
@@ -332,6 +353,122 @@ def stage5_model_input_for_signal(
     return passed
 
 
+def stage6_fixed_time_crops(
+    signal: str, needs_low_activity: bool, fixture, report: list[StageResult]
+) -> bool:
+    """Story 15.5 stages 6 and 7 for one signal — fixed-time crop tensors and crop
+    rhythm scores, Python vs Swift.
+
+    Stage 6: crop start frames must be identical; tensors must agree within
+    tolerance on the active (non-flat) bands of each crop. Stage 7: the ported
+    rhythm score of each exact crop slice against Swift `probeRegions`, the full
+    ranking order and the kept crops, and (when `needs_low_activity`) that some
+    crop's activity factor is below 1.
+    """
+    from fixed_time import features as ft
+
+    def missing(note: str) -> bool:
+        for stage in (6, 7):
+            report.append(
+                StageResult(
+                    name=signal,
+                    stage=stage,
+                    passed=False,
+                    max_abs=float("inf"),
+                    max_rel=float("inf"),
+                    note=note,
+                )
+            )
+        return False
+
+    audio_path = PARITY_SIGNALS_DIR / f"{signal}.f32"
+    manifest_path = SWIFT_STAGES_DIR / f"{signal}_fixed_time.json"
+    if not audio_path.exists() or not manifest_path.exists():
+        return missing(
+            f"MISSING {signal} signal or Swift dump — run "
+            "`cd swift_feature_extractor && swift run dump-fixed-time-input`"
+        )
+    manifest = json.loads(manifest_path.read_text())
+    audio = np.fromfile(audio_path, dtype=np.float32)
+    n_frames = ft.frame_count(audio.shape[0])
+    starts = ft.crop_plan(n_frames)
+    if (
+        starts != manifest["cropStarts"]
+        or n_frames != manifest["frames"]
+        or manifest.get("cropSamples") != ft.CROP_SAMPLES
+    ):
+        return missing(
+            f"crop plan differs: python frames={n_frames} starts={starts} "
+            f"samples={ft.CROP_SAMPLES}, swift frames={manifest['frames']} "
+            f"starts={manifest['cropStarts']} samples={manifest.get('cropSamples')}"
+        )
+    py = np.stack([ft.crop_tensor_at(audio, s, fixture) for s in starts])
+    swift = np.fromfile(SWIFT_STAGES_DIR / manifest["cropsPath"], dtype=np.float32).reshape(
+        py.shape
+    )
+    # Active-band mask per crop from the pre-z-score log-mel crop.
+    log_mel = extract_log_mel(audio, fixture)  # [M, F]
+    active = np.stack(
+        [log_mel[:, s : s + ft.CROP_FRAMES].std(axis=1) >= 1e-3 for s in starts]
+    )  # [n_crops, M]
+    tol = STAGE_TOLERANCES[6]
+    passed6, max_abs, max_rel = compare_within_tol(
+        swift[active], py[active], tol["abs"], tol["rel"]
+    )
+    report.append(
+        StageResult(
+            name=signal,
+            stage=6,
+            passed=passed6,
+            max_abs=max_abs,
+            max_rel=max_rel,
+            note=(
+                f"fixed-time crops {list(py.shape)} at starts {starts}; "
+                f"active_bands={int(active.sum())}/{active.size}; "
+                f"tol abs<={tol['abs']:.0e} rel<={tol['rel']}"
+            ),
+        )
+    )
+
+    parts = [ft.rhythm_score_parts(ft.crop_pcm(audio, s)) for s in starts]
+    py_scores = np.array([p * a for p, a in parts])
+    swift_scores = np.asarray(manifest["rhythmScores"], dtype=np.float64)
+    tol = STAGE_TOLERANCES[7]
+    passed7, max_abs, max_rel = compare_within_tol(swift_scores, py_scores, tol["abs"], tol["rel"])
+
+    def order(scores) -> list[int]:
+        return sorted(starts, key=lambda s: (-scores[starts.index(s)], s))
+
+    py_order, swift_order = order(py_scores), order(swift_scores)
+    py_kept = ft.rank_crops(starts, py_scores.tolist())
+    swift_kept = ft.rank_crops(starts, swift_scores.tolist())
+    min_activity = min((a for _, a in parts if a > 0), default=0.0)
+    problems = []
+    if py_order != swift_order:
+        problems.append(f"ranking differs: python {py_order}, swift {swift_order}")
+    if py_kept != swift_kept:
+        problems.append(f"kept crops differ: python {py_kept}, swift {swift_kept}")
+    if needs_low_activity and not min_activity < 1.0:
+        problems.append("no crop has an activity factor below 1; the fixture does not exercise it")
+    passed7 = passed7 and not problems
+    report.append(
+        StageResult(
+            name=signal,
+            stage=7,
+            passed=passed7,
+            max_abs=max_abs,
+            max_rel=max_rel,
+            note=(
+                f"crop rhythm scores {np.round(py_scores, 6).tolist()} vs Swift probeRegions; "
+                f"ranking {py_order}, kept {py_kept}; min activity {min_activity:.3f}; "
+                f"tol abs<={tol['abs']:.0e} rel<={tol['rel']}"
+                + (f"; {'; '.join(problems)}" if problems else "")
+            ),
+        )
+    )
+    return passed6 and passed7
+
+
 def main() -> int:
     if not FIXTURE_PATH.exists():
         print(f"FIXTURE NOT BUILT: {FIXTURE_PATH}", file=sys.stderr)
@@ -362,12 +499,16 @@ def main() -> int:
         stage5_passed = stage5_model_input_for_signal(signal_name, audio_path, fixture, report)
         overall = overall and stage5_passed
 
+    # Story 15.5 stages 6 and 7 — fixed-time crop and rhythm-score parity on both signals.
+    for signal, needs_low_activity in FIXED_TIME_SIGNALS.items():
+        overall = stage6_fixed_time_crops(signal, needs_low_activity, fixture, report) and overall
+
     # Render report
     lines = []
     lines.append("=" * 78)
     lines.append("Feature pipeline parity harness — Story 4-4b AC #3 Part B")
     lines.append("=" * 78)
-    lines.append(f"Fixture: {FIXTURE_PATH}")
+    lines.append(f"Fixture: {FIXTURE_PATH.relative_to(ML_TRAINING_DIR)}")
     lines.append(f"Fixture sha256: {fixture.sha256}")
     lines.append(f"feature_set_version: {fixture.feature_set_version}")
     lines.append("")

@@ -543,7 +543,7 @@ py-lint:
 	fi; \
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
 	uv run ruff format --check . ../../scripts/ && \
-	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/dawproject-annotations.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py ../../scripts/build-eval-corpus.py corpus_manifests.py
+	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/dawproject-annotations.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py ../../scripts/build-eval-corpus.py corpus_manifests.py fixed_time/__init__.py fixed_time/features.py fixed_time/plan.py fixed_time/checkpoints.py fixed_time/datasets.py fixed_time/train_fixed_time.py fixed_time/score.py fixed_time/report.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -602,13 +602,15 @@ FEATURE_CACHE_DIR ?= /Volumes/ssd-raid/NoTM/tmp/mltraining-feature-cache
 ml-train-deps:
 	cd $(ML_TRAINING_DIR) && uv sync --locked
 
-## ml-dump-fixture: Build feature_pipeline_v1.npz from Swift CLI + Python wrapper
+## ml-dump-fixture: Build feature_pipeline_v1.npz from Swift CLI + Python wrapper, plus the Swift dumps ml-parity compares against (stage 5 model-input tensor; Story 15.5 stages 6 and 7: fixed-time crops, their rhythm scores, and the 20 s click and 40 s mix signals)
 .PHONY: ml-dump-fixture
 ml-dump-fixture:
 	cd $(ML_TRAINING_DIR)/swift_feature_extractor && swift run dump-fixture
+	cd $(ML_TRAINING_DIR)/swift_feature_extractor && swift run dump-model-input
+	cd $(ML_TRAINING_DIR)/swift_feature_extractor && swift run dump-fixed-time-input
 	cd $(ML_TRAINING_DIR) && uv run python build_fixture.py
 
-## ml-parity: Run 4-stage Swift/Python feature-pipeline parity harness
+## ml-parity: Run 7-stage Swift/Python feature-pipeline parity harness
 .PHONY: ml-parity
 ml-parity:
 	cd $(ML_TRAINING_DIR) && uv run python test_feature_parity.py
@@ -1113,6 +1115,77 @@ fr18-evaluate:
 		--runtime-predictions "$(FR18_PRED_DIR)" \
 		--out-dir "$(CURDIR)/_bmad-output/ml-training" \
 		$(FR18_EVAL_ARGS)
+
+# ---------------------------------------------------------------------------
+# Story 15.5: fixed-time ML input ablation (develop-only). One variant model
+# reads fixed 1200-frame (12 s) crops at 0.01 s per frame instead of the
+# analysis window resized to 512 columns, using only each song's at most 4 most
+# rhythmic crops (the library's DSP rhythm score, ported). Trained with the
+# legacy maskedMelPretrain seed-42 recipe and scored against the legacy model
+# and the tempo-CNN reference. Order: preflight, plan, train, score, report.
+# Outputs go to $(FIXED_TIME_RUN_DIR); nothing is named v2. The legacy dumps
+# are gitignored, so FIXED_TIME_LEGACY_ROOT points at the ml-training directory
+# that holds fr18-predictions-191/ and eval-corpus/ (read-only).
+# ---------------------------------------------------------------------------
+FIXED_TIME_RUN_DIR ?= $(CURDIR)/$(ML_TRAINING_DIR)/fixed-time-runs/seed_42
+FIXED_TIME_LEGACY_ROOT ?= $(CURDIR)/$(ML_TRAINING_DIR)
+FIXED_TIME_WORKERS ?= $(TRAIN_WORKERS)
+FIXED_TIME_PREFLIGHT_SUBSET ?= 32
+FIXED_TIME_DEVICE ?= cpu
+# Extra fixed-time-train flags, e.g. FIXED_TIME_TRAIN_ARGS=--overwrite.
+FIXED_TIME_TRAIN_ARGS ?=
+# Extra fixed-time-score flags, e.g. FIXED_TIME_SCORE_ARGS="--corpus oa300".
+FIXED_TIME_SCORE_ARGS ?=
+
+## fixed-time-preflight: Story 15.5 -- check the model and the masked-mel decoder at [N,1,128,1200], report whether the recipe guard would let the full run start, plan crops for FIXED_TIME_PREFLIGHT_SUBSET songs per list in memory, and time one pretraining plus one fine-tuning epoch on them to print a projected full-run time. Writes only preflight.json. Develop-only.
+.PHONY: fixed-time-preflight
+fixed-time-preflight:
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	BBB_PCM_CACHE_DIR="$(PCM_CACHE_DIR)" \
+	BBB_FEATURE_CACHE_DIR="$(FEATURE_CACHE_DIR)" \
+	uv run python -m fixed_time.train_fixed_time --preflight \
+		--preflight-subset $(FIXED_TIME_PREFLIGHT_SUBSET) --num-workers $(FIXED_TIME_WORKERS) \
+		--out-dir "$(abspath $(FIXED_TIME_RUN_DIR))"
+
+## fixed-time-plan: Story 15.5 -- rank every pretraining, tony.train and tony.val song once over its first 120 s with the ported rhythm score and write crop-plan.json to FIXED_TIME_RUN_DIR: each song's kept crops (start frame, start seconds, rhythm score) or why it was skipped, and the crop each song uses in each of the 30 pretraining and 60 fine-tuning epochs plus each validation crop. Run before fixed-time-train. Develop-only.
+.PHONY: fixed-time-plan
+fixed-time-plan:
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	BBB_PCM_CACHE_DIR="$(PCM_CACHE_DIR)" \
+	uv run python -m fixed_time.plan --num-workers $(FIXED_TIME_WORKERS) \
+		--out-dir "$(abspath $(FIXED_TIME_RUN_DIR))"
+
+## fixed-time-train: Story 15.5 -- train the fixed-time variant (30 masked-mel pretraining + 60 fine-tuning epochs, the legacy recipe) under caffeinate, on the crops crop-plan.json assigns. Refuses when the plan is missing or its ranking rule, recipe values or song-list hashes differ from the run's, and unless the split hash and recorded recipe values equal the archived legacy run's; a corpus-hash difference is recorded, not refused. Saves a checkpoint after every epoch to FIXED_TIME_RUN_DIR/checkpoints/ and, when one exists, resumes from the latest automatically (refusing one written under another crop plan or recipe). Pass FIXED_TIME_TRAIN_ARGS=--overwrite to start fresh: the previous run's model.pt, metadata.json, training_log.json and checkpoints/ move to FIXED_TIME_RUN_DIR/_archive/<UTC time>/, so an interrupted replacement run resumes on a plain rerun. Writes model.pt, metadata.json, training_log.json to FIXED_TIME_RUN_DIR. Requires MPS. Develop-only.
+.PHONY: fixed-time-train
+fixed-time-train:
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	BBB_PCM_CACHE_DIR="$(PCM_CACHE_DIR)" \
+	BBB_FEATURE_CACHE_DIR="$(FEATURE_CACHE_DIR)" \
+	PYTHONHASHSEED=42 \
+	caffeinate -i uv run python -m fixed_time.train_fixed_time \
+		--num-workers $(FIXED_TIME_WORKERS) --out-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
+		$(FIXED_TIME_TRAIN_ARGS)
+
+## fixed-time-score: Story 15.5 -- score the variant on three corpora: GiantSteps (661), the 172 locked 12.7 members (read-only; refuses if any audio hash differs from the bundle-gate input) and OA300 (82; refuses naming any audio file missing under OA300_CORPUS_PATH). FIXED_TIME_SCORE_ARGS="--corpus oa300" scores one corpus alone. Whole-file decode, every candidate crop rhythm-scored, at most 4 kept, mean_of_softmax_ranked over the kept crops, raw 30 + argmax decode with inRuntimeRange. Saves each kept crop's start time and softmax. Develop-only.
+.PHONY: fixed-time-score
+fixed-time-score:
+	cd $(ML_TRAINING_DIR) && \
+	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	OA300_CORPUS_PATH="$(abspath $(OA300_CORPUS_PATH))" \
+	uv run python -m fixed_time.score --run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
+		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" --device $(FIXED_TIME_DEVICE) \
+		$(FIXED_TIME_SCORE_ARGS)
+
+## fixed-time-report: Story 15.5 -- paired per-track report (variant vs legacy vs tempo-CNN) by tempo band and error category, plus pretraining-exposure counts and manifest.json. Covers GiantSteps, the 12.7 corpus and OA300 (tempo-CNN not-run on the last two). Writes nothing unless every arm joins exactly with equal labels and legacy still scores 348/661, 124/172 and 43/82 and tempo-CNN 545/661. Develop-only.
+.PHONY: fixed-time-report
+fixed-time-report:
+	cd $(ML_TRAINING_DIR) && \
+	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
+	uv run python -m fixed_time.report --run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
+		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))"
 
 # Story 12.9: private, generation-bound paired DSP versus default DSP+ML gate.
 # The gate input and predictions are gitignored. Four original DnB sentinels
