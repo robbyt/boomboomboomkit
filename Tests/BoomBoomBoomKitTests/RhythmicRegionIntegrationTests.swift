@@ -198,6 +198,54 @@ struct RhythmicRegionIntegrationTests {
     #expect(result == nil)
   }
 
+  @Test("silent intro covering every region falls back to energy-transition windows")
+  func silentIntroFallsBack() throws {
+    // Under 60 seconds the selector places one region at sample 0, which is
+    // silent here. The historical windows find the transition into the tail.
+    let audio = [Float](repeating: 0, count: 30 * 8_000) + clicks(bpm: 120, seconds: 20)
+    let decoded = FeatureSubstrate.DecodedAudio.synthetic(audio, sampleRate: rate)
+    let log = ProgressLog()
+    var settings = options()
+    settings.onProgress = { log.record($0) }
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(decoded: decoded, options: settings))
+
+    var legacySettings = options()
+    legacySettings.useRhythmicRegions = false
+    let legacy = try #require(
+      try AudioAnalysisService.analyzeBPM(decoded: decoded, options: legacySettings))
+    #expect(result.bpm.bitPattern == legacy.bpm.bitPattern)
+    #expect(result.confidence.bitPattern == legacy.confidence.bitPattern)
+    #expect(abs(result.bpm - 120) <= 2.4)
+
+    let evidence = try #require(result.trace?.rhythmicRegionEvidence)
+    #expect(!evidence.regions.isEmpty)
+    #expect(evidence.regions.allSatisfy { $0.bpm == nil })
+    #expect(evidence.successfulRegionCount == 0)
+    #expect(evidence.largestAgreementCount == 0)
+    #expect(!evidence.windowVotingRan)
+    #expect(!evidence.voteAccepted)
+    #expect(evidence.preMetadataBPM == result.bpm)
+
+    // Region progress first, then the fallback windows counting from zero.
+    let regionCount = evidence.regions.count
+    let windowCount = settings.intensity.windowSizes.count
+    #expect(
+      log.values.map(\.windowsCompleted) == Array(0..<regionCount) + Array(0..<windowCount))
+    #expect(
+      log.values.map(\.windowsTotal)
+        == Array(repeating: regionCount, count: regionCount)
+        + Array(repeating: windowCount, count: windowCount))
+  }
+
+  @Test("long all-silent input still returns nil after the fallback")
+  func longSilenceFallsBackToNil() throws {
+    let result = try AudioAnalysisService.analyzeBPM(
+      decoded: .synthetic([Float](repeating: 0, count: 50 * 8_000), sampleRate: rate),
+      options: options())
+    #expect(result == nil)
+  }
+
   @Test("threshold rejection is recorded even when two regions agree")
   func thresholdVoteRejected() throws {
     let results = [

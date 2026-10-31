@@ -104,7 +104,9 @@ does not track tempo changes. The beat grid keeps its separate anchor.
 `intensity` controls the region count and duration even with an explicit
 technique set. Set `enableTrace = true` to inspect
 `trace.rhythmicRegionEvidence`, including selected offsets and the
-pre-metadata vote.
+pre-metadata vote. If no region returns a BPM, as when a long silent intro
+covers every region, the call falls back to the historical energy-transition
+windows and the evidence reports zero successful regions.
 
 To reproduce the historical first-transition result, set **both** options:
 

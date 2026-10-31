@@ -295,6 +295,9 @@ public struct RhythmicRegionResult: Sendable, CustomStringConvertible {
 }
 
 /// Cross-region evidence captured before metadata or ML can change the BPM.
+/// A `successfulRegionCount` of zero means no region returned a BPM and
+/// `preMetadataBPM` came from the energy-transition fallback windows; the
+/// agreement fields are then zero and false.
 public struct RhythmicRegionEvidence: Sendable, CustomStringConvertible {
   public let regions: [RhythmicRegionResult]
   public let successfulRegionCount: Int
