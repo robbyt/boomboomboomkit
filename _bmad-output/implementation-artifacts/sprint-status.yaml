@@ -361,6 +361,7 @@ development_status:
 
   # Epic 15: Rekordbox-informed accuracy improvements (charter only; earlier Epic 15 stories are tracked in their story files).
   15-5-fixed-time-ml-input-ablation: review
+  15-9-matched-evaluation-harness: review
   15-10-beat-grid-analyzed-span-and-grid-queries: done
   15-11-waveform-band-levels: done
   15-12-remove-waveform-analyzer: done

@@ -417,6 +417,17 @@ enum BeatGridAnalyzer {
           accepted: refit.accepted))
     }
 
+    // Story 15.9: report the onset-comb best phase at the grid tempo when, and only
+    // when, a caller has bound `combPhaseObserver`. Reading the task-local is the
+    // only work on the default path; nothing below depends on it.
+    if let observer = combPhaseObserver {
+      observeCombPhase(
+        observer: observer, onsetEnvelope: onsetEnvelope, beatFrames: beatFrames,
+        onsetRate: onsetRate, hopSize: hopSize, sampleRate: sampleRate,
+        windowStartSample: windowStartSample, fftHalfSamples: fftHalfSamples,
+        estimatedTempo: estimatedTempo)
+    }
+
     // Overall confidence: half from mean beat onset salience, half from how strong
     // the autocorrelation is at the tracked period (signal periodicity at tempo).
     let meanStrength = strengthSum / Float(beats.count)
@@ -905,7 +916,88 @@ enum BeatGridAnalyzer {
   /// aligned. The scatter-add over phase bins has no vDSP primitive (like the DP
   /// recurrence above), so it is an explicit control-flow loop.
   private static func combSupport(period: Double, onset: [Float], lo: Int, hi: Int) -> Double {
-    guard period >= 1, hi > lo, lo >= 0, hi < onset.count else { return 0 }
+    combBestPhase(period: period, onset: onset, lo: lo, hi: hi)?.support ?? 0
+  }
+
+  // MARK: - Comb best phase (Story 15.9)
+
+  /// The best phase of the onset-comb fold for one period: the fold that
+  /// ``combSupport(period:onset:lo:hi:)`` scores, with the winning phase bin kept
+  /// instead of discarded (Story 15.9). An internal observation used by evaluation
+  /// tooling to build a grid anchored at this phase.
+  struct CombBestPhase: Sendable, Hashable {
+    /// Envelope frame the fold starts at: phase 0 is this frame.
+    let foldOriginFrame: Int
+    /// Last envelope frame folded (inclusive).
+    let foldEndFrame: Int
+    /// Folded period, in envelope frames.
+    let periodFrames: Double
+    /// Number of sub-frame phase bins across one period.
+    let bins: Int
+    /// Index of the bin with the highest mean onset energy.
+    let bestBin: Int
+    /// That bin's mean onset energy, the value ``combSupport(period:onset:lo:hi:)`` returns.
+    let support: Double
+
+    /// Envelope frame (fractional) of the best phase in the first folded period:
+    /// `foldOriginFrame + bestBin * periodFrames / bins`. Bin `b` collects the frames
+    /// whose phase lies at `b * periodFrames / bins`, split linearly with its neighbours.
+    var phaseFrame: Double {
+      Double(foldOriginFrame) + Double(bestBin) * periodFrames / Double(bins)
+    }
+  }
+
+  /// What ``combPhaseObserver`` receives for one beat grid (Story 15.9).
+  struct CombPhaseObservation: Sendable, Hashable {
+    /// The fold at the grid's tempo over the tracked beats' span.
+    let bestPhase: CombBestPhase
+    /// The grid tempo the fold period was taken from (``BeatGrid/estimatedTempo``
+    /// before any service-level tempo lock).
+    let tempoBPM: Double
+    /// ``CombBestPhase/phaseFrame`` as decoded-PCM seconds under the Story 15.3
+    /// frame-time convention the grid's beats use.
+    let phaseSeconds: Double
+  }
+
+  /// Story 15.9: an internal observation used by evaluation tooling. `nil` (the
+  /// default, and the value on every library path) means nothing is computed; a
+  /// caller binds it with
+  /// `$combPhaseObserver.withValue(_:operation:)` around a call and receives one
+  /// ``CombPhaseObservation`` per beat grid the analyzer builds. It never changes
+  /// an output: the observation is computed from values the grid already holds.
+  @TaskLocal static var combPhaseObserver: (@Sendable (CombPhaseObservation) -> Void)?
+
+  /// Folds the tracked span at the grid tempo and hands the best phase to `observer`.
+  private static func observeCombPhase(  // swiftlint:disable:this function_parameter_count
+    observer: @Sendable (CombPhaseObservation) -> Void,
+    onsetEnvelope: [Float],
+    beatFrames: [Int],
+    onsetRate: Double,
+    hopSize: Int,
+    sampleRate: Double,
+    windowStartSample: Int,
+    fftHalfSamples: Double,
+    estimatedTempo: Double
+  ) {
+    guard let lo = beatFrames.first, let hi = beatFrames.last,
+      estimatedTempo.isFinite, estimatedTempo > 0
+    else { return }
+    let period = onsetRate * 60.0 / estimatedTempo
+    guard let best = combBestPhase(period: period, onset: onsetEnvelope, lo: lo, hi: hi)
+    else { return }
+    let phaseSeconds =
+      (Double(windowStartSample) + (best.phaseFrame + 1) * Double(hopSize) + fftHalfSamples)
+      / sampleRate
+    observer(
+      CombPhaseObservation(
+        bestPhase: best, tempoBPM: estimatedTempo, phaseSeconds: phaseSeconds))
+  }
+
+  /// The fold behind ``combSupport(period:onset:lo:hi:)`` with its best bin kept.
+  /// Returns `nil` where that function returns `0`: a degenerate period or span, or
+  /// no phase bin with positive mean energy.
+  static func combBestPhase(period: Double, onset: [Float], lo: Int, hi: Int) -> CombBestPhase? {
+    guard period >= 1, hi > lo, lo >= 0, hi < onset.count else { return nil }
     let bins = max(8, Int((period * Double(refinePhaseOversample)).rounded()))
     var energy = [Double](repeating: 0, count: bins)
     var weight = [Double](repeating: 0, count: bins)
@@ -926,11 +1018,18 @@ enum BeatGridAnalyzer {
       i += 1
     }
     var best = 0.0
+    var bestBin: Int?
     for b in 0..<bins where weight[b] > 0 {
       let mean = energy[b] / weight[b]
-      if mean > best { best = mean }
+      if mean > best {
+        best = mean
+        bestBin = b
+      }
     }
-    return best
+    guard let bestBin else { return nil }
+    return CombBestPhase(
+      foldOriginFrame: lo, foldEndFrame: hi, periodFrames: period, bins: bins,
+      bestBin: bestBin, support: best)
   }
 
   // MARK: - Shared onset-feature seam (Story 8-2 KDD-C4)

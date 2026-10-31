@@ -107,6 +107,10 @@ _bmad-output/ml-training/fr18-predictions-191/
 # probabilities, per-track scores, the paired report). Regenerable via the
 # fixed-time-* make targets; the report names private 12.7 rows.
 _bmad-output/ml-training/fixed-time-runs/
+# Story 15.9: evaluation run directories (corpus manifest with audio paths and
+# 12.7 row ids, the Swift runner output, per-track rows). Only the aggregate under
+# implementation-artifacts/ is tracked.
+_bmad-output/ml-training/matched-eval-runs/
 # Stale earlier-corpus supervisedAugmented arm (different corpusVersionHash than the
 # current maskedMelPretrain winner; not a matched FR-24 pair). Local-only scratch.
 _bmad-output/ml-training/v2-runs/supervisedAugmented/

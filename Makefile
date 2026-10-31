@@ -543,7 +543,7 @@ py-lint:
 	fi; \
 	cd $(ML_TRAINING_DIR) && uv run ruff check . ../../scripts/ && \
 	uv run ruff format --check . ../../scripts/ && \
-	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/dawproject-annotations.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py ../../scripts/build-eval-corpus.py corpus_manifests.py fixed_time/__init__.py fixed_time/features.py fixed_time/plan.py fixed_time/checkpoints.py fixed_time/datasets.py fixed_time/train_fixed_time.py fixed_time/score.py fixed_time/report.py
+	uv run ty check corpus_common.py corpus_diagnostics.py q9_ratio_cluster.py curate_sentinels.py dataset.py jams_corpus.py migrate-to-jams.py marginal_failure_categorize.py test_recording_components.py feature_substrate_v2.py train_v2_artifacts.py evaluate_fr18.py build_fr18_input.py holdout_gap.py fr24_net_benefit.py epic7_freeze.py post_bundle_watchlist.py eval-beatgrid.py ablation/build_unsupervised_manifest.py ../../scripts/audit-corpus-splits.py ../../scripts/marginal-failure-categorize.py ../../scripts/non-rekordbox-survey.py ../../scripts/sample-giantsteps-holdout.py ../../scripts/rekordbox-beats.py ../../scripts/dawproject-annotations.py ../../scripts/new-case.py ../../scripts/docc-transclude.py ../../scripts/promote-to-main.py ../../scripts/pool-durations.py ../../scripts/repair-mix-manifests.py ../../scripts/build-eval-corpus.py corpus_manifests.py fixed_time/__init__.py fixed_time/features.py fixed_time/plan.py fixed_time/checkpoints.py fixed_time/datasets.py fixed_time/train_fixed_time.py fixed_time/score.py fixed_time/report.py matched_eval/__init__.py matched_eval/corpora.py matched_eval/metrics.py matched_eval/stats.py matched_eval/report.py matched_eval/run.py
 
 ## lint: Run SwiftLint + Python (ruff + ty via py-lint) code quality checks
 .PHONY: lint
@@ -1186,6 +1186,38 @@ fixed-time-report:
 	TONY_AUDIO_ROOT="$(TONY_AUDIO_ROOT)" \
 	uv run python -m fixed_time.report --run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
 		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))"
+
+# ---------------------------------------------------------------------------
+# Story 15.9: evaluation harness (develop-only). Scores the shipped pipeline,
+# the Epic 15 variants (15.7 joint fit, comb best phase, 15.5 fixed-time), the
+# commercial DJ analyzer's recorded OA300 BPMs and each corpus's independent
+# reference on the same audio. The Swift runner lives in the develop-only
+# swift_feature_extractor package; the Python side in matched_eval/. Run
+# directories (gitignored) go under MATCHED_EVAL_RUN_ROOT/<git sha>; the
+# aggregate goes to implementation-artifacts/15-9-matched-eval-<git sha>.{json,md}.
+# FIXED_TIME_RUN_DIR names the 15.5 run whose scores-*.json are read;
+# FIXED_TIME_LEGACY_ROOT names the ml-training directory holding eval-corpus/.
+# ---------------------------------------------------------------------------
+MATCHED_EVAL_RUN_ROOT ?= $(CURDIR)/$(ML_TRAINING_DIR)/matched-eval-runs
+# Run only the first N tracks (a declared subset: the run directory and the
+# aggregate carry a -limit<N> suffix). Empty runs every track.
+MATCHED_EVAL_LIMIT ?=
+
+## matched-eval: Story 15.9 -- build the Swift runner (release, -enable-testing), resolve and hash the corpora (OA300 DAW-verified 22 tracks, the 172 locked 12.7 members read-only and refused on any audio hash change, GiantSteps 661 with a crowdsourced-reference tag, and the twelve Story 15.2 synthetic click clips generated into the run directory with their planted beats as the grid reference), run the shipped pipeline, the 15.7 joint fit at the BPM stage level and the comb best-phase grid per track with runtime and task_info peak memory, join the 15.5 fixed-time scores and the commercial analyzer's recorded OA300 BPMs, and write nine separate metric families per (track, system) to the gitignored run directory plus paired bootstrap intervals and Wilcoxon p-values by tempo band and style tag to implementation-artifacts/15-9-matched-eval-<git sha>.{json,md}. MATCHED_EVAL_LIMIT=N runs the first N tracks as a declared subset. Develop-only; fails loudly on a main-only checkout.
+.PHONY: matched-eval
+matched-eval:
+	@if [ ! -d "$(CURDIR)/$(ML_TRAINING_DIR)" ]; then \
+		echo "ERROR: $(ML_TRAINING_DIR) absent (main-only checkout); matched-eval is develop-only tooling."; \
+		exit 1; \
+	fi
+	cd $(ML_TRAINING_DIR) && \
+	OA300_CORPUS_PATH="$(abspath $(OA300_CORPUS_PATH))" \
+	GIANTSTEPS_CORPUS_PATH="$(abspath $(GIANTSTEPS_CORPUS_PATH))" \
+	uv run python -m matched_eval.run all \
+		--run-root "$(abspath $(MATCHED_EVAL_RUN_ROOT))" \
+		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" \
+		--fixed-time-run-dir "$(abspath $(FIXED_TIME_RUN_DIR))" \
+		$(if $(MATCHED_EVAL_LIMIT),--limit $(MATCHED_EVAL_LIMIT),)
 
 # Story 12.9: private, generation-bound paired DSP versus default DSP+ML gate.
 # The gate input and predictions are gitignored. Four original DnB sentinels

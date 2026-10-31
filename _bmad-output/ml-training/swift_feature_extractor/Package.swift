@@ -32,8 +32,13 @@ let package = Package(
   // back to the repo root (this package sits 3 dirs deeper). dump-fixture
   // intentionally has NO BoomBoomBoomKit dependency — it re-implements DSP
   // line-for-line so the Story 4-4b parity harness can detect Sources/ drift.
+  //
+  // The dependency is named explicitly: a path dependency's identity is otherwise
+  // the last path component, which is the checkout directory's name (a worktree
+  // such as `.claude/worktrees/<branch>`), and `package: "BoomBoomBoomKit"` below
+  // would not resolve there.
   dependencies: [
-    .package(path: "../../..")
+    .package(name: "BoomBoomBoomKit", path: "../../..")
   ],
   targets: [
     .executableTarget(
@@ -94,6 +99,18 @@ let package = Package(
         .product(name: "BoomBoomBoomKitML", package: "BoomBoomBoomKit"),
       ],
       path: "Sources/dump-real-track"
+    ),
+    // matched-eval-run: Story 15.9. Runs the shipped pipeline, the Story 15.7
+    // joint tempo and phase fit, and the comb best-phase re-anchored grid on every
+    // track of an input manifest, with per-pass runtime and task_info peak memory.
+    // Reaches internal types through `@testable import`, so a release build needs
+    // `-Xswiftc -enable-testing`. Driven by `make matched-eval`. Develop-only.
+    .executableTarget(
+      name: "matched-eval-run",
+      dependencies: [
+        .product(name: "BoomBoomBoomKit", package: "BoomBoomBoomKit")
+      ],
+      path: "Sources/matched-eval-run"
     ),
     // bnns-probe: Story 4-5 Task 1.5b + 1.5d verification probe. Loads a
     // .mlmodelc via raw BNNSGraph C API, probes graph.data's malloc zone
