@@ -59,9 +59,17 @@ public facade is ``AudioAnalysisService``; analysis depth is controlled via
 ### ML Augmentation (BYOW)
 
 - ``MLTechnique``
+- ``WholeTrackMLTechnique``
 - ``MLEvaluation``
 - ``EnsemblePolicy``
 - ``EnsembleDecision``
+
+### Fixed-Time Model Input
+
+- ``FeatureSubstrate/FixedTimeCrops``
+- ``FeatureSubstrate/FixedTimeCropSet``
+- ``MLInputCrop``
+- ``MLInputCropEvidence``
 
 ### ML Diagnostics
 

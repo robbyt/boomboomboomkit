@@ -35,9 +35,12 @@ public struct MLEvaluation: Sendable {
 
   /// Estimated tempo in beats per minute.
   ///
-  /// Conformers should clamp predictions to `60.0...200.0` to match the
-  /// DSP pipeline's range-normalized candidate space; the ensemble combiner
-  /// octave-folds a finite out-of-range value into that window (240 → 120).
+  /// A finite value outside `60.0...200.0` (the DSP pipeline's
+  /// range-normalized candidate space) is octave-folded into that window by
+  /// the ensemble combiner (240 → 120). Conformers may therefore either keep
+  /// the estimate inside `60.0...200.0` themselves, clamping or abstaining
+  /// as ``BNNSTechnique`` abstains on an out-of-range decode, or return the
+  /// raw decode and rely on the fold, as `FixedTimeTechnique` does.
   /// A value of `0` (or any non-finite) is undefined — non-finite values
   /// are rejected by the combiner as a sentinel abstain; return `nil` from
   /// ``MLTechnique/evaluate(trace:)`` instead.
@@ -66,9 +69,10 @@ public struct MLEvaluation: Sendable {
   /// Creates an immutable ML evaluation record.
   ///
   /// - Parameters:
-  ///   - bpm: The model's tempo estimate. Conformers should clamp to `60.0...200.0`;
-  ///     a finite out-of-range value is octave-folded into that window by the
-  ///     ensemble combiner (240 → 120), and non-finite values are rejected as a
+  ///   - bpm: The model's tempo estimate, either kept inside `60.0...200.0` by
+  ///     the conformer or returned raw; a finite out-of-range value is
+  ///     octave-folded into that window by the ensemble combiner (240 → 120),
+  ///     and non-finite values are rejected as a
   ///     sentinel abstain (``EnsembleDecision/AbstainKind/nonFiniteBPM``).
   ///   - confidence: The model's self-reported confidence in `[0.0, 1.0]`.
   ///     Out-of-range and non-finite values are sanitized downstream — see
@@ -141,6 +145,68 @@ public protocol MLTechnique: Sendable {
   ///   MLX (Apple Silicon), MPS Graph, or pure Swift inference. The
   ///   library does not constrain the choice.
   func evaluate(trace: BPMDiagnosticTrace) -> MLEvaluation?
+}
+
+// MARK: - WholeTrackMLTechnique
+
+/// An ``MLTechnique`` that reads the whole decoded track rather than the
+/// analysis window's log-mel on the trace.
+///
+/// ``MLTechnique/evaluate(trace:)`` sees only the features of the window the
+/// DSP pipeline analyzed. A model that chooses its own input from the whole
+/// track, such as `FixedTimeTechnique` (12 s crops ranked by rhythm score),
+/// adopts this protocol instead. When ``AudioAnalysisService/Options/mlTechnique``
+/// conforms and the ensemble policy invokes ML, the service calls
+/// ``evaluate(trace:audio:isCancelled:)`` with the decoded track and uses its evaluation
+/// exactly as it would use ``MLTechnique/evaluate(trace:)``'s: the result
+/// votes in the ensemble under the selected ``EnsemblePolicy``.
+///
+/// Every entry point passes the whole decoded file, whatever
+/// ``AudioAnalysisService/Options/maxSeconds`` is: the URL paths decode the
+/// file uncapped once when such a technique is attached and the policy
+/// invokes ML, and the decoded paths pass the caller's full decode. The DSP,
+/// beat-grid and loudness passes still read only their `maxSeconds` prefix.
+///
+/// With ``AudioAnalysisService/Options/enableMLDiagnostics`` set, the
+/// service writes `crops` to ``BPMDiagnosticTrace/mlInputCrops`` and
+/// `snapshot` to ``BPMDiagnosticTrace/mlDiagnosticSnapshot``.
+///
+/// Cancellation: the service passes its
+/// ``AudioAnalysisService/Options/isCancelled``, wrapped so that once it
+/// returns `true` it keeps returning `true`. A conformer checks it between
+/// its long steps and, once it returns `true`, may stop and return anything
+/// (`(nil, nil, nil)` is enough): the service checks the same wrapped
+/// closure after the call, throws `CancellationError`, and discards the
+/// result. What can be stopped part way: the whole-file read and the
+/// 44.1 kHz conversion (checked between 10 s chunks), and the model step
+/// (checked between crops and between inferences). A few linear passes over
+/// the whole track run to completion once started, such as clearing
+/// non-finite samples, copying the `maxSeconds` prefix, and copying out the
+/// converter's output. The public ``PCMBufferReader`` functions take no
+/// cancellation closure.
+public protocol WholeTrackMLTechnique: MLTechnique {
+
+  /// Evaluates the whole decoded track.
+  ///
+  /// - Parameters:
+  ///   - trace: The diagnostic trace from the just-completed merge step,
+  ///     as passed to ``MLTechnique/evaluate(trace:)``.
+  ///   - audio: The decoded mono track at its own sample rate.
+  ///   - isCancelled: The service's cancellation check. Call it between
+  ///     long steps and stop once it returns `true`.
+  /// - Returns:
+  ///   - `evaluation`: the model's estimate, or `nil` when it abstained.
+  ///   - `crops`: the input the model chose from the track, or the reason it
+  ///     abstained. `nil` when the conformer has nothing to report.
+  ///   - `snapshot`: per-call numeric diagnostics, as
+  ///     ``MLDiagnosticTechnique/evaluateWithDiagnostic(trace:)`` returns
+  ///     them; `nil` when no model input was built.
+  func evaluate(
+    trace: BPMDiagnosticTrace, audio: FeatureSubstrate.DecodedAudio,
+    isCancelled: @Sendable () -> Bool
+  ) -> (
+    evaluation: MLEvaluation?, crops: MLInputCropEvidence?, snapshot: MLDiagnosticSnapshot?
+  )
 }
 
 // MARK: - MLTechniqueError

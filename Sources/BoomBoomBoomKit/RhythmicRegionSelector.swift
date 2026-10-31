@@ -61,7 +61,11 @@ enum RhythmicRegionSelector {
     }
   }
 
-  private static func score(
+  /// The rhythm score of `samples[start ..< start + count]`: onset
+  /// autocorrelation over lags for 60 to 200 BPM times an activity factor.
+  /// Internal so ``FeatureSubstrate/FixedTimeCrops`` ranks its crops with this
+  /// one implementation rather than a copy.
+  static func score(
     samples: [Float], start: Int, count: Int, sampleRate: Double
   ) -> Float {
     let binSize = max(1, Int(sampleRate / 100))

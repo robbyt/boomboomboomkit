@@ -204,7 +204,10 @@ public struct BPMDiagnosticTrace: Sendable {
   ///    conforms to ``MLDiagnosticTechnique`` (consumer-supplied plain
   ///    ``MLTechnique`` wrappers without the diagnostic conformance fall
   ///    back to ``MLTechnique/evaluate(trace:)`` and leave this nil — the
-  ///    documented `wontfix pre-1.0` consumer-wrapper limitation).
+  ///    documented `wontfix pre-1.0` consumer-wrapper limitation), OR
+  ///    conforms to ``WholeTrackMLTechnique``, whose
+  ///    ``WholeTrackMLTechnique/evaluate(trace:audio:isCancelled:)`` returns the
+  ///    snapshot instead.
   /// 2. ``AudioAnalysisService/Options/ensemblePolicy`` is not
   ///    ``EnsemblePolicy/dspOnly`` (DSP-only short-circuits before the ML
   ///    helper runs at all).
@@ -267,6 +270,24 @@ public struct BPMDiagnosticTrace: Sendable {
   /// See ``MLFeatureFrames`` for the typed-evidence shape + semantic
   /// metadata that disambiguates the tensor's contract.
   public var mlFeatures: MLFeatureFrames?
+
+  // MARK: - ML input crops (whole-track ML techniques)
+
+  /// The crops a ``WholeTrackMLTechnique`` (such as `FixedTimeTechnique`)
+  /// scored and kept, or why it abstained.
+  ///
+  /// Populated only when ``AudioAnalysisService/Options/enableMLDiagnostics``
+  /// is `true` AND ``AudioAnalysisService/Options/mlTechnique`` conforms to
+  /// ``WholeTrackMLTechnique`` AND the ensemble policy invokes ML
+  /// (``EnsemblePolicy/invokesMLInference``). Nil when ML did not run, when
+  /// the technique is not a whole-track technique, or when diagnostics are
+  /// off. When the technique abstained, the evidence is non-nil and
+  /// ``MLInputCropEvidence/abstainReason`` names why; ``MLInputCropEvidence/keptCrops``
+  /// is then empty.
+  ///
+  /// As with every trace field, ``AudioAnalysisService/Options/enableTrace``
+  /// still decides whether the trace reaches the caller at all.
+  public var mlInputCrops: MLInputCropEvidence?
 
   // MARK: - Story 6.1: Unified Signal Pool (SignalParticipationTraceEntry lives in SignalPool/)
 
@@ -655,5 +676,75 @@ public struct SubBandEnergies: Sendable, CustomStringConvertible, Equatable {
   /// Compact textual representation: `SubBandEnergies(kick: …, snare: …, crack: …, hihat: …)`.
   public var description: String {
     "SubBandEnergies(kick: \(kick), snare: \(snare), crack: \(crack), hihat: \(hihat))"
+  }
+}
+
+// MARK: - ML input crops (whole-track ML techniques)
+
+/// One fixed-time crop of the decoded track: where it starts, how long it is,
+/// and its rhythm score. Carried by ``MLInputCropEvidence`` and by
+/// ``FeatureSubstrate/FixedTimeCropSet``.
+///
+/// `startFrame` counts 10 ms log-mel frames at 44.1 kHz (441 samples per
+/// frame); `startSeconds` is the same position in seconds of audio.
+public struct MLInputCrop: Sendable, Hashable, CustomStringConvertible {
+  /// First log-mel frame of the crop.
+  public let startFrame: Int
+  /// Start of the crop in seconds from the start of the decoded audio.
+  public let startSeconds: Double
+  /// Length of the audio the crop covers, in seconds.
+  public let durationSeconds: Double
+  /// The rhythm score of the crop's own samples (onset autocorrelation over
+  /// 60 to 200 BPM times an activity factor). `0` means no usable rhythm.
+  public let rhythmScore: Float
+
+  public init(startFrame: Int, startSeconds: Double, durationSeconds: Double, rhythmScore: Float) {
+    self.startFrame = startFrame
+    self.startSeconds = startSeconds
+    self.durationSeconds = durationSeconds
+    self.rhythmScore = rhythmScore
+  }
+
+  public var description: String {
+    "MLInputCrop(startFrame: \(startFrame), startSeconds: \(startSeconds), "
+      + "durationSeconds: \(durationSeconds), rhythmScore: \(rhythmScore))"
+  }
+}
+
+/// The crops a ``WholeTrackMLTechnique`` scored and kept for one track, or the
+/// reason it abstained. Emitted on ``BPMDiagnosticTrace/mlInputCrops``.
+public struct MLInputCropEvidence: Sendable, CustomStringConvertible {
+
+  /// Why a whole-track technique returned no evaluation.
+  public enum AbstainReason: String, Sendable, Hashable, CaseIterable {
+    /// The track is shorter than one crop (12.04 s at 44.1 kHz).
+    case shorterThanCrop = "shorter-than-crop"
+    /// Every candidate crop scored 0 on the rhythm score.
+    case noRhythmicCrop = "no-rhythmic-crop"
+    /// Converting the decoded audio to 44.1 kHz failed.
+    case conversionFailed = "conversion-failed"
+    /// The model could not run on a kept crop, or returned non-finite output.
+    case inferenceFailed = "inference-failed"
+  }
+
+  /// Every candidate crop in time order, with its rhythm score.
+  public let candidates: [MLInputCrop]
+  /// The kept crops in rank order (best first). Empty when the technique
+  /// abstained.
+  public let keptCrops: [MLInputCrop]
+  /// Why the technique abstained, or `nil` when it produced an evaluation.
+  public let abstainReason: AbstainReason?
+
+  public init(
+    candidates: [MLInputCrop], keptCrops: [MLInputCrop], abstainReason: AbstainReason?
+  ) {
+    self.candidates = candidates
+    self.keptCrops = keptCrops
+    self.abstainReason = abstainReason
+  }
+
+  public var description: String {
+    "MLInputCropEvidence(candidates: \(candidates.count), kept: \(keptCrops), "
+      + "abstainReason: \(abstainReason?.rawValue ?? "nil"))"
   }
 }

@@ -1,21 +1,21 @@
 //
 //  dump-fixed-time-input — Story 15.5.
 //
-//  Develop-only Swift CLI. Mirrors the fixed-time crop preprocessing in Swift so
-//  the Python harness (`fixed_time/features.py`) can be checked against it:
+//  Develop-only Swift CLI. Dumps the library's fixed-time crop preprocessing
+//  (`FeatureSubstrate.FixedTimeCrops`, the public API `FixedTimeTechnique`
+//  runs) so the Python harness (`fixed_time/features.py`) is checked against
+//  the code the runtime ships:
 //
-//    log-mel from the real substrate (`OnsetFeaturesBuilder.build(.uniform)`,
-//    single-sourced from BoomBoomBoomKit), then the crop plan (1200-frame crops
-//    every 600 frames, plus one tail crop ending on the last frame when the
-//    regular crops stop short), then per crop a mel-major transpose and the
-//    per-band population z-score with `vDSP_normalize` (a band whose std is 0
-//    or not finite is zeroed, as `BNNSTechnique.featurize` does). No resize.
+//    the crop plan (`candidateStarts`: 1200-frame crops every 600 frames, plus
+//    one tail crop ending on the last frame when the regular crops stop short),
+//    then per candidate crop `cropTensor`: the substrate log-mel of the crop's
+//    own 530,807 samples, transposed to mel-major and z-scored per band with
+//    `vDSP_normalize` (a band whose std is 0 or not finite is zeroed). No
+//    resize.
 //
-//  It also records the library's rhythm score for each crop, the score the
-//  Python harness ports to rank crops: each exact 530,807-sample crop slice is
-//  passed to `RhythmicRegionSelector.probeRegions` (internal, reached through
-//  `@testable import` in a debug build) with a duration covering the whole
-//  slice, and the returned single region must start at 0 and span the slice.
+//  It also records the library's rhythm score for each crop (`rhythmScore`,
+//  which calls the analyzer's `RhythmicRegionSelector` score on the crop's
+//  own samples), the score the Python harness ports to rank crops.
 //
 //  The existing parity signals (1 s, 5 s) are shorter than one 12 s crop, so this
 //  tool writes two signals to ../parity_signals/:
@@ -39,18 +39,14 @@
 //  per-crop rhythm scores).
 //
 
-import Accelerate
+import BoomBoomBoomKit
 import Foundation
 
-@testable import BoomBoomBoomKit
+typealias Crops = FeatureSubstrate.FixedTimeCrops
 
-let sampleRate: Double = 44_100
-let melBandsExpected = 128
-let hopSamples = 441
-let fftSize = 2048
-let cropFrames = 1200
-let cropHopFrames = 600
-let cropSamples = (cropFrames - 1) * hopSamples + fftSize  // 530,807
+let sampleRate = Crops.sampleRate
+let cropFrames = Crops.cropFrames
+let cropSamples = Crops.cropSamples  // 530,807
 
 func fail(_ message: String) -> Never {
   FileHandle.standardError.write(Data("dump-fixed-time-input: \(message)\n".utf8))
@@ -107,45 +103,6 @@ func generateRhythmMix() -> [Float] {
   return samples
 }
 
-/// Start frames: every 600 frames while a crop fits, plus one tail crop ending
-/// on the last frame when the regular crops stop short. Empty below 1200 frames.
-func cropPlan(frames: Int) -> [Int] {
-  guard frames >= cropFrames else { return [] }
-  var starts = Array(stride(from: 0, through: frames - cropFrames, by: cropHopFrames))
-  if let last = starts.last, last + cropFrames < frames {
-    starts.append(frames - cropFrames)
-  }
-  return starts
-}
-
-/// One crop: frame-major `[frame * M + mel]` source -> mel-major `[M, 1200]`,
-/// z-scored per band.
-func zscoredCrop(frameMajor: [Float], melBands: Int, start: Int) -> [Float] {
-  var melMajor = [Float](repeating: 0, count: melBands * cropFrames)
-  frameMajor.withUnsafeBufferPointer { src in
-    melMajor.withUnsafeMutableBufferPointer { dst in
-      guard let srcBase = src.baseAddress, let dstBase = dst.baseAddress else { return }
-      // The crop's frames are contiguous in the frame-major source.
-      vDSP_mtrans(
-        srcBase + start * melBands, 1, dstBase, 1,
-        vDSP_Length(melBands), vDSP_Length(cropFrames))
-    }
-  }
-  melMajor.withUnsafeMutableBufferPointer { buf in
-    guard let base = buf.baseAddress else { return }
-    var mean: Float = 0
-    var stddev: Float = 0
-    for mel in 0..<melBands {
-      let row = base + mel * cropFrames
-      vDSP_normalize(row, 1, row, 1, &mean, &stddev, vDSP_Length(cropFrames))
-      if stddev == 0 || !stddev.isFinite {
-        vDSP_vclr(row, 1, vDSP_Length(cropFrames))
-      }
-    }
-  }
-  return melMajor
-}
-
 let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let paritySignalsDir = cwd.appendingPathComponent("../parity_signals")
 let stagesDir = cwd.appendingPathComponent("out/swift_stages")
@@ -156,79 +113,38 @@ func dump(signalName: String, signal: [Float]) throws {
   let signalURL = paritySignalsDir.appendingPathComponent("\(signalName).f32")
   try writeFloats(signal, to: signalURL)
 
-  let decoded = FeatureSubstrate.DecodedAudio(
-    samples: signal,
-    sampleRate: sampleRate,
-    codecPriming: FeatureSubstrate.PrimingInfo(codec: .linearPCM, trimState: .knownNone))
-
-  let onset: FeatureSubstrate.OnsetFeatures
-  do {
-    onset = try FeatureSubstrate.OnsetFeaturesBuilder.build(decoded: decoded, weighting: .uniform)
-  } catch {
-    fail("OnsetFeaturesBuilder.build failed: \(error)")
-  }
-  guard onset.melBands == melBandsExpected else {
-    fail("substrate emitted \(onset.melBands) mel bands, expected \(melBandsExpected)")
-  }
-  guard onset.tensorLayout == .frameMajorLogMel else {
-    fail("substrate layout \(onset.tensorLayout), expected frameMajorLogMel")
-  }
-  guard onset.parameters.hopSize == 441, onset.parameters.fftSize == 2048 else {
-    fail(
-      "substrate hop/fft \(onset.parameters.hopSize)/\(onset.parameters.fftSize), "
-        + "the fixed-time contract needs 441/2048")
-  }
-
-  let starts = cropPlan(frames: onset.frames)
+  let frames = Crops.frameCount(sampleCount: signal.count)
+  let starts = Crops.candidateStarts(frameCount: frames)
   guard !starts.isEmpty else {
-    fail("\(signalName) has \(onset.frames) frames, fewer than one \(cropFrames)-frame crop")
+    fail("\(signalName) has \(frames) frames, fewer than one \(cropFrames)-frame crop")
   }
   var crops: [Float] = []
-  crops.reserveCapacity(starts.count * onset.melBands * cropFrames)
+  crops.reserveCapacity(starts.count * Crops.melBands * cropFrames)
   for start in starts {
-    crops.append(
-      contentsOf: zscoredCrop(frameMajor: onset.logMelData, melBands: onset.melBands, start: start))
-  }
-
-  /// The library's rhythm score of one exact crop slice, through `probeRegions`.
-  func rhythmScore(start: Int) -> Float {
-    let begin = start * hopSamples
-    guard begin + cropSamples <= signal.count else {
-      fail("crop at frame \(start) overruns the \(signal.count)-sample signal")
+    do {
+      crops.append(contentsOf: try Crops.cropTensor(samples: signal, startFrame: start))
+    } catch {
+      fail("cropTensor at frame \(start) failed: \(error)")
     }
-    let slice = Array(signal[begin..<(begin + cropSamples)])
-    // A duration longer than the slice: probeRegions caps the span at the slice.
-    let regions = RhythmicRegionSelector.probeRegions(
-      samples: slice, sampleRate: sampleRate,
-      durationSeconds: Double(cropSamples) / sampleRate + 1)
-    guard regions.count == 1, regions[0].startSample == 0,
-      regions[0].sampleCount == cropSamples
-    else {
-      fail(
-        "probeRegions on a \(cropSamples)-sample slice returned "
-          + "\(regions.map { ($0.startSample, $0.sampleCount) }), expected one region (0, \(cropSamples))"
-      )
-    }
-    return regions[0].rhythmScore
   }
-  let rhythmScores = starts.map { Double(rhythmScore(start: $0)) }
+  let rhythmScores = starts.map { Double(Crops.rhythmScore(samples: signal, startFrame: $0)) }
 
   let cropsURL = stagesDir.appendingPathComponent("\(signalName)_fixed_time_crops.f32")
   try writeFloats(crops, to: cropsURL)
   let manifest: [String: Any] = [
     "signal": "\(signalName).f32",
     "samples": signal.count,
-    "frames": onset.frames,
-    "melBands": onset.melBands,
+    "frames": frames,
+    "melBands": Crops.melBands,
     "cropFrames": cropFrames,
-    "cropHopFrames": cropHopFrames,
+    "cropHopFrames": Crops.cropHopFrames,
     "cropStarts": starts,
     "cropSamples": cropSamples,
     "rhythmScores": rhythmScores,
-    "rhythmScoreSource": "RhythmicRegionSelector.probeRegions on each exact crop slice",
+    "rhythmScoreSource": "FeatureSubstrate.FixedTimeCrops.rhythmScore on each crop",
     "cropsPath": cropsURL.lastPathComponent,
     "layout": "[n_crops, mel, frame] float32 row-major, z-scored per crop per band",
-    "featureSetVersion": onset.featureSetVersion,
+    "featureSetVersion": MLFeatureFrames.currentFeatureSetVersion,
   ]
   let manifestURL = stagesDir.appendingPathComponent("\(signalName)_fixed_time.json")
   let json = try JSONSerialization.data(
@@ -236,7 +152,7 @@ func dump(signalName: String, signal: [Float]) throws {
   try json.write(to: manifestURL)
 
   print(
-    "\(signalName): \(signal.count) samples, \(onset.frames) frames -> crops at \(starts) "
+    "\(signalName): \(signal.count) samples, \(frames) frames -> crops at \(starts) "
       + "-> \(cropsURL.lastPathComponent); rhythm scores \(rhythmScores)")
 }
 

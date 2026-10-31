@@ -24,12 +24,13 @@ Tolerances per spec DD #5 / AC #3 Part B (+ Story 7.5 DD #15):
             `dump-fixed-time-input` Swift dump, on a 20 s 120 BPM click and a
             40 s click / silence / noisy-drone mix (the 1 s and 5 s signals are
             shorter than one 12 s crop). Crop start frames must match exactly. Python cuts each crop from PCM
-            (`crop_tensor_at`, what training and scoring use); Swift slices the
-            whole-signal log-mel.
+            (`crop_tensor_at`, what training and scoring use); Swift runs the
+            library's `FeatureSubstrate.FixedTimeCrops.cropTensor`, which also
+            cuts each crop from PCM.
   Stage 7 — rhythm scores (Story 15.5): the Python port
             `fixed_time.features.rhythm_score` vs the library's
-            `RhythmicRegionSelector.probeRegions` on each exact 530,807-sample
-            crop slice. abs ≤ 1e-4 OR rel ≤ 1e-3. The full ranking order and
+            `FeatureSubstrate.FixedTimeCrops.rhythmScore` (the
+            `RhythmicRegionSelector` score) on each exact 530,807-sample crop. abs ≤ 1e-4 OR rel ≤ 1e-3. The full ranking order and
             the kept crops (`rank_crops`) must also match; on the mix signal at
             least one crop must have an activity factor below 1, so that term
             is compared too.
@@ -361,7 +362,7 @@ def stage6_fixed_time_crops(
 
     Stage 6: crop start frames must be identical; tensors must agree within
     tolerance on the active (non-flat) bands of each crop. Stage 7: the ported
-    rhythm score of each exact crop slice against Swift `probeRegions`, the full
+    rhythm score of each exact crop slice against Swift `FixedTimeCrops.rhythmScore`, the full
     ranking order and the kept crops, and (when `needs_low_activity`) that some
     crop's activity factor is below 1.
     """
@@ -459,7 +460,7 @@ def stage6_fixed_time_crops(
             max_abs=max_abs,
             max_rel=max_rel,
             note=(
-                f"crop rhythm scores {np.round(py_scores, 6).tolist()} vs Swift probeRegions; "
+                f"crop rhythm scores {np.round(py_scores, 6).tolist()} vs Swift FixedTimeCrops.rhythmScore; "
                 f"ranking {py_order}, kept {py_kept}; min activity {min_activity:.3f}; "
                 f"tol abs<={tol['abs']:.0e} rel<={tol['rel']}"
                 + (f"; {'; '.join(problems)}" if problems else "")

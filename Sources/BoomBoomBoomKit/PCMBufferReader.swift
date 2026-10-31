@@ -68,7 +68,8 @@ public struct PCMBufferReader {
   ) throws -> (samples: [Float], sampleRate: Double) {
     try readMonoSamples(
       file: try openFile(url), url: url,
-      maxSeconds: sanitizedMaxSeconds(maxSeconds), targetSampleRate: targetSampleRate)
+      maxSeconds: sanitizedMaxSeconds(maxSeconds), targetSampleRate: targetSampleRate,
+      isCancelled: { false }, chunkFrames: nil)
   }
 
   /// Reads an audio file into the ``FeatureSubstrate/DecodedAudio`` carrier:
@@ -85,11 +86,13 @@ public struct PCMBufferReader {
   /// codec ("trim already applied by the decoder, or leaked undetectably —
   /// caller must not assume either").
   ///
-  /// Decoding happens exactly once per call (single `AVAudioFile` open,
-  /// single PCM read — same core as ``readMonoSamples(from:maxSeconds:targetSampleRate:)``).
-  /// This method does NOT check cooperative cancellation — it is a plain
-  /// throwing reader call, same contract as `readMonoSamples`; cancellation
-  /// checkpoints live in `AudioAnalysisService`.
+  /// Decoding happens exactly once per call (single `AVAudioFile` open, the
+  /// same core as ``readMonoSamples(from:maxSeconds:targetSampleRate:)``). A
+  /// long file is read in chunks of about 10 s; the samples equal one read of
+  /// the whole span. This method does NOT check cooperative cancellation; it
+  /// is a plain throwing reader call, same contract as `readMonoSamples`.
+  /// ``readDecodedAudio(from:maxSeconds:isCancelled:)`` is the same read with
+  /// a cancellation check between chunks.
   ///
   /// Non-finite (NaN/Inf) decoded samples are silently read as 0.0 (GH #122
   /// ingress policy), so a fully corrupt float file reads as silence.
@@ -107,11 +110,55 @@ public struct PCMBufferReader {
     from url: URL,
     maxSeconds: Double? = nil
   ) throws -> FeatureSubstrate.DecodedAudio {
+    try readDecodedAudio(
+      from: url, maxSeconds: maxSeconds, isCancelled: { false }, chunkFrames: nil)
+  }
+
+  /// ``readDecodedAudio(from:maxSeconds:)`` with cooperative cancellation.
+  /// The file is read in chunks of about 10 s; `isCancelled` is checked
+  /// before every read after the first, and `true` throws
+  /// `CancellationError`. A file of two chunks or less is read in one call
+  /// and never checked. With `isCancelled` always `false`, the result equals
+  /// ``readDecodedAudio(from:maxSeconds:)``. `AudioAnalysisService` reads
+  /// through this path with its `Options.isCancelled`.
+  ///
+  /// - Parameters:
+  ///   - url: Path to the audio file (WAV, AIFF, MP3, FLAC, M4A, CAF, etc.)
+  ///   - maxSeconds: If provided, only read the first N seconds; sanitized
+  ///     as in ``readDecodedAudio(from:maxSeconds:)``.
+  ///   - isCancelled: Checked between read chunks, never during one.
+  /// - Returns: A ``FeatureSubstrate/DecodedAudio`` carrying the mono
+  ///   samples, the file's native sample rate, and codec/trim provenance.
+  /// - Throws: `CancellationError` when `isCancelled` returns `true`;
+  ///   `PCMBufferReaderError` for file access, format, or read failures.
+  public static func readDecodedAudio(
+    from url: URL,
+    maxSeconds: Double? = nil,
+    isCancelled: @Sendable () -> Bool
+  ) throws -> FeatureSubstrate.DecodedAudio {
+    try readDecodedAudio(
+      from: url, maxSeconds: maxSeconds, isCancelled: isCancelled, chunkFrames: nil)
+  }
+
+  /// ``readDecodedAudio(from:maxSeconds:isCancelled:)`` with a chosen read
+  /// size. `chunkFrames` has no default so the public three-argument call
+  /// never resolves here.
+  ///
+  /// - Parameter chunkFrames: Frames per read; `nil` is about 10 s of the
+  ///   file (``readChunkSeconds``). Tests pass a small value to exercise many
+  ///   chunks on short fixtures, or `.max` for one read of the whole span.
+  static func readDecodedAudio(
+    from url: URL,
+    maxSeconds: Double?,
+    isCancelled: @Sendable () -> Bool,
+    chunkFrames: AVAudioFrameCount?
+  ) throws -> FeatureSubstrate.DecodedAudio {
     let file = try openFile(url)
     let codec = codec(forFormatID: file.fileFormat.streamDescription.pointee.mFormatID)
     let (samples, sampleRate) = try readMonoSamples(
       file: file, url: url,
-      maxSeconds: sanitizedMaxSeconds(maxSeconds), targetSampleRate: nil)
+      maxSeconds: sanitizedMaxSeconds(maxSeconds), targetSampleRate: nil,
+      isCancelled: isCancelled, chunkFrames: chunkFrames)
     return FeatureSubstrate.DecodedAudio(
       samples: samples,
       sampleRate: sampleRate,
@@ -216,11 +263,13 @@ public struct PCMBufferReader {
   /// Single-open core shared by ``readMonoSamples(from:maxSeconds:targetSampleRate:)``
   /// and ``readDecodedAudio(from:maxSeconds:)`` — the producer must not pay
   /// (or risk diverging through) a second decode path.
-  private static func readMonoSamples(
+  private static func readMonoSamples(  // swiftlint:disable:this function_parameter_count
     file: AVAudioFile,
     url: URL,
     maxSeconds: Double?,
-    targetSampleRate: Double?
+    targetSampleRate: Double?,
+    isCancelled: @Sendable () -> Bool,
+    chunkFrames: AVAudioFrameCount?
   ) throws -> (samples: [Float], sampleRate: Double) {
     let format = file.processingFormat
     // Sample-rate sanity check at the file-read boundary — recoverable
@@ -281,47 +330,10 @@ public struct PCMBufferReader {
       return (samples: [], sampleRate: targetSampleRate ?? format.sampleRate)
     }
 
-    // Allocate buffer and read
-    guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: framesToRead) else {
-      throw PCMBufferReaderError.bufferAllocationFailed(url)
-    }
-
-    do {
-      try file.read(into: buffer, frameCount: framesToRead)
-    } catch {
-      throw PCMBufferReaderError.readFailed(url, underlyingDescription: error.localizedDescription)
-    }
-
-    guard let floatChannelData = buffer.floatChannelData else {
-      throw PCMBufferReaderError.readFailed(
-        url, underlyingDescription: "No float channel data available")
-    }
-
-    let frameCount = Int(buffer.frameLength)
-    let channelCount = Int(format.channelCount)
-
-    // Channel mixdown to mono
-    var mono: [Float]
-    if channelCount == 1 {
-      // Mono: copy directly
-      mono = Array(UnsafeBufferPointer(start: floatChannelData[0], count: frameCount))
-    } else if channelCount == 2 {
-      // Stereo: (L + R) / 2 using vDSP
-      mono = mixStereoToMono(
-        left: floatChannelData[0],
-        right: floatChannelData[1],
-        frameCount: frameCount
-      )
-    } else {
-      // Multi-channel: average all channels using raw pointers (no intermediate Array copies)
-      var result = [Float](repeating: 0, count: frameCount)
-      for ch in 0..<channelCount {
-        vDSP_vadd(result, 1, floatChannelData[ch], 1, &result, 1, vDSP_Length(frameCount))
-      }
-      var channelDivisor = Float(channelCount)
-      vDSP_vsdiv(result, 1, &channelDivisor, &result, 1, vDSP_Length(frameCount))
-      mono = result
-    }
+    var mono = try readMono(
+      file: file, url: url, frameCount: framesToRead,
+      chunkFrames: chunkFrames ?? defaultChunkFrames(sampleRate: format.sampleRate),
+      isCancelled: isCancelled)
 
     // PCM ingress sanitize (GH #122): decoded Float32 payloads can legally
     // carry NaN/Inf bit patterns (AVFoundation passes them through verbatim
@@ -355,7 +367,9 @@ public struct PCMBufferReader {
         samples: mono,
         fromRate: format.sampleRate,
         toRate: targetSampleRate,
-        url: url
+        url: url,
+        isCancelled: isCancelled,
+        chunkFrames: nil
       )
       return (samples: downsampled, sampleRate: targetSampleRate)
     }
@@ -396,22 +410,121 @@ public struct PCMBufferReader {
     return Double(file.length) / sampleRate
   }
 
+  // MARK: - Chunked Read
+
+  /// Seconds of file frames per read when a long file is decoded, and of
+  /// input frames per step of a sample-rate conversion. Cancellation is
+  /// checked between chunks.
+  static let readChunkSeconds: Double = 10
+
+  /// About ``readChunkSeconds`` of frames at `sampleRate`, at least 1.
+  static func defaultChunkFrames(sampleRate: Double) -> AVAudioFrameCount {
+    max(1, AVAudioFrameCount(clamping: Int64(min(sampleRate * readChunkSeconds, 1.0e15))))
+  }
+
+  /// Reads `frameCount` frames from the start of `file` and mixes them to
+  /// mono, `chunkFrames` at a time, checking `isCancelled` before every read
+  /// after the first.
+  ///
+  /// The samples equal one `read(into:frameCount:)` of `frameCount` frames,
+  /// including the two ways that single read returns fewer frames than asked
+  /// without an error (both measured on macOS 27):
+  /// - At the real end of a file whose header states more frames than it
+  ///   holds (a cut FLAC, CAF or AIFF). A chunked read then gets a short
+  ///   chunk, and the next read throws end-of-file or returns nothing.
+  /// - At the end of a large read of a float32 WAV, which stops at a
+  ///   1,024-frame boundary (a 30 s file reads 1,321,984 of 1,323,000 frames).
+  ///   Reads in the middle of such a file come back short the same way.
+  ///
+  /// So a short read before the last one is followed by another read; an
+  /// end-of-file error or an empty read after the first ends the read; and
+  /// the last read asks for everything left, between one and two chunks, so
+  /// it ends where the single read would and nothing is read after it. A file
+  /// that fits in two chunks is read in one call, exactly as before.
+  ///
+  /// That equality is for the default chunk (about 10 s). Small chunks, which
+  /// only tests pass, can read a mono float32 WAV past the 1,024-frame
+  /// boundary where the single read stops, because small reads of it often
+  /// come back whole; the samples the single read keeps are unchanged.
+  private static func readMono(
+    file: AVAudioFile,
+    url: URL,
+    frameCount: AVAudioFrameCount,
+    chunkFrames: AVAudioFrameCount,
+    isCancelled: @Sendable () -> Bool
+  ) throws -> [Float] {
+    let chunk = max(1, chunkFrames)
+    // Room for the last read, which asks for up to two chunks.
+    let capacity = frameCount / 2 < chunk ? frameCount : 2 * chunk
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: capacity)
+    else {
+      throw PCMBufferReaderError.bufferAllocationFailed(url)
+    }
+    let channelCount = Int(file.processingFormat.channelCount)
+    var mono: [Float] = []
+    var framesRead: AVAudioFrameCount = 0
+    var isFirst = true
+    while framesRead < frameCount {
+      if !isFirst, isCancelled() { throw CancellationError() }
+      let remaining = frameCount - framesRead
+      let isLast = remaining / 2 < chunk
+      do {
+        try file.read(into: buffer, frameCount: isLast ? remaining : chunk)
+      } catch {
+        if !isFirst, BandWaveformReader.isEndOfFile(error) { break }
+        throw PCMBufferReaderError.readFailed(
+          url, underlyingDescription: error.localizedDescription)
+      }
+      guard let channels = buffer.floatChannelData else {
+        throw PCMBufferReaderError.readFailed(
+          url, underlyingDescription: "No float channel data available")
+      }
+      let count = Int(buffer.frameLength)
+      if count == 0 { break }
+      if isFirst, !isLast { mono.reserveCapacity(Int(frameCount)) }
+      appendMono(of: channels, channelCount: channelCount, frameCount: count, to: &mono)
+      framesRead += AVAudioFrameCount(count)
+      if isLast { break }
+      isFirst = false
+    }
+    return mono
+  }
+
   // MARK: - Channel Mixdown
 
-  private static func mixStereoToMono(
-    left: UnsafeMutablePointer<Float>,
-    right: UnsafeMutablePointer<Float>,
-    frameCount: Int
-  ) -> [Float] {
-    var mono = [Float](repeating: 0, count: frameCount)
-    vDSP.add(
-      UnsafeBufferPointer(start: left, count: frameCount),
-      UnsafeBufferPointer(start: right, count: frameCount),
-      result: &mono
-    )
-    var divisor: Float = 2.0
-    vDSP_vsdiv(mono, 1, &divisor, &mono, 1, vDSP_Length(frameCount))
-    return mono
+  /// Appends the mono mix of `frameCount` frames of `channels`: a copy for
+  /// one channel, `(L + R) / 2` for two, the channel mean for more. Each
+  /// output sample depends only on its own frame, so mixing chunk by chunk
+  /// gives the same bits as mixing the whole read.
+  private static func appendMono(
+    of channels: UnsafePointer<UnsafeMutablePointer<Float>>,
+    channelCount: Int,
+    frameCount: Int,
+    to mono: inout [Float]
+  ) {
+    let start = mono.count
+    mono.append(contentsOf: repeatElement(0, count: frameCount))
+    mono.withUnsafeMutableBufferPointer { buffer in
+      guard let base = buffer.baseAddress else { return }
+      let out = base + start
+      let length = vDSP_Length(frameCount)
+      if channelCount == 1 {
+        out.update(from: channels[0], count: frameCount)
+      } else if channelCount == 2 {
+        // Stereo: (L + R) / 2 using vDSP
+        vDSP_vadd(channels[0], 1, channels[1], 1, out, 1, length)
+        var divisor: Float = 2.0
+        vDSP_vsdiv(out, 1, &divisor, out, 1, length)
+      } else {
+        // Multi-channel: average all channels using raw pointers (no
+        // intermediate Array copies); `out` starts at 0.
+        for ch in 0..<channelCount {
+          vDSP_vadd(out, 1, channels[ch], 1, out, 1, length)
+        }
+        var channelDivisor = Float(channelCount)
+        vDSP_vsdiv(out, 1, &channelDivisor, out, 1, length)
+      }
+    }
   }
 
   // MARK: - Downsampling
@@ -439,11 +552,38 @@ public struct PCMBufferReader {
     return AVAudioFrameCount(capacity)
   }
 
-  private static func downsample(
+  /// Converts already-decoded mono samples from `fromRate` to `toRate` with
+  /// the same `AVAudioConverter` path the reader uses for `targetSampleRate`.
+  /// Works in either direction. ``FeatureSubstrate/FixedTimeCrops`` uses it to
+  /// bring a decoded track to 44.1 kHz.
+  ///
+  /// The converter is fed about 10 s of input at a time, and `isCancelled` is
+  /// checked before every chunk after the first. The output equals feeding
+  /// the whole input at once.
+  ///
+  /// - Parameter chunkFrames: Input frames per chunk; `nil` is about 10 s at
+  ///   `fromRate`. Tests pass `.max` to feed the whole input at once.
+  /// - Throws: `CancellationError` when `isCancelled` returns `true`;
+  ///   ``PCMBufferReaderError/conversionFailed(_:)`` or
+  ///   ``PCMBufferReaderError/bufferAllocationFailed(_:)``, where there is no
+  ///   file, so the URL payload is a fixed placeholder.
+  static func resampleMono(
+    _ samples: [Float], fromRate: Double, toRate: Double,
+    isCancelled: @Sendable () -> Bool, chunkFrames: AVAudioFrameCount? = nil
+  ) throws -> [Float] {
+    try downsample(
+      samples: samples, fromRate: fromRate, toRate: toRate,
+      url: URL(fileURLWithPath: "decoded-audio"),
+      isCancelled: isCancelled, chunkFrames: chunkFrames)
+  }
+
+  private static func downsample(  // swiftlint:disable:this function_parameter_count
     samples: [Float],
     fromRate: Double,
     toRate: Double,
-    url: URL
+    url: URL,
+    isCancelled: @Sendable () -> Bool,
+    chunkFrames: AVAudioFrameCount?
   ) throws -> [Float] {
     guard toRate > 0 else {
       throw PCMBufferReaderError.conversionFailed(url)
@@ -483,21 +623,16 @@ public struct PCMBufferReader {
     guard samples.count <= Int(UInt32.max) else {
       throw PCMBufferReaderError.conversionFailed(url)
     }
-    let inputFrameCount = AVAudioFrameCount(samples.count)
+    // One chunk of input at a time: the input buffer holds at most one.
+    let chunk = Int(max(1, chunkFrames ?? defaultChunkFrames(sampleRate: fromRate)))
+    let inputFrameCount = AVAudioFrameCount(min(samples.count, chunk))
     guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: inputFrameCount)
     else {
       throw PCMBufferReaderError.bufferAllocationFailed(url)
     }
-
-    // Copy samples into input buffer
-    guard let inputChannelData = inputBuffer.floatChannelData else {
+    guard inputBuffer.floatChannelData != nil else {
       throw PCMBufferReaderError.bufferAllocationFailed(url)
     }
-    samples.withUnsafeBufferPointer { srcPtr in
-      guard let baseAddress = srcPtr.baseAddress else { return }
-      inputChannelData[0].update(from: baseAddress, count: samples.count)
-    }
-    inputBuffer.frameLength = inputFrameCount
 
     // Calculate output buffer size (GH #123): the capacity computation lives
     // in the internal `downsampleOutputCapacity` helper so its Double-domain
@@ -515,21 +650,47 @@ public struct PCMBufferReader {
       throw PCMBufferReaderError.bufferAllocationFailed(url)
     }
 
-    // Convert using AVAudioConverter (Apple TN3136 pattern)
+    // Convert using AVAudioConverter (Apple TN3136 pattern), one chunk per
+    // input request. The converter consumes each chunk before asking for the
+    // next, so the one buffer is refilled. The first request always gets a
+    // chunk (an empty one for empty input), as the one-shot feed did; after
+    // the last chunk the block reports end of stream. A cancellation found
+    // between chunks stops the feed and throws once `convert` returns.
     // Safety: converter calls the block synchronously and does not store it.
     // nonisolated(unsafe) suppresses the false-positive concurrency warning.
-    nonisolated(unsafe) var inputConsumed = false
+    nonisolated(unsafe) var offset = 0
+    nonisolated(unsafe) var fedFirstChunk = false
+    nonisolated(unsafe) var cancelled = false
     var conversionError: NSError?
-    let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
-      if inputConsumed {
-        outStatus.pointee = .endOfStream
-        return nil
+    let status = withoutActuallyEscaping(isCancelled) { isCancelled in
+      converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
+        if fedFirstChunk {
+          if offset >= samples.count {
+            outStatus.pointee = .endOfStream
+            return nil
+          }
+          if isCancelled() {
+            cancelled = true
+            outStatus.pointee = .noDataNow
+            return nil
+          }
+        }
+        let count = min(chunk, samples.count - offset)
+        if let channel = inputBuffer.floatChannelData?[0] {
+          samples.withUnsafeBufferPointer { source in
+            guard let base = source.baseAddress else { return }
+            channel.update(from: base + offset, count: count)
+          }
+        }
+        inputBuffer.frameLength = AVAudioFrameCount(count)
+        offset += count
+        fedFirstChunk = true
+        outStatus.pointee = .haveData
+        return inputBuffer
       }
-      inputConsumed = true
-      outStatus.pointee = .haveData
-      return inputBuffer
     }
 
+    if cancelled { throw CancellationError() }
     if status == .error {
       throw PCMBufferReaderError.conversionFailed(url)
     }
