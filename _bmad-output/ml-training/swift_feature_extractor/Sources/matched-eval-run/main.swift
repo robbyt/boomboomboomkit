@@ -33,7 +33,9 @@
 //  second thread while the pass runs, and the record holds the high-water mark
 //  minus the footprint just before the pass. The joint-fit row needs the default
 //  pass for its seed, so its runtime is the default pass plus the fit stage and its
-//  memory the larger of the two passes' peaks; the stage alone is recorded too.
+//  memory the higher of the two passes' absolute high-water marks minus the
+//  footprint before the default pass, so the decoded audio the default pass leaves
+//  behind for the fit stage counts; the stage alone is recorded too.
 //
 //  Every audio file is hashed before any analysis; a sha256 that differs from the
 //  input refuses the whole run (exit 3, naming the track). The output records the
@@ -231,20 +233,39 @@ final class MemorySampler: Sendable {
     }
   }
 
-  /// Stops sampling; returns the high-water mark above the baseline, in bytes.
+  /// Stops sampling; returns the absolute high-water mark, in bytes.
   func finish() -> UInt64 {
     record(footprintBytes())
     stopFlag.store(true, ordering: .relaxed)
     finished.wait()
-    let top = peak.load(ordering: .relaxed)
-    return top > baseline ? top - baseline : 0
+    return peak.load(ordering: .relaxed)
   }
+}
+
+/// Bytes of `peak` above `baseline`; 0 when the peak is not above it.
+func bytesAbove(_ baseline: UInt64, peak: UInt64) -> UInt64 {
+  peak > baseline ? peak - baseline : 0
+}
+
+/// The memory of two passes run back to back, measured from the first pass's
+/// baseline: the higher absolute high-water mark minus the footprint before the
+/// first pass. Memory the first pass leaves allocated for the second stays counted,
+/// where the second pass's own delta would subtract it as baseline.
+func combinedPeakAboveBaseline(
+  firstBaseline: UInt64, firstPeak: UInt64, secondPeak: UInt64
+) -> UInt64 {
+  bytesAbove(firstBaseline, peak: max(firstPeak, secondPeak))
 }
 
 struct Measured<T> {
   let value: T
   let seconds: Double
-  let peakBytes: UInt64
+  /// The footprint just before the pass, in bytes.
+  let baselineBytes: UInt64
+  /// The absolute high-water mark during the pass, in bytes.
+  let absolutePeakBytes: UInt64
+  /// The high-water mark above the baseline, in bytes.
+  var peakBytes: UInt64 { bytesAbove(baselineBytes, peak: absolutePeakBytes) }
 }
 
 func measure<T>(_ body: () throws -> T) rethrows -> Measured<T> {
@@ -259,7 +280,9 @@ func measure<T>(_ body: () throws -> T) rethrows -> Measured<T> {
   }
   let end = DispatchTime.now().uptimeNanoseconds
   let peak = sampler.finish()
-  return Measured(value: value, seconds: Double(end - start) / 1e9, peakBytes: peak)
+  return Measured(
+    value: value, seconds: Double(end - start) / 1e9, baselineBytes: sampler.baseline,
+    absolutePeakBytes: peak)
 }
 
 // MARK: - Records
@@ -386,7 +409,11 @@ func jointFitPass(
       selection.map { $0.chosen.metricalLevel.rawValue as Any } ?? NSNull()
   }
   let runtime = passA.map { $0.seconds + run.seconds }
-  let peak = passA.map { max($0.peakBytes, run.peakBytes) }
+  let peak = passA.map {
+    combinedPeakAboveBaseline(
+      firstBaseline: $0.baselineBytes, firstPeak: $0.absolutePeakBytes,
+      secondPeak: run.absolutePeakBytes)
+  }
   switch run.value {
   case .fit(let fit):
     let grid: [String: Any] = [
@@ -513,7 +540,9 @@ func runTrack(_ track: TrackInput) -> [String: Any] {
     let run = try measure {
       try AudioAnalysisService.analyze(url: url, options: options, decodeObserver: observer)
     }
-    passA = Measured(value: (), seconds: run.seconds, peakBytes: run.peakBytes)
+    passA = Measured(
+      value: (), seconds: run.seconds, baselineBytes: run.baselineBytes,
+      absolutePeakBytes: run.absolutePeakBytes)
     if let result = run.value {
       defaultBPM = result.bpm.bpm
       defaultGrid = result.beatGrid
