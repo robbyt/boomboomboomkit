@@ -467,19 +467,24 @@ def load_legacy_manifests() -> dict[str, dict[str, Any]]:
 
 
 def pretraining_pool_hashes(
-    cache: dict[str, str], legacy_manifests: dict[str, dict[str, Any]]
+    cache: dict[str, str],
+    legacy_manifests: dict[str, dict[str, Any]],
+    crop_plan: dict[str, Any],
 ) -> dict[str, dict[str, set[str]]]:
     """File sha256s of each arm's masked-mel pretraining pool, split by source.
 
-    The variant pool is what the training loader lists now
-    (`build_pretrain_audio_paths`): a `tony.train` file counts as `tony.train`
-    even when a manifest also lists it; any other file takes its manifest row's
-    `audioHash`; a file matched to neither is hashed and counted `unattributed`.
-    Hashed files are memoised in `cache` (path, size, mtime), which the caller
-    writes only after the report succeeds. The legacy pool is the variant pool
-    plus the rows found only in the legacy manifests (`legacy_manifests`).
-    Returns {"variant": {source: hashes}, "legacy": {source: hashes}}."""
+    The variant pool is the pretraining songs `crop_plan` kept, through the same
+    skip filter training uses (`train_fixed_time.kept_entries`): a song the plan
+    skipped never reached the model. The legacy pool is every song the training
+    loader lists now (`build_pretrain_audio_paths`), since the legacy run skipped
+    none, plus the rows found only in the legacy manifests (`legacy_manifests`).
+    In both, a `tony.train` file counts as `tony.train` even when a manifest also
+    lists it; any other file takes its manifest row's `audioHash`; a file matched
+    to neither is hashed and counted `unattributed`. Hashed files are memoised in
+    `cache` (path, size, mtime), which the caller writes only after the report
+    succeeds. Returns {"variant": {source: hashes}, "legacy": {source: hashes}}."""
     import ablation_locator as loc
+    from fixed_time.train_fixed_time import kept_entries
 
     root = loc.tony_audio_root()
     current_rels: dict[str, set[str]] = {}
@@ -501,17 +506,21 @@ def pretraining_pool_hashes(
             cache[key] = sha256_file(path)
         return cache[key]
 
-    variant: dict[str, set[str]] = {src: set() for src in POOL_SOURCES}
-    for path in loc.build_pretrain_audio_paths():
-        resolved = path.resolve()
-        if resolved in train:
-            variant[LABELLED_SOURCE].add(file_hash(resolved))
-        elif resolved in by_path:
-            source, digest = by_path[resolved]
-            variant[source].add(digest)
-        else:
-            variant[UNATTRIBUTED].add(file_hash(resolved))
-    legacy = {src: set(hashes) for src, hashes in variant.items()}
+    def attribute(paths: list[Path]) -> dict[str, set[str]]:
+        pool: dict[str, set[str]] = {src: set() for src in POOL_SOURCES}
+        for path in paths:
+            resolved = path.resolve()
+            if resolved in train:
+                pool[LABELLED_SOURCE].add(file_hash(resolved))
+            elif resolved in by_path:
+                source, digest = by_path[resolved]
+                pool[source].add(digest)
+            else:
+                pool[UNATTRIBUTED].add(file_hash(resolved))
+        return pool
+
+    variant = attribute([Path(e["path"]) for e in kept_entries(crop_plan, "pretrain")])
+    legacy = attribute(loc.build_pretrain_audio_paths())
     for source, doc in legacy_manifests.items():
         for row in doc["rows"]:
             if row["relPath"] not in current_rels.get(source, set()):
@@ -816,6 +825,19 @@ def build_report(args: argparse.Namespace) -> tuple[dict, dict]:
     variant_rows: dict[str, list] = {}
     for corpus in CORPORA:
         score_docs[corpus], variant_rows[corpus] = load_variant(run_dir, corpus)
+        # The per-crop probabilities must be the archive this scoring run wrote.
+        npz = _require(run_dir / f"crops-{corpus}.npz", "variant crop probabilities")
+        recorded = score_docs[corpus].get("cropProbabilitiesSha256")
+        if not recorded:
+            raise ReportRefusal(
+                f"scores-{corpus}.json does not record the sha256 of {npz.name}; rescore {corpus}"
+            )
+        now = sha256_file(npz)
+        if recorded != now:
+            raise ReportRefusal(
+                f"{npz.name} sha256 {now} differs from the one scores-{corpus}.json "
+                f"recorded ({recorded}); rescore {corpus}"
+            )
 
     arms_by_corpus = {
         "giantsteps": {
@@ -917,7 +939,8 @@ def build_report(args: argparse.Namespace) -> tuple[dict, dict]:
     # Every refusal happens above or here, before anything is written.
     manifest = build_manifest(training_md, score_docs, inputs, code_git_sha=code_git_sha())
 
-    pools = pretraining_pool_hashes(args.pool_hash_cache, legacy_manifests)
+    crop_plan = json.loads((run_dir / "crop-plan.json").read_text())
+    pools = pretraining_pool_hashes(args.pool_hash_cache, legacy_manifests, crop_plan)
     exposures = {
         corpus: {
             arm: exposure(

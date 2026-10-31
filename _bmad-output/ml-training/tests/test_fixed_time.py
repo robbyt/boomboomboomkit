@@ -425,8 +425,16 @@ class TestJoinAndAnchors:
                 ]
             },
         }
+        plan = {
+            "songs": {
+                "pretrain": [
+                    {"key": str(root / n), "path": str(root / n), "skipped": None}
+                    for n in ("train.mp3", "both.mp3", "sec.mp3", "uns.mp3", "stray.mp3")
+                ]
+            }
+        }
         cache: dict = {}
-        pools = rp.pretraining_pool_hashes(cache, legacy_manifests)
+        pools = rp.pretraining_pool_hashes(cache, legacy_manifests, plan)
         variant = pools["variant"]
         assert variant["tony.train"] == {files["train.mp3"], files["both.mp3"]}
         assert variant["secondarySupervised"] == {files["sec.mp3"]}
@@ -443,6 +451,40 @@ class TestJoinAndAnchors:
         assert v["labelFreeBySource"] == {"secondarySupervised": 1, "unsupervisedPool": 0}
         assert g["labelFreeBySource"] == {"secondarySupervised": 1, "unsupervisedPool": 1}
         assert g["inPretrainingPool"] == 3
+
+    def test_variant_pool_leaves_out_songs_the_plan_skipped(self, tmp_path, monkeypatch):
+        import ablation_locator as loc
+
+        root = tmp_path / "tony"
+        root.mkdir()
+        # Song A holds the same bytes as an evaluation track; the plan skipped it.
+        (root / "a.mp3").write_bytes(b"eval-track-audio")
+        (root / "b.mp3").write_bytes(b"other-audio")
+        empty = tmp_path / "empty.json"
+        empty.write_text(json.dumps({"secondarySupervised": [], "unsupervisedPool": []}))
+        monkeypatch.setattr(loc, "SECONDARY_MANIFEST", empty)
+        monkeypatch.setattr(loc, "UNSUPERVISED_MANIFEST", empty)
+        monkeypatch.setattr(loc, "tony_audio_root", lambda: root)
+        monkeypatch.setattr(loc, "build_labeled_records", lambda _w: [])
+        monkeypatch.setattr(
+            loc, "build_pretrain_audio_paths", lambda: [root / "a.mp3", root / "b.mp3"]
+        )
+        plan = {
+            "songs": {
+                "pretrain": [
+                    {
+                        "key": str(root / "a.mp3"),
+                        "path": str(root / "a.mp3"),
+                        "skipped": ft.ABSTAIN_SHORT,
+                    },
+                    {"key": str(root / "b.mp3"), "path": str(root / "b.mp3"), "skipped": None},
+                ]
+            }
+        }
+        pools = rp.pretraining_pool_hashes({}, {}, plan)
+        hashes = {"e1": hashlib.sha256(b"eval-track-audio").hexdigest()}
+        assert rp.exposure(hashes, pools["variant"])["inPretrainingPool"] == 0
+        assert rp.exposure(hashes, pools["legacy"])["inPretrainingPool"] == 1
 
     @pytest.mark.parametrize(
         ("b", "c", "p"),
@@ -720,7 +762,7 @@ def _report_run(tmp_path, monkeypatch, *, second_shared_legacy_bpm: float):
     monkeypatch.setattr(
         rp,
         "pretraining_pool_hashes",
-        lambda _cache, _manifests: {
+        lambda _cache, _manifests, _plan: {
             arm: {src: set() for src in rp.POOL_SOURCES} for arm in ("variant", "legacy")
         },
     )
@@ -786,7 +828,8 @@ def _report_run(tmp_path, monkeypatch, *, second_shared_legacy_bpm: float):
         ),
     }
     for corpus, (rows, scored, label_path) in docs.items():
-        (run / f"crops-{corpus}.npz").write_bytes(b"npz-" + corpus.encode())
+        npz = run / f"crops-{corpus}.npz"
+        npz.write_bytes(b"npz-" + corpus.encode())
         _write_json(
             run / f"scores-{corpus}.json",
             _score_doc(
@@ -795,7 +838,8 @@ def _report_run(tmp_path, monkeypatch, *, second_shared_legacy_bpm: float):
                 labelSource={"path": label_path, "sha256": next(iter(scored.values()))},
                 featureFixtureSha256="f",
                 aggregator=sc.AGGREGATOR_NAME,
-                cropProbabilitiesFile=f"crops-{corpus}.npz",
+                cropProbabilitiesFile=npz.name,
+                cropProbabilitiesSha256=sc.sha256_file(npz),
             ),
         )
 
@@ -840,6 +884,18 @@ def _snapshot(directory: Path) -> dict[str, bytes]:
 
 
 class TestReportMainOa300:
+    def test_probability_archive_changed_since_scoring_writes_nothing(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        argv, run = _report_run(tmp_path, monkeypatch, second_shared_legacy_bpm=169.0)
+        (run / "crops-oa300.npz").write_bytes(b"npz-rescored-elsewhere")
+        before = _snapshot(run)
+        assert rp.main(argv) == 3
+        err = capsys.readouterr().err
+        assert "crops-oa300.npz" in err and "rescore oa300" in err
+        assert _snapshot(run) == before
+        assert not {"fixed-time-report.json", "fixed-time-report.md", "manifest.json"} & set(before)
+
     def test_shared_key_with_different_legacy_predictions_writes_nothing(
         self, tmp_path, monkeypatch, capsys
     ):
@@ -1362,6 +1418,19 @@ class TestDatasetsFollowThePlan:
         entry.parent.mkdir(parents=True)
         entry.write_bytes(b"")
         assert fds.pcm_source_for(song) == "pcm-cache-f16"
+
+    def test_cache_key_changes_with_the_files_mtime(self, monkeypatch, tmp_path):
+        import os
+
+        import fixed_time.datasets as fds
+
+        monkeypatch.setenv("BBB_FEATURE_CACHE_DIR", str(tmp_path / "feat"))
+        song = tmp_path / "song.mp3"
+        song.write_bytes(b"x")
+        os.utime(song, ns=(1_000_000_000, 1_000_000_000))
+        before = fds.feature_cache_path(song, 0, "decode-f32")
+        os.utime(song, ns=(2_000_000_000, 2_000_000_000))
+        assert fds.feature_cache_path(song, 0, "decode-f32") != before
 
     def test_cached_validation_crop_is_not_decoded(self, monkeypatch, tmp_path, feature_fixture):
         from ablation_locator import LabeledRecord

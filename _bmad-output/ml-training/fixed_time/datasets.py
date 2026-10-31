@@ -11,7 +11,7 @@ rhythm score. `set_epoch` selects the epoch's crop and must be called before the
 epoch's DataLoader iterator starts, so worker processes copy the right epoch.
 
 Feature caching covers the deterministic crops only (pretraining crops and the
-validation crop), keyed by crop identity (file, size, start frame) under the
+validation crop), keyed by crop identity (file, size, mtime, start frame) under the
 cache version below, so a 512-column cache entry is never read. Augmented
 fine-tune crops are never cached.
 """
@@ -61,11 +61,12 @@ def feature_cache_path(path: Path, start_frame: int, pcm_source: str) -> Path | 
     if not cache_dir:
         return None
     try:
-        size = path.stat().st_size
+        st = path.stat()
+        size, mtime_ns = st.st_size, st.st_mtime_ns
     except OSError:
-        size = -1
+        size, mtime_ns = -1, -1
     key = (
-        f"{path}|sz{size}|{FEATURE_CACHE_VERSION}|{ft.INPUT_CONTRACT}|"
+        f"{path}|sz{size}|mt{mtime_ns}|{FEATURE_CACHE_VERSION}|{ft.INPUT_CONTRACT}|"
         f"cap{ft.TRAINING_MAX_SAMPLES}|start{start_frame}|crop{ft.CROP_FRAMES}x{ft.N_MELS}|"
         f"pcm-{pcm_source}"
     )

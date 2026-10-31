@@ -252,15 +252,19 @@ def _device(subset: int | None):
     return common.require_mps_or_subset(subset)
 
 
+def kept_entries(crop_plan: dict[str, Any], name: str) -> list[dict[str, Any]]:
+    """The plan's entries for list `name` that were not skipped, in plan order. The
+    one skip filter training and the report's exposure count share."""
+    return [e for e in crop_plan["songs"][name] if not e["skipped"]]
+
+
 def planned_inputs(crop_plan: dict[str, Any]) -> dict[str, Any]:
     """Kept songs, in plan order, with their planned crops. Skipped songs are dropped
     here, before any dataset or sampler exists."""
     from ablation_locator import build_labeled_records
 
-    songs = crop_plan["songs"]
-
     def kept(name: str) -> list[dict[str, Any]]:
-        return [e for e in songs[name] if not e["skipped"]]
+        return kept_entries(crop_plan, name)
 
     def records(name: str) -> list:
         # Labels come from the current label join, never from the plan; the plan
