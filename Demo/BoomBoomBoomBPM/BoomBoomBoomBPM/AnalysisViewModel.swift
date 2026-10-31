@@ -52,8 +52,8 @@ final class AnalysisViewModel {
   /// than silently ignored on every launch.
   ///
   /// The library default at
-  /// `AudioAnalysisService.Options.mergeStrategy` remains
-  /// `.maxConfidence`; this seeding is demo-side only and MUST NOT
+  /// `AudioAnalysisService.Options.mergeStrategy` is
+  /// `.windowVoting`; this seeding is demo-side only and MUST NOT
   /// leak into the library. SPM consumers receive the library default
   /// unless they opt in.
   init(
