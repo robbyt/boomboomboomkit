@@ -15,6 +15,11 @@ import Testing
 // `unsupportedFormat`). Each test uses a unique `UserDefaults(suiteName:)` cleaned
 // up via `removePersistentDomain(forName:)` (the Story 5-6 / 10.1 isolation
 // pattern). `@MainActor` because `ModelCatalog` is `@MainActor @Observable`.
+//
+// The tests run hosted in the demo app, so `Bundle.main` carries the bundled
+// fixed-time model. Every catalog here passes `bundledModelURL` explicitly: `nil`
+// for the pre-bundled-model tests (an empty catalog with no bookmarks stays
+// empty), a temp fixture for the bundled-row tests.
 @MainActor
 @Suite("Model catalog")
 struct ModelCatalogTests {
@@ -83,7 +88,7 @@ struct ModelCatalogTests {
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
     _ = try persistence.store(url: bundle)
 
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
 
     #expect(catalog.entries.count == 1)
     #expect(!catalog.isEmpty)
@@ -105,7 +110,7 @@ struct ModelCatalogTests {
     _ = try persistence.store(url: bundle)
     #expect(storedMap(defaults).count == 2)
 
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.entries.count == 1)
   }
 
@@ -122,7 +127,7 @@ struct ModelCatalogTests {
     _ = try persistence.store(url: goodBundle)
     _ = try persistence.store(url: badFile)
 
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
 
     #expect(catalog.entries.count == 1)
     #expect(catalog.entries.first?.url.standardizedFileURL == goodBundle.standardizedFileURL)
@@ -143,7 +148,7 @@ struct ModelCatalogTests {
     _ = try persistence.store(url: goodBundle)
     _ = try persistence.store(url: badFile)
 
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(!catalog.restoreDiagnostics.isEmpty)
     #expect(catalog.entries.count == 1)
 
@@ -163,7 +168,7 @@ struct ModelCatalogTests {
 
     let bundle = try makeBundle()
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
 
     #expect(catalog.addFromDisk(url: bundle).isSuccess)
     let second = catalog.addFromDisk(url: bundle)
@@ -181,7 +186,7 @@ struct ModelCatalogTests {
 
     let badFile = try makePlainFile()
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
 
     let result = catalog.addFromDisk(url: badFile)
     #expect(result.failure == .registerFailed)
@@ -203,7 +208,7 @@ struct ModelCatalogTests {
     #expect(bundleA.standardizedFileURL != bundleB.standardizedFileURL)
 
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.addFromDisk(url: bundleA).isSuccess)
     #expect(catalog.addFromDisk(url: bundleB).isSuccess)
 
@@ -232,7 +237,7 @@ struct ModelCatalogTests {
     defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.isEmpty)
     #expect(catalog.entries.isEmpty)
   }
@@ -246,7 +251,7 @@ struct ModelCatalogTests {
 
     let bundle = try makeBundle()
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.addFromDisk(url: bundle).isSuccess)
     #expect(catalog.selectedURL == nil)
 
@@ -269,7 +274,7 @@ struct ModelCatalogTests {
 
     let bundle = try makeBundle()
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.addFromDisk(url: bundle).isSuccess)
 
     let entry = try #require(catalog.entries.first)
@@ -288,7 +293,7 @@ struct ModelCatalogTests {
 
     let bundle = try makeBundle()
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.addFromDisk(url: bundle).isSuccess)
     _ = catalog.select(url: bundle)
     #expect(catalog.selectedURL != nil)
@@ -320,7 +325,7 @@ struct ModelCatalogTests {
       resolveBookmark: { data in (URL(string: String(decoding: data, as: UTF8.self))!, false) }
     )
     let persistence = BookmarkPersistence(defaults: defaults, codec: codec)
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
 
     // First add: register OK, store throws -> persistFailed, no row, no bookmark.
     let first = catalog.addFromDisk(url: bundle)
@@ -357,7 +362,7 @@ struct ModelCatalogTests {
     #expect(raw.standardizedFileURL == bundle.standardizedFileURL)
 
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.addFromDisk(url: raw).isSuccess)
 
     let entry = try #require(catalog.entries.first)
@@ -389,7 +394,7 @@ struct ModelCatalogTests {
     let persistence = BookmarkPersistence(defaults: defaults, codec: codec)
     _ = try persistence.store(url: bundle)
 
-    let catalog = ModelCatalog(bookmarks: persistence)  // restore resolves exactly once
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)  // restore resolves exactly once
     #expect(resolveCount == 1)
 
     let entry = try #require(catalog.entries.first)
@@ -416,7 +421,7 @@ struct ModelCatalogTests {
     #expect(raw != raw.standardizedFileURL)
 
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.addFromDisk(url: raw).isSuccess)
     let entry = try #require(catalog.entries.first)
 
@@ -442,7 +447,7 @@ struct ModelCatalogTests {
     let bundle = try makeBundle()
     let raw = nonStandardized(bundle)
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
     #expect(catalog.addFromDisk(url: raw).isSuccess)
     let entry = try #require(catalog.entries.first)
     _ = catalog.select(url: raw)  // pretend a prior model was in use
@@ -468,7 +473,7 @@ struct ModelCatalogTests {
     defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
     let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
-    let catalog = ModelCatalog(bookmarks: persistence)
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
 
     // A synthetic entry never routed through `mirror`, so no capability is retained.
     let orphan = FileManager.default.temporaryDirectory
@@ -492,6 +497,149 @@ struct ModelCatalogTests {
     #expect(outcome == .capabilityMissing)
     #expect(!loaderCalled)  // never attempted a tokenless read
     #expect(catalog.selectedURL == nil)
+  }
+
+  // MARK: - Bundled model
+
+  // (17) The bundled row is listed first as `.bundled`, ahead of restored user
+  // rows, and selection stays URL-keyed across both kinds.
+  @Test("bundled row is listed first as .bundled, then the restored user rows")
+  func bundledRowFirstThenUserRows() throws {
+    let (defaults, suiteName) = try makeDefaults("bundledOrder")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundled = try makeBundle(named: "fixed-time-tempo-v1")
+    let userA = try makeBundle(named: "a")
+    let userB = try makeBundle(named: "b")
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    _ = try persistence.store(url: userA)
+    _ = try persistence.store(url: userB)
+
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: bundled)
+
+    #expect(catalog.entries.count == 3)
+    let first = try #require(catalog.entries.first)
+    #expect(first.url.standardizedFileURL == bundled.standardizedFileURL)
+    #expect(first.identifier == "fixed-time-tempo-v1")
+    #expect(catalog.source(for: first.url) == .bundled)
+    #expect(catalog.source(for: first.url).display == "Bundled")
+    #expect(catalog.bundledEntry?.url.standardizedFileURL == bundled.standardizedFileURL)
+    #expect(catalog.entries.dropFirst().allSatisfy { catalog.source(for: $0.url) == .userAdded })
+    #expect(catalog.restoreDiagnostics.isEmpty)
+
+    // Selection marks stay URL-keyed: selecting a user row unmarks the bundled one.
+    _ = catalog.select(url: bundled)
+    #expect(catalog.isSelected(first))
+    _ = catalog.select(url: userB)
+    #expect(!catalog.isSelected(first))
+    let rowB = try #require(
+      catalog.entries.first { $0.url.standardizedFileURL == userB.standardizedFileURL })
+    #expect(catalog.isSelected(rowB))
+  }
+
+  // (18) The bundled row is found in the bundle each launch, never stored as a
+  // bookmark, so a fresh catalog over the same storage lists it exactly once.
+  @Test("the bundled row is never written to bookmark storage")
+  func bundledRowNeverStored() throws {
+    let (defaults, suiteName) = try makeDefaults("bundledNoBookmark")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundled = try makeBundle(named: "fixed-time-tempo-v1")
+    let user = try makeBundle(named: "user")
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: bundled)
+    #expect(storedMap(defaults).isEmpty)
+    _ = catalog.useModel(try #require(catalog.bundledEntry)) { _ in true }
+    #expect(storedMap(defaults).isEmpty)
+    #expect(catalog.addFromDisk(url: user).isSuccess)
+    #expect(storedMap(defaults).count == 1)  // only the user-added model
+
+    let relaunched = ModelCatalog(bookmarks: persistence, bundledModelURL: bundled)
+    #expect(relaunched.entries.count == 2)
+    #expect(relaunched.entries.filter { relaunched.source(for: $0.url) == .bundled }.count == 1)
+  }
+
+  // (19) A nil bundled URL (the resource is absent) gives no row and no
+  // diagnostic; the catalog behaves as before the bundled model.
+  @Test("a nil bundled URL gives no bundled row and no diagnostic")
+  func nilBundledURLGivesNoRow() throws {
+    let (defaults, suiteName) = try makeDefaults("bundledNil")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: nil)
+    #expect(catalog.isEmpty)
+    #expect(catalog.bundledEntry == nil)
+    #expect(catalog.restoreDiagnostics.isEmpty)
+
+    nonisolated(unsafe) var loaderCalled = false
+    #expect(
+      catalog.loadBundledModelAtLaunch { _ in
+        loaderCalled = true
+        return true
+      } == nil)
+    #expect(!loaderCalled)
+  }
+
+  // (20) useModel hands the bundle URL itself to the loader (an app-bundle read
+  // needs no security scope, so the bundle URL is its own load URL).
+  @Test("useModel hands the bundle URL to the loader and selects the bundled row")
+  func useModelHandsBundleURLToLoader() throws {
+    let (defaults, suiteName) = try makeDefaults("bundledUse")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundled = try makeBundle(named: "fixed-time-tempo-v1")
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: bundled)
+    let entry = try #require(catalog.bundledEntry)
+
+    nonisolated(unsafe) var loadedURL: URL?
+    let outcome = catalog.useModel(entry) { url in
+      loadedURL = url
+      return true
+    }
+
+    #expect(outcome == .loaded)
+    #expect(loadedURL == bundled)
+    #expect(catalog.selectedURL?.standardizedFileURL == bundled.standardizedFileURL)
+  }
+
+  // (21) The same bytes picked from a different path are a separate user-added
+  // row; picking the bundle path itself is rejected as already added.
+  @Test("the bundled bytes from another path are a separate user-added row")
+  func sameBytesDifferentPathIsUserRow() throws {
+    let (defaults, suiteName) = try makeDefaults("bundledCopy")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundled = try makeBundle(named: "fixed-time-tempo-v1")
+    let copy = try makeBundle(named: "fixed-time-tempo-v1")  // same bytes, other dir
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: bundled)
+
+    #expect(catalog.addFromDisk(url: bundled).failure == .alreadyAdded)
+    #expect(catalog.addFromDisk(url: copy).isSuccess)
+    #expect(catalog.entries.count == 2)
+    let copyRow = try #require(
+      catalog.entries.first { $0.url.standardizedFileURL == copy.standardizedFileURL })
+    #expect(catalog.source(for: copyRow.url) == .userAdded)
+    #expect(catalog.entries.first.map { catalog.source(for: $0.url) } == .bundled)
+  }
+
+  // (22) A stored bookmark that resolves to the bundled URL does not add a
+  // second row for it.
+  @Test("a bookmark resolving to the bundled URL adds no second row")
+  func restoreSkipsBundledURL() throws {
+    let (defaults, suiteName) = try makeDefaults("bundledRestoreDedup")
+    defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+    let bundled = try makeBundle(named: "fixed-time-tempo-v1")
+    let persistence = BookmarkPersistence(defaults: defaults, codec: roundTripCodec())
+    _ = try persistence.store(url: bundled)
+
+    let catalog = ModelCatalog(bookmarks: persistence, bundledModelURL: bundled)
+    #expect(catalog.entries.count == 1)
+    #expect(catalog.source(for: bundled) == .bundled)
   }
 }
 

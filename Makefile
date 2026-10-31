@@ -1181,7 +1181,7 @@ fixed-time-score:
 		--legacy-root "$(abspath $(FIXED_TIME_LEGACY_ROOT))" --device $(FIXED_TIME_DEVICE) \
 		$(FIXED_TIME_SCORE_ARGS)
 
-## fixed-time-export: Export FIXED_TIME_RUN_DIR/model.pt to an ML program (input [1,1,128,1200] named input, output named output, FP32, macOS 15) and compile it with xcrun coremlc to FIXED_TIME_RUN_DIR/fixed_time_seed_$(FIXED_TIME_SEED).mlmodelc (FIXED_TIME_SEED, default 42) for the demo app. Refuses unless PyTorch eager and Core ML agree within 1e-3 on a real crop (the top-ranked crop of a bundled audio fixture). Weights stay outside git. Develop-only.
+## fixed-time-export: Export FIXED_TIME_RUN_DIR/model.pt to an ML program (input [1,1,128,1200] named input, output named output, FP32, macOS 15) and compile it with xcrun coremlc to FIXED_TIME_RUN_DIR/fixed_time_seed_$(FIXED_TIME_SEED).mlmodelc (FIXED_TIME_SEED, default 42) for the demo app. Refuses unless PyTorch eager and Core ML agree within 1e-3 on a real crop (the top-ranked crop of a bundled audio fixture). The export output stays outside git; the one exception is the demo's built-in copy under Demo/BoomBoomBoomBPM/BoomBoomBoomBPM/Models/ (see Demo/BoomBoomBoomBPM/README.md). Develop-only.
 .PHONY: fixed-time-export
 fixed-time-export:
 	cd $(ML_TRAINING_DIR) && \
