@@ -112,8 +112,8 @@ struct DAWOracleBenchmarkTests {
       return (i, track)
     }
 
-    // Story 3-5 AC #11: explicit windowVoting + simpleMajority so the new
-    // policy code path is exercised (default Options uses .maxConfidence).
+    // Story 3-5 AC #11: keep the voting policy explicit for this oracle report.
+    // Options now defaults to the same pairing with rhythmic regions.
     let detectedBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
       for (i, track) in availableIndices {
         let url = trackURL(track.filename, subdir: track.subdir)
@@ -393,8 +393,8 @@ struct DAWOracleBenchmarkTests {
       return FileManager.default.fileExists(atPath: url.path)
     }
 
-    // Story 3-5 AC #11: explicit windowVoting + simpleMajority so the new
-    // policy code path is exercised (default Options uses .maxConfidence).
+    // Story 3-5 AC #11: keep the voting policy explicit for this oracle report.
+    // Options now defaults to the same pairing with rhythmic regions.
     let urls = availableTracks.map { trackURL($0.filename, subdir: $0.subdir) }
     let trackBPMs = await withTaskGroup(of: (Int, Double?).self) { group in
       for (index, url) in urls.enumerated() {

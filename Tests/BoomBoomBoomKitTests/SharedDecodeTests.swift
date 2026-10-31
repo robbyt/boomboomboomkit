@@ -876,6 +876,8 @@ struct BPMDecodedOrderingTests {
     let log = ProgressLog()
     let script = CancellationScript(falseCount: 2)
     var options = AudioAnalysisService.Options()
+    options.useRhythmicRegions = false  // This test counts legacy per-window checks.
+    options.mergeStrategy = .maxConfidence
     options.isCancelled = { script.isCancelled() }
     options.onProgress = { log.record($0) }
     #expect(throws: CancellationError.self) {

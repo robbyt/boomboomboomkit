@@ -2,7 +2,7 @@
 id: windowVoting
 title: Post-Disambiguation Window Vote
 ---
-**What it does.** Votes on each window's _final, disambiguated_ BPM rather than on raw candidates. After every window has run the full pipeline (including octave disambiguation) the strategy clusters those finished per-window answers with a 2 percent tolerance and, if two or more windows agree, returns the consensus tempo. When no cluster reaches two members it falls back to _maxConfidence_ over all windows. Because it votes after disambiguation, it counts settled decisions, not intermediate peaks. Its resolution behavior is further parameterizable through _VotingPolicy_ (simple majority, confidence-weighted, or threshold-gated).
+**What it does.** Votes on each region's _final, disambiguated_ BPM rather than on raw candidates. This is the default merge strategy with rhythmic-region selection and _VotingPolicy.simpleMajority_. After each region runs the full pipeline, the strategy clusters the finished answers with a 2 percent tolerance. If two or more regions agree, it returns the consensus tempo; otherwise it falls back to _maxConfidence_. Other voting policies are available explicitly.
 
 **When to pick it.** Choose it when each window is individually competent at picking a tempo and you want their finished verdicts reconciled, rather than re-litigating raw candidates that predate disambiguation. It is the consensus strategy closest to the pipeline's final decisions: a window's vote is its actual output, so agreement means the pipeline reached the same conclusion independently more than once. It suits longer files that yield several windows and _VotingPolicy.thresholdGated_ when you want to reject low-confidence consensus.
 

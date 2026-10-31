@@ -74,7 +74,7 @@ struct OA300BenchmarkTests {
 
   @Test("benchmark Acc1 strict (2% tolerance)")
   func benchmarkAcc1Strict() async throws {
-    let (metrics, _) = try await runBenchmark(intensity: .default, tolerance: 0.02)
+    let (metrics, perTrack) = try await runBenchmark(intensity: .default, tolerance: 0.02)
     print("\n=== OA300 Benchmark — Acc1 Strict (2% tolerance) ===")
     print("Corpus: \(metrics.total) tracks, Rekordbox ground truth")
     print("Annotation version: \(annotationVersion)")
@@ -100,18 +100,17 @@ struct OA300BenchmarkTests {
       }
     }
 
-    // AC #4 (Story 3-2 + Story 3-4): OA300 Acc1 must hold ≥ 69.5% (57/82) and Acc2 ≥ 89.0%
-    // (73/82). See `_bmad-output/implementation-artifacts/3-2-fine-grid-precision-fix.md`
-    // (acceptance criteria #4) and Story 3-4 AC #4 (duration-derived BPM hint default-on
-    // must not regress these floors). Asserted unconditionally so wiring bugs surface
-    // at the test layer regardless of whether the hint actually changed any track outcomes.
+    // Epic 13 promoted default: preserve the measured C result on all 82 tracks.
+    #expect(metrics.total == Self.analyzableTrackCount)
+    let nilTracks = perTrack.filter { $0.detected == nil }.map { $0.track.filename }
+    #expect(nilTracks.isEmpty, "Default OA300 nil results: \(nilTracks)")
     #expect(
-      metrics.acc1Correct >= 57,
-      "AC #4 OA300 Acc1 regression: expected >= 57/82 (69.5%), got \(metrics.acc1Correct)/\(metrics.total)"
+      metrics.acc1Correct >= 60,
+      "Default OA300 Acc1 regression: expected >= 60/82, got \(metrics.acc1Correct)/\(metrics.total)"
     )
     #expect(
-      metrics.acc2Correct >= 73,
-      "AC #4 OA300 Acc2 regression: expected >= 73/82 (89.0%), got \(metrics.acc2Correct)/\(metrics.total)"
+      metrics.acc2Correct >= 76,
+      "Default OA300 Acc2 regression: expected >= 76/82, got \(metrics.acc2Correct)/\(metrics.total)"
     )
   }
 
@@ -124,7 +123,8 @@ struct OA300BenchmarkTests {
   @Test("AC #5: durationHint=false matches pre-Story-3-4 baseline EXACTLY")
   func benchmarkDurationHintOptOut() async throws {
     let (metrics, _) = try await runBenchmark(
-      intensity: .default, tolerance: 0.02,
+      intensity: .default, mergeStrategy: .maxConfidence,
+      useRhythmicRegions: false, tolerance: 0.02,
       durationHint: false, metadataPolicy: .disabled)
     print("\n=== OA300 Benchmark — durationHint=false (AC #5 control) ===")
     print(
@@ -464,6 +464,7 @@ struct OA300BenchmarkTests {
         group.addTask {
           var opts = AudioAnalysisService.Options()
           opts.intensity = .default
+          opts.useRhythmicRegions = false  // Pre-Story-3-5 window geometry.
           opts.mergeStrategy = .windowVoting
           opts.votingPolicy = .simpleMajority
           opts.votingThreshold = 0.0
@@ -548,7 +549,7 @@ struct OA300BenchmarkTests {
         group.addTask {
           var opts = AudioAnalysisService.Options()
           opts.intensity = .default
-          // Use default merge to avoid windowVoting interaction with metadata.
+          // Report metadata evidence under the current default configuration.
           let result = try? AudioAnalysisService.analyzeBPM(url: url, options: opts)
           return (index, result != nil, result?.metadataEvidence ?? [])
         }
@@ -782,7 +783,8 @@ struct OA300BenchmarkTests {
 
   private func runBenchmark(
     intensity: AnalysisIntensity,
-    mergeStrategy: BPMSelectionPolicy = .maxConfidence,
+    mergeStrategy: BPMSelectionPolicy? = nil,
+    useRhythmicRegions: Bool? = nil,
     tolerance: Double,
     durationHint: Bool = true,
     metadataPolicy: MetadataPolicy = .default
@@ -806,7 +808,8 @@ struct OA300BenchmarkTests {
               options: {
                 var o = AudioAnalysisService.Options()
                 o.intensity = intensity
-                o.mergeStrategy = mergeStrategy
+                if let mergeStrategy { o.mergeStrategy = mergeStrategy }
+                if let useRhythmicRegions { o.useRhythmicRegions = useRhythmicRegions }
                 o.durationHint = durationHint
                 o.metadataPolicy = metadataPolicy
                 return o

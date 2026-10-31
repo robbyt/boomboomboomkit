@@ -1,0 +1,6913 @@
+{
+  "arms" : {
+    "A" : "historical maxConfidence, first-transition windows",
+    "C" : "rhythmic disjoint regions, windowVoting\/simpleMajority",
+    "D" : "uniform disjoint regions, windowVoting\/simpleMajority"
+  },
+  "counts" : {
+    "A" : {
+      "acc1" : 224,
+      "acc2" : 238
+    },
+    "C" : {
+      "acc1" : 236,
+      "acc2" : 249
+    },
+    "D" : {
+      "acc1" : 238,
+      "acc2" : 254
+    }
+  },
+  "cVsAAcc1GainedFiles" : [
+    "audio\/e1-03b4f897317d.mp3",
+    "audio\/e1-21b18eee2f4a.mp3",
+    "audio\/e1-55fbb4aaf032.mp3",
+    "audio\/e1-680ff7e831fa.mp3",
+    "audio\/e1-739556c8870e.mp3",
+    "audio\/e1-9e3ccbcb0638.mp3",
+    "audio\/e1-a277f5369053.mp3",
+    "audio\/e1-a88043f56a64.mp3",
+    "audio\/e2-590184515ddc.mp3",
+    "audio\/e2-95a8b1ca0a84.mp3",
+    "audio\/e2-b0e2b9c5ca3b.mp3",
+    "audio\/e2-f1925de8b7d9.mp3",
+    "audio\/e3-91e3567f4496.mp3",
+    "audio\/e3-950256cd621b.mp3",
+    "audio\/e3-99d50fc4b57f.mp3",
+    "audio\/e3-aeb2f533292f.mp3",
+    "audio\/e3-b054dac459b0.mp3",
+    "audio\/e4-620e8b654f8b.wav",
+    "audio\/e4-6fa7a5111f96.mp3",
+    "audio\/e4-de826950695d.wav",
+    "audio\/e5-373c95f94dc1.flac",
+    "audio\/e5-486b1f7e29c0.mp3",
+    "audio\/e5-5deab85b356c.mp3",
+    "audio\/e5-cc5b6852e562.mp3",
+    "audio\/x1-8c83faf6ada1.flac"
+  ],
+  "cVsAAcc1LostFiles" : [
+    "audio\/e1-215a12bb67c5.mp3",
+    "audio\/e1-5239b7d465d8.mp3",
+    "audio\/e1-6ffa3c0868c8.mp3",
+    "audio\/e2-2b619b2ed96d.mp3",
+    "audio\/e2-70530e021922.mp3",
+    "audio\/e3-766901cada96.mp3",
+    "audio\/e4-37b8d7e70724.mp3",
+    "audio\/e4-7aaa3a7dd99a.mp3",
+    "audio\/e5-1dfb08ac2b32.mp3",
+    "audio\/e5-95d093851109.mp3",
+    "audio\/e5-fb0327bb316f.mp3",
+    "audio\/x1-2a7c73e58f36.flac",
+    "audio\/x1-5c2370a4f22a.flac"
+  ],
+  "cVsDAcc1GainedFiles" : [
+    "audio\/e1-5f91545e8dec.mp3",
+    "audio\/e1-9e59bfc94e2b.mp3",
+    "audio\/e1-a88043f56a64.mp3",
+    "audio\/e1-ce9b1ebd7a98.mp3",
+    "audio\/e3-2bbdafec9422.mp3",
+    "audio\/e3-aeb2f533292f.mp3",
+    "audio\/e4-569440d4fb22.mp3",
+    "audio\/e4-ff30cfe96da5.mp3",
+    "audio\/e5-7e90b5311786.mp3"
+  ],
+  "cVsDAcc1LostFiles" : [
+    "audio\/e1-379ab25179f3.mp3",
+    "audio\/e1-5239b7d465d8.mp3",
+    "audio\/e1-59c3e6bb8470.mp3",
+    "audio\/e1-63e34ad7b3a5.mp3",
+    "audio\/e1-6ffa3c0868c8.mp3",
+    "audio\/e1-b2f4824885a7.mp3",
+    "audio\/e2-b47084b6a970.mp3",
+    "audio\/e3-766901cada96.mp3",
+    "audio\/e4-37b8d7e70724.mp3",
+    "audio\/e5-1dfb08ac2b32.mp3",
+    "audio\/x1-2a7c73e58f36.flac"
+  ],
+  "excludedConflictingFiles" : [
+    {
+      "bpms" : [
+        94.680000000000007,
+        133.49000000000001
+      ],
+      "file" : "audio\/e2-60206ec7dba1.mp3"
+    },
+    {
+      "bpms" : [
+        125.02,
+        148
+      ],
+      "file" : "audio\/x1-0ecbacbfd74d.flac"
+    },
+    {
+      "bpms" : [
+        112,
+        127.98
+      ],
+      "file" : "audio\/x1-0fb9a45aed91.flac"
+    },
+    {
+      "bpms" : [
+        51,
+        123.93000000000001
+      ],
+      "file" : "audio\/x1-51e8f1c983e2.flac"
+    }
+  ],
+  "rows" : [
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116,
+          "seconds" : 0.21360324998386204
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15685704164206982
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15794304164592177
+        }
+      },
+      "file" : "audio\/e1-03b4f897317d.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116.5,
+          "seconds" : 0.21114083332940936
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116,
+          "seconds" : 0.17930858337786049
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 115,
+          "seconds" : 0.16564816667232662
+        }
+      },
+      "file" : "audio\/e1-09e024624e7b.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.21578529162798077
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.17127524991519749
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.18327970837708563
+        }
+      },
+      "file" : "audio\/e1-10cf8c7c73ea.mp3",
+      "truthBPM" : 169.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.23686812492087483
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.19052537507377565
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.18610333336982876
+        }
+      },
+      "file" : "audio\/e1-1600fa9895a5.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 165,
+          "seconds" : 0.23865229170769453
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 160,
+          "seconds" : 0.21842066675890237
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 105,
+          "seconds" : 0.19478766666725278
+        }
+      },
+      "file" : "audio\/e1-166bcf186a6c.mp3",
+      "truthBPM" : 152
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.2145259166136384
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.16806070832535625
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.19074383331462741
+        }
+      },
+      "file" : "audio\/e1-1f4af2deaacd.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.23709154175594449
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16844549996312708
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16087166662327945
+        }
+      },
+      "file" : "audio\/e1-1f9ab53615f5.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.21866895828861743
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.18110633338801563
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.16660554159898311
+        }
+      },
+      "file" : "audio\/e1-215a12bb67c5.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 115.5,
+          "seconds" : 0.2129019167041406
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15955833334010094
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.17878687498159707
+        }
+      },
+      "file" : "audio\/e1-21b18eee2f4a.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.22702554170973599
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.16827399993781
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.16028883343096823
+        }
+      },
+      "file" : "audio\/e1-24dae7b53fa8.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.20370787498541176
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.17205125000327826
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.16035512497182935
+        }
+      },
+      "file" : "audio\/e1-2a691473c3a5.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 118.5,
+          "seconds" : 0.21678233332931995
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 118.5,
+          "seconds" : 0.16057787497993559
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.1810528333298862
+        }
+      },
+      "file" : "audio\/e1-379ab25179f3.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.22750795842148364
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.16006879170890898
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15846920828334987
+        }
+      },
+      "file" : "audio\/e1-37b1b41d185c.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 168,
+          "seconds" : 0.21120124997105449
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 113,
+          "seconds" : 0.17537320824339986
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.15815287502482533
+        }
+      },
+      "file" : "audio\/e1-5239b7d465d8.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 110.5,
+          "seconds" : 0.19036612508352846
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 163,
+          "seconds" : 0.16772416664753109
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 163,
+          "seconds" : 0.17904737498611212
+        }
+      },
+      "file" : "audio\/e1-55fbb4aaf032.mp3",
+      "truthBPM" : 163.09
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.29072804166935384
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.19076562498230487
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.18889083329122514
+        }
+      },
+      "file" : "audio\/e1-59c3e6bb8470.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.2720488749910146
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.21536324999760836
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116.5,
+          "seconds" : 0.19993204169441015
+        }
+      },
+      "file" : "audio\/e1-5f91545e8dec.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 110,
+          "seconds" : 0.18671341671142727
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 110,
+          "seconds" : 0.18314824998378754
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.20966870826669037
+        }
+      },
+      "file" : "audio\/e1-63e34ad7b3a5.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.26015804172493517
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.17675116669852287
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.17546266666613519
+        }
+      },
+      "file" : "audio\/e1-680ff7e831fa.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.2515122500481084
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.19952895829919726
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20498687494546175
+        }
+      },
+      "file" : "audio\/e1-684e86a073a2.mp3",
+      "truthBPM" : 174.59999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.16237483324948698
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.16309612500481308
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17995658330619335
+        }
+      },
+      "file" : "audio\/e1-6a1537407e3c.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.23204145825002342
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 68,
+          "seconds" : 0.16219541663303971
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.16143337497487664
+        }
+      },
+      "file" : "audio\/e1-6ffa3c0868c8.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 108.5,
+          "seconds" : 0.21562124998308718
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 159,
+          "seconds" : 0.20683725003618747
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 159,
+          "seconds" : 0.15973375004250556
+        }
+      },
+      "file" : "audio\/e1-739556c8870e.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.22411329171154648
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17017341672908515
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.18139037489891052
+        }
+      },
+      "file" : "audio\/e1-78e4471259c6.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.21546116669196635
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.16815799998585135
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.16597345832269639
+        }
+      },
+      "file" : "audio\/e1-7a9ba5b9e88a.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116,
+          "seconds" : 0.21844758337829262
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17815912503283471
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.16354583331849426
+        }
+      },
+      "file" : "audio\/e1-9e3ccbcb0638.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.21508024993818253
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.16908658330794424
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.17844479170162231
+        }
+      },
+      "file" : "audio\/e1-9e59bfc94e2b.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 111,
+          "seconds" : 0.23314995830878615
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 166,
+          "seconds" : 0.1670572500443086
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 167,
+          "seconds" : 0.16904012497980148
+        }
+      },
+      "file" : "audio\/e1-a277f5369053.mp3",
+      "truthBPM" : 167
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 114,
+          "seconds" : 0.21626216662116349
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.18045079172588885
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 115,
+          "seconds" : 0.17268854170106351
+        }
+      },
+      "file" : "audio\/e1-a88043f56a64.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 177,
+          "seconds" : 0.21869612496811897
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17901004164014012
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.18298174999654293
+        }
+      },
+      "file" : "audio\/e1-af5d9029d982.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.25472683343105018
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116.5,
+          "seconds" : 0.19692266674246639
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.18553629156667739
+        }
+      },
+      "file" : "audio\/e1-b2f4824885a7.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116,
+          "seconds" : 0.21841737499926239
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 109.5,
+          "seconds" : 0.19693816662766039
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 109,
+          "seconds" : 0.18408675002865493
+        }
+      },
+      "file" : "audio\/e1-bcdf9cdef739.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.24033033335581422
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.18662937497720122
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.19497562502510846
+        }
+      },
+      "file" : "audio\/e1-c89c2c51067d.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.23447979160118848
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.18981120828539133
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.18141604168340564
+        }
+      },
+      "file" : "audio\/e1-c9d77b5a97a3.mp3",
+      "truthBPM" : 85
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 161,
+          "seconds" : 0.24351045838557184
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.2062889167573303
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 80,
+          "seconds" : 0.18661362491548061
+        }
+      },
+      "file" : "audio\/e1-ce9b1ebd7a98.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.2354128333972767
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17970608326140791
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.19326587510295212
+        }
+      },
+      "file" : "audio\/e1-d65b22d2b571.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.25010604166891426
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.18650216667447239
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.18624020833522081
+        }
+      },
+      "file" : "audio\/e1-dbc0779d9e5a.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.24089504173025489
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.20639620826113969
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.19486812502145767
+        }
+      },
+      "file" : "audio\/e1-e1dd215681ea.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 113,
+          "seconds" : 0.2607517916476354
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 113,
+          "seconds" : 0.19619704165961593
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 113,
+          "seconds" : 0.23130600003059953
+        }
+      },
+      "file" : "audio\/e1-ef067f89a73e.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.28922829171642661
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.19164108333643526
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.18773533334024251
+        }
+      },
+      "file" : "audio\/e1-ffa02dd9e33b.mp3",
+      "truthBPM" : 170.00999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.241388333379291
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20600429165642709
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 177,
+          "seconds" : 0.18739320838358253
+        }
+      },
+      "file" : "audio\/e2-05cf509fcf51.mp3",
+      "truthBPM" : 174.66999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.2325907499762252
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.16604529169853777
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.18186899996362627
+        }
+      },
+      "file" : "audio\/e2-06c4cd3503fc.mp3",
+      "truthBPM" : 135
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.23754362494219095
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.17820404167287052
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.17112816672306508
+        }
+      },
+      "file" : "audio\/e2-0a9f06782d5b.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.29547678411819,
+          "seconds" : 0.23819212499074638
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.16640003974561,
+          "seconds" : 0.1888263332657516
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.16181662382175,
+          "seconds" : 0.18077862495556474
+        }
+      },
+      "file" : "audio\/e2-0e8ba446896e.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133,
+          "seconds" : 0.22990608331747353
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133,
+          "seconds" : 0.18728600000031292
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133,
+          "seconds" : 0.18557945836801082
+        }
+      },
+      "file" : "audio\/e2-1369d040af92.mp3",
+      "truthBPM" : 132.47999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125,
+          "seconds" : 0.24692041671369225
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125,
+          "seconds" : 0.18803045828826725
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125,
+          "seconds" : 0.18655874999240041
+        }
+      },
+      "file" : "audio\/e2-1e07ebeb86b1.mp3",
+      "truthBPM" : 125
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 134,
+          "seconds" : 0.2474669583607465
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 134,
+          "seconds" : 0.19137387501541525
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 134,
+          "seconds" : 0.18864879163447767
+        }
+      },
+      "file" : "audio\/e2-1fe41e7b6147.mp3",
+      "truthBPM" : 134
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124,
+          "seconds" : 0.25194149999879301
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 162,
+          "seconds" : 0.19470933335833251
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 162,
+          "seconds" : 0.20714933332055807
+        }
+      },
+      "file" : "audio\/e2-2b619b2ed96d.mp3",
+      "truthBPM" : 124
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.25932070834096521
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.19318929163273424
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.18824254162609577
+        }
+      },
+      "file" : "audio\/e2-3603dfd073c7.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135.9919382504288,
+          "seconds" : 0.28008033335208893
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136.11771212545506,
+          "seconds" : 0.2108651667367667
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136.11771212545506,
+          "seconds" : 0.19347333326004446
+        }
+      },
+      "file" : "audio\/e2-3db0434e70fc.mp3",
+      "truthBPM" : 136
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.29553883336484432
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.22634237492457032
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.24513125000521541
+        }
+      },
+      "file" : "audio\/e2-3e6fade02ed0.mp3",
+      "truthBPM" : 134.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135.28105738233398,
+          "seconds" : 0.31647150008939207
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135.05017265193371,
+          "seconds" : 0.22978062508627772
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135.22327906565209,
+          "seconds" : 0.22994520829524845
+        }
+      },
+      "file" : "audio\/e2-3ef2e63fcdbe.mp3",
+      "truthBPM" : 135
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.20184947444436,
+          "seconds" : 0.32219275005627424
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.02853645051734,
+          "seconds" : 0.25032266671769321
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.02853645051734,
+          "seconds" : 0.24140125000849366
+        }
+      },
+      "file" : "audio\/e2-4f1df91ebf8e.mp3",
+      "truthBPM" : 124.98999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.01654149111559,
+          "seconds" : 0.34295762493275106
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.22893982808023,
+          "seconds" : 0.25992045842576772
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.18702363926977,
+          "seconds" : 0.28729633335024118
+        }
+      },
+      "file" : "audio\/e2-581276b2031c.mp3",
+      "truthBPM" : 129.97999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116,
+          "seconds" : 0.32253574999049306
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.26903408335056156
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.26533566671423614
+        }
+      },
+      "file" : "audio\/e2-590184515ddc.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.90192729681614,
+          "seconds" : 0.15587566664908081
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.83766013720142,
+          "seconds" : 0.082991833332926035
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.86329701621889,
+          "seconds" : 0.077898416668176651
+        }
+      },
+      "file" : "audio\/e2-599bc1c1f5fe.wav",
+      "truthBPM" : 126
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 84,
+          "seconds" : 0.33343779167626053
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 117.5,
+          "seconds" : 0.26141141669359058
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 117.5,
+          "seconds" : 0.27259162510745227
+        }
+      },
+      "file" : "audio\/e2-5fda0a2f4902.mp3",
+      "truthBPM" : 127.40000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135.9772246469833,
+          "seconds" : 0.33211666659917682
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136.01828122553368,
+          "seconds" : 0.31460333336144686
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136.18025108056918,
+          "seconds" : 0.37566291668917984
+        }
+      },
+      "file" : "audio\/e2-69d3528e0d55.mp3",
+      "truthBPM" : 136
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.71560720831621438
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.66565766662824899
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.81073458329774439
+        }
+      },
+      "file" : "audio\/e2-70530e021922.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.52086295839399099
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.37772316671907902
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.47048924991395324
+        }
+      },
+      "file" : "audio\/e2-7078199f389e.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 117.5,
+          "seconds" : 0.43099554162472486
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 118,
+          "seconds" : 0.27118649997282773
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 117.5,
+          "seconds" : 0.24473304173443466
+        }
+      },
+      "file" : "audio\/e2-7f17c17d7e41.mp3",
+      "truthBPM" : 176.13999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.22251754172611982
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136,
+          "seconds" : 0.26256158330943435
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136,
+          "seconds" : 0.20275529171340168
+        }
+      },
+      "file" : "audio\/e2-874c37293ea7.mp3",
+      "truthBPM" : 134.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 90,
+          "seconds" : 0.22325516666751355
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 90,
+          "seconds" : 0.18685462500434369
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 183,
+          "seconds" : 0.18278279167134315
+        }
+      },
+      "file" : "audio\/e2-8b09a84f28fe.mp3",
+      "truthBPM" : 135
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.16682879172731191
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.10633316659368575
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.10120520833879709
+        }
+      },
+      "file" : "audio\/e2-8df162ad08d2.m4a",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125,
+          "seconds" : 0.21991708327550441
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125,
+          "seconds" : 0.18476529163308442
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125,
+          "seconds" : 0.16312387504149228
+        }
+      },
+      "file" : "audio\/e2-8e52387e63d3.mp3",
+      "truthBPM" : 126
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 101,
+          "seconds" : 0.22070658334996551
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 119,
+          "seconds" : 0.17901079170405865
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 162,
+          "seconds" : 0.18279116658959538
+        }
+      },
+      "file" : "audio\/e2-921d8de57228.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 167,
+          "seconds" : 0.23730916669592261
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.94742273611411,
+          "seconds" : 0.17343416658695787
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.94742273611411,
+          "seconds" : 0.16494000004604459
+        }
+      },
+      "file" : "audio\/e2-95a8b1ca0a84.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.21122362499590963
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.17544449993874878
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.1593280415982008
+        }
+      },
+      "file" : "audio\/e2-a1b4df75a8aa.mp3",
+      "truthBPM" : 135
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 177.01222812953117,
+          "seconds" : 0.22002808330580592
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136.12977764256871,
+          "seconds" : 0.16646550002042204
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 136.12977764256871,
+          "seconds" : 0.18607962504029274
+        }
+      },
+      "file" : "audio\/e2-b0e2b9c5ca3b.mp3",
+      "truthBPM" : 136
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 169.14409911330932,
+          "seconds" : 0.22949533339124173
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 169.14377076069366,
+          "seconds" : 0.16204399999696761
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 169.14540149602158,
+          "seconds" : 0.16985095839481801
+        }
+      },
+      "file" : "audio\/e2-b1fa567d092c.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124,
+          "seconds" : 0.21712729160208255
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.5,
+          "seconds" : 0.19150479172822088
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124,
+          "seconds" : 0.17919162497855723
+        }
+      },
+      "file" : "audio\/e2-b3cc2a177eee.mp3",
+      "truthBPM" : 124.65000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 182.04147798742139,
+          "seconds" : 0.21681983338203281
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 174.87479009235938,
+          "seconds" : 0.17024766665417701
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135.76240317678204,
+          "seconds" : 0.1721397916553542
+        }
+      },
+      "file" : "audio\/e2-b47084b6a970.mp3",
+      "truthBPM" : 136
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.21829408325720578
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.15598937496542931
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.15190145839005709
+        }
+      },
+      "file" : "audio\/e2-b7540e6b9d01.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.20994445832911879
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.17599058337509632
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.16155116667505354
+        }
+      },
+      "file" : "audio\/e2-ba0e1fbe0b87.mp3",
+      "truthBPM" : 128
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.20652258337941021
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.15748229168821126
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 125,
+          "seconds" : 0.16939304163679481
+        }
+      },
+      "file" : "audio\/e2-bfbf292dea06.mp3",
+      "truthBPM" : 128
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 123,
+          "seconds" : 0.23785625002346933
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 123,
+          "seconds" : 0.16401941666845232
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 123,
+          "seconds" : 0.1565295000327751
+        }
+      },
+      "file" : "audio\/e2-c1703f88533d.mp3",
+      "truthBPM" : 123
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 134,
+          "seconds" : 0.20068629167508334
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 134,
+          "seconds" : 0.16721854161005467
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 134,
+          "seconds" : 0.14998562494292855
+        }
+      },
+      "file" : "audio\/e2-c1f1a3d07ce8.mp3",
+      "truthBPM" : 134
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.19663033331744373
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.1599846666213125
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.17434791673440486
+        }
+      },
+      "file" : "audio\/e2-c4c4a96c53bd.mp3",
+      "truthBPM" : 174.97999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133.18572052401746,
+          "seconds" : 0.18978270830120891
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133.11756025811349,
+          "seconds" : 0.15710750001017004
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133.11756025811349,
+          "seconds" : 0.15666491666343063
+        }
+      },
+      "file" : "audio\/e2-c5d4b8c3abb8.mp3",
+      "truthBPM" : 132.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 172,
+          "seconds" : 0.20422087504994124
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 172,
+          "seconds" : 0.17469379166141152
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 175,
+          "seconds" : 0.15358058328274637
+        }
+      },
+      "file" : "audio\/e2-c8728229f5c3.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.20442945836111903
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.15779820829629898
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130,
+          "seconds" : 0.1650305415969342
+        }
+      },
+      "file" : "audio\/e2-d027879fa85c.mp3",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 175,
+          "seconds" : 0.20426866668276489
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 175,
+          "seconds" : 0.15787691657897085
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 177,
+          "seconds" : 0.15755937504582107
+        }
+      },
+      "file" : "audio\/e2-dbcc133f49a6.mp3",
+      "truthBPM" : 130.49000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.20671824994497001
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.17288604169152677
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.15366858337074518
+        }
+      },
+      "file" : "audio\/e2-dbf16ea75933.mp3",
+      "truthBPM" : 135
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124,
+          "seconds" : 0.18797083338722587
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124,
+          "seconds" : 0.15747762494720519
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124,
+          "seconds" : 0.17847412498667836
+        }
+      },
+      "file" : "audio\/e2-de64ba58e423.mp3",
+      "truthBPM" : 124
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 134,
+          "seconds" : 0.2014589166501537
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133,
+          "seconds" : 0.16157474997453392
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133,
+          "seconds" : 0.16135945823043585
+        }
+      },
+      "file" : "audio\/e2-e7dd28bc8faa.mp3",
+      "truthBPM" : 133.41
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 132,
+          "seconds" : 0.20464087498839945
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 132,
+          "seconds" : 0.17640312504954636
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 132,
+          "seconds" : 0.15449820831418037
+        }
+      },
+      "file" : "audio\/e2-ea592b7bbb5c.mp3",
+      "truthBPM" : 132
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 172.33682112605879,
+          "seconds" : 0.20874725002795458
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 186,
+          "seconds" : 0.15575620834715664
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 167.29444063143447,
+          "seconds" : 0.17424070835113525
+        }
+      },
+      "file" : "audio\/e2-ec36d5568062.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 184.56339799869866,
+          "seconds" : 0.1991183334030211
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 138.02610451379775,
+          "seconds" : 0.15530212502926588
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 138.02610451379775,
+          "seconds" : 0.15651937504298985
+        }
+      },
+      "file" : "audio\/e2-f1925de8b7d9.mp3",
+      "truthBPM" : 138
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 127.24959674566679,
+          "seconds" : 0.21240795834455639
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 127.23723813673166,
+          "seconds" : 0.17363604158163071
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 127.05676229508197,
+          "seconds" : 0.16418591665569693
+        }
+      },
+      "file" : "audio\/e2-f263d1ddb631.mp3",
+      "truthBPM" : 127
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20744391670450568
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15771908336319029
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.17190058331470937
+        }
+      },
+      "file" : "audio\/e3-018fb5e4dbfa.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20190983335487545
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.1606197499204427
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15540533326566219
+        }
+      },
+      "file" : "audio\/e3-13b604fa19ff.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.18952120828907937
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.17799504159484059
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 135,
+          "seconds" : 0.15687291673384607
+        }
+      },
+      "file" : "audio\/e3-152b99d83310.mp3",
+      "truthBPM" : 135
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20525729167275131
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15564549993723631
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.17033283342607319
+        }
+      },
+      "file" : "audio\/e3-156c5c344cc6.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.22299333335831761
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.15457916667219251
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.16324820835143328
+        }
+      },
+      "file" : "audio\/e3-1b27a7497493.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.2102264582645148
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.19496770831756294
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.16536362492479384
+        }
+      },
+      "file" : "audio\/e3-22fffe3b2c53.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145.46885618569036,
+          "seconds" : 0.20639437495265156
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 146.67182479338842,
+          "seconds" : 0.15776679164264351
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 196.532565179785,
+          "seconds" : 0.17549258330836892
+        }
+      },
+      "file" : "audio\/e3-2bbdafec9422.mp3",
+      "truthBPM" : 144.91999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 141,
+          "seconds" : 0.2296579999383539
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15466350002679974
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15755700005684048
+        }
+      },
+      "file" : "audio\/e3-2ebf184bab58.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.17912395833991468
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.17292070831172168
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15807883336674422
+        }
+      },
+      "file" : "audio\/e3-32a542c2fb38.mp3",
+      "truthBPM" : 171.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 151.07190643686246,
+          "seconds" : 0.20679549989290535
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 151.07190643686246,
+          "seconds" : 0.15546787495259196
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 151.07190643686246,
+          "seconds" : 0.17211679159663618
+        }
+      },
+      "file" : "audio\/e3-3d3a20eb604e.mp3",
+      "truthBPM" : 150.81
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.22326875000726432
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15815800009295344
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15618349995929748
+        }
+      },
+      "file" : "audio\/e3-3d43479abfe2.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20400341658387333
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.17261683323886245
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15337966661900282
+        }
+      },
+      "file" : "audio\/e3-3f5e40a41e82.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.21322195837274194
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15628612495493144
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.16890712501481175
+        }
+      },
+      "file" : "audio\/e3-43ed37171ce5.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20550362498033792
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.14206166658550501
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.14061999996192753
+        }
+      },
+      "file" : "audio\/e3-449c65c3ee2a.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20959987491369247
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.18703837506473064
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.16807812498882413
+        }
+      },
+      "file" : "audio\/e3-47b1bf799b95.mp3",
+      "truthBPM" : 139.90000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 190.36023358692364,
+          "seconds" : 0.20922591665294021
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 184,
+          "seconds" : 0.15762783330865204
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 172.08640533778149,
+          "seconds" : 0.17864991666283458
+        }
+      },
+      "file" : "audio\/e3-4b9f1c48e36c.mp3",
+      "truthBPM" : 146
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.08922749166356,
+          "seconds" : 0.22861166670918465
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.10559006211179,
+          "seconds" : 0.15976970829069614
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.10559006211179,
+          "seconds" : 0.15670266665983945
+        }
+      },
+      "file" : "audio\/e3-59f5215907a7.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 144.0249474421864,
+          "seconds" : 0.214022041647695
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 143.97628344179321,
+          "seconds" : 0.17596708331257105
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 144.0249474421864,
+          "seconds" : 0.1766225416213274
+        }
+      },
+      "file" : "audio\/e3-5ca5dac6bfb2.mp3",
+      "truthBPM" : 144
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.94778943424504,
+          "seconds" : 0.20705295831430703
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.98898932086271,
+          "seconds" : 0.15618775004986674
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.92789137380191,
+          "seconds" : 0.17416770826093853
+        }
+      },
+      "file" : "audio\/e3-63178f2f475c.mp3",
+      "truthBPM" : 150.00999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 141,
+          "seconds" : 0.21804266655817628
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15371758327819407
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 141,
+          "seconds" : 0.15304004168137908
+        }
+      },
+      "file" : "audio\/e3-639c2c8a98f7.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20837550004944205
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.17575295828282833
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15415545832365751
+        }
+      },
+      "file" : "audio\/e3-73813e4e7f00.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 146.95764315556647,
+          "seconds" : 0.20700341672636569
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 196.64383872799544,
+          "seconds" : 0.15995904162991792
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 147.10824550715807,
+          "seconds" : 0.17036395834293216
+        }
+      },
+      "file" : "audio\/e3-766901cada96.mp3",
+      "truthBPM" : 147.09999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140.38143863179076,
+          "seconds" : 0.21781395829748362
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 141.7834725292721,
+          "seconds" : 0.15431383333634585
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 141.7834725292721,
+          "seconds" : 0.15244375006295741
+        }
+      },
+      "file" : "audio\/e3-78c3e807ce90.mp3",
+      "truthBPM" : 141.75
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.00602318382403,
+          "seconds" : 0.10610908339731395
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.99144781144781,
+          "seconds" : 0.05779462493956089
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.92263360759026,
+          "seconds" : 0.051556374994106591
+        }
+      },
+      "file" : "audio\/e3-824f4b73e616.wav",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 154.63970364296591,
+          "seconds" : 0.20768883335404098
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 154.63970364296591,
+          "seconds" : 0.15741083328612149
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 154.63970364296591,
+          "seconds" : 0.17311170825269073
+        }
+      },
+      "file" : "audio\/e3-8856fcf16ea0.mp3",
+      "truthBPM" : 154.78
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.8902187902188,
+          "seconds" : 0.22173983335960656
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.81875910889028,
+          "seconds" : 0.15835337503813207
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 148.05369263022092,
+          "seconds" : 0.15551854169461876
+        }
+      },
+      "file" : "audio\/e3-8c6d29ef1100.mp3",
+      "truthBPM" : 149.72
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20579262508545071
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.17733933334238827
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15313058323226869
+        }
+      },
+      "file" : "audio\/e3-8f9589e94b04.mp3",
+      "truthBPM" : 139.97999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149,
+          "seconds" : 0.20675637503154576
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.15982454176992178
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.17117483331821859
+        }
+      },
+      "file" : "audio\/e3-904fc30d1b45.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 182,
+          "seconds" : 0.20101458334829658
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15466825000476092
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15495683334302157
+        }
+      },
+      "file" : "audio\/e3-91e3567f4496.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 198.25150000000002,
+          "seconds" : 0.20715083333197981
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145.35417345532022,
+          "seconds" : 0.18097208335530013
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145.35417345532022,
+          "seconds" : 0.15539924998302013
+        }
+      },
+      "file" : "audio\/e3-950256cd621b.mp3",
+      "truthBPM" : 145.06
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 187,
+          "seconds" : 0.20565058337524533
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.1556495416443795
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.17278604162856936
+        }
+      },
+      "file" : "audio\/e3-99d50fc4b57f.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.03743412832074,
+          "seconds" : 0.21295141673181206
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.08338155917866,
+          "seconds" : 0.16162141668610275
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.96372418756573,
+          "seconds" : 0.17778091668151319
+        }
+      },
+      "file" : "audio\/e3-a5262b5914dc.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.15093948425553,
+          "seconds" : 0.21025849995203316
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.97970348024427,
+          "seconds" : 0.17481912509538233
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.97970348024427,
+          "seconds" : 0.15819929167628288
+        }
+      },
+      "file" : "audio\/e3-ab2ba4c39fa8.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 189.37137340847423,
+          "seconds" : 0.2073846667772159
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 142.94174225689713,
+          "seconds" : 0.15515079163014889
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 192.73766859344892,
+          "seconds" : 0.17606266669463366
+        }
+      },
+      "file" : "audio\/e3-aeb2f533292f.mp3",
+      "truthBPM" : 143
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 100.5,
+          "seconds" : 0.22423650010023266
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149,
+          "seconds" : 0.15447470836807042
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149,
+          "seconds" : 0.15603791666217148
+        }
+      },
+      "file" : "audio\/e3-b054dac459b0.mp3",
+      "truthBPM" : 148
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.94851350356907,
+          "seconds" : 0.18653191672638059
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.01321501706485,
+          "seconds" : 0.18545087496750057
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.01321501706485,
+          "seconds" : 0.15837191673927009
+        }
+      },
+      "file" : "audio\/e3-b9ff240176ee.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 154.04003942392791,
+          "seconds" : 0.1032734583131969
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 153.17975238388186,
+          "seconds" : 0.052363125025294721
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 153.58210907067334,
+          "seconds" : 0.059503166703507304
+        }
+      },
+      "file" : "audio\/e3-ba61223afdd9.wav",
+      "truthBPM" : 153.93000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.23642458335962147
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15727091662120074
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15955816663336009
+        }
+      },
+      "file" : "audio\/e3-bbdc863e2fd8.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 147.06214465467423,
+          "seconds" : 0.20711650000885129
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 146.80020385674933,
+          "seconds" : 0.17158454156015068
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 146.74907407407406,
+          "seconds" : 0.15755320840980858
+        }
+      },
+      "file" : "audio\/e3-bbdfd4b9ca9c.mp3",
+      "truthBPM" : 146.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 151.76153893011701,
+          "seconds" : 0.20934800000395626
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.26319544537333,
+          "seconds" : 0.15942825004458427
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.26319544537333,
+          "seconds" : 0.17851274996064603
+        }
+      },
+      "file" : "audio\/e3-bfc5ce260ed7.mp3",
+      "truthBPM" : 151
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 118.5,
+          "seconds" : 0.21790450008120388
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 183,
+          "seconds" : 0.15319170826114714
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 183,
+          "seconds" : 0.15238574997056276
+        }
+      },
+      "file" : "audio\/e3-c35c77f9eb6f.mp3",
+      "truthBPM" : 145
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20914883329533041
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.18060729163698852
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15636374999303371
+        }
+      },
+      "file" : "audio\/e3-cf160c4b13e6.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.18221720831934363
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15795270830858499
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.17547891661524773
+        }
+      },
+      "file" : "audio\/e3-d3f6a24a1662.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.2122740417253226
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.14947616669815034
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.14716950000729412
+        }
+      },
+      "file" : "audio\/e3-d4f2df32ac1d.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.18756754172500223
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.17807912500575185
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15648758329916745
+        }
+      },
+      "file" : "audio\/e3-d5eeba127f53.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 149.92344394266641,
+          "seconds" : 0.17480208328925073
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.2236222392531,
+          "seconds" : 0.16278633335605264
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150.2236222392531,
+          "seconds" : 0.18194704165216535
+        }
+      },
+      "file" : "audio\/e3-db0038299118.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.20273120841011405
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15086870838422328
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.14949054166208953
+        }
+      },
+      "file" : "audio\/e3-e09c3cf950d4.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145,
+          "seconds" : 0.20903766667470336
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145,
+          "seconds" : 0.18071216670796275
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145,
+          "seconds" : 0.15852220833767205
+        }
+      },
+      "file" : "audio\/e3-e12e71254ac1.mp3",
+      "truthBPM" : 144.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.20761949999723583
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.15835062507539988
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.17125304159708321
+        }
+      },
+      "file" : "audio\/e3-e62a61f3aac7.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.22992545831948519
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15881225001066923
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15904779173433781
+        }
+      },
+      "file" : "audio\/e3-e80eac6d4502.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.18100633332505822
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.1688785832375288
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 140,
+          "seconds" : 0.15203866665251553
+        }
+      },
+      "file" : "audio\/e3-f197cd353670.mp3",
+      "truthBPM" : 140
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145.24069424835798,
+          "seconds" : 0.20829029160086066
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145.19638311279141,
+          "seconds" : 0.15867533336859196
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145.0856046195652,
+          "seconds" : 0.17957008327357471
+        }
+      },
+      "file" : "audio\/e3-f9f20538f6d5.mp3",
+      "truthBPM" : 145
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 88,
+          "seconds" : 0.22725808341056108
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 188,
+          "seconds" : 0.15688216674607247
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 188,
+          "seconds" : 0.15648312505800277
+        }
+      },
+      "file" : "audio\/e3-fce6a30d22e3.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145,
+          "seconds" : 0.20864641666412354
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145,
+          "seconds" : 0.17398895835503936
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 145,
+          "seconds" : 0.15837579173967242
+        }
+      },
+      "file" : "audio\/e3-ff24b81ea823.mp3",
+      "truthBPM" : 145
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.21104204165749252
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.15937841671984643
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 150,
+          "seconds" : 0.17012887506280094
+        }
+      },
+      "file" : "audio\/e3-ff84cbc37cb4.mp3",
+      "truthBPM" : 150
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.21419291663914919
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16244537499733269
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15809925005305558
+        }
+      },
+      "file" : "audio\/e4-0437418f0cc0.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.20895712496712804
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.16950529161840677
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15327312494628131
+        }
+      },
+      "file" : "audio\/e4-0cf4e0019681.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.18905216665007174
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116,
+          "seconds" : 0.15768991666845977
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.1753506250679493
+        }
+      },
+      "file" : "audio\/e4-175d6ad41af4.mp3",
+      "truthBPM" : 87
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.22005258337594569
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15664641675539315
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15515370829962194
+        }
+      },
+      "file" : "audio\/e4-178dcb80745a.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 169.99288260456274,
+          "seconds" : 0.10888487496413291
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 169.73175630588548,
+          "seconds" : 0.057028249953873456
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 169.36602203603812,
+          "seconds" : 0.055844916612841189
+        }
+      },
+      "file" : "audio\/e4-235cdd3b31d6.wav",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 161,
+          "seconds" : 0.21681075007654727
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 161,
+          "seconds" : 0.15913150005508214
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 161,
+          "seconds" : 0.1731413749512285
+        }
+      },
+      "file" : "audio\/e4-263c7fb25366.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.20448566658888012
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15741862496361136
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16011599998455495
+        }
+      },
+      "file" : "audio\/e4-2c45ef5e5e91.mp3",
+      "truthBPM" : 85
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.21064654167275876
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.18352812505327165
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.1569398749852553
+        }
+      },
+      "file" : "audio\/e4-320256f6fbf3.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.20703812502324581
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15819750004447997
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.17548712505958974
+        }
+      },
+      "file" : "audio\/e4-32232d9c518f.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.22815758327487856
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.15834537497721612
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.16056108335033059
+        }
+      },
+      "file" : "audio\/e4-3280c6ed1356.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.18670766660943627
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.1762611250160262
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15824266662821174
+        }
+      },
+      "file" : "audio\/e4-33276ebc12c1.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.21218004170805216
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15864479157608002
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17982412502169609
+        }
+      },
+      "file" : "audio\/e4-3728e60b8edd.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.22345379169564694
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 87,
+          "seconds" : 0.15398233337327838
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15326120832469314
+        }
+      },
+      "file" : "audio\/e4-37b8d7e70724.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.20666266663465649
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.1795713750179857
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.15628520841710269
+        }
+      },
+      "file" : "audio\/e4-3c4eaae3de61.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 177,
+          "seconds" : 0.20626441657077521
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15666337497532368
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17036104167345911
+        }
+      },
+      "file" : "audio\/e4-3f08525db913.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 115.5,
+          "seconds" : 0.23408366658259183
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 114.5,
+          "seconds" : 0.1524585000006482
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 84,
+          "seconds" : 0.14961329172365367
+        }
+      },
+      "file" : "audio\/e4-3f9df177f51c.mp3",
+      "truthBPM" : 168.86000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 80,
+          "seconds" : 0.20762933325022459
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 80,
+          "seconds" : 0.17725362500641495
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 106,
+          "seconds" : 0.15989333332981914
+        }
+      },
+      "file" : "audio\/e4-41eaf2cef65c.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170.17556333406256,
+          "seconds" : 0.092625208315439522
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170.30476115485564,
+          "seconds" : 0.058700458379462361
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170.206571867794,
+          "seconds" : 0.057189041748642921
+        }
+      },
+      "file" : "audio\/e4-4dbad0b64676.wav",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.23101550003048033
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.16536675009410828
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 80,
+          "seconds" : 0.1664828333305195
+        }
+      },
+      "file" : "audio\/e4-569440d4fb22.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.20914929162245244
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17424795823171735
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15692970831878483
+        }
+      },
+      "file" : "audio\/e4-5f1ff9109668.mp3",
+      "truthBPM" : 174.00999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 79.968318048537029,
+          "seconds" : 0.10177995834965259
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160.86908733468368,
+          "seconds" : 0.055634708376601338
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 159.99146425793069,
+          "seconds" : 0.059217791655100882
+        }
+      },
+      "file" : "audio\/e4-620e8b654f8b.wav",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170.3974243278812,
+          "seconds" : 0.1176968333311379
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170.42991190949132,
+          "seconds" : 0.054653958301059902
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170.42991190949132,
+          "seconds" : 0.053792958380654454
+        }
+      },
+      "file" : "audio\/e4-62f2ccc8d2f0.wav",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 87,
+          "seconds" : 0.20532429171726108
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 87,
+          "seconds" : 0.17394512495957315
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 87,
+          "seconds" : 0.15423900005407631
+        }
+      },
+      "file" : "audio\/e4-673170b573b8.mp3",
+      "truthBPM" : 173
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.21259241667576134
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15772687492426485
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17087333335075527
+        }
+      },
+      "file" : "audio\/e4-6d0625ac48cc.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 114,
+          "seconds" : 0.20696566661354154
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15671087498776615
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15527354169171304
+        }
+      },
+      "file" : "audio\/e4-6fa7a5111f96.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.20698150002863258
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17061849997844547
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15553366660606116
+        }
+      },
+      "file" : "audio\/e4-757b52cb405a.mp3",
+      "truthBPM" : 173.94999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 169,
+          "seconds" : 0.1924897083081305
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 84,
+          "seconds" : 0.15602104167919606
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 84,
+          "seconds" : 0.18288554158061743
+        }
+      },
+      "file" : "audio\/e4-7aaa3a7dd99a.mp3",
+      "truthBPM" : 168
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.20330612501129508
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15532937494572252
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15371950005646795
+        }
+      },
+      "file" : "audio\/e4-7c9248ab04f2.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.20387429173570126
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16932766675017774
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15399520832579583
+        }
+      },
+      "file" : "audio\/e4-7eff313acb5b.mp3",
+      "truthBPM" : 169.96000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.20632508338894695
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15703437500633299
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17493637499865144
+        }
+      },
+      "file" : "audio\/e4-7f175c1a2154.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 165,
+          "seconds" : 0.18776320829056203
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 165,
+          "seconds" : 0.15717166662216187
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 165,
+          "seconds" : 0.15569783339742571
+        }
+      },
+      "file" : "audio\/e4-81befb130be0.mp3",
+      "truthBPM" : 165
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.20943699998315424
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.18468466668855399
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15923420840408653
+        }
+      },
+      "file" : "audio\/e4-84c6d3cd25d0.mp3",
+      "truthBPM" : 172.99000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174.04758890898131,
+          "seconds" : 0.2045554582728073
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 173.86337780061288,
+          "seconds" : 0.15433837496675551
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 173.74445572387941,
+          "seconds" : 0.17781604162883013
+        }
+      },
+      "file" : "audio\/e4-975abdbe0700.mp3",
+      "truthBPM" : 173.97999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.22335216659121215
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.15559979167301208
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.15521729167085141
+        }
+      },
+      "file" : "audio\/e4-98a9359813c8.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.18376370833721012
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17183674999978393
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15535704174544662
+        }
+      },
+      "file" : "audio\/e4-992d35092adc.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.086901208385825157
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.056221416569314897
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.05722591676749289
+        }
+      },
+      "file" : "audio\/e4-9d47cd867f61.aiff",
+      "truthBPM" : 168.63
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.20646808343008161
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.1572074166033417
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15591866674367338
+        }
+      },
+      "file" : "audio\/e4-a2b7af9d5329.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.203806291683577
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.1741429166868329
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15360887499991804
+        }
+      },
+      "file" : "audio\/e4-a315315639d6.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.20998370833694935
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16003241657745093
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.18342220829799771
+        }
+      },
+      "file" : "audio\/e4-a72b59c19044.mp3",
+      "truthBPM" : 85
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.22355454170610756
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.15687283326406032
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.1557947916444391
+        }
+      },
+      "file" : "audio\/e4-b56092336986.mp3",
+      "truthBPM" : 172.22999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.20232587493956089
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.17100812506396323
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15276874997653067
+        }
+      },
+      "file" : "audio\/e4-bb9c90907496.mp3",
+      "truthBPM" : 170.00999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.21314937504939735
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.16179574991110712
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.17562366661150008
+        }
+      },
+      "file" : "audio\/e4-bd07f6b77256.mp3",
+      "truthBPM" : 174
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.2029335000552237
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15562254167161882
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.1570327082881704
+        }
+      },
+      "file" : "audio\/e4-bde50a002629.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.20864104165229946
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.17029375000856817
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.15602445835247636
+        }
+      },
+      "file" : "audio\/e4-bf6991c2e5f4.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.21065287501551211
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15646904159802943
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.17818466667085886
+        }
+      },
+      "file" : "audio\/e4-c290630996cd.mp3",
+      "truthBPM" : 172.00999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 164,
+          "seconds" : 0.22536375001072884
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 164,
+          "seconds" : 0.15501162502914667
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 164,
+          "seconds" : 0.15414891671389341
+        }
+      },
+      "file" : "audio\/e4-d2e5ba60e8b6.mp3",
+      "truthBPM" : 164
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.20891641662456095
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.18007137498352677
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15714295825455338
+        }
+      },
+      "file" : "audio\/e4-ddf15b06074d.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 79.979669698495627,
+          "seconds" : 0.10526654170826077
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160.32111380634728,
+          "seconds" : 0.054336708271875978
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160.2535298035298,
+          "seconds" : 0.056171500007621944
+        }
+      },
+      "file" : "audio\/e4-de826950695d.wav",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.2056977916508913
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15641175000928342
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15463570842985064
+        }
+      },
+      "file" : "audio\/e4-e48bd7937638.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.20605083333794028
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.17603991669602692
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 160,
+          "seconds" : 0.15507612505462021
+        }
+      },
+      "file" : "audio\/e4-f161b58b7802.mp3",
+      "truthBPM" : 160
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.21683812502305955
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.1583785000257194
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 86,
+          "seconds" : 0.17916154162958264
+        }
+      },
+      "file" : "audio\/e4-ff30cfe96da5.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.22560858342330903
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15512870834209025
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15929620829410851
+        }
+      },
+      "file" : "audio\/e5-002282699e0f.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20709687494672835
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17724708339665085
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15723212494049221
+        }
+      },
+      "file" : "audio\/e5-0e00d971d074.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17135750001762062
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 88,
+          "seconds" : 0.15743129164911807
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17042512504849583
+        }
+      },
+      "file" : "audio\/e5-1dfb08ac2b32.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 177,
+          "seconds" : 0.17177479167003185
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15459979162551463
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15328495833091438
+        }
+      },
+      "file" : "audio\/e5-23d9f8256017.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20398166670929641
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16857687500305474
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15295395825523883
+        }
+      },
+      "file" : "audio\/e5-26ce0ff405b2.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.21110320836305618
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15856283332686871
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17783499998040497
+        }
+      },
+      "file" : "audio\/e5-29b790aefa1f.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.22032770828809589
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15719783341046423
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15583529171999544
+        }
+      },
+      "file" : "audio\/e5-3288f1bc8a9a.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20598400000017136
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17652016668580472
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15462470834609121
+        }
+      },
+      "file" : "audio\/e5-3423040eebc7.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 85,
+          "seconds" : 0.21461791673209518
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16305354167707264
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16426362504716963
+        }
+      },
+      "file" : "audio\/e5-373c95f94dc1.flac",
+      "truthBPM" : 170.00999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.22124574996996671
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15842904173769057
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15773041662760079
+        }
+      },
+      "file" : "audio\/e5-3b988502f9c9.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20636037504300475
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.1657416665693745
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15322924999054521
+        }
+      },
+      "file" : "audio\/e5-3edd6296d9ae.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.20742112502921373
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15660537499934435
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17103325005155057
+        }
+      },
+      "file" : "audio\/e5-46bab7952978.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20276837493292987
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15947512490674853
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15728808334097266
+        }
+      },
+      "file" : "audio\/e5-47e469335603.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 117,
+          "seconds" : 0.15569595841225237
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17434479168150574
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15303449996281415
+        }
+      },
+      "file" : "audio\/e5-486b1f7e29c0.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20265900006052107
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15314650000073016
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17137162503786385
+        }
+      },
+      "file" : "audio\/e5-52693bf30882.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 171,
+          "seconds" : 0.21837595826946199
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16140970832202584
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16528216667938977
+        }
+      },
+      "file" : "audio\/e5-531fbceb9922.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20489274989813566
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17372979177162051
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15507762494962662
+        }
+      },
+      "file" : "audio\/e5-538cff32a51e.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 140,
+          "seconds" : 0.20450987492222339
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.15435154165606946
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17008774995338172
+        }
+      },
+      "file" : "audio\/e5-5deab85b356c.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20560637500602752
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15465041669085622
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15235129161737859
+        }
+      },
+      "file" : "audio\/e5-5e4c826619a8.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.2080602083588019
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.16694612498395145
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.15770320838782936
+        }
+      },
+      "file" : "audio\/e5-6d3649efb1c3.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16149362502619624
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15546000003814697
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17027391656301916
+        }
+      },
+      "file" : "audio\/e5-714ef0c9e67c.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.21500420826487243
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15567529166582972
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15562850004062057
+        }
+      },
+      "file" : "audio\/e5-7a94ad99e7d6.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.12639633333310485
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.1787013333523646
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 87,
+          "seconds" : 0.15705729159526527
+        }
+      },
+      "file" : "audio\/e5-7e90b5311786.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.20557974989060313
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.15867341670673341
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.16100145829841495
+        }
+      },
+      "file" : "audio\/e5-8322a6e804b2.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.2278240832965821
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16023304162081331
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15684454166330397
+        }
+      },
+      "file" : "audio\/e5-833d9d83ceca.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20696995838079602
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16353933338541538
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15529691660776734
+        }
+      },
+      "file" : "audio\/e5-8482a42df011.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20400208327919245
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.15516070835292339
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17426016670651734
+        }
+      },
+      "file" : "audio\/e5-872dbe186806.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.21411454176995903
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15490512503311038
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15393841662444174
+        }
+      },
+      "file" : "audio\/e5-8c4db66c98e8.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.21110829163808376
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17477041657548398
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15432416670955718
+        }
+      },
+      "file" : "audio\/e5-901d4178f7eb.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.18744879157748073
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15418779163155705
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16636999999172986
+        }
+      },
+      "file" : "audio\/e5-90fc406f9ee8.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.21565425000153482
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.15887225000187755
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15379641659092158
+        }
+      },
+      "file" : "audio\/e5-92662758adc1.mp3",
+      "truthBPM" : 174.97999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.18356237502302974
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 117,
+          "seconds" : 0.18274508335161954
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 117.5,
+          "seconds" : 0.16334220836870372
+        }
+      },
+      "file" : "audio\/e5-95d093851109.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.21278570836875588
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.15626154164783657
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 176,
+          "seconds" : 0.1735218750545755
+        }
+      },
+      "file" : "audio\/e5-980d3582cc81.mp3",
+      "truthBPM" : 176
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.22784337494522333
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.1565566249191761
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15526687505189329
+        }
+      },
+      "file" : "audio\/e5-9e34364977f8.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.20762591669335961
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.18044662498869002
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 172,
+          "seconds" : 0.15747500001452863
+        }
+      },
+      "file" : "audio\/e5-9f93514c0d33.mp3",
+      "truthBPM" : 172
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20482729165814817
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15617208334151655
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16297337505966425
+        }
+      },
+      "file" : "audio\/e5-a9b948799b7a.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.21555308334063739
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15620570827741176
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15460262505803257
+        }
+      },
+      "file" : "audio\/e5-ad1d50e8e226.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.2054405000526458
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16948916669934988
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15477466664742678
+        }
+      },
+      "file" : "audio\/e5-b601d2aaee79.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20550041669048369
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15612129168584943
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16109041660092771
+        }
+      },
+      "file" : "audio\/e5-be2a0364342d.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.22926841676235199
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.16158520837780088
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15938845835626125
+        }
+      },
+      "file" : "audio\/e5-bf4fa0cdebb3.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.2069689582567662
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16776058333925903
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.1553881251020357
+        }
+      },
+      "file" : "audio\/e5-c367663b3408.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.20787529170047492
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15632154163904488
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17394029162824154
+        }
+      },
+      "file" : "audio\/e5-c50f61cafcb0.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.18394566664937884
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15489200002048165
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15314066677819937
+        }
+      },
+      "file" : "audio\/e5-ca145a93cd50.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 116.5,
+          "seconds" : 0.20379866659641266
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16496029170230031
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15439795830752701
+        }
+      },
+      "file" : "audio\/e5-cc5b6852e562.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17562020837794989
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15414875000715256
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16164562501944602
+        }
+      },
+      "file" : "audio\/e5-d9259776bdc7.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 177.68087146956651,
+          "seconds" : 0.21333295828662813
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 177.22332593414723,
+          "seconds" : 0.15541649993974715
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 177.22332593414723,
+          "seconds" : 0.15411529166158289
+        }
+      },
+      "file" : "audio\/e5-da1053f1d1e1.mp3",
+      "truthBPM" : 178
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 124.5,
+          "seconds" : 0.20883691671770066
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 120,
+          "seconds" : 0.15970058331731707
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 109,
+          "seconds" : 0.15259700000751764
+        }
+      },
+      "file" : "audio\/e5-de95c0d71989.mp3",
+      "truthBPM" : 176
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.17437162494752556
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15743999998085201
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16399375000037253
+        }
+      },
+      "file" : "audio\/e5-de9b6a48ef48.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 85,
+          "seconds" : 0.22065404162276536
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 167,
+          "seconds" : 0.15850225009489805
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 167,
+          "seconds" : 0.15702745842281729
+        }
+      },
+      "file" : "audio\/e5-e0ec2b545f7b.mp3",
+      "truthBPM" : 135
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.21290429169312119
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.17716033337637782
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 170,
+          "seconds" : 0.15942420833744109
+        }
+      },
+      "file" : "audio\/e5-ee627491eab9.mp3",
+      "truthBPM" : 170
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 174,
+          "seconds" : 0.20477620838209987
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 88,
+          "seconds" : 0.15434708329848945
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 88,
+          "seconds" : 0.1601497083902359
+        }
+      },
+      "file" : "audio\/e5-fb0327bb316f.mp3",
+      "truthBPM" : 175.01499999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.16723408328834921
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15565070835873485
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 175,
+          "seconds" : 0.15487537498120219
+        }
+      },
+      "file" : "audio\/e5-fccea80f7f65.mp3",
+      "truthBPM" : 175
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 126.01837455830389,
+          "seconds" : 0.25185833324212581
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 126.25108372238296,
+          "seconds" : 0.20636904158163816
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 126.25108372238296,
+          "seconds" : 0.20141600002534688
+        }
+      },
+      "file" : "audio\/x1-00c535aa31d0.flac",
+      "truthBPM" : 126
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 103.20135603084535,
+          "seconds" : 0.20187179173808545
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 103.21808703262215,
+          "seconds" : 0.15165924991015345
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 103.21808703262215,
+          "seconds" : 0.15829908335581422
+        }
+      },
+      "file" : "audio\/x1-07b3bc57452c.flac",
+      "truthBPM" : 103
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.7330803228286,
+          "seconds" : 0.23028999997768551
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.97872209391839,
+          "seconds" : 0.17824945831671357
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.03828156245834,
+          "seconds" : 0.17670945834834129
+        }
+      },
+      "file" : "audio\/x1-08a66e62d4ee.flac",
+      "truthBPM" : 124.83
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 109.83365661028232,
+          "seconds" : 0.18908854166511446
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 109.80684764509991,
+          "seconds" : 0.14617070835083723
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 109.86761348026496,
+          "seconds" : 0.14200595836155117
+        }
+      },
+      "file" : "audio\/x1-0c832f0304bc.flac",
+      "truthBPM" : 109.95999999999999
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.19745553210733,
+          "seconds" : 0.18691479170229286
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.16815314632298,
+          "seconds" : 0.13921095826663077
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.24374730363255,
+          "seconds" : 0.14048408332746476
+        }
+      },
+      "file" : "audio\/x1-0c890b6a0161.flac",
+      "truthBPM" : 119.03
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.89148024485254,
+          "seconds" : 0.1969634999986738
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.1236968484242,
+          "seconds" : 0.14326329168397933
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.65219217769192,
+          "seconds" : 0.1427620833273977
+        }
+      },
+      "file" : "audio\/x1-0d30f2f29b41.flac",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.00038854251378,
+          "seconds" : 0.22347658325452358
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.0856558955703,
+          "seconds" : 0.17624362499918789
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.4094903626266,
+          "seconds" : 0.17114975000731647
+        }
+      },
+      "file" : "audio\/x1-12e6fb9797c3.flac",
+      "truthBPM" : 124
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.22526343921808,
+          "seconds" : 0.23121004167478532
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.22526343921808,
+          "seconds" : 0.18261916667688638
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.15951073178977,
+          "seconds" : 0.18132087506819516
+        }
+      },
+      "file" : "audio\/x1-1b4fad75044e.flac",
+      "truthBPM" : 124
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 122.07280292589843,
+          "seconds" : 0.22585991676896811
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 121.90231038663613,
+          "seconds" : 0.17382258328143507
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 122.07280292589843,
+          "seconds" : 0.17304795829113573
+        }
+      },
+      "file" : "audio\/x1-27aba0261205.flac",
+      "truthBPM" : 122
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.07039085545722,
+          "seconds" : 0.18657112505752593
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 123.95587753669805,
+          "seconds" : 0.15616679156664759
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 123.93505741557246,
+          "seconds" : 0.15263037499971688
+        }
+      },
+      "file" : "audio\/x1-28c35b47c97f.flac",
+      "truthBPM" : 124
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 128.96346839753613,
+          "seconds" : 0.20656508335378021
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 169.14422903697178,
+          "seconds" : 0.15737808332778513
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 128.96346839753613,
+          "seconds" : 0.16325991658959538
+        }
+      },
+      "file" : "audio\/x1-2a7c73e58f36.flac",
+      "truthBPM" : 129
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 107.06847021845655,
+          "seconds" : 0.21540541667491198
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 107.09496005523226,
+          "seconds" : 0.16268537496216595
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 107.09496005523226,
+          "seconds" : 0.16157516674138606
+        }
+      },
+      "file" : "audio\/x1-2b1a82323451.flac",
+      "truthBPM" : 107
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 122.17005869090649,
+          "seconds" : 0.25028279167599976
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 122.18055708365424,
+          "seconds" : 0.20544895844068378
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 122.18055708365424,
+          "seconds" : 0.19898212503176183
+        }
+      },
+      "file" : "audio\/x1-2d9ca3d34133.flac",
+      "truthBPM" : 122
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.65947938842655,
+          "seconds" : 0.21803758328314871
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.12847387401212,
+          "seconds" : 0.17091141664423048
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.20188381316098,
+          "seconds" : 0.1718256666790694
+        }
+      },
+      "file" : "audio\/x1-2d9edd3f6575.flac",
+      "truthBPM" : 130
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 127.9048455984543,
+          "seconds" : 0.16035966668277979
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 128.04919774573182,
+          "seconds" : 0.1593317500082776
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 128.04919774573182,
+          "seconds" : 0.15696091658901423
+        }
+      },
+      "file" : "audio\/x1-2f53503a18d3.flac",
+      "truthBPM" : 128
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.09354723160372,
+          "seconds" : 0.20851141668390483
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.8262878433349,
+          "seconds" : 0.16091762494761497
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.86824484501498,
+          "seconds" : 0.15688187489286065
+        }
+      },
+      "file" : "audio\/x1-35ddd8e0714b.flac",
+      "truthBPM" : 126
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 122.20440277101261,
+          "seconds" : 0.30624291661661118
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 121.3482921715477,
+          "seconds" : 0.26251383335329592
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 121.3482921715477,
+          "seconds" : 0.26011241669766605
+        }
+      },
+      "file" : "audio\/x1-47bf260a44cd.flac",
+      "truthBPM" : 122
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.17871811550432,
+          "seconds" : 0.23071795830037445
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.18848595213319,
+          "seconds" : 0.17512554174754769
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 130.18848595213319,
+          "seconds" : 0.17361291672568768
+        }
+      },
+      "file" : "audio\/x1-4bbd5f72fbf8.flac",
+      "truthBPM" : 130.05000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.43088649155723,
+          "seconds" : 0.18865320831537247
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 126.00352818578801,
+          "seconds" : 0.14306470833253115
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.81226713898728,
+          "seconds" : 0.13855024997610599
+        }
+      },
+      "file" : "audio\/x1-4d44bd127d9f.flac",
+      "truthBPM" : 126
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 101.87199127187655,
+          "seconds" : 0.19321595830842853
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 101.74900824540161,
+          "seconds" : 0.14484891656320542
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 101.75075537272147,
+          "seconds" : 0.14628808340057731
+        }
+      },
+      "file" : "audio\/x1-50e574e21872.flac",
+      "truthBPM" : 100.83
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 127.64017728797316,
+          "seconds" : 0.22331204160582274
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 127.96934590896508,
+          "seconds" : 0.16938600002322346
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 127.71011633788569,
+          "seconds" : 0.16843829164281487
+        }
+      },
+      "file" : "audio\/x1-5c12fedb42e7.flac",
+      "truthBPM" : 128
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 100.43782693377852,
+          "seconds" : 0.23163837497122586
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 200.0662143826323,
+          "seconds" : 0.18412620830349624
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : true,
+          "bpm" : 200.0662143826323,
+          "seconds" : 0.18053675000555813
+        }
+      },
+      "file" : "audio\/x1-5c2370a4f22a.flac",
+      "truthBPM" : 100
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.92803550555232,
+          "seconds" : 0.18589479173533618
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.84922529845059,
+          "seconds" : 0.13493045826908201
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.91115518541122,
+          "seconds" : 0.13532720832154155
+        }
+      },
+      "file" : "audio\/x1-5c9939cc4b1d.flac",
+      "truthBPM" : 126
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.64009715441139,
+          "seconds" : 0.25458454166073352
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.03790980196372,
+          "seconds" : 0.20165025000460446
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.03790980196372,
+          "seconds" : 0.20368337503168732
+        }
+      },
+      "file" : "audio\/x1-5e59e7791477.flac",
+      "truthBPM" : 123.04000000000001
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.00914308444142,
+          "seconds" : 0.20815854158718139
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.08593573046431,
+          "seconds" : 0.16232354170642793
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.08593573046431,
+          "seconds" : 0.15716433338820934
+        }
+      },
+      "file" : "audio\/x1-5ebb8b1fee7d.flac",
+      "truthBPM" : 124
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 94.373206272840832,
+          "seconds" : 0.21368299995083362
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 187.98822920976417,
+          "seconds" : 0.16508404165506363
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 188.03338188173609,
+          "seconds" : 0.16808837500866503
+        }
+      },
+      "file" : "audio\/x1-62df09e1b053.flac",
+      "truthBPM" : 96.599999999999994
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.0326895565093,
+          "seconds" : 0.2006693750154227
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.14180014877263,
+          "seconds" : 0.17838174989446998
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 129.14180014877263,
+          "seconds" : 0.17751570837572217
+        }
+      },
+      "file" : "audio\/x1-6a0d6eb37226.flac",
+      "truthBPM" : 129
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 120.42778019428738,
+          "seconds" : 0.21948895836248994
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.87859618717505,
+          "seconds" : 0.17424145841505378
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.87859618717505,
+          "seconds" : 0.16924970829859376
+        }
+      },
+      "file" : "audio\/x1-7b11a338854b.flac",
+      "truthBPM" : 120
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 110.28136630510498,
+          "seconds" : 0.21326908329501748
+        },
+        "C" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 111.1130391408232,
+          "seconds" : 0.16484083340037614
+        },
+        "D" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 111.01693305153776,
+          "seconds" : 0.1669716666219756
+        }
+      },
+      "file" : "audio\/x1-7bb1cb4d8b80.flac",
+      "truthBPM" : 116.39
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : false,
+          "acc2" : false,
+          "bpm" : 164.44821317247002,
+          "seconds" : 0.13048845843877643
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.74854187192119,
+          "seconds" : 0.085293499985709786
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 125.74854187192119,
+          "seconds" : 0.084863874944858253
+        }
+      },
+      "file" : "audio\/x1-8c83faf6ada1.flac",
+      "truthBPM" : 126.03
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 115.49729997621124,
+          "seconds" : 0.19007762498222291
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 115.66341204965184,
+          "seconds" : 0.16731774993240833
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 115.51251716077326,
+          "seconds" : 0.16366983333136886
+        }
+      },
+      "file" : "audio\/x1-8ccdff65aaf7.flac",
+      "truthBPM" : 115.55
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 105.06547236033927,
+          "seconds" : 0.19518520834390074
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 104.61214633504407,
+          "seconds" : 0.14555783336982131
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 105.14138808139535,
+          "seconds" : 0.14844554162118584
+        }
+      },
+      "file" : "audio\/x1-8e7972128062.flac",
+      "truthBPM" : 105
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.78825573645625,
+          "seconds" : 0.20316479168832302
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.78825573645625,
+          "seconds" : 0.15103483339771628
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 119.78825573645625,
+          "seconds" : 0.14806941675487906
+        }
+      },
+      "file" : "audio\/x1-8fcc9ff6a6b4.flac",
+      "truthBPM" : 120
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.16859344064733,
+          "seconds" : 0.21790179167874157
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 123.83775269011923,
+          "seconds" : 0.17218779167160392
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 124.27926080892608,
+          "seconds" : 0.16711629158817232
+        }
+      },
+      "file" : "audio\/x1-9a308fc2dec4.flac",
+      "truthBPM" : 124
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133.4411617088995,
+          "seconds" : 0.23570399999152869
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133.4411617088995,
+          "seconds" : 0.18559658341109753
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 133.4411617088995,
+          "seconds" : 0.18787024996709079
+        }
+      },
+      "file" : "audio\/x1-9d84c46bb3b4.flac",
+      "truthBPM" : 133
+    },
+    {
+      "arms" : {
+        "A" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 109.68408356230807,
+          "seconds" : 0.20011816662736237
+        },
+        "C" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 109.92296238986958,
+          "seconds" : 0.15161833341699094
+        },
+        "D" : {
+          "acc1" : true,
+          "acc2" : true,
+          "bpm" : 109.92296238986958,
+          "seconds" : 0.15174970834050328
+        }
+      },
+      "file" : "audio\/x1-9d872078fa8a.flac",
+      "truthBPM" : 109.98999999999999
+    }
+  ],
+  "source" : "scripts\/dawproject-bpm.py --json; per-file warp BPM, consistent annotations",
+  "trackCount" : 283
+}

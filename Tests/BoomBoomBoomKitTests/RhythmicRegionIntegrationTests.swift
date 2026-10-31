@@ -2,7 +2,7 @@
 //  RhythmicRegionIntegrationTests.swift
 //  BoomBoomBoomKit
 //
-//  Opt-in region selection and BPM voting behavior.
+//  Default region selection and BPM voting behavior.
 //
 
 import BoomBoomBoomKitTestSupport
@@ -81,6 +81,25 @@ struct RhythmicRegionIntegrationTests {
     bytes.reduce(14_695_981_039_346_656_037) { ($0 ^ UInt64($1)) &* 1_099_511_628_211 }
   }
 
+  @Test("unconfigured options select rhythmic regions with simple-majority voting")
+  func defaultConfiguration() throws {
+    var settings = AudioAnalysisService.Options()
+    #expect(settings.useRhythmicRegions)
+    #expect(settings.mergeStrategy == .windowVoting)
+    #expect(settings.votingPolicy == .simpleMajority)
+    settings.enableTrace = true
+    let result = try #require(
+      try AudioAnalysisService.analyzeBPM(
+        decoded: .synthetic(
+          clicks(bpm: 160, seconds: 30, amplitude: 0.01)
+            + clicks(bpm: 120, seconds: 60), sampleRate: rate),
+        options: settings))
+    let evidence = try #require(result.trace?.rhythmicRegionEvidence)
+    #expect(evidence.regions.count == 3)
+    #expect(evidence.voteAccepted)
+    #expect(abs(result.bpm - 120) <= 2.4)
+  }
+
   @Test("two later regions can outvote a weak intro")
   func laterRegionsWin() throws {
     let intro = clicks(bpm: 160, seconds: 30, amplitude: 0.01)
@@ -119,6 +138,24 @@ struct RhythmicRegionIntegrationTests {
         decoded: .synthetic(fourProbes(), sampleRate: rate), options: settings))
     #expect(log.values.map(\.windowsCompleted) == [0, 1, 2])
     #expect(log.values.map(\.windowsTotal) == [3, 3, 3])
+  }
+
+  @Test("default rhythmic path can cancel between selected regions")
+  func rhythmicCancellationMidFlight() throws {
+    let log = ProgressLog()
+    nonisolated(unsafe) var checks = 0
+    var settings = AudioAnalysisService.Options()
+    settings.isCancelled = {
+      checks += 1
+      return checks > 4  // Early, pre-scan, post-scan, and first-region checks pass.
+    }
+    settings.onProgress = { log.record($0) }
+    #expect(throws: CancellationError.self) {
+      _ = try AudioAnalysisService.analyzeBPM(
+        decoded: .synthetic(fourProbes(), sampleRate: rate), options: settings)
+    }
+    #expect(log.values.map(\.windowsCompleted) == [0])
+    #expect(log.values.map(\.windowsTotal) == [3])
   }
 
   @Test("one short region reports fallback, without consensus")
@@ -209,6 +246,7 @@ struct RhythmicRegionIntegrationTests {
     var defaults = AudioAnalysisService.Options()
     defaults.enableTrace = true
     defaults.useRhythmicRegions = false
+    defaults.mergeStrategy = .maxConfidence
     let optedOut = try #require(
       try AudioAnalysisService.analyzeBPM(decoded: decoded, options: defaults))
     let trace = try #require(optedOut.trace)

@@ -176,17 +176,18 @@ public struct AudioAnalysisService {
     /// ``BeatGridAnalysisSpan/decodedSampleCount`` (``BeatGrid/analysisSpan``).
     public var maxSeconds: Double = 120
 
-    /// Analyze distinct rhythmic regions of the decoded buffer. The default
-    /// `false` retains the existing energy-transition windows and output.
-    /// Pair with `.windowVoting` and `.simpleMajority` to require agreement
-    /// between two regions before accepting a BPM vote. Search stays within
+    /// Analyze distinct rhythmic regions of the decoded buffer by default.
+    /// With the default `.windowVoting` and `.simpleMajority` pairing, two
+    /// regions must agree before a BPM vote is accepted. Set this to `false`
+    /// and ``mergeStrategy`` to `.maxConfidence` for the historical
+    /// energy-transition-window path. Search stays within
     /// ``maxSeconds`` (120 seconds by default) and uses at most eight bounded
     /// probes even when the full file is decoded.
-    public var useRhythmicRegions: Bool = false
+    public var useRhythmicRegions: Bool = true
 
     /// Benchmark-only same-geometry placement control. When enabled alongside
     /// `useRhythmicRegions`, choose evenly spaced disjoint regions without
-    /// rhythm scoring. Kept internal so consumers have one opt-in behavior.
+    /// rhythm scoring. Kept internal so consumers have one default behavior.
     var useUniformRegionControl: Bool = false
 
     /// Analysis intensity level (default: `.default`, which is level 7).
@@ -254,14 +255,16 @@ public struct AudioAnalysisService {
     /// Slot reserved by Story 3-3a per ADR-11 (Options-first public configuration).
     public var mlTechnique: (any MLTechnique)?
 
-    /// Strategy for combining candidates across analysis windows (default: `.maxConfidence`).
+    /// Strategy for combining candidates across analysis windows (default: `.windowVoting`).
     /// Only applies at intensity 6+ where multiple windows are analyzed.
-    public var mergeStrategy: BPMSelectionPolicy = .maxConfidence
+    /// Set to `.maxConfidence` with `useRhythmicRegions = false` to reproduce
+    /// the historical selection path.
+    public var mergeStrategy: BPMSelectionPolicy = .windowVoting
 
     /// Resolution policy used when ``mergeStrategy`` is
     /// ``BPMSelectionPolicy/windowVoting``. Has no effect for any other
-    /// strategy. Default ``VotingPolicy/simpleMajority`` reproduces the
-    /// post-Story-3-3a baseline byte-for-byte. See ``VotingPolicy`` for the
+    /// strategy. Default ``VotingPolicy/simpleMajority`` requires agreement
+    /// from two distinct regions. See ``VotingPolicy`` for the
     /// per-case semantics.
     public var votingPolicy: VotingPolicy = .simpleMajority
 

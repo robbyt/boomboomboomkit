@@ -14,13 +14,13 @@ import Foundation
 /// This is an evolving API — fields may change across library versions.
 public struct BPMDiagnosticTrace: Sendable {
 
-  /// Cross-region selection and voting evidence. Nil on the default path.
+  /// Cross-region selection and voting evidence. Nil on the legacy single-anchor path.
   public var rhythmicRegionEvidence: RhythmicRegionEvidence?
 
   // MARK: - Step 1: Energy Scan
 
-  /// Sample offset where analysis starts: the detected energy transition on
-  /// the default path, or the selected region when rhythmic regions are enabled.
+  /// Sample offset where analysis starts: the selected region by default, or
+  /// the detected energy transition when rhythmic regions are disabled.
   public var energyTransitionOffset: Int = 0
 
   /// Actual analysis window duration in seconds.

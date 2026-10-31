@@ -57,10 +57,9 @@ A richer example showing custom options, diagnostic trace, LUFS, and direct PCM 
 ```swift
 import BoomBoomBoomKit
 
-// BPM with custom options (intensity + merge strategy)
+// BPM with custom intensity
 var opts = AudioAnalysisService.Options()
 opts.intensity = .thorough
-opts.mergeStrategy = .windowVoting
 let tunedResult = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: opts)
 
 // BPM with diagnostic trace enabled
@@ -96,17 +95,41 @@ opts.techniqueSet = .clickAugmented   // sharp + vote + fine + click-correlation
 let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: opts)
 ```
 
-With default region selection, `intensity` still controls the window sizes even
-when an explicit technique set is set.
+`Options()` analyzes distinct rhythmic regions within the decoded audio
+(`maxSeconds` defaults to 120 seconds). At the default intensity it analyzes
+up to three disjoint 30-second regions. Their final BPMs use
+`.windowVoting` with `.simpleMajority`: two regions must agree within 2% for
+a vote; otherwise the strongest result wins. It returns one track BPM and
+does not track tempo changes. The beat grid keeps its separate anchor.
+`intensity` controls the region count and duration even with an explicit
+technique set. Set `enableTrace = true` to inspect
+`trace.rhythmicRegionEvidence`, including selected offsets and the
+pre-metadata vote.
 
-To try the rhythmic-region BPM experiment, set `opts.useRhythmicRegions = true`
-alongside `opts.mergeStrategy = .windowVoting` and
-`opts.votingPolicy = .simpleMajority`. It analyzes distinct regions within the
-decoded audio (`opts.maxSeconds` defaults to 120 seconds) and returns one BPM;
-it does not track tempo changes. If fewer than two regions agree, window voting
-uses its highest-confidence fallback. Set `opts.enableTrace = true` to inspect
-`trace.rhythmicRegionEvidence`, including selected offsets and the pre-metadata
-vote. The experiment remains off by default pending broader accuracy review.
+To reproduce the historical first-transition result, set **both** options:
+
+```swift
+var legacy = AudioAnalysisService.Options()
+legacy.useRhythmicRegions = false
+legacy.mergeStrategy = .maxConfidence
+let result = try AudioAnalysisService.analyzeBPM(url: audioFileURL, options: legacy)
+```
+
+The promotion follows paired Release measurements: OA300 Acc1 rose from
+58/82 to 60/82, and GiantSteps floor-compatible Acc1 rose from 537/661 to
+573/661. The OA300 change gained eight tracks and lost six; GiantSteps gained
+62 and lost 26. In a supplementary hand-annotated DAWProject training
+collection, Acc1 rose from 224/283 to 236/283, with 25 gains and 13 losses.
+Four files with conflicting warp BPM labels were excluded. Uniformly placed
+regions scored 238/283 on that collection, so these results do not show that
+rhythm scoring alone caused the gain. The training collection is not an
+independent holdout. See the [paired corpus report](_bmad-output/implementation-artifacts/13-rhythmic-region-impact-report.json)
+and [DAWProject per-file report](_bmad-output/implementation-artifacts/13-rhythmic-region-dawproject-impact-report.json).
+
+To regenerate the DAWProject report, export the raw labels with
+`python3 scripts/dawproject-bpm.py PROJECT.dawproject --json > LABELS.json`,
+then run `RHYTHMIC_REGION_DAWPROJECT=1 DAWPROJECT_LABELS_JSON=LABELS.json DAWPROJECT_AUDIO_DIR=AUDIO_ROOT DAWPROJECT_REPORT_JSON=REPORT.json swift test -c release --filter RhythmicRegionDAWProjectTests`.
+`AUDIO_ROOT` contains the archive's `audio/` directory.
 
 ### Constraining the tempo range
 
@@ -154,8 +177,8 @@ Four properties to know before you set either one.
    can be reported a fraction of a BPM outside it. The largest excursion measured
    across the project's fixtures is 0.3 BPM.
 
-Both defaults reproduce the pre-existing pipeline exactly. Leaving them alone changes
-nothing.
+These tempo-range defaults are unchanged; the BPM region and merge defaults are
+described above.
 
 ## Intensity scale (1-10)
 
@@ -166,11 +189,11 @@ nothing.
 | `1` | `.fastest` | Interactive previewing | `[15]` | Very fast |
 | `2` | — | Light analysis (baseline technique set, 3 candidates) | `[30]` | Fast |
 | `3`-`5` | — | Standard analysis (optimal technique set, 3 candidates) | `[30]` | Standard |
-| `6` | — | Standard, plus a second 60 s window whose result is merged | `[30, 60]` | Standard |
-| `7` | `.default` | Best DSP accuracy (three merged windows at 30/60/90 s) | `[30, 60, 90]` | Default — mean ~170 ms, p95 ~245 ms (M5 Max, 3-minute track) |
-| `8` | `.thorough` | Reserved for ML augmentation. Without `Options.mlTechnique`, falls through to level 7 with `degradationReason` set on the result. | `[30, 60, 90]` | Same as 7 when ML is absent |
-| `9` | — | Reserved for ML quorum (future) | `[30, 60, 90]` | — |
-| `10` | `.maximum` | Reserved for maximum-thoroughness ML (future) | `[30, 60, 90]` | — |
+| `6` | — | Two disjoint rhythmic regions | Up to two 30 s regions | Standard |
+| `7` | `.default` | Three disjoint rhythmic regions with final-BPM voting | Up to three 30 s regions | Default |
+| `8` | `.thorough` | Reserved for ML augmentation. Without `Options.mlTechnique`, falls through to level 7 with `degradationReason` set on the result. | Up to three 30 s regions | Same as 7 when ML is absent |
+| `9` | — | Reserved for ML quorum (future) | Up to three 30 s regions | — |
+| `10` | `.maximum` | Reserved for maximum-thoroughness ML (future) | Up to three 30 s regions | — |
 
 See the inline `///` docs on `AnalysisIntensity` for the authoritative mapping and the `degradationReason` semantics at levels 8-10.
 
@@ -181,7 +204,7 @@ See the inline `///` docs on `AnalysisIntensity` for the authoritative mapping a
 | Condition | When it fires | What the caller sees | Mitigation |
 |-----------|--------------|----------------------|------------|
 | Silence | `BPMAnalyzer` step 2 RMS guard rejects below-threshold audio | `try analyzeBPM(url:)` returns `nil` | Check audio energy upstream; raise input gain if applicable. |
-| Too-short audio | File contains fewer than ~4 analyzable seconds after the energy transition (the `BPMAnalyzer.minimumDurationSeconds` floor) | `try analyzeBPM(url:)` returns `nil` | Use a longer clip — at least a few seconds of continuous audio after any silent intro. |
+| Too-short audio | File contains fewer than ~4 analyzable seconds in a selected region (the `BPMAnalyzer.minimumDurationSeconds` floor) | `try analyzeBPM(url:)` returns `nil` | Use a longer clip with a few seconds of analyzable audio. |
 | Unsupported sample rate | `analyzeLUFS` only — K-weighting coefficients ship for 44.1 / 48 / 96 kHz only | `try analyzeLUFS(url:)` **throws** `LUFSAnalysisError.unsupportedSampleRate` | Resample to a supported rate before LUFS analysis. Does NOT affect `analyzeBPM`. |
 | Cancelled analysis | Caller's `Task` was cancelled OR `Options.isCancelled` returned `true` between window iterations | `try analyzeBPM(url:)` **throws** `CancellationError`; `try?` collapses to `nil` | Distinguish explicitly via `do { try analyzeBPM(...) } catch is CancellationError { ... }` if cancellation needs differentiated handling. |
 | No candidates found | Degenerate audio (white noise, sustained pitched material) produced zero surviving candidates after range normalization (step 9) | `try analyzeBPM(url:)` returns `nil` | Inspect with `enableTrace: true` and read `result?.candidates` (and `trace?.rawCandidates`); this is the rarest case. |
@@ -749,7 +772,7 @@ A SwiftUI macOS demo app under `Demo/BoomBoomBoomBPM/` exercises the public API 
 
 The DSP spine runs 9 unconditional steps. Two optional rescore stages and three post-disambiguation steps wrap it. Step numbers are stable identifiers — once a step number appears in a trace key or benchmark artifact, it does not move.
 
-1. **Energy Scan** — Find energy transition to skip intros/silence
+1. **Start Selection** — Use an explicit rhythmic-region start when provided; otherwise find an energy transition to skip intros/silence
 2. **Silence Check** — RMS threshold guard
 3. **Mel-Spectrogram Onset** — STFT → 128-band mel filterbank → log compression → temporal differencing → half-wave rectification (with optional sub-band normalization)
 4. **Adaptive Thresholding** — Per-frame onset peak picking (gated by `.adaptiveThreshold`)
@@ -770,7 +793,10 @@ The DSP spine runs 9 unconditional steps. Two optional rescore stages and three 
 - **Step 10b — Sub-band peak confirmation**: confirms the post-voting winner against its sub-band evidence.
 - **Step 10c — Fine-grid refinement** (gated by `.fineGridRefinement`): high-resolution lag search around the winning candidate.
 
-Multi-window analysis wraps the whole pipeline at intensity 6 and above: every window in the level's window list runs (two windows at intensity 6, three at 7-10) and the per-window results are combined with the configured `mergeStrategy`.
+At intensity 6 and above, the default analyzes separate rhythmic regions (two
+at intensity 6, three at 7-10) and combines their final BPMs with window
+voting. The historical first-transition windows remain available through the
+explicit options shown above.
 
 ## Using your own tempo model
 
