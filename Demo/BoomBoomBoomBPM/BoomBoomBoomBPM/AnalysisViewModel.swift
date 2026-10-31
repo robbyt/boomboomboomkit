@@ -488,11 +488,16 @@ final class AnalysisViewModel {
             // Waveform is best-effort: a decode failure must NOT fail the
             // analysis. Decode only when there is a grid to overlay, via the
             // library's own decoder so the waveform shares the grid's exact
-            // decoded-PCM time origin / sample rate.
+            // decoded-PCM time origin / sample rate. A fixed-time model ranks
+            // crops across the whole uncapped track, so the decode runs to the
+            // end of the last kept crop when one ends past `maxSeconds`.
+            let waveformSeconds = BeatGridView.waveformSpanSeconds(
+              maxSeconds: optsForDetached.maxSeconds,
+              crops: fullAnalysis.bpmAndBeatGrid?.bpm.trace?.mlInputCrops?.keptCrops ?? [])
             var waveform: WaveformData?
             if fullAnalysis.bpmAndBeatGrid?.beatGrid != nil,
               let wf = try? Waveform.decode(
-                url: url, maxSeconds: optsForDetached.maxSeconds, columns: 2000)
+                url: url, maxSeconds: waveformSeconds, columns: 2000)
             {
               waveform = WaveformData(peaks: wf.peaks, duration: wf.duration)
             }
@@ -573,6 +578,9 @@ final class AnalysisViewModel {
           // non-nil result with `beatGrid == nil` is BPM-success-without-grid
           // (hero renders, strip stays hidden) — NOT a no-BPM error.
           if let grid = combined.beatGrid {
+            let keptCrops = value.trace?.mlInputCrops?.keptCrops ?? []
+            let laneSeconds = BeatGridView.waveformSpanSeconds(
+              maxSeconds: opts.maxSeconds, crops: keptCrops)
             self.gridVisualization = GridVisualizationState(
               beatGrid: grid,
               peaks: detached.waveform?.peaks ?? [],
@@ -583,7 +591,9 @@ final class AnalysisViewModel {
               sourceURL: url,
               // The crops a fixed-time model read, shaded on the timeline. Empty
               // for a window model, with no model, or when it abstained.
-              mlInputCrops: value.trace?.mlInputCrops?.keptCrops ?? []
+              mlInputCrops: keptCrops,
+              // Marked on the lane only when the decode ran past it for a crop.
+              analysisCapSeconds: laneSeconds > opts.maxSeconds ? opts.maxSeconds : nil
             )
           } else {
             self.gridVisualization = nil

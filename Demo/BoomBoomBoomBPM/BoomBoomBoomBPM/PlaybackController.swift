@@ -112,8 +112,10 @@ final class PlaybackController: NSObject {
   private(set) var isPlaying: Bool = false
 
   /// Loaded-file duration in seconds (`0` when no audio / unknown). The view does
-  /// NOT use this as its lane span — the analyzed span (`.fullTrack` is `maxSeconds`-capped)
-  /// is authoritative (DD6/F1); this is only the transport's own extent (`seek` clamp).
+  /// NOT use this as its lane span. The decoded waveform span is authoritative (DD6/F1):
+  /// the analyzed span (`.fullTrack` is `maxSeconds`-capped), extended to the end of the
+  /// last fixed-time ML crop when one ends past the cap. This is only the transport's own
+  /// extent (`seek` clamp).
   private(set) var duration: Double = 0
 
   /// Whether an engine is currently loaded.
