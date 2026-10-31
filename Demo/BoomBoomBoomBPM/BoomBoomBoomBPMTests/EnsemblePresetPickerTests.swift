@@ -324,7 +324,7 @@ struct EnsemblePresetPickerTests {
     defer { Self.cleanUp(suiteName) }
 
     viewModel.selectedEnsemblePreset = .mlAugmented
-    viewModel.attachMLTechnique(StubTechnique(), named: "stub.mlmodelc")
+    viewModel.attachMLTechnique(StubTechnique(), named: "stub.mlmodelc", kind: .window)
     // attachMLTechnique sets the full success quartet (DD3).
     #expect(viewModel.mlModelName == "stub.mlmodelc")
     #expect(viewModel.mlEnabled)
@@ -355,7 +355,7 @@ struct EnsemblePresetPickerTests {
     defer { Self.cleanUp(suiteName) }
 
     viewModel.selectedEnsemblePreset = .mlAugmented
-    viewModel.attachMLTechnique(StubTechnique(), named: "stub.mlmodelc")
+    viewModel.attachMLTechnique(StubTechnique(), named: "stub.mlmodelc", kind: .window)
     viewModel.mlEnabled = false
 
     try await Self.runAnalysis(viewModel)

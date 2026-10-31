@@ -22,6 +22,15 @@ struct GridVisualizationState: Equatable {
   /// on the no-BPM/failure arms). Every `gridVisualization = nil` clear therefore
   /// also stops playback.
   let sourceURL: URL
+  /// The crops a fixed-time ML model read, in rank order (best first), shaded
+  /// on the lane and labelled with their rank. Empty when no fixed-time model
+  /// ran or it abstained.
+  var mlInputCrops: [MLInputCrop] = []
+  /// The analysis cap (`Options.maxSeconds`) when the lane runs past it to
+  /// cover a fixed-time crop later in the track. The lane marks it with a
+  /// vertical line and draws no beat grid past it. `nil` when every crop ends
+  /// inside the cap, so the lane ends at the analyzed span as before.
+  var analysisCapSeconds: Double?
 }
 
 /// The demo's single beat-grid surface: horizontal beat-grid + waveform overlay
@@ -300,6 +309,12 @@ struct BeatGridView: View {
     return max(lastBeat, 1)
   }
 
+  /// The span the beat-grid layers cover: the lane span, cut at the analysis
+  /// cap when the lane runs past it for a fixed-time crop.
+  private var gridSpan: Double {
+    Self.beatGridSpan(span: effectiveDuration, analysisCap: state.analysisCapSeconds)
+  }
+
   private var contentWidth: CGFloat {
     max(CGFloat(effectiveDuration * pointsPerSecond), 1)
   }
@@ -384,6 +399,19 @@ struct BeatGridView: View {
     // Waveform: a single closed, filled, mirrored envelope (DAW-style) — top edge
     // left-to-right, bottom edge right-to-left, closed and filled. Much cleaner
     // than per-column ticks.
+    // Fixed-time ML input crops: shaded spans under every other layer, each
+    // labelled with its rank (1 = highest rhythm score).
+    for shade in Self.cropShades(
+      crops: state.mlInputCrops, span: effectiveDuration, width: width)
+    {
+      let rect = CGRect(x: shade.minX, y: 0, width: shade.maxX - shade.minX, height: size.height)
+      context.fill(Path(rect), with: .color(.green.opacity(0.14)))
+      context.stroke(Path(rect), with: .color(.green.opacity(0.55)), lineWidth: 1)
+      context.draw(
+        Text("\(shade.rank)").font(.caption2.bold()).foregroundStyle(.green),
+        at: CGPoint(x: shade.minX + 4, y: size.height - 4), anchor: .bottomLeading)
+    }
+
     let count = state.peaks.count
     if count > 0 {
       let amp = size.height / 2 * 0.92
@@ -404,11 +432,29 @@ struct BeatGridView: View {
       context.fill(env, with: .color(.gray.opacity(0.45)))
     }
 
+    // Analysis cap: when the lane runs past it to show a later fixed-time crop,
+    // a dashed red line marks where the analyzed audio ends. No beat-grid layer
+    // is drawn past it, so no grid line there reads as analyzed.
+    if gridSpan < effectiveDuration {
+      let cx = x(for: gridSpan, width: width)
+      var cap = Path()
+      cap.move(to: CGPoint(x: cx, y: 0))
+      cap.addLine(to: CGPoint(x: cx, y: size.height))
+      context.stroke(
+        cap, with: .color(.red.opacity(0.8)), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+      context.draw(
+        Text("Analysis cap").font(.caption2.bold()).foregroundStyle(.red),
+        at: CGPoint(x: cx + 4, y: 10), anchor: .topLeading)
+    }
+
     // Raw detected beats (faint short ticks from the top) — secondary layer.
     if showRawBeats {
       var raw = Path()
-      for beat in state.beatGrid.beats {
-        let bx = x(for: beat.presentationTime, width: width)
+      for time in Self.timesWithinGridSpan(
+        state.beatGrid.beats.map(\.presentationTime), span: effectiveDuration,
+        analysisCap: state.analysisCapSeconds)
+      {
+        let bx = x(for: time, width: width)
         raw.move(to: CGPoint(x: bx, y: 0))
         raw.addLine(to: CGPoint(x: bx, y: size.height * 0.28))
       }
@@ -418,7 +464,7 @@ struct BeatGridView: View {
     // Extrapolated grid (the trustworthy layer) — full-height blue lines.
     var grid = Path()
     for t in Self.extrapolatedBeatTimes(
-      anchor: anchorTime, tempo: state.beatGrid.estimatedTempo, span: effectiveDuration)
+      anchor: anchorTime, tempo: state.beatGrid.estimatedTempo, span: gridSpan)
     {
       let gx = x(for: t, width: width)
       grid.move(to: CGPoint(x: gx, y: 0))
@@ -429,7 +475,9 @@ struct BeatGridView: View {
     // Downbeats — full-height accents, distinguished from the blue grid by the
     // heavier pink stroke (color + weight, not height); the legend names them.
     var down = Path()
-    for t in downbeatTimes {
+    for t in Self.timesWithinGridSpan(
+      downbeatTimes, span: effectiveDuration, analysisCap: state.analysisCapSeconds)
+    {
       let dx = x(for: t, width: width)
       down.move(to: CGPoint(x: dx, y: 0))
       down.addLine(to: CGPoint(x: dx, y: size.height))
@@ -450,6 +498,66 @@ struct BeatGridView: View {
       tri.closeSubpath()
       context.fill(tri, with: .color(.orange))
     }
+  }
+
+  // MARK: - ML input crop shading (pure, unit-tested)
+
+  /// One shaded crop: its rank (1-based, rank order of `crops`) and its x span
+  /// clamped to `[0, width]`.
+  nonisolated struct CropShade: Equatable {
+    let rank: Int
+    let minX: CGFloat
+    let maxX: CGFloat
+  }
+
+  /// Maps kept crops to x spans on a lane of `width` points covering `span`
+  /// seconds. Crops with non-finite times, and crops entirely past the span,
+  /// are left out; a crop running past the span is cut at the lane's end.
+  nonisolated static func cropShades(
+    crops: [MLInputCrop], span: Double, width: CGFloat
+  ) -> [CropShade] {
+    guard span.isFinite, span > 0, width.isFinite, width > 0 else { return [] }
+    return crops.enumerated().compactMap { index, crop in
+      let start = crop.startSeconds
+      let end = crop.startSeconds + crop.durationSeconds
+      guard start.isFinite, end.isFinite, start < span, end > 0 else { return nil }
+      let minX = CGFloat(max(0, start) / span) * width
+      let maxX = CGFloat(min(span, end) / span) * width
+      return CropShade(rank: index + 1, minX: minX, maxX: maxX)
+    }
+  }
+
+  /// The seconds of audio the waveform decode covers: `maxSeconds`, or the end
+  /// of the last kept crop when a fixed-time crop runs past it (the model ranks
+  /// crops across the whole uncapped track), so the lane shows every crop.
+  /// Crops with a non-finite start or end are ignored, and a non-finite or
+  /// non-positive `maxSeconds` is returned unchanged for the decoder to sanitize.
+  nonisolated static func waveformSpanSeconds(maxSeconds: Double, crops: [MLInputCrop]) -> Double {
+    guard maxSeconds.isFinite, maxSeconds > 0 else { return maxSeconds }
+    let lastEnd = crops.lazy
+      .map { $0.startSeconds + $0.durationSeconds }
+      .filter(\.isFinite)
+      .max()
+    return max(maxSeconds, lastEnd ?? maxSeconds)
+  }
+
+  // MARK: - Analysis cap (pure, unit-tested)
+
+  /// The span the beat-grid layers cover on a lane of `span` seconds: `span`
+  /// itself, or `analysisCap` when it is finite, positive and inside the span.
+  nonisolated static func beatGridSpan(span: Double, analysisCap: Double?) -> Double {
+    guard let cap = analysisCap, cap.isFinite, cap > 0, cap < span else { return span }
+    return cap
+  }
+
+  /// `times` cut at the analysis cap: unchanged unless the cap sits inside
+  /// `span`, otherwise only the times at or before the cap.
+  nonisolated static func timesWithinGridSpan(
+    _ times: [Double], span: Double, analysisCap: Double?
+  ) -> [Double] {
+    let limit = beatGridSpan(span: span, analysisCap: analysisCap)
+    guard limit < span else { return times }
+    return times.filter { $0 <= limit }
   }
 
   // MARK: - Extrapolation (pure, unit-tested)
@@ -523,7 +631,7 @@ struct BeatGridView: View {
   }
 
   /// The scrubber x in the zoomed coordinate system: `time * pointsPerSecond`,
-  /// clamped to `[0, contentWidth]` (playback past the analyzed span pins the
+  /// clamped to `[0, contentWidth]` (playback past the lane span pins the
   /// marker at the right edge). Defends non-finite/degenerate input by
   /// returning 0.
   nonisolated static func scrubberX(
@@ -599,6 +707,15 @@ struct BeatGridHelpButton: View {
         .pink, "Downbeats",
         "The detected start-of-bar beats (the \"1\" of each bar), shown only when the analyzer is "
           + "confident enough to mark them.")
+      legendRow(
+        .green, "ML input crops",
+        "The 12 s stretches a fixed-time ML model read, numbered by rhythm score (1 is the "
+          + "most rhythmic). Shown only when a fixed-time model ran on this track.")
+      legendRow(
+        .red, "Analysis cap",
+        "The end of the analyzed audio (the Analyze first N s setting). The waveform runs past "
+          + "it only to show fixed-time ML crops from later in the track. No beat grid is drawn "
+          + "past it.")
       legendRow(
         .orange, "Anchor",
         "The single most-trusted beat that the extrapolated grid is built outward from.")

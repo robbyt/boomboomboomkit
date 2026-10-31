@@ -38,7 +38,7 @@ struct ModelLoadFailureContractTests {
     let (viewModel, suiteName) = try makeViewModel("detach")
     defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-    viewModel.attachMLTechnique(StubMLTechnique(), named: "stub.mlmodelc")
+    viewModel.attachMLTechnique(StubMLTechnique(), named: "stub.mlmodelc", kind: .window)
     #expect(viewModel.mlEnabled)
     #expect(viewModel.mlModelName == "stub.mlmodelc")
     #expect(viewModel.mlModelError == nil)
@@ -58,7 +58,7 @@ struct ModelLoadFailureContractTests {
     let (viewModel, suiteName) = try makeViewModel("fail")
     defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
 
-    viewModel.attachMLTechnique(StubMLTechnique(), named: "stub.mlmodelc")
+    viewModel.attachMLTechnique(StubMLTechnique(), named: "stub.mlmodelc", kind: .window)
     #expect(viewModel.mlEnabled)
 
     viewModel.failModelLoad(reason: "model-unavailable")

@@ -1,4 +1,5 @@
 import BoomBoomBoomKit
+import BoomBoomBoomKitTestSupport
 import Foundation
 import Testing
 
@@ -79,6 +80,37 @@ struct BeatGridLogicTests {
     #expect(out[0].isApproximately(0.1))
     #expect(out[1].isApproximately(0.2))
     #expect(out[2].isApproximately(0.3))
+  }
+
+  @Test("peaks: a set cancel flag throws CancellationError")
+  func peaksCancelled() {
+    #expect(throws: CancellationError.self) {
+      try Waveform.peaks(fromSamples: [0.1, -0.2, 0.3], columns: 2, isCancelled: { true })
+    }
+  }
+
+  // MARK: - Waveform.decode cancellation
+
+  // The 120 s fixture spans many of the reader's 10 s chunks, so the reader
+  // checks the flag before its second read. maxSeconds 600 asks for past the
+  // end of the file, as a long fixed-time crop span can.
+  @Test("decode: a set cancel flag throws CancellationError on a multi-chunk file")
+  func decodeCancelled() throws {
+    let url = try AudioFixtures.url(for: "robbyt_x-ray-120s", extension: "mp3")
+    #expect(throws: CancellationError.self) {
+      try Waveform.decode(url: url, maxSeconds: 600, columns: 2000, isCancelled: { true })
+    }
+  }
+
+  @Test("decode: a clear cancel flag returns the same envelope as one uncancellable read")
+  func decodeNotCancelledMatchesPlainRead() throws {
+    let url = try AudioFixtures.url(for: "robbyt_x-ray-120s", extension: "mp3")
+    let wf = try Waveform.decode(url: url, maxSeconds: 600, columns: 2000, isCancelled: { false })
+    let plain = try PCMBufferReader.readDecodedAudio(from: url, maxSeconds: 600)
+    #expect(wf.peaks == Waveform.peaks(fromSamples: plain.samples, columns: 2000))
+    #expect(wf.peaks.count == 2000)
+    #expect(wf.duration == Double(plain.samples.count) / plain.sampleRate)
+    #expect(wf.duration > 100)
   }
 
   // MARK: - clickSeekTime (click-to-scrub: content-x → snapped seek target)
